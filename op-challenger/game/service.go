@@ -268,16 +268,16 @@ func (s *Service) Stopped() bool {
 }
 
 func (s *Service) Stop(ctx context.Context) error {
-	s.logger.Info("stopping challenger game service")
+	s.logger.Info("Stopping challenger game service")
 
 	var result error
+	if s.monitor != nil {
+		s.monitor.StopMonitoring()
+	}
 	if s.sched != nil {
 		if err := s.sched.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close scheduler: %w", err))
 		}
-	}
-	if s.monitor != nil {
-		s.monitor.StopMonitoring()
 	}
 	if s.claimer != nil {
 		if err := s.claimer.Close(); err != nil {
@@ -314,6 +314,6 @@ func (s *Service) Stop(ctx context.Context) error {
 		}
 	}
 	s.stopped.Store(true)
-	s.logger.Info("stopped challenger game service", "err", result)
+	s.logger.Info("Stopped challenger game service", "err", result)
 	return result
 }

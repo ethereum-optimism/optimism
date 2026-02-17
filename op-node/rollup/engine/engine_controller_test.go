@@ -22,7 +22,7 @@ import (
 
 func TestInvalidPayloadDropsHead(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, false, &testutils.MockL1Source{}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, nil)
 
 	payload := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
 		BlockHash: common.Hash{0x01},
@@ -110,7 +110,7 @@ func TestOnUnsafePayload_EnqueueEmit(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, false, &testutils.MockL1Source{}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, nil)
 
 	emitter.ExpectOnce(PayloadInvalidEvent{})
 	emitter.ExpectOnce(ForkchoiceUpdateEvent{})
@@ -127,7 +127,7 @@ func TestOnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 
 	emitter := &testutils.MockEmitter{}
 	mockEngine := &testutils.MockEngine{}
-	cl := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter)
+	cl := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
 
 	// queue payload A1
 	emitter.ExpectOnceType("UnsafeUpdateEvent")
@@ -156,7 +156,7 @@ func TestPeekUnsafePayload(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
 
 	// empty -> zero
 	_, ref := ec.PeekUnsafePayload()
@@ -174,7 +174,7 @@ func TestPeekUnsafePayload(t *testing.T) {
 func TestPeekUnsafePayload_OnDeriveErrorReturnsZero(t *testing.T) {
 	// missing L1-info in txs will cause derive error
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
 
 	bad := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1, BlockHash: common.Hash{0xaa}}}
 	_ = ec.unsafePayloads.Push(bad)
@@ -184,7 +184,7 @@ func TestPeekUnsafePayload_OnDeriveErrorReturnsZero(t *testing.T) {
 
 func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
 
 	// Head payload (lower block number)
 	head := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
@@ -212,3 +212,4 @@ func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 }
 
 // note: nil-envelope behavior is not tested to match current implementation
+// SuperAuthority tests are in super_authority_deny_test.go

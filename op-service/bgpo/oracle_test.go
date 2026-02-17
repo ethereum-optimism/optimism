@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+// mockBTOBackend mocks BTOBackend for testing.
+
 type mockBTOBackend struct {
 	mock.Mock
 }
@@ -44,37 +46,7 @@ func (m *mockBTOBackend) BlockByNumber(ctx context.Context, number *big.Int) (*t
 	return args.Get(0).(*types.Block), args.Error(1)
 }
 
-func (m *mockBTOBackend) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
-	args := m.Called(ctx, ch)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(ethereum.Subscription), args.Error(1)
-}
-
 var _ BTOBackend = (*mockBTOBackend)(nil)
-
-// mockSubscription implements ethereum.Subscription for testing.
-type mockSubscription struct {
-	errCh    chan error
-	unsubbed bool
-}
-
-func newMockSubscription() *mockSubscription {
-	return &mockSubscription{
-		errCh: make(chan error, 1),
-	}
-}
-
-func (s *mockSubscription) Unsubscribe() {
-	if !s.unsubbed {
-		s.unsubbed = true
-	}
-}
-
-func (s *mockSubscription) Err() <-chan error {
-	return s.errCh
-}
 
 func createHeader(blockNum uint64, excessBlobGas *uint64) *types.Header {
 	header := &types.Header{
@@ -433,19 +405,20 @@ func TestExtractBlobFeeCaps(t *testing.T) {
 }
 
 func TestOracleLifecycle(t *testing.T) {
-	mbackend := new(mockBTOBackend)
 	chainConfig := params.MainnetChainConfig
 	logger := testlog.Logger(t, log.LevelDebug)
 
-	oracle := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
-		PricesCacheSize: 10,
-		BlockCacheSize:  10,
-		MaxBlocks:       2,
-		Percentile:      60,
-		NetworkTimeout:  time.Second,
-	})
+	t.Run("start and close with polling", func(t *testing.T) {
+		mbackend := new(mockBTOBackend)
+		oracle := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
+			PricesCacheSize: 10,
+			BlockCacheSize:  10,
+			MaxBlocks:       2,
+			Percentile:      60,
+			NetworkTimeout:  time.Second,
+			PollRate:        50 * time.Millisecond, // Fast polling for test
+		})
 
-	t.Run("start and close", func(t *testing.T) {
 		latestBlock := uint64(100)
 
 		// Mock pre-population calls
@@ -459,12 +432,15 @@ func TestOracleLifecycle(t *testing.T) {
 			mbackend.On("BlockByNumber", mock.Anything, big.NewInt(int64(i))).Return(block, nil).Once()
 		}
 
-		// Mock subscription
-		sub := newMockSubscription()
-		var headerCh chan<- *types.Header
-		mbackend.On("SubscribeNewHead", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			headerCh = args.Get(1).(chan<- *types.Header)
-		}).Return(sub, nil).Once()
+		// Mock polling: first return NotFound, then return a new header
+		mbackend.On("HeaderByNumber", mock.Anything, big.NewInt(101)).Return(nil, ethereum.NotFound).Once()
+		newHeader := createHeader(101, &excessBlobGas)
+		newBlock := createBlock(101, newHeader.BaseFee, []*types.Transaction{})
+		mbackend.On("HeaderByNumber", mock.Anything, big.NewInt(101)).Return(newHeader, nil).Once()
+		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(101)).Return(newBlock, nil).Once()
+
+		// After processing block 101, polling will try block 102 which doesn't exist
+		mbackend.On("HeaderByNumber", mock.Anything, big.NewInt(102)).Return(nil, ethereum.NotFound).Maybe()
 
 		// Start the oracle
 		err := oracle.Start()
@@ -481,14 +457,7 @@ func TestOracleLifecycle(t *testing.T) {
 		require.Equal(t, uint64(100), latestBlockNum)
 		require.NotNil(t, fee)
 
-		// Send a new header through the subscription to verify processing works
-		newHeader := createHeader(101, &excessBlobGas)
-		newBlock := createBlock(101, newHeader.BaseFee, []*types.Transaction{})
-		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(101)).Return(newBlock, nil).Once()
-
-		headerCh <- newHeader
-
-		// Give the goroutine time to process
+		// Wait for polling to pick up the new header
 		require.Eventually(t, func() bool {
 			latestBlockNum, _ = oracle.GetLatestBlobBaseFee()
 			return latestBlockNum == 101
@@ -497,8 +466,6 @@ func TestOracleLifecycle(t *testing.T) {
 		// Close the oracle
 		oracle.Close()
 
-		// Verify subscription was unsubscribed
-		require.True(t, sub.unsubbed, "subscription should be unsubscribed after Close")
 		select {
 		case <-oracle.loopDone:
 			// Expect loop to have exited
@@ -510,6 +477,7 @@ func TestOracleLifecycle(t *testing.T) {
 	})
 
 	t.Run("close before start is safe", func(t *testing.T) {
+		mbackend := new(mockBTOBackend)
 		oracle2 := NewBlobTipOracle(mbackend, chainConfig, logger, &BlobTipOracleConfig{
 			PricesCacheSize: 10,
 			BlockCacheSize:  10,

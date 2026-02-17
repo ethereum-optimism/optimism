@@ -299,8 +299,8 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 	}
 }
 
-// deployDummyCaller deploys DummyCaller at the prank address with the given OPCM address.
-func deployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.StatDirFs, prank, opcmAddr common.Address) {
+// DeployDummyCaller deploys DummyCaller at the prank address with the given OPCM address.
+func DeployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.StatDirFs, prank, opcmAddr common.Address) {
 	t.Helper()
 
 	artifacts := &foundry.ArtifactsFS{FS: afactsFS}
@@ -429,7 +429,7 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 	// Process each OPCM upgrade: deploy DummyCaller with correct OPCM, run upgrade, broadcast
 	for _, opcm := range toApply {
 		// Deploy DummyCaller with this OPCM's address
-		deployDummyCaller(t, rpcClient, afactsFS, prank, opcm.Address)
+		DeployDummyCaller(t, rpcClient, afactsFS, prank, opcm.Address)
 
 		// Create fresh broadcaster and host for this upgrade
 		bcaster := NewImpersonationBroadcaster(lgr, ethClient, rpcClient, prank, networkChainID)

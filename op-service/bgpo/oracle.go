@@ -2,6 +2,7 @@ package bgpo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -24,7 +25,6 @@ type BTOBackend interface {
 	BlockNumber(ctx context.Context) (uint64, error)
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
-	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
 }
 
 // BlobTipOracle tracks blob base gas prices by subscribing to new block headers
@@ -49,7 +49,6 @@ type BlobTipOracle struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	sub      ethereum.Subscription
 	loopDone chan struct{}
 }
 
@@ -121,48 +120,49 @@ func NewBlobTipOracle(backend BTOBackend, chainConfig *params.ChainConfig, log l
 }
 
 // Start starts the oracle's background processing. It returns after the cache is prepopulated and
-// the subscription is set up. To stop the background processing, call [BlobTipOracle.Close]. The
-// background processing will also stop if the subscription fails.
+// the polling loop is started. To stop the background processing, call [BlobTipOracle.Close].
 func (o *BlobTipOracle) Start() error {
-	// Pre-populate cache with recent blocks before subscribing
+	// Pre-populate cache with recent blocks before starting the polling loop
 	if err := o.prePopulateCache(); err != nil {
 		o.log.Warn("Failed to pre-populate cache, continuing anyway", "err", err)
 	}
 
-	headers := make(chan *types.Header, 10)
-
-	sub, err := o.backend.SubscribeNewHead(o.ctx, headers)
-	if err != nil {
-		return err
-	}
-	o.sub = sub
-	o.log.Info("Blob tip oracle started, subscribed to newHeads")
+	o.log.Info("Blob tip oracle started, polling for new headers")
 
 	o.loopDone = make(chan struct{})
-	go o.processHeaders(headers)
+	go o.pollLoop()
 	return nil
 }
 
-func (o *BlobTipOracle) processHeaders(headers chan *types.Header) {
-	defer o.log.Debug("Blob tip oracle header processing loop exited")
+func (o *BlobTipOracle) pollLoop() {
+	defer o.log.Debug("Blob tip oracle polling loop exited")
 	defer close(o.loopDone)
 
-	// Process headers as they arrive
+	ticker := time.NewTicker(o.config.PollRate)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case header := <-headers:
-			if err := o.processHeader(header); err != nil {
-				o.log.Error("Error processing header", "err", err, "block", header.Number)
-			}
-		case err := <-o.sub.Err():
-			if err != nil {
-				o.log.Error("Subscription error", "err", err)
-				return
-			}
-			return
 		case <-o.ctx.Done():
 			o.log.Info("Blob tip oracle context canceled")
 			return
+		case <-ticker.C:
+			nextBlock := o.latestBlock + 1
+			header, err := func() (*types.Header, error) {
+				ctx, cancel := context.WithTimeout(o.ctx, o.config.NetworkTimeout)
+				defer cancel()
+				return o.backend.HeaderByNumber(ctx, big.NewInt(int64(nextBlock)))
+			}()
+			if errors.Is(err, ethereum.NotFound) {
+				continue // Block not yet available
+			}
+			if err != nil {
+				o.log.Warn("Failed to get header", "err", err, "block", nextBlock)
+				continue
+			}
+			if err := o.processHeader(header); err != nil {
+				o.log.Error("Error processing header", "err", err, "block", nextBlock)
+			}
 		}
 	}
 }
@@ -379,9 +379,6 @@ func (o *BlobTipOracle) extractTipsForBlobTxs(block *types.Block, baseFee *big.I
 // Close stops the oracle and cleans up resources.
 func (o *BlobTipOracle) Close() {
 	o.cancel()
-	if o.sub != nil {
-		o.sub.Unsubscribe()
-	}
 	if o.loopDone != nil {
 		<-o.loopDone
 	}

@@ -1030,10 +1030,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND, // Standard init bond
+                enabled: false,
+                initBond: 0,
                 gameType: GameTypes.CANNON,
-                gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+                gameArgs: bytes("")
             })
         );
         deployConfig.disputeGameConfigs.push(
@@ -1052,12 +1052,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND, // Standard init bond
+                enabled: false,
+                initBond: 0,
                 gameType: GameTypes.CANNON_KONA,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
-                )
+                gameArgs: bytes("")
             })
         );
     }
@@ -1065,7 +1063,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the deploy function succeeds and passes standard validation.
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.
-        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig);
+        // We expect PLDG-10 and CKDG-10 validator errors because CANNON and CANNON_KONA are
+        // disabled during initial deployment (no implementations registered).
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), "PLDG-10,CKDG-10");
 
         // Verify key contracts are deployed.
         assertTrue(address(cts.systemConfig) != address(0), "systemConfig not deployed");
@@ -1138,6 +1138,26 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
         );
     }
+
+    function test_deploy_cannonGameEnabled_reverts() public {
+        deployConfig.disputeGameConfigs[0].enabled = true;
+        deployConfig.disputeGameConfigs[0].initBond = 1 ether;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    function test_deploy_cannonKonaGameEnabled_reverts() public {
+        deployConfig.disputeGameConfigs[2].enabled = true;
+        deployConfig.disputeGameConfigs[2].initBond = 1 ether;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
 }
 
 /// @title OPContractsManagerV2_DevFeatureBitmap_Test
@@ -1188,10 +1208,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](3);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+            gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -1206,10 +1226,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             )
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: bytes("")
         });
 
         // Set up the deploy config using struct literal for compile-time field checking.
@@ -1544,10 +1564,10 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
         address initialProposer = makeAddr("proposer");
         baseConfig.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](3);
         baseConfig.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+            gameArgs: bytes("")
         });
         baseConfig.disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -1562,10 +1582,10 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             )
         });
         baseConfig.disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: bytes("")
         });
 
         // 3. Deploy 15 separate chains using opcmV2.deploy().

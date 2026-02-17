@@ -57,6 +57,7 @@ The OP Stack includes significant Rust implementations:
 
 More detailed guidance for AI agents can be found in:
 
+- [docs/ai/ci-ops.md](docs/ai/ci-ops.md) - CI/CD operations
 - [docs/ai/contract-dev.md](docs/ai/contract-dev.md) - Smart contract development
 - [docs/ai/go-dev.md](docs/ai/go-dev.md) - Go service development
 - [docs/ai/rust-dev.md](docs/ai/rust-dev.md) - Rust development (kona, op-reth, alloy crates)

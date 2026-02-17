@@ -5,7 +5,10 @@ import (
 	"encoding/binary"
 	"math/big"
 	"net/url"
+	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"time"
 
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -13,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -186,13 +190,13 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	return f.GameAtIndex(initialCount)
 }
 
-func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) StartSuperCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
 	f.require.NotNil(f.superNode, "super node is required to start super games")
 
-	return f.startSuperCannonGameOfType(eoa, gameTypes.SuperCannonGameType, opts...)
+	return f.startSuperGameOfType(eoa, gameTypes.SuperCannonKonaGameType, opts...)
 }
 
-func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
 	if len(cfg.superOutputRoots) != 0 && cfg.rootClaimSet {
 		f.t.Error("cannot set both super output roots and root claim in super game")
@@ -270,13 +274,13 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 			f.challengerCfg.CannonKona,
 			vm.NewKonaExecutor(),
 		)
-	case gameTypes.SuperCannonGameType:
+	case gameTypes.SuperCannonKonaGameType:
 		return f.honestSuperCannonTrace(
 			game,
-			f.challengerCfg.CannonAbsolutePreStateBaseURL,
-			f.challengerCfg.CannonAbsolutePreState,
-			f.challengerCfg.Cannon,
-			vm.NewOpProgramServerExecutor(f.log),
+			f.challengerCfg.CannonKonaAbsolutePreStateBaseURL,
+			f.challengerCfg.CannonKonaAbsolutePreState,
+			f.challengerCfg.CannonKona,
+			vm.NewKonaSuperExecutor(),
 		)
 	default:
 		f.require.Truef(false, "Honest trace not supported for game type %v", game.GameType())
@@ -448,6 +452,80 @@ func (f *DisputeGameFactory) safeTimestamp() uint64 {
 	resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), now)
 	f.require.NoError(err, "Failed to fetch super root at timestamp")
 	return resp.CurrentSafeTimestamp
+}
+
+// RunFPP runs the fault proof program between the two supplied timestamps. Currently only supports kona-interop.
+func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) {
+	f.require.NotNil(f.superNode, "super node is required to run FPP")
+	f.require.NotNil(f.challengerCfg, "challenger config is required to run FPP")
+
+	splitDepth := f.GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
+
+	// Use the current L1 head that the super node has processed. Otherwise the trace provider will fail because the node is not sufficiently up to date.
+	superRootResp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), endTimestamp)
+	f.require.NoError(err, "Failed to fetch super root at timestamp")
+	l1Head := superRootResp.CurrentL1
+
+	prestateProvider := super.NewSuperNodePrestateProvider(f.superNode.QueryAPI(), startTimestamp)
+	traceProvider := super.NewSuperNodeTraceProvider(
+		f.log.New("role", "fpp-trace"),
+		prestateProvider,
+		f.superNode.QueryAPI(),
+		eth.BlockID{Hash: l1Head.Hash, Number: l1Head.Number},
+		splitDepth,
+		startTimestamp,
+		endTimestamp,
+	)
+
+	tmpDir := f.t.TempDir()
+
+	// Starting prestate is the aboslutePrestate
+	absolutePrestate, err := prestateProvider.AbsolutePreState(f.t.Ctx())
+	f.require.NoError(err, "Failed to get absolute prestate")
+	agreedPrestate := absolutePrestate.Marshal()
+
+	// Iterate through valid claims at splitDepth (the leaves of the top game) to get a few steps past the endTimestamp
+	for i := uint64(0); i < (endTimestamp-startTimestamp)*super.StepsPerTimestamp+3; i++ {
+		pos := challengerTypes.NewPosition(splitDepth, new(big.Int).SetUint64(i))
+
+		// Create LocalGameInputs using the previous claim (or anchor state) as agreed and current as disputed
+		claimedPreimage, err := traceProvider.GetPreimageBytes(f.t.Ctx(), pos)
+		f.require.NoError(err, "Failed to get claim at position %v", pos)
+		inputs := utils.LocalGameInputs{
+			L1Head:           l1Head.Hash,
+			AgreedPreState:   agreedPrestate,
+			L2Claim:          crypto.Keccak256Hash(claimedPreimage),
+			L2SequenceNumber: new(big.Int).SetUint64(endTimestamp),
+		}
+
+		f.log.Info("Created LocalGameInputs for FPP",
+			"index", pos.IndexAtDepth(),
+			"l1Head", inputs.L1Head,
+			"l2Claim", inputs.L2Claim,
+		)
+
+		runFPPForStep(f, tmpDir, inputs)
+
+		// This claim becomes the agreed prestate for the next iteration
+		agreedPrestate = claimedPreimage
+	}
+}
+
+// runFPPForStep executes the native kona interop client using the LocalGameInputs and requires the claim to be successfully validated.
+func runFPPForStep(f *DisputeGameFactory, tmpDir string, inputs utils.LocalGameInputs) {
+	executor := vm.NewNativeKonaSuperExecutor()
+	oracleCommand, err := executor.OracleCommand(f.challengerCfg.CannonKona, tmpDir, inputs)
+	f.require.NoError(err, "Failed to create command")
+	f.log.Info("Executing FPP", "command", oracleCommand)
+	exePath, err := filepath.Abs(oracleCommand[0])
+	f.require.NoError(err, "Failed to get absolute path to executable")
+	cmd := exec.Command(exePath, oracleCommand[1:]...)
+	cmd.Dir = tmpDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = append(append(cmd.Env, os.Environ()...), "NO_COLOR=1")
+	err = cmd.Run()
+	f.require.NoError(err, "Failed to execute game")
 }
 
 type GameHelperEOA struct {

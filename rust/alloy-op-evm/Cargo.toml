@@ -1,0 +1,49 @@
+[package]
+name = "alloy-op-evm"
+description = "OP EVM implementation"
+
+version = "0.26.3"
+edition = "2021"
+rust-version = "1.88"
+authors = ["Alloy Contributors", "OpLabsPBC"]
+license.workspace = true
+homepage = "https://github.com/ethereum-optimism/optimism"
+repository = "https://github.com/ethereum-optimism/optimism"
+
+[lints]
+workspace = true
+
+[dependencies]
+alloy-evm = { workspace = true, features = ["op"] }
+
+alloy-eips = { workspace = true }
+alloy-consensus = { workspace = true }
+alloy-primitives = { workspace = true }
+
+alloy-op-hardforks.workspace = true
+op-alloy = { workspace = true, features = ["consensus"] }
+
+revm = { workspace = true }
+op-revm = { workspace = true }
+
+thiserror = { workspace = true }
+
+auto_impl = { workspace = true }
+
+[dev-dependencies]
+alloy-hardforks = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"alloy-primitives/std",
+	"revm/std",
+	"alloy-evm/std",
+	"op-revm/std",
+	"alloy-consensus/std",
+	"alloy-eips/std",
+	"op-alloy/std",
+	"thiserror/std"
+]
+gmp = ["alloy-evm/gmp"]
+asm-keccak = ["alloy-evm/asm-keccak", "alloy-primitives/asm-keccak", "revm/asm-keccak"]

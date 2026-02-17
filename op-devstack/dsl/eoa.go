@@ -1,6 +1,7 @@
 package dsl
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -12,6 +13,7 @@ import (
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -186,6 +188,35 @@ func (u *EOA) SendInitMessage(trigger *txintent.InitTrigger) (*txintent.IntentTx
 	return tx, receipt
 }
 
+// SendRandomInitMessage creates and sends a random initiating message using the given event logger.
+// topicCount specifies the number of topics (clamped to 1-4), dataLen specifies the opaque data length (minimum 1).
+func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Address, topicCount, dataLen int) (*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], *types.Receipt) {
+	// Clamp topicCount to valid range [1, 4]
+	if topicCount > 4 {
+		topicCount = 4
+	}
+	if topicCount < 1 {
+		topicCount = 1
+	}
+	// Ensure at least 1 byte of data
+	if dataLen < 1 {
+		dataLen = 1
+	}
+
+	// Generate random topics
+	topics := make([][32]byte, topicCount)
+	for i := range topics {
+		copy(topics[i][:], testutils.RandomData(rng, 32))
+	}
+
+	trigger := &txintent.InitTrigger{
+		Emitter:    eventLoggerAddress,
+		Topics:     topics,
+		OpaqueData: testutils.RandomData(rng, dataLen),
+	}
+	return u.SendInitMessage(trigger)
+}
+
 func (u *EOA) SendExecMessage(initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], eventIdx int) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.DependOn(&initIntent.Result)
@@ -195,6 +226,39 @@ func (u *EOA) SendExecMessage(initIntent *txintent.IntentTx[*txintent.InitTrigge
 	u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
 	// Check single ExecutingMessage triggered
 	u.t.Require().Equal(1, len(receipt.Logs))
+	return tx, receipt
+}
+
+// SendInvalidExecMessage sends an executing message with an invalid identifier.
+// The log index is incremented to reference a non-existent log.
+func (u *EOA) SendInvalidExecMessage(
+	initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput],
+	eventIdx int,
+) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
+	result, err := initIntent.Result.Eval(u.ctx)
+	u.t.Require().NoError(err, "failed to evaluate init result")
+	u.t.Require().Greater(len(result.Entries), eventIdx, "event index out of range")
+
+	// Get the message and modify it to be invalid by incrementing the log index
+	msg := result.Entries[eventIdx]
+	msg.Identifier.LogIndex++
+
+	// Create the exec trigger with the invalid message
+	execTrigger := &txintent.ExecTrigger{
+		Executor: constants.CrossL2Inbox,
+		Msg:      msg,
+	}
+
+	// The Fn just returns the pre-built trigger
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
+	tx.Content.DependOn(&initIntent.Result)
+	tx.Content.Fn(func(ctx context.Context) (*txintent.ExecTrigger, error) {
+		return execTrigger, nil
+	})
+
+	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
+	u.t.Require().NoError(err, "invalid exec msg receipt not found")
+	u.log.Info("invalid exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
 	return tx, receipt
 }
 

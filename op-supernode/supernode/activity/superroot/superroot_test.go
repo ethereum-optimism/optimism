@@ -9,7 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -87,9 +89,22 @@ func (m *mockCC) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID,
 	return eth.BlockID{}, nil
 }
 
+func (m *mockCC) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
+	return nil, nil, nil
+}
+
 func (m *mockCC) ID() eth.ChainID {
 	return eth.ChainIDFromUInt64(10)
 }
+
+func (m *mockCC) BlockTime() uint64 { return 1 }
+func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *mockCC) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 
