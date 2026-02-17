@@ -2116,6 +2116,80 @@ jobs:
       - notify-failures-on-develop:
           mentions: "@changwan <@U08L5U8070U>" # @changwan @Anton Evangelatov
 
+  # Setup job: single node that does checkout, Rust build, Go mod download,
+  # test compilation, and persists everything to workspace. This avoids
+  # repeating ~8 min of setup on every parallel test node.
+  op-acceptance-tests-setup:
+    parameters:
+      gate:
+        description: The gate to run the acceptance tests against.
+        type: string
+        default: ""
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    circleci_ip_ranges: true
+    resource_class: 2xlarge+
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      # Build kona-node for the acceptance tests. This automatically gets kona from the cache.
+      - rust-build:
+          directory: rust
+          profile: "release"
+      - run:
+          name: Configure Rust binary paths (sysgo)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+      # Restore cached Go modules
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      # Download Go dependencies
+      - run:
+          name: Download Go dependencies
+          working_directory: op-acceptance-tests
+          command: go mod download
+      - run:
+          name: Lint/Vet/Build op-acceptance-tests/cmd
+          working_directory: op-acceptance-tests
+          command: |
+            just cmd-check
+      # Prepare the test environment (compile tests to populate Go build cache)
+      - run:
+          name: Prepare test environment (compile tests and cache build results)
+          working_directory: op-acceptance-tests
+          command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
+      # Save the module cache for future runs
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+      # Restore timing hints from previous runs (for balanced CI splitting)
+      - restore_cache:
+          keys:
+            - acceptance-test-timings-v1
+      # Persist everything test nodes need to workspace
+      - persist_to_workspace:
+          root: .
+          paths:
+            # Go build cache (compiled test binaries)
+            - op-acceptance-tests/
+            # Rust binaries
+            - rust/target/release/kona-node
+            - rust/target/release/kona-supervisor
+            - .circleci-cache/rust-binaries/
+            # Timing hints for balanced splitting
+            - timing-hints.json
+
   op-acceptance-tests:
     parameters:
       gate:
@@ -2137,10 +2211,6 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
-      # Build kona-node for the acceptance tests. This automatically gets kona from the cache.
-      - rust-build:
-          directory: rust
-          profile: "release"
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
@@ -2158,27 +2228,17 @@ jobs:
               echo "export OP_ACCEPTOR_SPLIT_TOTAL=$CIRCLE_NODE_TOTAL" >> "$BASH_ENV"
               echo "export OP_ACCEPTOR_SPLIT_INDEX=$CIRCLE_NODE_INDEX" >> "$BASH_ENV"
             fi
-      # Restore cached Go modules
+            # Use timing hints for balanced splitting if available
+            if [ -f timing-hints.json ]; then
+              echo "Using timing hints for balanced CI splitting"
+              echo "export OP_ACCEPTOR_SPLIT_TIMING_FILE=$(pwd)/timing-hints.json" >> "$BASH_ENV"
+            fi
+      # Restore cached Go modules (needed for go test runtime)
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
             - go-mod-v1-
-      # Download Go dependencies
-      - run:
-          name: Download Go dependencies
-          working_directory: op-acceptance-tests
-          command: go mod download
-      - run:
-          name: Lint/Vet/Build op-acceptance-tests/cmd
-          working_directory: op-acceptance-tests
-          command: |
-            just cmd-check
-      # Prepare the test environment
-      - run:
-          name: Prepare test environment (compile tests and cache build results)
-          working_directory: op-acceptance-tests
-          command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
-      # Run the acceptance tests (if the devnet is running)
+      # Run the acceptance tests
       - run:
           name: Run acceptance tests (gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
@@ -2216,11 +2276,6 @@ jobs:
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
-      # Save the module cache for future runs
-      - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
       # Store test results and artifacts
       - when:
           condition: always
@@ -2275,15 +2330,16 @@ jobs:
             # Generate consolidated summary
             find logs/ -name "summary.log" -exec cat {} + > consolidated-summary.log || true
       - run:
-          name: Generate consolidated HTML report
+          name: Generate consolidated HTML report and timing data
           working_directory: op-acceptance-tests
           command: |
             if [ -s merged_raw_events.log ]; then
               op-acceptor \
                 --report-from-events merged_raw_events.log \
                 --logdir ./consolidated-report \
-                --orchestrator sysgo
-              echo "Consolidated HTML report generated"
+                --orchestrator sysgo \
+                --split-timing-output ../timing-hints.json
+              echo "Consolidated HTML report and timing data generated"
             else
               echo "No events to generate report from"
             fi
@@ -2295,6 +2351,11 @@ jobs:
           path: ./op-acceptance-tests/consolidated-report
       - store_artifacts:
           path: ./op-acceptance-tests/consolidated-summary.log
+      # Cache timing data for next run's balanced splitting
+      - save_cache:
+          key: acceptance-test-timings-v1-{{ epoch }}
+          paths:
+            - timing-hints.json
 
   op-acceptance-tests-flake-shake:
     parameters:
@@ -3335,6 +3396,17 @@ workflows:
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
       # IN-MEMORY (all)
+      - op-acceptance-tests-setup:
+          name: memory-all-setup
+          gate: ""
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+            - cannon-kona-prestate
+            - cannon-kona-host
+            - rust-binaries-for-sysgo
       - op-acceptance-tests:
           name: memory-all
           gate: "" # Empty gate = gateless mode
@@ -3344,11 +3416,7 @@ workflows:
             - slack
             - discord
           requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-            - cannon-kona-prestate
-            - cannon-kona-host
-            - rust-binaries-for-sysgo
+            - memory-all-setup
       - op-acceptance-tests-report:
           requires:
             - memory-all
