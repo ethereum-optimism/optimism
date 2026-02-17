@@ -12,6 +12,7 @@ Validation rules:
 - An executing message MAY reference an initiating message from a prior timestamp (VALID)
 - An executing message MUST NOT reference an initiating message from a future timestamp (INVALID)
 - The initiating message must exist and have a valid checksum (INVALID if not found)
+- Same-timestamp messages MUST NOT form circular dependencies (INVALID if cycle detected)
 
 Test 1 (TestSupernodeSameTimestampExecMessage) verifies:
 - When an executing message references an initiating message from the same timestamp,
@@ -25,15 +26,19 @@ Test 2 (TestSupernodeSameTimestampInvalidTransitive) verifies:
   B's (now-gone) init is also invalidated and replaced
 - Note: The invalidation is due to bad log index, NOT same-timestamp
 
+Test 3 (TestSupernodeSameTimestampCycle) verifies:
+- When two chains have mutual same-timestamp exec messages (A executes B, B executes A),
+  this creates a circular dependency that is detected and causes both blocks to be replaced
+- This validates the cycle detection algorithm (Kahn's topological sort)
+
 Test flow:
 1. Pause interop to control the validation timing
 2. Stop both sequencers to precisely control block timestamps
 3. Calculate the target timestamp and pre-compute message identifiers
-4. Include initiating message on Chain A at timestamp T
-5. Include executing message on Chain B at timestamp T (same timestamp - VALID!)
-6. Verify both transactions are at the same timestamp
-7. Resume interop and wait for validation
-8. Verify: Neither block was replaced, transactions still exist
+4. Include messages at timestamp T
+5. Verify all transactions are at the same timestamp
+6. Resume interop and wait for validation
+7. Verify expected outcomes (valid/replaced based on test scenario)
 */
 
 import (
@@ -458,6 +463,224 @@ func TestSupernodeSameTimestampInvalidTransitive(gt *testing.T) {
 	sys.L2ELB.AssertTxNotInBlock(blockNumberB, execReceiptB.TxHash)
 
 	t.Logger().Info("test complete: transitive invalidation caused both chains to be replaced",
+		"timestamp", targetTimestamp,
+		"originalBlockA", originalBlockHashA,
+		"replacementBlockA", currentBlockA.Hash,
+		"originalBlockB", originalBlockHashB,
+		"replacementBlockB", currentBlockB.Hash,
+	)
+}
+
+// TestSupernodeSameTimestampCycle tests that mutual same-timestamp executing messages
+// are detected as a circular dependency and cause both blocks to be replaced.
+//
+// This validates the cycle detection algorithm (Kahn's topological sort) in
+// the supernode's interop verification.
+//
+// Scenario at timestamp T:
+// - Chain A: emits init(IA) at log 0, executes IB at log 1 (references B's init at log 0)
+// - Chain B: emits init(IB) at log 0, executes IA at log 1 (references A's init at log 0)
+//
+// Dependency graph:
+// - A's exec(IB) depends on B's init(IB) which depends on B's exec(IA)
+// - B's exec(IA) depends on A's init(IA) which depends on A's exec(IB)
+// - This creates a cycle: A:1 → B:0 → B:1 → A:0 → A:1
+//
+// Expected outcome:
+// - Cycle detection identifies the circular dependency
+// - Both chains' blocks are marked invalid and replaced
+func TestSupernodeSameTimestampCycle(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	ctx := t.Ctx()
+
+	// Create funded EOAs on both chains
+	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+
+	// Deploy event loggers on BOTH chains (for mutual messaging)
+	eventLoggerA := alice.DeployEventLogger()
+	eventLoggerB := bob.DeployEventLogger()
+
+	// Sync chains before pausing interop
+	sys.L2B.CatchUpTo(sys.L2A)
+	sys.L2A.CatchUpTo(sys.L2B)
+
+	// Pause interop and verify it has stopped cleanly
+	pausedTimestamp := sys.Supernode.EnsureInteropPaused(sys.L2ACL, sys.L2BCL, 10)
+	t.Logger().Info("interop paused", "pausedTimestamp", pausedTimestamp)
+
+	// Get rollup config for block time
+	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
+
+	// Stop both sequencers to control timestamps precisely
+	t.Logger().Info("stopping both sequencers")
+	sys.L2ACL.StopSequencer()
+	sys.L2BCL.StopSequencer()
+
+	// Get current state of both chains after pause
+	unsafeA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	unsafeB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+
+	// Synchronize chains to the same timestamp if needed
+	unsafeA, unsafeB = synchronizeChainsToSameTimestamp(t, sys, unsafeA, unsafeB)
+
+	// Calculate expected block numbers for the NEXT blocks
+	nextTimestamp := unsafeA.Time + blockTime
+	expectedBlockNumA := unsafeA.Number + 1
+	expectedBlockNumB := unsafeB.Number + 1
+
+	t.Logger().Info("target timestamp for cycle detection test",
+		"currentTimestamp", unsafeA.Time,
+		"nextTimestamp", nextTimestamp,
+		"expectedBlockA", expectedBlockNumA,
+		"expectedBlockB", expectedBlockNumB,
+	)
+
+	// Prepare init messages for BOTH chains with deterministic content
+	rng := rand.New(rand.NewSource(55555)) // Unique seed for this test
+	initTriggerA := createDeterministicInitTrigger(rng, eventLoggerA, 2, 10)
+	initTriggerB := createDeterministicInitTrigger(rng, eventLoggerB, 2, 10)
+
+	// Pre-compute message identifiers for BOTH init messages
+	// IA: Chain A's init message at log index 0
+	precomputedMsgIA := precomputeInitMessage(
+		eventLoggerA,
+		expectedBlockNumA,
+		0, // LogIndex: first log in Chain A's block (init)
+		nextTimestamp,
+		sys.L2ELA.ChainID(),
+		initTriggerA,
+	)
+
+	// IB: Chain B's init message at log index 0
+	precomputedMsgIB := precomputeInitMessage(
+		eventLoggerB,
+		expectedBlockNumB,
+		0, // LogIndex: first log in Chain B's block (init)
+		nextTimestamp,
+		sys.L2ELB.ChainID(),
+		initTriggerB,
+	)
+
+	t.Logger().Info("pre-computed messages for cycle test",
+		"IA_origin", precomputedMsgIA.Identifier.Origin,
+		"IA_blockNum", precomputedMsgIA.Identifier.BlockNumber,
+		"IA_logIdx", precomputedMsgIA.Identifier.LogIndex,
+		"IB_origin", precomputedMsgIB.Identifier.Origin,
+		"IB_blockNum", precomputedMsgIB.Identifier.BlockNumber,
+		"IB_logIdx", precomputedMsgIB.Identifier.LogIndex,
+	)
+
+	// === STEP 1: Submit all four transactions to mempools ===
+	// Chain A: init(IA) at log 0 + exec(IB) at log 1 - VALID references, but creates cycle
+	// Chain B: init(IB) at log 0 + exec(IA) at log 1 - VALID references, but creates cycle
+
+	// 1. Chain A: init(IA) - will be at log index 0
+	initTxA := submitInitMessage(ctx, t, alice, initTriggerA)
+	t.Logger().Info("submitted init(IA) to Chain A", "txHash", initTxA.Signed.Value().Hash())
+
+	// 2. Chain A: exec(IB) - will be at log index 1, references B's init at log 0
+	execTxA := submitExecMessageWithPrecomputedMsg(ctx, t, alice, precomputedMsgIB)
+	t.Logger().Info("submitted exec(IB) to Chain A", "txHash", execTxA.Signed.Value().Hash())
+
+	// 3. Chain B: init(IB) - will be at log index 0
+	initTxB := submitInitMessage(ctx, t, bob, initTriggerB)
+	t.Logger().Info("submitted init(IB) to Chain B", "txHash", initTxB.Signed.Value().Hash())
+
+	// 4. Chain B: exec(IA) - will be at log index 1, references A's init at log 0
+	execTxB := submitExecMessageWithPrecomputedMsg(ctx, t, bob, precomputedMsgIA)
+	t.Logger().Info("submitted exec(IA) to Chain B", "txHash", execTxB.Signed.Value().Hash())
+
+	// === STEP 2: Resume BOTH sequencers simultaneously ===
+	t.Logger().Info("resuming both sequencers simultaneously")
+	sys.L2ACL.StartSequencer()
+	sys.L2BCL.StartSequencer()
+
+	// === STEP 3: Wait for all transactions to be included ===
+	t.Logger().Info("waiting for all transactions to be included")
+
+	initReceiptA, err := initTxA.Included.Eval(ctx)
+	require.NoError(t, err, "init(IA) should be included")
+	execReceiptA, err := execTxA.Included.Eval(ctx)
+	require.NoError(t, err, "exec(IB) should be included")
+	initReceiptB, err := initTxB.Included.Eval(ctx)
+	require.NoError(t, err, "init(IB) should be included")
+	execReceiptB, err := execTxB.Included.Eval(ctx)
+	require.NoError(t, err, "exec(IA) should be included")
+
+	// Get the actual blocks
+	blockA := sys.L2ELA.BlockRefByHash(initReceiptA.BlockHash)
+	blockB := sys.L2ELB.BlockRefByHash(initReceiptB.BlockHash)
+
+	t.Logger().Info("transaction inclusion results",
+		"blockA_number", blockA.Number,
+		"blockA_timestamp", blockA.Time,
+		"blockA_hash", blockA.Hash,
+		"blockB_number", blockB.Number,
+		"blockB_timestamp", blockB.Time,
+		"blockB_hash", blockB.Hash,
+	)
+
+	// Verify all txs are in the expected blocks at the same timestamp
+	require.Equal(t, blockA.Time, blockB.Time,
+		"both blocks must be at the same timestamp for this test to be valid")
+	require.Equal(t, initReceiptA.BlockHash, execReceiptA.BlockHash,
+		"Chain A's init and exec should be in the same block")
+	require.Equal(t, initReceiptB.BlockHash, execReceiptB.BlockHash,
+		"Chain B's init and exec should be in the same block")
+
+	// Record original block hashes before validation
+	originalBlockHashA := blockA.Hash
+	originalBlockHashB := blockB.Hash
+	blockNumberA := blockA.Number
+	blockNumberB := blockB.Number
+	targetTimestamp := blockA.Time
+
+	t.Logger().Info("original blocks recorded - expecting cycle detection to invalidate both",
+		"blockA_hash", originalBlockHashA,
+		"blockB_hash", originalBlockHashB,
+		"timestamp", targetTimestamp,
+	)
+
+	// === STEP 4: Resume interop validation ===
+	t.Logger().Info("resuming interop validation", "targetTimestamp", targetTimestamp)
+	sys.Supernode.ResumeInterop()
+
+	// Wait for validation to complete
+	sys.Supernode.AwaitValidatedTimestamp(targetTimestamp)
+
+	// === STEP 5: Verify the results ===
+	// Get the current blocks at the same heights
+	currentBlockA := sys.L2ELA.BlockRefByNumber(blockNumberA)
+	currentBlockB := sys.L2ELB.BlockRefByNumber(blockNumberB)
+
+	t.Logger().Info("blocks after validation",
+		"originalA", originalBlockHashA,
+		"currentA", currentBlockA.Hash,
+		"replacedA", originalBlockHashA != currentBlockA.Hash,
+		"originalB", originalBlockHashB,
+		"currentB", currentBlockB.Hash,
+		"replacedB", originalBlockHashB != currentBlockB.Hash,
+	)
+
+	// ASSERTION: BOTH chains should be replaced due to cycle detection
+	// The mutual same-timestamp exec messages create a circular dependency
+	chainAReplaced := originalBlockHashA != currentBlockA.Hash
+	chainBReplaced := originalBlockHashB != currentBlockB.Hash
+
+	require.True(t, chainBReplaced,
+		"Chain B should be replaced - cycle detected in same-timestamp messages")
+	require.True(t, chainAReplaced,
+		"Chain A should be replaced - cycle detected in same-timestamp messages")
+
+	// Verify the original transactions are no longer in the replacement blocks
+	sys.L2ELA.AssertTxNotInBlock(blockNumberA, initReceiptA.TxHash)
+	sys.L2ELA.AssertTxNotInBlock(blockNumberA, execReceiptA.TxHash)
+	sys.L2ELB.AssertTxNotInBlock(blockNumberB, initReceiptB.TxHash)
+	sys.L2ELB.AssertTxNotInBlock(blockNumberB, execReceiptB.TxHash)
+
+	t.Logger().Info("test complete: cycle detection caused both chains to be replaced",
 		"timestamp", targetTimestamp,
 		"originalBlockA", originalBlockHashA,
 		"replacementBlockA", currentBlockA.Hash,
