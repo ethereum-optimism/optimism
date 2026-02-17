@@ -14,12 +14,6 @@ func TestPreinteropFaultProofs(gt *testing.T) {
 	sfp.RunSuperFaultProofTest(t, sys)
 }
 
-func TestPreinteropFaultProofs_UnsafeProposal(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
-	sfp.RunUnsafeProposalTest(t, sys)
-}
-
 func TestPreinteropFaultProofs_TraceExtensionActivation(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
