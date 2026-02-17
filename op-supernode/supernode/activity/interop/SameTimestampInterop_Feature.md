@@ -104,7 +104,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 ## Current State
 
 **Phase**: Development  
-**Current Subfeature**: 1 (COMPLETE) - Allow Same-Timestamp Messages
+**Current Subfeature**: 2 (COMPLETE) - Add cycleVerifyFn field
 
 ---
 
@@ -172,3 +172,34 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 - `op-acceptance-tests/tests/supernode/interop/same_timestamp_invalid/same_timestamp_invalid_test.go`
 
 **Ready for**: Commit and proceed to Subfeature 2 (Add `cycleVerifyFn` field)
+
+---
+
+### Entry 3: Subfeature 2 Complete (2026-02-17)
+
+**Prompt received**:
+> I made some slight modifications to comments, but yes continue to make the commit, and then Subfeature-2
+
+**Actions taken**:
+
+1. **Committed Subfeature 1**: `f65c995352` - "interop: allow same-timestamp executing messages"
+
+2. **Unit Tests** (`interop_test.go`):
+   - Updated `TestNew/valid_inputs_initializes_all_components` to verify `cycleVerifyFn` is nil by default
+   - Added new test section `TestCycleVerifyFn` with three test cases:
+     - `cycleVerifyFn can be set and called` - verifies field can be assigned and invoked
+     - `cycleVerifyFn can return invalid heads` - verifies invalid heads are properly returned
+     - `cycleVerifyFn can return error` - verifies errors propagate correctly
+
+3. **Implementation** (`interop.go`):
+   - Added `cycleVerifyFn` field to `Interop` struct with same signature as `verifyFn`
+   - Added documentation explaining its purpose (same-timestamp circular dependency verification)
+
+4. **Verification**:
+   - All unit tests pass: `go test ./supernode/activity/interop/`
+
+**Files Modified**:
+- `op-supernode/supernode/activity/interop/interop.go`
+- `op-supernode/supernode/activity/interop/interop_test.go`
+
+**Ready for**: Commit and proceed to Subfeature 3 (Route same-timestamp through cycleVerifyFn)

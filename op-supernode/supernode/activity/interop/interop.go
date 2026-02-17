@@ -55,6 +55,13 @@ type Interop struct {
 
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
 
+	// cycleVerifyFn verifies same-timestamp executing messages that may form
+	// circular dependencies between chains. It is called for messages where
+	// the initiating message timestamp equals the executing message timestamp.
+	// Returns a Result with any invalid heads from cycle verification.
+	// This field is set by the circular verification implementation.
+	cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+
 	// pauseAtTimestamp is used for integration test control only.
 	// When non-zero, progressInterop will return early without processing
 	// if the next timestamp to process is >= this value.

@@ -137,6 +137,8 @@ func TestNew(t *testing.T) {
 				require.Len(t, interop.chains, 2)
 				require.Len(t, interop.logsDBs, 2)
 				require.NotNil(t, interop.verifyFn)
+				// cycleVerifyFn is nil by default (will be set by circular.go)
+				require.Nil(t, interop.cycleVerifyFn)
 
 				for chainID := range h.Chains() {
 					require.Contains(t, interop.logsDBs, chainID)
@@ -999,6 +1001,104 @@ func TestResult_IsEmpty(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.isEmpty, tt.result.IsEmpty())
+		})
+	}
+}
+
+// =============================================================================
+// TestCycleVerifyFn
+// =============================================================================
+
+// TestCycleVerifyFn tests that the cycleVerifyFn field can be set and used.
+// The cycleVerifyFn is used to verify same-timestamp executing messages
+// that may form circular dependencies between chains.
+func TestCycleVerifyFn(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		setup func(h *interopTestHarness) *interopTestHarness
+		run   func(t *testing.T, h *interopTestHarness)
+	}{
+		{
+			name: "cycleVerifyFn can be set and called",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, nil).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				// Verify it starts as nil
+				require.Nil(t, h.interop.cycleVerifyFn)
+
+				// Set a mock cycleVerifyFn
+				called := false
+				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					called = true
+					return Result{Timestamp: ts, L2Heads: blocks}, nil
+				}
+
+				// Call it directly
+				result, err := h.interop.cycleVerifyFn(1000, map[eth.ChainID]eth.BlockID{})
+				require.NoError(t, err)
+				require.True(t, called)
+				require.Equal(t, uint64(1000), result.Timestamp)
+			},
+		},
+		{
+			name: "cycleVerifyFn can return invalid heads",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, nil).WithChain(8453, nil).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				chainA := h.Mock(10).id
+				chainB := h.Mock(8453).id
+
+				// Set cycleVerifyFn to return invalid heads for chain B
+				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{
+						Timestamp: ts,
+						L2Heads:   blocks,
+						InvalidHeads: map[eth.ChainID]eth.BlockID{
+							chainB: blocks[chainB],
+						},
+					}, nil
+				}
+
+				// Call it and verify invalid heads are returned
+				blocks := map[eth.ChainID]eth.BlockID{
+					chainA: {Number: 100, Hash: common.HexToHash("0xA")},
+					chainB: {Number: 200, Hash: common.HexToHash("0xB")},
+				}
+				result, err := h.interop.cycleVerifyFn(1000, blocks)
+				require.NoError(t, err)
+				require.False(t, result.IsValid(), "result should be invalid when cycleVerifyFn returns invalid heads")
+				require.Contains(t, result.InvalidHeads, chainB)
+				require.NotContains(t, result.InvalidHeads, chainA)
+			},
+		},
+		{
+			name: "cycleVerifyFn can return error",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, nil).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				// Set cycleVerifyFn to return an error
+				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{}, errors.New("cycle verification failed")
+				}
+
+				// Call it and verify error is returned
+				_, err := h.interop.cycleVerifyFn(1000, map[eth.ChainID]eth.BlockID{})
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "cycle verification failed")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newInteropTestHarness(t)
+			tc.setup(h)
+			tc.run(t, h)
 		})
 	}
 }
