@@ -75,11 +75,11 @@ func NewRetryingL1BlobSource(logger log.Logger, source L1BlobSource) *RetryingL1
 	}
 }
 
-func (s *RetryingL1BlobSource) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+func (s *RetryingL1BlobSource) GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	return retry.Do(ctx, maxAttempts, s.strategy, func() ([]*eth.Blob, error) {
-		blobs, err := s.source.GetBlobs(ctx, ref, hashes)
+		blobs, err := s.source.GetBlobsByHash(ctx, time, hashes)
 		if err != nil {
-			s.logger.Warn("Failed to retrieve blobs", "ref", ref, "err", err)
+			s.logger.Warn("Failed to retrieve blobs", "time", time, "err", err)
 		}
 		return blobs, err
 	})

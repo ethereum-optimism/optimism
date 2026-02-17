@@ -195,7 +195,6 @@ func RewindSafeHeadBackward(gt *testing.T) {
 }
 
 // RewindFinalizedHeadBackward tests rewinding to a target behind the current finalized head.
-// All heads (unsafe, safe, finalized) should move backward.
 func RewindFinalizedHeadBackward(gt *testing.T) {
 	env := setupRewindTest(gt)
 
@@ -265,12 +264,7 @@ func RewindFinalizedHeadBackward(gt *testing.T) {
 	rewindTarget := finalizedBefore.Number / 2
 	require.Greater(gt, rewindTarget, uint64(0), "rewind target should be past genesis")
 	require.Less(gt, rewindTarget, finalizedBefore.Number, "rewind target should be behind finalized")
-	unsafeAfter, safeAfter, finalizedAfter := env.rewindToBlock(rewindTarget)
 
-	// Verify: all heads moved backward to target
-	require.Equal(gt, rewindTarget, unsafeAfter.Number, "unsafe should be at rewind target")
-	require.Equal(gt, rewindTarget, safeAfter.Number, "safe should have moved backward to target")
-	require.Equal(gt, rewindTarget, finalizedAfter.Number, "finalized should have moved backward to target")
-	require.Less(gt, safeAfter.Number, safeBefore.Number, "safe should have decreased")
-	require.Less(gt, finalizedAfter.Number, finalizedBefore.Number, "finalized should have decreased")
+	err := env.ec.RewindToTimestamp(context.Background(), env.timestampForBlock(rewindTarget))
+	require.ErrorIs(gt, err, engine_controller.ErrRewindOverFinalizedHead)
 }

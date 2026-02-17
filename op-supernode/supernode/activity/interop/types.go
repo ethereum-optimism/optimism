@@ -1,8 +1,6 @@
 package interop
 
 import (
-	"errors"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -31,8 +29,6 @@ func (r *Result) IsValid() bool {
 func (r *Result) IsEmpty() bool {
 	return r.L1Head == (eth.BlockID{}) && len(r.L2Heads) == 0 && len(r.InvalidHeads) == 0
 }
-
-var ErrInvalidResult = errors.New("result is invalid")
 
 func (r *Result) ToVerifiedResult() VerifiedResult {
 	return VerifiedResult{

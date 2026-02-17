@@ -69,14 +69,13 @@ contract ReadImplementationAddresses is Script {
             // Get implementations from OPCM V2
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
 
-            // OPCMV2 doesn't expose these addresses directly, so we set them to zero
-            // These are internal to the OPCM container and not meant to be accessed externally
+            // These addresses are deprecated in OPCM V2
             output_.opcmGameTypeAdder = address(0);
             output_.opcmDeployer = address(0);
             output_.opcmUpgrader = address(0);
-            output_.opcmInteropMigrator = address(0);
 
-            // StandardValidator is accessible via the standardValidator() method
+            // Get migrator and standard validator from OPCM V2
+            output_.opcmInteropMigrator = address(opcmV2.opcmMigrator());
             output_.opcmStandardValidator = address(opcmV2.opcmStandardValidator());
 
             IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();

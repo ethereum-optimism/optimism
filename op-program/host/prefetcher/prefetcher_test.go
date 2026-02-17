@@ -1,6 +1,7 @@
 package prefetcher
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -186,7 +187,6 @@ func TestFetchL1Blob(t *testing.T) {
 	commitment, err := blob.ComputeKZGCommitment()
 	require.NoError(t, err)
 	versionedHash := eth.KZGToVersionedHash(commitment)
-	blobHash := eth.IndexedBlobHash{Hash: versionedHash, Index: 0xFACADE}
 	l1Ref := eth.L1BlockRef{Time: 0}
 
 	t.Run("AlreadyKnown", func(t *testing.T) {
@@ -196,7 +196,7 @@ func TestFetchL1Blob(t *testing.T) {
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
 		defer blobFetcher.AssertExpectations(t)
 
-		blobs := oracle.GetBlob(l1Ref, blobHash)
+		blobs := oracle.GetBlob(l1Ref, versionedHash)
 		require.EqualValues(t, blobs[:], blob[:])
 	})
 
@@ -204,16 +204,16 @@ func TestFetchL1Blob(t *testing.T) {
 		prefetcher, _, blobFetcher, _, _ := createPrefetcher(t)
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
-		blobFetcher.ExpectOnGetBlobs(
+		blobFetcher.ExpectOnGetBlobsByHash(
 			context.Background(),
-			l1Ref,
-			[]eth.IndexedBlobHash{blobHash},
+			l1Ref.Time,
+			[]common.Hash{versionedHash},
 			[]*eth.Blob{&blob},
 			nil,
 		)
 		defer blobFetcher.AssertExpectations(t)
 
-		blobs := oracle.GetBlob(l1Ref, blobHash)
+		blobs := oracle.GetBlob(l1Ref, versionedHash)
 		require.EqualValues(t, blobs[:], blob[:])
 
 		// Check that the preimages of field element keys are also stored
@@ -776,6 +776,51 @@ func TestBadHints(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, value, pre)
 	})
+}
+
+func TestBlobHints(t *testing.T) {
+	// Static test data
+	blob := eth.Blob(bytes.Repeat([]byte{0x01}, 131072))
+	kzgCommitment, err := blob.ComputeKZGCommitment()
+	blobHash := eth.KZGToVersionedHash(kzgCommitment)
+	key := preimage.Sha256Key(blobHash).PreimageKey()
+	require.NoError(t, err)
+	timeStamp := uint64(1234567890)
+	index := uint64(3)
+
+	type testCase struct {
+		name string
+		hint l1.BlobHint
+	}
+
+	testsCases := []testCase{
+		{
+			name: "LegacyBlobHint",
+			hint: l1.NewLegacyBlobHint(blobHash, index, timeStamp),
+		},
+		{
+			name: "BlobHint",
+			hint: l1.NewBlobHint(blobHash, timeStamp),
+		},
+	}
+
+	for _, testCase := range testsCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			prefetcher, _, blobsSource, _, _ := createPrefetcher(t)
+			blobsSource.ExpectOnGetBlobsByHash(
+				context.Background(), timeStamp, []common.Hash{blobHash}, []*eth.Blob{&blob}, nil,
+			)
+
+			// Check that the prefetcher accepts the hint
+			require.NoError(t, prefetcher.Hint(testCase.hint.Hint()))
+
+			// Check that the prefetcher can retrieve the blob from the mock source
+			// using the stored hint.
+			pre, err := prefetcher.GetPreimage(context.Background(), key)
+			require.NoError(t, err)
+			require.Equal(t, []byte(kzgCommitment[:]), pre)
+		})
+	}
 }
 
 func TestFallbackWhenExperimentalFails(t *testing.T) {

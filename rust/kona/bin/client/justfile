@@ -1,0 +1,297 @@
+set fallback := true
+
+KONA_CLIENT_ROOT := source_directory()
+
+# default recipe to display help information
+default:
+  @just --list
+
+# Run the client program on asterisc with the host in detached server mode.
+run-client-asterisc block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc verbosity='':
+  #!/usr/bin/env bash
+
+  L1_NODE_ADDRESS="{{l1_rpc}}"
+  L1_BEACON_ADDRESS="{{l1_beacon_rpc}}"
+  L2_NODE_ADDRESS="{{l2_rpc}}"
+  OP_NODE_ADDRESS="{{rollup_node_rpc}}"
+
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/release/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
+  STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
+
+  CLAIMED_L2_BLOCK_NUMBER={{block_number}}
+  echo "Fetching configuration for block #$CLAIMED_L2_BLOCK_NUMBER..."
+
+  # Get output root for block
+  CLAIMED_L2_OUTPUT_ROOT=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $CLAIMED_L2_BLOCK_NUMBER) | jq -r .outputRoot)
+
+  # Get the info for the previous block
+  AGREED_L2_OUTPUT_ROOT=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $((CLAIMED_L2_BLOCK_NUMBER - 1))) | jq -r .outputRoot)
+  AGREED_L2_HEAD_HASH=$(cast block --rpc-url $L2_NODE_ADDRESS $((CLAIMED_L2_BLOCK_NUMBER - 1)) --json | jq -r .hash)
+  L1_ORIGIN_NUM=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $((CLAIMED_L2_BLOCK_NUMBER - 1))) | jq -r .blockRef.l1origin.number)
+  L1_HEAD=$(cast block --rpc-url $L1_NODE_ADDRESS $((L1_ORIGIN_NUM + 30)) --json | jq -r .hash)
+  L2_CHAIN_ID=$(cast chain-id --rpc-url $L2_NODE_ADDRESS)
+
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
+
+  echo "Building client program for RISC-V target..."
+  just build-asterisc-client
+
+  echo "Loading client program into Asterisc state format..."
+  asterisc load-elf --path=$CLIENT_BIN_PATH
+
+  echo "Building host program for native target..."
+  cargo build --bin kona-host --release
+
+  echo "Running asterisc"
+  asterisc run \
+    --info-at '%10000000' \
+    --proof-at never \
+    --input $STATE_PATH \
+    -- \
+    $HOST_BIN_PATH \
+    single \
+    --l1-head $L1_HEAD \
+    --agreed-l2-head-hash $AGREED_L2_HEAD_HASH \
+    --claimed-l2-output-root $CLAIMED_L2_OUTPUT_ROOT \
+    --agreed-l2-output-root $AGREED_L2_OUTPUT_ROOT \
+    --claimed-l2-block-number $CLAIMED_L2_BLOCK_NUMBER \
+    --l2-chain-id $L2_CHAIN_ID \
+    --l1-node-address $L1_NODE_ADDRESS \
+    --l1-beacon-address $L1_BEACON_ADDRESS \
+    --l2-node-address $L2_NODE_ADDRESS \
+    --server \
+    --data-dir ./data \
+    {{verbosity}}
+
+# Run the client program natively with the host program attached.
+run-client-native block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollup_config_path='' verbosity='':
+  #!/usr/bin/env bash
+  set -o errexit -o nounset -o pipefail
+
+  L1_NODE_ADDRESS="{{l1_rpc}}"
+  L1_BEACON_ADDRESS="{{l1_beacon_rpc}}"
+  L2_NODE_ADDRESS="{{l2_rpc}}"
+  OP_NODE_ADDRESS="{{rollup_node_rpc}}"
+
+  L2_CHAIN_ID=$(cast chain-id --rpc-url $L2_NODE_ADDRESS)
+  if [ -z "{{rollup_config_path}}" ]; then
+    CHAIN_ID_OR_ROLLUP_CONFIG_ARG="--l2-chain-id $L2_CHAIN_ID"
+  else
+    CHAIN_ID_OR_ROLLUP_CONFIG_ARG="--rollup-config-path $(realpath {{rollup_config_path}})"
+  fi
+
+  CLAIMED_L2_BLOCK_NUMBER={{block_number}}
+  echo "Fetching configuration for block #$CLAIMED_L2_BLOCK_NUMBER..."
+
+  # Get output root for block
+  CLAIMED_L2_OUTPUT_ROOT=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $CLAIMED_L2_BLOCK_NUMBER) | jq -r .outputRoot)
+
+  # Get the info for the previous block
+  AGREED_L2_OUTPUT_ROOT=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $((CLAIMED_L2_BLOCK_NUMBER - 1))) | jq -r .outputRoot)
+  AGREED_L2_HEAD_HASH=$(cast block --rpc-url $L2_NODE_ADDRESS $((CLAIMED_L2_BLOCK_NUMBER - 1)) --json | jq -r .hash)
+  L1_ORIGIN_NUM=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $((CLAIMED_L2_BLOCK_NUMBER - 1))) | jq -r .blockRef.l1origin.number)
+  L1_HEAD=$(cast block --rpc-url $L1_NODE_ADDRESS $((L1_ORIGIN_NUM + 30)) --json | jq -r .hash)
+
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
+
+  echo "Running host program with native client program..."
+  cargo r --bin kona-host --release -- \
+    single \
+    --l1-head $L1_HEAD \
+    --agreed-l2-head-hash $AGREED_L2_HEAD_HASH \
+    --claimed-l2-output-root $CLAIMED_L2_OUTPUT_ROOT \
+    --agreed-l2-output-root $AGREED_L2_OUTPUT_ROOT \
+    --claimed-l2-block-number $CLAIMED_L2_BLOCK_NUMBER \
+    --l1-node-address $L1_NODE_ADDRESS \
+    --l1-beacon-address $L1_BEACON_ADDRESS \
+    --l2-node-address $L2_NODE_ADDRESS \
+    --native \
+    --data-dir ./data \
+    $CHAIN_ID_OR_ROLLUP_CONFIG_ARG \
+    {{verbosity}}
+
+# Run the client program natively with the host program attached, in offline mode.
+run-client-native-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id verbosity='':
+  #!/usr/bin/env bash
+
+  CLAIMED_L2_BLOCK_NUMBER={{block_number}}
+  CLAIMED_L2_OUTPUT_ROOT={{l2_claim}}
+  AGREED_L2_OUTPUT_ROOT={{l2_output_root}}
+  AGREED_L2_HEAD_HASH={{l2_head}}
+  L1_HEAD={{l1_head}}
+  L2_CHAIN_ID={{l2_chain_id}}
+
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
+
+  echo "Running host program with native client program..."
+  cargo r --bin kona-host -- \
+    single \
+    --l1-head $L1_HEAD \
+    --agreed-l2-head-hash $AGREED_L2_HEAD_HASH \
+    --claimed-l2-output-root $CLAIMED_L2_OUTPUT_ROOT \
+    --agreed-l2-output-root $AGREED_L2_OUTPUT_ROOT \
+    --claimed-l2-block-number $CLAIMED_L2_BLOCK_NUMBER \
+    --l2-chain-id $L2_CHAIN_ID \
+    --native \
+    --data-dir ./data \
+    {{verbosity}}
+
+# Run the client program on asterisc with the host program detached, in offline mode.
+run-client-asterisc-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id verbosity='':
+  #!/usr/bin/env bash
+
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/debug/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/riscv64imac-unknown-none-elf/release-client-lto/kona-client"
+  STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
+
+  CLAIMED_L2_BLOCK_NUMBER={{block_number}}
+  CLAIMED_L2_OUTPUT_ROOT={{l2_claim}}
+  AGREED_L2_OUTPUT_ROOT={{l2_output_root}}
+  AGREED_L2_HEAD_HASH={{l2_head}}
+  L1_HEAD={{l1_head}}
+  L2_CHAIN_ID={{l2_chain_id}}
+
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
+
+  echo "Building client program for RISC-V target..."
+  just build-asterisc-client
+
+  echo "Loading client program into Asterisc state format..."
+  asterisc load-elf --path=$CLIENT_BIN_PATH
+
+  echo "Building host program for native target..."
+  cargo build --bin kona-host
+
+  echo "Running asterisc"
+  asterisc run \
+    --info-at '%10000000' \
+    --proof-at never \
+    --input $STATE_PATH \
+    -- \
+    $HOST_BIN_PATH \
+    single \
+    --l1-head $L1_HEAD \
+    --agreed-l2-head-hash $AGREED_L2_HEAD_HASH \
+    --claimed-l2-output-root $CLAIMED_L2_OUTPUT_ROOT \
+    --agreed-l2-output-root $AGREED_L2_OUTPUT_ROOT \
+    --claimed-l2-block-number $CLAIMED_L2_BLOCK_NUMBER \
+    --l2-chain-id $L2_CHAIN_ID \
+    --server \
+    --data-dir ./data \
+    {{verbosity}}
+
+# Run the client program on cannon with the host in detached server mode.
+run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollup_config_path='' verbosity='':
+  #!/usr/bin/env bash
+  set -o errexit -o nounset -o pipefail
+
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/release/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/mips64-unknown-none/release-client-lto/kona-client"
+  STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
+
+  L1_NODE_ADDRESS="{{l1_rpc}}"
+  L1_BEACON_ADDRESS="{{l1_beacon_rpc}}"
+  L2_NODE_ADDRESS="{{l2_rpc}}"
+  OP_NODE_ADDRESS="{{rollup_node_rpc}}"
+
+  L2_CHAIN_ID=$(cast chain-id --rpc-url $L2_NODE_ADDRESS)
+  if [ -z "{{rollup_config_path}}" ]; then
+    CHAIN_ID_OR_ROLLUP_CONFIG_ARG="--l2-chain-id $L2_CHAIN_ID"
+  else
+    CHAIN_ID_OR_ROLLUP_CONFIG_ARG="--rollup-config-path $(realpath {{rollup_config_path}})"
+  fi
+
+  CLAIMED_L2_BLOCK_NUMBER={{block_number}}
+  echo "Fetching configuration for block #$CLAIMED_L2_BLOCK_NUMBER..."
+
+  # Get output root for block
+  CLAIMED_L2_OUTPUT_ROOT=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $CLAIMED_L2_BLOCK_NUMBER) | jq -r .outputRoot)
+
+  # Get the info for the previous block
+  AGREED_L2_OUTPUT_ROOT=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $((CLAIMED_L2_BLOCK_NUMBER - 1))) | jq -r .outputRoot)
+  AGREED_L2_HEAD_HASH=$(cast block --rpc-url $L2_NODE_ADDRESS $((CLAIMED_L2_BLOCK_NUMBER - 1)) --json | jq -r .hash)
+  L1_ORIGIN_NUM=$(cast rpc --rpc-url $OP_NODE_ADDRESS "optimism_outputAtBlock" $(cast 2h $((CLAIMED_L2_BLOCK_NUMBER - 1))) | jq -r .blockRef.l1origin.number)
+  L1_HEAD=$(cast block --rpc-url $L1_NODE_ADDRESS $((L1_ORIGIN_NUM + 30)) --json | jq -r .hash)
+
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
+
+  echo "Building client program for MIPS64 target..."
+  just build-cannon-client
+
+  echo "Loading client program into Cannon state format..."
+  cannon load-elf --path=$CLIENT_BIN_PATH --type multithreaded64-5
+
+  echo "Building host program for native target..."
+  cargo build --bin kona-host --release
+
+  echo "Running cannon"
+  cannon run \
+    --info-at '%10000000' \
+    --proof-at never \
+    --input $STATE_PATH \
+    -- \
+    $HOST_BIN_PATH \
+    single \
+    --l1-head $L1_HEAD \
+    --agreed-l2-head-hash $AGREED_L2_HEAD_HASH \
+    --claimed-l2-output-root $CLAIMED_L2_OUTPUT_ROOT \
+    --agreed-l2-output-root $AGREED_L2_OUTPUT_ROOT \
+    --claimed-l2-block-number $CLAIMED_L2_BLOCK_NUMBER \
+    --l2-chain-id $L2_CHAIN_ID \
+    --l1-node-address $L1_NODE_ADDRESS \
+    --l1-beacon-address $L1_BEACON_ADDRESS \
+    --l2-node-address $L2_NODE_ADDRESS \
+    --server \
+    --data-dir ./data \
+    {{verbosity}}
+
+# Run the client program on cannon with the host program detached, in offline mode.
+run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id verbosity='':
+  #!/usr/bin/env bash
+
+  HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/debug/kona-host"
+  CLIENT_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/mips64-unknown-none/release-client-lto/kona-client"
+  STATE_PATH="{{KONA_CLIENT_ROOT}}/../../state.bin.gz"
+
+  CLAIMED_L2_BLOCK_NUMBER={{block_number}}
+  CLAIMED_L2_OUTPUT_ROOT={{l2_claim}}
+  AGREED_L2_OUTPUT_ROOT={{l2_output_root}}
+  AGREED_L2_HEAD_HASH={{l2_head}}
+  L1_HEAD={{l1_head}}
+  L2_CHAIN_ID={{l2_chain_id}}
+
+  # Move to the kona root
+  cd {{KONA_CLIENT_ROOT}}/../..
+
+  echo "Building client program for MIPS64 target..."
+  just build-cannon-client
+
+  echo "Loading client program into Cannon state format..."
+  cannon load-elf --path=$CLIENT_BIN_PATH --type multithreaded64-5
+
+  echo "Building host program for native target..."
+  cargo build --bin kona-host
+
+  echo "Running cannon"
+  cannon run \
+    --info-at '%10000000' \
+    --proof-at never \
+    --input $STATE_PATH \
+    -- \
+    $HOST_BIN_PATH \
+    single \
+    --l1-head $L1_HEAD \
+    --agreed-l2-head-hash $AGREED_L2_HEAD_HASH \
+    --claimed-l2-output-root $CLAIMED_L2_OUTPUT_ROOT \
+    --agreed-l2-output-root $AGREED_L2_OUTPUT_ROOT \
+    --claimed-l2-block-number $CLAIMED_L2_BLOCK_NUMBER \
+    --l2-chain-id $L2_CHAIN_ID \
+    --server \
+    --data-dir ./data \
+    {{verbosity}}

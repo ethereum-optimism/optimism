@@ -30,6 +30,12 @@ func New(log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer) *Superroo
 
 func (s *Superroot) ActivityName() string { return "superroot" }
 
+// Reset is a no-op for superroot - it always queries chain containers directly
+// and doesn't maintain any chain-specific cached state.
+func (s *Superroot) Reset(chainID eth.ChainID, timestamp uint64) {
+	// No-op: superroot queries chain containers directly
+}
+
 func (s *Superroot) RPCNamespace() string    { return "superroot" }
 func (s *Superroot) RPCService() interface{} { return &superrootAPI{s: s} }
 

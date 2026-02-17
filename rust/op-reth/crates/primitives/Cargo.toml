@@ -1,0 +1,96 @@
+[package]
+name = "reth-optimism-primitives"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+description = "OP primitive types"
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-primitives-traits = { workspace = true, features = ["op"] }
+
+# ethereum
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-rlp.workspace = true
+
+# op
+op-alloy-consensus.workspace = true
+
+# codec
+serde = { workspace = true, optional = true }
+serde_with = { workspace = true, optional = true }
+
+[dev-dependencies]
+reth-codecs = { workspace = true, features = ["test-utils", "op"] }
+
+bytes.workspace = true
+modular-bitfield.workspace = true
+reth-zstd-compressors.workspace = true
+rand.workspace = true
+arbitrary.workspace = true
+rstest.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+
+proptest-arbitrary-interop.workspace = true
+proptest.workspace = true
+rand_08.workspace = true
+secp256k1 = { workspace = true, features = ["rand", "std", "serde"] }
+
+[features]
+default = ["std"]
+std = [
+    "reth-primitives-traits/std",
+    "alloy-consensus/std",
+    "alloy-primitives/std",
+    "serde?/std",
+    "alloy-rlp/std",
+    "op-alloy-consensus/std",
+    "serde_json/std",
+    "serde_with?/std",
+    "alloy-eips/std",
+    "bytes/std",
+    "reth-zstd-compressors/std",
+]
+alloy-compat = ["op-alloy-consensus/alloy-compat"]
+reth-codec = [
+    "std",
+    "reth-primitives-traits/reth-codec",
+]
+serde = [
+    "dep:serde",
+    "reth-primitives-traits/serde",
+    "alloy-primitives/serde",
+    "alloy-consensus/serde",
+    "op-alloy-consensus/serde",
+    "alloy-eips/serde",
+    "rand/serde",
+    "rand_08/serde",
+    "bytes/serde",
+    "reth-codecs/serde",
+]
+serde-bincode-compat = [
+    "serde",
+    "serde_with",
+    "alloy-consensus/serde-bincode-compat",
+    "op-alloy-consensus/serde-bincode-compat",
+    "reth-primitives-traits/serde-bincode-compat",
+    "alloy-eips/serde-bincode-compat",
+]
+arbitrary = [
+    "std",
+    "reth-primitives-traits/arbitrary",
+    "op-alloy-consensus/arbitrary",
+    "alloy-consensus/arbitrary",
+    "alloy-primitives/arbitrary",
+    "alloy-eips/arbitrary",
+    "reth-codecs/arbitrary",
+]

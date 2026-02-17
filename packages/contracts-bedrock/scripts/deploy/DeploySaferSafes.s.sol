@@ -31,7 +31,7 @@ contract DeploySaferSafes is Script {
         output_.saferSafesSingleton = ISaferSafes(
             DeployUtils.createDeterministic({
                 _name: "SaferSafes",
-                _args: DeployUtils.encodeConstructor(bytes("")),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISaferSafes.__constructor__, ())),
                 _salt: DeployUtils.DEFAULT_SALT
             })
         );

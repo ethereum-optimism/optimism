@@ -179,6 +179,17 @@ func (o *Orchestrator) RegisterL2MetricsTargets(id stack.IDWithChain, endpoints 
 	}
 }
 
+// InteropTestControl returns the InteropTestControl for a given SupernodeID.
+// Returns nil if the supernode doesn't exist or doesn't implement the interface.
+// This function is for integration test control only.
+func (o *Orchestrator) InteropTestControl(id stack.SupernodeID) stack.InteropTestControl {
+	sn, ok := o.supernodes.Get(id)
+	if !ok {
+		return nil
+	}
+	return sn
+}
+
 type hydrator interface {
 	hydrate(system stack.ExtensibleSystem)
 }

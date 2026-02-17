@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -41,6 +42,9 @@ type SingleChainInterop struct {
 	FaucetL1 *dsl.Faucet
 	FunderL1 *dsl.Funder
 	FunderA  *dsl.Funder
+
+	// May be nil if not using sysgo
+	challengerConfig *challengerConfig.Config
 }
 
 func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
@@ -68,22 +72,29 @@ func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
 	default:
 		t.Gate().True(false, "expected at least one supervisor or supernode")
 	}
+
+	var challengerCfg *challengerConfig.Config
+	if len(l2A.L2Challengers()) > 0 {
+		challengerCfg = l2A.L2Challengers()[0].Config()
+	}
+
 	out := &SingleChainInterop{
-		Log:           t.Logger(),
-		T:             t,
-		system:        system,
-		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
-		Supervisor:    supervisor,
-		SuperRoots:    superRoots,
-		ControlPlane:  orch.ControlPlane(),
-		L1Network:     dsl.NewL1Network(l1Net),
-		L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
-		L2ChainA:      dsl.NewL2Network(l2A, orch.ControlPlane()),
-		L2ELA:         dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
-		L2CLA:         dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
-		Wallet:        dsl.NewRandomHDWallet(t, 30), // Random for test isolation
-		FaucetA:       dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
-		L2BatcherA:    dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		Log:              t.Logger(),
+		T:                t,
+		system:           system,
+		TestSequencer:    dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
+		Supervisor:       supervisor,
+		SuperRoots:       superRoots,
+		ControlPlane:     orch.ControlPlane(),
+		L1Network:        dsl.NewL1Network(l1Net),
+		L1EL:             dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+		L2ChainA:         dsl.NewL2Network(l2A, orch.ControlPlane()),
+		L2ELA:            dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
+		L2CLA:            dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
+		Wallet:           dsl.NewRandomHDWallet(t, 30), // Random for test isolation
+		FaucetA:          dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
+		L2BatcherA:       dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		challengerConfig: challengerCfg,
 	}
 	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
@@ -128,7 +139,7 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 
 func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
 	supernode := s.system.Supernode(match.Assume(s.T, match.FirstSupernode))
-	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, supernode, nil)
+	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, supernode, s.challengerConfig)
 }
 
 func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {

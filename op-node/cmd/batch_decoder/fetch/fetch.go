@@ -13,7 +13,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -114,21 +113,8 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, beacon 
 					blobIndex += len(tx.BlobHashes())
 					continue
 				}
-				var hashes []eth.IndexedBlobHash
-				for _, h := range tx.BlobHashes() {
-					idh := eth.IndexedBlobHash{
-						Index: uint64(blobIndex),
-						Hash:  h,
-					}
-					hashes = append(hashes, idh)
-					blobIndex += 1
-				}
-				blobs, err := beacon.GetBlobs(ctx, eth.L1BlockRef{
-					Hash:       block.Hash(),
-					Number:     block.NumberU64(),
-					ParentHash: block.ParentHash(),
-					Time:       block.Time(),
-				}, hashes)
+				hashes := tx.BlobHashes()
+				blobs, err := beacon.GetBlobsByHash(ctx, block.Time(), hashes)
 				if err != nil {
 					log.Fatal(fmt.Errorf("failed to fetch blobs: %w", err))
 				}

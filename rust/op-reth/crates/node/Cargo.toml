@@ -1,0 +1,141 @@
+[package]
+name = "reth-optimism-node"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-chainspec.workspace = true
+## ensure secp256k1 recovery with rayon support is activated
+reth-primitives-traits = { workspace = true, features = ["secp256k1", "rayon"] }
+reth-payload-builder.workspace = true
+reth-consensus.workspace = true
+reth-node-api.workspace = true
+reth-node-builder.workspace = true
+reth-tracing.workspace = true
+reth-provider.workspace = true
+reth-transaction-pool.workspace = true
+reth-network.workspace = true
+reth-evm.workspace = true
+reth-rpc-server-types.workspace = true
+reth-tasks = { workspace = true, optional = true }
+reth-trie-common.workspace = true
+reth-node-core.workspace = true
+reth-rpc-engine-api.workspace = true
+reth-engine-local = { workspace = true, features = ["op"] }
+reth-rpc-api.workspace = true
+
+# op-reth
+reth-optimism-payload-builder.workspace = true
+reth-optimism-evm = { workspace = true, features = ["std", "rpc"] }
+reth-optimism-rpc.workspace = true
+reth-optimism-storage.workspace = true
+reth-optimism-txpool.workspace = true
+reth-optimism-chainspec.workspace = true
+reth-optimism-consensus = { workspace = true, features = ["std"] }
+reth-optimism-forks.workspace = true
+reth-optimism-primitives = { workspace = true, features = ["serde", "serde-bincode-compat", "reth-codec"] }
+
+# revm with required optimism features
+# Note: this must be kept to ensure all features are properly enabled/forwarded
+revm = { workspace = true, features = ["secp256k1", "blst", "c-kzg", "memory_limit"] }
+op-revm.workspace = true
+
+# ethereum
+alloy-primitives.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-consensus.workspace = true
+
+# async
+tokio.workspace = true
+
+# misc
+clap.workspace = true
+serde.workspace = true
+eyre.workspace = true
+url.workspace = true
+
+# test-utils dependencies
+reth-db-api = { workspace = true, optional = true }
+reth-e2e-test-utils = { workspace = true, optional = true }
+alloy-genesis = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+reth-optimism-node = { workspace = true, features = ["test-utils"] }
+reth-db = { workspace = true, features = ["op", "test-utils"] }
+reth-node-builder = { workspace = true, features = ["test-utils"] }
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-tasks.workspace = true
+reth-payload-util.workspace = true
+reth-revm = { workspace = true, features = ["std"] }
+reth-rpc.workspace = true
+reth-rpc-eth-types.workspace = true
+reth-stages-types.workspace = true
+reth-trie-db.workspace = true
+
+alloy-network.workspace = true
+alloy-op-hardforks.workspace = true
+futures.workspace = true
+op-alloy-network.workspace = true
+
+[features]
+default = ["reth-codec"]
+asm-keccak = [
+    "alloy-primitives/asm-keccak",
+    "reth-optimism-node/asm-keccak",
+    "reth-node-core/asm-keccak",
+    "revm/asm-keccak",
+]
+keccak-cache-global = [
+    "alloy-primitives/keccak-cache-global",
+    "reth-node-core/keccak-cache-global",
+    "reth-optimism-node/keccak-cache-global",
+]
+js-tracer = [
+    "reth-node-builder/js-tracer",
+    "reth-optimism-node/js-tracer",
+    "reth-rpc/js-tracer",
+    "reth-rpc-eth-types/js-tracer",
+]
+test-utils = [
+	"reth-codec",
+	"reth-tasks",
+	"dep:reth-db-api",
+	"reth-db-api/op",
+	"reth-e2e-test-utils",
+	"alloy-genesis",
+	"serde_json",
+	"reth-node-builder/test-utils",
+	"reth-chainspec/test-utils",
+	"reth-consensus/test-utils",
+	"reth-evm/test-utils",
+	"reth-network/test-utils",
+	"reth-payload-builder/test-utils",
+	"reth-revm/test-utils",
+	"reth-db/test-utils",
+	"reth-provider/test-utils",
+	"reth-transaction-pool/test-utils",
+	"reth-optimism-node/test-utils",
+	"reth-optimism-primitives/arbitrary",
+	"reth-primitives-traits/test-utils",
+	"reth-trie-common/test-utils",
+	"reth-trie-db/test-utils",
+	"reth-stages-types/test-utils",
+	"reth-db-api?/test-utils"
+]
+reth-codec = ["reth-optimism-primitives/reth-codec"]
+
+[[test]]
+name = "e2e_testsuite"
+path = "tests/e2e-testsuite/main.rs"

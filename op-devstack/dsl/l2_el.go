@@ -397,6 +397,23 @@ func (el *L2ELNode) FinalizedHead() *BlockRefResult {
 	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Finalized)}
 }
 
+// AssertTxNotInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
+func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+
+	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
+	el.require.NoError(err, "failed to fetch block %d", blockNumber)
+
+	for _, tx := range txs {
+		if tx.Hash() == txHash {
+			el.require.Failf("transaction should not exist in block",
+				"tx_hash=%s found in block %d", txHash, blockNumber)
+		}
+	}
+	el.log.Info("confirmed transaction not in block", "blockNumber", blockNumber, "txHash", txHash)
+}
+
 type BlockRefResult struct {
 	T        devtest.T
 	BlockRef eth.L2BlockRef

@@ -1,0 +1,162 @@
+[package]
+name = "reth-op"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-primitives-traits = { workspace = true, features = ["op"] }
+reth-chainspec.workspace = true
+reth-network = { workspace = true, optional = true }
+reth-network-api = { workspace = true, optional = true }
+reth-eth-wire = { workspace = true, optional = true }
+reth-provider = { workspace = true, optional = true }
+reth-db = { workspace = true, optional = true, features = ["mdbx", "op"] }
+reth-codecs = { workspace = true, optional = true }
+reth-storage-api = { workspace = true, optional = true }
+reth-node-api = { workspace = true, optional = true }
+reth-node-core = { workspace = true, optional = true }
+reth-consensus = { workspace = true, optional = true }
+reth-consensus-common = { workspace = true, optional = true }
+reth-evm = { workspace = true, optional = true }
+reth-revm = { workspace = true, optional = true }
+reth-rpc = { workspace = true, optional = true }
+reth-rpc-api = { workspace = true, optional = true }
+reth-rpc-eth-types = { workspace = true, optional = true }
+reth-rpc-builder = { workspace = true, optional = true }
+reth-exex = { workspace = true, optional = true }
+reth-transaction-pool = { workspace = true, optional = true }
+reth-trie = { workspace = true, optional = true }
+reth-trie-db = { workspace = true, optional = true }
+reth-node-builder = { workspace = true, optional = true }
+reth-tasks = { workspace = true, optional = true }
+reth-cli-util = { workspace = true, optional = true }
+reth-engine-local = { workspace = true, optional = true }
+
+# reth-op
+alloy-primitives.workspace = true
+reth-optimism-primitives.workspace = true
+reth-optimism-chainspec.workspace = true
+reth-optimism-consensus = { workspace = true, optional = true }
+reth-optimism-evm = { workspace = true, optional = true }
+reth-optimism-node = { workspace = true, optional = true }
+reth-optimism-rpc = { workspace = true, optional = true }
+reth-optimism-cli = { workspace = true, optional = true }
+
+[features]
+default = ["std"]
+std = [
+	"reth-chainspec/std",
+	"reth-consensus?/std",
+	"reth-consensus-common?/std",
+	"reth-optimism-chainspec/std",
+	"reth-optimism-consensus?/std",
+	"reth-optimism-evm?/std",
+	"reth-optimism-primitives/std",
+	"reth-primitives-traits/std",
+	"reth-storage-api?/std",
+	"reth-evm?/std",
+	"reth-revm?/std",
+	"alloy-primitives/std"
+]
+arbitrary = [
+	"std",
+	"reth-chainspec/arbitrary",
+	"reth-optimism-primitives/arbitrary",
+	"reth-primitives-traits/arbitrary",
+	"reth-db?/arbitrary",
+	"reth-transaction-pool?/arbitrary",
+	"reth-eth-wire?/arbitrary",
+	"reth-codecs?/arbitrary",
+	"alloy-primitives/arbitrary"
+]
+keccak-cache-global = [
+	"reth-optimism-node?/keccak-cache-global",
+	"reth-node-core?/keccak-cache-global",
+	"reth-optimism-cli?/keccak-cache-global",
+	"alloy-primitives/keccak-cache-global"
+]
+test-utils = [
+    "reth-chainspec/test-utils",
+    "reth-consensus?/test-utils",
+    "reth-db?/test-utils",
+    "reth-evm?/test-utils",
+    "reth-revm?/test-utils",
+    "reth-network?/test-utils",
+    "reth-optimism-node?/test-utils",
+    "reth-primitives-traits/test-utils",
+    "reth-provider?/test-utils",
+    "reth-trie?/test-utils",
+    "reth-transaction-pool?/test-utils",
+    "reth-node-builder?/test-utils",
+    "reth-trie-db?/test-utils",
+    "reth-codecs?/test-utils",
+]
+
+full = ["consensus", "evm", "node", "provider", "rpc", "trie", "pool", "network"]
+
+alloy-compat = ["reth-optimism-primitives/alloy-compat"]
+cli = ["dep:reth-optimism-cli", "dep:reth-cli-util"]
+consensus = [
+    "dep:reth-consensus",
+    "dep:reth-consensus-common",
+    "dep:reth-optimism-consensus",
+]
+evm = ["dep:reth-evm", "dep:reth-optimism-evm", "dep:reth-revm"]
+exex = ["provider", "dep:reth-exex"]
+node-api = ["dep:reth-node-api", "dep:reth-node-core"]
+node = [
+    "provider",
+    "consensus",
+    "evm",
+    "network",
+    "node-api",
+    "dep:reth-optimism-node",
+    "dep:reth-node-builder",
+    "dep:reth-engine-local",
+    "rpc",
+    "trie-db",
+    "pool",
+]
+rpc = [
+    "tasks",
+    "dep:reth-rpc",
+    "dep:reth-rpc-builder",
+    "dep:reth-rpc-api",
+    "dep:reth-rpc-eth-types",
+    "dep:reth-optimism-rpc",
+]
+tasks = ["dep:reth-tasks"]
+jemalloc = [
+    "reth-cli-util?/jemalloc",
+    "reth-node-core?/jemalloc",
+    "reth-optimism-cli?/jemalloc",
+]
+js-tracer = [
+    "rpc",
+    "reth-rpc/js-tracer",
+    "reth-node-builder?/js-tracer",
+    "reth-optimism-node?/js-tracer",
+    "reth-rpc-eth-types?/js-tracer",
+]
+network = ["dep:reth-network", "tasks", "dep:reth-network-api", "dep:reth-eth-wire"]
+otlp = [
+    "reth-node-core?/otlp",
+    "reth-optimism-cli?/otlp",
+]
+portable = [
+    "reth-optimism-evm?/portable",
+    "reth-revm?/portable",
+]
+provider = ["storage-api", "tasks", "dep:reth-provider", "dep:reth-db", "dep:reth-codecs"]
+pool = ["dep:reth-transaction-pool"]
+storage-api = ["dep:reth-storage-api"]
+trie = ["dep:reth-trie", "alloy-primitives/rayon"]
+trie-db = ["trie", "dep:reth-trie-db"]

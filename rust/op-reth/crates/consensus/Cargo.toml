@@ -1,0 +1,76 @@
+[package]
+name = "reth-optimism-consensus"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+exclude = [".github/"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-execution-types.workspace = true
+reth-chainspec.workspace = true
+reth-consensus-common.workspace = true
+reth-consensus.workspace = true
+reth-primitives-traits.workspace = true
+reth-storage-api.workspace = true
+reth-storage-errors.workspace = true
+reth-trie-common.workspace = true
+
+# op-reth
+reth-optimism-forks.workspace = true
+reth-optimism-primitives.workspace = true
+
+# ethereum
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+alloy-trie.workspace = true
+revm.workspace = true
+
+# misc
+tracing.workspace = true
+thiserror.workspace = true
+reth-optimism-chainspec.workspace = true
+
+[dev-dependencies]
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-db-common.workspace = true
+reth-revm.workspace = true
+reth-trie.workspace = true
+reth-optimism-node.workspace = true
+
+alloy-chains.workspace = true
+
+op-alloy-consensus.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "reth-chainspec/std",
+    "reth-consensus/std",
+    "reth-consensus-common/std",
+    "reth-primitives-traits/std",
+    "reth-optimism-forks/std",
+    "reth-optimism-chainspec/std",
+    "reth-optimism-primitives/std",
+    "reth-storage-api/std",
+    "reth-storage-errors/std",
+    "reth-trie-common/std",
+    "alloy-chains/std",
+    "alloy-eips/std",
+    "alloy-primitives/std",
+    "alloy-consensus/std",
+    "alloy-trie/std",
+    "reth-revm/std",
+    "revm/std",
+    "tracing/std",
+    "thiserror/std",
+    "reth-execution-types/std",
+    "op-alloy-consensus/std",
+]
