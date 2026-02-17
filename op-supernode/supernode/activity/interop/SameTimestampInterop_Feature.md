@@ -104,7 +104,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 ## Current State
 
 **Phase**: Development  
-**Current Subfeature**: 2 (COMPLETE) - Add cycleVerifyFn field
+**Current Subfeature**: 3 (COMPLETE) - Route same-timestamp through cycleVerifyFn
 
 ---
 
@@ -203,3 +203,35 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 - `op-supernode/supernode/activity/interop/interop_test.go`
 
 **Ready for**: Commit and proceed to Subfeature 3 (Route same-timestamp through cycleVerifyFn)
+
+---
+
+### Entry 4: Subfeature 3 Complete (2026-02-17)
+
+**Prompt received**:
+> (continued from Subfeature 2 commit)
+
+**Actions taken**:
+
+1. **Implementation** (`algo.go`):
+   - Added `ErrSameTimestamp` sentinel error to indicate messages need cycle verification
+   - Modified `verifyExecutingMessage` to return `ErrSameTimestamp` when `execMsg.Timestamp == executingTimestamp`
+   - Modified `verifyInteropMessages` to:
+     - Catch `ErrSameTimestamp` and track `hasSameTimestampMessages`
+     - After main loop, call `cycleVerifyFn` if same-timestamp messages exist AND cycleVerifyFn is set
+     - Merge invalid heads from `cycleVerifyFn` into the result
+
+2. **Unit Tests** (`algo_test.go`):
+   - Added `CycleVerify/SameTimestampInvokesCycleVerifyFn` - verifies cycleVerifyFn is called
+   - Added `CycleVerify/NonSameTimestampDoesNotInvokeCycleVerifyFn` - verifies routing only for same-ts
+   - Added `CycleVerify/CycleVerifyFnInvalidHeadsPropagated` - verifies invalid heads merge correctly
+   - Added `CycleVerify/CycleVerifyFnErrorPropagated` - verifies errors propagate correctly
+
+3. **Verification**:
+   - All unit tests pass: `go test ./supernode/activity/interop/`
+
+**Files Modified**:
+- `op-supernode/supernode/activity/interop/algo.go`
+- `op-supernode/supernode/activity/interop/algo_test.go`
+
+**Ready for**: Commit and proceed to Subfeature 4 (Implement circular.go)

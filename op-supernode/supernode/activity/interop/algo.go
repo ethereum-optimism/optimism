@@ -26,6 +26,11 @@ var (
 	// ErrMessageExpired is returned when an executing message references
 	// an initiating message that has expired (older than ExpiryTime).
 	ErrMessageExpired = errors.New("initiating message has expired")
+
+	// ErrSameTimestamp is a sentinel error indicating that the executing message
+	// references an initiating message from the same timestamp. These messages
+	// require cycle verification and are not immediately validated.
+	ErrSameTimestamp = errors.New("same-timestamp message requires cycle verification")
 )
 
 // verifyInteropMessages validates all executing messages at the given timestamp.
@@ -43,6 +48,9 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		L2Heads:      make(map[eth.ChainID]eth.BlockID),
 		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
 	}
+
+	// Track whether any chain has same-timestamp messages that need cycle verification
+	hasSameTimestampMessages := false
 
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]
@@ -95,7 +103,13 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		// Verify each executing message
 		blockValid := true
 		for logIdx, execMsg := range execMsgs {
-			if err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg); err != nil {
+			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg)
+			if err != nil {
+				// ErrSameTimestamp is not a failure - it means we need cycle verification
+				if errors.Is(err, ErrSameTimestamp) {
+					hasSameTimestampMessages = true
+					continue
+				}
 				i.log.Warn("invalid executing message",
 					"chain", chainID,
 					"block", expectedBlock.Number,
@@ -111,6 +125,18 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		result.L2Heads[chainID] = expectedBlock
 		if !blockValid {
 			result.InvalidHeads[chainID] = expectedBlock
+		}
+	}
+
+	// If there are same-timestamp messages and cycleVerifyFn is set, run cycle verification
+	if hasSameTimestampMessages && i.cycleVerifyFn != nil {
+		cycleResult, err := i.cycleVerifyFn(ts, blocksAtTimestamp)
+		if err != nil {
+			return Result{}, fmt.Errorf("cycle verification failed: %w", err)
+		}
+		// Merge invalid heads from cycle verification into result
+		for chainID, invalidBlock := range cycleResult.InvalidHeads {
+			result.InvalidHeads[chainID] = invalidBlock
 		}
 	}
 
@@ -141,6 +167,12 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	if execMsg.Timestamp+ExpiryTime < executingTimestamp {
 		return fmt.Errorf("initiating timestamp %d + expiry %d < executing timestamp %d: %w",
 			execMsg.Timestamp, ExpiryTime, executingTimestamp, ErrMessageExpired)
+	}
+
+	// Same-timestamp messages require cycle verification.
+	// Return ErrSameTimestamp to signal that this message should be verified by cycleVerifyFn.
+	if execMsg.Timestamp == executingTimestamp {
+		return ErrSameTimestamp
 	}
 
 	// Build the query for the initiating message
