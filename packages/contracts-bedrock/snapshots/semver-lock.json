@@ -52,8 +52,8 @@
     "sourceCodeHash": "0xb3184aa5d95a82109e7134d1f61941b30e25f655b9849a0e303d04bbce0cde0b"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0x6b2d8f2796b7f348410b2cf429c6e0c6884ef9b500f4ee8d0728a879ae5ed911",
-    "sourceCodeHash": "0x9d36fe176e2c201854f13d88be3a5d11a714de876c6d6585d367e4392fd9d091"
+    "initCodeHash": "0x5f3548d6d5502669d34ff3104826d8498c3f74be2f6840a6acb9860e266d96a8",
+    "sourceCodeHash": "0xf7c02dec35e9c34e7e3e8f1fe939f7b84243064b423e38ba82fb06e389732cc7"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0x838bbd7f381e84e21887f72bd1da605bfc4588b3c39aed96cbce67c09335b3ee",
@@ -184,16 +184,16 @@
     "sourceCodeHash": "0x03c160168986ffc8d26a90c37366e7ad6da03f49d83449e1f8b3de0f4b590f6f"
   },
   "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry": {
-    "initCodeHash": "0xc00fdb1a4ae0ec8d7a96ebaad38ffaee9d96b942ab2a56e0ce2f76639f79ae7c",
-    "sourceCodeHash": "0xd2837ddf6992926ced31ef1916f95ebb8cc2006e94b82c2287997e5397edfeaf"
+    "initCodeHash": "0x7d85ca3f30f6526a62214a6ef876299dcf15e536afe4f5dd7b232a92120e170f",
+    "sourceCodeHash": "0x896011529b7fdb6623a0b3f72b099f38229168f54514e674c6b3aa7afc35e4fc"
   },
   "src/dispute/DelayedWETH.sol:DelayedWETH": {
     "initCodeHash": "0xa8f60e142108b33675a8f6b6979c73b96eea247884842d796f9f878904c0a906",
     "sourceCodeHash": "0xdebf2ab3af4d5549c40e9dd9db6b2458af286f323b6891f3b0c4e89f3c8928db"
   },
   "src/dispute/DisputeGameFactory.sol:DisputeGameFactory": {
-    "initCodeHash": "0xb7ef378c93102b733ec5e96f6448cdae0057b24be05ac99512fd155c0d7d3512",
-    "sourceCodeHash": "0xb6a8606b6849a28ee413d257a02732794e75165f40810ad1e0721204fce4ba36"
+    "initCodeHash": "0x534308ec135c86df2ea0d2f5f584e89b34f85dccb27349741bcba7e8d17bd8bc",
+    "sourceCodeHash": "0x7e68423e4c4ca7725a0c625aa3df9a3db0d7027eaddfdb2e7fa65329666b7a54"
   },
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame": {
     "initCodeHash": "0x2493823ad9fb986a696e61ce8a8ef50c548c6a4e0affeeec63edd119ca206083",

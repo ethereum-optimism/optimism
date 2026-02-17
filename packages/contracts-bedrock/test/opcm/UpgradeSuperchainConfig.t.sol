@@ -8,6 +8,7 @@ import { Test } from "test/setup/Test.sol";
 import { UpgradeSuperchainConfig } from "scripts/deploy/UpgradeSuperchainConfig.s.sol";
 
 // Interfaces
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -94,6 +95,19 @@ contract UpgradeSuperchainConfigV1_Run_Test is Test {
         upgradeSuperchainConfig.run(input);
         input.superchainConfig = ISuperchainConfig(address(superchainConfig));
     }
+
+    /// @notice Tests that the UpgradeSuperchainConfig script reverts when the OPCM upgradeSuperchainConfig
+    /// call fails
+    function test_upgrade_whenOPCMReverts_reverts() public {
+        vm.mockCallRevert(
+            prank,
+            IOPContractsManager.upgradeSuperchainConfig.selector,
+            abi.encode("UpgradeSuperchainConfig: upgrade failed")
+        );
+
+        vm.expectRevert("UpgradeSuperchainConfig: upgrade failed");
+        upgradeSuperchainConfig.run(input);
+    }
 }
 
 /// @title UpgradeSuperchainConfigV2_Run_Test
@@ -142,5 +156,20 @@ contract UpgradeSuperchainConfigV2_Run_Test is Test {
             superchainConfig: superchainConfig,
             extraInstructions: extraInstructions
         });
+    }
+
+    /// @notice Tests that the UpgradeSuperchainConfig script reverts when the OPCM v2 upgradeSuperchain
+    /// call fails
+    function test_upgrade_whenOPCMV2Reverts_reverts() public {
+        UpgradeSuperchainConfig.Input memory input = _getInput(new IOPContractsManagerUtils.ExtraInstruction[](0));
+
+        vm.mockCallRevert(
+            prank,
+            IOPContractsManagerV2.upgradeSuperchain.selector,
+            abi.encode("UpgradeSuperchainConfig: upgrade failed")
+        );
+
+        vm.expectRevert("UpgradeSuperchainConfig: upgrade failed");
+        upgradeSuperchainConfig.run(input);
     }
 }

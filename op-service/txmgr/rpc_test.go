@@ -72,4 +72,19 @@ func TestTxmgrRPC(t *testing.T) {
 			require.Equal(t, newVal, res)
 		})
 	}
+
+	t.Run("Get|SetBlobTipCapDynamic", func(t *testing.T) {
+		var res bool
+
+		require.NoError(t, rpcClient.Call(&res, "txmgr_getBlobTipCapDynamic"))
+		require.False(t, res)
+
+		require.NoError(t, rpcClient.Call(nil, "txmgr_setBlobTipCapDynamic", true))
+		require.NoError(t, rpcClient.Call(&res, "txmgr_getBlobTipCapDynamic"))
+		require.True(t, res)
+
+		require.NoError(t, rpcClient.Call(nil, "txmgr_setBlobTipCapDynamic", false))
+		require.NoError(t, rpcClient.Call(&res, "txmgr_getBlobTipCapDynamic"))
+		require.False(t, res)
+	})
 }

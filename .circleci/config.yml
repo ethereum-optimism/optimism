@@ -62,7 +62,13 @@ parameters:
   ai_contracts_test_dispatch:
     type: boolean
     default: false
+  kona_dispatch:
+    type: boolean
+    default: false
   op_alloy_dispatch:
+    type: boolean
+    default: false
+  alloy_op_hardforks_dispatch:
     type: boolean
     default: false
   alloy_op_evm_dispatch:
@@ -133,21 +139,31 @@ workflows:
             .* flake-shake-iterations << pipeline.parameters.flake-shake-iterations >> .circleci/continue/main.yml
             .* flake-shake-workers << pipeline.parameters.flake-shake-workers >> .circleci/continue/main.yml
             .* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
-            kona/.* kona_dispatch true .circleci/continue/kona.yml
+
+            kona/.* kona_dispatch << pipeline.parameters.kona_dispatch >> .circleci/continue/kona.yml
             kona/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/kona.yml
             kona/.* base_image << pipeline.parameters.base_image >> .circleci/continue/kona.yml
             kona/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/kona.yml
-            op-alloy/.* op_alloy_dispatch true .circleci/continue/op-alloy.yml
+            kona/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
+
+            op-alloy/.* op_alloy_dispatch << pipeline.parameters.op_alloy_dispatch >> .circleci/continue/op-alloy.yml
             op-alloy/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/op-alloy.yml
-            alloy-op-hardforks/.* alloy_op_hardforks_dispatch true .circleci/continue/alloy-op-hardforks.yml
+            op-alloy/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
+
+            alloy-op-hardforks/.* alloy_op_hardforks_dispatch << pipeline.parameters.alloy_op_hardforks_dispatch >> .circleci/continue/alloy-op-hardforks.yml
             alloy-op-hardforks/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/alloy-op-hardforks.yml
-            alloy-op-evm/.* alloy_op_evm_dispatch true .circleci/continue/alloy-op-evm.yml
+            alloy-op-hardforks/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
+
+            alloy-op-evm/.* alloy_op_evm_dispatch << pipeline.parameters.alloy_op_evm_dispatch >> .circleci/continue/alloy-op-evm.yml
             alloy-op-evm/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/alloy-op-evm.yml
             alloy-op-evm/.* base_image << pipeline.parameters.base_image >> .circleci/continue/alloy-op-evm.yml
-            op-reth/.* op_reth_dispatch true .circleci/continue/op-reth.yml
+            alloy-op-evm/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
+
+            op-reth/.* op_reth_dispatch << pipeline.parameters.op_reth_dispatch >> .circleci/continue/op-reth.yml
             op-reth/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/op-reth.yml
             op-reth/.* base_image << pipeline.parameters.base_image >> .circleci/continue/op-reth.yml
             op-reth/.* go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/op-reth.yml
+            op-reth/.* default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
 
   setup-tag:
     when:

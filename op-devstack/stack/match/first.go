@@ -10,6 +10,7 @@ var FirstL2Challenger = First[stack.L2ChallengerID, stack.L2Challenger]()
 
 var FirstTestSequencer = First[stack.TestSequencerID, stack.TestSequencer]()
 var FirstSupervisor = First[stack.SupervisorID, stack.Supervisor]()
+var FirstSupernode = First[stack.SupernodeID, stack.Supernode]()
 
 var FirstL1EL = First[stack.L1ELNodeID, stack.L1ELNode]()
 var FirstL1CL = First[stack.L1CLNodeID, stack.L1CLNode]()

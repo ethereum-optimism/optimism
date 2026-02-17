@@ -14,9 +14,9 @@ default:
 # Run all tests
 tests: test test-docs
 
-# Test for the native target with all features. By default, excludes online tests.
-test:
-  cargo nextest run --workspace --all --all-features
+# Test for the native target with optional flags.
+test *args='':
+  cargo nextest run --workspace {{args}}
 
 # Test the Rust documentation
 test-docs:
@@ -67,6 +67,11 @@ source:
 # Generate file bindings for super-registry
 bind:
   @just --justfile ./crates/registry/Justfile bind
+
+# Check no_std compatibility
+check-no-std:
+  rustup target add riscv32imac-unknown-none-elf
+  cargo check -p op-alloy -p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine --target riscv32imac-unknown-none-elf --no-default-features
 
 # List all available examples and run each one
 examples:

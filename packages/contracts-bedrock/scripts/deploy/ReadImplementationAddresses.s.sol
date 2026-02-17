@@ -21,7 +21,6 @@ contract ReadImplementationAddresses is Script {
         address l1StandardBridgeProxy;
         address optimismPortalProxy;
         address disputeGameFactoryProxy;
-        address delayedWETHPermissionedGameProxy;
         address opcm;
     }
 
@@ -52,7 +51,6 @@ contract ReadImplementationAddresses is Script {
 
     function run(Input memory _input) public returns (Output memory output_) {
         // Get implementations from EIP-1967 proxies
-        output_.delayedWETH = getEIP1967Impl(_input.delayedWETHPermissionedGameProxy);
         output_.optimismPortal = getEIP1967Impl(_input.optimismPortalProxy);
         output_.systemConfig = getEIP1967Impl(_input.systemConfigProxy);
         output_.l1ERC721Bridge = getEIP1967Impl(_input.l1ERC721BridgeProxy);

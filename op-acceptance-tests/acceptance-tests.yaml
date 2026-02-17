@@ -149,3 +149,17 @@ gates:
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/custom_gas_token
         timeout: 10m
+
+  - id: supernode
+    description: "Supernode tests - tests for the op-supernode multi-chain consensus layer."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode
+        timeout: 10m
+
+  - id: supernode-interop
+    inherits:
+      - supernode
+    description: "Supernode interop tests - tests for supernode's cross-chain message verification."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop
+        timeout: 15m

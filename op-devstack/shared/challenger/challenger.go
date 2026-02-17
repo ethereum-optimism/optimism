@@ -84,7 +84,7 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path to prestate dir: %w", err)
 	}
-	c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestates")
+	c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/kona/prestate-artifacts-cannon")
 	if err != nil {
 		return fmt.Errorf("failed to create kona prestates url: %w", err)
 	}
