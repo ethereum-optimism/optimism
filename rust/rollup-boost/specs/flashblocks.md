@@ -1,4 +1,4 @@
-*Authors: [Ferran](https://github.com/ferranbt), [Dmarz](https://github.com/dmarzzz), [Shana](https://github.com/avalonche), [0xkitsune](https://github.com/0xkitsune), [protolambda](https://github.com/protolambda), [Anton](https://github.com/0x416e746f6e), [Joshua](https://github.com/trianglesphere)*
+*Authors: [Ferran](https://github.com/ferranbt), [Dmarz](https://github.com/dmarzzz), [Shana](https://github.com/avalonche), [0xkitsune](https://github.com/0xkitsune), [protolambda](https://github.com/protolambda), [Anton](https://github.com/0x416e746f6e), [Joshua](https://github.com/trianglesphere), [Julio](https://github.com/julio4)*
 
 **Table of Contents**
 - [Abstract](#abstract)
@@ -25,6 +25,7 @@
   - [Flashblock Construction Process](#flashblock-construction-process)
     - [Handling of Sequencer Transactions](#handling-of-sequencer-transactions)
     - [Transaction Inclusion Heuristics](#transaction-inclusion-heuristics)
+        - [Linear Gas Limit Increase and Transaction Inclusion Guarantees](#linear-gas-limit-increase-and-transaction-inclusion-guarantees)
     - [Post-block Execution Rules](#post-block-execution-rules)
     - [Construction Steps](#construction-steps)
   - [Flashblocks Metadata](#flashblocks-metadata)
@@ -469,7 +470,48 @@ The builder must balance multiple factors when deciding which transactions to in
 
 In some cases, the builder might include a transaction that exceeds what would be a strict per-flashblock gas limit because executing that transaction is important for user experience or economic reasons. This flexibility is a key advantage of the out-of-protocol approach.
 
-The specific heuristics for transaction allocation across flashblocks are intentionally not prescribed in this specification. Rather than codifying particular strategies, we leave this as an area where builders can innovate and optimize. Different chains can develop custom heuristics based on their specific transaction patterns, user expectations, and economic models. As implementations mature, we expect some general principles will emerge for handling common scenarios, but this specification intentionally avoids prematurely constraining this design space.
+While the specific heuristics for transaction allocation across flashblocks are not mandated by this specification, the following section examines a common approach with linear gas limit allocation and its implications for transaction inclusion. Builders may adopt this or alternative strategies based on their chain's transaction patterns, user expectations, and economic models.
+
+#### Linear Gas Limit Increase and Transaction Inclusion Guarantees
+
+A common heuristic for gas allocation defines the gas limit for flashblock $i$ (where $i \in [1, F]$) as:
+
+```math
+\text{flashblock\_gas\_limit}(i) = (i / F) \times \text{block\_gas\_limit}
+```
+
+This linear increase means cumulative gas usage for flashblock $i$ is bounded by:
+```math
+\text{cumulative\_gas\_limit}(i) = \frac {\text{block\_gas\_limit}} F \cdot \frac {i(i+1)} 2
+```
+
+When optimally filling each flashblock's gas allocation, the block gas limit is reached at flashblock index $i_{max}$
+and incidentally the theoretical maximum transaction gas limit $tx_{max}$ that can be included is:
+
+```math
+\begin{align}
+i_{max}  &= \left\lceil \frac {-1 + \sqrt{1 + 8F}} {2} \right\rceil \\
+tx_{max} &= \left\lfloor \frac {-1 + \sqrt{1 + 8F}} 2 \right\rfloor/F \cdot \text{block\_gas\_limit}
+\end{align}
+```
+
+For example, with $F = 10$ flashblocks we have $i_{max} = 4$.
+This means that if each flashblock is optimally filled, the block gas limit is reached by flashblock 4.
+The theoretical maximum transaction gas limit would be
+$`tx_{max} = 4/10 \times \text{block\_gas\_limit} = 40\%`$ of the block gas limit.
+
+**Large Transaction Inclusion Guarantees**
+
+A potential concern is the difficulty of including large transactions with gas limits greater than $`(1/F) * \text{block\_gas\_limit}`$ when the chain experiences heavy loads of smaller transactions.
+Due to the linear increase of gas limits across flashblocks, even transactions with higher priority may not fit in the earlier, smaller flashblocks.
+If subsequent flashblocks fill up with smaller transactions, large transactions may be excluded entirely from the block.
+
+No perfect solution exists for this issue, but certain design choices can mitigate it.
+With $F = 10$, the theoretical maximum transaction gas limit is $40\%$ of the block gas limit.
+Since this maximum only occurs under optimal filling conditions, transactions requiring up to $50\%$ of the block gas limit can reasonably expect inclusion even under high load.
+This $50\%$ threshold aligns with the transaction gas limit cap proposed in [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825).
+
+A maximum of $F = 6$ flashblocks ensures that $tx_{max} \ge 50\%$ of the block gas limit, eliminating potential inclusion discrimination for transactions that comply with EIP-7825, at the cost of slower flashblock cadence.
 
 ### Post-block Execution Rules
 
