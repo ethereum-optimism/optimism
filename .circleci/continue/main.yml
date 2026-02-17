@@ -2230,8 +2230,10 @@ jobs:
             fi
             # Use timing hints for balanced splitting if available
             if [ -f timing-hints.json ]; then
-              echo "Using timing hints for balanced CI splitting"
+              echo "Timing hints found — using timing-based bin-packing for balanced CI splitting"
               echo "export OP_ACCEPTOR_SPLIT_TIMING_FILE=$(pwd)/timing-hints.json" >> "$BASH_ENV"
+            else
+              echo "No timing hints found — using round-robin split (timing cache builds after first run)"
             fi
       # Restore cached Go modules (needed for go test runtime)
       - restore_cache:
