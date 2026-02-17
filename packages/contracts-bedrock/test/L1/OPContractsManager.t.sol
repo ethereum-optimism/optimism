@@ -167,18 +167,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
         IDisputeGameFactory dgf = IDisputeGameFactory(address(artifacts.mustGetAddress("DisputeGameFactoryProxy")));
-        faultDisputeGame = IFaultDisputeGame(address(dgf.gameImpls(GameTypes.CANNON)));
-        delayedWeth = faultDisputeGame.weth();
 
         // Grab the pre-upgrade state. Use getGameImplPrestate to handle both v1 and v2
         // dispute games (v1 stores prestate on game impl, v2 stores it in gameArgs).
         preUpgradeState = PreUpgradeState({
-            cannonAbsolutePrestate: DisputeGames.getGameImplPrestate(disputeGameFactory, GameTypes.CANNON),
-            permissionedAbsolutePrestate: DisputeGames.getGameImplPrestate(
-                disputeGameFactory, GameTypes.PERMISSIONED_CANNON
-            ),
-            cannonKonaAbsolutePrestate: DisputeGames.getGameImplPrestate(disputeGameFactory, GameTypes.CANNON_KONA),
-            permissionlessWethProxy: delayedWeth,
+            cannonAbsolutePrestate: DisputeGames.getGameImplPrestate(dgf, GameTypes.CANNON),
+            permissionedAbsolutePrestate: DisputeGames.getGameImplPrestate(dgf, GameTypes.PERMISSIONED_CANNON),
+            cannonKonaAbsolutePrestate: DisputeGames.getGameImplPrestate(dgf, GameTypes.CANNON_KONA),
+            permissionlessWethProxy: DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.CANNON),
             permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
         });
 
