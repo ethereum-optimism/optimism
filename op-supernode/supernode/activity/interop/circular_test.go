@@ -46,6 +46,7 @@ Tests are organized by component:
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -527,6 +528,164 @@ func TestBuildCycleGraph(t *testing.T) {
 				require.Error(t, err, "expected cycle to be detected")
 			} else {
 				require.NoError(t, err, "expected no cycle")
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Cycle Participant Detection Tests
+// =============================================================================
+
+// TestVerifyCycleMessagesOnlyCycleParticipants verifies that verifyCycleMessages
+// only returns InvalidHeads for chains that are actually part of a cycle,
+// not bystander chains that happen to have same-timestamp EMs.
+//
+// This test should FAIL until we update verifyCycleMessages to be more precise.
+func TestVerifyCycleMessagesOnlyCycleParticipants(t *testing.T) {
+	t.Parallel()
+
+	chainA := eth.ChainIDFromUInt64(10)
+	chainB := eth.ChainIDFromUInt64(8453)
+	chainC := eth.ChainIDFromUInt64(420)
+	ts := uint64(1000)
+
+	// Setup: A↔C cycle, B is bystander
+	// A:0 refs C:0, C:0 refs A:0 = cycle
+	// B:0 refs some chain with no EMs = no cycle involvement
+
+	blockA := eth.BlockID{Hash: common.HexToHash("0xAAA"), Number: 100}
+	blockB := eth.BlockID{Hash: common.HexToHash("0xBBB"), Number: 100}
+	blockC := eth.BlockID{Hash: common.HexToHash("0xCCC"), Number: 100}
+
+	blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+		chainA: blockA,
+		chainB: blockB,
+		chainC: blockC,
+	}
+
+	// Mock logsDBs that return same-timestamp EMs using existing algoMockLogsDB
+	dbA := &algoMockLogsDB{
+		openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+			0: {ChainID: chainC, LogIdx: 0, Timestamp: ts}, // refs C:0
+		},
+	}
+	dbB := &algoMockLogsDB{
+		openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+			0: {ChainID: eth.ChainIDFromUInt64(9999), LogIdx: 0, Timestamp: ts}, // refs non-existent chain
+		},
+	}
+	dbC := &algoMockLogsDB{
+		openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+			0: {ChainID: chainA, LogIdx: 0, Timestamp: ts}, // refs A:0 - creates cycle
+		},
+	}
+
+	// Create Interop with mock DBs
+	i := &Interop{
+		logsDBs: map[eth.ChainID]LogsDB{
+			chainA: dbA,
+			chainB: dbB,
+			chainC: dbC,
+		},
+	}
+
+	// Call verifyCycleMessages
+	result, err := i.verifyCycleMessages(ts, blocksAtTimestamp)
+	require.NoError(t, err)
+
+	// ASSERTION: Only A and C should be in InvalidHeads (they form the cycle)
+	// B should NOT be in InvalidHeads (it's a bystander)
+	require.NotNil(t, result.InvalidHeads, "InvalidHeads should not be nil when cycle detected")
+	require.Contains(t, result.InvalidHeads, chainA, "Chain A should be invalid (part of cycle)")
+	require.Contains(t, result.InvalidHeads, chainC, "Chain C should be invalid (part of cycle)")
+	require.NotContains(t, result.InvalidHeads, chainB,
+		"Chain B should NOT be invalid - it's a bystander with same-ts EMs but not part of the cycle")
+}
+
+// TestCycleParticipants verifies that only chains actually participating in a cycle
+// are identified, not bystander chains that happen to have same-timestamp EMs.
+func TestCycleParticipants(t *testing.T) {
+	t.Parallel()
+
+	chainA := eth.ChainIDFromUInt64(10)
+	chainB := eth.ChainIDFromUInt64(8453)
+	chainC := eth.ChainIDFromUInt64(420)
+	chainD := eth.ChainIDFromUInt64(999)
+	ts := uint64(1000)
+
+	tests := []struct {
+		name                 string
+		chainEMs             map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage
+		expectCycleChains    []eth.ChainID // chains that should be in the cycle
+		expectNonCycleChains []eth.ChainID // chains with EMs that should NOT be in cycle
+	}{
+		{
+			name: "A-C cycle with B as bystander",
+			chainEMs: map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+				chainA: {
+					0: {ChainID: chainC, LogIdx: 0, Timestamp: ts}, // A refs C:0
+				},
+				chainB: {
+					0: {ChainID: chainD, LogIdx: 0, Timestamp: ts}, // B refs D:0 (D has no EMs)
+				},
+				chainC: {
+					0: {ChainID: chainA, LogIdx: 0, Timestamp: ts}, // C refs A:0 - creates cycle
+				},
+			},
+			// A:0 → C:0, C:0 → A:0 = CYCLE between A and C
+			// B:0 → nothing (D has no EMs)
+			// B should NOT be part of the cycle!
+			expectCycleChains:    []eth.ChainID{chainA, chainC},
+			expectNonCycleChains: []eth.ChainID{chainB},
+		},
+		{
+			name: "triangle cycle A-B-C with D as bystander",
+			chainEMs: map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+				chainA: {
+					0: {ChainID: chainB, LogIdx: 0, Timestamp: ts},
+				},
+				chainB: {
+					0: {ChainID: chainC, LogIdx: 0, Timestamp: ts},
+				},
+				chainC: {
+					0: {ChainID: chainA, LogIdx: 0, Timestamp: ts},
+				},
+				chainD: {
+					0: {ChainID: eth.ChainIDFromUInt64(12345), LogIdx: 0, Timestamp: ts}, // refs non-existent chain
+				},
+			},
+			expectCycleChains:    []eth.ChainID{chainA, chainB, chainC},
+			expectNonCycleChains: []eth.ChainID{chainD},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			graph := buildCycleGraph(ts, tc.chainEMs)
+			err := checkCycle(graph)
+			require.Error(t, err, "expected cycle to be detected")
+
+			// Collect chains with unresolved nodes (actual cycle participants)
+			cycleChains := make(map[eth.ChainID]bool)
+			for _, node := range *graph {
+				if !node.resolved {
+					cycleChains[node.chainID] = true
+				}
+			}
+
+			// Verify expected cycle chains are in the cycle
+			for _, chainID := range tc.expectCycleChains {
+				require.True(t, cycleChains[chainID],
+					"chain %v should be part of the cycle", chainID)
+			}
+
+			// Verify bystander chains are NOT in the cycle
+			for _, chainID := range tc.expectNonCycleChains {
+				require.False(t, cycleChains[chainID],
+					"chain %v should NOT be part of the cycle (bystander)", chainID)
 			}
 		})
 	}

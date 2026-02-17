@@ -316,12 +316,28 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 	// Build dependency graph and check for cycles
 	graph := buildCycleGraph(ts, chainEMs)
 	if err := checkCycle(graph); err != nil {
-		// Cycle detected - mark all participating chains as invalid
-		result.InvalidHeads = make(map[eth.ChainID]eth.BlockID)
-		for chainID := range chainEMs {
-			result.InvalidHeads[chainID] = blocksAtTimestamp[chainID]
+		// Cycle detected - mark only chains with unresolved nodes as invalid
+		// (bystander chains that have same-ts EMs but aren't part of the cycle are spared)
+		cycleChains := collectCycleParticipants(graph)
+		if len(cycleChains) > 0 {
+			result.InvalidHeads = make(map[eth.ChainID]eth.BlockID)
+			for chainID := range cycleChains {
+				result.InvalidHeads[chainID] = blocksAtTimestamp[chainID]
+			}
 		}
 	}
 
 	return result, nil
+}
+
+// collectCycleParticipants returns the set of chains that have unresolved nodes
+// after running checkCycle. These are the chains actually participating in a cycle.
+func collectCycleParticipants(graph *dependencyGraph) map[eth.ChainID]bool {
+	cycleChains := make(map[eth.ChainID]bool)
+	for _, node := range *graph {
+		if !node.resolved {
+			cycleChains[node.chainID] = true
+		}
+	}
+	return cycleChains
 }
