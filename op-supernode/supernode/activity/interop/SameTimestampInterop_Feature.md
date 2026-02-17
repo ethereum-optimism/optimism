@@ -347,3 +347,89 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 - `op-supernode/supernode/activity/interop/circular_test.go`
 
 **Status**: All unit tests pass. Feature implementation complete.
+
+---
+
+### Entry 7: Acceptance Test for Cycle Detection (2026-02-17)
+
+**Prompt received**:
+> Looking good. Let's package this up as another commit. Once done, create a test coverage table which describes all the testing so far.
+> after, we will build a new Acceptance test... which demonstrates that cycle checks cause reorgs
+> also let's rename the file `same_timestamp_test.go` since it's no longer strictly invalid.
+
+**Actions taken**:
+
+1. **Renamed acceptance test file**:
+   - `same_timestamp_invalid_test.go` → `same_timestamp_test.go`
+   - Updated package spec comment to document all three test scenarios
+
+2. **Added `TestSupernodeSameTimestampCycle`**:
+   - Creates mutual same-timestamp exec messages: A executes B, B executes A
+   - Both chains emit init messages at log 0, exec messages at log 1
+   - This creates a circular dependency that cycle detection identifies
+   - Verifies both blocks are replaced after validation
+
+3. **Commit**: `c9dcdf87c3` - "acceptance: add cycle detection test and rename same_timestamp_test.go"
+
+**Files Modified**:
+- `op-acceptance-tests/tests/supernode/interop/same_timestamp_invalid/same_timestamp_test.go` (renamed + new test)
+
+---
+
+## Test Coverage Summary
+
+### Unit Tests (`op-supernode/supernode/activity/interop/`)
+
+#### algo_test.go - Timestamp Validation
+| Test | Description |
+|------|-------------|
+| `ValidBlocks/SameTimestampMessage` | Same-timestamp exec message is VALID |
+| `InvalidBlocks/FutureTimestamp` | Future timestamp exec message is INVALID |
+
+#### interop_test.go - cycleVerifyFn Integration
+| Test | Description |
+|------|-------------|
+| `TestNew` | Verifies `cycleVerifyFn` is initialized (not nil) |
+| `TestProgressInteropWithCycleVerify/default_cycleVerifyFn_returns_valid_result` | Default stub returns valid |
+| `TestProgressInteropWithCycleVerify/cycleVerifyFn_called_after_verifyFn_and_results_merged` | Results merged correctly |
+| `TestProgressInteropWithCycleVerify/cycleVerifyFn_error_propagated` | Errors bubble up |
+| `TestProgressInteropWithCycleVerify/both_verifyFn_and_cycleVerifyFn_invalid_heads_are_merged` | InvalidHeads combined |
+
+#### circular_test.go - Graph Construction & Cycle Detection
+| Test | Description |
+|------|-------------|
+| `TestDependencyGraph_AddNode` | Node addition works |
+| `TestDependencyGraph_AddEdge` | Edge creates bidirectional links |
+| `TestExecutingMessageBefore/empty_chain_returns_nil` | Empty chain → nil |
+| `TestExecutingMessageBefore/no_EM_at_or_before_target_returns_nil` | No match → nil |
+| `TestExecutingMessageBefore/exact_match_returns_that_EM` | Exact match (<=) works |
+| `TestExecutingMessageBefore/returns_latest_EM_at_or_before_target` | Latest EM ≤ target |
+| `TestExecutingMessageBefore/target_at_index_0_with_EM_at_0_returns_that_EM` | Edge case: log 0 with EM |
+| `TestExecutingMessageBefore/target_at_index_0_with_no_EM_at_0_returns_nil` | No EM at 0 → nil |
+| `TestCheckCycle/empty_graph_has_no_cycle` | Empty → valid |
+| `TestCheckCycle/single_node_no_deps_resolves` | Single node → valid |
+| `TestCheckCycle/linear_chain_A->B->C_resolves_(acyclic)` | Linear → valid |
+| `TestCheckCycle/simple_cycle_A<->B_detected` | Mutual dep → CYCLE |
+| `TestCheckCycle/triangle_cycle_A->B->C->A_detected` | Triangle → CYCLE |
+| `TestCheckCycle/diamond_pattern_resolves_(acyclic)` | Diamond → valid |
+| `TestCheckCycle/intra-chain_sequential_logs_resolve` | Sequential → valid |
+| `TestCheckCycle/cross-chain_valid_exec_message_resolves` | One-way cross-chain → valid |
+| `TestCheckCycle/cross-chain_mutual_exec_creates_cycle` | Mutual cross-chain → CYCLE |
+| `TestBuildCycleGraph/no_same-timestamp_EMs_returns_valid` | Empty → valid |
+| `TestBuildCycleGraph/single_chain_single_EM_referencing_past_timestamp` | Past ts filtered |
+| `TestBuildCycleGraph/single_chain_single_same-ts_EM_referencing_chain_with_no_EMs` | No target EMs → valid |
+| `TestBuildCycleGraph/two_chains_mutual_same-ts_EMs_at_same_log_index` | A:0↔B:0 → CYCLE |
+| `TestBuildCycleGraph/chain_A_refs_B_log_5_B_has_EM_at_3` | One-way → valid |
+| `TestBuildCycleGraph/chain_A_refs_B_log_2_B_has_EM_only_at_3` | No dep (3>2) → valid |
+| `TestBuildCycleGraph/sequential_EMs_on_same_chain` | Intra-chain only → valid |
+| `TestBuildCycleGraph/triangle_at_same_log_index` | A:0→B:0→C:0→A:0 → CYCLE |
+| `TestBuildCycleGraph/triangle_where_one_leg_has_no_matching_EM` | Missing leg → valid |
+| `TestBuildCycleGraph/two_chains_with_prior_EMs_creating_mutual_dependency` | Prior EMs → CYCLE |
+
+### Acceptance Tests (`op-acceptance-tests/tests/supernode/interop/same_timestamp_invalid/`)
+
+| Test | Scenario | Expected Outcome |
+|------|----------|------------------|
+| `TestSupernodeSameTimestampExecMessage` | Chain B executes Chain A's init at same timestamp | VALID - no block replacement |
+| `TestSupernodeSameTimestampInvalidTransitive` | Chain B exec has invalid log index (9999), causes transitive invalidation | INVALID - both blocks replaced |
+| `TestSupernodeSameTimestampCycle` | Mutual same-ts exec messages (A↔B) create cycle | INVALID - both blocks replaced (cycle detected) |
