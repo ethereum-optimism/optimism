@@ -12,6 +12,9 @@ import { ILegacyMintableERC20 } from "interfaces/legacy/ILegacyMintableERC20.sol
 abstract contract LegacyMintableERC20_TestInit is CommonTest {
     LegacyMintableERC20 legacyMintableERC20;
 
+    event Mint(address indexed _account, uint256 _amount);
+    event Burn(address indexed _account, uint256 _amount);
+
     function setUp() public override {
         super.setUp();
 
@@ -22,8 +25,8 @@ abstract contract LegacyMintableERC20_TestInit is CommonTest {
 /// @title LegacyMintableERC20_Constructor_Test
 /// @notice Tests the constructor of the `LegacyMintableERC20` contract.
 contract LegacyMintableERC20_Constructor_Test is LegacyMintableERC20_TestInit {
-    /// @notice Tests that the constructor sets the correct values
-    function test_constructor_works() public view {
+    /// @notice Tests that the constructor sets the correct values.
+    function test_constructor_succeeds() public view {
         assertEq(legacyMintableERC20.l2Bridge(), address(l2StandardBridge));
         assertEq(legacyMintableERC20.l1Token(), address(L1Token));
         assertEq(legacyMintableERC20.name(), "_L2Token_");
@@ -35,8 +38,8 @@ contract LegacyMintableERC20_Constructor_Test is LegacyMintableERC20_TestInit {
 /// @title LegacyMintableERC20_SupportsInterface_Test
 /// @notice Tests the `supportsInterface` function of the `LegacyMintableERC20` contract.
 contract LegacyMintableERC20_SupportsInterface_Test is LegacyMintableERC20_TestInit {
-    /// @notice Tests that the contract supports the correct interfaces
-    function test_supportsInterface_works() public view {
+    /// @notice Tests that the contract supports the correct interfaces.
+    function test_supportsInterface_supportedInterfaces_succeeds() public view {
         assertEq(legacyMintableERC20.supportsInterface(bytes4(keccak256("supportsInterface(bytes4)"))), true);
         assertEq(
             legacyMintableERC20.supportsInterface(
@@ -46,20 +49,34 @@ contract LegacyMintableERC20_SupportsInterface_Test is LegacyMintableERC20_TestI
             true
         );
     }
+
+    /// @notice Tests that unsupported interfaces return false.
+    function testFuzz_supportsInterface_unsupportedInterface_succeeds(bytes4 _interfaceId) public view {
+        bytes4 erc165 = bytes4(keccak256("supportsInterface(bytes4)"));
+        bytes4 legacyMintable = ILegacyMintableERC20.l1Token.selector ^ ILegacyMintableERC20.mint.selector
+            ^ ILegacyMintableERC20.burn.selector;
+        vm.assume(_interfaceId != erc165 && _interfaceId != legacyMintable);
+        assertEq(legacyMintableERC20.supportsInterface(_interfaceId), false);
+    }
 }
 
 /// @title LegacyMintableERC20_Mint_Test
 /// @notice Tests the `mint` function of the `LegacyMintableERC20` contract.
 contract LegacyMintableERC20_Mint_Test is LegacyMintableERC20_TestInit {
-    /// @notice Tests that the mint function works when called by the bridge
-    function test_mint_byBridge_succeeds() public {
+    /// @notice Tests that mint works for any valid recipient and amount.
+    function testFuzz_mint_byBridge_succeeds(address _to, uint256 _amount) public {
+        vm.assume(_to != address(0));
         vm.prank(address(l2StandardBridge));
-        legacyMintableERC20.mint(address(this), 1000);
-        assertEq(legacyMintableERC20.balanceOf(address(this)), 1000);
+        vm.expectEmit(address(legacyMintableERC20));
+        emit Mint(_to, _amount);
+        legacyMintableERC20.mint(_to, _amount);
+        assertEq(legacyMintableERC20.balanceOf(_to), _amount);
     }
 
-    /// @notice Tests that the mint function fails when called by an address other than the bridge
-    function test_mint_byNonBridge_reverts() public {
+    /// @notice Tests that mint reverts when called by a non-bridge address.
+    function testFuzz_mint_byNonBridge_reverts(address _caller) public {
+        vm.assume(_caller != address(l2StandardBridge));
+        vm.prank(_caller);
         vm.expectRevert(bytes("Only L2 Bridge can mint and burn"));
         legacyMintableERC20.mint(address(this), 1000);
     }
@@ -68,18 +85,23 @@ contract LegacyMintableERC20_Mint_Test is LegacyMintableERC20_TestInit {
 /// @title LegacyMintableERC20_Burn_Test
 /// @notice Tests the `burn` function of the `LegacyMintableERC20` contract.
 contract LegacyMintableERC20_Burn_Test is LegacyMintableERC20_TestInit {
-    /// @notice Tests that the burn function works when called by the bridge
-    function test_burn_byBridge_succeeds() public {
+    /// @notice Tests that burn works for any valid holder and amount.
+    function testFuzz_burn_byBridge_succeeds(address _from, uint256 _amount) public {
+        vm.assume(_from != address(0));
         vm.prank(address(l2StandardBridge));
-        legacyMintableERC20.mint(address(this), 1000);
+        legacyMintableERC20.mint(_from, _amount);
 
         vm.prank(address(l2StandardBridge));
-        legacyMintableERC20.burn(address(this), 1000);
-        assertEq(legacyMintableERC20.balanceOf(address(this)), 0);
+        vm.expectEmit(address(legacyMintableERC20));
+        emit Burn(_from, _amount);
+        legacyMintableERC20.burn(_from, _amount);
+        assertEq(legacyMintableERC20.balanceOf(_from), 0);
     }
 
-    /// @notice Tests that the burn function fails when called by an address other than the bridge
-    function test_burn_byNonBridge_reverts() public {
+    /// @notice Tests that burn reverts when called by a non-bridge address.
+    function testFuzz_burn_byNonBridge_reverts(address _caller) public {
+        vm.assume(_caller != address(l2StandardBridge));
+        vm.prank(_caller);
         vm.expectRevert(bytes("Only L2 Bridge can mint and burn"));
         legacyMintableERC20.burn(address(this), 1000);
     }
