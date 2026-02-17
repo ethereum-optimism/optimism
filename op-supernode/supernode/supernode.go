@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/syncstatus"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -100,6 +101,15 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			chain.RegisterVerifier(interopActivity)
 		}
 	}
+
+	// Collect verification activities and create the sync status activity
+	var verifiers []activity.VerificationActivity
+	for _, a := range s.activities {
+		if va, ok := a.(activity.VerificationActivity); ok {
+			verifiers = append(verifiers, va)
+		}
+	}
+	s.activities = append(s.activities, syncstatus.New(s.chains, verifiers))
 
 	// Set up reset callbacks on all chain containers
 	// When a chain resets, notify all activities

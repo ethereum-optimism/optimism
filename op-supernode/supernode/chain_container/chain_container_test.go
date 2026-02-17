@@ -149,10 +149,12 @@ var _ engine_controller.EngineController = (*mockEngineController)(nil)
 
 // mockVerificationActivity is a mock implementation of activity.VerificationActivity
 type mockVerificationActivity struct {
-	name                      string
-	currentL1Result           eth.BlockID
-	verifiedAtTimestampResult bool
-	verifiedAtTimestampErr    error
+	name                          string
+	currentL1Result               eth.BlockID
+	verifiedAtTimestampResult     bool
+	verifiedAtTimestampErr        error
+	latestVerifiedTimestamp        uint64
+	latestVerifiedTimestampInited bool
 }
 
 func (m *mockVerificationActivity) Name() string {
@@ -165,6 +167,10 @@ func (m *mockVerificationActivity) CurrentL1() eth.BlockID {
 
 func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
+}
+
+func (m *mockVerificationActivity) LatestVerifiedTimestamp() (uint64, bool) {
+	return m.latestVerifiedTimestamp, m.latestVerifiedTimestampInited
 }
 
 func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64) {}

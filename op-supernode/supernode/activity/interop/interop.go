@@ -383,6 +383,14 @@ func (i *Interop) CurrentL1() eth.BlockID {
 	return i.currentL1
 }
 
+// LatestVerifiedTimestamp returns the most recently verified timestamp.
+// Returns the timestamp and true if initialized, or 0 and false if not yet initialized.
+func (i *Interop) LatestVerifiedTimestamp() (uint64, bool) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.verifiedDB.LastTimestamp()
+}
+
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.
 // For timestamps before the activation timestamp, this returns true since interop
 // wasn't active yet and verification proceeds automatically.
