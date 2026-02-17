@@ -2289,9 +2289,9 @@ jobs:
                 path: ./op-acceptance-tests/logs
       # Persist logs for report consolidation job
       - persist_to_workspace:
-          root: op-acceptance-tests
+          root: .
           paths:
-            - logs/
+            - op-acceptance-tests/logs/
       - when:
           condition: on_fail
           steps:
