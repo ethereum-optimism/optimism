@@ -19,8 +19,9 @@ var (
 	ErrUnknownChain = errors.New("unknown chain")
 
 	// ErrTimestampViolation is returned when an executing message references
-	// an initiating message with a timestamp >= the executing message's timestamp.
-	ErrTimestampViolation = errors.New("initiating message timestamp must be less than executing message timestamp")
+	// an initiating message with a timestamp > the executing message's timestamp.
+	// Same-timestamp (==) is allowed for same-timestamp interop.
+	ErrTimestampViolation = errors.New("initiating message timestamp must not be greater than executing message timestamp")
 
 	// ErrMessageExpired is returned when an executing message references
 	// an initiating message that has expired (older than ExpiryTime).
@@ -34,7 +35,7 @@ var (
 // 1. Open the block from the logsDB and verify it matches blocksAtTimestamp
 // 2. For each executing message in the block:
 //   - Verify the initiating message exists in the source chain's logsDB
-//   - Verify the initiating message timestamp < executing message timestamp
+//   - Verify the initiating message timestamp <= executing message timestamp
 //   - Verify the initiating message hasn't expired (within ExpiryTime)
 func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
 	result := Result{
@@ -117,9 +118,10 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 }
 
 // verifyExecutingMessage verifies a single executing message by checking:
-// 1. The initiating message exists in the source chain's database
-// 2. The initiating message's timestamp is less than the executing block's timestamp
-// 3. The initiating message hasn't expired (timestamp + ExpiryTime >= executing timestamp)
+//  1. The initiating message exists in the source chain's database
+//  2. The initiating message's timestamp is not greater than the executing block's timestamp
+//     (same-timestamp is handled by the cycleVerifyFn)
+//  3. The initiating message hasn't expired (timestamp + ExpiryTime >= executing timestamp)
 func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	// Get the source chain's logsDB
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
@@ -127,9 +129,11 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 		return fmt.Errorf("source chain %s not found: %w", execMsg.ChainID, ErrUnknownChain)
 	}
 
-	// Verify timestamp ordering: initiating message timestamp must be < executing block timestamp
-	if execMsg.Timestamp >= executingTimestamp {
-		return fmt.Errorf("initiating timestamp %d >= executing timestamp %d: %w",
+	// Verify timestamp ordering: initiating message timestamp must be <= executing block timestamp.
+	// Same-timestamp messages (==) are ALLOWED for same-timestamp interop.
+	// Only future timestamps (>) are invalid.
+	if execMsg.Timestamp > executingTimestamp {
+		return fmt.Errorf("initiating timestamp %d > executing timestamp %d: %w",
 			execMsg.Timestamp, executingTimestamp, ErrTimestampViolation)
 	}
 

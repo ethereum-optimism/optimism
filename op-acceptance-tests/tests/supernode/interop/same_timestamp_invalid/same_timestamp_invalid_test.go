@@ -1,27 +1,39 @@
 package same_timestamp_invalid
 
 /*
-SPECIFICATION: Same-Timestamp Invalid Executing Message Test
+SPECIFICATION: Same-Timestamp Interop Tests
 
-Per the current strict timestamp validation rules:
-- An executing message MUST reference an initiating message from a PRIOR timestamp
-- Executing messages that reference initiating messages from the same timestamp are invalid
+Same-timestamp interop allows executing messages to reference initiating messages
+from the SAME timestamp. This enables cross-chain communication within the same
+block time across the interop set.
 
-This test verifies that:
+Validation rules:
+- An executing message MAY reference an initiating message from the same timestamp (VALID)
+- An executing message MAY reference an initiating message from a prior timestamp (VALID)
+- An executing message MUST NOT reference an initiating message from a future timestamp (INVALID)
+- The initiating message must exist and have a valid checksum (INVALID if not found)
+
+Test 1 (TestSupernodeSameTimestampExecMessage) verifies:
 - When an executing message references an initiating message from the same timestamp,
-  the interop activity detects this as invalid
-- The chain containing the invalid executing message has its block replaced
-- After replacement, the executing message transaction no longer exists in the chain
+  the interop activity accepts this as VALID
+- Neither chain's block is replaced
+- Both transactions remain in their respective blocks
+
+Test 2 (TestSupernodeSameTimestampInvalidTransitive) verifies:
+- Invalid messages (e.g., bad log index) still cause block replacement
+- Transitive invalidation works: if Chain B is replaced, Chain A's exec referencing
+  B's (now-gone) init is also invalidated and replaced
+- Note: The invalidation is due to bad log index, NOT same-timestamp
 
 Test flow:
 1. Pause interop to control the validation timing
 2. Stop both sequencers to precisely control block timestamps
 3. Calculate the target timestamp and pre-compute message identifiers
 4. Include initiating message on Chain A at timestamp T
-5. Include executing message on Chain B at timestamp T (same timestamp - invalid!)
+5. Include executing message on Chain B at timestamp T (same timestamp - VALID!)
 6. Verify both transactions are at the same timestamp
 7. Resume interop and wait for validation
-8. Verify: Chain B's block was replaced, executing message no longer exists
+8. Verify: Neither block was replaced, transactions still exist
 */
 
 import (
@@ -45,15 +57,14 @@ import (
 )
 
 // TestSupernodeSameTimestampExecMessage tests that executing messages
-// referencing initiating messages from the same timestamp are detected as invalid
-// and the containing block is replaced.
+// referencing initiating messages from the same timestamp are accepted as VALID.
 //
 // Scenario:
 // - Chain A emits initiating message at timestamp T
-// - Chain B executes that message at timestamp T (same timestamp - INVALID)
-// - Interop detects the invalid executing message
-// - Chain B's block is replaced with a deposits-only block
-// - The executing message transaction no longer exists
+// - Chain B executes that message at timestamp T (same timestamp - VALID!)
+// - Interop validates both messages successfully
+// - Neither chain's block is replaced
+// - Both transactions remain in their respective blocks
 func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
@@ -119,7 +130,7 @@ func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 		initTrigger,         // InitTrigger: to compute payload hash
 	)
 
-	t.Logger().Info("pre-computed init message (same timestamp - will be invalid)",
+	t.Logger().Info("pre-computed init message (same timestamp - now valid)",
 		"origin", precomputedMsg.Identifier.Origin,
 		"blockNumber", precomputedMsg.Identifier.BlockNumber,
 		"logIndex", precomputedMsg.Identifier.LogIndex,
@@ -193,7 +204,7 @@ func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 	originalExecBlockHash := execBlockHash
 	initBlockHash := initBlock.Hash
 
-	// === STEP 4: Resume interop and observe replacement ===
+	// === STEP 4: Resume interop and validate ===
 	t.Logger().Info("resuming interop validation", "targetTimestamp", initBlock.Time)
 	sys.Supernode.ResumeInterop()
 
@@ -218,18 +229,15 @@ func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 	require.Equal(t, initBlockHash, currentBlockA.Hash,
 		"Chain A's block should NOT be replaced - init message is valid")
 
-	// ASSERTION: Chain B's block SHOULD be replaced (exec message is invalid due to same timestamp)
-	require.NotEqual(t, originalExecBlockHash, currentBlockB.Hash,
-		"Chain B's block SHOULD be replaced - exec message references same-timestamp init (invalid)")
+	// ASSERTION: Chain B's block should NOT be replaced (same-timestamp exec is now VALID)
+	// Since the block hash is unchanged, the exec transaction is guaranteed to still exist.
+	require.Equal(t, originalExecBlockHash, currentBlockB.Hash,
+		"Chain B's block should NOT be replaced - same-timestamp exec message is valid")
 
-	// ASSERTION: The invalid exec transaction no longer exists in the replacement block
-	sys.L2ELB.AssertTxNotInBlock(execBlockNumber, execTxHash)
-
-	t.Logger().Info("test complete: same-timestamp exec message was correctly invalidated and replaced",
+	t.Logger().Info("test complete: same-timestamp exec message was correctly validated and accepted",
 		"timestamp", execBlockTimestamp,
 		"initBlockHash", initBlockHash,
-		"originalExecBlockHash", originalExecBlockHash,
-		"replacementExecBlockHash", currentBlockB.Hash,
+		"execBlockHash", currentBlockB.Hash,
 	)
 }
 
@@ -237,14 +245,17 @@ func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 // when one chain's block is replaced due to an invalid message, other chains
 // that depended on messages from that block are also replaced.
 //
+// NOTE: This test uses same-timestamp messages, but the invalidation is NOT caused
+// by same-timestamp (which is now VALID). The invalidation is caused by an INVALID
+// LOG INDEX (9999) in Chain B's exec message.
+//
 // Scenario at timestamp T:
-// - Chain A: emits init(IA), executes IB (valid reference to B's init)
-// - Chain B: emits init(IB), executes IA (INVALID - bad log index)
+// - Chain A: emits init(IA), executes IB (valid reference to B's init, same-timestamp OK)
+// - Chain B: emits init(IB), executes IA (INVALID - bad log index 9999, NOT same-timestamp)
 //
 // Expected outcome over two rounds of verification:
-// 1. Round 1: B is replaced because B's exec(IA) has an invalid log index
+// 1. Round 1: B is replaced because B's exec(IA) has an invalid log index (9999)
 // 2. Round 2: A is replaced because B's init(IB) no longer exists after B was replaced
-// (And actually both chains are replaced immediately because they use the same timestamp as the executing message, currently disabled)
 //
 // This demonstrates transitive/cascading invalidation through the interop system.
 func TestSupernodeSameTimestampInvalidTransitive(gt *testing.T) {

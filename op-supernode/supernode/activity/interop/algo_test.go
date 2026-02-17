@@ -185,6 +185,62 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
+			name: "ValidBlocks/SameTimestampMessage",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				// Same-timestamp interop: executing message references an initiating message
+				// from the SAME timestamp. This is now ALLOWED (was previously invalid).
+				sourceChainID := eth.ChainIDFromUInt64(10)
+				destChainID := eth.ChainIDFromUInt64(8453)
+
+				sourceBlockHash := common.HexToHash("0xSource")
+				destBlockHash := common.HexToHash("0xDest")
+
+				// Both blocks at the SAME timestamp
+				sharedTimestamp := uint64(1000)
+
+				sourceBlock := eth.BlockID{Number: 50, Hash: sourceBlockHash}
+				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+				execMsg := &suptypes.ExecutingMessage{
+					ChainID:   sourceChainID,
+					BlockNum:  50,
+					LogIdx:    0,
+					Timestamp: sharedTimestamp, // SAME as executing timestamp - should be VALID
+					Checksum:  suptypes.MessageChecksum{0x01},
+				}
+
+				sourceDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: sharedTimestamp},
+					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: sharedTimestamp},
+				}
+
+				destDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: sharedTimestamp},
+					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+						0: execMsg,
+					},
+				}
+
+				interop := &Interop{
+					log: gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{
+						sourceChainID: sourceDB,
+						destChainID:   destDB,
+					},
+				}
+
+				return interop, sharedTimestamp, map[eth.ChainID]eth.BlockID{
+					sourceChainID: sourceBlock,
+					destChainID:   destBlock,
+				}
+			},
+			validate: func(t *testing.T, result Result) {
+				// Same-timestamp messages should now be VALID
+				require.True(t, result.IsValid(), "same-timestamp messages should be valid")
+				require.Empty(t, result.InvalidHeads, "no blocks should be invalid")
+			},
+		},
+		{
 			name: "ValidBlocks/UnregisteredChainsSkipped",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
 				registeredChain := eth.ChainIDFromUInt64(10)
@@ -287,8 +343,11 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "InvalidBlocks/TimestampViolation",
+			name: "InvalidBlocks/FutureTimestamp",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				// Future timestamp: initiating message timestamp > executing timestamp.
+				// This is INVALID (you can't execute a message that hasn't been initiated yet).
+				// Note: Same-timestamp (==) is ALLOWED, only strictly greater (>) is invalid.
 				sourceChainID := eth.ChainIDFromUInt64(10)
 				destChainID := eth.ChainIDFromUInt64(8453)
 
@@ -299,7 +358,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
-					Timestamp: 1001, // Future timestamp - INVALID!
+					Timestamp: 1001, // FUTURE timestamp (> 1000) - INVALID!
 					Checksum:  suptypes.MessageChecksum{0x01},
 				}
 
@@ -326,7 +385,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 			validate: func(t *testing.T, result Result) {
 				destChainID := eth.ChainIDFromUInt64(8453)
-				require.False(t, result.IsValid())
+				require.False(t, result.IsValid(), "future timestamp messages should be invalid")
 				require.Contains(t, result.InvalidHeads, destChainID)
 			},
 		},
