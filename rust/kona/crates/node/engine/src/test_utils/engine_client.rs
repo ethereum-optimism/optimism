@@ -11,7 +11,7 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse, Transaction as EthTransaction};
-use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
+use alloy_transport::{RpcError, TransportError, TransportErrorKind, TransportResult};
 use alloy_transport_http::Http;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
@@ -91,6 +91,8 @@ pub struct MockEngineStorage {
     pub l2_blocks_by_id: HashMap<String, Block<OpTransaction>>,
     /// Storage for proofs by (address, stringified `BlockId`) key.
     pub proofs_by_address: HashMap<(Address, String), EIP1186AccountProofResponse>,
+    /// If true, `l2_block_by_label` will return an error instead of Ok(None).
+    pub l2_block_by_label_should_error: bool,
 }
 
 /// Builder for constructing a [`MockEngineClient`] with pre-configured responses.
@@ -263,6 +265,12 @@ impl MockEngineClientBuilder {
         self
     }
 
+    /// Configures `l2_block_by_label` to return an error.
+    pub fn with_l2_block_by_label_error(mut self) -> Self {
+        self.storage.l2_block_by_label_should_error = true;
+        self
+    }
+
     /// Builds the [`MockEngineClient`] with the configured values.
     ///
     /// # Panics
@@ -412,6 +420,11 @@ impl MockEngineClient {
         let key = block_id_to_key(&block_id);
         self.storage.write().await.proofs_by_address.insert((address, key), proof);
     }
+
+    /// Configures `l2_block_by_label` to return an error.
+    pub async fn set_l2_block_by_label_error(&self, should_error: bool) {
+        self.storage.write().await.l2_block_by_label_should_error = should_error;
+    }
 }
 
 #[async_trait]
@@ -497,6 +510,13 @@ impl EngineClient for MockEngineClient {
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<OpTransaction>>, EngineClientError> {
         let storage = self.storage.read().await;
+        if storage.l2_block_by_label_should_error {
+            // Create a transport error
+            let transport_error = TransportError::from(TransportErrorKind::custom_str("Mock fetch error"));
+            // Convert to RpcError then to EngineClientError
+            let rpc_error: RpcError<TransportErrorKind> = transport_error.into();
+            return Err(rpc_error.into());
+        }
         Ok(storage.l2_blocks_by_label.get(&numtag).cloned())
     }
 

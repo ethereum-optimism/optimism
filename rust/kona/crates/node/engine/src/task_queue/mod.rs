@@ -5,3 +5,6 @@ pub use core::{Engine, EngineResetError};
 
 mod tasks;
 pub use tasks::*;
+
+#[cfg(test)]
+mod tests;

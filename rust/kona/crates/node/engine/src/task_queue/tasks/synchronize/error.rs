@@ -20,6 +20,14 @@ pub enum SynchronizeTaskError {
     /// The payload status is unexpected.
     #[error("Unexpected payload status: {0}")]
     UnexpectedPayloadStatus(PayloadStatusEnum),
+    /// A task exceeded the maximum number of retries.
+    #[error("Task exceeded max retries ({retry_count}): {original_error}")]
+    MaxRetriesExceeded {
+        /// The original error message
+        original_error: String,
+        /// Number of retries attempted
+        retry_count: usize,
+    },
 }
 
 impl EngineTaskError for SynchronizeTaskError {
@@ -29,7 +37,9 @@ impl EngineTaskError for SynchronizeTaskError {
             Self::ForkchoiceUpdateFailed(_) | Self::UnexpectedPayloadStatus(_) => {
                 EngineTaskErrorSeverity::Temporary
             }
-            Self::InvalidForkchoiceState => EngineTaskErrorSeverity::Reset,
+            Self::InvalidForkchoiceState | Self::MaxRetriesExceeded { .. } => {
+                EngineTaskErrorSeverity::Reset
+            }
         }
     }
 }

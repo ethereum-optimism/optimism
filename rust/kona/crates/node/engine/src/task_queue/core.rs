@@ -14,6 +14,10 @@ use std::{collections::BinaryHeap, sync::Arc};
 use thiserror::Error;
 use tokio::sync::watch::Sender;
 
+/// Maximum number of times a task with a temporary error can be retried
+/// before being escalated to a reset error.
+const MAX_TASK_RETRIES: usize = 10;
+
 /// The [`Engine`] task queue.
 ///
 /// Tasks of a shared [`EngineTask`] variant are processed in FIFO order, providing synchronization
@@ -26,7 +30,8 @@ use tokio::sync::watch::Sender;
 ///
 /// Tasks within the queue are also considered fallible. If they fail with a temporary error,
 /// they are not popped from the queue, the error is returned, and they are retried on the
-/// next call to [`Engine::drain`].
+/// next call to [`Engine::drain`]. After [`MAX_TASK_RETRIES`] attempts, temporary errors
+/// are escalated to reset errors to prevent infinite stalls.
 #[derive(Debug)]
 pub struct Engine<EngineClient_: EngineClient> {
     /// The state of the engine.
@@ -37,6 +42,9 @@ pub struct Engine<EngineClient_: EngineClient> {
     task_queue_length: Sender<usize>,
     /// The task queue.
     tasks: BinaryHeap<EngineTask<EngineClient_>>,
+    /// Tracks the number of consecutive retries for the current task at the front of the queue.
+    /// Reset to 0 when a task succeeds or when a different task moves to the front.
+    task_retry_count: usize,
 }
 
 impl<EngineClient_: EngineClient> Engine<EngineClient_> {
@@ -46,7 +54,13 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         state_sender: Sender<EngineState>,
         task_queue_length: Sender<usize>,
     ) -> Self {
-        Self { state: initial_state, state_sender, task_queue_length, tasks: BinaryHeap::default() }
+        Self {
+            state: initial_state,
+            state_sender,
+            task_queue_length,
+            tasks: BinaryHeap::default(),
+            task_retry_count: 0,
+        }
     }
 
     /// Returns a reference to the inner [`EngineState`].
@@ -140,27 +154,82 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         Ok((start.safe, l1_origin_info, system_config))
     }
 
-    /// Clears the task queue.
+    /// Clears the task queue and resets the retry counter.
     pub fn clear(&mut self) {
         self.tasks.clear();
+        self.task_retry_count = 0;
     }
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
     /// an error along the way, it is not popped from the queue (in case it must be retried) and
     /// the error is returned.
+    ///
+    /// To prevent infinite stalls, temporary errors are escalated to reset errors after
+    /// [`MAX_TASK_RETRIES`] consecutive failures of the same task.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         while let Some(task) = self.tasks.peek() {
             // Execute the task
-            task.execute(&mut self.state).await?;
+            match task.execute(&mut self.state).await {
+                Ok(_) => {
+                    // Task succeeded - reset retry counter and pop the task
+                    self.task_retry_count = 0;
 
-            // Update the state and notify the engine actor.
-            self.state_sender.send_replace(self.state);
+                    // Update the state and notify the engine actor.
+                    self.state_sender.send_replace(self.state);
 
-            // Pop the task from the queue now that it's been executed.
-            self.tasks.pop();
+                    // Pop the task from the queue now that it's been executed.
+                    self.tasks.pop();
+                    self.task_queue_length.send_replace(self.tasks.len());
+                }
+                Err(e) => {
+                    // Task failed - check if we should retry or escalate
+                    match e.severity() {
+                        EngineTaskErrorSeverity::Temporary => {
+                            self.task_retry_count += 1;
 
-            self.task_queue_length.send_replace(self.tasks.len());
+                            if self.task_retry_count >= MAX_TASK_RETRIES {
+                                // Too many retries - pop task and trigger reset to prevent infinite stall
+                                warn!(
+                                    target: "engine",
+                                    retry_count = self.task_retry_count,
+                                    error = %e,
+                                    "Task exceeded max retries, dropping task and triggering reset"
+                                );
+
+                                // Reset retry counter and pop the failed task
+                                self.task_retry_count = 0;
+                                self.tasks.pop();
+                                self.task_queue_length.send_replace(self.tasks.len());
+
+                                // Trigger engine reset by returning a reset error
+                                return Err(EngineTaskErrors::Consolidate(
+                                    crate::ConsolidateTaskError::ForkchoiceUpdateFailed(
+                                        crate::SynchronizeTaskError::MaxRetriesExceeded {
+                                            original_error: e.to_string(),
+                                            retry_count: MAX_TASK_RETRIES,
+                                        },
+                                    ),
+                                ));
+                            }
+
+                            // Still under retry limit - return error without popping
+                            debug!(
+                                target: "engine",
+                                retry_count = self.task_retry_count,
+                                max_retries = MAX_TASK_RETRIES,
+                                "Task failed with temporary error, will retry"
+                            );
+                            return Err(e);
+                        }
+                        _ => {
+                            // Critical, Reset, or Flush errors - reset counter and return immediately
+                            self.task_retry_count = 0;
+                            return Err(e);
+                        }
+                    }
+                }
+            }
         }
 
         Ok(())
