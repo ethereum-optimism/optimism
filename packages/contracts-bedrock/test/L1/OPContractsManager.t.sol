@@ -390,11 +390,19 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
 
             if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-                vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
+                vm.assertEq(
+                    address(preUpgradeState.permissionedCannonWethProxy),
+                    address(game.weth()),
+                    "Incorrect permissioned WETH"
+                );
                 vm.assertEq(_challenger, game.challenger());
                 vm.assertEq(_proposer, game.proposer());
             } else {
-                vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
+                vm.assertEq(
+                    address(preUpgradeState.permissionlessWethProxy),
+                    address(game.weth()),
+                    "Incorrect permissionless WETH"
+                );
             }
         }
 
@@ -1421,8 +1429,10 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
                 disputeGameFactory, GameTypes.PERMISSIONED_CANNON
             ),
             cannonKonaAbsolutePrestate: DisputeGames.getGameImplPrestate(disputeGameFactory, GameTypes.CANNON_KONA),
-            permissionlessWethProxy: delayedWeth,
-            permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
+            permissionlessWethProxy: DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON),
+            permissionedCannonWethProxy: DisputeGames.getGameImplDelayedWeth(
+                disputeGameFactory, GameTypes.PERMISSIONED_CANNON
+            )
         });
     }
 

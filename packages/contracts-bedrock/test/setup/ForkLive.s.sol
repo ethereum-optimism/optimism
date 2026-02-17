@@ -189,7 +189,7 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
 
         // Get DelayedWETH for PERMISSIONLESS games (CANNON)
         IDelayedWETH permissionlessDelayedWeth =
-            DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.PERMISSIONED_CANNON);
+            DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON);
 
         // The SR seems out-of-date, so pull the DelayedWETH addresses from the games.
         artifacts.save("DelayedWETHProxy", address(permissionlessDelayedWeth));
