@@ -35,17 +35,10 @@ interface IKailuaTournament is IDisputeGame, ISemver {
     function children(uint256) external view returns (IKailuaTournament);
     function contenderDuplicates(uint256) external view returns (uint64);
     function contenderIndex() external view returns (uint64);
-    function createdAt() external view returns (Timestamp);
-    function extraData() external pure returns (bytes memory extraData_);
-    function gameCreator() external pure returns (address creator_);
-    function gameData() external view returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_);
     function gameIndex() external view returns (uint256);
-    function gameType() external view returns (GameType gameType_);
     function getChallengerDuration(uint64 asOfTimestamp) external view returns (Duration duration_);
     function initialize() external payable;
     function isViableSignature(bytes32 childSignature) external view returns (bool isViableSignature_);
-    function l1Head() external pure returns (Hash l1Head_);
-    function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function minCreationTime() external view returns (Timestamp minCreationTime_);
     function opponentIndex() external view returns (uint64);
     function parentGame() external view returns (IKailuaTournament parentGame_);
@@ -79,12 +72,7 @@ interface IKailuaTournament is IDisputeGame, ISemver {
     function provenAt(bytes32) external view returns (Timestamp);
     function prover(bytes32) external view returns (address);
     function pruneChildren(uint256 stepLimit) external returns (IKailuaTournament);
-    function resolve() external returns (GameStatus status_);
-    function resolvedAt() external view returns (Timestamp);
-    function rootClaim() external pure returns (Claim rootClaim_);
-    function rootClaimByChainId(uint256) external pure returns (Claim rootClaim_);
     function signature() external view returns (bytes32 signature_);
-    function status() external view returns (GameStatus);
     function validChildSignature() external view returns (bytes32);
     function verifyIntermediateOutput(
         uint64 outputNumber,
@@ -95,5 +83,4 @@ interface IKailuaTournament is IDisputeGame, ISemver {
         external
         returns (bool success);
     function version() external view returns (string memory);
-    function wasRespectedGameTypeWhenCreated() external view returns (bool);
 }
