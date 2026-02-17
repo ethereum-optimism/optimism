@@ -17,7 +17,6 @@ import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 
-import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
@@ -35,8 +34,9 @@ import { NativeAssetLiquidity } from "src/L2/NativeAssetLiquidity.sol";
 import { LiquidityController } from "src/L2/LiquidityController.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
+import { IProxy } from "interfaces/universal/IProxy.sol";
 
-/// @title L2ContractsManager_Harness
+/// @title L2ContractsManager_FullConfigExposer_Harness
 /// @notice Harness contract that exposes internal functions for testing.
 contract L2ContractsManager_FullConfigExposer_Harness is L2ContractsManager {
     constructor(L2ContractsManagerTypes.Implementations memory _implementations) L2ContractsManager(_implementations) { }
@@ -81,7 +81,7 @@ contract L2ContractsManager_FullConfigExposer_Harness is L2ContractsManager {
     }
 }
 
-/// @title L2ContractsManager_Test
+/// @title L2ContractsManager_Upgrade_Test
 /// @notice Test contract for the L2ContractsManager contract, testing the upgrade path.
 contract L2ContractsManager_Upgrade_Test is CommonTest {
     L2ContractsManager_FullConfigExposer_Harness internal l2cm;
@@ -651,5 +651,116 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
             preUpgradeConfig.liquidityController.gasPayingTokenSymbol,
             "LiquidityController.gasPayingTokenSymbol not preserved"
         );
+    }
+}
+
+/// @title L2ContractsManager_Upgrade_Coverage_Test
+/// @notice Test that verifies all predeploys receive upgrade calls during L2CM upgrade.
+///         Uses Predeploys.sol as the source of truth for which predeploys should be upgraded.
+contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_Test {
+    /// @notice Returns all predeploys from Predeploys.sol that should be upgraded by L2CM.
+    /// @dev IMPORTANT: This is the SOURCE OF TRUTH for upgrade coverage. All proxied predeploys from
+    ///      Predeploys.sol should be listed here. If a new predeploy is added to Predeploys.sol,
+    ///      it must be added here.
+    ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
+    function _getAllUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
+        predeploys_ = new address[](24);
+        // Core predeploys
+        predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
+        predeploys_[2] = Predeploys.L2_STANDARD_BRIDGE;
+        predeploys_[3] = Predeploys.SEQUENCER_FEE_WALLET;
+        predeploys_[4] = Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY;
+        predeploys_[5] = Predeploys.L2_ERC721_BRIDGE;
+        predeploys_[6] = Predeploys.L1_BLOCK_ATTRIBUTES;
+        predeploys_[7] = Predeploys.L2_TO_L1_MESSAGE_PASSER;
+        predeploys_[8] = Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
+        predeploys_[9] = Predeploys.PROXY_ADMIN;
+        predeploys_[10] = Predeploys.BASE_FEE_VAULT;
+        predeploys_[11] = Predeploys.L1_FEE_VAULT;
+        predeploys_[12] = Predeploys.OPERATOR_FEE_VAULT;
+        predeploys_[13] = Predeploys.SCHEMA_REGISTRY;
+        predeploys_[14] = Predeploys.EAS;
+        predeploys_[15] = Predeploys.FEE_SPLITTER;
+        // Interop predeploys
+        predeploys_[16] = Predeploys.CROSS_L2_INBOX;
+        predeploys_[17] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+        predeploys_[18] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
+        predeploys_[19] = Predeploys.ETH_LIQUIDITY;
+        predeploys_[20] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
+        predeploys_[21] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+        predeploys_[22] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
+        // CGT predeploys (conditionally deployed, but still must be included in the list)
+        predeploys_[23] = Predeploys.NATIVE_ASSET_LIQUIDITY;
+    }
+
+    /// @notice Returns CGT-only predeploys that require initialization.
+    /// @dev These are separate because they're only deployed on CGT networks.
+    function _getCGTInitializablePredeploys() internal pure returns (address[] memory predeploys_) {
+        predeploys_ = new address[](1);
+        predeploys_[0] = Predeploys.LIQUIDITY_CONTROLLER;
+    }
+
+    /// @notice Checks if a predeploy requires initialization.
+    /// @dev Returns true for predeploys that have an initializer and need upgradeToAndCall.
+    ///      This determines the upgrade method, not coverage.
+    function _requiresInitialization(address _predeploy) internal pure returns (bool) {
+        return _predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _predeploy == Predeploys.L2_STANDARD_BRIDGE
+            || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
+            || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
+            || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
+            || _predeploy == Predeploys.FEE_SPLITTER || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
+    }
+
+    /// @notice Checks if a predeploy is deployed and upgradeable.
+    /// @dev Uses EIP1967Helper to read the implementation slot directly from storage.
+    ///      This avoids calling the proxy's implementation() function which may fail.
+    function _isPredeployUpgradeable(address _proxy) internal view returns (bool) {
+        address impl = EIP1967Helper.getImplementation(_proxy);
+        return impl != address(0) && impl.code.length > 0;
+    }
+
+    /// @notice Tests that all predeploys from Predeploys.sol receive the expected upgrade call.
+    ///         Uses vm.expectCall() to verify that upgradeTo or upgradeToAndCall is called.
+    /// @dev If L2CM misses a predeploy that exists in Predeploys.sol, this test will fail.
+    function test_allPredeploysReceiveUpgradeCall_succeeds() public {
+        address[] memory allPredeploys = _getAllUpgradeablePredeploys();
+
+        for (uint256 i = 0; i < allPredeploys.length; i++) {
+            address predeploy = allPredeploys[i];
+
+            // Skip predeploys that are not deployed on this chain (e.g., CGT-only, interop-only)
+            if (!_isPredeployUpgradeable(predeploy)) continue;
+
+            // Expect the appropriate upgrade call based on whether initialization is required
+            if (_requiresInitialization(predeploy)) {
+                // nosemgrep:sol-style-use-abi-encodecall
+                vm.expectCall(predeploy, abi.encodeWithSelector(IProxy.upgradeToAndCall.selector));
+            } else {
+                // nosemgrep:sol-style-use-abi-encodecall
+                vm.expectCall(predeploy, abi.encodeWithSelector(IProxy.upgradeTo.selector));
+            }
+        }
+
+        _executeUpgrade();
+    }
+
+    /// @notice Tests that CGT-specific predeploys receive upgrade calls on CGT networks.
+    /// @dev CGT predeploys are conditionally deployed, so they need separate verification.
+    function test_cgtPredeploysReceiveUpgradeCall_whenCGTEnabled_succeeds() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        // Get CGT-only predeploys that require initialization
+        address[] memory cgtInitPredeploys = _getCGTInitializablePredeploys();
+        for (uint256 i = 0; i < cgtInitPredeploys.length; i++) {
+            // nosemgrep:sol-style-use-abi-encodecall
+            vm.expectCall(cgtInitPredeploys[i], abi.encodeWithSelector(IProxy.upgradeToAndCall.selector));
+        }
+
+        // NativeAssetLiquidity uses upgradeTo
+        // nosemgrep:sol-style-use-abi-encodecall
+        vm.expectCall(Predeploys.NATIVE_ASSET_LIQUIDITY, abi.encodeWithSelector(IProxy.upgradeTo.selector));
+
+        _executeUpgrade();
     }
 }
