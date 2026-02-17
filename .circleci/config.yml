@@ -86,6 +86,9 @@ parameters:
   flake-shake-workers:
     type: integer
     default: 50
+  acceptance-test-parallelism:
+    type: integer
+    default: 4
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   go-cache-version:
     type: string
@@ -126,6 +129,7 @@ workflows:
             .* c-flake-shake-iterations << pipeline.parameters.flake-shake-iterations >> .circleci/continue/main.yml
             .* c-flake-shake-workers << pipeline.parameters.flake-shake-workers >> .circleci/continue/main.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
+            .* c-acceptance-test-parallelism << pipeline.parameters.acceptance-test-parallelism >> .circleci/continue/main.yml
 
             rust/.* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
             rust/.* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml

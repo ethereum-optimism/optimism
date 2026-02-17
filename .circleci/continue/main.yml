@@ -74,6 +74,9 @@ parameters:
   c-flake-shake-workers:
     type: integer
     default: 50
+  c-acceptance-test-parallelism:
+    type: integer
+    default: 4
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
@@ -2127,6 +2130,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     circleci_ip_ranges: true
     resource_class: 2xlarge+
+    parallelism: << pipeline.parameters.c-acceptance-test-parallelism >>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2146,6 +2150,14 @@ jobs:
             echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+      - run:
+          name: Configure CI test splitting
+          command: |
+            if [[ "${CIRCLE_NODE_TOTAL:-1}" -gt 1 ]]; then
+              echo "Splitting tests: node ${CIRCLE_NODE_INDEX} of ${CIRCLE_NODE_TOTAL}"
+              echo "export OP_ACCEPTOR_SPLIT_TOTAL=$CIRCLE_NODE_TOTAL" >> "$BASH_ENV"
+              echo "export OP_ACCEPTOR_SPLIT_INDEX=$CIRCLE_NODE_INDEX" >> "$BASH_ENV"
+            fi
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -2220,11 +2232,69 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
+      # Persist logs for report consolidation job
+      - persist_to_workspace:
+          root: op-acceptance-tests
+          paths:
+            - logs/
       - when:
           condition: on_fail
           steps:
             - notify-failures-on-develop:
                 mentions: "@protocol-devx-pod @changwan"
+
+  op-acceptance-tests-report:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      - run:
+          name: Build op-acceptor
+          working_directory: op-acceptance-tests
+          command: |
+            go mod download
+            just cmd-check
+      - run:
+          name: Merge test results from all parallel nodes
+          working_directory: op-acceptance-tests
+          command: |
+            mkdir -p results
+            # Merge all raw_go_events.log files from parallel nodes
+            find logs/ -name "raw_go_events.log" -exec cat {} + > merged_raw_events.log || true
+            # Generate consolidated JUnit XML
+            gotestsum --junitfile results/results.xml --raw-command cat merged_raw_events.log || true
+            # Generate consolidated summary
+            find logs/ -name "summary.log" -exec cat {} + > consolidated-summary.log || true
+      - run:
+          name: Generate consolidated HTML report
+          working_directory: op-acceptance-tests
+          command: |
+            if [ -s merged_raw_events.log ]; then
+              op-acceptor \
+                --report-from-events merged_raw_events.log \
+                --logdir ./consolidated-report \
+                --orchestrator sysgo
+              echo "Consolidated HTML report generated"
+            else
+              echo "No events to generate report from"
+            fi
+      - store_test_results:
+          path: ./op-acceptance-tests/results
+      - store_artifacts:
+          path: ./op-acceptance-tests/logs
+      - store_artifacts:
+          path: ./op-acceptance-tests/consolidated-report
+      - store_artifacts:
+          path: ./op-acceptance-tests/consolidated-summary.log
 
   op-acceptance-tests-flake-shake:
     parameters:
@@ -3279,6 +3349,9 @@ workflows:
             - cannon-kona-prestate
             - cannon-kona-host
             - rust-binaries-for-sysgo
+      - op-acceptance-tests-report:
+          requires:
+            - memory-all
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
