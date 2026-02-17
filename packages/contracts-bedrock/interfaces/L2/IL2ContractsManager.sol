@@ -10,6 +10,16 @@ import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.s
 /// @title IL2ContractsManager
 /// @notice Interface for the L2ContractsManager contract.
 interface IL2ContractsManager is ISemver {
+    /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
+    error L2ContractsManager_OnlyDelegatecall();
+
+    /// @notice Thrown when a user attempts to downgrade a contract.
+    /// @param _target The address of the contract that was attempted to be downgraded.
+    error L2ContractsManager_DowngradeNotAllowed(address _target);
+
+    /// @notice Error thrown when a semver string has less than 3 parts.
+    error SemverComp_InvalidSemverParts();
+
     /// @notice Executes the upgrade for all predeploys.
     /// @dev This function MUST be called via DELEGATECALL from the L2ProxyAdmin.
     function upgrade() external;
