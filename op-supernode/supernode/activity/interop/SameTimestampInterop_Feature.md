@@ -1,7 +1,7 @@
 # Same-Timestamp Interop Feature
 
-**Author**: AI Tool  
-**Branch**: `supernode/SameTimestampinterop` (based on `tests/SameTimestampInterop`)  
+**Author**: AI Tool
+**Branch**: `supernode/SameTimestampinterop` (based on `tests/SameTimestampInterop`)
 **Started**: 2026-02-17
 
 ---
@@ -95,7 +95,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 
 **Unit Tests**: (To be defined when we reach this subfeature - algorithm details pending from developer)
 
-**Acceptance Test Amendments**: 
+**Acceptance Test Amendments**:
 - Add new test cases for cycle-specific scenarios if needed
 - Verify existing tests still pass with real cycle verification
 
@@ -103,8 +103,8 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 
 ## Current State
 
-**Phase**: Development  
-**Current Subfeature**: 3 (COMPLETE) - Route same-timestamp through cycleVerifyFn
+**Phase**: Development
+**Current Subfeature**: 4 (COMPLETE) - Stub cycleVerifyFn implementation
 
 ---
 
@@ -178,25 +178,34 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 ### Entry 3: Subfeature 2 Complete (2026-02-17)
 
 **Prompt received**:
-> I made some slight modifications to comments, but yes continue to make the commit, and then Subfeature-2
+> I made some slight modifications to comments, but yes continue to make the commit, and then Subfeature-2.
+> And before we wire it in, here is a clarification.
+> The way we should use this is that in interop:301, we call verifyFn. we should continue on to call cycleVerifyFn just after, and then join the results.
+
+**Clarification incorporated**:
+- `cycleVerifyFn` is called AFTER `verifyFn` in `progressInterop` (not during verification loop)
+- Results are merged: invalid heads from both functions are combined
 
 **Actions taken**:
 
-1. **Committed Subfeature 1**: `f65c995352` - "interop: allow same-timestamp executing messages"
+1. **Committed Subfeature 1**: `3a9e3b1799` - "interop: allow same-timestamp executing messages"
 
-2. **Unit Tests** (`interop_test.go`):
-   - Updated `TestNew/valid_inputs_initializes_all_components` to verify `cycleVerifyFn` is nil by default
-   - Added new test section `TestCycleVerifyFn` with three test cases:
-     - `cycleVerifyFn can be set and called` - verifies field can be assigned and invoked
-     - `cycleVerifyFn can return invalid heads` - verifies invalid heads are properly returned
-     - `cycleVerifyFn can return error` - verifies errors propagate correctly
+2. **Implementation** (`interop.go`):
+   - Added `cycleVerifyFn` field to `Interop` struct (line 58-60)
+   - Modified `progressInterop` to call `cycleVerifyFn` after `verifyFn` (lines 297-316)
+   - Merge logic: if `cycleVerifyFn` returns invalid heads, they are added to `result.InvalidHeads`
+   - Handles nil map case when merging
 
-3. **Implementation** (`interop.go`):
-   - Added `cycleVerifyFn` field to `Interop` struct with same signature as `verifyFn`
-   - Added documentation explaining its purpose (same-timestamp circular dependency verification)
+3. **Unit Tests** (`interop_test.go`):
+   - Added `TestProgressInteropWithCycleVerify` test section with 4 test cases:
+     - `cycleVerifyFn nil uses only verifyFn result` - backwards compatible
+     - `cycleVerifyFn called after verifyFn and results merged` - verifies call order
+     - `cycleVerifyFn error propagated` - errors bubble up
+     - `both verifyFn and cycleVerifyFn invalid heads are merged` - both contribute to result
 
 4. **Verification**:
    - All unit tests pass: `go test ./supernode/activity/interop/`
+   - No linter errors
 
 **Files Modified**:
 - `op-supernode/supernode/activity/interop/interop.go`
@@ -206,32 +215,37 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 
 ---
 
-### Entry 4: Subfeature 3 Complete (2026-02-17)
+### Entry 4: Subfeature 4 Complete (2026-02-17)
 
 **Prompt received**:
-> (continued from Subfeature 2 commit)
+> yes, subfeature 3 "routing" was meant to be this routing to progressInterop. Now that's complete so we can do subfeature 4. For now just make it return a trivial "Valid" structure. We can also remove the "if i.cycleVerifyFn != nil" check in progressInterop, we will always have this function set. In New, it will use this stub function you're about to make.
 
 **Actions taken**:
 
-1. **Implementation** (`algo.go`):
-   - Added `ErrSameTimestamp` sentinel error to indicate messages need cycle verification
-   - Modified `verifyExecutingMessage` to return `ErrSameTimestamp` when `execMsg.Timestamp == executingTimestamp`
-   - Modified `verifyInteropMessages` to:
-     - Catch `ErrSameTimestamp` and track `hasSameTimestampMessages`
-     - After main loop, call `cycleVerifyFn` if same-timestamp messages exist AND cycleVerifyFn is set
-     - Merge invalid heads from `cycleVerifyFn` into the result
+1. **Created `circular.go`**:
+   - Added `verifyCycleMessages` method as stub implementation
+   - Returns valid `Result` with all blocks in `L2Heads`
+   - TODO comment for actual algorithm implementation
 
-2. **Unit Tests** (`algo_test.go`):
-   - Added `CycleVerify/SameTimestampInvokesCycleVerifyFn` - verifies cycleVerifyFn is called
-   - Added `CycleVerify/NonSameTimestampDoesNotInvokeCycleVerifyFn` - verifies routing only for same-ts
-   - Added `CycleVerify/CycleVerifyFnInvalidHeadsPropagated` - verifies invalid heads merge correctly
-   - Added `CycleVerify/CycleVerifyFnErrorPropagated` - verifies errors propagate correctly
+2. **Updated `New()` in `interop.go`**:
+   - Set `i.cycleVerifyFn = i.verifyCycleMessages`
+   - cycleVerifyFn is now always set (not optional)
 
-3. **Verification**:
+3. **Removed nil check** in `progressInterop`:
+   - Changed from `if i.cycleVerifyFn != nil` to unconditional call
+   - cycleVerifyFn is always called after verifyFn
+
+4. **Updated tests**:
+   - Renamed test to `default cycleVerifyFn returns valid result`
+   - Added `require.NotNil(t, interop.cycleVerifyFn)` to TestNew
+
+5. **Verification**:
    - All unit tests pass: `go test ./supernode/activity/interop/`
+   - No linter errors
 
 **Files Modified**:
-- `op-supernode/supernode/activity/interop/algo.go`
-- `op-supernode/supernode/activity/interop/algo_test.go`
+- `op-supernode/supernode/activity/interop/circular.go` (NEW)
+- `op-supernode/supernode/activity/interop/interop.go`
+- `op-supernode/supernode/activity/interop/interop_test.go`
 
-**Ready for**: Commit and proceed to Subfeature 4 (Implement circular.go)
+**Ready for**: Commit. Actual cycle verification algorithm can be implemented in `verifyCycleMessages` when ready.
