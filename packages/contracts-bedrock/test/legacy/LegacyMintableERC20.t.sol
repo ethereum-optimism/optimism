@@ -12,8 +12,8 @@ import { ILegacyMintableERC20 } from "interfaces/legacy/ILegacyMintableERC20.sol
 abstract contract LegacyMintableERC20_TestInit is CommonTest {
     LegacyMintableERC20 legacyMintableERC20;
 
-    event Mint(address indexed _account, uint256 _amount);
-    event Burn(address indexed _account, uint256 _amount);
+    event Mint(address indexed account, uint256 amount);
+    event Burn(address indexed account, uint256 amount);
 
     function setUp() public override {
         super.setUp();
