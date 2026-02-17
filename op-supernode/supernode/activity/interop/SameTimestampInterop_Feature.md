@@ -104,7 +104,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 ## Current State
 
 **Phase**: Development
-**Current Subfeature**: 4 (COMPLETE) - Stub cycleVerifyFn implementation
+**Current Subfeature**: 5 (COMPLETE) - `verifyCycleMessages` fully implemented
 
 ---
 
@@ -249,3 +249,101 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 - `op-supernode/supernode/activity/interop/interop_test.go`
 
 **Ready for**: Commit. Actual cycle verification algorithm can be implemented in `verifyCycleMessages` when ready.
+
+---
+
+### Entry 5: checkCycle Algorithm Implemented (2026-02-17)
+
+**Prompt received**:
+> yes, it is time to explain to you the cycle detection algo so we can document the spec, make tests, and then make the implementation.
+> [Algorithm description: Kahn's topological sort with dependencyNode structure]
+> Start with a test plan.
+
+**Algorithm specification documented** (see `circular.go` spec comment):
+- Build dependency graph from same-timestamp executing messages
+- Each node tracks `dependsOn` (outgoing) and `dependedOnBy` (incoming) edges
+- Kahn's algorithm: iteratively remove nodes with no `dependedOnBy`, mark resolved
+- Termination: all resolved = acyclic (valid), unresolved with empty removeSet = cycle (invalid)
+
+**Actions taken**:
+
+1. **Created `circular_test.go`**:
+   - Test plan documented in header comment
+   - `TestDependencyGraph_AddNode` - verifies node addition
+   - `TestDependencyGraph_AddEdge` - verifies edge bidirectional linkage
+   - `TestCheckCycle` - table-driven tests covering:
+     - Empty graph (no cycle)
+     - Single node, no deps (resolves)
+     - Linear chain A→B→C (acyclic)
+     - Simple cycle A↔B (cycle detected)
+     - Triangle cycle A→B→C→A (cycle detected)
+     - Diamond pattern A→B,C→D (acyclic)
+     - Intra-chain sequential logs (resolves)
+     - Cross-chain valid exec message (resolves)
+     - Cross-chain mutual exec (cycle detected)
+
+2. **Implemented `checkCycle` in `circular.go`**:
+   - Added `ErrCycle` error variable
+   - Implemented Kahn's topological sort algorithm:
+     - Part 1: Find nodes with no `dependedOnBy`, mark resolved, add to removeSet
+     - Part 2: Remove resolved nodes from `dependedOnBy` of all nodes they depend on
+     - Terminates when all resolved (valid) or no progress (cycle)
+   - Added `removeFromSlice` helper function
+
+3. **Verification**:
+   - All unit tests pass: `go test -v -run "TestCheckCycle|TestDependencyGraph" ./supernode/activity/interop/`
+   - Full test suite passes: `go test ./supernode/activity/interop/...`
+
+**Files Modified**:
+- `op-supernode/supernode/activity/interop/circular.go`
+- `op-supernode/supernode/activity/interop/circular_test.go` (NEW)
+
+**Next**: Implement `verifyCycleMessages` to build the dependency graph from actual blockchain data and call `checkCycle`.
+
+---
+
+### Entry 6: verifyCycleMessages Fully Implemented (2026-02-17)
+
+**Prompt received**:
+> Yes, next we will write `verifyCycleMessages`. Here's something to consider:
+> - for each Executing Message we add, we'll be attaching two outgoing dependencies:
+>   - to the previous Executing Message for this chain if it exists
+>   - to the location where the Executing Message points
+> BUT HERE IS AN IMPORTANT POINT: rather than use the actual location of the Executing Message, we'll use a helper function called "ExecutingMessageBefore", which grabs the first Executing Message to have occured on that chain equal to or prior to the referenced log index.
+
+**Key insight**: Dependencies are between **Executing Messages only**, not all logs. When an EM references a log index X, we find the latest EM with **logIndex <= X** on the target chain. This represents: "everything that happened up to and including this point must resolve first."
+
+**Semantic clarification**: `<=` (not `<`) - so an EM referencing log 0 on a chain with an EM at log 0 WILL create a dependency.
+
+**Actions taken**:
+
+1. **Added `executingMessageBefore` helper** (`circular.go`):
+   - Finds the latest EM with `logIndex <= targetLogIdx` in a sorted slice
+   - Returns nil if no such EM exists (no dependency to add)
+
+2. **Added `buildCycleGraph` function** (`circular.go`):
+   - Takes `ts` and `chainEMs map[chainID]map[logIdx]*ExecutingMessage`
+   - Creates nodes for same-timestamp EMs only
+   - Adds intra-chain edges: EM depends on previous EM on same chain
+   - Adds cross-chain edges: EM depends on `executingMessageBefore(targetChain, refLogIdx)`
+
+3. **Updated `verifyCycleMessages`** (`circular.go`):
+   - Collects same-timestamp EMs from all chains via `db.OpenBlock`
+   - Calls `buildCycleGraph` to construct dependency graph
+   - Calls `checkCycle` to detect cycles
+   - Returns InvalidHeads for all chains with same-ts EMs if cycle detected
+
+4. **Test cases** (`circular_test.go`):
+   - `TestExecutingMessageBefore`: 6 test cases covering empty, no-match, exact match, latest before, edge cases
+   - `TestBuildCycleGraph`: 10 test cases covering:
+     - Empty graph, past-timestamp refs, single EM
+     - Mutual refs at same log index → CYCLE
+     - One-way dependencies → no cycle
+     - Triangle patterns (both cycle and no-cycle variants)
+     - Prior EMs creating mutual dependency → CYCLE
+
+**Files Modified**:
+- `op-supernode/supernode/activity/interop/circular.go`
+- `op-supernode/supernode/activity/interop/circular_test.go`
+
+**Status**: All unit tests pass. Feature implementation complete.
