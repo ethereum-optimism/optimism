@@ -34,6 +34,12 @@ type EOA struct {
 	el ELNode
 }
 
+// InitMessage represents an initiating message that has been sent and included on chain.
+type InitMessage struct {
+	Tx      *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
+	Receipt *types.Receipt
+}
+
 func NewEOA(key *Key, el ELNode) *EOA {
 	return &EOA{
 		commonImpl: commonFromT(key.t),
@@ -179,13 +185,13 @@ func (u *EOA) DeployWETH() common.Address {
 	return wethAddress
 }
 
-func (u *EOA) SendInitMessage(trigger *txintent.InitTrigger) (*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], *types.Receipt) {
+func (u *EOA) SendInitMessage(trigger *txintent.InitTrigger) *InitMessage {
 	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.Set(trigger)
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "init msg receipt not found")
 	u.log.Info("init message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
-	return tx, receipt
+	return &InitMessage{Tx: tx, Receipt: receipt}
 }
 
 // SendRandomInitMessage creates and sends a random initiating message using the given event logger.
