@@ -196,7 +196,7 @@ func (u *EOA) SendInitMessage(trigger *txintent.InitTrigger) *InitMessage {
 
 // SendRandomInitMessage creates and sends a random initiating message using the given event logger.
 // topicCount specifies the number of topics (clamped to 1-4), dataLen specifies the opaque data length (minimum 1).
-func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Address, topicCount, dataLen int) (*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], *types.Receipt) {
+func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Address, topicCount, dataLen int) *InitMessage {
 	// Clamp topicCount to valid range [1, 4]
 	if topicCount > 4 {
 		topicCount = 4
