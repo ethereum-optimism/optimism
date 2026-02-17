@@ -163,9 +163,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Artifacts encoded as an address.
         l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
 
-        delayedWETHPermissionedGameProxy =
-            IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
-        permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
         IDisputeGameFactory dgf = IDisputeGameFactory(address(artifacts.mustGetAddress("DisputeGameFactoryProxy")));
 
         // Grab the pre-upgrade state. Use getGameImplPrestate to handle both v1 and v2
@@ -175,7 +172,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             permissionedAbsolutePrestate: DisputeGames.getGameImplPrestate(dgf, GameTypes.PERMISSIONED_CANNON),
             cannonKonaAbsolutePrestate: DisputeGames.getGameImplPrestate(dgf, GameTypes.CANNON_KONA),
             permissionlessWethProxy: DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.CANNON),
-            permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
+            permissionedCannonWethProxy: DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.PERMISSIONED_CANNON)
         });
 
         // Since this superchainConfig is already at the expected reinitializer version...
