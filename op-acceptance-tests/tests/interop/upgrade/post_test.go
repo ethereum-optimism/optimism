@@ -20,7 +20,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func TestPostInbox(gt *testing.T) {
@@ -148,10 +147,10 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.SimpleInterop) {
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
 
 	// Single event in tx so index is 0
-	_, execReceipt := bob.SendExecMessage(initMsg)
+	execMsg := bob.SendExecMessage(initMsg)
 
 	// Phase 5: Verify cross-safe progression
-	verifyInteropMessagesProgression(t, sys, initMsg.Receipt, execReceipt)
+	verifyInteropMessagesProgression(t, sys, initMsg, execMsg)
 
 	logger.Info("Interop message inclusion test completed successfully")
 }
@@ -173,18 +172,18 @@ func setupInteropTestEnvironment(sys *presets.SimpleInterop) (alice, bob *dsl.EO
 }
 
 // verifyInteropMessagesProgression verifies cross-safe progression for both init and exec messages
-func verifyInteropMessagesProgression(t devtest.T, sys *presets.SimpleInterop, initReceipt, execReceipt *types.Receipt) {
+func verifyInteropMessagesProgression(t devtest.T, sys *presets.SimpleInterop, initMsg *dsl.InitMessage, execMsg *dsl.ExecMessage) {
 	logger := t.Logger()
 
 	// Verify cross-safe progression for both messages
 	dsl.CheckAll(t,
 		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: bigs.Uint64Strict(initReceipt.BlockNumber),
-			Hash:   initReceipt.BlockHash,
+			Number: bigs.Uint64Strict(initMsg.BlockNumber()),
+			Hash:   initMsg.BlockHash(),
 		}, 60),
 		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: bigs.Uint64Strict(execReceipt.BlockNumber),
-			Hash:   execReceipt.BlockHash,
+			Number: bigs.Uint64Strict(execMsg.BlockNumber()),
+			Hash:   execMsg.BlockHash(),
 		}, 60),
 	)
 
