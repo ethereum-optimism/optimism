@@ -40,6 +40,21 @@ type InitMessage struct {
 	Receipt *types.Receipt
 }
 
+// BlockNumber returns the block number from the receipt.
+func (m *InitMessage) BlockNumber() *big.Int {
+	return m.Receipt.BlockNumber
+}
+
+// TxHash returns the transaction hash from the receipt.
+func (m *InitMessage) TxHash() common.Hash {
+	return m.Receipt.TxHash
+}
+
+// BlockHash returns the block hash from the receipt.
+func (m *InitMessage) BlockHash() common.Hash {
+	return m.Receipt.BlockHash
+}
+
 func NewEOA(key *Key, el ELNode) *EOA {
 	return &EOA{
 		commonImpl: commonFromT(key.t),
