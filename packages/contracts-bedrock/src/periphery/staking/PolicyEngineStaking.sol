@@ -208,7 +208,7 @@ contract PolicyEngineStaking {
     /// @notice Re-links existing stake to a new beneficiary. No-op if already linked
     ///         to the same beneficiary.
     /// @param _beneficiary New beneficiary address.
-    function changeBeneficiary(address _beneficiary) external {
+    function changeBeneficiary(address _beneficiary) external whenNotPaused {
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
 
         StakedData storage data = stakingData[msg.sender];

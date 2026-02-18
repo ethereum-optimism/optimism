@@ -128,7 +128,7 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
     }
 
     /// @notice Tests that changeBeneficiary works when paused.
-    function test_changeBeneficiary_whenPaused_succeeds() external {
+    function test_changeBeneficiary_whenPaused_reverts() external {
         vm.prank(alice);
         staking.stake(uint128(100 ether), alice);
         vm.prank(bob);
@@ -137,11 +137,9 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
         vm.prank(owner);
         staking.pause();
 
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_Paused.selector);
         vm.prank(alice);
         staking.changeBeneficiary(bob);
-
-        (, address linkedTo) = staking.stakingData(alice);
-        assertEq(linkedTo, bob);
     }
 
     /// @notice Tests that unstake works when paused.
