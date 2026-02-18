@@ -30,6 +30,9 @@ interface IPolicyEngineStaking {
     /// @notice Emitted when the staking is unpaused.
     event Unpaused();
 
+    /// @notice Emitted when ownership is transferred.
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     /// @notice Thrown when the caller is not the owner.
     error PolicyEngineStaking_OnlyOwner();
 
@@ -59,6 +62,10 @@ interface IPolicyEngineStaking {
 
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
+
+    /// @notice Transfers ownership of the contract to a new account. Only callable by owner.
+    /// @param _newOwner The address of the new owner.
+    function transferOwnership(address _newOwner) external;
 
     /// @notice Returns whether the contract is paused.
     function paused() external view returns (bool);

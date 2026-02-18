@@ -35,10 +35,6 @@ contract PolicyEngineStaking {
     ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
     bytes32 public constant PE_DATA_SLOT = 0;
 
-    /// @notice The immutable owner of the contract. Can pause and unpause staking.
-    // nosemgrep: sol-safety-no-immutable-variables
-    address internal immutable OWNER_ADDRESS;
-
     /// @notice The ERC20 token used for staking.
     // nosemgrep: sol-safety-no-immutable-variables
     IERC20 public immutable STAKING_TOKEN;
@@ -54,6 +50,9 @@ contract PolicyEngineStaking {
 
     /// @notice Paused state.
     bool public paused;
+
+    /// @notice The owner of the contract. Can pause, unpause, and transfer ownership.
+    address private _owner;
 
     /// @notice Emitted when a user stakes OP tokens.
     /// @param account The address that staked tokens.
@@ -92,6 +91,11 @@ contract PolicyEngineStaking {
     /// @notice Emitted when the staking is unpaused.
     event Unpaused();
 
+    /// @notice Emitted when ownership is transferred.
+    /// @param previousOwner The address of the previous owner.
+    /// @param newOwner      The address of the new owner.
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     /// @notice Thrown when the caller is not the owner.
     error PolicyEngineStaking_OnlyOwner();
 
@@ -120,12 +124,12 @@ contract PolicyEngineStaking {
     error PolicyEngineStaking_AlreadyLinked();
 
     /// @notice Constructs the PolicyEngineStaking contract.
-    /// @param _owner The address that can pause and unpause staking.
+    /// @param _ownerAddr The address that can pause and unpause staking.
     /// @param _token The ERC20 token used for staking.
-    constructor(address _owner, address _token) {
-        if (_owner == address(0)) revert PolicyEngineStaking_ZeroAddress();
+    constructor(address _ownerAddr, address _token) {
+        if (_ownerAddr == address(0)) revert PolicyEngineStaking_ZeroAddress();
         if (_token == address(0)) revert PolicyEngineStaking_ZeroAddress();
-        OWNER_ADDRESS = _owner;
+        _owner = _ownerAddr;
         STAKING_TOKEN = IERC20(_token);
     }
 
@@ -137,13 +141,21 @@ contract PolicyEngineStaking {
 
     /// @notice Modifier that reverts when the caller is not the owner.
     modifier onlyOwner() {
-        if (msg.sender != OWNER_ADDRESS) revert PolicyEngineStaking_OnlyOwner();
+        if (msg.sender != _owner) revert PolicyEngineStaking_OnlyOwner();
         _;
     }
 
     /// @notice Returns the owner address.
     function owner() external view returns (address) {
-        return OWNER_ADDRESS;
+        return _owner;
+    }
+
+    /// @notice Transfers ownership of the contract to a new account.
+    /// @param _newOwner The address of the new owner.
+    function transferOwnership(address _newOwner) external onlyOwner {
+        if (_newOwner == address(0)) revert PolicyEngineStaking_ZeroAddress();
+        emit OwnershipTransferred(_owner, _newOwner);
+        _owner = _newOwner;
     }
 
     /// @notice Pauses the contract. Stake and changeBeneficiary are disabled while paused.
