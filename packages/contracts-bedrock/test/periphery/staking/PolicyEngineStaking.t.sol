@@ -78,6 +78,63 @@ contract PolicyEngineStaking_Constructor_TestFail is PolicyEngineStaking_TestIni
     }
 }
 
+/// @title PolicyEngineStaking_TransferOwnership_Test
+/// @notice Tests the `transferOwnership` function.
+contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestInit {
+    /// @notice Tests that owner can transfer ownership.
+    function testFuzz_transferOwnership_succeeds(address _newOwner) external {
+        vm.assume(_newOwner != address(0));
+
+        vm.expectEmit(address(staking));
+        emit OwnershipTransferred(owner, _newOwner);
+
+        vm.prank(owner);
+        staking.transferOwnership(_newOwner);
+
+        assertEq(staking.owner(), _newOwner);
+    }
+
+    /// @notice Tests that new owner can exercise ownership after transfer.
+    function test_transferOwnership_newOwnerCanPause_succeeds() external {
+        address newOwner = makeAddr("newOwner");
+
+        vm.prank(owner);
+        staking.transferOwnership(newOwner);
+
+        vm.prank(newOwner);
+        staking.pause();
+        assertTrue(staking.paused());
+    }
+
+    /// @notice Tests that old owner loses ownership after transfer.
+    function test_transferOwnership_oldOwnerReverts_reverts() external {
+        address newOwner = makeAddr("newOwner");
+
+        vm.prank(owner);
+        staking.transferOwnership(newOwner);
+
+        vm.prank(owner);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
+        staking.pause();
+    }
+
+    /// @notice Tests that non-owner cannot transfer ownership.
+    function testFuzz_transferOwnership_notOwner_reverts(address _caller) external {
+        vm.assume(_caller != owner && _caller != address(0));
+
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
+        vm.prank(_caller);
+        staking.transferOwnership(alice);
+    }
+
+    /// @notice Tests that transferring to zero address reverts.
+    function test_transferOwnership_zeroAddress_reverts() external {
+        vm.prank(owner);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
+        staking.transferOwnership(address(0));
+    }
+}
+
 /// @title PolicyEngineStaking_Pause_Test
 /// @notice Tests the pause/unpause functionality.
 contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
