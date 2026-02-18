@@ -100,7 +100,7 @@ func (d *SafeDB) Enabled() bool {
 func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	d.log.Info("Record safe head", "l2", safeHead.ID(), "l1", l1Head)
+	d.log.Info("Record local safe head", "l2", safeHead.ID(), "l1", l1Head)
 	batch := d.db.NewBatch()
 	defer batch.Close()
 	if err := batch.Set(safeByL1BlockNumKey.Of(l1Head.Number), safeByL1BlockNumValue(l1Head, safeHead.ID()), d.writeOpts); err != nil {
