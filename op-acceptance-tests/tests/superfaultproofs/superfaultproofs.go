@@ -369,33 +369,10 @@ func RunTraceExtensionActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains := orderedChains(sys)
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 
-	// -- Stage 1: Freeze batch submission, then validate endTimestamp --------
-	chains[0].Batcher.Stop()
-	chains[1].Batcher.Stop()
-	defer func() {
-		chains[0].Batcher.Start()
-		chains[1].Batcher.Start()
-	}()
-	awaitSafeHeadsStalled(t, sys.L2CLA, sys.L2CLB)
-
-	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
-
-	// Ensure both chains have produced the target blocks as unsafe.
-	for _, c := range chains {
-		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
-		t.Require().NoError(err)
-		c.EL.Reached(eth.Unsafe, target, 60)
-	}
-
-	// Submit batch data so endTimestamp becomes validated.
-	chains[0].Batcher.Start()
-	chains[1].Batcher.Start()
+	endTimestamp := uint64(time.Now().Unix())
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	l1Head := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
-	chains[0].Batcher.Stop()
-	chains[1].Batcher.Stop()
+	l1Head := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp + 1))
 
-	// -- Stage 2: Build trace extension test claims --------------------------
 	startTimestamp := endTimestamp - 1
 	agreedSuperRoot := superRootAtTimestamp(t, chains, endTimestamp)
 	agreedClaim := agreedSuperRoot.Marshal()
@@ -449,7 +426,6 @@ func RunTraceExtensionActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 		},
 	}
 
-	// -- Stage 3: Run FPP and challenger tests --------------------------------
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
 
