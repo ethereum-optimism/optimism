@@ -36,8 +36,8 @@ func (m *mockSuperAuthority) IsDenied(blockNumber uint64, payloadHash common.Has
 	return false, nil
 }
 
-func (m *mockSuperAuthority) FullyVerifiedL2Head() eth.BlockID {
-	return m.fullyVerifiedL2Head
+func (m *mockSuperAuthority) FullyVerifiedL2Head() (eth.BlockID, bool) {
+	return m.fullyVerifiedL2Head, false
 }
 
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)

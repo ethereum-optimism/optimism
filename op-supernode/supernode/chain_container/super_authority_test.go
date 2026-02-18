@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,16 +33,22 @@ func (m *mockVerificationActivityForSuperAuthority) Reset(eth.ChainID, uint64, e
 
 var _ activity.VerificationActivity = (*mockVerificationActivityForSuperAuthority)(nil)
 
+// newTestChainContainer creates a simpleChainContainer for testing with a test logger
+func newTestChainContainer(t *testing.T, chainID eth.ChainID) *simpleChainContainer {
+	return &simpleChainContainer{
+		chainID:   chainID,
+		verifiers: []activity.VerificationActivity{},
+		log:       testlog.Logger(t, log.LevelDebug),
+	}
+}
+
 // TestChainContainer_FullyVerifiedL2Head_MultipleVerifiers tests that FullyVerifiedL2Head
 // returns the block with the minimum (oldest) timestamp across all verifiers
 func TestChainContainer_FullyVerifiedL2Head_MultipleVerifiers(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
-	cc := &simpleChainContainer{
-		chainID:   chainID,
-		verifiers: []activity.VerificationActivity{},
-	}
+	cc := newTestChainContainer(t, chainID)
 
 	// Setup three verifiers with different timestamps
 	verifier1 := &mockVerificationActivityForSuperAuthority{
@@ -70,10 +78,7 @@ func TestChainContainer_FullyVerifiedL2Head_NoVerifiers(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
-	cc := &simpleChainContainer{
-		chainID:   chainID,
-		verifiers: []activity.VerificationActivity{},
-	}
+	cc := newTestChainContainer(t, chainID)
 
 	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID with no verifiers")
@@ -86,10 +91,7 @@ func TestChainContainer_FullyVerifiedL2Head_OneUnverified(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
-	cc := &simpleChainContainer{
-		chainID:   chainID,
-		verifiers: []activity.VerificationActivity{},
-	}
+	cc := newTestChainContainer(t, chainID)
 
 	// Setup verifiers where one is unverified (empty BlockID)
 	verifier1 := &mockVerificationActivityForSuperAuthority{
@@ -119,10 +121,7 @@ func TestChainContainer_FullyVerifiedL2Head_SameTimestamp(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
-	cc := &simpleChainContainer{
-		chainID:   chainID,
-		verifiers: []activity.VerificationActivity{},
-	}
+	cc := newTestChainContainer(t, chainID)
 
 	// Setup verifiers with same timestamp but different block hashes
 	verifier1 := &mockVerificationActivityForSuperAuthority{
@@ -148,10 +147,7 @@ func TestChainContainer_FullyVerifiedL2Head_SingleVerifier(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
-	cc := &simpleChainContainer{
-		chainID:   chainID,
-		verifiers: []activity.VerificationActivity{},
-	}
+	cc := newTestChainContainer(t, chainID)
 
 	verifier := &mockVerificationActivityForSuperAuthority{
 		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
@@ -171,10 +167,7 @@ func TestChainContainer_FullyVerifiedL2Head_AllUnverified(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
-	cc := &simpleChainContainer{
-		chainID:   chainID,
-		verifiers: []activity.VerificationActivity{},
-	}
+	cc := newTestChainContainer(t, chainID)
 
 	// All verifiers unverified
 	verifier1 := &mockVerificationActivityForSuperAuthority{

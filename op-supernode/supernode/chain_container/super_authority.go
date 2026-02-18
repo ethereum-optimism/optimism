@@ -17,9 +17,7 @@ import (
 func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
 	// If no verifiers registered, signal fallback to local-safe
 	if len(c.verifiers) == 0 {
-		if c.log != nil {
-			c.log.Debug("FullyVerifiedL2Head: no verifiers registered, signaling local-safe fallback")
-		}
+		c.log.Debug("FullyVerifiedL2Head: no verifiers registered, signaling local-safe fallback")
 		return eth.BlockID{}, true
 	}
 
@@ -30,9 +28,7 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
 		// If any verifier returns empty, return empty but don't signal fallback
 		// The verifier exists but hasn't verified anything yet
 		if (bId == eth.BlockID{} || ts == 0) {
-			if c.log != nil {
-				c.log.Debug("FullyVerifiedL2Head: verifier returned empty, returning empty without fallback", "verifier", v.Name())
-			}
+			c.log.Debug("FullyVerifiedL2Head: verifier returned empty, returning empty without fallback", "verifier", v.Name())
 			return eth.BlockID{}, false
 		}
 		if ts < timestamp {
@@ -43,9 +39,7 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
 		}
 	}
 
-	if c.log != nil {
-		c.log.Debug("FullyVerifiedL2Head: returning verified block", "block", oldestVerifiedBlock, "timestamp", timestamp)
-	}
+	c.log.Debug("FullyVerifiedL2Head: returning verified block", "block", oldestVerifiedBlock, "timestamp", timestamp)
 	return oldestVerifiedBlock, false
 }
 
