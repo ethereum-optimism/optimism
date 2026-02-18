@@ -185,16 +185,17 @@ contract PolicyEngineStaking {
 
         StakedData storage data = stakingData[msg.sender];
         address currentLink = data.linkedTo;
-        data.stakedAmount += _amount;
 
         if (currentLink != _beneficiary) {
             if (currentLink != address(0)) {
-                _decreasePeData(currentLink, data.stakedAmount - _amount);
+                _decreasePeData(currentLink, data.stakedAmount);
                 emit Unlinked(msg.sender, currentLink);
             }
             data.linkedTo = _beneficiary;
             emit Linked(msg.sender, _beneficiary);
         }
+
+        data.stakedAmount += _amount;
 
         uint128 peDelta = currentLink == _beneficiary ? _amount : data.stakedAmount;
         _increasePeData(_beneficiary, peDelta);
