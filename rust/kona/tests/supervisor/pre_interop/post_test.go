@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -202,14 +201,8 @@ func verifyInteropMessagesProgression(t devtest.T, sys *presets.SimpleInterop, i
 
 	// Verify cross-safe progression for both messages
 	dsl.CheckAll(t,
-		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: bigs.Uint64Strict(initMsg.BlockNumber()),
-			Hash:   initMsg.BlockHash(),
-		}, 60),
-		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: bigs.Uint64Strict(execMsg.BlockNumber()),
-			Hash:   execMsg.BlockHash(),
-		}, 60),
+		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, initMsg.BlockID(), 60),
+		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, execMsg.BlockID(), 60),
 	)
 
 	logger.Info("Cross-safe progression verified for both init and exec messages")
