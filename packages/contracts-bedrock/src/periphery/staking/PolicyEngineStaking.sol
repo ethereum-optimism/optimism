@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -43,13 +43,13 @@ contract PolicyEngineStaking {
     IERC20 public immutable STAKING_TOKEN;
 
     /// @notice Slot 0: PE data mapping.
-    mapping(address => PEData) public peData;
+    mapping(address account => PEData) public peData;
 
     /// @notice Allowlist: beneficiary => staker => allowed.
-    mapping(address => mapping(address => bool)) public allowlist;
+    mapping(address beneficiary => mapping(address staker => bool allowed)) public allowlist;
 
     /// @notice Staking data mapping.
-    mapping(address => StakedData) public stakingData;
+    mapping(address account => StakedData) public stakingData;
 
     /// @notice Paused state.
     bool public paused;
@@ -250,11 +250,8 @@ contract PolicyEngineStaking {
     function setAllowedStakers(address[] calldata _stakers, bool _allowed) external {
         uint256 stakersLength = _stakers.length;
 
-        for (uint256 i; i < stakersLength;) {
+        for (uint256 i; i < stakersLength; ++i) {
             setAllowedStaker(_stakers[i], _allowed);
-            unchecked {
-                ++i;
-            }
         }
     }
 

@@ -58,12 +58,12 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "beneficiary",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "",
+        "name": "staker",
         "type": "address"
       }
     ],
@@ -71,7 +71,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "",
+        "name": "allowed",
         "type": "bool"
       }
     ],
@@ -128,7 +128,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "account",
         "type": "address"
       }
     ],
@@ -206,7 +206,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "account",
         "type": "address"
       }
     ],
