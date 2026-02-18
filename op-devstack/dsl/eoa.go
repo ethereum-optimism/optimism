@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -55,6 +56,14 @@ func (m *InitMessage) BlockHash() common.Hash {
 	return m.Receipt.BlockHash
 }
 
+// BlockID returns the block ID from the receipt.
+func (m *InitMessage) BlockID() eth.BlockID {
+	return eth.BlockID{
+		Number: bigs.Uint64Strict(m.Receipt.BlockNumber),
+		Hash:   m.Receipt.BlockHash,
+	}
+}
+
 // ExecMessage represents an executing message that has been sent and included on chain.
 type ExecMessage struct {
 	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
@@ -74,6 +83,14 @@ func (m *ExecMessage) TxHash() common.Hash {
 // BlockHash returns the block hash from the receipt.
 func (m *ExecMessage) BlockHash() common.Hash {
 	return m.Receipt.BlockHash
+}
+
+// BlockID returns the block ID from the receipt.
+func (m *ExecMessage) BlockID() eth.BlockID {
+	return eth.BlockID{
+		Number: bigs.Uint64Strict(m.Receipt.BlockNumber),
+		Hash:   m.Receipt.BlockHash,
+	}
 }
 
 func NewEOA(key *Key, el ELNode) *EOA {
