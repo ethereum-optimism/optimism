@@ -49,18 +49,18 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	rng := rand.New(rand.NewSource(12345))
 
 	// Send an initiating message on chain A
-	initTx, initReceipt := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
+	initMsg := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
 
 	t.Logger().Info("initiating message sent on chain A",
-		"block", initReceipt.BlockNumber,
-		"hash", initReceipt.BlockHash,
+		"block", initMsg.Receipt.BlockNumber,
+		"hash", initMsg.Receipt.BlockHash,
 	)
 
 	// Wait for chain B to catch up
 	sys.L2B.WaitForBlock()
 
 	// Send an INVALID executing message on chain B
-	_, invalidExecReceipt := bob.SendInvalidExecMessage(initTx, 0)
+	_, invalidExecReceipt := bob.SendInvalidExecMessage(initMsg.Tx, 0)
 	invalidBlockNumber := bigs.Uint64Strict(invalidExecReceipt.BlockNumber)
 	invalidBlockHash := invalidExecReceipt.BlockHash
 	invalidBlockTimestamp := sys.L2B.TimestampForBlockNum(invalidBlockNumber)
