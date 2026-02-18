@@ -37,20 +37,14 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	sys.L2B.WaitForBlock()
 	execMsgAtoB := bob.SendExecMessage(initMsgAtoB)
 
-	t.Logger().Info("A->B message sent",
-		"init_block", initMsgAtoB.BlockNumber(),
-		"exec_block", execMsgAtoB.BlockNumber(),
-	)
+	t.Logger().Info("A->B message sent", "msg", execMsgAtoB)
 
 	// Send B -> A message
 	initMsgBtoA := bob.SendRandomInitMessage(rng, eventLoggerB, 2, 10)
 	sys.L2A.WaitForBlock()
 	execMsgBtoA := alice.SendExecMessage(initMsgBtoA)
 
-	t.Logger().Info("B->A message sent",
-		"init_block", initMsgBtoA.BlockNumber(),
-		"exec_block", execMsgBtoA.BlockNumber(),
-	)
+	t.Logger().Info("B->A message sent", "msg", execMsgBtoA)
 
 	// Wait for all messages to become safe
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
