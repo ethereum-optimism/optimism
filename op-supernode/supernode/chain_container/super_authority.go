@@ -39,7 +39,6 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() eth.BlockID {
 	oldestVerifiedBlock := eth.BlockID{}
 	for _, v := range c.verifiers {
 		bId, ts := v.LatestVerifiedL2Block(c.chainID)
-		// If any verifier returns empty, fall back to local-safe
 		if (bId == eth.BlockID{} || ts == 0) {
 			return bId
 		}
