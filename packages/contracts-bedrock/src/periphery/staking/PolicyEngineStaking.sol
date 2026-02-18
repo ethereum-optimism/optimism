@@ -36,8 +36,7 @@ contract PolicyEngineStaking {
     bytes32 public constant PE_DATA_SLOT = 0;
 
     /// @notice The ERC20 token used for staking.
-    // nosemgrep: sol-safety-no-immutable-variables
-    IERC20 public immutable STAKING_TOKEN;
+    IERC20 internal immutable STAKING_TOKEN;
 
     /// @notice Slot 0: PE data mapping.
     mapping(address account => PEData) public peData;
@@ -148,6 +147,13 @@ contract PolicyEngineStaking {
     /// @notice Returns the owner address.
     function owner() external view returns (address) {
         return _owner;
+    }
+
+    /// @notice Returns the staking token address.
+    ///
+    /// @return The ERC20 token used for staking.
+    function stakingToken() external view returns (IERC20) {
+        return STAKING_TOKEN;
     }
 
     /// @notice Transfers ownership of the contract to a new account.
@@ -261,6 +267,18 @@ contract PolicyEngineStaking {
     function setAllowedStaker(address _staker, bool _allowed) public {
         allowlist[msg.sender][_staker] = _allowed;
         emit BeneficiaryAllowlistUpdated(msg.sender, _staker, _allowed);
+
+        if (!_allowed) {
+            StakedData storage data = stakingData[_staker];
+            if (data.linkedTo == msg.sender && _staker != msg.sender) {
+                _decreasePeData(msg.sender, data.stakedAmount);
+                emit Unlinked(_staker, msg.sender);
+
+                data.linkedTo = _staker;
+                _increasePeData(_staker, data.stakedAmount);
+                emit Linked(_staker, _staker);
+            }
+        }
     }
 
     /// @notice Batch allows or denies stakers to attribute ordering power to the caller.

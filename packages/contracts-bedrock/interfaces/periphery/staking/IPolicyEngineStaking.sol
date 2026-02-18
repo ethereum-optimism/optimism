@@ -84,7 +84,7 @@ interface IPolicyEngineStaking {
     function stakingData(address _account) external view returns (uint128 stakedAmount_, address linkedTo_);
 
     /// @notice Returns the ERC20 token used for staking.
-    function STAKING_TOKEN() external view returns (IERC20);
+    function stakingToken() external view returns (IERC20);
 
     /// @notice Pauses the contract. Only callable by owner.
     function pause() external;

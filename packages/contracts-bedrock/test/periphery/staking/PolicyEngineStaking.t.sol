@@ -66,7 +66,9 @@ contract PolicyEngineStaking_Constructor_TestFail is PolicyEngineStaking_TestIni
     /// @notice Tests that the constructor reverts when owner is zero address.
     function test_constructor_zeroOwner_reverts() external {
         vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
-        vm.deployCode("PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(address(0), Predeploys.GOVERNANCE_TOKEN));
+        vm.deployCode(
+            "PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(address(0), Predeploys.GOVERNANCE_TOKEN)
+        );
     }
 
     /// @notice Tests that the constructor reverts when token is zero address.
@@ -710,7 +712,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
     }
 
     /// @notice Tests that revoking allowlist does not auto-unlink: staker keeps link until explicit action.
-    function test_revokeAllowlist_stakeRemainsUntilUnstake_succeeds() external {
+    function test_revokeAllowlist_relinksStakerToSelf_succeeds() external {
         vm.prank(alice);
         staking.setAllowedStaker(bob, true);
         vm.prank(bob);
@@ -722,25 +724,43 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         assertEq(bobLinkedTo, alice);
         assertEq(aliceEffective, 100 ether);
 
+        // Alice revokes bob from allowlist
+        vm.expectEmit(address(staking));
+        emit BeneficiaryAllowlistUpdated(alice, bob, false);
+
+        // Bob is unlinked from Alice
+        vm.expectEmit(address(staking));
+        emit EffectiveStakeChanged(alice, 0);
+        vm.expectEmit(address(staking));
+        emit Unlinked(bob, alice);
+
+        // Bob is linked to self
+        vm.expectEmit(address(staking));
+        emit EffectiveStakeChanged(bob, 100 ether);
+        vm.expectEmit(address(staking));
+        emit Linked(bob, bob);
+
         vm.prank(alice);
         staking.setAllowedStaker(bob, false);
 
-        // Bob stays linked - stake and effective power remain with Alice
+        // Bob is now linked to self, alice's effective stake is zeroed
         (bobStaked, bobLinkedTo) = staking.stakingData(bob);
         (aliceEffective,) = staking.peData(alice);
+        (uint128 bobEffective,) = staking.peData(bob);
         assertEq(bobStaked, 100 ether);
-        assertEq(bobLinkedTo, alice);
-        assertEq(aliceEffective, 100 ether);
+        assertEq(bobLinkedTo, bob);
+        assertEq(aliceEffective, 0);
+        assertEq(bobEffective, 100 ether);
 
-        // Bob fully unstakes (auto-unlinks)
+        // Bob fully unstakes
         vm.prank(bob);
         staking.unstake(uint128(100 ether));
 
         (bobStaked, bobLinkedTo) = staking.stakingData(bob);
-        (aliceEffective,) = staking.peData(alice);
+        (bobEffective,) = staking.peData(bob);
         assertEq(bobStaked, 0);
         assertEq(bobLinkedTo, address(0));
-        assertEq(aliceEffective, 0);
+        assertEq(bobEffective, 0);
     }
 
     /// @notice Tests that lastUpdate is updated after new staking and linking when time advances.
