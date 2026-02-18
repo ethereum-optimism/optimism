@@ -526,6 +526,9 @@ contract PolicyEngineStaking_ChangeBeneficiary_Test is PolicyEngineStaking_TestI
 
     /// @notice Tests that changeBeneficiary with no stake reverts.
     function test_changeBeneficiary_noStake_reverts() external {
+        vm.prank(bob);
+        staking.setAllowedStaker(alice, true);
+
         vm.prank(alice);
         vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_NoStake.selector);
         staking.changeBeneficiary(bob);

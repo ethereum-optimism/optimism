@@ -9,10 +9,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title PolicyEngineStaking
-/// @notice A simplified stake-based transaction ordering contract for op-rbuilder.
-///         Supports staking with beneficiary attribution, partial unstake, and enforces
-///         the invariant that every staked token always has a beneficiary.
-///         No `receivedStake` tracking, no dormant state.
+/// @notice Periphery contract for stake-based transaction ordering in op-rbuilder. Users stake governance tokens
+///         and optionally link to a beneficiary who receives ordering power. Supports partial unstake.
+///         Invariant: every staked token has a beneficiary (self or linked). No receivedStake tracking or unlink().
 contract PolicyEngineStaking is ISemver {
     using SafeERC20 for IERC20;
 
@@ -169,7 +168,7 @@ contract PolicyEngineStaking is ISemver {
         _owner = _newOwner;
     }
 
-    /// @notice Pauses the contract. Stake and changeBeneficiary are disabled while paused.
+    /// @notice Pauses the contract. Stake is disabled while paused.
     function pause() external onlyOwner {
         paused = true;
         emit Paused();
@@ -221,9 +220,12 @@ contract PolicyEngineStaking is ISemver {
     /// @param _beneficiary New beneficiary address.
     function changeBeneficiary(address _beneficiary) external whenNotPaused {
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
+        if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
+            revert PolicyEngineStaking_NotAllowedToLink();
+        }
 
-        StakedData storage data = stakingData[msg.sender];
-        if (data.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
+        StakedData storage stakedData = stakingData[msg.sender];
+        if (stakedData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
         address currentBeneficiary = data.beneficiary;
         if (currentBeneficiary == _beneficiary) revert PolicyEngineStaking_SameBeneficiary();
@@ -248,8 +250,8 @@ contract PolicyEngineStaking is ISemver {
     function unstake(uint128 _amount) external {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
 
-        StakedData storage data = stakingData[msg.sender];
-        if (data.stakedAmount < _amount) revert PolicyEngineStaking_InsufficientStake();
+        StakedData storage stakedData = stakingData[msg.sender];
+        if (stakedData.stakedAmount < _amount) revert PolicyEngineStaking_InsufficientStake();
 
         address beneficiary = data.beneficiary;
         _decreasePeData(beneficiary, _amount);
