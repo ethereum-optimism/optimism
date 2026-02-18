@@ -7,10 +7,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @notice Interface for the PolicyEngineStaking contract.
 interface IPolicyEngineStaking {
     /// @notice Emitted when a user stakes OP tokens.
-    event Staked(address indexed account, uint256 amount);
+    event Staked(address indexed account, uint128 amount);
 
     /// @notice Emitted when a user unstakes OP tokens.
-    event Unstaked(address indexed account, uint256 amount);
+    event Unstaked(address indexed account, uint128 amount);
 
     /// @notice Emitted when a staker links their stake to a beneficiary.
     event Linked(address indexed staker, address indexed beneficiary);
@@ -71,7 +71,7 @@ interface IPolicyEngineStaking {
     function allowlist(address _beneficiary, address _staker) external view returns (bool allowed_);
 
     /// @notice Returns staking data for an account.
-    function stakingData(address _account) external view returns (uint256 stakedAmount_, address linkedTo_);
+    function stakingData(address _account) external view returns (uint128 stakedAmount_, address linkedTo_);
 
     /// @notice Returns the ERC20 token used for staking.
     function STAKING_TOKEN() external view returns (IERC20);
@@ -85,7 +85,7 @@ interface IPolicyEngineStaking {
     /// @notice Stakes tokens and links to a beneficiary atomically.
     /// @param _amount      The amount of tokens to stake.
     /// @param _beneficiary Address that receives ordering power. Use msg.sender for self-attribution.
-    function stake(uint256 _amount, address _beneficiary) external;
+    function stake(uint128 _amount, address _beneficiary) external;
 
     /// @notice Re-links existing stake to a new beneficiary.
     /// @param _beneficiary New beneficiary address.
@@ -93,7 +93,7 @@ interface IPolicyEngineStaking {
 
     /// @notice Unstakes OP tokens. Supports partial and full unstake.
     /// @param _amount The amount of OP tokens to unstake.
-    function unstake(uint256 _amount) external;
+    function unstake(uint128 _amount) external;
 
     /// @notice Sets whether a staker can link to the caller (beneficiary).
     /// @param _staker  The staker address.

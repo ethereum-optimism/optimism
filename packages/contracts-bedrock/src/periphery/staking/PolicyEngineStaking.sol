@@ -19,7 +19,7 @@ contract PolicyEngineStaking {
     /// @custom:field stakedAmount The amount of OP tokens staked by the account.
     /// @custom:field linkedTo The address to which the account's stake is attributed.
     struct StakedData {
-        uint256 stakedAmount;
+        uint128 stakedAmount;
         address linkedTo;
     }
 
@@ -58,12 +58,12 @@ contract PolicyEngineStaking {
     /// @notice Emitted when a user stakes OP tokens.
     /// @param account The address that staked tokens.
     /// @param amount  The amount of tokens staked.
-    event Staked(address indexed account, uint256 amount);
+    event Staked(address indexed account, uint128 amount);
 
     /// @notice Emitted when a user unstakes OP tokens.
     /// @param account The address that unstaked tokens.
     /// @param amount  The amount of tokens unstaked.
-    event Unstaked(address indexed account, uint256 amount);
+    event Unstaked(address indexed account, uint128 amount);
 
     /// @notice Emitted when a staker links their stake to a beneficiary.
     /// @param staker      The address linking their stake.
@@ -161,7 +161,7 @@ contract PolicyEngineStaking {
     /// @param _amount      The amount of tokens to stake.
     /// @param _beneficiary Address that receives ordering power from this stake.
     ///                     Use msg.sender for self-attribution.
-    function stake(uint256 _amount, address _beneficiary) external whenNotPaused {
+    function stake(uint128 _amount, address _beneficiary) external whenNotPaused {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
 
@@ -174,11 +174,11 @@ contract PolicyEngineStaking {
             emit Linked(msg.sender, _beneficiary);
         } else if (currentLink != _beneficiary) {
             // Re-linking: move existing stake from old beneficiary to new
-            _decreasePeData(currentLink, uint128(data.stakedAmount));
+            _decreasePeData(currentLink, data.stakedAmount);
             emit Unlinked(msg.sender, currentLink);
 
             _link(msg.sender, _beneficiary, data);
-            _increasePeData(_beneficiary, uint128(data.stakedAmount));
+            _increasePeData(_beneficiary, data.stakedAmount);
             emit Linked(msg.sender, _beneficiary);
         } else {
             // Same beneficiary: re-check allowlist (skip for self-link)
@@ -188,9 +188,9 @@ contract PolicyEngineStaking {
         }
 
         data.stakedAmount += _amount;
-        _increasePeData(_beneficiary, uint128(_amount));
+        _increasePeData(_beneficiary, _amount);
 
-        STAKING_TOKEN.safeTransferFrom(msg.sender, address(this), _amount);
+        STAKING_TOKEN.safeTransferFrom(msg.sender, address(this), uint256(_amount));
 
         emit Staked(msg.sender, _amount);
     }
@@ -208,11 +208,11 @@ contract PolicyEngineStaking {
         if (currentLink == _beneficiary) return;
 
         // Move existing stake from old beneficiary to new
-        _decreasePeData(currentLink, uint128(data.stakedAmount));
+        _decreasePeData(currentLink, data.stakedAmount);
         emit Unlinked(msg.sender, currentLink);
 
         _link(msg.sender, _beneficiary, data);
-        _increasePeData(_beneficiary, uint128(data.stakedAmount));
+        _increasePeData(_beneficiary, data.stakedAmount);
 
         emit Linked(msg.sender, _beneficiary);
     }
@@ -220,14 +220,14 @@ contract PolicyEngineStaking {
     /// @notice Unstakes OP tokens. Supports partial and full unstake.
     ///         On full unstake, the link is automatically cleared.
     /// @param _amount The amount of OP tokens to unstake.
-    function unstake(uint256 _amount) external {
+    function unstake(uint128 _amount) external {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
 
         StakedData storage data = stakingData[msg.sender];
         if (data.stakedAmount < _amount) revert PolicyEngineStaking_InsufficientStake();
 
         address linkedTo = data.linkedTo;
-        _decreasePeData(linkedTo, uint128(_amount));
+        _decreasePeData(linkedTo, _amount);
         data.stakedAmount -= _amount;
 
         // Auto-unlink on full unstake
@@ -236,7 +236,7 @@ contract PolicyEngineStaking {
             emit Unlinked(msg.sender, linkedTo);
         }
 
-        STAKING_TOKEN.safeTransfer(msg.sender, _amount);
+        STAKING_TOKEN.safeTransfer(msg.sender, uint256(_amount));
 
         emit Unstaked(msg.sender, _amount);
     }
