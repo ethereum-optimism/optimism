@@ -142,7 +142,7 @@ where
                 // If Isthmus is active, the EIP-2935 contract is used to perform leaping lookbacks
                 // through consulting the ring buffer within the contract. If this
                 // lookup fails for any reason, we fall back to linear walk back.
-                let block_hash = match eip_2935_history_lookup(&header, 0, self, self).await {
+                let block_hash = match eip_2935_history_lookup(&header, number, self, self).await {
                     Ok(hash) => hash,
                     Err(_) => {
                         // If the EIP-2935 lookup fails for any reason, attempt fallback to linear
