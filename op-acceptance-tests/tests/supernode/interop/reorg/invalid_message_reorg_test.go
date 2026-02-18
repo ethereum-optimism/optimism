@@ -52,8 +52,8 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	initMsg := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
 
 	t.Logger().Info("initiating message sent on chain A",
-		"block", initMsg.Receipt.BlockNumber,
-		"hash", initMsg.Receipt.BlockHash,
+		"block", initMsg.BlockNumber(),
+		"hash", initMsg.BlockHash(),
 	)
 
 	// Wait for chain B to catch up

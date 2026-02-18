@@ -89,7 +89,7 @@ func TestPreNoInbox(gt *testing.T) {
 		require.ErrorContains(err, "implementation not initialized", "error did not contain expected string")
 		require.Nil(execReceipt)
 
-		t.Logger().Info("initReceipt", "blocknum", initMsg.Receipt.BlockNumber, "txhash", initMsg.Receipt.TxHash)
+		t.Logger().Info("initReceipt", "blocknum", initMsg.BlockNumber(), "txhash", initMsg.TxHash())
 
 		// confirm we are still pre-interop
 		require.False(sys.L2ChainA.IsActivated(*interopTimeA))
