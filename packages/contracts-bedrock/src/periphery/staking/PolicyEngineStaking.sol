@@ -3,6 +3,7 @@ pragma solidity 0.8.30;
 
 // Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 // Libraries
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -12,7 +13,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 ///         Supports staking with beneficiary attribution, partial unstake, and enforces
 ///         the invariant that every staked token always has a beneficiary.
 ///         No `receivedStake` tracking, no dormant state.
-contract PolicyEngineStaking {
+contract PolicyEngineStaking is ISemver {
     using SafeERC20 for IERC20;
 
     /// @notice Staking data per account.
@@ -30,6 +31,10 @@ contract PolicyEngineStaking {
         uint128 effectiveStake;
         uint128 lastUpdate;
     }
+
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     /// @notice Base storage slot for PE data mapping. Policy Engine reads from
     ///         keccak256(abi.encode(account, PE_DATA_SLOT)).

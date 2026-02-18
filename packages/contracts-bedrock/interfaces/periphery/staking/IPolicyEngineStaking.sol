@@ -2,10 +2,11 @@
 pragma solidity ^0.8.0;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title IPolicyEngineStaking
 /// @notice Interface for the PolicyEngineStaking contract.
-interface IPolicyEngineStaking {
+interface IPolicyEngineStaking is ISemver {
     /// @notice Emitted when a user stakes OP tokens.
     event Staked(address indexed account, uint128 amount);
 
