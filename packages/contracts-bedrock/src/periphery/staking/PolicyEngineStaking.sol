@@ -113,10 +113,15 @@ contract PolicyEngineStaking {
     /// @notice Thrown when trying to unstake more than the staked amount.
     error PolicyEngineStaking_InsufficientStake();
 
+    /// @notice Thrown when a zero address is provided where it is not allowed.
+    error PolicyEngineStaking_ZeroAddress();
+
     /// @notice Constructs the PolicyEngineStaking contract.
     /// @param _owner The address that can pause and unpause staking.
     /// @param _token The ERC20 token used for staking.
     constructor(address _owner, address _token) {
+        if (_owner == address(0)) revert PolicyEngineStaking_ZeroAddress();
+        if (_token == address(0)) revert PolicyEngineStaking_ZeroAddress();
         OWNER_ADDRESS = _owner;
         STAKING_TOKEN = IERC20(_token);
     }

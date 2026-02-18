@@ -51,6 +51,9 @@ interface IPolicyEngineStaking {
     /// @notice Thrown when trying to unstake more than the staked amount.
     error PolicyEngineStaking_InsufficientStake();
 
+    /// @notice Thrown when a zero address is provided where it is not allowed.
+    error PolicyEngineStaking_ZeroAddress();
+
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
 
