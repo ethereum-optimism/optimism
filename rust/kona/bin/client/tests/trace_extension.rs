@@ -23,12 +23,7 @@ impl MockOracle {
 #[async_trait]
 impl PreimageOracleClient for MockOracle {
     async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
-        self.preimages
-            .lock()
-            .await
-            .get(&key)
-            .cloned()
-            .ok_or(PreimageOracleError::KeyNotFound)
+        self.preimages.lock().await.get(&key).cloned().ok_or(PreimageOracleError::KeyNotFound)
     }
 
     async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
@@ -80,14 +75,10 @@ fn setup_preimages(
     // bytes [96..128].
     let mut output_root_preimage = [0u8; 128];
     output_root_preimage[96..128].copy_from_slice(safe_head_hash.as_slice());
-    preimages.insert(
-        PreimageKey::new_keccak256(*agreed_root),
-        output_root_preimage.to_vec(),
-    );
+    preimages.insert(PreimageKey::new_keccak256(*agreed_root), output_root_preimage.to_vec());
 
     // L2 safe head header.
-    let mut header = Header::default();
-    header.number = safe_head_number;
+    let header = Header { number: safe_head_number, ..Default::default() };
     let header_rlp = alloy_rlp::encode(&header).to_vec();
     preimages.insert(PreimageKey::new_keccak256(*safe_head_hash), header_rlp);
 
