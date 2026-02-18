@@ -60,7 +60,7 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	sys.L2B.WaitForBlock()
 
 	// Send an INVALID executing message on chain B
-	_, invalidExecReceipt := bob.SendInvalidExecMessage(initMsg.Tx, 0)
+	_, invalidExecReceipt := bob.SendInvalidExecMessage(initMsg)
 	invalidBlockNumber := bigs.Uint64Strict(invalidExecReceipt.BlockNumber)
 	invalidBlockHash := invalidExecReceipt.BlockHash
 	invalidBlockTimestamp := sys.L2B.TimestampForBlockNum(invalidBlockNumber)

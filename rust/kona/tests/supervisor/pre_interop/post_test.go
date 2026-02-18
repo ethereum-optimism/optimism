@@ -173,7 +173,7 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.SimpleInterop) {
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
 
 	// Single event in tx so index is 0
-	_, execReceipt := bob.SendExecMessage(initMsg.Tx, 0)
+	_, execReceipt := bob.SendExecMessage(initMsg)
 
 	// Phase 5: Verify cross-safe progression
 	verifyInteropMessagesProgression(t, sys, initMsg.Receipt, execReceipt)

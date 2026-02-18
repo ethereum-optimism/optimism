@@ -35,7 +35,7 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	// Send A -> B message
 	initMsgAtoB := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
 	sys.L2B.WaitForBlock()
-	_, execReceiptAtoB := bob.SendExecMessage(initMsgAtoB.Tx, 0)
+	_, execReceiptAtoB := bob.SendExecMessage(initMsgAtoB)
 
 	t.Logger().Info("A->B message sent",
 		"init_block", initMsgAtoB.BlockNumber(),
@@ -45,7 +45,7 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	// Send B -> A message
 	initMsgBtoA := bob.SendRandomInitMessage(rng, eventLoggerB, 2, 10)
 	sys.L2A.WaitForBlock()
-	_, execReceiptBtoA := alice.SendExecMessage(initMsgBtoA.Tx, 0)
+	_, execReceiptBtoA := alice.SendExecMessage(initMsgBtoA)
 
 	t.Logger().Info("B->A message sent",
 		"init_block", initMsgBtoA.BlockNumber(),

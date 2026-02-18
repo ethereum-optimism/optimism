@@ -238,10 +238,10 @@ func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Ad
 	return u.SendInitMessage(trigger)
 }
 
-func (u *EOA) SendExecMessage(initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], eventIdx int) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
+func (u *EOA) SendExecMessage(initMsg *InitMessage) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
-	tx.Content.DependOn(&initIntent.Result)
-	tx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initIntent.Result, eventIdx))
+	tx.Content.DependOn(&initMsg.Tx.Result)
+	tx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0))
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "exec msg receipt not found")
 	u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
@@ -252,16 +252,13 @@ func (u *EOA) SendExecMessage(initIntent *txintent.IntentTx[*txintent.InitTrigge
 
 // SendInvalidExecMessage sends an executing message with an invalid identifier.
 // The log index is incremented to reference a non-existent log.
-func (u *EOA) SendInvalidExecMessage(
-	initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput],
-	eventIdx int,
-) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
-	result, err := initIntent.Result.Eval(u.ctx)
+func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
+	result, err := initMsg.Tx.Result.Eval(u.ctx)
 	u.t.Require().NoError(err, "failed to evaluate init result")
-	u.t.Require().Greater(len(result.Entries), eventIdx, "event index out of range")
+	u.t.Require().Greater(len(result.Entries), 0, "event index out of range")
 
 	// Get the message and modify it to be invalid by incrementing the log index
-	msg := result.Entries[eventIdx]
+	msg := result.Entries[0]
 	msg.Identifier.LogIndex++
 
 	// Create the exec trigger with the invalid message
@@ -272,7 +269,7 @@ func (u *EOA) SendInvalidExecMessage(
 
 	// The Fn just returns the pre-built trigger
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
-	tx.Content.DependOn(&initIntent.Result)
+	tx.Content.DependOn(&initMsg.Tx.Result)
 	tx.Content.Fn(func(ctx context.Context) (*txintent.ExecTrigger, error) {
 		return execTrigger, nil
 	})
