@@ -581,17 +581,13 @@ func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleIn
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
 	for _, test := range tests {
 		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			// TODO(#18288): Re-enable test when Kona is fixed
-			t.Skip("Kona currently hangs when looking up init messages")
 			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
 				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
 				test.ClaimTimestamp, test.ExpectValid)
-			t.Log("Test complete")
 		})
 
 		t.Run(test.Name+"-challenger", func(t devtest.T) {
 			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
 		})
 	}
-	t.Log("All tests complete")
 }
