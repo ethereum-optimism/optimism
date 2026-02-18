@@ -1874,6 +1874,19 @@ jobs:
           command: |
             make check-op-geth-version
 
+  check-nut-locks:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: check nut locks
+          command: |
+            make check-nut-locks
+
   go-tests:
     parameters:
       notify:
@@ -3066,6 +3079,9 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-op-geth-version:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - check-nut-locks:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:
