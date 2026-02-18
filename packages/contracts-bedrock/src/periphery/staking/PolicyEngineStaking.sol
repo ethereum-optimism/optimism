@@ -116,6 +116,9 @@ contract PolicyEngineStaking {
     /// @notice Thrown when a zero address is provided where it is not allowed.
     error PolicyEngineStaking_ZeroAddress();
 
+    /// @notice Thrown when trying to change beneficiary to the current beneficiary.
+    error PolicyEngineStaking_AlreadyLinked();
+
     /// @notice Constructs the PolicyEngineStaking contract.
     /// @param _owner The address that can pause and unpause staking.
     /// @param _token The ERC20 token used for staking.
@@ -205,7 +208,7 @@ contract PolicyEngineStaking {
         if (data.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
         address currentLink = data.linkedTo;
-        if (currentLink == _beneficiary) return;
+        if (currentLink == _beneficiary) revert PolicyEngineStaking_AlreadyLinked();
 
         // Move existing stake from old beneficiary to new
         _decreasePeData(currentLink, data.stakedAmount);

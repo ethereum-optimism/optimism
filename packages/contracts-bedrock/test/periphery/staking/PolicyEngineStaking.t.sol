@@ -496,22 +496,14 @@ contract PolicyEngineStaking_ChangeBeneficiary_Test is PolicyEngineStaking_TestI
         assertEq(bobEffective, 0);
     }
 
-    /// @notice Tests that changing to same beneficiary is a no-op.
-    function test_changeBeneficiary_sameBeneficiaryNoOp_succeeds() external {
+    /// @notice Tests that changing to same beneficiary reverts.
+    function test_changeBeneficiary_sameBeneficiary_reverts() external {
         vm.prank(alice);
         staking.stake(uint128(100 ether), alice);
 
-        (uint128 effectiveBefore, uint128 lastUpdateBefore) = staking.peData(alice);
-
-        vm.warp(block.timestamp + 1);
-
         vm.prank(alice);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_AlreadyLinked.selector);
         staking.changeBeneficiary(alice);
-
-        // PE data should be unchanged (no-op)
-        (uint128 effectiveAfter, uint128 lastUpdateAfter) = staking.peData(alice);
-        assertEq(effectiveAfter, effectiveBefore);
-        assertEq(lastUpdateAfter, lastUpdateBefore);
     }
 
     /// @notice Tests that changeBeneficiary with zero beneficiary reverts.
