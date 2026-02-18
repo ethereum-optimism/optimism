@@ -15,17 +15,24 @@ pub const MAX_RLP_BYTES_PER_CHANNEL_FJORD: u64 = 100_000_000;
 /// The max sequencer drift when the Fjord hardfork is active.
 pub const FJORD_MAX_SEQUENCER_DRIFT: u64 = 1800;
 
-/// The max sequencer drift for chains that build only on finalized L1 blocks, where L1 finality
-/// delays can exceed the standard [`FJORD_MAX_SEQUENCER_DRIFT`].
-#[cfg(feature = "rollup_config_override")]
-pub(crate) const FJORD_MAX_SEQUENCER_DRIFT_OVERRIDE: u64 = 2892;
-
 /// The channel timeout once the Granite hardfork is active.
 pub const GRANITE_CHANNEL_TIMEOUT: u64 = 50;
 
 #[cfg(feature = "serde")]
 const fn default_granite_channel_timeout() -> u64 {
     GRANITE_CHANNEL_TIMEOUT
+}
+
+#[cfg(feature = "serde")]
+const fn default_interop_message_expiry_window() -> u64 {
+    DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW
+}
+
+/// The max sequencer drift needs to be changes for some chains, e.g. those that build only on
+/// finalized L1 blocks, where L1 finality delays can exceed the standard [`FJORD_MAX_SEQUENCER_DRIFT`].
+#[cfg(all(feature = "serde", feature = "rollup_config_override"))]
+const fn default_fjord_max_sequencer_drift() -> u64 {
+    FJORD_MAX_SEQUENCER_DRIFT
 }
 
 /// The Rollup configuration.
@@ -52,6 +59,13 @@ pub struct RollupConfig {
     /// The channel timeout after the Granite hardfork.
     #[cfg_attr(feature = "serde", serde(default = "default_granite_channel_timeout"))]
     pub granite_channel_timeout: u64,
+    /// The max sequencer drift after the Fjord hardfork.
+    #[cfg(feature = "rollup_config_override")]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "default_fjord_max_sequencer_drift")
+    )]
+    pub fjord_max_sequencer_drift: u64,
     /// The L1 chain ID
     pub l1_chain_id: u64,
     /// The L2 chain ID
@@ -108,6 +122,8 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             seq_window_size: u.arbitrary()?,
             channel_timeout: u.arbitrary()?,
             granite_channel_timeout: u.arbitrary()?,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: u.arbitrary()?,
             l1_chain_id: u.arbitrary()?,
             l2_chain_id: u.arbitrary()?,
             hardforks: HardForkConfig::arbitrary(u)?,
@@ -134,6 +150,8 @@ impl Default for RollupConfig {
             seq_window_size: 0,
             channel_timeout: 0,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             l1_chain_id: 0,
             l2_chain_id: Chain::from_id(0),
             hardforks: HardForkConfig::default(),
@@ -185,133 +203,135 @@ impl RollupConfig {
 impl RollupConfig {
     /// Returns true if Regolith is active at the given timestamp.
     pub fn is_regolith_active(&self, timestamp: u64) -> bool {
-        self.hardforks.regolith_time.is_some_and(|t| timestamp >= t) ||
-            self.is_canyon_active(timestamp)
+        self.hardforks.regolith_time.is_some_and(|t| timestamp >= t)
+            || self.is_canyon_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Regolith block.
     pub fn is_first_regolith_block(&self, timestamp: u64) -> bool {
-        self.is_regolith_active(timestamp) &&
-            !self.is_regolith_active(timestamp.saturating_sub(self.block_time))
+        self.is_regolith_active(timestamp)
+            && !self.is_regolith_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Canyon is active at the given timestamp.
     pub fn is_canyon_active(&self, timestamp: u64) -> bool {
-        self.hardforks.canyon_time.is_some_and(|t| timestamp >= t) ||
-            self.is_delta_active(timestamp)
+        self.hardforks.canyon_time.is_some_and(|t| timestamp >= t)
+            || self.is_delta_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Canyon block.
     pub fn is_first_canyon_block(&self, timestamp: u64) -> bool {
-        self.is_canyon_active(timestamp) &&
-            !self.is_canyon_active(timestamp.saturating_sub(self.block_time))
+        self.is_canyon_active(timestamp)
+            && !self.is_canyon_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Delta is active at the given timestamp.
     pub fn is_delta_active(&self, timestamp: u64) -> bool {
-        self.hardforks.delta_time.is_some_and(|t| timestamp >= t) ||
-            self.is_ecotone_active(timestamp)
+        self.hardforks.delta_time.is_some_and(|t| timestamp >= t)
+            || self.is_ecotone_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Delta block.
     pub fn is_first_delta_block(&self, timestamp: u64) -> bool {
-        self.is_delta_active(timestamp) &&
-            !self.is_delta_active(timestamp.saturating_sub(self.block_time))
+        self.is_delta_active(timestamp)
+            && !self.is_delta_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Ecotone is active at the given timestamp.
     pub fn is_ecotone_active(&self, timestamp: u64) -> bool {
-        self.hardforks.ecotone_time.is_some_and(|t| timestamp >= t) ||
-            self.is_fjord_active(timestamp)
+        self.hardforks.ecotone_time.is_some_and(|t| timestamp >= t)
+            || self.is_fjord_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Ecotone block.
     pub fn is_first_ecotone_block(&self, timestamp: u64) -> bool {
-        self.is_ecotone_active(timestamp) &&
-            !self.is_ecotone_active(timestamp.saturating_sub(self.block_time))
+        self.is_ecotone_active(timestamp)
+            && !self.is_ecotone_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Fjord is active at the given timestamp.
     pub fn is_fjord_active(&self, timestamp: u64) -> bool {
-        self.hardforks.fjord_time.is_some_and(|t| timestamp >= t) ||
-            self.is_granite_active(timestamp)
+        self.hardforks.fjord_time.is_some_and(|t| timestamp >= t)
+            || self.is_granite_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Fjord block.
     pub fn is_first_fjord_block(&self, timestamp: u64) -> bool {
-        self.is_fjord_active(timestamp) &&
-            !self.is_fjord_active(timestamp.saturating_sub(self.block_time))
+        self.is_fjord_active(timestamp)
+            && !self.is_fjord_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Granite is active at the given timestamp.
     pub fn is_granite_active(&self, timestamp: u64) -> bool {
-        self.hardforks.granite_time.is_some_and(|t| timestamp >= t) ||
-            self.is_holocene_active(timestamp)
+        self.hardforks.granite_time.is_some_and(|t| timestamp >= t)
+            || self.is_holocene_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Granite block.
     pub fn is_first_granite_block(&self, timestamp: u64) -> bool {
-        self.is_granite_active(timestamp) &&
-            !self.is_granite_active(timestamp.saturating_sub(self.block_time))
+        self.is_granite_active(timestamp)
+            && !self.is_granite_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Holocene is active at the given timestamp.
     pub fn is_holocene_active(&self, timestamp: u64) -> bool {
-        self.hardforks.holocene_time.is_some_and(|t| timestamp >= t) ||
-            self.is_isthmus_active(timestamp)
+        self.hardforks.holocene_time.is_some_and(|t| timestamp >= t)
+            || self.is_isthmus_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Holocene block.
     pub fn is_first_holocene_block(&self, timestamp: u64) -> bool {
-        self.is_holocene_active(timestamp) &&
-            !self.is_holocene_active(timestamp.saturating_sub(self.block_time))
+        self.is_holocene_active(timestamp)
+            && !self.is_holocene_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if the pectra blob schedule is active at the given timestamp.
     pub fn is_pectra_blob_schedule_active(&self, timestamp: u64) -> bool {
-        self.hardforks.pectra_blob_schedule_time.is_some_and(|t| timestamp >= t)
+        self.hardforks
+            .pectra_blob_schedule_time
+            .is_some_and(|t| timestamp >= t)
     }
 
     /// Returns true if the timestamp marks the first pectra blob schedule block.
     pub fn is_first_pectra_blob_schedule_block(&self, timestamp: u64) -> bool {
-        self.is_pectra_blob_schedule_active(timestamp) &&
-            !self.is_pectra_blob_schedule_active(timestamp.saturating_sub(self.block_time))
+        self.is_pectra_blob_schedule_active(timestamp)
+            && !self.is_pectra_blob_schedule_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Isthmus is active at the given timestamp.
     pub fn is_isthmus_active(&self, timestamp: u64) -> bool {
-        self.hardforks.isthmus_time.is_some_and(|t| timestamp >= t) ||
-            self.is_jovian_active(timestamp)
+        self.hardforks.isthmus_time.is_some_and(|t| timestamp >= t)
+            || self.is_jovian_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Isthmus block.
     pub fn is_first_isthmus_block(&self, timestamp: u64) -> bool {
-        self.is_isthmus_active(timestamp) &&
-            !self.is_isthmus_active(timestamp.saturating_sub(self.block_time))
+        self.is_isthmus_active(timestamp)
+            && !self.is_isthmus_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Jovian is active at the given timestamp.
     pub fn is_jovian_active(&self, timestamp: u64) -> bool {
-        self.hardforks.jovian_time.is_some_and(|t| timestamp >= t) ||
-            self.is_karst_active(timestamp)
+        self.hardforks.jovian_time.is_some_and(|t| timestamp >= t)
+            || self.is_karst_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Jovian block.
     pub fn is_first_jovian_block(&self, timestamp: u64) -> bool {
-        self.is_jovian_active(timestamp) &&
-            !self.is_jovian_active(timestamp.saturating_sub(self.block_time))
+        self.is_jovian_active(timestamp)
+            && !self.is_jovian_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Karst is active at the given timestamp.
     pub fn is_karst_active(&self, timestamp: u64) -> bool {
-        self.hardforks.karst_time.is_some_and(|t| timestamp >= t) ||
-            self.is_interop_active(timestamp)
+        self.hardforks.karst_time.is_some_and(|t| timestamp >= t)
+            || self.is_interop_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Karst block.
     pub fn is_first_karst_block(&self, timestamp: u64) -> bool {
-        self.is_karst_active(timestamp) &&
-            !self.is_karst_active(timestamp.saturating_sub(self.block_time))
+        self.is_karst_active(timestamp)
+            && !self.is_karst_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Interop is active at the given timestamp.
@@ -321,26 +341,26 @@ impl RollupConfig {
 
     /// Returns true if the timestamp marks the first Interop block.
     pub fn is_first_interop_block(&self, timestamp: u64) -> bool {
-        self.is_interop_active(timestamp) &&
-            !self.is_interop_active(timestamp.saturating_sub(self.block_time))
+        self.is_interop_active(timestamp)
+            && !self.is_interop_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if a DA Challenge proxy Address is provided in the rollup config and the
     /// address is not zero.
     pub fn is_alt_da_enabled(&self) -> bool {
-        self.da_challenge_address.is_some_and(|addr| !addr.is_zero())
+        self.da_challenge_address
+            .is_some_and(|addr| !addr.is_zero())
     }
 
     /// Returns the max sequencer drift for the given timestamp.
     pub fn max_sequencer_drift(&self, timestamp: u64) -> u64 {
         if self.is_fjord_active(timestamp) {
             #[cfg(feature = "rollup_config_override")]
-            return FJORD_MAX_SEQUENCER_DRIFT_OVERRIDE;
+            return self.fjord_max_sequencer_drift;
             #[cfg(not(feature = "rollup_config_override"))]
             return FJORD_MAX_SEQUENCER_DRIFT;
-        } else {
-            self.max_sequencer_drift
         }
+        self.max_sequencer_drift
     }
 
     /// Returns the max rlp bytes per channel for the given timestamp.
@@ -373,7 +393,9 @@ impl RollupConfig {
     /// This function assumes that the timestamp is aligned with the block time, and uses floor
     /// division in its computation.
     pub const fn block_number_from_timestamp(&self, timestamp: u64) -> u64 {
-        timestamp.saturating_sub(self.genesis.l2_time).saturating_div(self.block_time)
+        timestamp
+            .saturating_sub(self.genesis.l2_time)
+            .saturating_div(self.block_time)
     }
 
     /// Checks the scalar value in Ecotone.
@@ -506,7 +528,10 @@ mod tests {
     fn test_revm_spec_id() {
         // By default, the spec ID should be BEDROCK.
         let mut config = RollupConfig {
-            hardforks: HardForkConfig { regolith_time: Some(10), ..Default::default() },
+            hardforks: HardForkConfig {
+                regolith_time: Some(10),
+                ..Default::default()
+            },
             ..Default::default()
         };
         assert_eq!(config.spec_id(0), op_revm::OpSpecId::BEDROCK);
@@ -793,7 +818,10 @@ mod tests {
     fn test_granite_channel_timeout() {
         let mut config = RollupConfig {
             channel_timeout: 100,
-            hardforks: HardForkConfig { granite_time: Some(10), ..Default::default() },
+            hardforks: HardForkConfig {
+                granite_time: Some(10),
+                ..Default::default()
+            },
             ..Default::default()
         };
         assert_eq!(config.channel_timeout(0), 100);
@@ -804,14 +832,14 @@ mod tests {
 
     #[test]
     fn test_max_sequencer_drift() {
-        let mut config = RollupConfig { max_sequencer_drift: 100, ..Default::default() };
+        let mut config = RollupConfig {
+            max_sequencer_drift: 100,
+            ..Default::default()
+        };
         assert_eq!(config.max_sequencer_drift(0), 100);
         config.hardforks.fjord_time = Some(10);
         assert_eq!(config.max_sequencer_drift(0), 100);
-        #[cfg(not(feature = "rollup_config_override"))]
         assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT);
-        #[cfg(feature = "rollup_config_override")]
-        assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT_OVERRIDE);
     }
 
     #[test]
@@ -901,6 +929,8 @@ mod tests {
             seq_window_size: 3600,
             channel_timeout: 300,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             l1_chain_id: 3151908,
             l2_chain_id: Chain::from_id(1337),
             hardforks: HardForkConfig {
@@ -978,12 +1008,58 @@ mod tests {
     #[test]
     fn test_compute_block_number_from_time() {
         let cfg = RollupConfig {
-            genesis: ChainGenesis { l2_time: 10, ..Default::default() },
+            genesis: ChainGenesis {
+                l2_time: 10,
+                ..Default::default()
+            },
             block_time: 2,
             ..Default::default()
         };
 
         assert_eq!(cfg.block_number_from_timestamp(20), 5);
         assert_eq!(cfg.block_number_from_timestamp(30), 10);
+    }
+
+    #[cfg(feature = "rollup_config_override")]
+    mod rollup_config_override_tests {
+        use super::*;
+
+        #[test]
+        fn test_max_sequencer_drift_override() {
+            let mut config = RollupConfig {
+                max_sequencer_drift: 100,
+                fjord_max_sequencer_drift: 2892,
+                hardforks: HardForkConfig {
+                    fjord_time: Some(10),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            assert_eq!(config.max_sequencer_drift(0), 100);
+            assert_eq!(config.max_sequencer_drift(10), 2892);
+            config.fjord_max_sequencer_drift = 3600;
+            assert_eq!(config.max_sequencer_drift(10), 3600);
+        }
+
+        #[test]
+        #[cfg(feature = "serde")]
+        fn test_serde_fjord_max_sequencer_drift_override() {
+            // Default value survives round-trip.
+            let config = RollupConfig::default();
+            assert_eq!(config.fjord_max_sequencer_drift, FJORD_MAX_SEQUENCER_DRIFT);
+            let serialized = serde_json::to_string(&config).unwrap();
+            let deserialized: RollupConfig = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(
+                deserialized.fjord_max_sequencer_drift,
+                FJORD_MAX_SEQUENCER_DRIFT
+            );
+
+            // Custom value survives round-trip.
+            let mut config = config;
+            config.fjord_max_sequencer_drift = 2892;
+            let serialized = serde_json::to_string(&config).unwrap();
+            let deserialized: RollupConfig = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized.fjord_max_sequencer_drift, 2892);
+        }
     }
 }
