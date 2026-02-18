@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -9,10 +10,14 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+//go:embed karst_nut_bundle.json
+var karstNUTBundleJSON []byte
 
 type DependencySet interface {
 	// Chains returns the number of chains in the dependency set
@@ -153,6 +158,20 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeTxs = append(upgradeTxs, jovian...)
 	}
 
+	// Starting with Karst, upgrade transactions are loaded from a NUT bundle and
+	// additional gas is allocated to the upgrade block so that upgrade transactions
+	// don't need to fit within the system tx gas limit.
+	var upgradeGas uint64
+	if ba.rollupCfg.IsKarstActivationBlock(nextL2Time) {
+		nutTxs, nutGas, err := UpgradeTransactionsFromNUTBundle(forks.Karst, karstNUTBundleJSON)
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build karst network upgrade txs: %w", err))
+		}
+		upgradeTxs = append(upgradeTxs, nutTxs...)
+		upgradeGas += nutGas
+	}
+
+	// TODO(#19239): migrate Interop to NUT bundle and add its gas to upgradeGas.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
 		interop, err := InteropNetworkUpgradeTransactions()
 		if err != nil {
@@ -192,13 +211,15 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		}
 	}
 
+	gasLimit := sysConfig.GasLimit + upgradeGas
+
 	r := &eth.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(nextL2Time),
 		PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
 		SuggestedFeeRecipient: predeploys.SequencerFeeVaultAddr,
 		Transactions:          txs,
 		NoTxPool:              true,
-		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
+		GasLimit:              (*eth.Uint64Quantity)(&gasLimit),
 		Withdrawals:           withdrawals,
 		ParentBeaconBlockRoot: parentBeaconRoot,
 	}

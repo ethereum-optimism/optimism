@@ -99,6 +99,29 @@ func TestNUTBundleMissingIntent(t *testing.T) {
 	require.Contains(t, err.Error(), "missing intent")
 }
 
+func TestUpgradeTransactionsFromNUTBundle(t *testing.T) {
+	bundleJSON, err := os.ReadFile("testdata/test-nut.json")
+	require.NoError(t, err)
+
+	txs, totalGas, err := UpgradeTransactionsFromNUTBundle("Test", bundleJSON)
+	require.NoError(t, err)
+	require.Len(t, txs, 2)
+	require.Equal(t, uint64(1_000_000+5_000_000), totalGas)
+
+	// Verify gas matches sum of individual deposit tx gas limits
+	var sumGas uint64
+	for _, tx := range txs {
+		_, dep := toDepositTxn(t, tx)
+		sumGas += dep.Gas()
+	}
+	require.Equal(t, totalGas, sumGas)
+}
+
+func TestUpgradeTransactionsFromNUTBundleInvalidJSON(t *testing.T) {
+	_, _, err := UpgradeTransactionsFromNUTBundle("Test", []byte(`{invalid`))
+	require.Error(t, err)
+}
+
 // TestNUTBundleNullTo verifies that "to": null in JSON produces a contract creation (deploy) transaction.
 // Although NUTs are expected to use Arachnid's deterministic deployer, this sending to null
 // is how previous deployments have been handled and is useful to maintain going forward.
