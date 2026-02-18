@@ -59,12 +59,13 @@ func TestChainContainer_FullyVerifiedL2Head_MultipleVerifiers(t *testing.T) {
 	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2, verifier3}
 
 	// Should return the block with minimum timestamp (verifier1)
-	result := cc.FullyVerifiedL2Head()
+	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, verifier1.latestVerifiedBlock, result, "should return oldest verified block")
+	require.False(t, useLocalSafe, "should not signal fallback when verifiers have verified blocks")
 }
 
 // TestChainContainer_FullyVerifiedL2Head_NoVerifiers tests that FullyVerifiedL2Head
-// returns an empty BlockID when there are no verification activities
+// returns an empty BlockID and signals fallback when there are no verification activities
 func TestChainContainer_FullyVerifiedL2Head_NoVerifiers(t *testing.T) {
 	t.Parallel()
 
@@ -74,12 +75,13 @@ func TestChainContainer_FullyVerifiedL2Head_NoVerifiers(t *testing.T) {
 		verifiers: []activity.VerificationActivity{},
 	}
 
-	result := cc.FullyVerifiedL2Head()
+	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID with no verifiers")
+	require.True(t, useLocalSafe, "should signal fallback to local-safe when no verifiers registered")
 }
 
 // TestChainContainer_FullyVerifiedL2Head_OneUnverified tests that FullyVerifiedL2Head
-// returns an empty BlockID if any verifier returns an unverified state
+// returns an empty BlockID without signaling fallback if any verifier returns an unverified state
 func TestChainContainer_FullyVerifiedL2Head_OneUnverified(t *testing.T) {
 	t.Parallel()
 
@@ -105,9 +107,10 @@ func TestChainContainer_FullyVerifiedL2Head_OneUnverified(t *testing.T) {
 
 	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2, verifier3}
 
-	// Should return empty BlockID (conservative approach)
-	result := cc.FullyVerifiedL2Head()
+	// Should return empty BlockID (conservative approach) but NOT signal fallback
+	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID when any verifier is unverified")
+	require.False(t, useLocalSafe, "should not signal fallback when verifiers exist but are unverified")
 }
 
 // TestChainContainer_FullyVerifiedL2Head_SameTimestamp tests that FullyVerifiedL2Head
@@ -135,7 +138,7 @@ func TestChainContainer_FullyVerifiedL2Head_SameTimestamp(t *testing.T) {
 
 	// Should panic because verifiers disagree on block hash for same timestamp
 	require.Panics(t, func() {
-		cc.FullyVerifiedL2Head()
+		_, _ = cc.FullyVerifiedL2Head()
 	}, "should panic when verifiers disagree on block hash for same timestamp")
 }
 
@@ -157,12 +160,13 @@ func TestChainContainer_FullyVerifiedL2Head_SingleVerifier(t *testing.T) {
 
 	cc.verifiers = []activity.VerificationActivity{verifier}
 
-	result := cc.FullyVerifiedL2Head()
+	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, verifier.latestVerifiedBlock, result, "should return the single verifier's block")
+	require.False(t, useLocalSafe, "should not signal fallback when verifier has verified blocks")
 }
 
 // TestChainContainer_FullyVerifiedL2Head_AllUnverified tests that an empty BlockID
-// is returned when all verifiers are unverified
+// is returned without signaling fallback when all verifiers are unverified
 func TestChainContainer_FullyVerifiedL2Head_AllUnverified(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +188,7 @@ func TestChainContainer_FullyVerifiedL2Head_AllUnverified(t *testing.T) {
 
 	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2}
 
-	result := cc.FullyVerifiedL2Head()
+	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID when all verifiers are unverified")
+	require.False(t, useLocalSafe, "should not signal fallback when verifiers exist but are unverified")
 }

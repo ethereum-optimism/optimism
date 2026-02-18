@@ -1,7 +1,6 @@
 package chain_container
 
 import (
-	"context"
 	"fmt"
 	"math"
 
@@ -10,37 +9,31 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// SafeL2Head returns the safe L2 head block identifier.
-// Returns local-safe when no verifiers are registered or when verifiers return empty BlockID.
-// This provides a graceful fallback for pre-interop blocks.
+// FullyVerifiedL2Head returns the fully verified L2 head block identifier.
+// The second return value indicates whether the caller should fall back to local-safe.
+// Returns (empty, true) only when no verifiers are registered.
+// Returns (empty, false) when verifiers are registered but haven't verified anything yet.
 // Panics if verifiers disagree on the block hash for the same timestamp.
-func (c *simpleChainContainer) FullyVerifiedL2Head() eth.BlockID {
-	getLocalSafe := func() eth.BlockID {
-		if c.rollupClient == nil {
-			c.log.Debug("FullyVerifiedL2Head: rollup client not initialized, returning empty")
-			return eth.BlockID{}
-		}
-		status, err := c.rollupClient.SyncStatus(context.Background())
-		if err != nil {
-			c.log.Debug("FullyVerifiedL2Head: failed to get sync status", "err", err)
-			return eth.BlockID{}
-		}
-		c.log.Debug("FullyVerifiedL2Head: falling back to local-safe", "local_safe", status.LocalSafeL2.ID())
-		return status.LocalSafeL2.ID()
-	}
-
-	// If no verifiers registered, fall back to local-safe
+func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
+	// If no verifiers registered, signal fallback to local-safe
 	if len(c.verifiers) == 0 {
-		c.log.Debug("FullyVerifiedL2Head: no verifiers registered, using local-safe fallback")
-		return getLocalSafe()
+		if c.log != nil {
+			c.log.Debug("FullyVerifiedL2Head: no verifiers registered, signaling local-safe fallback")
+		}
+		return eth.BlockID{}, true
 	}
 
 	timestamp := uint64(math.MaxUint64)
 	oldestVerifiedBlock := eth.BlockID{}
 	for _, v := range c.verifiers {
 		bId, ts := v.LatestVerifiedL2Block(c.chainID)
+		// If any verifier returns empty, return empty but don't signal fallback
+		// The verifier exists but hasn't verified anything yet
 		if (bId == eth.BlockID{} || ts == 0) {
-			return bId
+			if c.log != nil {
+				c.log.Debug("FullyVerifiedL2Head: verifier returned empty, returning empty without fallback", "verifier", v.Name())
+			}
+			return eth.BlockID{}, false
 		}
 		if ts < timestamp {
 			timestamp = ts
@@ -49,7 +42,11 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() eth.BlockID {
 			panic("verifiers disagree on block hash for same timestamp")
 		}
 	}
-	return oldestVerifiedBlock
+
+	if c.log != nil {
+		c.log.Debug("FullyVerifiedL2Head: returning verified block", "block", oldestVerifiedBlock, "timestamp", timestamp)
+	}
+	return oldestVerifiedBlock, false
 }
 
 // IsDenied checks if a block hash is on the deny list at the given height.

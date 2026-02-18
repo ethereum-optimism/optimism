@@ -197,9 +197,15 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority != nil {
-		fvshid := e.superAuthority.FullyVerifiedL2Head()
+		fvshid, useLocalSafe := e.superAuthority.FullyVerifiedL2Head()
+		// If SuperAuthority signals to use local-safe (e.g., no verifiers or pre-interop)
+		if useLocalSafe {
+			e.log.Debug("super authority signaled to use local-safe fallback")
+			return e.localSafeHead
+		}
+		// SuperAuthority provided a cross-verified safe head
 		if (fvshid == eth.BlockID{}) {
-			// No safe head yet
+			// Empty BlockID with useLocalSafe=false means no safe head yet
 			return eth.L2BlockRef{}
 		}
 		if fvshid.Number > e.localSafeHead.Number {
