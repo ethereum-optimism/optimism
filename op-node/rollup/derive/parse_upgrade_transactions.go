@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,6 +48,15 @@ func ReadNUTBundle(fork forks.Name, r io.Reader) (*NUTBundle, error) {
 	return &bundle, nil
 }
 
+// TotalGas returns the sum of gas limits across all transactions in the bundle.
+func (b *NUTBundle) TotalGas() uint64 {
+	var total uint64
+	for _, tx := range b.Transactions {
+		total += tx.GasLimit
+	}
+	return total
+}
+
 // ToDepositTransactions converts the bundle's transactions into serialized deposit transactions.
 func (b *NUTBundle) ToDepositTransactions() ([]hexutil.Bytes, error) {
 	txs := make([]hexutil.Bytes, 0, len(b.Transactions))
@@ -75,4 +85,20 @@ func (b *NUTBundle) ToDepositTransactions() ([]hexutil.Bytes, error) {
 		txs = append(txs, encoded)
 	}
 	return txs, nil
+}
+
+// UpgradeTransactionsFromNUTBundle parses an embedded NUT bundle JSON and returns
+// the deposit transactions along with the total gas required.
+func UpgradeTransactionsFromNUTBundle(fork forks.Name, bundleJSON []byte) ([]hexutil.Bytes, uint64, error) {
+	bundle, err := ReadNUTBundle(fork, bytes.NewReader(bundleJSON))
+	if err != nil {
+		return nil, 0, err
+	}
+
+	txs, err := bundle.ToDepositTransactions()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return txs, bundle.TotalGas(), nil
 }
