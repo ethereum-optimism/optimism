@@ -221,25 +221,21 @@ contract PolicyEngineStaking is ISemver {
     function changeBeneficiary(address _beneficiary) external whenNotPaused {
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
         if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
-            revert PolicyEngineStaking_NotAllowedToLink();
+            revert PolicyEngineStaking_NotAllowedToSetBeneficiary();
         }
 
         StakedData storage stakedData = stakingData[msg.sender];
         if (stakedData.stakedAmount == 0) revert PolicyEngineStaking_NoStake();
 
-        address currentBeneficiary = data.beneficiary;
+        address currentBeneficiary = stakedData.beneficiary;
         if (currentBeneficiary == _beneficiary) revert PolicyEngineStaking_SameBeneficiary();
 
         // Move existing stake from old beneficiary to new
-        _decreasePeData(currentBeneficiary, data.stakedAmount);
+        _decreasePeData(currentBeneficiary, stakedData.stakedAmount);
         emit BeneficiaryRemoved(msg.sender, currentBeneficiary);
 
-        if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
-            revert PolicyEngineStaking_NotAllowedToSetBeneficiary();
-        }
-
-        data.beneficiary = _beneficiary;
-        _increasePeData(_beneficiary, data.stakedAmount);
+        stakedData.beneficiary = _beneficiary;
+        _increasePeData(_beneficiary, stakedData.stakedAmount);
 
         emit BeneficiarySet(msg.sender, _beneficiary);
     }
@@ -253,13 +249,13 @@ contract PolicyEngineStaking is ISemver {
         StakedData storage stakedData = stakingData[msg.sender];
         if (stakedData.stakedAmount < _amount) revert PolicyEngineStaking_InsufficientStake();
 
-        address beneficiary = data.beneficiary;
+        address beneficiary = stakedData.beneficiary;
         _decreasePeData(beneficiary, _amount);
-        data.stakedAmount -= _amount;
+        stakedData.stakedAmount -= _amount;
 
         // Auto-clear beneficiary on full unstake
-        if (data.stakedAmount == 0) {
-            data.beneficiary = address(0);
+        if (stakedData.stakedAmount == 0) {
+            stakedData.beneficiary = address(0);
             emit BeneficiaryRemoved(msg.sender, beneficiary);
         }
 
