@@ -263,11 +263,9 @@ contract PolicyEngineStaking_Stake_Test is PolicyEngineStaking_TestInit {
         vm.expectEmit(address(staking));
         emit Unlinked(alice, alice);
         vm.expectEmit(address(staking));
-        emit EffectiveStakeChanged(bob, 100 ether); // increase bob's PE by existing stake
-        vm.expectEmit(address(staking));
         emit Linked(alice, bob);
         vm.expectEmit(address(staking));
-        emit EffectiveStakeChanged(bob, 150 ether); // increase bob's PE by new amount
+        emit EffectiveStakeChanged(bob, 150 ether); // single increase: old stake + new amount
         vm.expectEmit(address(staking));
         emit Staked(alice, uint128(50 ether));
 

@@ -167,31 +167,25 @@ contract PolicyEngineStaking {
     function stake(uint128 _amount, address _beneficiary) external whenNotPaused {
         if (_amount == 0) revert PolicyEngineStaking_ZeroAmount();
         if (_beneficiary == address(0)) revert PolicyEngineStaking_ZeroBeneficiary();
+        if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
+            revert PolicyEngineStaking_NotAllowedToLink();
+        }
 
         StakedData storage data = stakingData[msg.sender];
         address currentLink = data.linkedTo;
+        data.stakedAmount += _amount;
 
-        if (currentLink == address(0)) {
-            // First-time staking: establish link
-            _link(msg.sender, _beneficiary, data);
-            emit Linked(msg.sender, _beneficiary);
-        } else if (currentLink != _beneficiary) {
-            // Re-linking: move existing stake from old beneficiary to new
-            _decreasePeData(currentLink, data.stakedAmount);
-            emit Unlinked(msg.sender, currentLink);
-
-            _link(msg.sender, _beneficiary, data);
-            _increasePeData(_beneficiary, data.stakedAmount);
-            emit Linked(msg.sender, _beneficiary);
-        } else {
-            // Same beneficiary: re-check allowlist (skip for self-link)
-            if (_beneficiary != msg.sender) {
-                if (!allowlist[_beneficiary][msg.sender]) revert PolicyEngineStaking_NotAllowedToLink();
+        if (currentLink != _beneficiary) {
+            if (currentLink != address(0)) {
+                _decreasePeData(currentLink, data.stakedAmount - _amount);
+                emit Unlinked(msg.sender, currentLink);
             }
+            data.linkedTo = _beneficiary;
+            emit Linked(msg.sender, _beneficiary);
         }
 
-        data.stakedAmount += _amount;
-        _increasePeData(_beneficiary, _amount);
+        uint128 peDelta = currentLink == _beneficiary ? _amount : data.stakedAmount;
+        _increasePeData(_beneficiary, peDelta);
 
         STAKING_TOKEN.safeTransferFrom(msg.sender, address(this), uint256(_amount));
 
@@ -214,7 +208,11 @@ contract PolicyEngineStaking {
         _decreasePeData(currentLink, data.stakedAmount);
         emit Unlinked(msg.sender, currentLink);
 
-        _link(msg.sender, _beneficiary, data);
+        if (_beneficiary != msg.sender && !allowlist[_beneficiary][msg.sender]) {
+            revert PolicyEngineStaking_NotAllowedToLink();
+        }
+
+        data.linkedTo = _beneficiary;
         _increasePeData(_beneficiary, data.stakedAmount);
 
         emit Linked(msg.sender, _beneficiary);
@@ -261,18 +259,6 @@ contract PolicyEngineStaking {
         for (uint256 i; i < stakersLength; ++i) {
             setAllowedStaker(_stakers[i], _allowed);
         }
-    }
-
-    /// @notice Sets the linkedTo field and checks allowlist (skips for self-link).
-    /// @param _staker      The staker address.
-    /// @param _beneficiary The beneficiary address.
-    /// @param _data        The staker's storage data reference.
-    function _link(address _staker, address _beneficiary, StakedData storage _data) internal {
-        // Skip if Self-Attributing
-        if (_beneficiary != _staker) {
-            if (!allowlist[_beneficiary][_staker]) revert PolicyEngineStaking_NotAllowedToLink();
-        }
-        _data.linkedTo = _beneficiary;
     }
 
     /// @notice Increases effective stake for an account and updates timestamp.
