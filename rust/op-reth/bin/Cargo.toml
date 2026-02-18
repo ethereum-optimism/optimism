@@ -4,9 +4,9 @@ version = "1.10.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-homepage = "https://paradigmxyz.github.io/reth"
-repository = "https://github.com/paradigmxyz/reth"
-exclude = [".github/"]
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
 
 [dependencies]
 reth-cli-util.workspace = true

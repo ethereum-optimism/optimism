@@ -223,6 +223,7 @@ pub trait WsConnect {
 ///
 /// See the [`WsConnect`] documentation for details.
 #[derive(Debug, Clone)]
+#[allow(unnameable_types)]
 pub struct WsConnector;
 
 impl WsConnect for WsConnector {

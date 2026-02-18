@@ -130,10 +130,27 @@ check-udeps:
   cargo +nightly udeps --release --workspace --all-features --all-targets
 
 # Run cargo hack for feature powerset checking
-hack partition="":
+# shuffle: "true" to shuffle package order before partitioning (spreads heavy/light crates more evenly)
+# seed: deterministic seed for shuffle (all partition nodes must use the same seed)
+hack partition="" shuffle="false" seed="default":
   #!/usr/bin/env bash
   set -euo pipefail
-  cargo hack check --feature-powerset --depth 2 --no-dev-deps {{ if partition != "" { "--partition " + partition } else { "" } }}
+  if [ "{{partition}}" != "" ]; then
+    echo "Running cargo hack with partition {{partition}}"
+  else
+    echo "Running cargo hack without partition"
+  fi
+
+  PKG_FLAGS=""
+  if [ "{{shuffle}}" = "true" ]; then
+    PKGS=$(cargo metadata --no-deps --format-version 1 \
+      | jq -r '.packages[].name' \
+      | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
+    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
+    echo "Shuffled package order (seed={{seed}}): $PKGS"
+  fi
+
+  cargo hack check --each-feature --no-dev-deps $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
 
 ######################### Documentation ################################
 

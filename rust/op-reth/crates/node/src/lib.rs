@@ -11,7 +11,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
-// Used for feature activation only.
 #[cfg(feature = "test-utils")]
 use reth_db_api as _;
 
@@ -34,6 +33,8 @@ pub use version::OP_NAME_CLIENT;
 
 pub use reth_optimism_txpool as txpool;
 
+pub mod proof_history;
+
 /// Helpers for running test node instances.
 #[cfg(feature = "test-utils")]
 pub mod utils;
@@ -49,3 +50,6 @@ pub use reth_optimism_storage::OpStorage;
 
 use op_revm as _;
 use revm as _;
+
+#[cfg(feature = "test-utils")]
+use reth_tasks as _;

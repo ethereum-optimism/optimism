@@ -714,7 +714,7 @@ jobs:
             if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
               PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
-            just hack $PARTITION_FLAG
+            just hack "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
       - rust-save-build-cache: *hack-cache-args
 
   # --------------------------------------------------------------------------
@@ -905,25 +905,6 @@ jobs:
           no_output_timeout: 40m
           command: |
             just build-<<parameters.target>>
-
-  # Kona Build Benchmarks
-  kona-cargo-build-benches:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &kona-benches-cache
-          directory: rust
-          prefix: kona-benches
-      - run:
-          name: Build benchmarks
-          working_directory: rust/kona
-          no_output_timeout: 40m
-          command: |
-            just benches
-      - rust-save-build-cache: *kona-benches-cache
 
   # Kona Coverage
   kona-coverage:
@@ -1258,9 +1239,6 @@ workflows:
           matrix:
             parameters:
               target: ["cannon-client", "asterisc-client"]
-          context: *rust-ci-context
-
-      - kona-cargo-build-benches:
           context: *rust-ci-context
 
       - kona-coverage:
