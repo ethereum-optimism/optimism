@@ -142,16 +142,16 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.SimpleInterop) {
 
 	// Phase 2: Send init message on chain A
 	rng := rand.New(rand.NewSource(1234))
-	initIntent, initReceipt := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
+	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
 
 	// Make sure supervisor indexes block which includes init message
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
 
 	// Single event in tx so index is 0
-	_, execReceipt := bob.SendExecMessage(initIntent, 0)
+	_, execReceipt := bob.SendExecMessage(initMsg.Tx, 0)
 
 	// Phase 5: Verify cross-safe progression
-	verifyInteropMessagesProgression(t, sys, initReceipt, execReceipt)
+	verifyInteropMessagesProgression(t, sys, initMsg.Receipt, execReceipt)
 
 	logger.Info("Interop message inclusion test completed successfully")
 }
