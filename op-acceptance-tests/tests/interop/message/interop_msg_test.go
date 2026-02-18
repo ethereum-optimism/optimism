@@ -45,7 +45,7 @@ func TestInitExecMsg(gt *testing.T) {
 	// Make sure supervisor indexes block which includes init message
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
 	// Single event in tx so index is 0
-	bob.SendExecMessage(initMsg.Tx, 0)
+	bob.SendExecMessage(initMsg)
 }
 
 // TestInitExecMsgWithDSL tests basic interop messaging with contract DSL
