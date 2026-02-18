@@ -64,8 +64,14 @@ func (m *InitMessage) BlockID() eth.BlockID {
 	}
 }
 
+// String returns a human-readable representation of the InitMessage.
+func (m *InitMessage) String() string {
+	return fmt.Sprintf("InitMessage(block=%d, blockHash=%s, txHash=%s)", m.Receipt.BlockNumber, m.Receipt.BlockHash, m.Receipt.TxHash)
+}
+
 // ExecMessage represents an executing message that has been sent and included on chain.
 type ExecMessage struct {
+	Init    *InitMessage
 	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
 	Receipt *types.Receipt
 }
@@ -91,6 +97,11 @@ func (m *ExecMessage) BlockID() eth.BlockID {
 		Number: bigs.Uint64Strict(m.Receipt.BlockNumber),
 		Hash:   m.Receipt.BlockHash,
 	}
+}
+
+// String returns a human-readable representation of the ExecMessage.
+func (m *ExecMessage) String() string {
+	return fmt.Sprintf("ExecMessage(init=%s, block=%d, blockHash=%s, txHash=%s)", m.Init, m.Receipt.BlockNumber, m.Receipt.BlockHash, m.Receipt.TxHash)
 }
 
 func NewEOA(key *Key, el ELNode) *EOA {
@@ -286,6 +297,7 @@ func (u *EOA) SendExecMessage(initMsg *InitMessage) *ExecMessage {
 	// Check single ExecutingMessage triggered
 	u.t.Require().Equal(1, len(receipt.Logs))
 	return &ExecMessage{
+		Init:    initMsg,
 		Tx:      tx,
 		Receipt: receipt,
 	}
@@ -319,6 +331,7 @@ func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
 	u.t.Require().NoError(err, "invalid exec msg receipt not found")
 	u.log.Info("invalid exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
 	return &ExecMessage{
+		Init:    initMsg,
 		Tx:      tx,
 		Receipt: receipt,
 	}
