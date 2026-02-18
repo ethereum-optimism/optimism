@@ -763,6 +763,23 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         assertEq(bobEffective, 0);
     }
 
+    /// @notice Tests that stake to a beneficiary reverts after the beneficiary revokes allowlist.
+    function test_stake_afterAllowlistRevoked_reverts() external {
+        vm.prank(alice);
+        staking.setAllowedStaker(bob, true);
+        vm.prank(bob);
+        staking.stake(uint128(100 ether), alice);
+
+        // Alice revokes bob
+        vm.prank(alice);
+        staking.setAllowedStaker(bob, false);
+
+        // Bob tries to stake to alice again
+        vm.prank(bob);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_NotAllowedToSetBeneficiary.selector);
+        staking.stake(uint128(50 ether), alice);
+    }
+
     /// @notice Tests that lastUpdate is updated after new staking and linking when time advances.
     function test_lastUpdate_updatesAfterStakingAndLinking_succeeds() external {
         // Initial stake
