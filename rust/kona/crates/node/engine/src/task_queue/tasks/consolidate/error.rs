@@ -39,6 +39,9 @@ impl EngineTaskError for ConsolidateTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::MissingUnsafeL2Block(_) => EngineTaskErrorSeverity::Reset,
+            // DIAGNOSTIC: FailedToFetchUnsafeL2Block returns Temporary severity
+            // This causes the task to stay in queue and retry infinitely without
+            // any limit, leading to safe head stalls when block fetch fails repeatedly
             Self::FailedToFetchUnsafeL2Block => EngineTaskErrorSeverity::Temporary,
             Self::BuildTaskFailed(inner) => inner.severity(),
             Self::SealTaskFailed(inner) => inner.severity(),

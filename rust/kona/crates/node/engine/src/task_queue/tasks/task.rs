@@ -122,6 +122,17 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
         Ok(())
     }
 
+    /// Returns a label for this task type for metrics and logging.
+    pub const fn task_label(&self) -> &'static str {
+        match self {
+            Self::Insert(_) => "Insert",
+            Self::Consolidate(_) => "Consolidate",
+            Self::Build(_) => "Build",
+            Self::Seal(_) => "Seal",
+            Self::Finalize(_) => "Finalize",
+        }
+    }
+
     const fn task_metrics_label(&self) -> &'static str {
         match self {
             Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,

@@ -166,14 +166,40 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         // Fetch the unsafe L2 block
         let block_num = self.input.l2_block_number();
         let fetch_start = Instant::now();
+
+        // DIAGNOSTIC: Log block fetch attempt
+        debug!(
+            target: "engine::consolidate",
+            block_num = block_num,
+            "Attempting to fetch L2 block for consolidation"
+        );
+
         let block = match self.client.l2_block_by_label(block_num.into()).await {
-            Ok(Some(block)) => block,
+            Ok(Some(block)) => {
+                let fetch_duration = fetch_start.elapsed();
+                debug!(
+                    target: "engine::consolidate",
+                    block_num = block_num,
+                    fetch_duration_ms = fetch_duration.as_millis(),
+                    "Successfully fetched L2 block"
+                );
+                block
+            }
             Ok(None) => {
-                warn!(target: "engine", "Received `None` block for {}", block_num);
+                warn!(
+                    target: "engine::consolidate",
+                    block_num = block_num,
+                    "Received `None` block for consolidation (DIAGNOSTIC: Block missing in EL)"
+                );
                 return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
             }
-            Err(_) => {
-                warn!(target: "engine", "Failed to fetch unsafe l2 block for consolidation");
+            Err(e) => {
+                warn!(
+                    target: "engine::consolidate",
+                    block_num = block_num,
+                    error = ?e,
+                    "Failed to fetch unsafe l2 block for consolidation (DIAGNOSTIC: This will cause retry)"
+                );
                 return Err(ConsolidateTaskError::FailedToFetchUnsafeL2Block);
             }
         };

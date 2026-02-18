@@ -67,8 +67,32 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// Enqueues a new [`EngineTask`] for execution.
     /// Updates the queue length and notifies listeners of the change.
     pub fn enqueue(&mut self, task: EngineTask<EngineClient_>) {
+        let task_label = task.task_label();
+        let new_len = self.tasks.len() + 1;
+
+        // DIAGNOSTIC: Log task enqueue with new queue state
+        debug!(
+            target: "engine::queue",
+            task_type = task_label,
+            new_queue_len = new_len,
+            "DIAGNOSTIC: Enqueuing task (queue will grow)"
+        );
+
         self.tasks.push(task);
         self.task_queue_length.send_replace(self.tasks.len());
+
+        // DIAGNOSTIC: If queue is getting large, log warning
+        if self.tasks.len() > 5 {
+            let queue_tasks: Vec<&'static str> =
+                self.tasks.iter().map(|t| t.task_label()).collect();
+
+            warn!(
+                target: "engine::queue",
+                queue_len = self.tasks.len(),
+                all_tasks = ?queue_tasks,
+                "DIAGNOSTIC: Queue length is high - tasks may be backing up"
+            );
+        }
     }
 
     /// Resets the engine by finding a plausible sync starting point via
@@ -149,18 +173,74 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// an error along the way, it is not popped from the queue (in case it must be retried) and
     /// the error is returned.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
+        // DIAGNOSTIC: Log drain call to show retry frequency
+        trace!(
+            target: "engine::drain",
+            queue_len = self.tasks.len(),
+            "Drain called"
+        );
+
+        // DIAGNOSTIC: Log full queue state at start of drain
+        if !self.tasks.is_empty() {
+            let queue_snapshot: Vec<&'static str> = self
+                .tasks
+                .iter()
+                .take(5) // Show first 5 tasks
+                .map(|t| t.task_label())
+                .collect();
+
+            debug!(
+                target: "engine::drain::queue",
+                queue_len = self.tasks.len(),
+                queue_tasks = ?queue_snapshot,
+                "DIAGNOSTIC: Queue state at drain start (first 5 task types)"
+            );
+        }
+
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         while let Some(task) = self.tasks.peek() {
+            // DIAGNOSTIC: Log task execution attempt with position info
+            let task_label = task.task_label();
+            debug!(
+                target: "engine::drain",
+                task_type = task_label,
+                queue_len = self.tasks.len(),
+                "Attempting to execute task from queue"
+            );
+
             // Execute the task
-            task.execute(&mut self.state).await?;
+            match task.execute(&mut self.state).await {
+                Ok(_) => {
+                    debug!(
+                        target: "engine::drain",
+                        task_type = task_label,
+                        "Task executed successfully, removing from queue"
+                    );
 
-            // Update the state and notify the engine actor.
-            self.state_sender.send_replace(self.state);
+                    // Update the state and notify the engine actor.
+                    self.state_sender.send_replace(self.state);
 
-            // Pop the task from the queue now that it's been executed.
-            self.tasks.pop();
+                    // Pop the task from the queue now that it's been executed.
+                    self.tasks.pop();
+                    self.task_queue_length.send_replace(self.tasks.len());
+                }
+                Err(e) => {
+                    // DIAGNOSTIC: Log retry with severity and queue state
+                    let queue_snapshot: Vec<&'static str> =
+                        self.tasks.iter().take(3).map(|t| t.task_label()).collect();
 
-            self.task_queue_length.send_replace(self.tasks.len());
+                    warn!(
+                        target: "engine::drain",
+                        task_type = task_label,
+                        error = %e,
+                        severity = ?e.severity(),
+                        queue_len = self.tasks.len(),
+                        queue_front_tasks = ?queue_snapshot,
+                        "Task failed - will be retried on next drain (DIAGNOSTIC: Task NOT removed from queue)"
+                    );
+                    return Err(e);
+                }
+            }
         }
 
         Ok(())
