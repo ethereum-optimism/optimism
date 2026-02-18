@@ -15,7 +15,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 contract PolicyEngineStaking is ISemver {
     using SafeERC20 for IERC20;
 
-    /// @notice Staking data per account.
+    /// @notice Staking stakingData per account.
     /// @custom:field stakedAmount The amount of OP tokens staked by the account.
     /// @custom:field beneficiary The address to which the account's stake is attributed.
     struct StakedData {
@@ -23,7 +23,7 @@ contract PolicyEngineStaking is ISemver {
         address beneficiary;
     }
 
-    /// @notice Policy Engine data per account. Packed in one slot for PE reads.
+    /// @notice Policy Engine stakingData per account. Packed in one slot for PE reads.
     /// @custom:field effectiveStake The exact stake amount used for ordering.
     /// @custom:field lastUpdate The timestamp of the latest change on their effective stake.
     struct PEData {
@@ -35,20 +35,20 @@ contract PolicyEngineStaking is ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice Base storage slot for PE data mapping. Policy Engine reads from
+    /// @notice Base storage slot for PE stakingData mapping. Policy Engine reads from
     ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
     bytes32 public constant PE_DATA_SLOT = 0;
 
     /// @notice The ERC20 token used for staking.
     IERC20 internal immutable STAKING_TOKEN;
 
-    /// @notice Slot 0: PE data mapping.
+    /// @notice Slot 0: PE stakingData mapping.
     mapping(address account => PEData) public peData;
 
     /// @notice Allowlist: beneficiary => staker => allowed.
     mapping(address beneficiary => mapping(address staker => bool allowed)) public allowlist;
 
-    /// @notice Staking data mapping.
+    /// @notice Staking stakingData mapping.
     mapping(address account => StakedData) public stakingData;
 
     /// @notice Paused state.
@@ -193,21 +193,21 @@ contract PolicyEngineStaking is ISemver {
             revert PolicyEngineStaking_NotAllowedToSetBeneficiary();
         }
 
-        StakedData storage data = stakingData[msg.sender];
-        address currentBeneficiary = data.beneficiary;
+        StakedData storage stakingData = stakingData[msg.sender];
+        address currentBeneficiary = stakingData.beneficiary;
 
         if (currentBeneficiary != _beneficiary) {
             if (currentBeneficiary != address(0)) {
-                _decreasePeData(currentBeneficiary, data.stakedAmount);
+                _decreasePeData(currentBeneficiary, stakingData.stakedAmount);
                 emit BeneficiaryRemoved(msg.sender, currentBeneficiary);
             }
-            data.beneficiary = _beneficiary;
+            stakingData.beneficiary = _beneficiary;
             emit BeneficiarySet(msg.sender, _beneficiary);
         }
 
-        data.stakedAmount += _amount;
+        stakingData.stakedAmount += _amount;
 
-        uint128 peDelta = currentBeneficiary == _beneficiary ? _amount : data.stakedAmount;
+        uint128 peDelta = currentBeneficiary == _beneficiary ? _amount : stakingData.stakedAmount;
         _increasePeData(_beneficiary, peDelta);
 
         STAKING_TOKEN.safeTransferFrom(msg.sender, address(this), uint256(_amount));
@@ -272,13 +272,13 @@ contract PolicyEngineStaking is ISemver {
         emit BeneficiaryAllowlistUpdated(msg.sender, _staker, _allowed);
 
         if (!_allowed) {
-            StakedData storage data = stakingData[_staker];
-            if (data.beneficiary == msg.sender && _staker != msg.sender) {
-                _decreasePeData(msg.sender, data.stakedAmount);
+            StakedData storage stakingData = stakingData[_staker];
+            if (stakingData.beneficiary == msg.sender && _staker != msg.sender) {
+                _decreasePeData(msg.sender, stakingData.stakedAmount);
                 emit BeneficiaryRemoved(_staker, msg.sender);
 
-                data.beneficiary = _staker;
-                _increasePeData(_staker, data.stakedAmount);
+                stakingData.beneficiary = _staker;
+                _increasePeData(_staker, stakingData.stakedAmount);
                 emit BeneficiarySet(_staker, _staker);
             }
         }
