@@ -37,6 +37,10 @@ check-op-geth-version: ## Checks that op-geth version in go.mod is valid
 	go run ./ops/scripts/check-op-geth-version
 .PHONY: check-op-geth-version
 
+check-nut-locks: ## Checks that locked NUT bundles have not been modified
+	go run ./ops/scripts/check-nut-locks
+.PHONY: check-nut-locks
+
 golang-docker: ## Builds Docker images for Go components using buildx
 	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
 	GIT_COMMIT=$$(git rev-parse HEAD) \
