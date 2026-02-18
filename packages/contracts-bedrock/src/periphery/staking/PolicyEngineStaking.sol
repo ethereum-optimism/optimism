@@ -261,7 +261,7 @@ contract PolicyEngineStaking {
         emit Unstaked(msg.sender, _amount);
     }
 
-    /// @notice Allows or denies a staker to attribute ordering power to the caller.
+    /// @notice Sets whether a staker can set the caller as beneficiary.
     /// @param _staker The staker to allow or deny.
     /// @param _allowed The allowed state.
     function setAllowedStaker(address _staker, bool _allowed) public {
@@ -281,7 +281,7 @@ contract PolicyEngineStaking {
         }
     }
 
-    /// @notice Batch allows or denies stakers to attribute ordering power to the caller.
+    /// @notice Batch sets allowlist for multiple stakers.
     /// @param _stakers The stakers to allow or deny.
     /// @param _allowed The allowed state.
     function setAllowedStakers(address[] calldata _stakers, bool _allowed) external {
