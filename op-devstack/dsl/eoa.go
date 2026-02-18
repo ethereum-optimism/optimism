@@ -55,6 +55,27 @@ func (m *InitMessage) BlockHash() common.Hash {
 	return m.Receipt.BlockHash
 }
 
+// ExecMessage represents an executing message that has been sent and included on chain.
+type ExecMessage struct {
+	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
+	Receipt *types.Receipt
+}
+
+// BlockNumber returns the block number from the receipt.
+func (m *ExecMessage) BlockNumber() *big.Int {
+	return m.Receipt.BlockNumber
+}
+
+// TxHash returns the transaction hash from the receipt.
+func (m *ExecMessage) TxHash() common.Hash {
+	return m.Receipt.TxHash
+}
+
+// BlockHash returns the block hash from the receipt.
+func (m *ExecMessage) BlockHash() common.Hash {
+	return m.Receipt.BlockHash
+}
+
 func NewEOA(key *Key, el ELNode) *EOA {
 	return &EOA{
 		commonImpl: commonFromT(key.t),
@@ -238,7 +259,7 @@ func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Ad
 	return u.SendInitMessage(trigger)
 }
 
-func (u *EOA) SendExecMessage(initMsg *InitMessage) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
+func (u *EOA) SendExecMessage(initMsg *InitMessage) *ExecMessage {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.DependOn(&initMsg.Tx.Result)
 	tx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0))
@@ -247,12 +268,15 @@ func (u *EOA) SendExecMessage(initMsg *InitMessage) (*txintent.IntentTx[*txinten
 	u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
 	// Check single ExecutingMessage triggered
 	u.t.Require().Equal(1, len(receipt.Logs))
-	return tx, receipt
+	return &ExecMessage{
+		Tx:      tx,
+		Receipt: receipt,
+	}
 }
 
 // SendInvalidExecMessage sends an executing message with an invalid identifier.
 // The log index is incremented to reference a non-existent log.
-func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
+func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
 	result, err := initMsg.Tx.Result.Eval(u.ctx)
 	u.t.Require().NoError(err, "failed to evaluate init result")
 	u.t.Require().Greater(len(result.Entries), 0, "event index out of range")
@@ -277,7 +301,10 @@ func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) (*txintent.IntentTx[*
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "invalid exec msg receipt not found")
 	u.log.Info("invalid exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
-	return tx, receipt
+	return &ExecMessage{
+		Tx:      tx,
+		Receipt: receipt,
+	}
 }
 
 // SendPackedRandomInitMessages batches random messages and initiates them via a single multicall

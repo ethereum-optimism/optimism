@@ -35,21 +35,21 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	// Send A -> B message
 	initMsgAtoB := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
 	sys.L2B.WaitForBlock()
-	_, execReceiptAtoB := bob.SendExecMessage(initMsgAtoB)
+	execMsgAtoB := bob.SendExecMessage(initMsgAtoB)
 
 	t.Logger().Info("A->B message sent",
 		"init_block", initMsgAtoB.BlockNumber(),
-		"exec_block", execReceiptAtoB.BlockNumber,
+		"exec_block", execMsgAtoB.BlockNumber(),
 	)
 
 	// Send B -> A message
 	initMsgBtoA := bob.SendRandomInitMessage(rng, eventLoggerB, 2, 10)
 	sys.L2A.WaitForBlock()
-	_, execReceiptBtoA := alice.SendExecMessage(initMsgBtoA)
+	execMsgBtoA := alice.SendExecMessage(initMsgBtoA)
 
 	t.Logger().Info("B->A message sent",
 		"init_block", initMsgBtoA.BlockNumber(),
-		"exec_block", execReceiptBtoA.BlockNumber,
+		"exec_block", execMsgBtoA.BlockNumber(),
 	)
 
 	// Wait for all messages to become safe
@@ -62,8 +62,8 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 
 		// All blocks should be safe
 		return statusA.SafeL2.Number > bigs.Uint64Strict(initMsgAtoB.BlockNumber()) &&
-			statusA.SafeL2.Number > bigs.Uint64Strict(execReceiptBtoA.BlockNumber) &&
-			statusB.SafeL2.Number > bigs.Uint64Strict(execReceiptAtoB.BlockNumber) &&
+			statusA.SafeL2.Number > bigs.Uint64Strict(execMsgBtoA.BlockNumber()) &&
+			statusB.SafeL2.Number > bigs.Uint64Strict(execMsgAtoB.BlockNumber()) &&
 			statusB.SafeL2.Number > bigs.Uint64Strict(initMsgBtoA.BlockNumber())
 	}, timeout, time.Second, "bidirectional messages should become safe")
 

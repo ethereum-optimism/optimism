@@ -42,7 +42,7 @@ func TestInteropHappyTx(gt *testing.T) {
 	sys.L2ChainB.WaitForBlock()
 
 	// send executing message on chain B
-	_, execReceipt := bob.SendExecMessage(initMsg)
+	execMsg := bob.SendExecMessage(initMsg)
 
 	// confirm that the cross-safe safety passed init and exec receipts and that blocks were not reorged
 	dsl.CheckAll(t,
@@ -51,8 +51,8 @@ func TestInteropHappyTx(gt *testing.T) {
 			Hash:   initMsg.BlockHash(),
 		}, 500),
 		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: bigs.Uint64Strict(execReceipt.BlockNumber),
-			Hash:   execReceipt.BlockHash,
+			Number: bigs.Uint64Strict(execMsg.BlockNumber()),
+			Hash:   execMsg.BlockHash(),
 		}, 500),
 	)
 }
