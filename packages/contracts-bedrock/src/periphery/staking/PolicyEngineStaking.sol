@@ -33,7 +33,7 @@ contract PolicyEngineStaking {
 
     /// @notice Base storage slot for PE data mapping. Policy Engine reads from
     ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
-    bytes32 public constant PE_DATA_SLOT = bytes32(uint256(0));
+    bytes32 public constant PE_DATA_SLOT = 0;
 
     /// @notice The immutable owner of the contract. Can pause and unpause staking.
     // nosemgrep: sol-safety-no-immutable-variables
