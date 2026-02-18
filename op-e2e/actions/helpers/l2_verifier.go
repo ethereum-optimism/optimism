@@ -150,7 +150,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	supervisorEnabled := interopSys != nil
 
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, supervisorEnabled, l1, sys.Register("engine-controller", nil, opts))
+	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, supervisorEnabled, l1, sys.Register("engine-controller", nil, opts), nil)
 
 	if mm, ok := interopSys.(*indexing.IndexingMode); ok {
 		mm.SetEngineController(ec)

@@ -16,9 +16,6 @@ var (
 	// dummyBlobFee is a dummy value for the blob fee. Since this gas estimator will never
 	// post blobs, it's just set to 1.
 	dummyBlobFee = big.NewInt(1)
-	// dummyBlobTipCap is a dummy value for the blob tip cap. Since this gas estimator will never
-	// post blobs, it's just set to 0.
-	dummyBlobTipCap = big.NewInt(0)
 	// maxTip is the maximum tip that can be suggested by this estimator.
 	maxTip = big.NewInt(50 * 1e9)
 	// minTip is the minimum tip that can be suggested by this estimator.
@@ -28,15 +25,15 @@ var (
 // DeployerGasPriceEstimator is a custom gas price estimator for use with op-deployer.
 // It pads the base fee by 50% and multiplies the suggested tip by 5 up to a max of
 // 50 gwei.
-func DeployerGasPriceEstimator(ctx context.Context, client txmgr.ETHBackend) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
+func DeployerGasPriceEstimator(ctx context.Context, client txmgr.ETHBackend) (*big.Int, *big.Int, *big.Int, error) {
 	chainHead, err := client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get block: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to get block: %w", err)
 	}
 
 	tip, err := client.SuggestGasTipCap(ctx)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get gas tip cap: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to get gas tip cap: %w", err)
 	}
 
 	baseFeePad := new(big.Int).Div(chainHead.BaseFee, baseFeePadFactor)
@@ -51,5 +48,5 @@ func DeployerGasPriceEstimator(ctx context.Context, client txmgr.ETHBackend) (*b
 		paddedTip.Set(maxTip)
 	}
 
-	return paddedTip, paddedBaseFee, dummyBlobTipCap, dummyBlobFee, nil
+	return paddedTip, paddedBaseFee, dummyBlobFee, nil
 }

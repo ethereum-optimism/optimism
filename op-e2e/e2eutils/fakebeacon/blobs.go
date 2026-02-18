@@ -2,13 +2,11 @@ package fakebeacon
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -70,78 +67,6 @@ func (f *FakeBeacon) Start(addr string) error {
 			f.log.Error("config handler err", "err", err)
 		}
 	})
-	mux.HandleFunc("/eth/v1/beacon/blob_sidecars/", func(w http.ResponseWriter, r *http.Request) {
-		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blob_sidecars/")
-		slot, err := strconv.ParseUint(blockID, 10, 64)
-		if err != nil {
-			f.log.Error("could not parse block id from request", "url", r.URL.Path, "err", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		bundle, err := f.LoadBlobsBundle(slot)
-		if errors.Is(err, ethereum.NotFound) {
-			f.log.Error("failed to load blobs bundle - not found", "slot", slot, "err", err)
-			w.WriteHeader(http.StatusNotFound)
-			return
-		} else if err != nil {
-			f.log.Error("failed to load blobs bundle", "slot", slot, "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		query := r.URL.Query()
-		rawIndices := query["indices"]
-		indices := make([]uint64, 0, len(bundle.Blobs))
-		if len(rawIndices) == 0 {
-			// request is for all blobs
-			for i := range bundle.Blobs {
-				indices = append(indices, uint64(i))
-			}
-		} else {
-			for _, raw := range rawIndices {
-				ix, err := strconv.ParseUint(raw, 10, 64)
-				if err != nil {
-					f.log.Error("could not parse index from request", "url", r.URL)
-					w.WriteHeader(http.StatusBadRequest)
-					return
-				}
-				indices = append(indices, ix)
-			}
-		}
-
-		var mockBeaconBlockRoot [32]byte
-		mockBeaconBlockRoot[0] = 42
-		binary.LittleEndian.PutUint64(mockBeaconBlockRoot[32-8:], slot)
-		sidecars := make([]*eth.APIBlobSidecar, len(indices))
-		for i, ix := range indices {
-			if ix >= uint64(len(bundle.Blobs)) {
-				f.log.Error("blob index from request is out of range", "url", r.URL)
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			// From Fulu onwards, a blob proof is not provided.
-			// Derivation should not rely on a valid proof here.
-			proof := eth.Bytes48(kzg4844.Proof(hexutil.MustDecode("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")))
-
-			sidecars[i] = &eth.APIBlobSidecar{
-				Index:         eth.Uint64String(ix),
-				KZGCommitment: eth.Bytes48(bundle.Commitments[ix]),
-				KZGProof:      proof,
-				SignedBlockHeader: eth.SignedBeaconBlockHeader{
-					Message: eth.BeaconBlockHeader{
-						StateRoot: mockBeaconBlockRoot,
-						Slot:      eth.Uint64String(slot),
-					},
-				},
-				InclusionProof: make([]eth.Bytes32, 0),
-			}
-			copy(sidecars[i].Blob[:], bundle.Blobs[ix])
-		}
-		if err := json.NewEncoder(w).Encode(&eth.APIGetBlobSidecarsResponse{Data: sidecars}); err != nil {
-			f.log.Error("blobs handler err", "err", err)
-		}
-	})
 	mux.HandleFunc("/eth/v1/beacon/blobs/", func(w http.ResponseWriter, r *http.Request) {
 		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blobs/")
 		slot, err := strconv.ParseUint(blockID, 10, 64)
@@ -150,30 +75,23 @@ func (f *FakeBeacon) Start(addr string) error {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		bundle, err := f.LoadBlobsBundle(slot)
+
+		query := r.URL.Query()
+		versionedHashesFromQueryHex := query["versioned_hashes"]
+		versionedHashesFromQuery := make([]common.Hash, 0, len(versionedHashesFromQueryHex))
+		for _, h := range versionedHashesFromQueryHex {
+			versionedHashesFromQuery = append(versionedHashesFromQuery, common.HexToHash(h))
+		}
+
+		blobs, err := f.LoadBlobsByHash(slot, versionedHashesFromQuery)
 		if err != nil {
-			f.log.Error("failed to load blobs bundle", "slot", slot, "err", err)
+			f.log.Error("failed to load blobs", "slot", slot, "err", err)
 			if errors.Is(err, ethereum.NotFound) {
 				w.WriteHeader(http.StatusNotFound)
 			} else {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 			return
-		}
-
-		query := r.URL.Query()
-		versionedHashes := make([]common.Hash, 0, len(bundle.Blobs))
-		for _, raw := range query["versioned_hashes"] {
-			versionedHashes = append(versionedHashes, common.HexToHash(raw))
-		}
-		blobs := make([]*eth.Blob, 0)
-		for i := range bundle.Blobs {
-			blob := eth.Blob(bundle.Blobs[i])
-			versionedHash := eth.KZGToVersionedHash(kzg4844.Commitment(bundle.Commitments[i]))
-			if len(versionedHashes) > 0 && !slices.Contains(versionedHashes, versionedHash) {
-				continue
-			}
-			blobs = append(blobs, &blob)
 		}
 
 		if err := json.NewEncoder(w).Encode(&eth.APIBeaconBlobsResponse{Data: blobs}); err != nil {
@@ -224,7 +142,10 @@ func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundle) e
 	return nil
 }
 
-func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundle, error) {
+// LoadBlobsByHashreturns a slice of blobs in the given slot, corresponding to the supplied versioned hashes.
+// If the provided hashes is empty, all blobs in the store at the supplied timestamp are returned.
+// Blobs are ordered by their index in the block.
+func (f *FakeBeacon) LoadBlobsByHash(slot uint64, hashes []common.Hash) ([]*eth.Blob, error) {
 	f.blobsLock.Lock()
 	defer f.blobsLock.Unlock()
 
@@ -233,25 +154,7 @@ func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundle, error) {
 	// timestamp = slot * slot_time + genesis
 	slotTimestamp := slot*f.blockTime + f.genesisTime
 
-	// Load blobs from the store
-	blobs, err := f.blobStore.GetAllSidecars(context.Background(), slotTimestamp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load blobs from store: %w", err)
-	}
-
-	// Convert blobs to the bundle
-	out := engine.BlobsBundle{
-		Commitments: make([]hexutil.Bytes, len(blobs)),
-		Proofs:      make([]hexutil.Bytes, len(blobs)),
-		Blobs:       make([]hexutil.Bytes, len(blobs)),
-	}
-	for _, b := range blobs {
-		out.Commitments[b.Index] = hexutil.Bytes(b.KZGCommitment[:])
-		out.Proofs[b.Index] = hexutil.Bytes(b.KZGProof[:])
-		out.Blobs[b.Index] = hexutil.Bytes(b.Blob[:])
-	}
-
-	return &out, nil
+	return f.blobStore.GetBlobsByHash(context.Background(), slotTimestamp, hashes)
 }
 
 func (f *FakeBeacon) Close() error {

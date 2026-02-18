@@ -21,8 +21,14 @@ func GoStructToABITuple(structType reflect.Type, tupleName string) (abi.Type, er
 			return abi.Type{}, fmt.Errorf("unsupported field type %s: %w", field.Type, err)
 		}
 
+		// Use ABI tag if present, otherwise use field name
+		fieldName := field.Name
+		if abiTag := field.Tag.Get("abi"); abiTag != "" {
+			fieldName = abiTag
+		}
+
 		components = append(components, abi.ArgumentMarshaling{
-			Name: field.Name,
+			Name: fieldName,
 			Type: abiType,
 		})
 	}

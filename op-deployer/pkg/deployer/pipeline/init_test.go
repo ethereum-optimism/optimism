@@ -231,6 +231,12 @@ func TestPopulateSuperchainState(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	env := &Env{
+		L1ScriptHost: host,
+		UseForge:     false,
+		Context:      context.Background(),
+	}
+
 	l1Versions, err := standard.L1VersionsFor(11155111)
 	require.NoError(t, err)
 	superchain, err := standard.SuperchainFor(11155111)
@@ -238,7 +244,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 	opcmAddr := l1Versions["op-contracts/v2.0.0-rc.1"].OPContractsManager.Address
 
 	t.Run("valid OPCM address only", func(t *testing.T) {
-		dep, roles, err := PopulateSuperchainState(host, common.Address(*opcmAddr), common.Address{})
+		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), common.Address{})
 		require.NoError(t, err)
 		require.Equal(t, addresses.SuperchainContracts{
 			SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
@@ -257,7 +263,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 	t.Run("OPCM address with SuperchainConfigProxy", func(t *testing.T) {
 		// When both are provided and OPCM version < 7.0.0, the script uses v1 flow
 		// The SuperchainConfigProxy parameter is ignored in v1 flow
-		dep, roles, err := PopulateSuperchainState(host, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
+		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
 		require.NoError(t, err)
 		require.NotNil(t, dep)
 		require.NotNil(t, roles)
@@ -275,7 +281,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 	t.Run("invalid OPCM address", func(t *testing.T) {
 		// Use an invalid address (non-existent contract)
 		invalidOpcmAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
-		dep, roles, err := PopulateSuperchainState(host, invalidOpcmAddr, common.Address{})
+		dep, roles, err := PopulateSuperchainState(env, invalidOpcmAddr, common.Address{})
 		require.Error(t, err)
 		require.Nil(t, dep)
 		require.Nil(t, roles)
@@ -283,7 +289,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 	})
 
 	t.Run("output mapping validation", func(t *testing.T) {
-		dep, roles, err := PopulateSuperchainState(host, common.Address(*opcmAddr), common.Address{})
+		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), common.Address{})
 		require.NoError(t, err)
 		require.NotNil(t, dep)
 		require.NotNil(t, roles)
@@ -343,12 +349,18 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	env := &Env{
+		L1ScriptHost: host,
+		UseForge:     false,
+		Context:      context.Background(),
+	}
+
 	superchain, err := standard.SuperchainFor(11155111)
 	require.NoError(t, err)
 
 	t.Run("SuperchainConfigProxy only", func(t *testing.T) {
 		// opcmAddr is set to 0, all config is provided in the superchainConfigProxy
-		dep, roles, err := PopulateSuperchainState(host, common.Address{}, superchain.SuperchainConfigAddr)
+		dep, roles, err := PopulateSuperchainState(env, common.Address{}, superchain.SuperchainConfigAddr)
 		require.NoError(t, err)
 
 		require.Equal(t, addresses.SuperchainContracts{
@@ -370,7 +382,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	t.Run("both addresses zero", func(t *testing.T) {
 		// When both are zero, the script detects OPCMv2 flow (because opcmAddr == 0)
 		// but then requires SuperchainConfigProxy to be set, so it should error
-		dep, roles, err := PopulateSuperchainState(host, common.Address{}, common.Address{})
+		dep, roles, err := PopulateSuperchainState(env, common.Address{}, common.Address{})
 		require.Error(t, err)
 		require.Nil(t, dep)
 		require.Nil(t, roles)
@@ -380,7 +392,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	t.Run("invalid SuperchainConfigProxy", func(t *testing.T) {
 		// Use an invalid address (non-existent contract)
 		invalidSuperchainConfigProxy := common.HexToAddress("0x1234567890123456789012345678901234567890")
-		dep, roles, err := PopulateSuperchainState(host, common.Address{}, invalidSuperchainConfigProxy)
+		dep, roles, err := PopulateSuperchainState(env, common.Address{}, invalidSuperchainConfigProxy)
 		require.Error(t, err)
 		require.Nil(t, dep)
 		require.Nil(t, roles)
@@ -388,7 +400,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	})
 
 	t.Run("output mapping validation", func(t *testing.T) {
-		dep, roles, err := PopulateSuperchainState(host, common.Address{}, superchain.SuperchainConfigAddr)
+		dep, roles, err := PopulateSuperchainState(env, common.Address{}, superchain.SuperchainConfigAddr)
 		require.NoError(t, err)
 		require.NotNil(t, dep)
 		require.NotNil(t, roles)

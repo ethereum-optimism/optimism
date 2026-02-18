@@ -42,7 +42,7 @@ LEGACY_KONA_DIR="${TMP_DIR}/kona-legacy"
 function build_legacy_kona_prestate() {
   local version=$1
   local log_file=$2
-  local short_version="${version#*/}"
+  local short_version="${version#*/v}"
   echo "Building legacy kona version: ${version} Logs: ${log_file}"
 
   mkdir -p "${LEGACY_KONA_DIR}"
@@ -56,8 +56,10 @@ function build_legacy_kona_prestate() {
     cd kona
   fi
   # kona doesn't define a just dependency in its mise config.
-  # but the monorepo does and it should be preinstalled by now. So let's setup the just shim.
-  MISE_DEFAULT_CONFIG_FILENAME="${WORKTREE_DIR}"/mise.toml mise use just > "${log_file}" 2>&1
+  # but the monorepo does and it should be preinstalled by now. So let's set up the just shim.
+  JUST_VERSION=$(cd "${WORKTREE_DIR}" && mise config get tools.just)
+  mise trust
+  mise use "just@${JUST_VERSION}" >> "${log_file}" 2>&1
 
   cd docker/fpvm-prestates
   rm -rf ../../prestate-artifacts-cannon
@@ -81,7 +83,7 @@ function build_legacy_kona_prestate() {
 function build_prestates() {
   local version=$1
   local log_file=$2
-  local short_version="${version#*/}"
+  local short_version="${version#*/v}"
   echo "Building version: ${version} Logs: ${log_file}"
 
   git checkout --force "${version}" > "${log_file}" 2>&1
@@ -98,11 +100,12 @@ function build_prestates() {
 go = "${GO_VERSION}"
 just = "${JUST_VERSION}"
 EOF
+    mise trust
     mise install -v -y >> "${log_file}" 2>&1
   fi
 
   rm -rf "${BIN_DIR}"
-  rm -rf kona/prestate-artifacts-*
+  rm -rf rust/kona/prestate-artifacts-*
   make reproducible-prestate >> "${log_file}" 2>&1
 
   if [[ "${version}" =~ ^op-program/v ]]; then
@@ -136,18 +139,18 @@ EOF
   fi
 
   if [[ "${version}" =~ ^kona-client/v ]]; then
-    if [ -f "kona/prestate-artifacts-cannon/prestate-proof.json" ]; then
+    if [ -f "rust/kona/prestate-artifacts-cannon/prestate-proof.json" ]; then
       local hash
-      hash=$(jq -r .pre kona/prestate-artifacts-cannon/prestate-proof.json)
-      cp kona/prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${hash}.bin.gz"
+      hash=$(jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json)
+      cp rust/kona/prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${hash}.bin.gz"
       VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64-kona\"}]")
       echo "Built cannon64-kona ${version}: ${hash}"
     fi
 
-    if [ -f "kona/prestate-artifacts-cannon-interop/prestate-proof.json" ]; then
+    if [ -f "rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json" ]; then
       local hash
-      hash=$(jq -r .pre kona/prestate-artifacts-cannon-interop/prestate-proof.json)
-      cp kona/prestate-artifacts-cannon-interop/prestate.bin.gz "${STATES_DIR}/${hash}.bin.gz"
+      hash=$(jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json)
+      cp rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz "${STATES_DIR}/${hash}.bin.gz"
       VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64-kona-interop\"}]")
       echo "Built cannon64-kona-interop ${version}: ${hash}"
     fi

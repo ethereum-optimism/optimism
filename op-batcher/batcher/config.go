@@ -211,12 +211,6 @@ func (c *CLIConfig) Check() error {
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
-	if c.TxMgrConfig.BlobTipCapPercentile < 1 || c.TxMgrConfig.BlobTipCapPercentile > 100 {
-		return fmt.Errorf("blob-tip-cap-percentile must be between 1 and 100, got %d", c.TxMgrConfig.BlobTipCapPercentile)
-	}
-	if c.TxMgrConfig.BlobTipCapRange < 1 {
-		return fmt.Errorf("blob-tip-cap-range must be at least 1, got %d", c.TxMgrConfig.BlobTipCapRange)
-	}
 	if err := c.RPC.Check(); err != nil {
 		return err
 	}

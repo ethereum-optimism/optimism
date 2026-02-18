@@ -1,0 +1,116 @@
+---
+description: Running op-reth on Optimism and OP Stack chains.
+---
+
+# Running op-reth on OP Stack chains
+
+`op-reth` is the OP Stack execution client built on [reth][reth]. It supports OP Stack chains out of the box. Optimism has a small diff from the [L1 EELS][l1-el-spec],
+comprising of the following key changes:
+
+1. A new transaction type, [`0x7E (Deposit)`][deposit-spec], which is used to deposit funds from L1 to L2.
+1. Modifications to the `PayloadAttributes` that allow the [sequencer][sequencer] to submit transactions to the EL through the Engine API. Payloads will be built with deposit transactions at the top of the block,
+   with the first deposit transaction always being the "L1 Info Transaction."
+1. [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559) denominator and elasticity parameters have been adjusted to account for the lower block time (2s) on L2. Otherwise, the 1559 formula remains the same.
+1. Network fees are distributed to the various [fee vaults][l2-el-spec].
+1. ... and some other minor changes.
+
+For a more in-depth list of changes and their rationale, as well as specifics about the OP Stack specification such as transaction ordering and more, see the documented [`op-geth` diff][op-geth-forkdiff],
+the [L2 EL specification][l2-el-spec], and the [OP Stack specification][op-stack-spec].
+
+### Superchain Registry
+
+Since 1.4.0 op-reth has built in support for all chains in the [superchain registry][superchain-registry]. All superchains are supported by the `--chain` argument, e.g. `--chain unichain` or `--chain unichain-sepolia`.
+
+## Running on Optimism
+
+You will need three things to run `op-reth`:
+
+1. An archival L1 node, synced to the settlement layer of the OP Stack chain you want to sync (e.g. `reth`, `geth`, `besu`, `nethermind`, etc.)
+1. A rollup node (e.g. `op-node`, `magi`, `hildr`, etc.)
+1. An instance of `op-reth`.
+
+For this example, we'll start a `Base Mainnet` node.
+
+### Installing `op-reth`
+
+To install `op-reth` via the `Makefile` in the workspace root:
+
+```sh
+git clone https://github.com/ethereum-optimism/optimism.git && \
+    cd optimism/op-reth && \
+    make install
+```
+
+This will install the `op-reth` binary to `~/.cargo/bin/op-reth`.
+
+### Installing a Rollup Node
+
+Next, you'll need to install a [Rollup Node][rollup-node-spec], which is the equivalent to the Consensus Client on the OP Stack. Available options include:
+
+1. [`op-node`][op-node]
+1. [`magi`][magi]
+1. [`hildr`][hildr]
+
+For the sake of this tutorial, we'll use the reference implementation of the Rollup Node maintained by OP Labs, the `op-node`. The `op-node` can be built from source, or pulled from a [Docker image available on Google Cloud][op-node-docker].
+
+### Running `op-reth`
+
+op-reth supports additional OP Stack specific CLI arguments:
+
+1. `--rollup.sequencer <uri>` - The sequencer endpoint to connect to. Transactions sent to the `op-reth` EL are also forwarded to this sequencer endpoint for inclusion, as the sequencer is the entity that builds blocks on OP Stack chains. Aliases: `--rollup.sequencer-http`, `--rollup.sequencer-ws`.
+1. `--rollup.disable-tx-pool-gossip` - Disables gossiping of transactions in the mempool to peers. This can be omitted for personal nodes, though providers should always opt to enable this flag.
+1. `--rollup.discovery.v4` - Enables the discovery v4 protocol for peer discovery. By default, op-reth, similar to op-geth, has discovery v5 enabled and discovery v4 disabled, whereas regular reth has discovery v4 enabled and discovery v5 disabled.
+1. `--rollup.compute-pending-block` - Enables computing of the pending block from the tx-pool instead of using the latest block. By default the pending block equals the latest block to save resources and not leak txs from the tx-pool.
+1. `--rollup.enable-tx-conditional` - Enable transaction conditional support on sequencer.
+1. `--rollup.supervisor-http <url>` - HTTP endpoint for the interop supervisor.
+1. `--rollup.supervisor-safety-level <level>` - Safety level for the supervisor (default: `CrossUnsafe`).
+1. `--rollup.sequencer-headers <headers>` - Optional headers to use when connecting to the sequencer. Requires `--rollup.sequencer`.
+1. `--rollup.historicalrpc <url>` - RPC endpoint for historical data. Alias: `--rollup.historical-rpc`.
+1. `--min-suggested-priority-fee <wei>` - Minimum suggested priority fee (tip) in wei (default: `1000000`).
+1. `--flashblocks-url <url>` - A URL pointing to a secure websocket subscription that streams out flashblocks. If given, the flashblocks are received to build pending block.
+1. `--flashblock-consensus` - Enable flashblock consensus client to drive the chain forward. Requires `--flashblocks-url`.
+
+First, ensure that your L1 archival node is running and synced to tip. Also make sure that the beacon node / consensus layer client is running and has http APIs enabled. Then, start `op-reth` with the `--rollup.sequencer` flag set to the `Base Mainnet` sequencer endpoint:
+
+```sh
+op-reth node \
+    --chain base \
+    --rollup.sequencer https://mainnet-sequencer.base.org \
+    --http \
+    --ws \
+    --authrpc.port 9551 \
+    --authrpc.jwtsecret /path/to/jwt.hex
+```
+
+Then, once `op-reth` has been started, start up the `op-node`:
+
+```sh
+op-node \
+    --network="base-mainnet" \
+    --l1=<your-L1-rpc> \
+    --l2=http://localhost:9551 \
+    --l2.jwt-secret=/path/to/jwt.hex \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=7000 \
+    --l1.beacon=<your-beacon-node-http-endpoint> \
+    --syncmode=execution-layer \
+    --l2.enginekind=reth
+```
+
+Consider adding the `--l1.trustrpc` flag to improve performance, if the connection to l1 is over localhost.
+
+[l1-el-spec]: https://github.com/ethereum/execution-specs
+[rollup-node-spec]: https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md
+[op-geth-forkdiff]: https://op-geth.optimism.io
+[sequencer]: https://github.com/ethereum-optimism/specs/blob/main/specs/background.md#sequencers
+[op-stack-spec]: https://github.com/ethereum-optimism/specs/blob/main/specs
+[l2-el-spec]: https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/exec-engine.md
+[deposit-spec]: https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/deposits.md
+[derivation-spec]: https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md
+[superchain-registry]: https://github.com/ethereum-optimism/superchain-registry
+[op-node-docker]: https://console.cloud.google.com/artifacts/docker/oplabs-tools-artifacts/us/images/op-node
+[reth]: https://github.com/paradigmxyz/reth
+[optimism]: https://github.com/ethereum-optimism/optimism
+[op-node]: https://github.com/ethereum-optimism/optimism/tree/develop/op-node
+[magi]: https://github.com/a16z/magi
+[hildr]: https://github.com/optimism-java/hildr

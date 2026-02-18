@@ -70,7 +70,7 @@ contract OPContractsManagerContainer {
         devFeatureBitmap = _devFeatureBitmap;
 
         // Development features MUST NOT be enabled on Mainnet.
-        if (block.chainid == 1 && !_isTestingEnvironment() && uint256(_devFeatureBitmap) != 0) {
+        if (!_isTestingEnvironment() && uint256(_devFeatureBitmap) != 0) {
             revert OPContractsManagerContainer_DevFeatureInProd();
         }
     }
@@ -97,11 +97,12 @@ contract OPContractsManagerContainer {
         return DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature);
     }
 
-    /// @notice Returns true if the contract is running in a testing environment. Checks that the
-    ///         code for the address 0xbeefcafe is not zero, which is an address that should never
-    ///         have any code in production environments but can be made to have code in tests.
+    /// @notice Returns true if the contract is running in a testing environment. Returns true if
+    ///         we're not on mainnet or if the code for the address 0xbeefcafe is not zero. The
+    ///         magic address should never have any code in production environments but can be made
+    ///         to have code in tests.
     /// @return True if the contract is running in a testing environment, false otherwise.
     function _isTestingEnvironment() internal view returns (bool) {
-        return Constants.TESTING_ENVIRONMENT_ADDRESS.code.length > 0;
+        return block.chainid != 1 || Constants.TESTING_ENVIRONMENT_ADDRESS.code.length > 0;
     }
 }

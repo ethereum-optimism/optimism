@@ -1,0 +1,71 @@
+[package]
+name = "example-custom-node"
+version = "0.0.0"
+publish = false
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# reth
+reth-codecs.workspace = true
+reth-network-peers.workspace = true
+reth-node-builder.workspace = true
+reth-optimism-forks.workspace = true
+reth-optimism-flashblocks.workspace = true
+reth-db-api.workspace = true
+reth-op = { workspace = true, features = ["node", "pool", "rpc"] }
+reth-payload-builder.workspace = true
+reth-rpc-api.workspace = true
+reth-engine-primitives.workspace = true
+reth-rpc-engine-api.workspace = true
+reth-ethereum = { workspace = true, features = ["node-api", "network", "evm", "pool", "trie", "storage-api", "provider"] }
+
+# revm
+revm.workspace = true
+revm-primitives.workspace = true
+
+# alloy
+alloy-consensus = { workspace = true, features = ["serde"] }
+alloy-eips.workspace = true
+alloy-evm.workspace = true
+alloy-genesis.workspace = true
+alloy-op-evm.workspace = true
+alloy-primitives.workspace = true
+alloy-rlp.workspace = true
+alloy-serde.workspace = true
+alloy-network.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-rpc-types-eth.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+op-alloy-rpc-types.workspace = true
+op-revm.workspace = true
+
+# misc
+async-trait.workspace = true
+derive_more.workspace = true
+eyre.workspace = true
+jsonrpsee.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+modular-bitfield.workspace = true
+
+[features]
+arbitrary = [
+    "alloy-consensus/arbitrary",
+    "alloy-eips/arbitrary",
+    "alloy-primitives/arbitrary",
+    "alloy-serde/arbitrary",
+    "op-alloy-consensus/arbitrary",
+    "op-alloy-rpc-types-engine/arbitrary",
+    "reth-codecs/arbitrary",
+    "reth-op/arbitrary",
+    "revm-primitives/arbitrary",
+    "revm/arbitrary",
+    "reth-ethereum/arbitrary",
+    "alloy-rpc-types-engine/arbitrary",
+    "reth-db-api/arbitrary",
+    "alloy-rpc-types-eth/arbitrary",
+    "op-alloy-rpc-types/arbitrary",
+]
+default = []

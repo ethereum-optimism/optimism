@@ -351,6 +351,20 @@ func (cl *L2CLNode) IsP2PConnected(peer *L2CLNode) {
 	cl.require.NoError(err, "peer not connected")
 }
 
+func (cl *L2CLNode) IsP2PDisconnected(peer *L2CLNode) {
+	myInfo := cl.PeerInfo()
+	strategy := &retry.ExponentialStrategy{Min: 10 * time.Second, Max: 30 * time.Second, MaxJitter: 250 * time.Millisecond}
+	err := retry.Do0(cl.ctx, 5, strategy, func() error {
+		for _, p := range peer.Peers().Peers {
+			if p.PeerID == myInfo.PeerID {
+				return errors.New("peer still connected")
+			}
+		}
+		return nil
+	})
+	cl.require.NoError(err, "peer not disconnected")
+}
+
 type safeHeadDbMatchOpts struct {
 	minRequiredL2Block *uint64
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -25,6 +26,18 @@ type IncludedTx struct {
 type EL interface {
 	Sender
 	ReceiptGetter
+}
+
+// NewReliableEL turns an implementation of the EL interface into one that will retry on
+// intermittent failures.
+func NewReliableEL(el EL, blockTime time.Duration) EL {
+	return struct {
+		*Monitor
+		*Resubmitter
+	}{
+		NewMonitor(el, blockTime),
+		NewResubmitter(el, blockTime),
+	}
 }
 
 type ReceiptGetter interface {

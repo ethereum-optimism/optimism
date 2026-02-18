@@ -117,6 +117,14 @@ func (d *DA) OnFinalizedHeadSignal(f HeadSignalFn) {
 // It is called by the Finalize function, as it has an L1 finalized head to use.
 func (d *DA) updateFinalizedHead(l1Finalized eth.L1BlockRef) {
 	d.l1FinalizedHead = l1Finalized
+
+	// If there are no commitments or challenges being tracked, finalizedHead is managed
+	// by updateFinalizedFromL1 (called from AdvanceL1Origin) which calculates it based
+	// on l1FinalizedHead - challengeWindow. Preserve that value.
+	if d.state.NoCommitments() {
+		return
+	}
+
 	// Prune the state to the finalized head
 	d.state.Prune(l1Finalized.ID())
 	d.finalizedHead = d.state.lastPrunedCommitment

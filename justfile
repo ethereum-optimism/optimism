@@ -1,6 +1,6 @@
 # Build all Rust binaries (release) for sysgo tests.
 build-rust-release:
-  cd kona && cargo build --release --bin kona-node --bin kona-supervisor
+  cd rust && cargo build --release --bin kona-node --bin kona-supervisor
   cd op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
   cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 
@@ -45,3 +45,24 @@ update-op-geth ref:
 	go mod edit -replace=github.com/ethereum/go-ethereum=github.com/ethereum-optimism/op-geth@"$ver"; \
 	go mod tidy; \
 	echo "Updated op-geth to $ver"
+
+# e.g. GITHUB_TOKEN=$(gh auth token) just generate-release-notes op-batcher v1.16.3 v1.16.4-rc.1
+generate-release-notes component from_tag to_tag:
+    @component="{{ component }}"; \
+    case "$component" in \
+        op-batcher|op-node) \
+            ;; \
+        *) \
+            echo "error: component must be one of: op-batcher, op-node"; \
+            exit 1; \
+            ;; \
+    esac; \
+    git cliff \
+        --include-path {{ component }}/**/* \
+        --include-path go.* \
+        --include-path op-core/**/* \
+        --include-path op-service/**/* \
+        --config .github/cliff.toml \
+        --tag-pattern {{ component }}/{{ from_tag }} \
+        --tag {{ component }}/{{ to_tag }} \
+        -- {{ component }}/{{ from_tag }}..{{ component }}/{{ to_tag }}

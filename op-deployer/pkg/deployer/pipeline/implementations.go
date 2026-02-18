@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 
@@ -65,22 +64,16 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 
 	if env.UseForge {
-		if env.ForgeClient == nil {
-			return fmt.Errorf("Forge client is nil but UseForge is enabled")
-		}
-		if env.Context == nil {
-			env.Context = context.Background()
-		}
 		lgr.Info("using Forge for DeployImplementations")
-		forgeCaller := opcm.NewDeployImplementationsForgeCaller(env.ForgeClient)
-		forgeOpts := []string{
-			"--rpc-url", env.L1RPCUrl,
-			"--broadcast",
-			"--private-key", env.PrivateKey,
+		forgeEnv := &opcm.ForgeEnv{
+			Client:     env.ForgeClient,
+			Context:    env.Context,
+			L1RPCUrl:   env.L1RPCUrl,
+			PrivateKey: env.PrivateKey,
 		}
-		dio, _, err = forgeCaller(env.Context, input, forgeOpts...)
+		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
 		if err != nil {
-			return fmt.Errorf("failed to deploy implementations with Forge: %w", err)
+			return err
 		}
 	} else {
 		dio, err = env.Scripts.DeployImplementations.Run(input)

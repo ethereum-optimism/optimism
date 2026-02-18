@@ -1,18 +1,30 @@
 version: 2.1
 
-# Shared Rust CI Commands and Jobs
-# This file contains common commands and parameterized jobs used by multiple Rust subproject configs.
-# Each subproject config references these jobs from its workflows section.
-# No workflows are defined here - workflows remain in each project's config.
+# Unified Rust CI Configuration
+# This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.23
+  utils: ethereum-optimism/circleci-utils@1.0.24
+  gcp-cli: circleci/gcp-cli@3.0.1
+  codecov: codecov/codecov@5.0.3
 
 parameters:
-  default_docker_image:
+  c-default_docker_image:
     type: string
     default: cimg/base:2024.01
+  c-base_image:
+    type: string
+    default: default
+  c-rust_ci_dispatch:
+    type: boolean
+    default: false
+  c-go-cache-version:
+    type: string
+    default: "v0.0"
 
+# ============================================================================
+# COMMANDS
+# ============================================================================
 commands:
   install-cargo-binstall:
     description: "Install cargo-binstall for fast binary installations"
@@ -72,8 +84,8 @@ commands:
           command: |
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/kona/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/kona/target/release/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
 
@@ -250,7 +262,59 @@ commands:
                 profile: << parameters.profile >>
                 features: << parameters.features >>
 
+  # Kona-specific commands
+  install-zstd:
+    description: "Install zstd compression utility"
+    steps:
+      - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd=1.4.8*
+
+  gcp-oidc-authenticate:
+    description: "Authenticate with GCP using a CircleCI OIDC token."
+    parameters:
+      project_id:
+        type: env_var_name
+        default: GCP_PROJECT_ID
+      workload_identity_pool_id:
+        type: env_var_name
+        default: GCP_WIP_ID
+      workload_identity_pool_provider_id:
+        type: env_var_name
+        default: GCP_WIP_PROVIDER_ID
+      service_account_email:
+        type: env_var_name
+        default: GCP_SERVICE_ACCOUNT_EMAIL
+      gcp_cred_config_file_path:
+        type: string
+        default: /home/circleci/gcp_cred_config.json
+      oidc_token_file_path:
+        type: string
+        default: /home/circleci/oidc_token.json
+    steps:
+      - run:
+          name: "Create OIDC credential configuration"
+          command: |
+            echo $CIRCLE_OIDC_TOKEN > << parameters.oidc_token_file_path >>
+            gcloud iam workload-identity-pools create-cred-config \
+                "projects/${<< parameters.project_id >>}/locations/global/workloadIdentityPools/${<< parameters.workload_identity_pool_id >>}/providers/${<< parameters.workload_identity_pool_provider_id >>}"\
+                --output-file="<< parameters.gcp_cred_config_file_path >>" \
+                --service-account="${<< parameters.service_account_email >>}" \
+                --credential-source-file=<< parameters.oidc_token_file_path >>
+      - run:
+          name: "Authenticate with GCP using OIDC"
+          command: |
+            gcloud auth login --brief --cred-file "<< parameters.gcp_cred_config_file_path >>"
+            echo "export GOOGLE_APPLICATION_CREDENTIALS='<< parameters.gcp_cred_config_file_path >>'" | tee -a "$BASH_ENV"
+
+# ============================================================================
+# JOBS
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # Shared parameterized jobs (reusable templates)
+  # --------------------------------------------------------------------------
+
   # Shared format check job
   rust-ci-fmt:
     parameters:
@@ -262,7 +326,7 @@ jobs:
         type: string
         default: "cargo +nightly fmt --all --check"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -295,7 +359,7 @@ jobs:
         type: string
         default: "stable"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -328,7 +392,7 @@ jobs:
         type: string
         default: "cargo deny check"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -358,7 +422,7 @@ jobs:
         type: string
         default: "zepter run check"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -385,7 +449,7 @@ jobs:
         description: "Directory containing the Cargo workspace"
         type: string
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -418,8 +482,12 @@ jobs:
         description: "Rust toolchain version to use"
         type: string
         default: "stable"
+      command:
+        description: "Command to run for no_std check"
+        type: string
+        default: "just check-no-std"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -434,7 +502,7 @@ jobs:
           name: Check no_std compatibility
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
-          command: just check-no-std
+          command: <<parameters.command>>
       - rust-save-build-cache: *no-std-cache-args
 
   # Shared documentation build job
@@ -452,7 +520,7 @@ jobs:
         type: string
         default: "--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -484,7 +552,7 @@ jobs:
         type: string
         default: "cargo test --workspace --doc"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -522,7 +590,7 @@ jobs:
         type: string
         default: "release"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -551,8 +619,12 @@ jobs:
       directory:
         description: "Directory containing the Cargo workspace"
         type: string
+      command:
+        description: "Command to run for unused dependency check"
+        type: string
+        default: "just check-udeps"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -573,7 +645,7 @@ jobs:
           name: Check unused dependencies
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
-          command: just check-udeps
+          command: <<parameters.command>>
       - rust-save-build-cache: *udeps-cache-args
 
   # Shared cargo hack build job (cross-compile targets like WASM)
@@ -590,7 +662,7 @@ jobs:
         type: string
         default: "--workspace"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -598,8 +670,6 @@ jobs:
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-hack-build
-      - rust-install-toolchain:
-          target: <<parameters.target>>
       - install-cargo-binstall
       - run:
           name: Install cargo-hack
@@ -609,33 +679,26 @@ jobs:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
-          command: cargo hack build --target <<parameters.target>> <<parameters.flags>>
+          command: rustup target add <<parameters.target>> && cargo hack build --target <<parameters.target>> <<parameters.flags>>
       - rust-save-build-cache: *hack-build-cache-args
 
   # Shared cargo hack job
   rust-ci-cargo-hack:
     parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      flags:
-        description: "Flags appended to cargo hack check (e.g. --feature-powerset --depth 2)"
-        type: string
-        default: "--feature-powerset --no-dev-deps --workspace"
       parallelism:
         description: "Number of parallel nodes (adds --partition automatically when > 1)"
         type: integer
         default: 1
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-cache-args
-          directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-hack
+          directory: rust
+          prefix: rust-hack
           features: "all"
       - install-cargo-binstall
       - run:
@@ -644,12 +707,580 @@ jobs:
             command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
       - run:
           name: Run cargo hack
-          working_directory: <<parameters.directory>>
+          working_directory: rust
           no_output_timeout: 60m
           command: |
             PARTITION_FLAG=""
             if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-              PARTITION_FLAG="--partition $((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
+              PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
-            cargo hack check <<parameters.flags>> $PARTITION_FLAG
+            just hack "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
       - rust-save-build-cache: *hack-cache-args
+
+  # --------------------------------------------------------------------------
+  # OP-Reth crate-specific jobs
+  # --------------------------------------------------------------------------
+
+  # OP-Reth compact codec backwards compatibility
+  op-reth-compact-codec:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-compact-cache
+          directory: rust
+          prefix: op-reth-compact
+          profile: debug
+      - run:
+          name: Generate compact vectors from base
+          command: |
+            # Use develop as the base branch
+            BASE_BRANCH="develop"
+
+            # Save current state
+            git stash || true
+            git fetch origin $BASE_BRANCH
+            git checkout origin/$BASE_BRANCH
+
+            # Generate vectors on base
+            cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --write
+
+            # Return to PR branch
+            git checkout -
+            git stash pop || true
+      - run:
+          name: Read compact vectors on PR branch
+          command: |
+            cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --read
+      - rust-save-build-cache: *op-reth-compact-cache
+
+  # OP-Reth Windows cross-compile check
+  op-reth-windows-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-windows-cache
+          directory: rust
+          prefix: op-reth-windows
+          profile: debug
+      - run:
+          name: Install mingw-w64
+          command: sudo apt-get update && sudo apt-get install -y mingw-w64
+      - run:
+          name: Check OP-Reth Windows build
+          working_directory: rust
+          no_output_timeout: 40m
+          command: just --justfile op-reth/justfile check-windows
+      - rust-save-build-cache: *op-reth-windows-cache
+
+  # --------------------------------------------------------------------------
+  # Op-Alloy crate-specific jobs
+  # --------------------------------------------------------------------------
+  # Op-Alloy cfg check
+  op-alloy-cfg-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-alloy-cfg-check-cache
+          directory: rust
+          prefix: op-alloy-cfg-check
+      - rust-install-toolchain:
+          channel: nightly
+          toolchain_version: nightly
+      - run:
+          name: Run cfg check
+          working_directory: rust
+          no_output_timeout: 40m
+          command: |
+            just --justfile op-alloy/Justfile check
+      - rust-save-build-cache: *op-alloy-cfg-check-cache
+
+  # --------------------------------------------------------------------------
+  # Kona crate-specific jobs
+  # --------------------------------------------------------------------------
+
+  # Kona Host Client Offline Runs
+  kona-host-client-offline:
+    parameters:
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - install-zstd
+      - rust-prepare
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-llvm-cov
+          command: |
+            command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
+      - run:
+          name: Build cannon
+          command: |
+            cd cannon && make
+            sudo mv ./bin/cannon /usr/local/bin/
+      - run:
+          name: Set run environment
+          command: |
+            echo 'export BLOCK_NUMBER=26215604' >> $BASH_ENV
+            echo 'export L2_CLAIM=0x7415d942f80a34f77d344e4bccb7050f14e593f5ea33669d27ea01dce273d72d' >> $BASH_ENV
+            echo 'export L2_OUTPUT_ROOT=0xaa34b62993bd888d7a2ad8541935374e39948576fce12aa8179a0aa5b5bc787b' >> $BASH_ENV
+            echo 'export L2_HEAD=0xf4adf5790bad1ffc9eee315dc163df9102473c5726a2743da27a8a10dc16b473' >> $BASH_ENV
+            echo 'export L1_HEAD=0x010cfdb22eaa13e8cdfbf66403f8de2a026475e96a6635d53c31f853a0e3ae25' >> $BASH_ENV
+            echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
+            echo 'export WITNESS_TAR_NAME=holocene-op-sepolia-26215604-witness.tar.zst' >> $BASH_ENV
+      - run:
+          name: Decompress witness data
+          working_directory: rust/kona
+          command: |
+            tar --zstd -xvf ./bin/client/testdata/$WITNESS_TAR_NAME -C .
+      - run:
+          name: Run host + client offline
+          working_directory: rust/kona/bin/client
+          no_output_timeout: 40m
+          command: |
+            source <(cargo llvm-cov show-env --export-prefix)
+            mkdir -p ../../../target
+            just run-client-cannon-offline \
+              $BLOCK_NUMBER \
+              $L2_CLAIM \
+              $L2_OUTPUT_ROOT \
+              $L2_HEAD \
+              $L1_HEAD \
+              $L2_CHAIN_ID
+            cargo llvm-cov report --lcov --output-path client_host_cov.lcov
+
+  # Kona Rust CI - Lint (cannon/asterisc targets)
+  kona-cargo-lint:
+    parameters:
+      target:
+        description: The lint target (native, cannon, asterisc)
+        type: string
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          features: "all"
+      - rust-install-toolchain:
+          components: rustfmt
+      - run:
+          name: Run fmt + lint for <<parameters.target>>
+          working_directory: rust/kona
+          no_output_timeout: 40m
+          command: |
+            just lint-<<parameters.target>>
+
+  # Kona Build FPVM targets
+  kona-build-fpvm:
+    parameters:
+      target:
+        description: The build target (cannon-client, asterisc-client)
+        type: string
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare
+      - run:
+          name: Build <<parameters.target>>
+          working_directory: rust/kona
+          no_output_timeout: 40m
+          command: |
+            just build-<<parameters.target>>
+
+  # Kona Coverage
+  kona-coverage:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &kona-coverage-cache
+          directory: rust
+          prefix: kona-coverage
+          version: "1"
+      - rust-install-toolchain:
+          components: llvm-tools-preview
+      - install-cargo-binstall
+      - run:
+          name: Install cargo-llvm-cov and nextest
+          command: |
+            command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
+            command -v cargo-nextest >/dev/null || cargo binstall --locked --no-confirm cargo-nextest
+      - run:
+          name: Generate lockfile if needed
+          working_directory: rust
+          command: |
+            [ -f Cargo.lock ] || cargo generate-lockfile
+      - run:
+          name: Run coverage
+          working_directory: rust/kona
+          no_output_timeout: 40m
+          command: |
+            just llvm-cov-tests
+      - codecov/upload:
+          disable_search: true
+          files: rust/kona/lcov.info
+          flags: unit
+      - rust-save-build-cache: *kona-coverage-cache
+
+  # Unified Rust Docs Build
+  rust-docs-build:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install Node.js and Bun
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            curl -fsSL https://bun.sh/install | bash
+            echo 'export BUN_INSTALL="$HOME/.bun"' >> $BASH_ENV
+            echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - run:
+          name: Install dependencies and Playwright browsers
+          working_directory: rust/docs
+          command: |
+            bun i
+            npx playwright install --with-deps chromium
+      - run:
+          name: Build Vocs documentation
+          working_directory: rust/docs
+          no_output_timeout: 60m
+          command: |
+            bun run build
+            echo "Vocs Build Complete"
+      - store_artifacts:
+          path: rust/docs/docs/docs/dist
+          destination: rust-docs
+
+    # OP-Reth docs build
+  op-reth-docs-build:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install Node.js and Bun
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            curl -fsSL https://bun.sh/install | bash
+            echo 'export BUN_INSTALL="$HOME/.bun"' >> $BASH_ENV
+            echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $BASH_ENV
+      - run:
+          name: Build op-reth documentation
+          working_directory: rust/op-reth
+          no_output_timeout: 30m
+          command: |
+            just docs-build
+      - store_artifacts:
+          path: op-reth/docs/vocs/docs/dist
+          destination: op-reth-docs
+
+
+  # Kona Link Checker
+  kona-link-checker:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Install lychee
+          command: |
+            curl -sSfL https://github.com/lycheeverse/lychee/releases/download/v0.15.1/lychee-v0.15.1-x86_64-unknown-linux-gnu.tar.gz | tar xz
+            sudo mv lychee /usr/local/bin/
+      - run:
+          name: Check links
+          working_directory: rust/kona
+          command: |
+            lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' || true
+
+  # Kona Publish Prestate Artifacts
+  kona-publish-prestate-artifacts:
+    parameters:
+      kind:
+        description: The kind of prestate (cannon)
+        type: string
+        default: "cannon"
+      version:
+        description: The version to build (kona-client, kona-client-int)
+        type: string
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-install-toolchain:
+          components: llvm-tools-preview
+      - rust-prepare-and-restore-cache: &kona-publish-prestate-cache
+          directory: rust
+          profile: release
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /tmp/gcp_cred_config.json
+          oidc_token_file_path: /tmp/oidc_token.json
+      - run:
+          name: Generate prestate artifacts
+          working_directory: rust/kona
+          no_output_timeout: 60m
+          command: |
+            cd docker/fpvm-prestates
+            just "<<parameters.kind>>" "<<parameters.version>>" "../.."
+      - run:
+          name: Upload prestates to GCS
+          working_directory: rust/kona
+          command: |
+            PRESTATE_HASH=$(jq -r .pre ./prestate-artifacts-<<parameters.kind>>/prestate-proof.json)
+            BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
+            echo "Publishing ${PRESTATE_HASH} as ${BRANCH_NAME}"
+            if [ -n "<< pipeline.git.branch >>" ]; then
+              echo "Publishing commit hash data"
+              INFO_FILE=$(mktemp)
+              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
+              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>-prestate.bin.gz.txt"
+              rm "${INFO_FILE}"
+              PRESTATE_HASH="${BRANCH_NAME}-<<parameters.version>>"
+            fi
+            gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
+            echo "Successfully published prestates artifacts to GCS"
+      - rust-save-build-cache: *kona-publish-prestate-cache
+
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
+workflows:
+  # ==========================================================================
+  # Unified Rust CI workflow
+  # Runs on any rust/.* change or manual dispatch with rust_ci_dispatch=true
+  # ==========================================================================
+  rust-ci:
+    when:
+      or:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: [true, <<pipeline.parameters.c-rust_ci_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      # -----------------------------------------------------------------------
+      # Workspace-level jobs (replacing per-crate duplicates)
+      # -----------------------------------------------------------------------
+      - rust-ci-fmt:
+          name: rust-fmt
+          directory: rust
+          context: &rust-ci-context
+            - circleci-repo-readonly-authenticated-github-token
+
+      - rust-ci-clippy:
+          name: rust-clippy
+          directory: rust
+          command: "cargo clippy --workspace --all-targets --all-features --locked"
+          context: *rust-ci-context
+
+      - rust-ci-deny:
+          name: rust-deny
+          directory: rust
+          command: "cargo deny --all-features check all"
+          context: *rust-ci-context
+
+      - rust-ci-typos:
+          name: rust-typos
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-zepter:
+          name: rust-zepter
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-cargo-tests:
+          name: rust-tests
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-doctest:
+          name: rust-doctest
+          directory: rust
+          command: "cargo test --doc --workspace --all-features"
+          context: *rust-ci-context
+
+      - rust-ci-docs:
+          name: rust-docs
+          directory: rust
+          context: *rust-ci-context
+
+      # Docs build
+      - rust-docs-build:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      - rust-ci-udeps:
+          name: rust-udeps
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-cargo-hack:
+          name: rust-cargo-hack
+          parallelism: 6
+          context: *rust-ci-context
+
+      - rust-build-binary:
+          name: rust-build
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-build-binary:
+          name: rust-build-release
+          directory: rust
+          profile: release
+          context: *rust-ci-context
+
+      - rust-build-binary:
+          name: rust-msrv
+          directory: rust
+          toolchain: "1.88.0"
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # Unified cross-compilation jobs
+      # -----------------------------------------------------------------------
+      - rust-ci-check-no-std:
+          name: rust-check-no-std
+          directory: rust
+          command: |
+            just check-no-std
+          toolchain: "1.88.0"
+          context: *rust-ci-context
+
+      - rust-ci-cargo-hack-build:
+          name: rust-wasm-unknown
+          directory: rust
+          target: wasm32-unknown-unknown
+          flags: "-p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine -p alloy-op-evm --no-default-features"
+          context: *rust-ci-context
+
+      - rust-ci-cargo-hack-build:
+          name: rust-wasm-wasi
+          directory: rust
+          target: wasm32-wasip1
+          flags: "-p op-alloy-consensus -p op-alloy-rpc-types-engine -p alloy-op-evm"
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # OP-Reth crate-specific jobs
+      # -----------------------------------------------------------------------
+      - op-reth-compact-codec:
+          context: *rust-ci-context
+
+      - op-reth-windows-check:
+          context: *rust-ci-context
+
+      - rust-ci-cargo-tests:
+          name: op-reth-integration-tests
+          directory: rust
+          command: "--justfile op-reth/justfile test-integration"
+          cache_profile: debug
+          context: *rust-ci-context
+
+      - rust-ci-cargo-tests:
+          name: op-reth-tests-edge
+          directory: rust
+          command: "--justfile op-reth/justfile test"
+          flags: "edge"
+          cache_profile: debug
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # Op-Alloy crate-specific jobs
+      # -----------------------------------------------------------------------
+      - op-alloy-cfg-check:
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # Kona crate-specific jobs (lint, FPVM builds, benches, coverage)
+      # -----------------------------------------------------------------------
+      - kona-cargo-lint:
+          name: kona-lint-<<matrix.target>>
+          matrix:
+            parameters:
+              target: ["cannon", "asterisc"]
+          context: *rust-ci-context
+
+      - kona-build-fpvm:
+          name: kona-build-fpvm-<<matrix.target>>
+          matrix:
+            parameters:
+              target: ["cannon-client", "asterisc-client"]
+          context: *rust-ci-context
+
+      - kona-coverage:
+          context: *rust-ci-context
+          requires:
+            - rust-tests
+
+      - kona-host-client-offline:
+          name: kona-host-client-offline-cannon
+          context: *rust-ci-context
+
+
+  # ==========================================================================
+  # Kona scheduled workflows
+  # ==========================================================================
+  scheduled-kona-link-checker:
+    when:
+      equal: [build_weekly, <<pipeline.schedule.name>>]
+    jobs:
+      - kona-link-checker:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  scheduled-kona-sync:
+    when:
+      equal: [build_weekly, <<pipeline.schedule.name>>]
+    jobs:
+      - kona-update-monorepo:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  # Kona publish prestate artifacts - on push to develop
+  kona-publish-prestates:
+    when:
+      or:
+        - equal: ["develop", <<pipeline.git.branch>>]
+    jobs:
+      - kona-publish-prestate-artifacts:
+          name: kona-publish-<<matrix.version>>
+          matrix:
+            parameters:
+              version: ["kona-client", "kona-client-int"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-gcr

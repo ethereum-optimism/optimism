@@ -355,6 +355,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
+		UseL2CM:                                  false, // TODO(#19102): add support for L2CM
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}

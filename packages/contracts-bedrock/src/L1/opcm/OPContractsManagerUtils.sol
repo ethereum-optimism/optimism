@@ -47,6 +47,10 @@ contract OPContractsManagerUtils {
     /// @param _contract The address of the contract that was attempted to be downgraded.
     error OPContractsManagerUtils_DowngradeNotAllowed(address _contract);
 
+    /// @notice Thrown when user attempts to deploy a contract with extra version tags in production.
+    /// @param _contract The address of the contract with extra version tags.
+    error OPContractsManagerUtils_ExtraTagInProd(address _contract);
+
     /// @notice Thrown when a config load fails.
     /// @param _name The name of the config that failed to load.
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
@@ -308,6 +312,16 @@ contract OPContractsManagerUtils {
                 && SemverComp.gt(ISemver(_target).version(), ISemver(_implementation).version())
         ) {
             revert OPContractsManagerUtils_DowngradeNotAllowed(address(_target));
+        }
+
+        // Block deployments with extra version tags (prerelease or build metadata) when dev
+        // features are not enabled. Only clean X.Y.Z versions are allowed unless dev features are
+        // explicitly enabled (which is already blocked on mainnet by the container constructor).
+        if (
+            contractsContainer.devFeatureBitmap() == bytes32(0)
+                && SemverComp.hasExtraTag(ISemver(_implementation).version())
+        ) {
+            revert OPContractsManagerUtils_ExtraTagInProd(_implementation);
         }
 
         // Upgrade to StorageSetter.
