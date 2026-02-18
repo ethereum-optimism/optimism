@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -180,51 +181,41 @@ func projDir(t *testing.T) string {
 }
 
 func TestNewStandardClient_UniqueDirectories(t *testing.T) {
-	// Create a temporary directory to use as workdir
 	workdir := t.TempDir()
 
-	// Create multiple clients - each gets a unique temp dir (Wd) with the bundle copied into it
 	client1, err := NewStandardClient(workdir)
 	require.NoError(t, err)
-	defer os.RemoveAll(client1.Wd)
+	t.Cleanup(func() { client1.Close() })
 
 	client2, err := NewStandardClient(workdir)
 	require.NoError(t, err)
-	defer os.RemoveAll(client2.Wd)
+	t.Cleanup(func() { client2.Close() })
 
 	client3, err := NewStandardClient(workdir)
 	require.NoError(t, err)
-	defer os.RemoveAll(client3.Wd)
+	t.Cleanup(func() { client3.Close() })
 
-	// Each client gets a unique working directory (copy of the bundle)
-	require.Contains(t, client1.Wd, "forge-workdir-")
-	require.Contains(t, client2.Wd, "forge-workdir-")
-	require.Contains(t, client3.Wd, "forge-workdir-")
-
+	require.Contains(t, client1.Wd, "op-deployer-bundle-")
+	require.Contains(t, client2.Wd, "op-deployer-bundle-")
+	require.Contains(t, client3.Wd, "op-deployer-bundle-")
 	require.NotEqual(t, client1.Wd, client2.Wd)
 	require.NotEqual(t, client1.Wd, client3.Wd)
 	require.NotEqual(t, client2.Wd, client3.Wd)
-
-	// All unique workdirs should exist
 	require.DirExists(t, client1.Wd)
 	require.DirExists(t, client2.Wd)
 	require.DirExists(t, client3.Wd)
 }
 
 func TestNewStandardClient_WithValidWorkdir(t *testing.T) {
-	// Create a temporary directory to use as workdir
 	workdir := t.TempDir()
 	testFile := filepath.Join(workdir, "test.txt")
 	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0644))
 
 	client, err := NewStandardClient(workdir)
 	require.NoError(t, err)
-	defer os.RemoveAll(client.Wd)
+	t.Cleanup(func() { client.Close() })
 
-	// Client uses a unique temp dir with the bundle copied into it
-	require.Contains(t, client.Wd, "forge-workdir-")
-
-	// Verify we can access files (bundle was copied to unique workdir)
+	require.Contains(t, client.Wd, "op-deployer-bundle-")
 	workdirFile := filepath.Join(client.Wd, "test.txt")
 	require.FileExists(t, workdirFile)
 	content, err := os.ReadFile(workdirFile)
@@ -233,30 +224,22 @@ func TestNewStandardClient_WithValidWorkdir(t *testing.T) {
 }
 
 func TestNewStandardClient_WithInvalidWorkdir(t *testing.T) {
-	// Test with invalid/non-existent workdir - should fail
 	_, err := NewStandardClient("/nonexistent/path")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "workdir does not exist or is not accessible")
 }
 
 func TestNewStandardClient_RegisteredForCleanup(t *testing.T) {
-	// Get initial count of registered directories
 	initialDirs := artifacts.GetCleanupDirs()
 	initialCount := len(initialDirs)
-
-	// Create a temporary directory to use as workdir
 	workdir := t.TempDir()
 
-	// Create a client
 	client, err := NewStandardClient(workdir)
 	require.NoError(t, err)
-	defer os.RemoveAll(client.Wd)
+	t.Cleanup(func() { client.Close() })
 
-	// Check that the unique workdir was registered for cleanup
 	registeredDirs := artifacts.GetCleanupDirs()
 	require.Greater(t, len(registeredDirs), initialCount)
-
-	// Verify our unique workdir is in the list
 	found := false
 	for _, dir := range registeredDirs {
 		if dir == client.Wd {
@@ -268,28 +251,35 @@ func TestNewStandardClient_RegisteredForCleanup(t *testing.T) {
 }
 
 func TestNewStandardClient_ParallelInstances(t *testing.T) {
-	// Test that multiple parallel instances don't conflict
 	const numInstances = 10
 
-	// Create a temporary directory to use as workdir
 	workdir := t.TempDir()
 
 	clients := make([]*Client, numInstances)
-	workdirs := make(map[string]bool)
+	errs := make([]error, numInstances)
+	var wg sync.WaitGroup
+	wg.Add(numInstances)
 
 	for i := 0; i < numInstances; i++ {
-		client, err := NewStandardClient(workdir)
-		require.NoError(t, err)
-		clients[i] = client
-		defer os.RemoveAll(client.Wd)
+		i := i
+		go func() {
+			defer wg.Done()
+			clients[i], errs[i] = NewStandardClient(workdir)
+		}()
+	}
+	wg.Wait()
 
-		// Each instance gets a unique working directory
-		require.Contains(t, client.Wd, "forge-workdir-")
+	for i := range errs {
+		require.NoError(t, errs[i], "instance %d", i)
+		func(c *Client) { t.Cleanup(func() { c.Close() }) }(clients[i])
+	}
+
+	workdirs := make(map[string]bool)
+	for i, client := range clients {
+		require.Contains(t, client.Wd, "op-deployer-bundle-", "instance %d", i)
 		require.False(t, workdirs[client.Wd], "Workdir should be unique: %s", client.Wd)
 		workdirs[client.Wd] = true
 		require.DirExists(t, client.Wd)
 	}
-
-	// All workdirs should be different
 	require.Len(t, workdirs, numInstances)
 }

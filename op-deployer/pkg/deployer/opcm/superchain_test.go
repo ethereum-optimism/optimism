@@ -42,12 +42,12 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 func TestNewDeploySuperchainScriptForge(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
+	bundleDir, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 	require.NoError(t, err)
-	_ = embeddedArtifactsFS // Keep reference to prevent cleanup
 
 	forgeClient, err := forge.NewStandardClient(bundleDir)
 	require.NoError(t, err)
+	t.Cleanup(func() { forgeClient.Close() })
 
 	deploySuperchain := NewDeploySuperchainForgeCaller(forgeClient)
 	output, recompiled, err := deploySuperchain(context.Background(), DeploySuperchainInput{

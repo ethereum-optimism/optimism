@@ -217,12 +217,12 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 
-	bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
+	bundleDir, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 	require.NoError(t, err)
-	_ = embeddedArtifactsFS // Keep reference to prevent cleanup
 
 	forgeClient, err := forge.NewStandardClient(bundleDir)
 	require.NoError(t, err)
+	t.Cleanup(func() { forgeClient.Close() })
 
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)

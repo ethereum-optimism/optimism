@@ -268,7 +268,6 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		PreStateBuilder:    cfg.PreStateBuilder,
 		UseForge:           cfg.UseForge,
 		PrivateKey:         cfg.PrivateKey,
-		Workdir:            cfg.Workdir,
 	}); err != nil {
 		return err
 	}
@@ -293,7 +292,6 @@ type ApplyPipelineOpts struct {
 	PreStateBuilder    pipeline.PreStateBuilder
 	UseForge           bool
 	PrivateKey         string
-	Workdir            string
 }
 
 func ApplyPipeline(

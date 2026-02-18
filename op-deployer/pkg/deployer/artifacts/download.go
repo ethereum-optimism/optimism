@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -25,6 +26,151 @@ import (
 )
 
 var ErrUnsupportedArtifactsScheme = errors.New("unsupported artifacts URL scheme")
+
+// ExtractToFreshBundle extracts artifacts from the given locator into a fresh per-client
+// directory, reusing existing extraction codepaths. Returns the bundle directory path
+// (parent of forge-artifacts) and registers it for cleanup.
+func ExtractToFreshBundle(ctx context.Context, loc *Locator, progressor ioutil.Progressor, targetDir string) (bundleDir string, err error) {
+	if progressor == nil {
+		progressor = ioutil.NoopProgressor()
+	}
+
+	u := loc.URL
+	checker := new(noopIntegrityChecker)
+
+	switch u.Scheme {
+	case "embedded":
+		parentDir, err := os.MkdirTemp(targetDir, "op-deployer-bundle-*")
+		if err != nil {
+			return "", fmt.Errorf("failed to create temp dir: %w", err)
+		}
+		RegisterForCleanup(parentDir)
+		bundleDir, err := ExtractEmbeddedForForge(parentDir)
+		if err != nil {
+			return "", fmt.Errorf("failed to extract embedded artifacts: %w", err)
+		}
+		return bundleDir, nil
+	case "http", "https":
+		return extractHTTPToFreshBundle(ctx, u, progressor, checker, targetDir)
+	case "file":
+		return copyFileSchemeToFreshBundle(u.Path, targetDir)
+	default:
+		return "", ErrUnsupportedArtifactsScheme
+	}
+}
+
+func extractHTTPToFreshBundle(ctx context.Context, u *url.URL, progressor ioutil.Progressor, checker integrityChecker, targetDir string) (string, error) {
+	cacher := &CachingDownloader{d: new(HTTPDownloader)}
+	tarballPath, err := cacher.Download(ctx, u.String(), progressor, targetDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to download artifacts: %w", err)
+	}
+
+	tmpDir, err := os.MkdirTemp(targetDir, "op-deployer-bundle-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	RegisterForCleanup(tmpDir)
+
+	if strings.HasSuffix(tarballPath, ".tzst") {
+		_, err := ExtractFromFile(tmpDir, tarballPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to extract tarball: %w", err)
+		}
+		// ExtractFromFile creates tmpDir/bundle-* with "out" inside; bundle dir is parent of artifacts
+		entries, err := os.ReadDir(tmpDir)
+		if err != nil {
+			return "", fmt.Errorf("failed to read extracted dir: %w", err)
+		}
+		for _, e := range entries {
+			if e.IsDir() && strings.HasPrefix(e.Name(), "bundle-") {
+				return filepath.Join(tmpDir, e.Name()), nil
+			}
+		}
+		return "", fmt.Errorf("bundle directory not found after .tzst extraction")
+	}
+
+	extractor := &TarballExtractor{checker: checker}
+	if err := extractor.Extract(tarballPath, tmpDir); err != nil {
+		return "", fmt.Errorf("failed to extract tarball: %w", err)
+	}
+	// .tgz tarballs have forge-artifacts at top level; bundle dir is tmpDir
+	return tmpDir, nil
+}
+
+func copyFileSchemeToFreshBundle(srcPath, targetDir string) (string, error) {
+	if targetDir == "" {
+		targetDir = os.TempDir()
+	}
+	dstDir, err := os.MkdirTemp(targetDir, "op-deployer-bundle-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	RegisterForCleanup(dstDir)
+	// Try hard links first (cp -al style); fall back to copy if hard links fail (e.g. cross-filesystem)
+	if err := linkDirContents(srcPath, dstDir); err != nil {
+		_ = os.RemoveAll(dstDir)
+		_ = os.MkdirAll(dstDir, 0o755)
+		if err := copyDirContents(srcPath, dstDir); err != nil {
+			return "", fmt.Errorf("failed to copy file scheme artifacts: %w", err)
+		}
+	}
+	return dstDir, nil
+}
+
+// linkDirContents recursively hard-links directory contents. Returns an error if any link fails
+// (e.g. cross-filesystem, or on Windows). Caller should fall back to copyDirContents.
+func linkDirContents(src, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		srcPath := filepath.Join(src, e.Name())
+		dstPath := filepath.Join(dst, e.Name())
+		if e.IsDir() {
+			if err := os.MkdirAll(dstPath, 0o755); err != nil {
+				return err
+			}
+			if err := linkDirContents(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			if err := os.Link(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func copyDirContents(src, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		srcPath := filepath.Join(src, e.Name())
+		dstPath := filepath.Join(dst, e.Name())
+		if e.IsDir() {
+			if err := os.MkdirAll(dstPath, 0o755); err != nil {
+				return err
+			}
+			if err := copyDirContents(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			data, err := os.ReadFile(srcPath)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(dstPath, data, 0o644); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
 type Downloader interface {
 	Download(ctx context.Context, url string, progress ioutil.Progressor, targetDir string) (string, error)

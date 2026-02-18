@@ -62,26 +62,25 @@ func ExtractEmbedded(destDir string) (foundry.StatDirFs, error) {
 
 // ExtractEmbeddedForForge is a convenience wrapper around ExtractEmbedded
 // used in tests to get the bundle directory path suitable for use with forge.NewStandardClient.
-func ExtractEmbeddedForForge(destDir string) (bundlePath string, cleanup foundry.StatDirFs, err error) {
-	artifactsFS, err := ExtractEmbedded(destDir)
+func ExtractEmbeddedForForge(destDir string) (bundlePath string, err error) {
+	_, err = ExtractEmbedded(destDir)
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
 
 	// Find the bundle directory that was created
 	entries, err := os.ReadDir(destDir)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to read destination directory: %w", err)
+		return "", fmt.Errorf("failed to read destination directory: %w", err)
 	}
 
 	for _, entry := range entries {
 		if entry.IsDir() && strings.HasPrefix(entry.Name(), "bundle-") {
-			bundlePath = filepath.Join(destDir, entry.Name())
-			return bundlePath, artifactsFS, nil
+			return filepath.Join(destDir, entry.Name()), nil
 		}
 	}
 
-	return "", nil, fmt.Errorf("bundle directory not found after extraction")
+	return "", fmt.Errorf("bundle directory not found after extraction")
 }
 
 func ExtractFromFile(destDir string, tarFilePath string) (foundry.StatDirFs, error) {

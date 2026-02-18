@@ -207,3 +207,34 @@ func TestTarballExtractor_CompressionDetection(t *testing.T) {
 		require.False(t, extractor.isZstdCompressed(data))
 	})
 }
+
+func TestExtractToFreshBundle(t *testing.T) {
+	ctx := context.Background()
+	targetDir := t.TempDir()
+
+	t.Run("embedded", func(t *testing.T) {
+		bundleDir, err := ExtractToFreshBundle(ctx, EmbeddedLocator, nil, targetDir)
+		require.NoError(t, err)
+		require.Contains(t, bundleDir, "op-deployer-bundle-")
+		require.DirExists(t, bundleDir)
+		forgeArtifacts := filepath.Join(bundleDir, "forge-artifacts")
+		require.DirExists(t, forgeArtifacts)
+	})
+
+	t.Run("file scheme", func(t *testing.T) {
+		// Create a source bundle dir with forge-artifacts
+		srcBundle := t.TempDir()
+		forgeArtifacts := filepath.Join(srcBundle, "forge-artifacts")
+		require.NoError(t, os.MkdirAll(forgeArtifacts, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(forgeArtifacts, "test.txt"), []byte("test"), 0o644))
+
+		loc, err := NewFileLocator(srcBundle)
+		require.NoError(t, err)
+
+		bundleDir, err := ExtractToFreshBundle(ctx, loc, nil, targetDir)
+		require.NoError(t, err)
+		require.Contains(t, bundleDir, "op-deployer-bundle-")
+		require.DirExists(t, bundleDir)
+		require.FileExists(t, filepath.Join(bundleDir, "forge-artifacts", "test.txt"))
+	})
+}

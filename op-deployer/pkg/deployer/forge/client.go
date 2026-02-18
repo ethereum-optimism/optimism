@@ -33,64 +33,26 @@ type Client struct {
 	buildOutDir string // Base directory containing unique build output subdirectories
 }
 
+// NewStandardClient creates a Forge client from a local workdir path.
+// It creates a fresh per-client directory via hard links (or copy if links fail).
 func NewStandardClient(workdir string) (*Client, error) {
-	forgeBinary, err := NewStandardBinary()
+	forgeClient, absWorkdir, err := newStandardClientSetup(workdir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize forge binary: %w", err)
-	}
-	if err := forgeBinary.Ensure(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to ensure forge binary: %w", err)
+		return nil, err
 	}
 
-	forgeClient := NewClient(forgeBinary)
-
-	// Validate that workdir is a valid directory
-	if workdir == "" {
-		return nil, fmt.Errorf("workdir cannot be empty")
-	}
-	info, err := os.Stat(workdir)
+	// Create a fresh per-client bundle via hard links (or copy fallback).
+	loc, err := artifacts.NewFileLocator(absWorkdir)
 	if err != nil {
-		return nil, fmt.Errorf("workdir does not exist or is not accessible: %w", err)
+		return nil, fmt.Errorf("failed to create file locator for workdir: %w", err)
 	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("workdir is not a directory: %s", workdir)
-	}
-
-	// Convert workdir to absolute path
-	absWorkdir, err := filepath.Abs(workdir)
+	uniqueWorkdir, err := artifacts.ExtractToFreshBundle(context.Background(), loc, nil, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path for workdir: %w", err)
-	}
-
-	// Create a unique working directory for this forge instance to avoid conflicts
-	// when multiple op-deployer instances run in parallel. We copy the entire
-	// bundle structure (including cache, artifacts/build-info, etc.) to this unique
-	// directory so that forge can use the cache properly (cache paths are relative
-	// to the working directory).
-	uniqueWorkdir, err := os.MkdirTemp("", "forge-workdir-")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create unique workdir: %w", err)
-	}
-
-	// Copy the entire bundle structure to the unique working directory using copy-on-write
-	// This preserves timestamps and allows forge to use the cache properly since all paths
-	// (cache, artifacts/build-info, etc.) are relative to the working directory.
-	// Use cp -al: creates hard links for files (copy-on-write behavior)
-	// -a: archive mode (preserves permissions, timestamps, etc.)
-	// -l: create hard links instead of copying files
-	// The trailing "/." ensures we copy directory contents, not the directory itself
-	hardLinkCmd := exec.Command("cp", "-al", absWorkdir+"/.", uniqueWorkdir+"/")
-	if err := hardLinkCmd.Run(); err != nil {
-		return nil, fmt.Errorf("failed to copy bundle to unique workdir using hard links: %w", err)
+		return nil, fmt.Errorf("failed to extract bundle to unique workdir: %w", err)
 	}
 
 	// Use the unique workdir as Forge's working directory
 	forgeClient.Wd = uniqueWorkdir
-
-	// Setting buildOutDir makes all the cache hits to fail since the build output directory is not in the unique workdir.
-	forgeClient.buildOutDir = ""
-
-	artifacts.RegisterForCleanup(uniqueWorkdir)
 
 	fmt.Printf("Forge client working directory: %s\n", forgeClient.Wd)
 	fmt.Printf("Forge client build output directory: %s (default: forge-artifacts/)\n", filepath.Join(uniqueWorkdir, "forge-artifacts"))
@@ -99,12 +61,64 @@ func NewStandardClient(workdir string) (*Client, error) {
 	return forgeClient, nil
 }
 
+func newStandardClientSetup(workdir string) (*Client, string, error) {
+	cl, err := newStandardClientSetupNoWorkdir()
+	if err != nil {
+		return nil, "", err
+	}
+	absWorkdir, err := validateWorkdir(workdir)
+	if err != nil {
+		return nil, "", err
+	}
+	return cl, absWorkdir, nil
+}
+
+func newStandardClientSetupNoWorkdir() (*Client, error) {
+	forgeBinary, err := NewStandardBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize forge binary: %w", err)
+	}
+	if err := forgeBinary.Ensure(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to ensure forge binary: %w", err)
+	}
+	return NewClient(forgeBinary), nil
+}
+
+func validateWorkdir(workdir string) (string, error) {
+	// Validate that workdir is a valid directory
+	if workdir == "" {
+		return "", fmt.Errorf("workdir cannot be empty")
+	}
+	info, err := os.Stat(workdir)
+	if err != nil {
+		return "", fmt.Errorf("workdir does not exist or is not accessible: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("workdir is not a directory: %s", workdir)
+	}
+
+	absWorkdir, err := filepath.Abs(workdir)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute path for workdir: %w", err)
+	}
+	return absWorkdir, nil
+}
+
 func NewClient(binary Binary) *Client {
 	return &Client{
 		Binary: binary,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
+}
+
+// Close removes the client's unique working directory. Call when the client is no longer needed
+// (e.g. at the end of tests). Safe to call multiple times; no-op if Wd is empty.
+func (c *Client) Close() error {
+	if c.Wd == "" {
+		return nil
+	}
+	return os.RemoveAll(c.Wd)
 }
 
 func (c *Client) Version(ctx context.Context) (VersionInfo, error) {
@@ -140,7 +154,7 @@ func (c *Client) Clean(ctx context.Context, opts ...string) error {
 
 func (c *Client) RunScript(ctx context.Context, script string, sig string, args []byte, opts ...string) (string, error) {
 	buf := new(bytes.Buffer)
-	cliOpts := []string{"script"}
+	cliOpts := []string{"script", "--cache-path", "cache"}
 	cliOpts = append(cliOpts, opts...)
 	// Use unique build output directory within the unique workdir
 	// Cache is already in the workdir (cache/), so forge can use it properly

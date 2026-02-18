@@ -227,6 +227,9 @@ func (b *StandardBin) Path() string {
 }
 
 func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return fmt.Errorf("failed to create cache directory: %w", err)
+	}
 	tmpDir, err := os.MkdirTemp("", "op-deployer-forge-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)

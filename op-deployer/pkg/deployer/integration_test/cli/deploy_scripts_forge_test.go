@@ -37,12 +37,12 @@ func TestDeployScriptsForge(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 
 		tmpDir := t.TempDir()
-		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
+		bundleDir, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
-		_ = embeddedArtifactsFS // prevent cleanup
 
 		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
+		t.Cleanup(func() { forgeClient.Close() })
 
 		// Deploy AltDA using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -104,12 +104,12 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 
 		tmpDir := t.TempDir()
-		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
+		bundleDir, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
-		_ = embeddedArtifactsFS // prevent cleanup
 
 		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
+		t.Cleanup(func() { forgeClient.Close() })
 
 		// Deploy AlphabetVM using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -166,12 +166,12 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 
 		tmpDir := t.TempDir()
-		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
+		bundleDir, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
-		_ = embeddedArtifactsFS // prevent cleanup
 
 		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
+		t.Cleanup(func() { forgeClient.Close() })
 
 		// Deploy MIPS using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -227,12 +227,12 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 
 		tmpDir := t.TempDir()
-		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
+		bundleDir, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
-		_ = embeddedArtifactsFS // prevent cleanup
 
 		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
+		t.Cleanup(func() { forgeClient.Close() })
 
 		// Deploy DisputeGame using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -282,12 +282,12 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 
 		tmpDir := t.TempDir()
-		bundleDir, embeddedArtifactsFS, err := artifacts.ExtractEmbeddedForForge(tmpDir)
+		bundleDir, err := artifacts.ExtractEmbeddedForForge(tmpDir)
 		require.NoError(t, err)
-		_ = embeddedArtifactsFS // prevent cleanup
 
 		forgeClient, err := forge.NewStandardClient(bundleDir)
 		require.NoError(t, err)
+		t.Cleanup(func() { forgeClient.Close() })
 
 		// Read superchain deployment using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
