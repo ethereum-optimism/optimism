@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 )
 
 type Output struct {
@@ -14,8 +15,7 @@ func (o *Output) AsMarkdown() string {
 	buf := new(bytes.Buffer)
 	table := tablewriter.NewWriter(buf)
 	table.SetHeader([]string{"Error", "Description"})
-	table.SetAutoMergeCells(true)
-	table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
+	table.SetBorders(tw.Border{Left: tw.On, Top: tw.Off, Right: tw.On, Bottom: tw.Off})
 	table.SetCenterSeparator("|")
 
 	if len(o.Errors) == 0 {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -42,7 +43,7 @@ func NewSubcommands(m Metrics) cli.Commands {
 				}
 
 				table := tablewriter.NewWriter(os.Stdout)
-				table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
+				table.SetBorders(tw.Border{Left: tw.On, Top: tw.Off, Right: tw.On, Bottom: tw.Off})
 				table.SetCenterSeparator("|")
 				table.SetAutoWrapText(false)
 				table.SetHeader([]string{"Metric", "Description", "Labels", "Type"})
