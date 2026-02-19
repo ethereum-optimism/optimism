@@ -1,0 +1,272 @@
+version: 2.1
+
+# Rust E2E CI Continuation Configuration
+# This file contains E2E tests that depend on both kona and op-reth.
+# It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
+# Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
+
+parameters:
+  # Required parameters (also in main.yml, merged during continuation)
+  c-default_docker_image:
+    type: string
+    default: cimg/base:2024.01
+  c-rust_e2e_dispatch:
+    type: boolean
+    default: false
+  c-go-cache-version:
+    type: string
+    default: "v0.0"
+
+# Commands used by rust-e2e jobs
+commands:
+  go-restore-cache:
+    parameters:
+      module:
+        type: string
+        default: .
+      namespace:
+        type: string
+      version:
+        type: string
+        default: <<pipeline.parameters.c-go-cache-version>>
+    steps:
+      - restore_cache:
+          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
+          keys:
+            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
+            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
+            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
+
+  go-save-cache:
+    parameters:
+      module:
+        type: string
+        default: .
+      namespace:
+        type: string
+      version:
+        type: string
+        default: <<pipeline.parameters.c-go-cache-version>>
+    steps:
+      - save_cache:
+          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
+          paths:
+            - ~/.cache/go-build
+            - ~/go/pkg/mod
+          key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
+
+# ============================================================================
+# RUST E2E JOBS
+# ============================================================================
+jobs:
+  # Kona Node E2E Sysgo Tests (requires both kona and op-reth)
+  rust-e2e-sysgo-tests:
+    parameters:
+      devnet_config:
+        description: The devnet configuration to test
+        type: string
+      reorg_tests:
+        description: Whether to run reorg tests
+        type: boolean
+        default: false
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: kona-ci
+      - rust-build: &kona-rust-build-release
+          directory: rust
+          profile: release
+          binary: "kona-node"
+      - run:
+          name: Run common tests for node with sysgo orchestrator
+          no_output_timeout: 60m
+          command: |
+            WD=$(pwd)
+            echo "Running tests..."
+            export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
+            export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
+            cd rust/kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
+      - when:
+          condition:
+            equal: [true, <<parameters.reorg_tests>>]
+          steps:
+            - run:
+                name: Run reorg tests for node with sysgo orchestrator
+                no_output_timeout: 60m
+                command: |
+                  WD=$(pwd)
+                  echo "Running tests..."
+                  export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
+                  export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
+                  cd rust/kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
+      - go-save-cache:
+          namespace: kona-ci
+
+  # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
+  rust-restart-sysgo-tests:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: kona-ci
+      - rust-build:
+          <<: *kona-rust-build-release
+      - run:
+          name: Run restart tests for node with sysgo orchestrator
+          no_output_timeout: 60m
+          command: |
+            echo "Running tests..."
+            WD=$(pwd)
+            export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
+            cd rust/kona && just test-e2e-sysgo node node/restart
+      - go-save-cache:
+          namespace: kona-ci
+
+  # Kona Supervisor E2E Tests
+  kona-supervisor-e2e-tests:
+    parameters:
+      test_pkg:
+        description: The test package to run
+        type: string
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-build:
+          <<: *kona-rust-build-release
+          binary: "kona-supervisor"
+      - run:
+          name: Run supervisor tests for <<parameters.test_pkg>>
+          working_directory: rust/kona
+          no_output_timeout: 40m
+          command: |
+            just test-e2e-sysgo supervisor "/supervisor/<<parameters.test_pkg>>"
+
+  # Kona Proof Action Tests (from proof.yaml)
+  kona-proof-action-tests:
+    parameters:
+      kind:
+        description: The kind of action test (single or interop)
+        type: string
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    parallelism: 4
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: kona-ci
+      - rust-build:
+          <<: *kona-rust-build-release
+          binary: "kona-host"
+      - run:
+          name: Build kona and run action tests
+          working_directory: rust/kona
+          no_output_timeout: 90m
+          command: |
+            echo "Running action tests"
+            export KONA_HOST_PATH=$(pwd)/../target/release/kona-host
+            just action-tests-<<parameters.kind>>-run
+      - go-save-cache:
+          namespace: kona-ci
+
+# ============================================================================
+# RUST E2E WORKFLOWS
+# ============================================================================
+workflows:
+  rust-e2e-ci:
+    when:
+      or:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      - contracts-bedrock-build:
+          build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate: &rust-e2e-job-base
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary: &cannon-kona-host
+          name: cannon-kona-host
+          directory: rust
+          profile: release
+          binary: "kona-host"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary: &kona-build-release
+          name: kona-build-release
+          directory: rust
+          profile: release
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary:
+          name: op-reth-build
+          directory: rust
+          profile: release
+          binary: "op-reth"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-e2e-sysgo-tests:
+          name: rust-e2e-<<matrix.devnet_config>>
+          matrix:
+            parameters:
+              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate
+            - cannon-kona-host
+            - kona-build-release
+            - op-reth-build
+      - rust-restart-sysgo-tests:
+          name: rust-e2e-restart
+          <<: *rust-e2e-job-base
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate
+            - cannon-kona-host
+            - kona-build-release
+      # Proof tests - single kind only, interop excluded per original config
+      - kona-proof-action-tests:
+          name: kona-proof-action-single
+          kind: single
+          requires:
+            - kona-build-release
+            - contracts-bedrock-build
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  # Kona supervisor E2E tests - manual dispatch only
+  kona-supervisor-e2e:
+    when:
+      and:
+        - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
+        - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      - kona-supervisor-e2e-tests:
+          name: kona-supervisor-<<matrix.test_pkg>>
+          matrix:
+            parameters:
+              test_pkg: ["pre_interop", "l1reorg/sysgo"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token

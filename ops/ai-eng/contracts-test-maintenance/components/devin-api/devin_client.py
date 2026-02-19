@@ -135,7 +135,31 @@ def create_session(prompt):
 
     print(f"Creating session at: {base_url}/sessions")
     headers = _create_headers(api_key, "application/json")
-    data = json.dumps({"prompt": prompt}).encode("utf-8")
+
+    # JSON Schema (Draft 7) so Devin populates the structured_output API field.
+    structured_output_schema = {
+        "type": "object",
+        "properties": {
+            "analysis_complete": {
+                "type": "boolean",
+                "description": "Set to true after completing Phases 1-2 analysis"
+            },
+            "changes_needed": {
+                "type": "boolean",
+                "description": "True if tests will be created/modified, false if no changes needed"
+            },
+            "reason": {
+                "type": "string",
+                "description": "Brief explanation of why changes are or aren't needed"
+            }
+        },
+        "required": ["analysis_complete", "changes_needed", "reason"]
+    }
+
+    data = json.dumps({
+        "prompt": prompt,
+        "structured_output_schema": structured_output_schema
+    }).encode("utf-8")
 
     retry_delay = 60
     while True:
@@ -218,9 +242,9 @@ def monitor_session(session_id):
                         continue
 
                     # Check structured output and PR (both should be populated when blocked)
-                    # Note: Devin API nests structured_output twice: {structured_output: {structured_output: {...}}}
-                    # The outer structured_output can be null, so we use `or {}` to handle that case
-                    structured = (api_response.get("structured_output") or {}).get("structured_output") or {}
+                    # The structured_output_schema passed at session creation tells Devin
+                    # to populate this field; it can be null if Devin hasn't finished analysis
+                    structured = api_response.get("structured_output") or {}
                     analysis_complete = structured.get("analysis_complete", False)
                     changes_needed = structured.get("changes_needed")
 

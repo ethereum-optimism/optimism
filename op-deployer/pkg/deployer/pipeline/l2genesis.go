@@ -7,15 +7,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -85,6 +83,16 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	cgt := buildCGTConfig(thisIntent)
 
+	// Check if L2CM feature is enabled
+	var useL2CM bool
+	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
+		// TODO(#19151): Replace this with the L2CMDevFlag constant when we fix import cycles.
+		l2CMFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
+		if isDevFeatureEnabled(devFeatureBitmap, l2CMFlag) {
+			useL2CM = true
+		}
+	}
+
 	if err := script.Run(opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
 		L2ChainID:                                chainID.Big(),
@@ -118,6 +126,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		GasPayingTokenSymbol:       cgt.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount: cgt.NativeAssetLiquidityAmount,
 		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
+		UseL2CM:                    useL2CM,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}

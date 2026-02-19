@@ -1,0 +1,15 @@
+# Install documentation dependencies
+docs-install:
+    bun install
+
+# Start the documentation development server
+docs-dev: docs-install
+    bun run dev
+
+# Build the documentation for production
+docs-build: docs-install
+    bun run build
+
+# Preview the built documentation
+docs-preview: docs-build
+    bun run preview

@@ -45,6 +45,10 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__OPCM_V2 is enabled");
             devFeatureBitmap |= DevFeatures.OPCM_V2;
         }
+        if (Config.devFeatureL2CM()) {
+            console.log("Setup: DEV_FEATURE__L2CM is enabled");
+            devFeatureBitmap |= DevFeatures.L2CM;
+        }
     }
 
     /// @notice Returns the string name of a feature.
@@ -55,6 +59,8 @@ abstract contract FeatureFlags {
             return "DEV_FEATURE__OPTIMISM_PORTAL_INTEROP";
         } else if (_feature == DevFeatures.OPCM_V2) {
             return "DEV_FEATURE__OPCM_V2";
+        } else if (_feature == DevFeatures.L2CM) {
+            return "DEV_FEATURE__L2CM";
         } else if (_feature == Features.CUSTOM_GAS_TOKEN) {
             return "SYS_FEATURE__CUSTOM_GAS_TOKEN";
         } else if (_feature == Features.ETH_LOCKBOX) {

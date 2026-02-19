@@ -281,6 +281,11 @@ library Config {
         return vm.envOr("DEV_FEATURE__OPCM_V2", false);
     }
 
+    /// @notice Returns true if the development feature l2cm is enabled.
+    function devFeatureL2CM() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__L2CM", false);
+    }
+
     /// @notice Returns true if the system feature custom_gas_token is enabled.
     function sysFeatureCustomGasToken() internal view returns (bool) {
         return vm.envOr("SYS_FEATURE__CUSTOM_GAS_TOKEN", false);

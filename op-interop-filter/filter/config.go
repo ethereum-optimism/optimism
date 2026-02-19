@@ -16,7 +16,6 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 // DefaultMessageExpiryWindow is 7 days, matching op-supervisor's default
@@ -30,6 +29,10 @@ type Config struct {
 	MessageExpiryWindow         uint64 // Message expiry window in seconds (default: 7 days)
 	MessageExpiryWindowExplicit bool   // True if explicitly set via flag
 	JWTSecretPath               string
+	RPCAddr                     string // Address for public RPC server
+	RPCPort                     int    // Port for public RPC server (default: 8545)
+	AdminRPCAddr                string // Address for admin RPC server (empty = disabled)
+	AdminRPCPort                int    // Port for admin RPC server (default: 8546)
 	Version                     string
 	PollInterval                time.Duration // Interval for polling new blocks (default: 2s)
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
@@ -37,7 +40,6 @@ type Config struct {
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
-	RPC           oprpc.CLIConfig
 }
 
 func (c *Config) Check() error {
@@ -48,9 +50,9 @@ func (c *Config) Check() error {
 	if len(c.RollupConfigs) == 0 {
 		result = errors.Join(result, errors.New("at least one rollup config is required (use --networks or --rollup-configs)"))
 	}
-	// Admin API must be JWT protected.
-	if c.RPC.EnableAdmin && c.JWTSecretPath == "" {
-		result = errors.Join(result, errors.New("rpc.enable-admin requires admin.jwt-secret for authentication"))
+	// Admin RPC requires JWT secret for authentication.
+	if c.AdminRPCAddr != "" && c.JWTSecretPath == "" {
+		result = errors.Join(result, errors.New("admin.rpc.addr requires admin.jwt-secret for authentication"))
 	}
 	// Durations must be positive
 	if c.BackfillDuration <= 0 {
@@ -67,7 +69,6 @@ func (c *Config) Check() error {
 	}
 	result = errors.Join(result, c.MetricsConfig.Check())
 	result = errors.Join(result, c.PprofConfig.Check())
-	result = errors.Join(result, c.RPC.Check())
 	return result
 }
 
@@ -124,13 +125,16 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		MessageExpiryWindow:         uint64(messageExpiryWindow.Seconds()),
 		MessageExpiryWindowExplicit: ctx.IsSet(flags.MessageExpiryWindowFlag.Name),
 		JWTSecretPath:               ctx.String(flags.JWTSecretFlag.Name),
+		RPCAddr:                     ctx.String(flags.RPCAddrFlag.Name),
+		RPCPort:                     ctx.Int(flags.RPCPortFlag.Name),
+		AdminRPCAddr:                ctx.String(flags.AdminRPCAddrFlag.Name),
+		AdminRPCPort:                ctx.Int(flags.AdminRPCPortFlag.Name),
 		Version:                     version,
 		PollInterval:                pollInterval,
 		ValidationInterval:          validationInterval,
 		LogConfig:                   oplog.ReadCLIConfig(ctx),
 		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                 oppprof.ReadCLIConfig(ctx),
-		RPC:                         oprpc.ReadCLIConfig(ctx),
 	}, nil
 }
 

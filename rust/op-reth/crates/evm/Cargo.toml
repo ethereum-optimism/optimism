@@ -1,0 +1,83 @@
+[package]
+name = "reth-optimism-evm"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Reth
+reth-chainspec.workspace = true
+reth-evm = { workspace = true, features = ["op"] }
+reth-primitives-traits.workspace = true
+reth-execution-errors.workspace = true
+reth-execution-types.workspace = true
+reth-storage-errors.workspace = true
+
+reth-rpc-eth-api = { workspace = true, optional = true }
+
+# ethereum
+alloy-eips.workspace = true
+alloy-evm.workspace = true
+alloy-primitives.workspace = true
+alloy-op-evm.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+alloy-consensus.workspace = true
+
+# Optimism
+reth-optimism-chainspec.workspace = true
+reth-optimism-consensus.workspace = true
+reth-optimism-forks.workspace = true
+reth-optimism-primitives.workspace = true
+
+# revm
+revm.workspace = true
+op-revm.workspace = true
+
+# misc
+thiserror.workspace = true
+
+[dev-dependencies]
+reth-evm = { workspace = true, features = ["test-utils"] }
+reth-revm = { workspace = true, features = ["test-utils"] }
+alloy-genesis.workspace = true
+reth-optimism-primitives = { workspace = true, features = ["arbitrary"] }
+
+[features]
+default = ["std"]
+std = [
+    "reth-revm/std",
+    "alloy-consensus/std",
+    "alloy-eips/std",
+    "alloy-genesis/std",
+    "alloy-primitives/std",
+    "reth-primitives-traits/std",
+    "revm/std",
+    "reth-optimism-primitives/std",
+    "reth-optimism-forks/std",
+    "thiserror/std",
+    "op-alloy-consensus/std",
+    "reth-chainspec/std",
+    "reth-optimism-consensus/std",
+    "reth-optimism-chainspec/std",
+    "reth-execution-errors/std",
+    "reth-execution-types/std",
+    "alloy-evm/std",
+    "alloy-op-evm/std",
+    "op-revm/std",
+    "reth-evm/std",
+    "op-alloy-rpc-types-engine/std",
+    "reth-storage-errors/std",
+]
+portable = [
+    "reth-revm/portable",
+    "op-revm/portable",
+    "revm/portable",
+]
+rpc = ["reth-rpc-eth-api", "reth-optimism-primitives/serde", "reth-optimism-primitives/reth-codec", "alloy-evm/rpc"]

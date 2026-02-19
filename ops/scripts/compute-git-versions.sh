@@ -30,6 +30,10 @@ IMAGES=(
   "cannon"
   "op-dripper"
   "op-interop-mon"
+  "op-reth"
+  "kona-node"
+  "kona-host"
+  "kona-client"
 )
 
 echo "Checking git tags pointing at $GIT_COMMIT:" >&2

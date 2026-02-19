@@ -8,7 +8,7 @@ import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // External
 // import from openzeppelin-contracts-v5
@@ -104,7 +104,7 @@ abstract contract FeeVault is Initializable {
     /// @dev If integrating the FeeSplitter contract, the minimum withdrawal amount must be set to 0 to
     /// avoid blocking withdrawals and disbursements for all vaults if one vault doesn't reach the threshold.
     function setMinWithdrawalAmount(uint256 _newMinWithdrawalAmount) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert FeeVault_OnlyProxyAdminOwner();
         }
 
@@ -117,7 +117,7 @@ abstract contract FeeVault is Initializable {
     /// @notice Updates the recipient of vault fees when they are withdrawn from the vault.
     /// @param _newRecipient The new recipient address.
     function setRecipient(address _newRecipient) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert FeeVault_OnlyProxyAdminOwner();
         }
 
@@ -132,7 +132,7 @@ abstract contract FeeVault is Initializable {
     /// withdraw them to an address on the same chain.
     /// @param _newWithdrawalNetwork The new withdrawal network.
     function setWithdrawalNetwork(Types.WithdrawalNetwork _newWithdrawalNetwork) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert FeeVault_OnlyProxyAdminOwner();
         }
 

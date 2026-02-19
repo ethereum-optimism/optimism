@@ -162,7 +162,7 @@ func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.Engin
 			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.CrossSafe)
 			return
 		}
-		if s.SafeHeadNotifs.Enabled() && x.CrossSafe.ID() == s.Config.Genesis.L2 {
+		if s.SafeHeadNotifs.Enabled() && x.LocalSafe.ID() == s.Config.Genesis.L2 {
 			// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
 			// we will process all safe head updates and can record genesis as always safe from L1 genesis.
 			// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis
@@ -173,7 +173,7 @@ func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.Engin
 				s.Log.Error("Failed to retrieve L1 genesis, cannot notify genesis as safe block", "err", err)
 				return
 			}
-			if err := s.SafeHeadNotifs.SafeHeadUpdated(x.CrossSafe, l1Genesis.ID()); err != nil {
+			if err := s.SafeHeadNotifs.SafeHeadUpdated(x.LocalSafe, l1Genesis.ID()); err != nil {
 				s.Log.Error("Failed to notify safe-head listener of safe-head", "err", err)
 				return
 			}

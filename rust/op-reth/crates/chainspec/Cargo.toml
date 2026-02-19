@@ -1,0 +1,90 @@
+[package]
+name = "reth-optimism-chainspec"
+version = "1.10.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+description = "EVM chain spec implementation for optimism."
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-chainspec.workspace = true
+reth-ethereum-forks.workspace = true
+reth-primitives-traits.workspace = true
+reth-network-peers.workspace = true
+
+# op-reth
+reth-optimism-forks.workspace = true
+reth-optimism-primitives.workspace = true
+
+# ethereum
+alloy-chains.workspace = true
+alloy-genesis.workspace = true
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-hardforks.workspace = true
+
+# op
+op-alloy-rpc-types.workspace = true
+
+serde = { workspace = true, optional = true }
+serde_json.workspace = true
+
+# io
+tar-no-std = { workspace = true, optional = true }
+miniz_oxide = { workspace = true, features = ["with-alloc"], optional = true }
+
+# misc
+derive_more.workspace = true
+paste = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+op-alloy-consensus.workspace = true
+
+[dev-dependencies]
+reth-chainspec = { workspace = true, features = ["test-utils"] }
+alloy-op-hardforks.workspace = true
+
+[features]
+default = ["std"]
+superchain-configs = ["miniz_oxide", "paste", "tar-no-std", "thiserror", "thiserror", "dep:serde"]
+std = [
+    "alloy-chains/std",
+    "alloy-genesis/std",
+    "alloy-primitives/std",
+    "alloy-eips/std",
+    "op-alloy-rpc-types/std",
+    "reth-chainspec/std",
+    "reth-ethereum-forks/std",
+    "reth-primitives-traits/std",
+    "reth-optimism-forks/std",
+    "reth-optimism-primitives/std",
+    "alloy-consensus/std",
+    "derive_more/std",
+    "reth-network-peers/std",
+    "serde_json/std",
+    "serde?/std",
+    "miniz_oxide?/std",
+    "thiserror?/std",
+    "op-alloy-consensus/std",
+]
+serde = [
+    "alloy-chains/serde",
+    "alloy-consensus/serde",
+    "alloy-eips/serde",
+    "alloy-hardforks/serde",
+    "alloy-primitives/serde",
+    "miniz_oxide?/serde",
+    "op-alloy-rpc-types/serde",
+    "reth-ethereum-forks/serde",
+    "reth-optimism-forks/serde",
+    "reth-optimism-primitives/serde",
+    "reth-primitives-traits/serde",
+    "op-alloy-consensus/serde",
+    "alloy-op-hardforks/serde",
+]

@@ -13,6 +13,7 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import "../../interfaces/dispute/IDisputeGame.sol";
+import "../../interfaces/dispute/IDelayedWETH.sol";
 import "../../interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "../../interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
@@ -151,6 +152,35 @@ library DisputeGames {
             prestate_ = Claim.wrap(gameArgs.absolutePrestate);
         } else {
             prestate_ = IFaultDisputeGame(gameImpl).absolutePrestate();
+        }
+    }
+
+    /// @notice Gets the DelayedWETH for a game type, handling both v1 and v2 dispute games.
+    ///         V1 games store the prestate on the game implementation, v2 games store it in gameArgs.
+    ///         Returns address(0) if no implementation exists for the game type.
+    /// @param _dgf The dispute game factory.
+    /// @param _gameType The game type to get the DelayedWETH for.
+    /// @return delayedWeth_ The delayedWETH address.
+    function getGameImplDelayedWeth(
+        IDisputeGameFactory _dgf,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (IDelayedWETH delayedWeth_)
+    {
+        // Return zero if no implementation exists for this game type
+        address gameImpl = address(_dgf.gameImpls(_gameType));
+        if (gameImpl == address(0)) {
+            return IDelayedWETH(payable(address(0)));
+        }
+
+        (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, _gameType);
+        if (gameArgsExist) {
+            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsData);
+            delayedWeth_ = IDelayedWETH(payable(gameArgs.weth));
+        } else {
+            delayedWeth_ = IFaultDisputeGame(gameImpl).weth();
         }
     }
 

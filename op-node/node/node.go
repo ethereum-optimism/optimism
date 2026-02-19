@@ -108,6 +108,8 @@ type OpNode struct {
 	appVersion string
 	metrics    *metrics.Metrics
 
+	superAuthority rollup.SuperAuthority // Supernode authority for payload validation (may be nil)
+
 	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
@@ -200,6 +202,7 @@ type InitializationOverrides struct {
 	Beacon          L1Beacon
 	RPCHandler      *oprpc.Handler
 	MetricsRegistry func(*prometheus.Registry)
+	SuperAuthority  rollup.SuperAuthority // Supernode authority for payload validation
 }
 
 // init progressively creates and sets up all the components of the OpNode
@@ -224,6 +227,9 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	if err != nil {
 		return fmt.Errorf("failed to init event system: %w", err)
 	}
+
+	// Store the supernode authority for payload validation
+	n.superAuthority = overrides.SuperAuthority
 
 	if overrides.Beacon == nil {
 		beacon, err := initL1BeaconAPI(ctx, cfg, n)
@@ -607,7 +613,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, upstreamFollowSource,
-		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
+		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode, node.superAuthority)
 
 	// Wire up IndexingMode to engine controller for direct procedure call
 	if sys != nil {

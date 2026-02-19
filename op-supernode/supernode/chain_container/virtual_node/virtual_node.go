@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"sync"
+	"time"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -148,7 +149,8 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 
 	// Stop the inner node if it's still running
 	if v.inner != nil {
-		stopCtx := context.Background()
+		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		if err := v.inner.Stop(stopCtx); err != nil {
 			v.log.Error("error stopping inner node", "err", err)
 		}
@@ -211,7 +213,7 @@ func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64)
 
 var ErrL1AtSafeHeadNotFound = errors.New("l1 at safe head not found")
 
-// L1AtSafeHead finds the earliest L1 block at which the provided L2 block became safe,
+// L1AtSafeHead finds the earliest L1 block at which the provided L2 block became local safe,
 // using the monotonicity of SafeDB (L2 safe head number is non-decreasing over L1).
 func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	v.mu.Lock()
@@ -226,8 +228,12 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 	}
 
 	// Special case: genesis L2 block is trivially safe at genesis L1
+	// Note: We use L1 block 0 (not cfg.Genesis.L1) because contracts may have been deployed
+	// earlier than cfg.Genesis.L1, allowing dispute games with L1 heads prior to cfg.Genesis.L1
 	if target == v.cfg.Rollup.Genesis.L2 {
-		return v.cfg.Rollup.Genesis.L1, nil
+		// Return L1 block 0 (L1 genesis)
+		l1Genesis := eth.BlockID{Number: 0} // Hash not necessary
+		return l1Genesis, nil
 	}
 
 	// Get the latest entry to start the walkback
@@ -257,7 +263,7 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 		prev := cursor.Number - 1
 		l1Prev, l2Prev, err := db.SafeHeadAtL1(ctx, prev)
 		if err != nil {
-			v.log.Error("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "err", err)
+			v.log.Error("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "target", target.Number, "err", err)
 			return eth.BlockID{}, err
 		}
 		if l2Prev.Number >= target.Number {

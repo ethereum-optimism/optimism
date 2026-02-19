@@ -31,7 +31,7 @@ func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent)
 
 	fcEvent := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    ev.Attributes.Parent,
-		SafeL2Head:      e.safeHead,
+		SafeL2Head:      e.SafeL2Head(),
 		FinalizedL2Head: e.finalizedHead,
 	}
 	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
