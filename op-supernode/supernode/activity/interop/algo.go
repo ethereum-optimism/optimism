@@ -43,7 +43,8 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
 	}
 
-	// Compute L1Inclusion: the maximum L1 block from which any L2 block was included
+	// Compute L1Inclusion: the earliest L1 block from which all L2 blocks at the given
+	// timestamp.
 	// This uses OptimisticAt to query the SafeDB for each chain's L1 inclusion block
 	var maxL1Inclusion eth.BlockID
 	firstL1 := true

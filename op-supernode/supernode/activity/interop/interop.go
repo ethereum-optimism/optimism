@@ -51,8 +51,7 @@ type Interop struct {
 	cancel  context.CancelFunc
 	started bool
 
-	currentL1   eth.BlockID
-	finalizedL1 eth.BlockID
+	currentL1 eth.BlockID
 
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
 
@@ -187,12 +186,6 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		i.log.Error("failed to collect current L1", "err", err)
 		return false, err
 	}
-	finalizedL1, err := i.collectFinalizedL1()
-	if err != nil {
-		i.log.Error("failed to collect finalized L1", "err", err)
-		return false, err
-	}
-	i.finalizedL1 = finalizedL1
 
 	// Perform the interop evaluation
 	result, err := i.progressInterop()
@@ -445,15 +438,7 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 	return head, ts
 }
 
-func (i *Interop) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
-	i.mu.RLock()
-	finalizedL1 := i.finalizedL1
-	i.mu.RUnlock()
-
-	// If no finalized L1 yet, return empty
-	if finalizedL1.Number == 0 {
-		return eth.BlockID{}, 0
-	}
+func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64) {
 
 	// Get the last verified timestamp
 	lastTs, ok := i.verifiedDB.LastTimestamp()
@@ -462,7 +447,7 @@ func (i *Interop) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint
 	}
 
 	// Search backwards from the last timestamp to find the latest result
-	// where the L1 inclusion block is at or below the finalized L1 block number
+	// where the L1 inclusion block is at or below the supplied L1 block number
 	for ts := lastTs; ts > 0; ts-- {
 		result, err := i.verifiedDB.Get(ts)
 		if err != nil {
@@ -470,8 +455,8 @@ func (i *Interop) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint
 			continue
 		}
 
-		// Check if this result's L1 inclusion is at or below finalized L1
-		if result.L1Inclusion.Number <= finalizedL1.Number {
+		// Check if this result's L1 inclusion is at or below the supplied L1 block number
+		if result.L1Inclusion.Number <= l1Block.Number {
 			// Found a finalized result, return the L2 head for this chain
 			head, ok := result.L2Heads[chainID]
 			if !ok {

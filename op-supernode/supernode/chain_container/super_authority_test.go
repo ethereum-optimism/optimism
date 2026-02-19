@@ -32,7 +32,7 @@ func (m *mockVerificationActivityForSuperAuthority) LatestVerifiedL2Block(chainI
 	return m.latestVerifiedBlock, m.latestVerifiedTS
 }
 func (m *mockVerificationActivityForSuperAuthority) Reset(eth.ChainID, uint64, eth.BlockRef) {}
-func (m *mockVerificationActivityForSuperAuthority) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
+func (m *mockVerificationActivityForSuperAuthority) VerifiedBlockAtL1(chainID eth.ChainID, l1BlockRef eth.L1BlockRef) (eth.BlockID, uint64) {
 	return m.latestFinalizedBlock, m.latestFinalizedTS
 }
 
@@ -44,6 +44,7 @@ func newTestChainContainer(t *testing.T, chainID eth.ChainID) *simpleChainContai
 		chainID:   chainID,
 		verifiers: []activity.VerificationActivity{},
 		log:       testlog.Logger(t, log.LevelDebug),
+		vn:        &mockVirtualNode{},
 	}
 }
 

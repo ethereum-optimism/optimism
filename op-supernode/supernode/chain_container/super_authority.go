@@ -1,6 +1,7 @@
 package chain_container
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -55,10 +56,15 @@ func (c *simpleChainContainer) FinalizedL2Head() (eth.BlockID, bool) {
 		return eth.BlockID{}, true
 	}
 
+	ss, err := c.vn.SyncStatus(context.Background())
+	if err != nil {
+		c.log.Error("FinalizedL2Head: failed to get sync status", "err", err)
+		return eth.BlockID{}, true
+	}
 	timestamp := uint64(math.MaxUint64)
 	oldestFinalizedBlock := eth.BlockID{}
 	for _, v := range c.verifiers {
-		bId, ts := v.LatestFinalizedL2Block(c.chainID)
+		bId, ts := v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1)
 		// If any verifier returns empty, return empty but don't signal fallback
 		// The verifier exists but hasn't finalized anything yet
 		if (bId == eth.BlockID{} || ts == 0) {
