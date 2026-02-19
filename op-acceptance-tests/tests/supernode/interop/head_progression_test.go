@@ -16,12 +16,16 @@ import (
 // (SafeL2) trails behind the local safe head (LocalSafeL2) and eventually catches up
 // after interop verification completes (assuming no node resets occur).
 //
+// This test also verifies that finalized heads advance and are derived from finalized L1 blocks.
+//
 // This test verifies:
 //   - SafeL2 <= LocalSafeL2 at all times (the exception to this might be during a node reset where the local safe has to catch back up,
 //     but we don't trigger that here)
 //   - SafeL2 advances after verification
 //   - SafeL2 eventually catches up to LocalSafeL2 (assuming we don't insert any invalid message, which we don't)
 //   - EL safe label is consistent with the SafeL2 from the CL
+//   - Finalized head eventually catches up to a snapshot of the safe head
+//   - Finalized L2 blocks are derived from finalized L1 blocks
 func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
@@ -79,6 +83,49 @@ func TestSupernodeInterop_SafeHeadTrailsLocalSafe(gt *testing.T) {
 	safeB = sys.L2ELB.BlockRefByLabel(eth.Safe)
 	require.GreaterOrEqual(t, safeA.Number, finalTargetBlockNum)
 	require.GreaterOrEqual(t, safeB.Number, finalTargetBlockNum)
+
+	// Snapshot the current safe head to verify finalized catches up
+	snapshotSafeA := safeA.Number
+	snapshotSafeB := safeB.Number
+	t.Logger().Info("snapshotted safe heads", "safeA", snapshotSafeA, "safeB", snapshotSafeB)
+
+	// Wait for finalized heads to catch up to or past the snapshotted safe heads
+	// Finalized advancement depends on L1 finality, so use more attempts
+	finalizedAttempts := 30
+	dsl.CheckAll(t,
+		sys.L2ACL.ReachedFn(types.Finalized, snapshotSafeA, finalizedAttempts),
+		sys.L2BCL.ReachedFn(types.Finalized, snapshotSafeB, finalizedAttempts),
+	)
+
+	// Verify finalized heads on EL and that they are derived from finalized L1
+	finalizedA := sys.L2ELA.BlockRefByLabel(eth.Finalized)
+	finalizedB := sys.L2ELB.BlockRefByLabel(eth.Finalized)
+	require.GreaterOrEqual(t, finalizedA.Number, snapshotSafeA, "finalized A should catch up to safe snapshot")
+	require.GreaterOrEqual(t, finalizedB.Number, snapshotSafeB, "finalized B should catch up to safe snapshot")
+
+	// Verify that the finalized L2 blocks are derived from finalized L1 blocks
+	// Get the finalized L1 from the sync status to ensure we're checking against what the node sees
+	syncStatusA := sys.L2ACL.SyncStatus()
+	syncStatusB := sys.L2BCL.SyncStatus()
+	finalizedL1 := sys.L1EL.BlockRefByLabel(eth.Finalized)
+
+	require.LessOrEqual(t, finalizedA.L1Origin.Number, finalizedL1.Number,
+		"finalized L2 block A should be derived from at or before finalized L1")
+	require.LessOrEqual(t, finalizedB.L1Origin.Number, finalizedL1.Number,
+		"finalized L2 block B should be derived from at or before finalized L1")
+
+	// Also verify via the sync status FinalizedL1
+	require.LessOrEqual(t, syncStatusA.FinalizedL2.L1Origin.Number, syncStatusA.FinalizedL1.Number,
+		"sync status finalized L2A should be derived from at or before finalized L1")
+	require.LessOrEqual(t, syncStatusB.FinalizedL2.L1Origin.Number, syncStatusB.FinalizedL1.Number,
+		"sync status finalized L2B should be derived from at or before finalized L1")
+
+	t.Logger().Info("finalized heads verified",
+		"finalizedA", finalizedA.Number, "finalizedA.L1Origin", finalizedA.L1Origin.Number,
+		"finalizedB", finalizedB.Number, "finalizedB.L1Origin", finalizedB.L1Origin.Number,
+		"finalizedL1", finalizedL1.Number,
+		"syncStatusA.FinalizedL1", syncStatusA.FinalizedL1.Number,
+		"syncStatusB.FinalizedL1", syncStatusB.FinalizedL1.Number)
 }
 
 // TestSupernodeInterop_SafeHeadWithUnevenProgress tests safe head behavior

@@ -11,6 +11,7 @@ import (
 // mockSuperAuthority implements SuperAuthority for testing.
 type mockSuperAuthority struct {
 	fullyVerifiedL2Head eth.BlockID
+	finalizedL2Head     eth.BlockID
 	deniedBlocks        map[uint64]common.Hash
 	shouldError         bool
 }
@@ -41,8 +42,7 @@ func (m *mockSuperAuthority) FullyVerifiedL2Head() (eth.BlockID, bool) {
 }
 
 func (m *mockSuperAuthority) FinalizedL2Head() (eth.BlockID, bool) {
-	// TODO: implement proper mock behavior
-	return eth.BlockID{}, false
+	return m.finalizedL2Head, false
 }
 
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)

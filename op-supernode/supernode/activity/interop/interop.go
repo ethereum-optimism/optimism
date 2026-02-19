@@ -446,14 +446,42 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 }
 
 func (i *Interop) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
-	// TODO: implement finalized block tracking
-	// we can use i.finalizedL1 to get the finalized l1 block number
-	// then we just need to get the latest result from verifiedDB with an l1 block number
-	// at that head or below
-	_, err := i.verifiedDB.Get(1)
-	if err != nil {
+	i.mu.RLock()
+	finalizedL1 := i.finalizedL1
+	i.mu.RUnlock()
+
+	// If no finalized L1 yet, return empty
+	if finalizedL1.Number == 0 {
 		return eth.BlockID{}, 0
 	}
+
+	// Get the last verified timestamp
+	lastTs, ok := i.verifiedDB.LastTimestamp()
+	if !ok {
+		return eth.BlockID{}, 0
+	}
+
+	// Search backwards from the last timestamp to find the latest result
+	// where the L1 head is at or below the finalized L1 block number
+	for ts := lastTs; ts > 0; ts-- {
+		result, err := i.verifiedDB.Get(ts)
+		if err != nil {
+			// Timestamp might not exist (due to gaps or rewinds), continue searching
+			continue
+		}
+
+		// Check if this result's L1 head is at or below finalized L1
+		if result.L1Head.Number <= finalizedL1.Number {
+			// Found a finalized result, return the L2 head for this chain
+			head, ok := result.L2Heads[chainID]
+			if !ok {
+				return eth.BlockID{}, 0
+			}
+			return head, ts
+		}
+	}
+
+	// No finalized results found
 	return eth.BlockID{}, 0
 }
 
