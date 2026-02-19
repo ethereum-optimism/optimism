@@ -241,12 +241,15 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50},
 		},
 		{
-			name:              "with SuperAuthority empty BlockID returns empty",
+			name:              "with SuperAuthority empty BlockID returns genesis",
 			supervisorEnabled: true,
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{fullyVerifiedL2Head: eth.BlockID{}}
 			},
-			expectResult: &eth.L2BlockRef{},
+			setupEngine: func(m *testutils.MockEngine) {
+				m.ExpectL2BlockRefByNumber(0, eth.L2BlockRef{Hash: common.Hash{0x00}, Number: 0}, nil)
+			},
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0x00}, Number: 0},
 		},
 		{
 			name:              "without SuperAuthority but supervisor enabled uses deprecated",
@@ -345,15 +348,16 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 		Hash:   common.Hash{0xdd},
 		Number: 60,
 	}
+	finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}
 	mockSA := &mockSuperAuthority{
 		fullyVerifiedL2Head: verifiedRef.ID(),
+		finalizedL2Head:     finalizedRef.ID(),
 	}
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, true, &testutils.MockL1Source{}, emitter, mockSA)
 
 	// Set heads
 	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
 	localSafeRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 80}
-	finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}
 
 	ec.unsafeHead = unsafeRef
 	ec.SetLocalSafeHead(localSafeRef)
@@ -364,6 +368,10 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 	// SafeL2Head is called multiple times during initialization and forkchoice - be generous
 	for i := 0; i < 10; i++ {
 		mockEngine.ExpectL2BlockRefByHash(verifiedRef.Hash, verifiedRef, nil)
+	}
+	// FinalizedHead is also called and will look up the finalized block by hash
+	for i := 0; i < 10; i++ {
+		mockEngine.ExpectL2BlockRefByHash(finalizedRef.Hash, finalizedRef, nil)
 	}
 	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, localSafeRef, nil)
 	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, finalizedRef, nil)
