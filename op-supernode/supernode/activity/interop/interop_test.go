@@ -1052,6 +1052,11 @@ type mockChainContainer struct {
 	invalidateBlockCalls []invalidateBlockCall
 	invalidateBlockRet   bool
 	invalidateBlockErr   error
+
+	// OptimisticAt fields
+	optimisticL2    eth.BlockID
+	optimisticL1    eth.BlockID
+	optimisticAtErr error
 }
 
 type invalidateBlockCall struct {
@@ -1090,7 +1095,12 @@ func (m *mockChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (
 	return eth.BlockID{}, nil
 }
 func (m *mockChainContainer) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	return eth.BlockID{}, eth.BlockID{}, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.optimisticAtErr != nil {
+		return eth.BlockID{}, eth.BlockID{}, m.optimisticAtErr
+	}
+	return m.optimisticL2, m.optimisticL1, nil
 }
 func (m *mockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil

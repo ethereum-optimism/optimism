@@ -64,6 +64,9 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 			earliestL1Inclusion = l1Block
 		}
 	}
+	if earliestL1Inclusion.Number == math.MaxUint64 {
+		return Result{}, fmt.Errorf("no L1 inclusion found for timestamp %d", ts)
+	}
 	result.L1Inclusion = earliestL1Inclusion
 
 	for chainID, expectedBlock := range blocksAtTimestamp {

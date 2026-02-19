@@ -98,7 +98,7 @@ func (m *mockVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (
 }
 
 // L1AtSafeHead implements virtual_node.VirtualNode L1AtSafeHead
-func (m mockVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
+func (m *mockVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	return m.safeHeadL1, m.safeHeadErr
 }
 
