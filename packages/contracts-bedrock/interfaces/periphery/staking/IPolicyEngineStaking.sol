@@ -2,21 +2,22 @@
 pragma solidity ^0.8.0;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title IPolicyEngineStaking
 /// @notice Interface for the PolicyEngineStaking contract.
-interface IPolicyEngineStaking {
+interface IPolicyEngineStaking is ISemver {
     /// @notice Emitted when a user stakes OP tokens.
-    event Staked(address indexed account, uint256 amount);
+    event Staked(address indexed account, uint128 amount);
 
     /// @notice Emitted when a user unstakes OP tokens.
-    event Unstaked(address indexed account, uint256 amount);
+    event Unstaked(address indexed account, uint128 amount);
 
-    /// @notice Emitted when a staker links their stake to a beneficiary.
-    event Linked(address indexed staker, address indexed beneficiary);
+    /// @notice Emitted when a staker sets their beneficiary.
+    event BeneficiarySet(address indexed staker, address indexed beneficiary);
 
-    /// @notice Emitted when a staker is unlinked from a beneficiary (on re-link or full unstake).
-    event Unlinked(address indexed staker, address indexed previousBeneficiary);
+    /// @notice Emitted when a staker's beneficiary is removed (on change or full unstake).
+    event BeneficiaryRemoved(address indexed staker, address indexed previousBeneficiary);
 
     /// @notice Emitted when effective stake changes for an account.
     event EffectiveStakeChanged(address indexed account, uint256 newEffectiveStake);
@@ -30,6 +31,9 @@ interface IPolicyEngineStaking {
     /// @notice Emitted when the staking is unpaused.
     event Unpaused();
 
+    /// @notice Emitted when ownership is transferred.
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     /// @notice Thrown when the caller is not the owner.
     error PolicyEngineStaking_OnlyOwner();
 
@@ -42,8 +46,8 @@ interface IPolicyEngineStaking {
     /// @notice Thrown when the beneficiary address is zero.
     error PolicyEngineStaking_ZeroBeneficiary();
 
-    /// @notice Thrown when the staker is not allowed to link to the beneficiary.
-    error PolicyEngineStaking_NotAllowedToLink();
+    /// @notice Thrown when the staker is not allowed to set the beneficiary.
+    error PolicyEngineStaking_NotAllowedToSetBeneficiary();
 
     /// @notice Thrown when trying to operate with no stake.
     error PolicyEngineStaking_NoStake();
@@ -51,11 +55,18 @@ interface IPolicyEngineStaking {
     /// @notice Thrown when trying to unstake more than the staked amount.
     error PolicyEngineStaking_InsufficientStake();
 
-    /// @notice The immutable owner of the contract. Can pause and unpause staking.
-    function OWNER_ADDRESS() external view returns (address);
+    /// @notice Thrown when a zero address is provided where it is not allowed.
+    error PolicyEngineStaking_ZeroAddress();
+
+    /// @notice Thrown when trying to change beneficiary to the current beneficiary.
+    error PolicyEngineStaking_SameBeneficiary();
 
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
+
+    /// @notice Transfers ownership of the contract to a new account. Only callable by owner.
+    /// @param _newOwner The address of the new owner.
+    function transferOwnership(address _newOwner) external;
 
     /// @notice Returns whether the contract is paused.
     function paused() external view returns (bool);
@@ -71,10 +82,10 @@ interface IPolicyEngineStaking {
     function allowlist(address _beneficiary, address _staker) external view returns (bool allowed_);
 
     /// @notice Returns staking data for an account.
-    function stakingData(address _account) external view returns (uint256 stakedAmount_, address linkedTo_);
+    function stakingData(address _account) external view returns (uint128 stakedAmount_, address beneficiary_);
 
     /// @notice Returns the ERC20 token used for staking.
-    function STAKING_TOKEN() external view returns (IERC20);
+    function stakingToken() external view returns (IERC20);
 
     /// @notice Pauses the contract. Only callable by owner.
     function pause() external;
@@ -82,26 +93,26 @@ interface IPolicyEngineStaking {
     /// @notice Unpauses the contract. Only callable by owner.
     function unpause() external;
 
-    /// @notice Stakes tokens and links to a beneficiary atomically.
+    /// @notice Stakes tokens and sets beneficiary atomically.
     /// @param _amount      The amount of tokens to stake.
     /// @param _beneficiary Address that receives ordering power. Use msg.sender for self-attribution.
-    function stake(uint256 _amount, address _beneficiary) external;
+    function stake(uint128 _amount, address _beneficiary) external;
 
-    /// @notice Re-links existing stake to a new beneficiary.
+    /// @notice Changes the beneficiary for existing stake.
     /// @param _beneficiary New beneficiary address.
     function changeBeneficiary(address _beneficiary) external;
 
     /// @notice Unstakes OP tokens. Supports partial and full unstake.
     /// @param _amount The amount of OP tokens to unstake.
-    function unstake(uint256 _amount) external;
+    function unstake(uint128 _amount) external;
 
-    /// @notice Sets whether a staker can link to the caller (beneficiary).
+    /// @notice Sets whether a staker can set the caller as beneficiary.
     /// @param _staker  The staker address.
-    /// @param _allowed Whether the staker is allowed to link.
+    /// @param _allowed Whether the staker is allowed to set the caller as beneficiary.
     function setAllowedStaker(address _staker, bool _allowed) external;
 
     /// @notice Batch sets allowlist for multiple stakers.
     /// @param _stakers Array of staker addresses.
-    /// @param _allowed Whether the stakers are allowed to link.
+    /// @param _allowed Whether the stakers are allowed to set the caller as beneficiary.
     function setAllowedStakers(address[] calldata _stakers, bool _allowed) external;
 }

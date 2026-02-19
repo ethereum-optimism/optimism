@@ -3,7 +3,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_owner",
+        "name": "_ownerAddr",
         "type": "address"
       },
       {
@@ -17,38 +17,12 @@
   },
   {
     "inputs": [],
-    "name": "OWNER_ADDRESS",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "PE_DATA_SLOT",
     "outputs": [
       {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "STAKING_TOKEN",
-    "outputs": [
-      {
-        "internalType": "contract IERC20",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -187,9 +161,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint128",
         "name": "_amount",
-        "type": "uint256"
+        "type": "uint128"
       },
       {
         "internalType": "address",
@@ -213,17 +187,43 @@
     "name": "stakingData",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint128",
         "name": "stakedAmount",
-        "type": "uint256"
+        "type": "uint128"
       },
       {
         "internalType": "address",
-        "name": "linkedTo",
+        "name": "beneficiary",
         "type": "address"
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "stakingToken",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -236,14 +236,27 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint128",
         "name": "_amount",
-        "type": "uint256"
+        "type": "uint128"
       }
     ],
     "name": "unstake",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -277,6 +290,44 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "staker",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousBeneficiary",
+        "type": "address"
+      }
+    ],
+    "name": "BeneficiaryRemoved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "staker",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "beneficiary",
+        "type": "address"
+      }
+    ],
+    "name": "BeneficiarySet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "account",
         "type": "address"
       },
@@ -296,17 +347,17 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "staker",
+        "name": "previousOwner",
         "type": "address"
       },
       {
         "indexed": true,
         "internalType": "address",
-        "name": "beneficiary",
+        "name": "newOwner",
         "type": "address"
       }
     ],
-    "name": "Linked",
+    "name": "OwnershipTransferred",
     "type": "event"
   },
   {
@@ -326,31 +377,12 @@
       },
       {
         "indexed": false,
-        "internalType": "uint256",
+        "internalType": "uint128",
         "name": "amount",
-        "type": "uint256"
+        "type": "uint128"
       }
     ],
     "name": "Staked",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "staker",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "previousBeneficiary",
-        "type": "address"
-      }
-    ],
-    "name": "Unlinked",
     "type": "event"
   },
   {
@@ -370,9 +402,9 @@
       },
       {
         "indexed": false,
-        "internalType": "uint256",
+        "internalType": "uint128",
         "name": "amount",
-        "type": "uint256"
+        "type": "uint128"
       }
     ],
     "name": "Unstaked",
@@ -390,7 +422,7 @@
   },
   {
     "inputs": [],
-    "name": "PolicyEngineStaking_NotAllowedToLink",
+    "name": "PolicyEngineStaking_NotAllowedToSetBeneficiary",
     "type": "error"
   },
   {
@@ -401,6 +433,16 @@
   {
     "inputs": [],
     "name": "PolicyEngineStaking_Paused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PolicyEngineStaking_SameBeneficiary",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PolicyEngineStaking_ZeroAddress",
     "type": "error"
   },
   {
