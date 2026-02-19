@@ -1,4 +1,4 @@
-FROM ghcr.io/paradigmxyz/op-reth:nightly AS reth
+FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:nightly AS reth
 
 FROM ubuntu:latest
 

@@ -1054,7 +1054,7 @@ jobs:
           no_output_timeout: 60m
           command: |
             cd docker/fpvm-prestates
-            just "<<parameters.kind>>" "<<parameters.version>>" "../.."
+            just "<<parameters.kind>>" "<<parameters.version>>" "../../prestate-artifacts-<<parameters.kind>>"
       - run:
           name: Upload prestates to GCS
           working_directory: rust/kona
