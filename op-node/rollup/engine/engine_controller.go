@@ -232,13 +232,18 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 
 func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 	if e.superAuthority != nil {
-		f := e.superAuthority.FinalizedL2Head()
+		f, useLocalFinalized := e.superAuthority.FinalizedL2Head()
+		if useLocalFinalized {
+			// No verifiers registered, fall back to local finalized
+			e.log.Debug("super authority has no verifiers, using local finalized head")
+			return e.localFinalizedHead
+		}
 		if (f == eth.BlockID{}) {
-			// No finalized head yet
+			// Verifiers exist but haven't finalized anything yet
 			return eth.L2BlockRef{}
 		}
 		if f.Number > e.localSafeHead.Number {
-			e.log.Debug("super authority fully verified l2 head is ahead of local safe head, using local safe head as FinalizedHead")
+			e.log.Debug("super authority finalized l2 head is ahead of local safe head, using local safe head as FinalizedHead")
 			return e.localSafeHead
 		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, f.Hash)

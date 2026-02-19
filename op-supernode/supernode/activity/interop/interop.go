@@ -450,11 +450,10 @@ func (i *Interop) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint
 	// we can use i.finalizedL1 to get the finalized l1 block number
 	// then we just need to get the latest result from verifiedDB with an l1 block number
 	// at that head or below
-	res,err :=i.verifiedDB.Get(1)
+	_, err := i.verifiedDB.Get(1)
 	if err != nil {
 		return eth.BlockID{}, 0
 	}
-	res.
 	return eth.BlockID{}, 0
 }
 

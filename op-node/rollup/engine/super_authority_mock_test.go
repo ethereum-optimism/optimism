@@ -40,9 +40,9 @@ func (m *mockSuperAuthority) FullyVerifiedL2Head() (eth.BlockID, bool) {
 	return m.fullyVerifiedL2Head, false
 }
 
-func (m *mockSuperAuthority) FinalizedL2Head() eth.BlockID {
-	// TODO
-	return eth.BlockID{}
+func (m *mockSuperAuthority) FinalizedL2Head() (eth.BlockID, bool) {
+	// TODO: implement proper mock behavior
+	return eth.BlockID{}, false
 }
 
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)
