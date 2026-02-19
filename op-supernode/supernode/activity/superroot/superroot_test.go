@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -37,7 +38,7 @@ func (m *mockCC) Resume(ctx context.Context) error { return nil }
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {
 }
 
-func (m *mockCC) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
 func (m *mockCC) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
@@ -80,7 +81,7 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 	// Return minimal output response; tests only assert presence/count
 	return &eth.OutputResponse{}, nil
 }
-func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64) error {
+func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil
 }
 
@@ -97,6 +98,13 @@ func (m *mockCC) ID() eth.ChainID {
 }
 
 func (m *mockCC) BlockTime() uint64 { return 1 }
+func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *mockCC) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 
@@ -111,7 +119,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2000},
-				SafeL2:      eth.L2BlockRef{Time: 200},
+				LocalSafeL2: eth.L2BlockRef{Time: 200},
 				FinalizedL2: eth.L2BlockRef{Time: 150},
 			},
 		},
@@ -123,7 +131,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2100},
-				SafeL2:      eth.L2BlockRef{Time: 180},
+				LocalSafeL2: eth.L2BlockRef{Time: 180},
 				FinalizedL2: eth.L2BlockRef{Time: 140},
 			},
 		},

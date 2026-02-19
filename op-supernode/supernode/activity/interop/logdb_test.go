@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -548,9 +549,9 @@ func (m *mockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timest
 	return m.sealBlockErr
 }
 
-func (m *mockLogsDB) Close() error {
-	return nil
-}
+func (m *mockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
+func (m *mockLogsDB) Clear(inv reads.Invalidator) error                       { return nil }
+func (m *mockLogsDB) Close() error                                            { return nil }
 
 var _ LogsDB = (*mockLogsDB)(nil)
 
@@ -568,7 +569,7 @@ func (m *statefulMockChainContainer) Pause(ctx context.Context) error  { return 
 func (m *statefulMockChainContainer) Resume(ctx context.Context) error { return nil }
 func (m *statefulMockChainContainer) RegisterVerifier(v activity.VerificationActivity) {
 }
-func (m *statefulMockChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+func (m *statefulMockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return m.blockAtTimestampFn(ts)
 }
 func (m *statefulMockChainContainer) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
@@ -593,8 +594,15 @@ func (m *statefulMockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncS
 	return &eth.SyncStatus{}, nil
 }
 func (m *statefulMockChainContainer) BlockTime() uint64 { return 1 }
-func (m *statefulMockChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
+func (m *statefulMockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil
 }
+func (m *statefulMockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *statefulMockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+func (m *statefulMockChainContainer) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.ChainContainer = (*statefulMockChainContainer)(nil)

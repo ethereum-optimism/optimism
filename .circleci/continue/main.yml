@@ -1,10 +1,10 @@
 version: 2.1
 
 parameters:
-  default_docker_image:
+  c-default_docker_image:
     type: string
     default: cimg/base:2024.01
-  base_image:
+  c-base_image:
     type: string
     default: default
   # The dispatch parameters are used to manually dispatch pipelines that normally only run post-merge on develop
@@ -12,73 +12,70 @@ parameters:
   #   when:
   #     or:
   #       - equal: [ "develop", <<pipeline.git.branch>> ]
-  #       - equal: [ true, <<pipeline.parameters.main_dispatch>> ]
+  #       - equal: [ true, <<pipeline.parameters.c-main_dispatch>> ]
   # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
-  main_dispatch:
+  c-main_dispatch:
     type: boolean
     default: true # default to running main in case the manual run cancelled an automatic run
-  fault_proofs_dispatch:
+  c-fault_proofs_dispatch:
     type: boolean
     default: false
-  reproducibility_dispatch:
+  c-reproducibility_dispatch:
     type: boolean
     default: false
-  kontrol_dispatch:
+  c-kontrol_dispatch:
     type: boolean
     default: false
-  cannon_full_test_dispatch:
+  c-cannon_full_test_dispatch:
     type: boolean
     default: false
-  sdk_dispatch:
+  c-sdk_dispatch:
     type: boolean
     default: false
-  docker_publish_dispatch:
+  c-docker_publish_dispatch:
     type: boolean
     default: false
-  publish_contract_artifacts_dispatch:
+  c-publish_contract_artifacts_dispatch:
     type: boolean
     default: false
-  stale_check_dispatch:
+  c-stale_check_dispatch:
     type: boolean
     default: false
-  contracts_coverage_dispatch:
+  c-contracts_coverage_dispatch:
     type: boolean
     default: false
-  heavy_fuzz_dispatch:
+  c-heavy_fuzz_dispatch:
     type: boolean
     default: false
-  acceptance_tests_dispatch:
+  c-sync_test_op_node_dispatch:
     type: boolean
     default: false
-  sync_test_op_node_dispatch:
+  c-ai_contracts_test_dispatch:
     type: boolean
     default: false
-  ai_contracts_test_dispatch:
-    type: boolean
-    default: false
-  github-event-type:
+  c-github-event-type:
     type: string
     default: "__not_set__"
-  github-event-action:
+  c-github-event-action:
     type: string
     default: "__not_set__"
-  github-event-base64:
+  c-github-event-base64:
     type: string
     default: "__not_set__"
-  devnet-metrics-collect:
+  c-devnet-metrics-collect:
     type: boolean
     default: false
-  flake-shake-dispatch:
+  c-flake-shake-dispatch:
     type: boolean
     default: false
-  flake-shake-iterations:
+  c-flake-shake-iterations:
     type: integer
     default: 300
-  flake-shake-workers:
+  c-flake-shake-workers:
     type: integer
     default: 50
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
-  go-cache-version:
+  c-go-cache-version:
     type: string
     default: "v0.0"
 
@@ -88,7 +85,7 @@ orbs:
   slack: circleci/slack@6.0.0
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-  utils: ethereum-optimism/circleci-utils@1.0.23
+  utils: ethereum-optimism/circleci-utils@1.0.24
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
 
@@ -337,7 +334,7 @@ commands:
       # Version can be used as a cache buster when making breaking changes to caching strategy
       version:
         type: string
-        default: <<pipeline.parameters.go-cache-version>>
+        default: <<pipeline.parameters.c-go-cache-version>>
     steps:
       - restore_cache:
           name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
@@ -358,7 +355,7 @@ commands:
         type: string
       version:
         type: string
-        default: <<pipeline.parameters.go-cache-version>>
+        default: <<pipeline.parameters.c-go-cache-version>>
     steps:
       - save_cache:
           name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
@@ -422,8 +419,8 @@ commands:
           command: |
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/kona/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/kona/target/release/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
 
@@ -623,7 +620,7 @@ commands:
               export PACKAGE="--package << parameters.package >>"
             fi
 
-            export BINARY="--all-targets"
+            export BINARY=""
             if [ -n "<< parameters.binary >>" ]; then
               export BINARY="--bin << parameters.binary >>"
             fi
@@ -633,7 +630,7 @@ commands:
               export FEATURES="--all-features"
             fi
 
-            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES
+            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
@@ -649,7 +646,7 @@ jobs:
   rust-build-binary:
     description: "Build a Rust workspace with target directory caching"
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     parameters:
       directory:
@@ -702,7 +699,7 @@ jobs:
   # Build a single Rust binary from a submodule.
   rust-build-submodule:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     parameters:
       directory:
@@ -812,7 +809,7 @@ jobs:
         type: string
         default: 30m
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -914,7 +911,7 @@ jobs:
                 path: ./op-acceptance-tests/logs
   initialize:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large
     steps:
       - run:
@@ -922,7 +919,7 @@ jobs:
 
   cannon-go-lint-and-test:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     parameters:
       skip_slow_tests:
@@ -987,7 +984,7 @@ jobs:
 
   contracts-bedrock-build:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     parameters:
       build_args:
@@ -1033,7 +1030,7 @@ jobs:
 
   check-kontrol-build:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -1095,7 +1092,7 @@ jobs:
         type: string
         default: medium
     machine:
-      image: <<pipeline.parameters.base_image>>
+      image: <<pipeline.parameters.c-base_image>>
       resource_class: "<<parameters.resource_class>>"
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
@@ -1252,7 +1249,7 @@ jobs:
   # Verify newly published images (built on AMD machine) will run on ARM
   check-cross-platform:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: arm.medium
     parameters:
       registry:
@@ -1297,7 +1294,7 @@ jobs:
   contracts-bedrock-tests:
     circleci_ip_ranges: true
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     parameters:
       test_list:
@@ -1389,7 +1386,7 @@ jobs:
   contracts-bedrock-heavy-fuzz-nightly:
     circleci_ip_ranges: true
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
@@ -1447,7 +1444,7 @@ jobs:
   ai-contracts-test:
     circleci_ip_ranges: true
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -1478,7 +1475,7 @@ jobs:
   contracts-bedrock-coverage:
     circleci_ip_ranges: true
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     parameters:
       test_timeout:
@@ -1589,7 +1586,7 @@ jobs:
         type: string
         default: ""
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
@@ -1691,7 +1688,7 @@ jobs:
 
   contracts-bedrock-checks:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -1738,7 +1735,7 @@ jobs:
 
   contracts-bedrock-checks-fast:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
@@ -1766,7 +1763,7 @@ jobs:
         type: boolean
         default: true
     machine:
-      image: <<pipeline.parameters.base_image>>
+      image: <<pipeline.parameters.c-base_image>>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1792,7 +1789,7 @@ jobs:
         type: boolean
         default: false
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -1825,7 +1822,7 @@ jobs:
 
   go-lint:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large
     steps:
       - utils/checkout-with-mise:
@@ -1842,9 +1839,31 @@ jobs:
           paths:
             - "/home/circleci/.cache/golangci-lint"
 
+  go-binaries-for-sysgo:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: large
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - go-restore-cache:
+          namespace: sysgo-go-binaries
+      - run:
+          name: Build Go binaries for sysgo
+          command: make cannon op-program
+      - go-save-cache:
+          namespace: sysgo-go-binaries
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "cannon/bin"
+            - "op-program/bin/op-program"
+            - "op-program/bin/op-program-client"
+
   check-op-geth-version:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
     steps:
       - utils/checkout-with-mise:
@@ -1886,7 +1905,7 @@ jobs:
         type: integer
         default: 1
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     circleci_ip_ranges: true
     parallelism: <<parameters.parallelism>>
@@ -2029,7 +2048,7 @@ jobs:
         default: ""
     resource_class: xlarge
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     circleci_ip_ranges: true
     steps:
       - utils/checkout-with-mise:
@@ -2055,7 +2074,7 @@ jobs:
           name: Persist schedule name into env var
           command: |
             echo 'export CIRCLECI_PIPELINE_SCHEDULE_NAME="<< pipeline.schedule.name >>"' >> $BASH_ENV
-            echo 'export CIRCLECI_PARAMETERS_SYNC_TEST_OP_NODE_DISPATCH="<< pipeline.parameters.sync_test_op_node_dispatch >>"' >> $BASH_ENV
+            echo 'export CIRCLECI_PARAMETERS_SYNC_TEST_OP_NODE_DISPATCH="<< pipeline.parameters.c-sync_test_op_node_dispatch >>"' >> $BASH_ENV
       # Run the acceptance tests
       - run:
           name: Run acceptance tests (gate=<<parameters.gate>>)
@@ -2127,7 +2146,7 @@ jobs:
         type: string
         default: 30m
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     circleci_ip_ranges: true
     resource_class: 2xlarge+
     steps:
@@ -2138,15 +2157,15 @@ jobs:
           at: .
       # Build kona-node for the acceptance tests. This automatically gets kona from the cache.
       - rust-build:
-          directory: kona
+          directory: rust
           profile: "release"
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/kona/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/kona/target/release/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       # Restore cached Go modules
@@ -2237,7 +2256,7 @@ jobs:
     machine:
       image: ubuntu-2404:current
     resource_class: xlarge
-    parallelism: << pipeline.parameters.flake-shake-workers >>
+    parallelism: << pipeline.parameters.c-flake-shake-workers >>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2269,7 +2288,7 @@ jobs:
       - run:
           name: Calculate iterations for worker
           command: |
-            bash ./op-acceptance-tests/scripts/ci_flake_shake_calc_iterations.sh << pipeline.parameters.flake-shake-iterations >>
+            bash ./op-acceptance-tests/scripts/ci_flake_shake_calc_iterations.sh << pipeline.parameters.c-flake-shake-iterations >>
       - run:
           name: Run flake-shake iterations
           no_output_timeout: 3h
@@ -2283,6 +2302,7 @@ jobs:
               --testdir tests \
               --flake-shake \
               --flake-shake-iterations "$FLAKE_SHAKE_ITERATIONS" \
+              --log.level debug \
               --orchestrator sysgo \
               --logdir "./$OUTPUT_DIR"
       - persist_to_workspace:
@@ -2429,7 +2449,7 @@ jobs:
 
   sanitize-op-program:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large
     steps:
       - utils/checkout-with-mise:
@@ -2451,82 +2471,28 @@ jobs:
           command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client64.elf
           working_directory: cannon
 
-  cannon-prestate-quick:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - restore_cache:
-          name: Restore cannon prestate cache
-          key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
-      - run:
-          name: Build prestates
-          command: make cannon-prestates
-      - save_cache:
-          key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
-          name: Save Cannon prestate to cache
-          paths:
-            - "op-program/bin/prestate*.bin.gz"
-            - "op-program/bin/meta*.json"
-            - "op-program/bin/prestate-proof*.json"
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "op-program/bin/prestate*"
-            - "op-program/bin/meta*"
-            - "op-program/bin/op-program"
-            - "op-program/bin/op-program-client"
-            - "cannon/bin"
-
   cannon-prestate:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - setup_remote_docker
-      - run:
-          name: Build prestates
-          command: make reproducible-prestate
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "op-program/bin/prestate*"
-            - "op-program/bin/meta*"
-
-  cannon-kona-prestate:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      - restore_cache:
-          name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/.config/cannon_tag" }}
       - run:
-          name: Build kona prestates
-          command: just build-prestates
-          working_directory: kona
-      - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/.config/cannon_tag" }}
-          name: Save Kona to cache
-          paths:
-            - "kona/prestate-artifacts-*/"
+          name: Build prestates
+          command: make -j reproducible-prestate
       - persist_to_workspace:
           root: .
           paths:
-            - "kona/prestate-artifacts-*/*"
+            - "op-program/bin/prestate*"
+            - "op-program/bin/meta*"
+            - "rust/kona/prestate-artifacts-*/"
 
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
   rust-binaries-for-sysgo:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
     steps:
       - run:
@@ -2539,7 +2505,7 @@ jobs:
   publish-cannon-prestates:
     resource_class: medium
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2617,7 +2583,7 @@ jobs:
 
   cannon-stf-verify:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2678,14 +2644,14 @@ jobs:
 
   bedrock-go-tests: # just a helper, that depends on all the actual test jobs
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - run: echo Done
 
   analyze-op-program-client:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -2700,7 +2666,7 @@ jobs:
 
   op-program-compat:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large
     steps:
       - utils/checkout-with-mise:
@@ -2714,7 +2680,7 @@ jobs:
 
   check-generated-mocks-op-node:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large
     steps:
       - utils/checkout-with-mise:
@@ -2728,7 +2694,7 @@ jobs:
 
   check-generated-mocks-op-service:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large
     steps:
       - utils/checkout-with-mise:
@@ -2742,7 +2708,7 @@ jobs:
 
   op-deployer-forge-version:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2753,7 +2719,7 @@ jobs:
 
   kontrol-tests:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -2787,7 +2753,7 @@ jobs:
 
   publish-contract-artifacts:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     steps:
       - gcp-cli/install
@@ -2827,7 +2793,7 @@ jobs:
         default: .goreleaser.yaml
         type: string
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large
     steps:
       - setup_remote_docker:
@@ -2850,7 +2816,7 @@ jobs:
 
   diff-fetcher-forge-artifacts:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -2901,7 +2867,7 @@ jobs:
     steps:
       - github-cli/install
       - utils/github-event-handler-setup:
-          github_event_base64: << pipeline.parameters.github-event-base64 >>
+          github_event_base64: << pipeline.parameters.c-github-event-base64 >>
           env_prefix: "github_"
       - run:
           name: Close issue if label is added
@@ -2917,7 +2883,7 @@ jobs:
 
   devnet-metrics-collect-authorship:
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2977,10 +2943,10 @@ workflows:
         - or:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - and:
-                - equal: [true, <<pipeline.parameters.main_dispatch>>]
+                - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
                 - equal: ["api", << pipeline.trigger_source >>]
                 - equal: [
-                      << pipeline.parameters.github-event-type >>,
+                      << pipeline.parameters.c-github-event-type >>,
                       "__not_set__",
                     ] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
     jobs:
@@ -3132,7 +3098,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
       - go-tests:
           name: go-tests-short
           parallelism: 12
@@ -3140,7 +3106,8 @@ workflows:
           test_timeout: 20m
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
+            - go-binaries-for-sysgo
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
@@ -3158,7 +3125,7 @@ workflows:
               only: develop # Only runs on develop branch (post-merge)
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3191,12 +3158,12 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-      - cannon-prestate-quick:
+      - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - sanitize-op-program:
           requires:
-            - cannon-prestate-quick
+            - cannon-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-generated-mocks-op-node:
@@ -3226,6 +3193,65 @@ workflows:
           ignore-dirs: ./packages/contracts-bedrock/lib
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # Acceptance test jobs (formerly in separate acceptance-tests workflow)
+      - rust-build-binary: &cannon-kona-host
+          name: cannon-kona-host
+          directory: rust
+          profile: "release"
+          binary: "kona-host"
+          save_cache: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary: &kona-build-release
+          name: kona-build-release
+          directory: rust
+          profile: "release"
+          features: "default"
+          save_cache: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: &rust-build-op-rbuilder
+          name: rust-build-op-rbuilder
+          directory: op-rbuilder
+          binaries: "op-rbuilder"
+          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: &rust-build-rollup-boost
+          name: rust-build-rollup-boost
+          directory: rollup-boost
+          binaries: "rollup-boost"
+          build_command: cargo build --release -p rollup-boost --bin rollup-boost
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-binaries-for-sysgo:
+          requires:
+            - kona-build-release
+            - rust-build-op-rbuilder
+            - rust-build-rollup-boost
+      - go-binaries-for-sysgo
+      # IN-MEMORY (all)
+      - op-acceptance-tests:
+          name: memory-all
+          gate: "" # Empty gate = gateless mode
+          no_output_timeout: 120m # Allow longer runs for memory-all gate
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate
+            - cannon-kona-host
+            - rust-binaries-for-sysgo
+            - go-binaries-for-sysgo
+      # Generate flaky test report
+      - generate-flaky-report:
+          name: generate-flaky-tests-report
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
 
   go-release-op-deployer:
     jobs:
@@ -3373,7 +3399,7 @@ workflows:
             - equal:
                 [
                   true,
-                  <<pipeline.parameters.publish_contract_artifacts_dispatch>>,
+                  <<pipeline.parameters.c-publish_contract_artifacts_dispatch>>,
                 ]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
@@ -3388,7 +3414,7 @@ workflows:
             - equal: ["develop", <<pipeline.git.branch>>]
             - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-            - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
+            - equal: [true, <<pipeline.parameters.c-fault_proofs_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - cannon-prestate:
@@ -3432,7 +3458,7 @@ workflows:
             - equal: ["develop", <<pipeline.git.branch>>]
             - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-            - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
+            - equal: [true, <<pipeline.parameters.c-kontrol_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - kontrol-tests:
@@ -3445,7 +3471,7 @@ workflows:
     when:
       or:
         - equal: [build_four_hours, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.cannon_full_test_dispatch >>]
+        - equal: [true, << pipeline.parameters.c-cannon_full_test_dispatch >>]
     jobs:
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
@@ -3466,7 +3492,7 @@ workflows:
       or:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.docker_publish_dispatch >>]
+        - equal: [true, << pipeline.parameters.c-docker_publish_dispatch >>]
     jobs:
       - contracts-bedrock-build:
           context:
@@ -3502,38 +3528,25 @@ workflows:
       or:
         - equal: [build_daily, << pipeline.schedule.name >>]
         - and:
-            - equal: [true, << pipeline.parameters.flake-shake-dispatch >>]
+            - equal: [true, << pipeline.parameters.c-flake-shake-dispatch >>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick:
+      - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
           name: kona-build-release
-          directory: kona
+          directory: rust
           needs_clang: true
           profile: "release"
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-op-rbuilder
-          name: rust-build-op-rbuilder
-          directory: op-rbuilder
-          binaries: "op-rbuilder"
-          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
-          needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-rollup-boost
-          name: rust-build-rollup-boost
-          directory: rollup-boost
-          binaries: "rollup-boost"
-          build_command: cargo build --release -p rollup-boost --bin rollup-boost
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-submodule: *rust-build-op-rbuilder
+      - rust-build-submodule: *rust-build-rollup-boost
       - rust-binaries-for-sysgo:
           requires:
             - kona-build-release
@@ -3544,7 +3557,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
             - rust-binaries-for-sysgo
       - op-acceptance-tests-flake-shake-report:
           requires:
@@ -3563,7 +3576,7 @@ workflows:
       or:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.reproducibility_dispatch >>]
+        - equal: [true, << pipeline.parameters.c-reproducibility_dispatch >>]
     jobs:
       - preimage-reproducibility:
           context:
@@ -3575,7 +3588,7 @@ workflows:
       or:
         - equal: [build_daily, <<pipeline.schedule.name>>]
           # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.stale_check_dispatch >>]
+        - equal: [true, << pipeline.parameters.c-stale_check_dispatch >>]
     jobs:
       - stale-check:
           context:
@@ -3586,13 +3599,13 @@ workflows:
       or:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.sync_test_op_node_dispatch >>]
+        - equal: [true, << pipeline.parameters.c-sync_test_op_node_dispatch >>]
     jobs:
       - contracts-bedrock-build: # needed for sysgo tests
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: # needed for sysgo tests
+      - cannon-prestate: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
       - op-acceptance-sync-tests-docker:
@@ -3604,7 +3617,7 @@ workflows:
             - slack
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
           matrix:
             parameters:
               network_preset:
@@ -3621,84 +3634,18 @@ workflows:
     when:
       or:
         - equal: [build_daily, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.heavy_fuzz_dispatch >>]
+        - equal: [true, << pipeline.parameters.c-heavy_fuzz_dispatch >>]
     jobs:
       - contracts-bedrock-heavy-fuzz-nightly:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-
-  # Acceptance tests
-  acceptance-tests:
-    when:
-      or:
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        # Manual dispatch
-        - and:
-            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
-    jobs:
-      - contracts-bedrock-build: # needed for sysgo tests
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: # needed for sysgo tests
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &cannon-kona-host
-          name: cannon-kona-host
-          directory: kona
-          profile: "release"
-          binary: "kona-host"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &kona-build-release
-          name: kona-build-release
-          directory: kona
-          profile: "release"
-          features: "default"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: *rust-build-op-rbuilder
-      - rust-build-submodule: *rust-build-rollup-boost
-      - rust-binaries-for-sysgo:
-          requires:
-            - kona-build-release
-            - rust-build-op-rbuilder
-            - rust-build-rollup-boost
-      # IN-MEMORY (all)
-      - op-acceptance-tests:
-          name: memory-all
-          gate: "" # Empty gate = gateless mode
-          no_output_timeout: 120m # Allow longer runs for memory-all gate
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-            - cannon-kona-prestate
-            - cannon-kona-host
-            - rust-binaries-for-sysgo
-      # Generate flaky test report
-      - generate-flaky-report:
-          name: generate-flaky-tests-report
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
-
   close-issue-workflow:
     when:
       and:
         - equal: [<< pipeline.trigger_source >>, "api"]
-        - equal: [<< pipeline.parameters.github-event-type >>, "pull_request"]
-        - equal: [<< pipeline.parameters.github-event-action >>, "labeled"]
+        - equal: [<< pipeline.parameters.c-github-event-type >>, "pull_request"]
+        - equal: [<< pipeline.parameters.c-github-event-action >>, "labeled"]
     jobs:
       - close-issue:
           label_name: "auto-close-trivial-contribution"
@@ -3714,7 +3661,7 @@ workflows:
       or:
         - equal: [<< pipeline.trigger_source >>, "webhook"]
         - and:
-            - equal: [true, << pipeline.parameters.devnet-metrics-collect >>]
+            - equal: [true, << pipeline.parameters.c-devnet-metrics-collect >>]
             - equal: [<< pipeline.trigger_source >>, "api"]
     jobs:
       - devnet-metrics-collect-authorship:
@@ -3726,7 +3673,7 @@ workflows:
     when:
       or:
         - equal: [build_mon_thu, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.ai_contracts_test_dispatch >>]
+        - equal: [true, << pipeline.parameters.c-ai_contracts_test_dispatch >>]
     jobs:
       - ai-contracts-test:
           context:

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"io"
-	"net/http"
 	"testing"
 	"time"
 
@@ -34,16 +33,7 @@ func (t *testAdminAPI) GetFailsafeEnabled(_ context.Context) (bool, error) {
 	return false, nil
 }
 
-// newTestJWTProtectedAdminHandler creates a JWT-protected handler for testing
-func newTestJWTProtectedAdminHandler(jwtSecret []byte) http.Handler {
-	srv := rpc.NewServer()
-	if err := srv.RegisterName("admin", new(testAdminAPI)); err != nil {
-		panic(err)
-	}
-	return gn.NewHTTPHandlerStack(srv, []string{"*"}, []string{"*"}, jwtSecret)
-}
-
-func TestJWTAuthentication(t *testing.T) {
+func TestDedicatedAdminRPCServer(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 
 	// Generate JWT secret
@@ -51,39 +41,51 @@ func TestJWTAuthentication(t *testing.T) {
 	_, err := io.ReadFull(rand.Reader, jwtSecret[:])
 	require.NoError(t, err)
 
-	// Create server WITHOUT JWT on root - root stays public for supervisor API
-	server := oprpc.ServerFromConfig(&oprpc.ServerConfig{
-		RpcOptions: []oprpc.Option{
-			oprpc.WithLogger(logger),
-			// No WithJWTSecret - root stays public
-		},
-		Host:       "127.0.0.1",
-		Port:       0,
-		AppVersion: "test",
-	})
-
-	// Register supervisor API on root (public)
-	server.AddAPI(rpc.API{
+	// Create filter server (public, no JWT)
+	filterServer := oprpc.NewServer(
+		"127.0.0.1",
+		0,
+		"test",
+		oprpc.WithLogger(logger),
+	)
+	filterServer.AddAPI(rpc.API{
 		Namespace: "supervisor",
 		Service:   new(testSupervisorAPI),
 	})
 
-	// Register admin API with JWT protection using AddHandler
-	server.AddHandler("/admin", newTestJWTProtectedAdminHandler(jwtSecret[:]))
-
-	require.NoError(t, server.Start())
-	t.Cleanup(func() {
-		_ = server.Stop()
+	// Create admin server (JWT-protected)
+	adminServer := oprpc.NewServer(
+		"127.0.0.1",
+		0,
+		"test",
+		oprpc.WithLogger(logger),
+		oprpc.WithJWTSecret(jwtSecret[:]),
+	)
+	adminServer.AddAPI(rpc.API{
+		Namespace:     "admin",
+		Service:       new(testAdminAPI),
+		Authenticated: true,
 	})
 
-	endpoint := "http://" + server.Endpoint()
+	require.NoError(t, filterServer.Start())
+	t.Cleanup(func() {
+		_ = filterServer.Stop()
+	})
+
+	require.NoError(t, adminServer.Start())
+	t.Cleanup(func() {
+		_ = adminServer.Stop()
+	})
+
+	filterEndpoint := "http://" + filterServer.Endpoint()
+	adminEndpoint := "http://" + adminServer.Endpoint()
 
 	// Create clients
-	supervisorClient, err := rpc.Dial(endpoint)
+	filterClient, err := rpc.Dial(filterEndpoint)
 	require.NoError(t, err)
-	t.Cleanup(supervisorClient.Close)
+	t.Cleanup(filterClient.Close)
 
-	adminUnauthClient, err := rpc.Dial(endpoint + "/admin")
+	adminUnauthClient, err := rpc.Dial(adminEndpoint)
 	require.NoError(t, err)
 	t.Cleanup(adminUnauthClient.Close)
 
@@ -93,74 +95,61 @@ func TestJWTAuthentication(t *testing.T) {
 	adminAuthClient, err := client.NewRPC(
 		ctx,
 		logger,
-		endpoint+"/admin",
+		adminEndpoint,
 		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
 	)
 	require.NoError(t, err)
 	t.Cleanup(adminAuthClient.Close)
 
-	t.Run("supervisor API works without JWT", func(t *testing.T) {
+	t.Run("filter API works without JWT on its dedicated port", func(t *testing.T) {
 		var res string
-		err := supervisorClient.Call(&res, "supervisor_ping")
+		err := filterClient.Call(&res, "supervisor_ping")
 		require.NoError(t, err)
 		require.Equal(t, "pong", res)
 	})
 
-	t.Run("admin API requires JWT - fails without auth", func(t *testing.T) {
+	t.Run("admin API requires JWT on dedicated port - fails without auth", func(t *testing.T) {
 		var res bool
 		err := adminUnauthClient.Call(&res, "admin_getFailsafeEnabled")
 		require.ErrorContains(t, err, "missing token")
 	})
 
-	t.Run("admin API works with valid JWT", func(t *testing.T) {
+	t.Run("admin API works with valid JWT on dedicated port", func(t *testing.T) {
 		var res bool
 		err := adminAuthClient.CallContext(ctx, &res, "admin_getFailsafeEnabled")
 		require.NoError(t, err)
 		require.Equal(t, false, res)
 	})
-
-	t.Run("supervisor API not accidentally gated when JWT configured", func(t *testing.T) {
-		// This is a regression test - supervisor API must remain public
-		// even when JWT is configured for admin routes
-		var res string
-		err := supervisorClient.Call(&res, "supervisor_ping")
-		require.NoError(t, err, "supervisor API must not require JWT")
-		require.Equal(t, "pong", res)
-	})
 }
 
-func TestSupervisorAPIWithoutJWT(t *testing.T) {
+func TestFilterAPIWithoutAdminServer(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 
-	// Create server WITHOUT JWT secret - supervisor API works, no admin API
-	server := oprpc.ServerFromConfig(&oprpc.ServerConfig{
-		RpcOptions: []oprpc.Option{
-			oprpc.WithLogger(logger),
-		},
-		Host:       "127.0.0.1",
-		Port:       0,
-		AppVersion: "test",
-	})
-
-	// Register supervisor API on root (no admin without JWT)
-	server.AddAPI(rpc.API{
+	// Create filter server WITHOUT admin server (simulates admin.rpc.addr not set)
+	filterServer := oprpc.NewServer(
+		"127.0.0.1",
+		0,
+		"test",
+		oprpc.WithLogger(logger),
+	)
+	filterServer.AddAPI(rpc.API{
 		Namespace: "supervisor",
 		Service:   new(testSupervisorAPI),
 	})
 
-	require.NoError(t, server.Start())
+	require.NoError(t, filterServer.Start())
 	t.Cleanup(func() {
-		_ = server.Stop()
+		_ = filterServer.Stop()
 	})
 
-	endpoint := "http://" + server.Endpoint()
-	client, err := rpc.Dial(endpoint)
+	endpoint := "http://" + filterServer.Endpoint()
+	filterClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
-	t.Cleanup(client.Close)
+	t.Cleanup(filterClient.Close)
 
-	t.Run("supervisor API works without JWT configured", func(t *testing.T) {
+	t.Run("filter API works without admin server configured", func(t *testing.T) {
 		var res string
-		err := client.Call(&res, "supervisor_ping")
+		err := filterClient.Call(&res, "supervisor_ping")
 		require.NoError(t, err)
 		require.Equal(t, "pong", res)
 	})

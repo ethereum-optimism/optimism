@@ -359,6 +359,32 @@ func TestEndToEndApply(t *testing.T) {
 		require.Equal(t, amount, account.Balance, "Native asset liquidity predeploy should have the configured balance")
 	})
 
+	t.Run("with L2CM", func(t *testing.T) {
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
+
+		intent.GlobalDeployOverrides = map[string]any{
+			"devFeatureBitmap": deployer.L2CMDevFlag,
+		}
+
+		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
+			DeploymentTarget:   deployer.DeploymentTargetLive,
+			L1RPCUrl:           l1RPC,
+			DeployerPrivateKey: pk,
+			Intent:             intent,
+			State:              st,
+			Logger:             lgr,
+			StateWriter:        pipeline.NoopStateWriter(),
+			CacheDir:           testCacheDir,
+		}))
+
+		// Check that the conditional deployer predeploy is deployed in L2 genesis
+		conditionalDeployerAddr := common.HexToAddress("0x420000000000000000000000000000000000002C")
+		l2Genesis := st.Chains[0].Allocs.Data.Accounts
+		account, exists := l2Genesis[conditionalDeployerAddr]
+		require.True(t, exists, "Conditional deployer should exist in L2 genesis")
+		require.NotEmpty(t, account.Code, "Conditional deployer should have code deployed")
+	})
+
 	t.Run("OPCMV2 deployment", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

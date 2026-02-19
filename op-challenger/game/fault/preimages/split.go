@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 var _ PreimageUploader = (*SplitPreimageUploader)(nil)
@@ -25,7 +26,9 @@ func (s *SplitPreimageUploader) UploadPreimage(ctx context.Context, parent uint6
 		return ErrNilPreimageData
 	}
 	// Always route local preimage uploads to the direct uploader.
-	if data.IsLocal || uint64(len(data.GetPreimageWithoutSize())) < s.largePreimageSizeThreshold {
+	// Large-preimage proposals are keccak-only on-chain, so non-keccak preimages must go through the direct path.
+	isKeccak := len(data.OracleKey) > 0 && preimage.KeyType(data.OracleKey[0]) == preimage.Keccak256KeyType
+	if data.IsLocal || !isKeccak || uint64(len(data.GetPreimageWithoutSize())) < s.largePreimageSizeThreshold {
 		return s.directUploader.UploadPreimage(ctx, parent, data)
 	} else {
 		return s.largeUploader.UploadPreimage(ctx, parent, data)

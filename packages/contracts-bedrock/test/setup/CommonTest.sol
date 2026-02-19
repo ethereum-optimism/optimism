@@ -105,6 +105,11 @@ abstract contract CommonTest is Test, Setup, Events {
             deploy.cfg().setOperatorFeeVaultWithdrawalNetwork(1);
         }
 
+        if (Config.devFeatureL2CM()) {
+            console.log("CommonTest: enabling l2cm");
+            deploy.cfg().setUseL2CM(true);
+        }
+
         if (isForkTest()) {
             // Skip any test suite which uses a nonstandard configuration.
             if (useAltDAOverride || useInteropOverride) {

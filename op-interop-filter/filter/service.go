@@ -32,9 +32,10 @@ type Service struct {
 	metrics metrics.Metricer
 	version string
 
-	pprofService *oppprof.Service
-	metricsSrv   *httputil.HTTPServer
-	rpcServer    *oprpc.Server // Main RPC server (public supervisor API, optional JWT-protected admin sub-route)
+	pprofService   *oppprof.Service
+	metricsSrv     *httputil.HTTPServer
+	rpcServer      *oprpc.Server // Main RPC server (public supervisor API)
+	adminRPCServer *oprpc.Server // Admin RPC server (JWT-protected, separate port)
 
 	backend *Backend
 
@@ -100,6 +101,9 @@ func (s *Service) init(ctx context.Context, cfg *Config) error {
 	}
 	if err := s.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to init RPC server: %w", err)
+	}
+	if err := s.initAdminRPCServer(cfg); err != nil {
+		return fmt.Errorf("failed to init admin RPC server: %w", err)
 	}
 	return nil
 }
@@ -222,32 +226,56 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {
-	// Create server without JWT - root route stays public for supervisor API
+	// Create server without JWT - public supervisor API
 	server := oprpc.NewServer(
-		cfg.RPC.ListenAddr,
-		cfg.RPC.ListenPort,
+		cfg.RPCAddr,
+		cfg.RPCPort,
 		s.version,
 		oprpc.WithLogger(s.log),
 	)
 
-	// Register supervisor query API on root (public, no auth)
+	// Register supervisor query API (public, no auth)
 	server.AddAPI(rpc.API{
 		Namespace:     "supervisor",
 		Service:       &QueryFrontend{backend: s.backend},
 		Authenticated: false,
 	})
 
-	// Register admin API (opt-in, requires JWT)
-	if cfg.RPC.EnableAdmin && cfg.JWTSecretPath != "" {
-		secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, true)
-		if err != nil {
-			return fmt.Errorf("failed to obtain JWT secret: %w", err)
-		}
-		server.AddHandler("/admin", newJWTProtectedAdminHandler(s.backend, secret[:]))
-		s.log.Info("Admin RPC enabled", "route", "/admin")
+	s.rpcServer = server
+	return nil
+}
+
+func (s *Service) initAdminRPCServer(cfg *Config) error {
+	// Admin RPC is disabled if no address is configured
+	if cfg.AdminRPCAddr == "" {
+		s.log.Debug("Admin RPC disabled (no admin.rpc.addr configured)")
+		return nil
 	}
 
-	s.rpcServer = server
+	// Load JWT secret for authentication
+	secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, true)
+	if err != nil {
+		return fmt.Errorf("failed to obtain JWT secret: %w", err)
+	}
+
+	// Create admin server with server-wide JWT authentication
+	server := oprpc.NewServer(
+		cfg.AdminRPCAddr,
+		cfg.AdminRPCPort,
+		s.version,
+		oprpc.WithLogger(s.log),
+		oprpc.WithJWTSecret(secret[:]),
+	)
+
+	// Register admin API (JWT-protected server-wide)
+	server.AddAPI(rpc.API{
+		Namespace:     "admin",
+		Service:       &AdminFrontend{backend: s.backend},
+		Authenticated: true,
+	})
+
+	s.adminRPCServer = server
+	s.log.Info("Admin RPC configured", "addr", cfg.AdminRPCAddr, "port", cfg.AdminRPCPort)
 	return nil
 }
 
@@ -268,6 +296,17 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 	s.log.Info("RPC server started", "endpoint", s.rpcServer.Endpoint())
 
+	// Start admin RPC server if configured
+	if s.adminRPCServer != nil {
+		if err := s.adminRPCServer.Start(); err != nil {
+			// Rollback: stop main RPC and backend if admin RPC server fails
+			rpcErr := s.rpcServer.Stop()
+			backendErr := s.backend.Stop(ctx)
+			return errors.Join(fmt.Errorf("failed to start admin RPC server: %w", err), rpcErr, backendErr)
+		}
+		s.log.Info("Admin RPC server started", "endpoint", s.adminRPCServer.Endpoint())
+	}
+
 	s.metrics.RecordUp()
 	return nil
 }
@@ -280,6 +319,11 @@ func (s *Service) Stop(ctx context.Context) error {
 	s.log.Info("Stopping op-interop-filter")
 
 	var result error
+	if s.adminRPCServer != nil {
+		if err := s.adminRPCServer.Stop(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop admin RPC: %w", err))
+		}
+	}
 	if s.rpcServer != nil {
 		if err := s.rpcServer.Stop(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC: %w", err))
@@ -306,4 +350,21 @@ func (s *Service) Stop(ctx context.Context) error {
 // Stopped returns true if the service has been stopped
 func (s *Service) Stopped() bool {
 	return s.stopped.Load()
+}
+
+// HTTPEndpoint returns the HTTP endpoint of the RPC server, or empty string if not started.
+func (s *Service) HTTPEndpoint() string {
+	if s.rpcServer == nil {
+		return ""
+	}
+	// Include http:// prefix as expected by ProxyAddr
+	return "http://" + s.rpcServer.Endpoint()
+}
+
+// AdminHTTPEndpoint returns the HTTP endpoint of the admin RPC server, or empty string if not configured.
+func (s *Service) AdminHTTPEndpoint() string {
+	if s.adminRPCServer == nil {
+		return ""
+	}
+	return "http://" + s.adminRPCServer.Endpoint()
 }

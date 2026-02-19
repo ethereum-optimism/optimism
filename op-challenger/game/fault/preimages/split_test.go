@@ -2,9 +2,12 @@ package preimages
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,6 +46,14 @@ func TestSplitPreimageUploader_UploadPreimage(t *testing.T) {
 		require.Equal(t, 0, direct.updates)
 	})
 
+	t.Run("NonKeccakAlwaysUsesDirect", func(t *testing.T) {
+		oracle, direct, large := newTestSplitPreimageUploader(t, mockLargePreimageSizeThreshold)
+		err := oracle.UploadPreimage(context.Background(), 0, makeSha256PreimageData(make([]byte, mockLargePreimageSizeThreshold), 0))
+		require.NoError(t, err)
+		require.Equal(t, 1, direct.updates)
+		require.Equal(t, 0, large.updates)
+	})
+
 	t.Run("NilPreimageOracleData", func(t *testing.T) {
 		oracle, _, _ := newTestSplitPreimageUploader(t, mockLargePreimageSizeThreshold)
 		err := oracle.UploadPreimage(context.Background(), 0, nil)
@@ -67,4 +78,14 @@ func newTestSplitPreimageUploader(t *testing.T, threshold uint64) (*SplitPreimag
 	direct := &mockPreimageUploader{}
 	large := &mockPreimageUploader{}
 	return NewSplitPreimageUploader(direct, large, threshold), direct, large
+}
+
+func makeSha256PreimageData(pre []byte, offset uint32) *types.PreimageOracleData {
+	sum := sha256.Sum256(pre)
+	key := preimage.Sha256Key(sum).PreimageKey()
+	// Add the length prefix to match how Cannon formats oracle data.
+	dataWithLength := make([]byte, 0, 8+len(pre))
+	dataWithLength = binary.BigEndian.AppendUint64(dataWithLength, uint64(len(pre)))
+	dataWithLength = append(dataWithLength, pre...)
+	return types.NewPreimageOracleData(key[:], dataWithLength, offset)
 }

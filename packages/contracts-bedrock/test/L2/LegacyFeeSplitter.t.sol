@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { FeeSplitter_TestInit } from "test/L2/FeeSplitter.t.sol";
 import { LegacyFeeSplitter } from "test/mocks/LegacyFeeSplitter.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
@@ -18,7 +18,7 @@ contract LegacyFeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
         legacyFeeSplitter = new LegacyFeeSplitter();
 
         // Setup the legacy splitter as the recipient in the vaults
-        address owner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+        address owner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
 
         vm.startPrank(owner);
         IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).setRecipient(address(legacyFeeSplitter));

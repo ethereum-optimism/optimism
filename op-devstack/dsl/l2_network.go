@@ -45,6 +45,11 @@ func (n *L2Network) ChainID() eth.ChainID {
 	return n.inner.ChainID()
 }
 
+// TimestampForBlockNum returns the timestamp for the given L2 block number.
+func (n *L2Network) TimestampForBlockNum(blockNum uint64) uint64 {
+	return n.inner.RollupConfig().TimestampForBlock(blockNum)
+}
+
 // Escape returns the underlying stack.L2Network
 func (n *L2Network) Escape() stack.L2Network {
 	return n.inner

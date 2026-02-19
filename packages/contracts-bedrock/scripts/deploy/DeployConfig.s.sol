@@ -92,6 +92,8 @@ contract DeployConfig is Script {
     uint256 public faultGameV2ClockExtension;
     uint256 public faultGameV2MaxClockDuration;
 
+    bool public useL2CM;
+
     bool public useInterop;
     bool public useUpgradedFork;
     bytes32 public devFeatureBitmap;
@@ -180,6 +182,8 @@ contract DeployConfig is Script {
         daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
         daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
+
+        useL2CM = _readOr(_json, "$.useL2CM", false);
 
         useInterop = _readOr(_json, "$.useInterop", false);
         devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
@@ -315,6 +319,11 @@ contract DeployConfig is Script {
     /// @notice Allow the `operatorFeeVaultWithdrawalNetwork` config to be overridden in testing environments
     function setOperatorFeeVaultWithdrawalNetwork(uint256 _operatorFeeVaultWithdrawalNetwork) public {
         operatorFeeVaultWithdrawalNetwork = _operatorFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `useL2CM` config to be overridden in testing environments
+    function setUseL2CM(bool _useL2CM) public {
+        useL2CM = _useL2CM;
     }
 
     function latestGenesisFork() internal view returns (Fork) {

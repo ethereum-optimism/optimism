@@ -22,7 +22,7 @@ type CLIConfig struct {
 	MetricsConfig              opmetrics.CLIConfig
 	PprofConfig                oppprof.CLIConfig
 	RawCtx                     *cli.Context
-	InteropActivationTimestamp uint64
+	InteropActivationTimestamp *uint64
 }
 
 func (c *CLIConfig) Check() error {

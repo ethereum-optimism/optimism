@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	rpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -27,6 +28,8 @@ func (m *mockRunnable) Start(ctx context.Context) error {
 	return ctx.Err()
 }
 func (m *mockRunnable) Stop(ctx context.Context) error { m.stopped++; return nil }
+func (m *mockRunnable) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
+}
 
 // ensure it satisfies both Activity and RunnableActivity
 var _ activity.Activity = (*mockRunnable)(nil)
@@ -34,6 +37,9 @@ var _ activity.RunnableActivity = (*mockRunnable)(nil)
 
 // plain marker-only activity
 type plainActivity struct{}
+
+func (p *plainActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
+}
 
 var _ activity.Activity = (*plainActivity)(nil)
 
@@ -49,6 +55,8 @@ type rpcAct struct{}
 
 func (a *rpcAct) RPCNamespace() string    { return "act" }
 func (a *rpcAct) RPCService() interface{} { return &rpcSvc{} }
+func (a *rpcAct) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
+}
 
 var _ activity.Activity = (*rpcAct)(nil)
 var _ activity.RPCActivity = (*rpcAct)(nil)

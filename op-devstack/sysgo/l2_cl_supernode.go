@@ -143,6 +143,26 @@ func (n *SuperNode) Stop() {
 	n.sn = nil
 }
 
+// PauseInteropActivity pauses the interop activity at the given timestamp.
+// This function is for integration test control only.
+func (n *SuperNode) PauseInteropActivity(ts uint64) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn != nil {
+		n.sn.PauseInteropActivity(ts)
+	}
+}
+
+// ResumeInteropActivity clears any pause on the interop activity.
+// This function is for integration test control only.
+func (n *SuperNode) ResumeInteropActivity() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn != nil {
+		n.sn.ResumeInteropActivity()
+	}
+}
+
 // WithSupernode constructs a Supernode-based L2 CL node
 func WithSupernode(supernodeID stack.SupernodeID, l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	args := []L2CLs{{CLID: l2CLID, ELID: l2ELID}}
@@ -199,8 +219,8 @@ type L2CLs struct {
 // SupernodeConfig holds configuration options for the shared supernode.
 type SupernodeConfig struct {
 	// InteropActivationTimestamp enables the interop activity at the given timestamp.
-	// Set to 0 to disable interop (default).
-	InteropActivationTimestamp uint64
+	// Set to nil to disable interop (default). Non-nil (including 0) enables interop.
+	InteropActivationTimestamp *uint64
 }
 
 // SupernodeOption is a functional option for configuring the supernode.
@@ -209,7 +229,8 @@ type SupernodeOption func(*SupernodeConfig)
 // WithSupernodeInterop enables the interop activity with the given activation timestamp.
 func WithSupernodeInterop(activationTimestamp uint64) SupernodeOption {
 	return func(cfg *SupernodeConfig) {
-		cfg.InteropActivationTimestamp = activationTimestamp
+		ts := activationTimestamp
+		cfg.InteropActivationTimestamp = &ts
 	}
 }
 
@@ -364,8 +385,8 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, supernodeID stack.SupernodeI
 		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 		InteropActivationTimestamp: snOpts.InteropActivationTimestamp,
 	}
-	if snOpts.InteropActivationTimestamp > 0 {
-		logger.Info("supernode interop enabled", "activation_timestamp", snOpts.InteropActivationTimestamp)
+	if snOpts.InteropActivationTimestamp != nil {
+		logger.Info("supernode interop enabled", "activation_timestamp", *snOpts.InteropActivationTimestamp)
 	}
 	ctx, cancel := context.WithCancel(p.Ctx())
 	exitFn := func(err error) { p.Require().NoError(err, "supernode critical error") }

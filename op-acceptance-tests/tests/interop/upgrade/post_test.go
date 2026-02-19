@@ -17,10 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func TestPostInbox(gt *testing.T) {
@@ -142,16 +139,16 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.SimpleInterop) {
 
 	// Phase 2: Send init message on chain A
 	rng := rand.New(rand.NewSource(1234))
-	initIntent, initReceipt := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
+	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
 
 	// Make sure supervisor indexes block which includes init message
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
 
 	// Single event in tx so index is 0
-	_, execReceipt := bob.SendExecMessage(initIntent, 0)
+	execMsg := bob.SendExecMessage(initMsg)
 
 	// Phase 5: Verify cross-safe progression
-	verifyInteropMessagesProgression(t, sys, initReceipt, execReceipt)
+	verifyInteropMessagesProgression(t, sys, initMsg, execMsg)
 
 	logger.Info("Interop message inclusion test completed successfully")
 }
@@ -173,19 +170,13 @@ func setupInteropTestEnvironment(sys *presets.SimpleInterop) (alice, bob *dsl.EO
 }
 
 // verifyInteropMessagesProgression verifies cross-safe progression for both init and exec messages
-func verifyInteropMessagesProgression(t devtest.T, sys *presets.SimpleInterop, initReceipt, execReceipt *types.Receipt) {
+func verifyInteropMessagesProgression(t devtest.T, sys *presets.SimpleInterop, initMsg *dsl.InitMessage, execMsg *dsl.ExecMessage) {
 	logger := t.Logger()
 
 	// Verify cross-safe progression for both messages
 	dsl.CheckAll(t,
-		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: bigs.Uint64Strict(initReceipt.BlockNumber),
-			Hash:   initReceipt.BlockHash,
-		}, 60),
-		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
-			Number: bigs.Uint64Strict(execReceipt.BlockNumber),
-			Hash:   execReceipt.BlockHash,
-		}, 60),
+		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, initMsg.BlockID(), 60),
+		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, execMsg.BlockID(), 60),
 	)
 
 	logger.Info("Cross-safe progression verified for both init and exec messages")

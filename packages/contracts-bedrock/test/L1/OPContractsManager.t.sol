@@ -163,23 +163,16 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Artifacts encoded as an address.
         l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
 
-        delayedWETHPermissionedGameProxy =
-            IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
-        permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
         IDisputeGameFactory dgf = IDisputeGameFactory(address(artifacts.mustGetAddress("DisputeGameFactoryProxy")));
-        faultDisputeGame = IFaultDisputeGame(address(dgf.gameImpls(GameTypes.CANNON)));
-        delayedWeth = faultDisputeGame.weth();
 
         // Grab the pre-upgrade state. Use getGameImplPrestate to handle both v1 and v2
         // dispute games (v1 stores prestate on game impl, v2 stores it in gameArgs).
         preUpgradeState = PreUpgradeState({
-            cannonAbsolutePrestate: DisputeGames.getGameImplPrestate(disputeGameFactory, GameTypes.CANNON),
-            permissionedAbsolutePrestate: DisputeGames.getGameImplPrestate(
-                disputeGameFactory, GameTypes.PERMISSIONED_CANNON
-            ),
-            cannonKonaAbsolutePrestate: DisputeGames.getGameImplPrestate(disputeGameFactory, GameTypes.CANNON_KONA),
-            permissionlessWethProxy: delayedWeth,
-            permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
+            cannonAbsolutePrestate: DisputeGames.getGameImplPrestate(dgf, GameTypes.CANNON),
+            permissionedAbsolutePrestate: DisputeGames.getGameImplPrestate(dgf, GameTypes.PERMISSIONED_CANNON),
+            cannonKonaAbsolutePrestate: DisputeGames.getGameImplPrestate(dgf, GameTypes.CANNON_KONA),
+            permissionlessWethProxy: DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.CANNON),
+            permissionedCannonWethProxy: DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.PERMISSIONED_CANNON)
         });
 
         // Since this superchainConfig is already at the expected reinitializer version...
@@ -397,11 +390,19 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
 
             if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-                vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
+                vm.assertEq(
+                    address(preUpgradeState.permissionedCannonWethProxy),
+                    address(game.weth()),
+                    "Incorrect permissioned WETH"
+                );
                 vm.assertEq(_challenger, game.challenger());
                 vm.assertEq(_proposer, game.proposer());
             } else {
-                vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
+                vm.assertEq(
+                    address(preUpgradeState.permissionlessWethProxy),
+                    address(game.weth()),
+                    "Incorrect permissionless WETH"
+                );
             }
         }
 
@@ -1428,8 +1429,10 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
                 disputeGameFactory, GameTypes.PERMISSIONED_CANNON
             ),
             cannonKonaAbsolutePrestate: DisputeGames.getGameImplPrestate(disputeGameFactory, GameTypes.CANNON_KONA),
-            permissionlessWethProxy: delayedWeth,
-            permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
+            permissionlessWethProxy: DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON),
+            permissionedCannonWethProxy: DisputeGames.getGameImplDelayedWeth(
+                disputeGameFactory, GameTypes.PERMISSIONED_CANNON
+            )
         });
     }
 

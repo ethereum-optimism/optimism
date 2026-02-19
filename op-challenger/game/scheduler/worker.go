@@ -17,7 +17,12 @@ func progressGames(ctx context.Context, in <-chan job, out chan<- job, wg *sync.
 		case j := <-in:
 			threadActive()
 			j.status = j.player.ProgressGame(ctx)
-			out <- j
+			select {
+			case <-ctx.Done():
+				// Context cancelled, shut down. Avoids blocking forever if the consumer has already stopped.
+			case out <- j:
+				// Successfully published
+			}
 			threadIdle()
 		}
 	}

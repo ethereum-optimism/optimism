@@ -2,6 +2,8 @@ package sysgo
 
 import (
 	"context"
+	"runtime"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
@@ -217,7 +219,18 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		ctx, cancel := context.WithCancel(ctx)
 		cancel() // force-quit
 		logger.Info("Closing challenger")
+		// Start a separate goroutine to print a stack trace if the challenger fails to stop in a timely manner.
+		timer := time.AfterFunc(1*time.Minute, func() {
+			if svc.Stopped() {
+				return
+			}
+			// Print stack trace of all goroutines
+			buf := make([]byte, 1<<20) // 1MB buffer
+			stacklen := runtime.Stack(buf, true)
+			logger.Error("Challenger failed to stop; printing all goroutine stacks:\n%v", string(buf[:stacklen]))
+		})
 		_ = svc.Stop(ctx)
+		timer.Stop()
 		logger.Info("Closed challenger")
 	})
 

@@ -1,0 +1,225 @@
+# How it Works
+
+Kona brings together a powerful suite of `no-std` and `std` Rust components,
+purpose-built for the OP Stack. At the heart of this ecosystem is the
+`kona-node` — a modern, modular rollup node (L2 consensus node) that can
+be used as a drop-in binary or as a foundation for custom services.
+
+The `kona-node` is a fully compliant implementation of the ["Rollup Node"
+Specifications][rollup-node] and is released as a [binary][package] in
+the [kona repository][kona]. Whether you're running a production network,
+building new rollup features, or experimenting with the OP Stack,
+`kona-node` is built to be both robust and extensible.
+
+
+### Background
+
+A rollup node is responsible for deriving the canonical L2 chain from L1
+blocks and their receipts. It validates these blocks using the
+[Engine API][engine-api], passing them to the execution layer for processing.
+
+Paired with an execution engine like op-reth or op-geth, `kona-node` tracks
+the unsafe, safe, and finalized tips of the L2 OP Stack chain, ensuring the
+node is always in sync with the latest state.
+
+:::note
+
+Rollup nodes hold minimal state. Unsafe and safe payloads alike are sent
+away to the execution engine client which holds the chain's db. This way,
+the rollup node holds a view of the tip of the chain - unsafe, safe, and
+finalized block info. All data otherwise needed is held in memory.
+
+:::
+
+There are a few core architectural pieces of the `kona-node`.
+
+- **Derivation Pipeline:** Constructs L2 payload attributes from L1 blocks,
+  forming the backbone of rollup logic.
+- **Execution Engine Integration:** Executes L2 payload attributes via the
+  [Engine API][engine-api], abstracting away different EL clients.
+- **P2P Networking:** Enables block gossip and peer discovery.
+
+For an in-depth breakdown of these three pillars and a detailed design
+of the `kona-node`, visit the [Node Design section](/kona/node/design/intro).
+
+Additionally, an RPC server exposes essential methods, including the
+[L2 Output RPC method][l2o-rpc].
+
+
+### Syncing
+
+The `kona-node` syncs the L2 chain in two main phases:
+
+1. **Execution Layer (EL) Sync:**
+   When starting, the node initially has an empty engine task queue.
+   Once an unsafe block is received from P2P gossip, an `InsertUnsafe`
+   task is executed. The `InsertUnsafe` task executes a forkchoice
+   update through the engine api. Since the engine state is lazily
+   initialized (the safe and finalized heads are zero), the forkchoice
+   update kicks off EL sync on the execution layer (EL) client (such
+   as op-reth or op-geth). EL sync instructs the execution client to
+   fetch and sync L2 blocks directly from peers. During this phase,
+   the `kona-node` effectively waits for the EL client to reach the
+   chain tip, when it returns that it is `synced`. No L2 blocks
+   are derived from L1 during this period.
+
+2. **Consensus Layer (CL) Sync:**
+   Once the EL client is fully synced to the tip, the node transitions
+   to consensus layer (CL) sync. In this phase, `kona-node` begins
+   deriving new L2 payload attributes from the L1 chain, following
+   the rollup derivation process. `OpPayloadAttributesWithParent`
+   derived this way are executed as an engine task which submits
+   the payloads to the execution engine for validation and execution.
+
+:::note
+
+- `kona-node` does **not** support historical CL sync or backfilling
+  L2 blocks from L1 for past chain history. It relies on the EL client
+  to perform the initial sync of the L2 chain.
+- Only after the EL is fully synced does the node begin deriving and
+  following new L2 blocks from L1.
+
+:::
+
+### Extensibility
+
+The `kona-node` is designed as a modular, actor-based node SDK,
+making it possible to extend or customize node behavior by adding
+new actors or swapping out existing ones. This extensibility is
+currently in **beta**, but the architecture is intentionally built
+to support advanced use cases and custom integrations.
+
+
+#### Actor Model
+
+At the core of `kona-node` is the concept of **actors**—independent,
+async services that communicate via channels. Each actor implements
+the `NodeActor` trait, which defines how the actor is built, started,
+and how it communicates with other actors.
+
+Key built-in actors include:
+- **EngineActor**: Manages the execution layer (EL) Engine API.
+- **DerivationActor**: Runs the derivation pipeline to produce L2 payloads.
+- **NetworkActor**: Handles P2P networking and block gossip.
+- **RpcActor**: Runs the node's RPC server.
+- **SupervisorActor**: Integrates with the supervisor RPC API.
+- **L1WatcherActor**: Watches L1 for new blocks and events.
+
+
+#### Extending with Custom Actors
+
+You can add your own actors to the node by implementing the `NodeActor`
+trait. This allows you to introduce new background services, event
+processors, or integrations with external systems.
+
+**Example: Defining a Custom Actor**
+
+```rust
+use kona_node_service::NodeActor;
+use async_trait::async_trait;
+use tokio_util::sync::CancellationToken;
+
+struct MyCustomActor;
+
+#[async_trait]
+impl NodeActor for MyCustomActor {
+    type Error = std::io::Error;
+    type InboundData = MyCustomContext;
+    type OutboundData = ();
+    type State = ();
+
+    fn build(_state: Self::State) -> (Self::OutboundData, Self) {
+        ((), MyCustomActor)
+    }
+
+    async fn start(self, ctx: Self::InboundData) -> Result<(), Self::Error> {
+        // Your actor logic here
+        Ok(())
+    }
+}
+
+struct MyCustomContext {
+    cancellation: CancellationToken,
+}
+
+impl kona_node_service::CancellableContext for MyCustomContext {
+    fn cancelled(&self) -> tokio_util::sync::WaitForCancellationFuture<'_> {
+        self.cancellation.cancelled()
+    }
+}
+```
+
+#### Integrating Custom Actors
+
+To integrate your custom actor, you can create your own implementation
+of the `RollupNodeService` trait, which defines the set of actors and
+pipelines used by the node. You can swap out any of the built-in actors
+for your own, or add entirely new ones.
+
+**Example: Custom RollupNodeService**
+
+```rust
+use kona_node_service::{RollupNodeService, NodeActor, ...};
+
+struct MyNodeService;
+
+#[async_trait]
+impl RollupNodeService for MyNodeService {
+    // Use built-in actors, or your own custom ones
+    type DataAvailabilityWatcher = MyCustomActor;
+    type DerivationPipeline = ...;
+    type DerivationActor = ...;
+    type EngineActor = ...;
+    type NetworkActor = ...;
+    type SupervisorExt = ...;
+    type SupervisorActor = ...;
+    type RpcActor = ...;
+    type Error = ...;
+
+    // Implement required trait methods...
+}
+```
+
+You can then instantiate and run your custom node service in your
+own binary or integration test.
+
+#### Programmatic Node Construction
+
+The `RollupNodeBuilder` provides a convenient way to construct a
+standard node, but for advanced use cases, you can build your own
+node by composing actors and services directly, or by implementing
+your own builder pattern.
+
+#### Current Limitations
+
+- The extensibility API is **beta** and may change.
+- Most users will want to start by subclassing or wrapping the
+  standard `RollupNode` and only override specific actors or
+  pipelines as needed.
+- Documentation and examples for advanced extensibility are still
+  evolving—contributions and feedback are welcome!
+
+#### Learn More
+
+- See the [`NodeActor` trait documentation][node-actor] for details
+  on implementing actors.
+- Explore the [kona-node-service crate][service] for source code
+  and more examples.
+
+
+[cli-docs]: ../configuration.mdx
+[subcommands]: ../subcommands.mdx
+
+[service]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service
+[node-actor]: https://docs.rs/kona-node-service/latest/kona_node_service/trait.NodeActor.html
+
+[kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
+[packages]: https://github.com/orgs/op-rs/packages?repo_name=kona
+[rollup-node]: https://specs.optimism.io/protocol/rollup-node.html
+[package]: https://github.com/ethereum-optimism/optimism/pkgs/container/kona%2Fkona-node
+[pdocs]: https://github.com/ethereum-optimism/optimism/pkgs/container/kona%2Fkona-node/446969659?tag=latest
+
+[buildx]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/docker
+
+[engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/common.md
+[l2o-rpc]: https://specs.optimism.io/protocol/rollup-node.html#l2-output-rpc-method
