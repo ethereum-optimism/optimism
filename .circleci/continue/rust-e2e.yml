@@ -212,6 +212,32 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
 
+  # op-reth E2E Sysgo Tests
+  op-reth-e2e-sysgo-tests:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: op-reth-e2e
+      - rust-build:
+          directory: rust
+          profile: release
+          binary: "op-reth"
+      - run:
+          name: Run op-reth E2E tests with sysgo orchestrator
+          working_directory: rust/op-reth/tests
+          no_output_timeout: 60m
+          command: |
+            export OP_RETH_EXEC_PATH="$(pwd)/../../target/release/op-reth"
+            make test-e2e-sysgo
+      - go-save-cache:
+          namespace: op-reth-e2e
+
   # Kona Proof Action Tests (from proof.yaml)
   kona-proof-action-tests:
     parameters:
@@ -304,6 +330,11 @@ workflows:
             - cannon-prestate
             - cannon-kona-host
             - kona-build-release
+            - op-reth-build
+      - op-reth-e2e-sysgo-tests:
+          <<: *rust-e2e-job-base
+          requires:
+            - contracts-bedrock-build
             - op-reth-build
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart

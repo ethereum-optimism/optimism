@@ -7,7 +7,6 @@ use reth_node_builder::{NodeBuilder, WithLaunchContext};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_cli::{chainspec::OpChainSpecParser, Cli};
 use reth_optimism_node::{args::RollupArgs, proof_history};
-use std::sync::Arc;
 use tracing::info;
 
 #[global_allocator]
@@ -22,7 +21,7 @@ static MALLOC_CONF: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
 /// - in-mem proofs storage,
 /// - MDBX proofs storage.
 async fn launch_node(
-    builder: WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>, OpChainSpec>>,
+    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     args: RollupArgs,
 ) -> eyre::Result<(), ErrReport> {
     proof_history::launch_node_with_proof_history(builder, args).await
