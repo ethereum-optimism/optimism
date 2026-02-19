@@ -77,45 +77,6 @@ contract NetworkUpgradeTxns_SourceHash_Test is NetworkUpgradeTxns_TestInit {
     }
 }
 
-/// @title NetworkUpgradeTxns_NewTx_Test
-/// @notice Tests the `newTx` function.
-contract NetworkUpgradeTxns_NewTx_Test is NetworkUpgradeTxns_TestInit {
-    /// @notice Test newTx creates transaction with correct fields
-    function test_newTx_allFields_succeeds(
-        string memory _intent,
-        address _from,
-        address _to,
-        uint256 _mint,
-        uint256 _value,
-        uint64 _gas,
-        bool _isSystemTransaction,
-        bytes memory _data
-    )
-        public
-        pure
-    {
-        NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = NetworkUpgradeTxns.newTx({
-            _intent: _intent,
-            _from: _from,
-            _to: _to,
-            _mint: _mint,
-            _value: _value,
-            _gas: _gas,
-            _isSystemTransaction: _isSystemTransaction,
-            _data: _data
-        });
-
-        assertEq(txn.sourceHash, NetworkUpgradeTxns.sourceHash(_intent), "sourceHash mismatch");
-        assertEq(txn.from, _from, "from mismatch");
-        assertEq(txn.to, _to, "to mismatch");
-        assertEq(txn.mint, _mint, "mint mismatch");
-        assertEq(txn.value, _value, "value mismatch");
-        assertEq(txn.gas, _gas, "gas mismatch");
-        assertEq(txn.isSystemTransaction, _isSystemTransaction, "isSystemTransaction mismatch");
-        assertEq(txn.data, _data, "data mismatch");
-    }
-}
-
 /// @title NetworkUpgradeTxns_WriteArtifact_Test
 /// @notice Tests the `writeArtifact` function.
 contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
@@ -130,15 +91,15 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
     function test_writeArtifact_singleDeployment() public {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
 
-        txns[0] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_DEPLOY_L1_BLOCK,
-            _from: L1_BLOCK_DEPLOYER,
-            _to: address(0),
-            _mint: 0,
-            _value: 0,
-            _gas: 375_000,
-            _isSystemTransaction: false,
-            _data: vm.getCode("L1Block.sol:L1Block")
+        txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_DEPLOY_L1_BLOCK),
+            from: L1_BLOCK_DEPLOYER,
+            to: address(0),
+            mint: 0,
+            value: 0,
+            gas: 375_000,
+            isSystemTransaction: false,
+            data: vm.getCode("L1Block.sol:L1Block")
         });
         string memory outputPath = "deployments/nut-test-single.json";
         NetworkUpgradeTxns.writeArtifact(txns, outputPath);
@@ -148,26 +109,26 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
     function test_writeArtifact_succeeds() public {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](2);
 
-        txns[0] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_DEPLOY_L1_BLOCK,
-            _from: L1_BLOCK_DEPLOYER,
-            _to: address(0),
-            _mint: 0,
-            _value: 0,
-            _gas: 375_000,
-            _isSystemTransaction: false,
-            _data: vm.getCode("L1Block.sol:L1Block")
+        txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_DEPLOY_L1_BLOCK),
+            from: L1_BLOCK_DEPLOYER,
+            to: address(0),
+            mint: 0,
+            value: 0,
+            gas: 375_000,
+            isSystemTransaction: false,
+            data: vm.getCode("L1Block.sol:L1Block")
         });
 
-        txns[1] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_ENABLE_ECOTONE,
-            _from: DEPOSITOR_ACCOUNT,
-            _to: Predeploys.GAS_PRICE_ORACLE,
-            _mint: 0,
-            _value: 0,
-            _gas: 50_000,
-            _isSystemTransaction: false,
-            _data: abi.encodeCall(IGasPriceOracle.setEcotone, ())
+        txns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_ENABLE_ECOTONE),
+            from: DEPOSITOR_ACCOUNT,
+            to: Predeploys.GAS_PRICE_ORACLE,
+            mint: 0,
+            value: 0,
+            gas: 50_000,
+            isSystemTransaction: false,
+            data: abi.encodeCall(IGasPriceOracle.setEcotone, ())
         });
 
         string memory outputPath = "deployments/nut-test.json";
@@ -199,84 +160,84 @@ contract NetworkUpgradeTxns_EcotoneUpgrade_Test is NetworkUpgradeTxns_TestInit {
 
         // 1. Deploy L1Block
         // ecotone_upgrade_transactions.go:47
-        txns[0] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_DEPLOY_L1_BLOCK,
-            _from: L1_BLOCK_DEPLOYER,
-            _to: address(0),
-            _mint: 0,
-            _value: 0,
-            _gas: 375_000,
-            _isSystemTransaction: false,
-            _data: vm.getCode("L1Block.sol:L1Block")
+        txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_DEPLOY_L1_BLOCK),
+            from: L1_BLOCK_DEPLOYER,
+            to: address(0),
+            mint: 0,
+            value: 0,
+            gas: 375_000,
+            isSystemTransaction: false,
+            data: vm.getCode("L1Block.sol:L1Block")
         });
 
         // 2. Deploy GasPriceOracle
         // ecotone_upgrade_transactions.go:64
-        txns[1] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_DEPLOY_GAS_PRICE_ORACLE,
-            _from: GAS_PRICE_ORACLE_DEPLOYER,
-            _to: address(0),
-            _mint: 0,
-            _value: 0,
-            _gas: 1_000_000,
-            _isSystemTransaction: false,
-            _data: vm.getCode("GasPriceOracle.sol:GasPriceOracle")
+        txns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_DEPLOY_GAS_PRICE_ORACLE),
+            from: GAS_PRICE_ORACLE_DEPLOYER,
+            to: address(0),
+            mint: 0,
+            value: 0,
+            gas: 1_000_000,
+            isSystemTransaction: false,
+            data: vm.getCode("GasPriceOracle.sol:GasPriceOracle")
         });
 
         // 3. Update L1Block proxy
         // ecotone_upgrade_transactions.go:81
         // Calculate the deployed L1Block address
         address newL1BlockAddress = vm.computeCreateAddress(L1_BLOCK_DEPLOYER, 0);
-        txns[2] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_UPDATE_L1_BLOCK_PROXY,
-            _from: address(0),
-            _to: Predeploys.L1_BLOCK_ATTRIBUTES,
-            _mint: 0,
-            _value: 0,
-            _gas: 50_000,
-            _isSystemTransaction: false,
-            _data: abi.encodeCall(IProxy.upgradeTo, (newL1BlockAddress))
+        txns[2] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_UPDATE_L1_BLOCK_PROXY),
+            from: address(0),
+            to: Predeploys.L1_BLOCK_ATTRIBUTES,
+            mint: 0,
+            value: 0,
+            gas: 50_000,
+            isSystemTransaction: false,
+            data: abi.encodeCall(IProxy.upgradeTo, (newL1BlockAddress))
         });
 
         // 4. Update GasPriceOracle proxy
         // ecotone_upgrade_transactions.go:98
         // Calculate the deployed GasPriceOracle address
         address newGasPriceOracleAddress = vm.computeCreateAddress(GAS_PRICE_ORACLE_DEPLOYER, 0);
-        txns[3] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_UPDATE_GAS_PRICE_ORACLE,
-            _from: address(0),
-            _to: Predeploys.GAS_PRICE_ORACLE,
-            _mint: 0,
-            _value: 0,
-            _gas: 50_000,
-            _isSystemTransaction: false,
-            _data: abi.encodeCall(IProxy.upgradeTo, (newGasPriceOracleAddress))
+        txns[3] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_UPDATE_GAS_PRICE_ORACLE),
+            from: address(0),
+            to: Predeploys.GAS_PRICE_ORACLE,
+            mint: 0,
+            value: 0,
+            gas: 50_000,
+            isSystemTransaction: false,
+            data: abi.encodeCall(IProxy.upgradeTo, (newGasPriceOracleAddress))
         });
 
         // 5. Enable Ecotone on GasPriceOracle
         // ecotone_upgrade_transactions.go:115
-        txns[4] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_ENABLE_ECOTONE,
-            _from: DEPOSITOR_ACCOUNT,
-            _to: Predeploys.GAS_PRICE_ORACLE,
-            _mint: 0,
-            _value: 0,
-            _gas: 80_000,
-            _isSystemTransaction: false,
-            _data: abi.encodeCall(IGasPriceOracle.setEcotone, ())
+        txns[4] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_ENABLE_ECOTONE),
+            from: DEPOSITOR_ACCOUNT,
+            to: Predeploys.GAS_PRICE_ORACLE,
+            mint: 0,
+            value: 0,
+            gas: 80_000,
+            isSystemTransaction: false,
+            data: abi.encodeCall(IGasPriceOracle.setEcotone, ())
         });
 
         // 6. Deploy EIP-4788 beacon block roots contract
         // ecotone_upgrade_transactions.go:130
-        txns[5] = NetworkUpgradeTxns.newTx({
-            _intent: INTENT_BEACON_ROOTS,
-            _from: 0x0B799C86a49DEeb90402691F1041aa3AF2d3C875,
-            _to: address(0), // Contract deployment
-            _mint: 0,
-            _value: 0,
-            _gas: 250_000, // hex constant 0x3d090, as defined in EIP-4788 (250_000 in decimal)
-            _isSystemTransaction: false,
-            _data: EIP4788_CREATION_DATA
+        txns[5] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_BEACON_ROOTS),
+            from: 0x0B799C86a49DEeb90402691F1041aa3AF2d3C875,
+            to: address(0), // Contract deployment
+            mint: 0,
+            value: 0,
+            gas: 250_000, // hex constant 0x3d090, as defined in EIP-4788 (250_000 in decimal)
+            isSystemTransaction: false,
+            data: EIP4788_CREATION_DATA
         });
 
         // Write transactions to JSON file

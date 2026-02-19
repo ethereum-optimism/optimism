@@ -40,42 +40,6 @@ library NetworkUpgradeTxns {
         uint256 value;
     }
 
-    /// @notice Creates an upgrade transaction.
-    /// @param _intent Human-readable intent.
-    /// @param _from The sender address.
-    /// @param _to The target address.
-    /// @param _mint The mint amount.
-    /// @param _value The value to send.
-    /// @param _gas The gas limit.
-    /// @param _isSystemTransaction Whether this is a system transaction.
-    /// @param _data The transaction data.
-    /// @return nut_ The upgrade transaction struct.
-    function newTx(
-        string memory _intent,
-        address _from,
-        address _to,
-        uint256 _mint,
-        uint256 _value,
-        uint64 _gas,
-        bool _isSystemTransaction,
-        bytes memory _data
-    )
-        internal
-        pure
-        returns (NetworkUpgradeTxn memory nut_)
-    {
-        nut_ = NetworkUpgradeTxn({
-            data: _data,
-            from: _from,
-            gas: _gas,
-            isSystemTransaction: _isSystemTransaction,
-            mint: _mint,
-            sourceHash: sourceHash(_intent),
-            to: _to,
-            value: _value
-        });
-    }
-
     /// @notice Calculates the source hash for an upgrade transaction.
     /// @param _intent Human-readable intent string.
     /// @return sourceHash_ The computed source hash.
