@@ -60,9 +60,9 @@ abstract contract PolicyEngineStaking_TestInit is CommonTest {
     }
 }
 
-/// @title PolicyEngineStaking_Constructor_TestFail
+/// @title PolicyEngineStaking_Constructor_Test
 /// @notice Tests that the constructor reverts on invalid arguments.
-contract PolicyEngineStaking_Constructor_TestFail is PolicyEngineStaking_TestInit {
+contract PolicyEngineStaking_Constructor_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that the constructor reverts when owner is zero address.
     function test_constructor_zeroOwner_reverts() external {
         vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
