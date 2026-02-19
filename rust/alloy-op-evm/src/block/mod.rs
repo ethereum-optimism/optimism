@@ -162,9 +162,14 @@ where
         tx_env: &E::Tx,
         tx: impl RecoveredTx<R::Transaction>,
     ) -> Result<u64, BlockExecutionError> {
-        // Try to use the enveloped tx if it exists, otherwise use the encoded 2718 bytes
+        // Try to use the enveloped tx if it exists, otherwise use the encoded 2718 bytes.
+        // Filter out empty encoded bytes (e.g. from eth_simulateV1 which intentionally creates
+        // transactions with empty encoded bytes to avoid charging L1 cost).
+        // If we filter the empty bytes we fallback to the non-cached computation (by re-computing
+        // the encoded transaction)
         let encoded = tx_env
             .encoded_bytes()
+            .filter(|b| !b.is_empty())
             .map_or_else(
                 || estimate_tx_compressed_size(tx.tx().encoded_2718().as_ref()),
                 |encoded| estimate_tx_compressed_size(encoded),
@@ -755,5 +760,63 @@ mod tests {
         assert_eq!(result.blob_gas_used, expected_da_footprint);
         assert_eq!(result.gas_used, gas_used_tx);
         assert!(result.blob_gas_used > result.gas_used);
+    }
+
+    #[test]
+    fn test_jovian_da_footprint_estimation_empty_encoded_bytes() {
+        // Simulates the eth_simulateV1 path where upstream reth creates transactions with
+        // empty encoded bytes via `WithEncoded::new(Default::default(), tx)` to avoid
+        // charging L1 cost. The DA footprint estimation should fall back to encoding the
+        // actual transaction rather than returning 0.
+        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
+        const GAS_LIMIT: u64 = 100_000;
+        const JOVIAN_TIMESTAMP: u64 = 1746806402;
+
+        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
+        let op_chain_hardforks = OpChainHardforks::new(
+            OpHardfork::op_mainnet()
+                .into_iter()
+                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
+        );
+
+        let receipt_builder = OpAlloyReceiptBuilder::default();
+        let mut executor = build_executor(
+            &mut db,
+            &receipt_builder,
+            &op_chain_hardforks,
+            GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+
+        let tx_inner = TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() };
+
+        let tx = Recovered::new_unchecked(
+            OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ))),
+            Address::ZERO,
+        );
+
+        // Create a WithEncoded with empty bytes, mimicking the simulate path
+        let tx_with_empty_encoded = WithEncoded::new(Default::default(), tx.clone());
+        let tx_env_empty: op_revm::OpTransaction<revm::context::TxEnv> =
+            tx_with_empty_encoded.to_tx_env();
+
+        // Also get the DA footprint from the normal path (no WithEncoded)
+        let tx_env_normal: op_revm::OpTransaction<revm::context::TxEnv> = tx.to_tx_env();
+
+        let da_footprint_empty =
+            executor.jovian_da_footprint_estimation(&tx_env_empty, &tx).unwrap();
+        let da_footprint_normal =
+            executor.jovian_da_footprint_estimation(&tx_env_normal, &tx).unwrap();
+
+        // Both should produce the same non-zero DA footprint
+        assert!(da_footprint_empty > 0, "DA footprint with empty encoded bytes should be non-zero");
+        assert_eq!(
+            da_footprint_empty, da_footprint_normal,
+            "DA footprint should be the same regardless of empty encoded bytes"
+        );
     }
 }
