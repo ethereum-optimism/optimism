@@ -49,6 +49,16 @@ contract LegacyMintableERC20_SupportsInterface_Test is LegacyMintableERC20_TestI
             true
         );
     }
+
+    /// @notice Tests that unsupported interface IDs return false
+    function testFuzz_supportsInterface_unsupportedId_succeeds(bytes4 _interfaceId) public view {
+        bytes4 erc165 = bytes4(keccak256("supportsInterface(bytes4)"));
+        bytes4 legacy = ILegacyMintableERC20.l1Token.selector ^ ILegacyMintableERC20.mint.selector
+            ^ ILegacyMintableERC20.burn.selector;
+        vm.assume(_interfaceId != erc165);
+        vm.assume(_interfaceId != legacy);
+        assertFalse(legacyMintableERC20.supportsInterface(_interfaceId));
+    }
 }
 
 /// @title LegacyMintableERC20_Mint_Test
