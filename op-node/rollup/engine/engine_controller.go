@@ -211,8 +211,12 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		}
 		// SuperAuthority provided a cross-verified safe head
 		if (fvshid == eth.BlockID{}) {
-			// Empty BlockID with useLocalSafe=false means no safe head yet
-			return eth.L2BlockRef{}
+			// Fallback to genesis block (safe by consensus)
+			br, err := e.engine.L2BlockRefByNumber(e.ctx, 0)
+			if err != nil {
+				panic("cannot get genesis block from engine")
+			}
+			return br
 		}
 		if fvshid.Number > e.localSafeHead.Number {
 			e.log.Debug("super authority fully verified l2 head is ahead of local safe head, using local safe head as SafeL2Head")
@@ -239,8 +243,12 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 			return e.localFinalizedHead
 		}
 		if (f == eth.BlockID{}) {
-			// Verifiers exist but haven't finalized anything yet
-			return eth.L2BlockRef{}
+			// Fallback to genesis block (final by consensus)
+			br, err := e.engine.L2BlockRefByNumber(e.ctx, 0)
+			if err != nil {
+				panic("cannot get genesis block from engine")
+			}
+			return br
 		}
 		if f.Number > e.localSafeHead.Number {
 			e.log.Debug("super authority finalized l2 head is ahead of local safe head, using local safe head as FinalizedHead")
