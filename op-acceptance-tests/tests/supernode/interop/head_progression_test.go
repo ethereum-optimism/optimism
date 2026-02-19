@@ -12,11 +12,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-// TestSupernodeInterop_SafeHeadTrailsLocalSafe tests that the cross-safe head
+// TestSupernodeInterop_SafeHeadProgression tests that the cross-safe head
 // (SafeL2) trails behind the local safe head (LocalSafeL2) and eventually catches up
 // after interop verification completes (assuming no node resets occur).
-//
-// This test also verifies that finalized heads advance and are derived from finalized L1 blocks.
 //
 // This test verifies:
 //   - SafeL2 <= LocalSafeL2 at all times (the exception to this might be during a node reset where the local safe has to catch back up,
@@ -25,7 +23,7 @@ import (
 //   - SafeL2 eventually catches up to LocalSafeL2 (assuming we don't insert any invalid message, which we don't)
 //   - EL safe label is consistent with the SafeL2 from the CL
 //   - Finalized head eventually catches up to a snapshot of the safe head
-//   - Finalized L2 blocks are derived from finalized L1 blocks
+//   - Finalized L2 blocks have sane L1 origins (behind the L1 finalized head)
 func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
@@ -128,6 +126,17 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 		"finalized A should be at or behind current safe head")
 	require.LessOrEqual(t, finalizedB.Number, currentSafeB.Number,
 		"finalized B should be at or behind current safe head")
+
+	// Sanity check: L1 origin of L2 finalized head should be <= L1 finalized head
+	l1FinalizedHead := sys.L1EL.BlockRefByLabel(eth.Finalized)
+	t.Logger().Info("L1 finalized head", "number", l1FinalizedHead.Number)
+	t.Logger().Info("L2A finalized L1 origin", "number", finalizedA.L1Origin.Number)
+	t.Logger().Info("L2B finalized L1 origin", "number", finalizedB.L1Origin.Number)
+
+	require.LessOrEqual(t, finalizedA.L1Origin.Number, l1FinalizedHead.Number,
+		"L2A finalized block's L1 origin should be at or behind L1 finalized head")
+	require.LessOrEqual(t, finalizedB.L1Origin.Number, l1FinalizedHead.Number,
+		"L2B finalized block's L1 origin should be at or behind L1 finalized head")
 }
 
 // TestSupernodeInterop_SafeHeadWithUnevenProgress tests safe head behavior
