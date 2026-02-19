@@ -8004,7 +8004,7 @@ dependencies = [
 
 [[package]]
 name = "op-reth"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "clap",
  "reth-cli-util",
@@ -11192,7 +11192,7 @@ dependencies = [
 
 [[package]]
 name = "reth-op"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-primitives",
  "reth-chainspec",
@@ -11233,7 +11233,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-chainspec"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -11261,7 +11261,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-cli"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -11311,7 +11311,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-consensus"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -11342,7 +11342,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-evm"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -11371,7 +11371,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-exex"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -11398,7 +11398,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-flashblocks"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -11436,7 +11436,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-forks"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-op-hardforks",
  "alloy-primitives",
@@ -11446,7 +11446,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-node"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -11513,7 +11513,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-payload-builder"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -11552,7 +11552,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-primitives"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -11579,7 +11579,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-rpc"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -11650,7 +11650,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-storage"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "reth-codecs",
@@ -11662,7 +11662,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-trie"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -11707,7 +11707,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-txpool"
-version = "1.10.2"
+version = "1.11.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
