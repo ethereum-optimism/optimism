@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-program/client/interop"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -761,6 +762,168 @@ func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleIn
 			ExpectValid:        false,
 			L1Head:             l1HeadCurrent,
 			ClaimTimestamp:     endTimestamp,
+		},
+	}
+
+	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
+	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
+	for _, test := range tests {
+		t.Run(test.Name+"-fpp", func(t devtest.T) {
+			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
+				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
+				test.ClaimTimestamp, test.ExpectValid)
+		})
+
+		t.Run(test.Name+"-challenger", func(t devtest.T) {
+			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
+		})
+	}
+}
+
+func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	rng := rand.New(rand.NewSource(1234))
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+
+	l1BlockBeforeBatches := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+
+	eventLogger := aliceA.DeployEventLogger()
+	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+	execMsg := aliceB.SendInvalidExecMessage(initMsg)
+
+	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
+	startTimestamp := endTimestamp - 1
+
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp + 2)
+	sys.L2ELB.AssertExecMessageNotInBlock(execMsg)
+
+	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
+
+	start := superRootAtTimestamp(t, chains, startTimestamp)
+	crossSafeSuperRootEnd := superRootAtTimestamp(t, chains, endTimestamp)
+
+	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+	paddingStep := func(step uint64) []byte {
+		return marshalTransition(start, step, firstOptimistic, secondOptimistic)
+	}
+
+	preReplacementSuperRoot := eth.NewSuperV1(endTimestamp,
+		eth.ChainIDAndOutput{ChainID: chains[0].ID, Output: firstOptimistic.OutputRoot},
+		eth.ChainIDAndOutput{ChainID: chains[1].ID, Output: secondOptimistic.OutputRoot})
+
+	step1Expected := marshalTransition(start, 1, firstOptimistic)
+	step2Expected := marshalTransition(start, 2, firstOptimistic, secondOptimistic)
+
+	tests := []*transitionTest{
+		{
+			Name:               "FirstChainOptimisticBlock",
+			AgreedClaim:        start.Marshal(),
+			DisputedClaim:      step1Expected,
+			DisputedTraceIndex: 0,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "SecondChainOptimisticBlock",
+			AgreedClaim:        step1Expected,
+			DisputedClaim:      step2Expected,
+			DisputedTraceIndex: 1,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "FirstPaddingStep",
+			AgreedClaim:        step2Expected,
+			DisputedClaim:      paddingStep(3),
+			DisputedTraceIndex: 2,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "SecondPaddingStep",
+			AgreedClaim:        paddingStep(3),
+			DisputedClaim:      paddingStep(4),
+			DisputedTraceIndex: 3,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "LastPaddingStep",
+			AgreedClaim:        paddingStep(consolidateStep - 1),
+			DisputedClaim:      paddingStep(consolidateStep),
+			DisputedTraceIndex: consolidateStep - 1,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "Consolidate-ExpectInvalidPendingBlock",
+			AgreedClaim:        paddingStep(consolidateStep),
+			DisputedClaim:      preReplacementSuperRoot.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			ExpectValid:        false,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "Consolidate-ReplaceInvalidBlock",
+			AgreedClaim:        paddingStep(consolidateStep),
+			DisputedClaim:      crossSafeSuperRootEnd.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "AlreadyAtClaimedTimestamp",
+			AgreedClaim:        crossSafeSuperRootEnd.Marshal(),
+			DisputedClaim:      crossSafeSuperRootEnd.Marshal(),
+			DisputedTraceIndex: 5000,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+
+		{
+			Name:               "FirstChainReachesL1Head",
+			AgreedClaim:        start.Marshal(),
+			DisputedClaim:      interop.InvalidTransition,
+			DisputedTraceIndex: 0,
+			// The derivation reaches the L1 head before the next block can be created
+			L1Head:         l1BlockBeforeBatches.ID(),
+			ExpectValid:    true,
+			ClaimTimestamp: endTimestamp,
+		},
+		{
+			Name:               "SuperRootInvalidIfUnsupportedByL1Data",
+			AgreedClaim:        start.Marshal(),
+			DisputedClaim:      step1Expected,
+			DisputedTraceIndex: 0,
+			// The derivation reaches the L1 head before the next block can be created
+			L1Head:         l1BlockBeforeBatches.ID(),
+			ExpectValid:    false,
+			ClaimTimestamp: endTimestamp,
+		},
+		{
+			Name:               "FromInvalidTransitionHash",
+			AgreedClaim:        interop.InvalidTransition,
+			DisputedClaim:      interop.InvalidTransition,
+			DisputedTraceIndex: 2,
+			// The derivation reaches the L1 head before the next block can be created
+			L1Head:         l1BlockBeforeBatches.ID(),
+			ExpectValid:    true,
+			ClaimTimestamp: endTimestamp,
 		},
 	}
 

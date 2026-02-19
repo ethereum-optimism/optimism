@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -445,6 +446,10 @@ func (el *L2ELNode) FinalizedHead() *BlockRefResult {
 	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Finalized)}
 }
 
+func (el *L2ELNode) AssertExecMessageNotInBlock(execMessage *ExecMessage) {
+	el.AssertTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
+}
+
 // AssertTxNotInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
 func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
@@ -454,10 +459,7 @@ func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range txs {
-		if tx.Hash() == txHash {
-			el.require.Failf("transaction should not exist in block",
-				"tx_hash=%s found in block %d", txHash, blockNumber)
-		}
+		el.require.NotEqualf(tx.Hash(), txHash, "transaction should not exist in block", "Found tx %v in block %v", tx.Hash(), blockNumber)
 	}
 	el.log.Info("confirmed transaction not in block", "blockNumber", blockNumber, "txHash", txHash)
 }

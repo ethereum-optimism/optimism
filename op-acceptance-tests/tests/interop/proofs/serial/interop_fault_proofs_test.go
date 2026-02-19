@@ -53,3 +53,9 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 	)
 	sfp.RunVariedBlockTimesTest(t, sys)
 }
+
+func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunInvalidBlockTest(t, sys)
+}
