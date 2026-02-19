@@ -196,6 +196,7 @@ contract PolicyEngineStaking is ISemver {
         StakedData storage stakedData = stakingData[msg.sender];
         address currentBeneficiary = stakedData.beneficiary;
 
+        // Remove previous beneficiary
         if (currentBeneficiary != _beneficiary) {
             if (currentBeneficiary != address(0)) {
                 _decreasePeData(currentBeneficiary, stakedData.stakedAmount);
@@ -207,6 +208,9 @@ contract PolicyEngineStaking is ISemver {
 
         stakedData.stakedAmount += _amount;
 
+        // If the beneficiary hasn't changed, peDelta is just the new amount staked.
+        // If the beneficiary changed, peDelta is the full total stake amount (previous + new stake),
+        // since the new beneficiary now receives ordering power for the entire position.
         uint128 peDelta = currentBeneficiary == _beneficiary ? _amount : stakedData.stakedAmount;
         _increasePeData(_beneficiary, peDelta);
 
