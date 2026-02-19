@@ -312,6 +312,7 @@ func (e *EngineController) isEngineInitialELSyncing() bool {
 // SetFinalizedHead implements LocalEngineControl.
 func (e *EngineController) SetFinalizedHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_finalized", r)
+	e.localFinalizedHead = r
 	e.deprecatedFinalizedHead = r
 	e.needFCUCall = true
 	e.needSafeHeadUpdate = false
