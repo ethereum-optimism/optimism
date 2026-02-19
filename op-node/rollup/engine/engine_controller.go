@@ -125,8 +125,9 @@ type EngineController struct {
 	// Derived from L1, and known to be a completed span-batch,
 	// but not cross-verified yet.
 	localSafeHead eth.L2BlockRef
-	// Derived from finalized L1 data,
-	// Only to be used when there is no superAuthority
+	// Derived from finalized L1 data, but not necessarily
+	// verified by the superAuthority.
+	// Only to be used as a FinalizedHead when there is no superAuthority
 	localFinalizedHead eth.L2BlockRef
 	// The unsafe head to roll back to,
 	// after the pendingSafeHead fails to become safe.
