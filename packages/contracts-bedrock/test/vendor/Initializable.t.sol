@@ -334,7 +334,8 @@ contract Initializer_Test is CommonTest {
                         ISystemConfig(address(0)),
                         IDisputeGameFactory(address(0)),
                         Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                        false
                     )
                 )
             })
@@ -350,7 +351,8 @@ contract Initializer_Test is CommonTest {
                         ISystemConfig(address(0)),
                         IDisputeGameFactory(address(0)),
                         Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                        false
                     )
                 )
             })

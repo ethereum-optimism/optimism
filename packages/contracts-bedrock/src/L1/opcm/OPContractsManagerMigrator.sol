@@ -198,7 +198,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                         _input.chainSystemConfigs[0],
                         disputeGameFactory,
                         _input.startingAnchorRoot,
-                        _input.startingRespectedGameType
+                        _input.startingRespectedGameType,
+                        false
                     )
                 )
             );

@@ -106,7 +106,8 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
             systemConfig,
             disputeGameFactory,
             Proposal({ root: root, l2SequenceNumber: l2SequenceNumber }),
-            startingGameType
+            startingGameType,
+            false
         );
 
         assertEq(anchorStateRegistry.retirementTimestamp(), expectedTimestamp);
@@ -138,7 +139,8 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
             systemConfig,
             disputeGameFactory,
             Proposal({ root: root, l2SequenceNumber: l2SequenceNumber }),
-            startingGameType
+            startingGameType,
+            false
         );
 
         assertEq(anchorStateRegistry.retirementTimestamp(), originalTimestamp);
@@ -154,7 +156,8 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
                 l2SequenceNumber: 0
             }),
-            GameType.wrap(0)
+            GameType.wrap(0),
+            false
         );
     }
 
@@ -184,8 +187,128 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
                 l2SequenceNumber: 0
             }),
-            GameType.wrap(0)
+            GameType.wrap(0),
+            false
         );
+    }
+
+    /// @notice Tests that clearAnchorGame=true resets the anchorGame to address(0) and
+    ///         getAnchorRoot returns the new startingAnchorRoot.
+    function test_initialize_clearAnchorGame_succeeds() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // First, set an anchor game so there's something to clear.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+        anchorStateRegistry.setAnchorState(gameProxy);
+        assertFalse(address(anchorStateRegistry.anchorGame()) == address(0));
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        Proposal memory newStartingRoot = Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 });
+
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(
+            systemConfig,
+            disputeGameFactory,
+            newStartingRoot,
+            GameType.wrap(9), // SUPER_CANNON_KONA
+            true
+        );
+
+        // anchorGame should be cleared.
+        assertEq(address(anchorStateRegistry.anchorGame()), address(0));
+
+        // getAnchorRoot should return the new startingAnchorRoot.
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(root.raw(), newStartingRoot.root.raw());
+        assertEq(l2BlockNumber, newStartingRoot.l2SequenceNumber);
+    }
+
+    /// @notice Tests that clearAnchorGame=false preserves the existing anchorGame.
+    function test_initialize_noClearAnchorGame_succeeds() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // Set an anchor game.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+        anchorStateRegistry.setAnchorState(gameProxy);
+        address anchorGameBefore = address(anchorStateRegistry.anchorGame());
+        assertFalse(anchorGameBefore == address(0));
+
+        // Reset initialized state.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(
+            systemConfig,
+            disputeGameFactory,
+            Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 }),
+            GameType.wrap(9),
+            false
+        );
+
+        // anchorGame should still be the same.
+        assertEq(address(anchorStateRegistry.anchorGame()), anchorGameBefore);
+    }
+
+    /// @notice Tests that reinitializer V2 succeeds on an already-initialized proxy.
+    function test_initialize_reinitializerV2_succeeds() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // Reset to allow reinit (simulate upgrade from ReinitializableBase(1) to (2)).
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        // Set initialized to 1 (as if from the old ReinitializableBase(1)).
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(uint256(1)));
+
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(
+            systemConfig,
+            disputeGameFactory,
+            Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 }),
+            GameType.wrap(9),
+            true
+        );
+
+        // Verify it took effect.
+        assertEq(anchorStateRegistry.respectedGameType().raw(), 9);
+    }
+
+    /// @notice Tests that clearAnchorGame does NOT update the retirementTimestamp.
+    function test_initialize_clearAnchorGameRetirement_succeeds() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // Set a retirement timestamp.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
+        uint64 originalTimestamp = anchorStateRegistry.retirementTimestamp();
+        assertTrue(originalTimestamp > 0);
+
+        // Warp forward.
+        vm.warp(block.timestamp + 1000);
+
+        // Reset initialized state.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(
+            systemConfig,
+            disputeGameFactory,
+            Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 }),
+            GameType.wrap(9),
+            true
+        );
+
+        // retirementTimestamp should be unchanged.
+        assertEq(anchorStateRegistry.retirementTimestamp(), originalTimestamp);
     }
 }
 

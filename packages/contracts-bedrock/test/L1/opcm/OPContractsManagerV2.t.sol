@@ -49,8 +49,18 @@ contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for deployments.
     uint256 public constant DEPLOY_GAS_BUFFER_PERCENTAGE = 80; // 80%
 
+    /// @notice Whether this test is compatible with migration mode. Override to true in migration tests.
+    function _isMigrationModeTest() internal virtual returns (bool) {
+        return false;
+    }
+
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
+        // Migration mode changes upgrade validation and breaks standard configs. Skip non-migration
+        // tests early (before super.setUp runs the fork upgrade) by reading the env var directly.
+        if (!_isMigrationModeTest() && Config.devFeatureSuperRootGamesMigration()) {
+            vm.skip(true, "Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION");
+        }
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
     }
@@ -456,6 +466,101 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         assembly {
             prestate_ := mload(add(args, 0x20))
         }
+    }
+}
+
+/// @title OPContractsManagerV2_FeatSuperRootMigration_Test
+/// @notice Tests the super root games migration mode in OPContractsManagerV2.upgrade.
+contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV2_Upgrade_TestInit {
+    /// @notice The container address cached for mocking.
+    address containerAddr;
+
+    /// @notice This test IS a migration mode test.
+    function _isMigrationModeTest() internal pure override returns (bool) {
+        return true;
+    }
+
+    /// @notice Sets up the test.
+    function setUp() public override {
+        // Must skip before super.setUp() because CommonTest.setUp() deploys a fresh chain
+        // which is rejected by the migration flag's initial-deploy guard.
+        skipIfNotForkTest("FeatSuperRootMigration: only runs in forked tests");
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        // Run all past upgrades first.
+        runPastUpgrades(chainPAO);
+
+        // Cache the container address for mocking.
+        containerAddr = address(opcmV2.contractsContainer());
+    }
+
+    /// @notice Tests that the migration flag cannot be used with the interop flag.
+    function test_upgrade_superRootMigrationWithInteropFlag_reverts() public {
+        // Mock the container to also report INTEROP as enabled alongside SUPER_ROOT_GAMES_MIGRATION.
+        vm.mockCall(
+            containerAddr,
+            abi.encodeCall(IOPContractsManagerV2.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
+            abi.encode(true)
+        );
+
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_IncompatibleDevFeatures.selector)
+        );
+    }
+
+    /// @notice Tests that the migration flag cannot be used for initial deploys.
+    function test_upgrade_superRootMigrationInitialDeploy_reverts() public {
+        // Initial deploys use the deploy() path, which internally hits the guard.
+        // The deploy function rejects the migration flag because it's an initial deployment.
+        IOPContractsManagerV2.FullConfig memory cfg;
+        cfg.l2ChainId = 999999;
+        cfg.proxyAdminOwner = makeAddr("owner");
+        cfg.systemConfigOwner = makeAddr("sysOwner");
+        cfg.batcher = makeAddr("batcher");
+        cfg.unsafeBlockSigner = makeAddr("signer");
+        cfg.basefeeScalar = 1;
+        cfg.blobBasefeeScalar = 1;
+        cfg.gasLimit = 30_000_000;
+        cfg.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(uint256(1))), l2SequenceNumber: 0 });
+        cfg.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
+
+        // Need at least some dispute game configs.
+        cfg.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](2);
+        cfg.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0.08 ether,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
+        cfg.disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0.08 ether,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                    absolutePrestate: cannonPrestate,
+                    proposer: makeAddr("proposer"),
+                    challenger: makeAddr("challenger")
+                })
+            )
+        });
+
+        runDeployV2(
+            cfg, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInput.selector)
+        );
+    }
+
+    /// @notice Tests that the standard (non-migration) config still works without the migration flag.
+    function test_upgrade_noMigrationFlag_succeeds() public {
+        // Mock the container to NOT report migration as enabled.
+        vm.mockCall(
+            containerAddr,
+            abi.encodeCall(IOPContractsManagerV2.isDevFeatureEnabled, (DevFeatures.SUPER_ROOT_GAMES_MIGRATION)),
+            abi.encode(false)
+        );
+        runCurrentUpgradeV2(chainPAO);
     }
 }
 

@@ -122,7 +122,8 @@ contract SetDisputeGameImpl_Test is Test {
                     ISystemConfig(address(systemConfigProxy)),
                     factory,
                     Proposal({ root: Hash.wrap(0), l2SequenceNumber: 0 }),
-                    GameType.wrap(100)
+                    GameType.wrap(100),
+                    false
                 )
             )
         );

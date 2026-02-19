@@ -135,6 +135,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
 
+    /// @notice Thrown when incompatible dev features are enabled simultaneously.
+    error OPContractsManagerV2_IncompatibleDevFeatures();
+
     /// @notice Thrown when an invalid upgrade sequence is provided.
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
 
@@ -339,6 +342,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
                 return true;
+            }
+
+            // Super root games migration requires overriding anchor root.
+            if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+                if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
             }
         }
 
@@ -680,64 +688,160 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
-    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
-        // Start validating the dispute game configs. Put allowed game types here. Note that
-        // these game types are intentionally hardcoded rather than sourced from a shared utility.
-        // When new game types are added, this list and the corresponding list in the Migrator's
-        // _migratePortal function must both be updated.
-        GameType[] memory validGameTypes = new GameType[](3);
-        validGameTypes[0] = GameTypes.CANNON;
-        validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-        validGameTypes[2] = GameTypes.CANNON_KONA;
+    /// @param _isInitialDeployment Whether or not this is an initial deployment.
+    /// @param _anchorStateRegistry The AnchorStateRegistry contract (used for migration validation).
+    function _assertValidFullConfig(
+        FullConfig memory _cfg,
+        bool _isInitialDeployment,
+        IAnchorStateRegistry _anchorStateRegistry
+    )
+        internal
+        view
+    {
+        if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            _assertValidSuperRootMigrationConfig(_cfg, _anchorStateRegistry);
+        } else {
+            // Start validating the dispute game configs. Put allowed game types here. Note that
+            // these game types are intentionally hardcoded rather than sourced from a shared utility.
+            // When new game types are added, this list and the corresponding list in the Migrator's
+            // _migratePortal function must both be updated.
+            GameType[] memory validGameTypes = new GameType[](3);
+            validGameTypes[0] = GameTypes.CANNON;
+            validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
+            validGameTypes[2] = GameTypes.CANNON_KONA;
 
-        // We must have a config for each valid game type.
-        if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
-        }
-
-        // Simplest possible check, iterate over each provided config and confirm that it matches
-        // the game type array. This places a requirement on the user to order the configs properly
-        // but that's probably a good thing, keeps the config consistent.
-        for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
-            if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
+            // We must have a config for each valid game type.
+            if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // If the game is disabled, we must have a 0 init bond.
-            if (!_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond != 0) {
+            // Simplest possible check, iterate over each provided config and confirm that it matches
+            // the game type array. This places a requirement on the user to order the configs properly
+            // but that's probably a good thing, keeps the config consistent.
+            for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
+                if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
+                }
+
+                // If the game is disabled, we must have a 0 init bond.
+                if (!_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond != 0) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
+                }
+
+                // During initial deployment, only PERMISSIONED_CANNON can be enabled, because no prestate exists for
+                // permissionless games.
+                if (
+                    _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.PERMISSIONED_CANNON.raw())
+                        && _cfg.disputeGameConfigs[i].enabled
+                ) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
+                }
+            }
+
+            // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
+            // remove this check at some point in the future if we stop making this assumption, but for
+            // now we explicitly assert that it is enabled.
+            if (!_cfg.disputeGameConfigs[1].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // During initial deployment, only PERMISSIONED_CANNON can be enabled, because no prestate exists for
-            // permissionless games.
-            if (
-                _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.PERMISSIONED_CANNON.raw())
-                    && _cfg.disputeGameConfigs[i].enabled
-            ) {
+            // Validate that the starting respected game type corresponds to an enabled game config.
+            bool startingGameTypeFound = false;
+            for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
+                if (
+                    _cfg.disputeGameConfigs[i].gameType.raw() == _cfg.startingRespectedGameType.raw()
+                        && _cfg.disputeGameConfigs[i].enabled
+                ) {
+                    startingGameTypeFound = true;
+                    break;
+                }
+            }
+            if (!startingGameTypeFound) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
         }
+    }
 
-        // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
-        // remove this check at some point in the future if we stop making this assumption, but for
-        // now we explicitly assert that it is enabled.
-        if (!_cfg.disputeGameConfigs[1].enabled) {
+    /// @notice Validates the config for a super root games migration.
+    /// @param _cfg The full config.
+    /// @param _asr The AnchorStateRegistry to validate against.
+    function _assertValidSuperRootMigrationConfig(FullConfig memory _cfg, IAnchorStateRegistry _asr) internal view {
+        // Read the original respected game type from the ASR (NOT from _cfg, which may be overridden).
+        GameType originalGameType = _asr.respectedGameType();
+        uint32 originalRaw = originalGameType.raw();
+
+        // Reject already-migrated chains (any SUPER_ type).
+        if (
+            originalRaw == GameTypes.SUPER_CANNON.raw() || originalRaw == GameTypes.SUPER_CANNON_KONA.raw()
+                || originalRaw == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                || originalRaw == GameTypes.SUPER_ASTERISC_KONA.raw()
+        ) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        // Validate that the starting respected game type corresponds to an enabled game config.
-        bool startingGameTypeFound = false;
-        for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
-            if (
-                _cfg.disputeGameConfigs[i].gameType.raw() == _cfg.startingRespectedGameType.raw()
-                    && _cfg.disputeGameConfigs[i].enabled
-            ) {
-                startingGameTypeFound = true;
-                break;
+        // Reject non-production types.
+        if (originalRaw == GameTypes.ASTERISC.raw() || originalRaw == GameTypes.ASTERISC_KONA.raw()) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Determine the expected target game type based on the chain's current mode.
+        GameType expectedTarget;
+        bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+        bool isPermissioned = originalRaw == GameTypes.PERMISSIONED_CANNON.raw();
+
+        if (isPermissionless) {
+            expectedTarget = GameTypes.SUPER_CANNON_KONA;
+        } else if (isPermissioned) {
+            expectedTarget = GameTypes.SUPER_PERMISSIONED_CANNON;
+        } else {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Validate target game type matches.
+        if (_cfg.startingRespectedGameType.raw() != expectedTarget.raw()) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Validate that the override was actually provided (startingAnchorRoot must differ from current).
+        Proposal memory currentAnchorRoot = _asr.getStartingAnchorRoot();
+        if (
+            _cfg.startingAnchorRoot.root.raw() == currentAnchorRoot.root.raw()
+                && _cfg.startingAnchorRoot.l2SequenceNumber == currentAnchorRoot.l2SequenceNumber
+        ) {
+            revert OPContractsManagerV2_InvalidUpgradeInput();
+        }
+
+        // Validate that startingRespectedGameType override was provided (must differ from original).
+        if (_cfg.startingRespectedGameType.raw() == originalGameType.raw()) {
+            revert OPContractsManagerV2_InvalidUpgradeInput();
+        }
+
+        // Validate game configs based on mode.
+        if (isPermissionless) {
+            // Permissionless: 2 configs — [SUPER_CANNON_KONA, SUPER_PERMISSIONED_CANNON], both enabled.
+            if (_cfg.disputeGameConfigs.length != 2) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
             }
-        }
-        if (!startingGameTypeFound) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
+            if (_cfg.disputeGameConfigs[0].gameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (_cfg.disputeGameConfigs[1].gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (!_cfg.disputeGameConfigs[0].enabled || !_cfg.disputeGameConfigs[1].enabled) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+        } else {
+            // Permissioned: 1 config — [SUPER_PERMISSIONED_CANNON], must be enabled.
+            if (_cfg.disputeGameConfigs.length != 1) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (_cfg.disputeGameConfigs[0].gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (!_cfg.disputeGameConfigs[0].enabled) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
         }
     }
 
@@ -754,8 +858,21 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         returns (ChainContracts memory)
     {
+        // SUPER_ROOT_GAMES_MIGRATION and OPTIMISM_PORTAL_INTEROP are mutually exclusive.
+        if (
+            isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+                && isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
+        ) {
+            revert OPContractsManagerV2_IncompatibleDevFeatures();
+        }
+
+        // Migration flag cannot be used for fresh deploys.
+        if (_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            revert OPContractsManagerV2_InvalidUpgradeInput();
+        }
+
         // Validate the config.
-        _assertValidFullConfig(_cfg, _isInitialDeployment);
+        _assertValidFullConfig(_cfg, _isInitialDeployment, _cts.anchorStateRegistry);
 
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
@@ -890,7 +1007,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (_cts.systemConfig, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
+                (
+                    _cts.systemConfig,
+                    _cts.disputeGameFactory,
+                    _cfg.startingAnchorRoot,
+                    _cfg.startingRespectedGameType,
+                    !_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+                )
             )
         );
 
@@ -918,6 +1041,21 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.disputeGameFactory.setInitBond(
                 _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
             );
+        }
+
+        // Disable legacy game types when migrating to super root games. SUPER_PERMISSIONED_CANNON
+        // is deliberately NOT disabled (always registered for fallback). ASTERISC/ASTERISC_KONA are
+        // not cleaned up because no production chain uses them. SUPER_CANNON is cleaned up because
+        // it's superseded by SUPER_CANNON_KONA.
+        if (!_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            _cts.disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), hex"");
+            _cts.disputeGameFactory.setInitBond(GameTypes.CANNON, 0);
+            _cts.disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
+            _cts.disputeGameFactory.setInitBond(GameTypes.PERMISSIONED_CANNON, 0);
+            _cts.disputeGameFactory.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
+            _cts.disputeGameFactory.setInitBond(GameTypes.CANNON_KONA, 0);
+            _cts.disputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
+            _cts.disputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, 0);
         }
 
         // If the custom gas token feature was requested, enable it in the SystemConfig.

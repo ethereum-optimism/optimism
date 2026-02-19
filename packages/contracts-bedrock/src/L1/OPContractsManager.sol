@@ -1467,7 +1467,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 _output.systemConfigProxy,
                 _output.disputeGameFactoryProxy,
                 startingAnchorRoot,
-                GameTypes.PERMISSIONED_CANNON
+                GameTypes.PERMISSIONED_CANNON,
+                false
             )
         );
     }
@@ -1648,7 +1649,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             getImplementations().anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (portals[0].systemConfig(), newDisputeGameFactory, _input.startingAnchorRoot, newGameType)
+                (portals[0].systemConfig(), newDisputeGameFactory, _input.startingAnchorRoot, newGameType, false)
             )
         );
 

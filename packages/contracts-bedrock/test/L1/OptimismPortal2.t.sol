@@ -1243,6 +1243,64 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         });
     }
 
+    /// @notice Tests that `proveWithdrawalTransaction` uses rootClaimByChainId for super game types
+    ///         via the stateless _isSuperGameType check in OptimismPortal2.
+    function test_proveWithdrawalTransaction_superGameType_succeeds() external {
+        // Mock the game type to be SUPER_CANNON_KONA.
+        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
+
+        // Mock rootClaimByChainId to return the correct output root.
+        vm.mockCall(
+            address(game),
+            abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+            abi.encode(Claim.wrap(_outputRoot))
+        );
+
+        // Should succeed using rootClaimByChainId.
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that `proveWithdrawalTransaction` uses rootClaim for legacy game types.
+    function test_proveWithdrawalTransaction_legacyGameType_succeeds() external {
+        // Default game type is legacy (PERMISSIONED_CANNON or CANNON). Just prove normally.
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that `proveWithdrawalTransaction` reverts when a super game type's
+    ///         rootClaimByChainId reverts with UnknownChainId.
+    function test_proveWithdrawalTransaction_superGameTypeWrongChainId_reverts() external {
+        // Mock the game type to be SUPER_CANNON_KONA.
+        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
+
+        // Mock rootClaimByChainId to revert with UnknownChainId.
+        vm.mockCallRevert(
+            address(game),
+            abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+            abi.encodePacked(UnknownChainId.selector)
+        );
+
+        // Should revert because chainId not found in super root.
+        vm.expectRevert(UnknownChainId.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
     /// @notice Tests that `proveWithdrawalTransaction` succeeds.
     function test_proveWithdrawalTransaction_validWithdrawalProof_succeeds() external {
         vm.expectEmit(true, true, true, true);

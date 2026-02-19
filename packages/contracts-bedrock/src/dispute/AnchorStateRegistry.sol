@@ -24,8 +24,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.8.2
-    string public constant version = "3.8.2";
+    /// @custom:semver 3.9.0
+    string public constant version = "3.9.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -76,7 +76,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     error AnchorStateRegistry_Unauthorized();
 
     /// @param _disputeGameFinalityDelaySeconds The dispute game finality delay in seconds.
-    constructor(uint256 _disputeGameFinalityDelaySeconds) ReinitializableBase(1) {
+    constructor(uint256 _disputeGameFinalityDelaySeconds) ReinitializableBase(2) {
         DISPUTE_GAME_FINALITY_DELAY_SECONDS = _disputeGameFinalityDelaySeconds;
         _disableInitializers();
     }
@@ -85,11 +85,16 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
+    /// @param _startingRespectedGameType The starting respected game type.
+    /// @param _clearAnchorGame Whether to clear the anchor game. Used during the super root games
+    ///        migration to reset the anchor game to address(0) so that getAnchorRoot() returns the
+    ///        new startingAnchorRoot.
     function initialize(
         ISystemConfig _systemConfig,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
-        GameType _startingRespectedGameType
+        GameType _startingRespectedGameType,
+        bool _clearAnchorGame
     )
         external
         reinitializer(initVersion())
@@ -102,6 +107,13 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         disputeGameFactory = _disputeGameFactory;
         startingAnchorRoot = _startingAnchorRoot;
         respectedGameType = _startingRespectedGameType;
+
+        // Clear the anchor game if requested. This is used during the super root games migration
+        // to ensure that getAnchorRoot() returns the new startingAnchorRoot instead of the old
+        // anchor game's root claim.
+        if (_clearAnchorGame) {
+            anchorGame = IDisputeGame(address(0));
+        }
 
         // Set the retirement timestamp to the current timestamp the first time the contract is
         // initialized. This was originally done in U16a to guarantee that all games created before

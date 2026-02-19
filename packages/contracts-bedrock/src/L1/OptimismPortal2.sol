@@ -15,7 +15,7 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { GameStatus, GameType } from "src/dispute/lib/Types.sol";
+import { Claim, GameStatus, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
@@ -208,9 +208,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.2.1
+    /// @custom:semver 5.3.0
     function version() public pure virtual returns (string memory) {
-        return "5.2.1";
+        return "5.3.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -381,8 +381,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             revert OptimismPortal_InvalidProofTimestamp();
         }
 
+        // Extract the output root claim. Super game types use rootClaimByChainId to extract
+        // the per-chain output root from the super root. Legacy game types use rootClaim directly.
+        Claim outputRootClaim;
+        if (_isSuperGameType(disputeGameProxy.gameType())) {
+            outputRootClaim = disputeGameProxy.rootClaimByChainId(systemConfig.l2ChainId());
+        } else {
+            outputRootClaim = disputeGameProxy.rootClaim();
+        }
+
         // Verify that the output root can be generated with the elements in the proof.
-        if (disputeGameProxy.rootClaim().raw() != Hashing.hashOutputRootProof(_outputRootProof)) {
+        if (outputRootClaim.raw() != Hashing.hashOutputRootProof(_outputRootProof)) {
             revert OptimismPortal_InvalidOutputRootProof();
         }
 
@@ -623,6 +632,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
+    }
+
+    /// @notice Checks if a game type is a super game type. Super game types use super roots that
+    ///         contain per-chain output roots, requiring rootClaimByChainId to extract the output
+    ///         root for a specific chain.
+    /// @param _gameType The game type to check.
+    /// @return True if the game type is a super game type.
+    function _isSuperGameType(GameType _gameType) internal pure returns (bool) {
+        uint32 rawType = _gameType.raw();
+        return rawType == GameTypes.SUPER_CANNON.raw() || rawType == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+            || rawType == GameTypes.SUPER_ASTERISC_KONA.raw() || rawType == GameTypes.SUPER_CANNON_KONA.raw();
     }
 
     /// @notice Checks if the ETHLockbox feature is enabled.

@@ -32,7 +32,8 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
         ISystemConfig _systemConfig,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
-        GameType _startingRespectedGameType
+        GameType _startingRespectedGameType,
+        bool _clearAnchorGame
     )
         external;
     function isGameBlacklisted(IDisputeGame _game) external view returns (bool);

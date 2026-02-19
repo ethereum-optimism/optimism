@@ -194,6 +194,11 @@
         "internalType": "GameType",
         "name": "_startingRespectedGameType",
         "type": "uint32"
+      },
+      {
+        "internalType": "bool",
+        "name": "_clearAnchorGame",
+        "type": "bool"
       }
     ],
     "name": "initialize",
