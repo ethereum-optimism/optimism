@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// Libraries
 import { Fork } from "scripts/libraries/Config.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title UpgradeConfig
 /// @notice Configuration library for L2 hardfork upgrade transaction generation.
@@ -34,7 +34,7 @@ library UpgradeConfig {
     }
 
     /// @notice Calculates the total number of transactions for a given fork.
-    function calculateTransactionCount(Fork _fork, bool _useCustomGasToken) public pure returns (uint256 txnCount_) {
+    function calculateTransactionCount(Fork _fork, bool _useCustomGasToken) internal pure returns (uint256 txnCount_) {
         txnCount_ = IMPLEMENTATION_COUNT + 2; // Implementations + L2CM deployment + Upgrade Predeploys call
 
         if (_fork == Fork.JOVIAN) {

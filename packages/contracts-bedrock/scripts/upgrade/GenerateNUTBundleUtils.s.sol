@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Utilities
 import { Script } from "forge-std/Script.sol";
+
+// Libraries
 import { Fork } from "scripts/libraries/Config.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
-import { UpgradeConfig } from "scripts/libraries/UpgradeConfig.sol";
-import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
+
+// Interfaces
 import { IProxy } from "interfaces/universal/IProxy.sol";
+
+// Contracts
+import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
 
 contract GenerateNUTBundleUtils is Script {
     address[] public predeploys;

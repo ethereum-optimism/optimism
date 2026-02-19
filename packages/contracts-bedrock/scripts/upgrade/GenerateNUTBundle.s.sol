@@ -17,7 +17,6 @@ import { UpgradeConfig } from "scripts/libraries/UpgradeConfig.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // Contracts
-import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
 import { GenerateNUTBundleUtils } from "scripts/upgrade/GenerateNUTBundleUtils.s.sol";
 
 /// @title GenerateNUTBundle

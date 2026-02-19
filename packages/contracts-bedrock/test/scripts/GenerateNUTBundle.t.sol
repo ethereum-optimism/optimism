@@ -9,7 +9,6 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 
 // Libraries
 import { Fork } from "scripts/libraries/Config.sol";
-import { UpgradeConfig } from "scripts/libraries/UpgradeConfig.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 
 /// @title GenerateNUTBundleTest

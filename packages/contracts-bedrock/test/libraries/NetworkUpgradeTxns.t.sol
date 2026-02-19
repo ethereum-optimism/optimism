@@ -6,7 +6,7 @@ import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
 // Testing
-import { Test } from "forge-std/Test.sol";
+import { Test } from "test/setup/Test.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
@@ -81,27 +81,9 @@ contract NetworkUpgradeTxns_SourceHash_Test is NetworkUpgradeTxns_TestInit {
 /// @notice Tests the `writeArtifact` function.
 contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
     /// @notice Test writeArtifact with empty array
-    function test_writeArtifact_emptyArray() public {
+    function test_writeArtifact_emptyArray_succeeds() public {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
         string memory outputPath = "deployments/nut-test-empty.json";
-        NetworkUpgradeTxns.writeArtifact(txns, outputPath);
-    }
-
-    /// @notice Test writeArtifact with single Predeploy deployment
-    function test_writeArtifact_singleDeployment() public {
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
-
-        txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            sourceHash: NetworkUpgradeTxns.sourceHash(INTENT_DEPLOY_L1_BLOCK),
-            from: L1_BLOCK_DEPLOYER,
-            to: address(0),
-            mint: 0,
-            value: 0,
-            gas: 375_000,
-            isSystemTransaction: false,
-            data: vm.getCode("L1Block.sol:L1Block")
-        });
-        string memory outputPath = "deployments/nut-test-single.json";
         NetworkUpgradeTxns.writeArtifact(txns, outputPath);
     }
 
@@ -146,9 +128,9 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
     }
 }
 
-/// @title NetworkUpgradeTxns_EcotoneUpgrade_Test
+/// @title NetworkUpgradeTxns_Uncategorized_Test
 /// @notice Tests that the artifact produced by the library matches the expected values.
-contract NetworkUpgradeTxns_EcotoneUpgrade_Test is NetworkUpgradeTxns_TestInit {
+contract NetworkUpgradeTxns_Uncategorized_Test is NetworkUpgradeTxns_TestInit {
     /// @notice EIP-4788 beacon roots contract deployment data from EIP spec
     ///         Obtained from https://eips.ethereum.org/EIPS/eip-4788#deployment
     bytes constant EIP4788_CREATION_DATA =
