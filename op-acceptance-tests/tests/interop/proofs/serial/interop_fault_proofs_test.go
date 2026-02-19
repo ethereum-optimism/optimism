@@ -21,3 +21,9 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys)
 }
+
+func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunInvalidBlockTest(t, sys)
+}
