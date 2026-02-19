@@ -536,9 +536,12 @@ impl HintHandler for InteropHintHandler {
                             .map(|header| Sealed::new_unchecked(header, agreed_block_hash))?;
                         let target_block = safe_head.number + 1;
 
+                        // The output root is unused in the host re-execution context,
+                        // which only collects preimages for witness generation.
                         let cursor = new_oracle_pipeline_cursor(
                             rollup_config.as_ref(),
                             safe_head,
+                            B256::ZERO,
                             &mut l1_provider,
                             &mut l2_provider,
                         )

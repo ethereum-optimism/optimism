@@ -117,6 +117,7 @@ where
     let cursor = new_oracle_pipeline_cursor(
         rollup_config.as_ref(),
         safe_head,
+        boot.agreed_l2_output_root,
         &mut l1_provider,
         &mut l2_provider,
     )
