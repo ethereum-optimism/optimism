@@ -74,3 +74,11 @@ func WithRPCRecorder(recorder gethrpc.Recorder) Option {
 		b.recorder = recorder
 	}
 }
+
+// WithHTTPBodyLimit sets the maximum size of HTTP request bodies accepted by the RPC server.
+// If not set, the go-ethereum default of 5MB is used.
+func WithHTTPBodyLimit(limit int) Option {
+	return func(b *Handler) {
+		b.httpBodyLimit = limit
+	}
+}
