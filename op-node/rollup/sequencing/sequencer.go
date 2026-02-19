@@ -288,7 +288,7 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	defer cancel()
 	if err := d.conductor.CommitUnsafePayload(ctx, x.Envelope); err != nil {
 		d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{
-			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err),
+			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w %+v", err, x.Envelope),
 		})
 		return
 	}
