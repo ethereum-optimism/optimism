@@ -5,7 +5,8 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// An authorization token that grants a builder permission to publish flashblocks for a specific payload.
+/// An authorization token that grants a builder permission to publish flashblocks for a specific
+/// payload.
 ///
 /// The `authorizer_sig` is made over the `payload_id`, `timestamp`, and `builder_vk`. This is
 /// useful because it allows the authorizer to control which builders can publish flashblocks in
@@ -57,12 +58,7 @@ impl Authorization {
         let hash = blake3::hash(&msg);
         let sig = authorizer_sk.sign(hash.as_bytes());
 
-        Self {
-            payload_id,
-            timestamp,
-            builder_vk: actor_vk,
-            authorizer_sig: sig,
-        }
+        Self { payload_id, timestamp, builder_vk: actor_vk, authorizer_sig: sig }
     }
 
     /// Verifies the authorization signature against the provided authorizer's verifying key.
@@ -95,16 +91,12 @@ impl Encodable for Authorization {
         let pub_bytes = Bytes::copy_from_slice(self.builder_vk.as_bytes()); // 33 bytes
         let sig_bytes = Bytes::copy_from_slice(&self.authorizer_sig.to_bytes()); // 64 bytes
 
-        let payload_len = self.payload_id.0.length()
-            + self.timestamp.length()
-            + pub_bytes.length()
-            + sig_bytes.length();
+        let payload_len = self.payload_id.0.length() +
+            self.timestamp.length() +
+            pub_bytes.length() +
+            sig_bytes.length();
 
-        Header {
-            list: true,
-            payload_length: payload_len,
-        }
-        .encode(out);
+        Header { list: true, payload_length: payload_len }.encode(out);
 
         // 1. payload_id (inner B64 already Encodable)
         self.payload_id.0.encode(out);
@@ -120,17 +112,12 @@ impl Encodable for Authorization {
         let pub_bytes = Bytes::copy_from_slice(self.builder_vk.as_bytes());
         let sig_bytes = Bytes::copy_from_slice(&self.authorizer_sig.to_bytes());
 
-        let payload_len = self.payload_id.0.length()
-            + self.timestamp.length()
-            + pub_bytes.length()
-            + sig_bytes.length();
+        let payload_len = self.payload_id.0.length() +
+            self.timestamp.length() +
+            pub_bytes.length() +
+            sig_bytes.length();
 
-        Header {
-            list: true,
-            payload_length: payload_len,
-        }
-        .length()
-            + payload_len
+        Header { list: true, payload_length: payload_len }.length() + payload_len
     }
 }
 
@@ -161,12 +148,7 @@ impl Decodable for Authorization {
         // advance caller’s slice cursor
         *buf = &buf[header.payload_length..];
 
-        Ok(Self {
-            payload_id,
-            timestamp,
-            builder_vk: builder_pub,
-            authorizer_sig,
-        })
+        Ok(Self { payload_id, timestamp, builder_vk: builder_pub, authorizer_sig })
     }
 }
 
@@ -187,12 +169,8 @@ mod tests {
         let (authorizer_sk, authorizer_vk) = key_pair(1);
         let (_, builder_vk) = key_pair(2);
 
-        let auth = Authorization::new(
-            PayloadId::default(),
-            1_700_000_123,
-            &authorizer_sk,
-            builder_vk,
-        );
+        let auth =
+            Authorization::new(PayloadId::default(), 1_700_000_123, &authorizer_sk, builder_vk);
 
         let encoded = encode(auth);
         assert_eq!(encoded.len(), auth.length(), "length impl correct");

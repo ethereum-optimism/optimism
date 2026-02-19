@@ -1,16 +1,17 @@
 use crate::metrics::Metrics;
 use axum::http::Uri;
-use backoff::{backoff::Backoff, ExponentialBackoff};
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use futures::{SinkExt, StreamExt};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::select;
-use tokio::sync::oneshot;
-use tokio_tungstenite::tungstenite::Error::ConnectionClosed;
-use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, tungstenite::Error};
-use tokio_util::bytes;
-use tokio_util::sync::CancellationToken;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio::{select, sync::oneshot};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{Error, Error::ConnectionClosed, Message},
+};
+use tokio_util::{bytes, sync::CancellationToken};
 use tracing::{error, info, trace, warn};
 
 #[derive(Debug, Clone)]
@@ -84,20 +85,11 @@ where
             ..Default::default()
         };
 
-        Self {
-            uri,
-            handler,
-            backoff,
-            metrics,
-            options,
-        }
+        Self { uri, handler, backoff, metrics, options }
     }
 
     pub async fn run(&mut self, token: CancellationToken) {
-        info!(
-            message = "starting upstream subscription",
-            uri = self.uri.to_string()
-        );
+        info!(message = "starting upstream subscription", uri = self.uri.to_string());
         loop {
             select! {
                 _ = token.cancelled() => {
@@ -149,10 +141,7 @@ where
     }
 
     async fn connect_and_listen(&mut self) -> Result<(), Error> {
-        info!(
-            message = "connecting to websocket",
-            uri = self.uri.to_string()
-        );
+        info!(message = "connecting to websocket", uri = self.uri.to_string());
 
         self.metrics.upstream_connection_attempts.increment(1);
 
@@ -167,10 +156,7 @@ where
             }
         };
 
-        info!(
-            message = "websocket connection established",
-            uri = self.uri.to_string()
-        );
+        info!(message = "websocket connection established", uri = self.uri.to_string());
 
         self.metrics.upstream_connections.increment(1);
         // Reset backoff timer on successful connection
@@ -187,10 +173,7 @@ where
             loop {
                 interval.tick().await;
                 if let Err(e) = write.send(Message::Ping(bytes::Bytes::new())).await {
-                    error!(
-                        message = "failed to send ping to upstream",
-                        error = e.to_string()
-                    );
+                    error!(message = "failed to send ping to upstream", error = e.to_string());
                     let _ = ping_error_tx.send(e);
                     break;
                 }
@@ -253,8 +236,7 @@ where
                     uri = self.uri.to_string(),
                     payload = text.as_str()
                 );
-                self.metrics
-                    .message_received_from_upstream(self.uri.to_string().as_str());
+                self.metrics.message_received_from_upstream(self.uri.to_string().as_str());
                 (self.handler)(text.as_bytes().to_vec());
             }
             Message::Binary(data) => {
@@ -263,22 +245,15 @@ where
                     uri = self.uri.to_string(),
                     payload = ?data.as_ref()
                 );
-                self.metrics
-                    .message_received_from_upstream(self.uri.to_string().as_str());
+                self.metrics.message_received_from_upstream(self.uri.to_string().as_str());
                 (self.handler)(data.as_ref().to_vec());
             }
             Message::Pong(_) => {
-                trace!(
-                    message = "received pong from upstream",
-                    uri = self.uri.to_string()
-                );
+                trace!(message = "received pong from upstream", uri = self.uri.to_string());
                 *pong_deadline = Instant::now() + pong_timeout;
             }
             Message::Close(_) => {
-                info!(
-                    message = "received close frame from upstream",
-                    uri = self.uri.to_string()
-                );
+                info!(message = "received close frame from upstream", uri = self.uri.to_string());
                 return Err(ConnectionClosed);
             }
             _ => {}
@@ -294,11 +269,15 @@ mod tests {
     use crate::metrics::Metrics;
     use axum::http::Uri;
     use futures::SinkExt;
-    use std::net::SocketAddr;
-    use std::sync::{Arc, Mutex};
-    use tokio::net::{TcpListener, TcpStream};
-    use tokio::sync::broadcast;
-    use tokio::time::{sleep, timeout, Duration};
+    use std::{
+        net::SocketAddr,
+        sync::{Arc, Mutex},
+    };
+    use tokio::{
+        net::{TcpListener, TcpStream},
+        sync::broadcast,
+        time::{Duration, sleep, timeout},
+    };
     use tokio_tungstenite::accept_async;
 
     struct MockServer {
@@ -332,7 +311,7 @@ mod tests {
                                     });
                                 }
                                 Err(e) => {
-                                    eprintln!("Failed to accept: {}", e);
+                                    eprintln!("Failed to accept: {e}");
                                     break;
                                 }
                             }
@@ -341,11 +320,7 @@ mod tests {
                 }
             });
 
-            Self {
-                addr,
-                message_sender: tx,
-                shutdown,
-            }
+            Self { addr, message_sender: tx, shutdown }
         }
 
         async fn handle_connection(
@@ -356,7 +331,7 @@ mod tests {
             let ws_stream = match accept_async(stream).await {
                 Ok(ws_stream) => ws_stream,
                 Err(e) => {
-                    eprintln!("Failed to accept websocket: {}", e);
+                    eprintln!("Failed to accept websocket: {e}");
                     return;
                 }
             };
@@ -374,7 +349,7 @@ mod tests {
                         match msg {
                             Ok(data) => {
                                 if let Err(e) = ws_sender.send(data.into()).await {
-                                    eprintln!("Error sending message: {}", e);
+                                    eprintln!("Error sending message: {e}");
                                     break;
                                 }
                             }
@@ -399,9 +374,7 @@ mod tests {
         }
 
         fn uri(&self) -> Uri {
-            format!("ws://{}", self.addr)
-                .parse()
-                .expect("Failed to parse URI")
+            format!("ws://{}", self.addr).parse().expect("Failed to parse URI")
         }
     }
 
@@ -409,7 +382,7 @@ mod tests {
     async fn test_ping_pong_reconnection() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let uri: Uri = format!("ws://{}", addr).parse().unwrap();
+        let uri: Uri = format!("ws://{addr}").parse().unwrap();
 
         let shutdown = CancellationToken::new();
         let shutdown_server = shutdown.clone();
@@ -434,7 +407,7 @@ mod tests {
 
                                 // Become completely unresponsive - don't read any messages
                                 select! {
-                                    _ = shutdown_inner.cancelled() => return
+                                    _ = shutdown_inner.cancelled() => ()
                                 }
                             });
                         }
@@ -463,14 +436,14 @@ mod tests {
             })
         };
 
-        // This needs to take into account the poll interval, pong deadline and the backoff interval.
+        // This needs to take into account the poll interval, pong deadline and the backoff
+        // interval.
         sleep(Duration::from_secs(1)).await;
 
         let connections = connection_count.load(std::sync::atomic::Ordering::SeqCst);
         assert!(
             connections >= 2,
-            "Expected at least 2 connection attempts due to ping timeout, got {}",
-            connections
+            "Expected at least 2 connection attempts due to ping timeout, got {connections}"
         );
 
         shutdown.cancel();
@@ -529,21 +502,13 @@ mod tests {
 
         sleep(Duration::from_millis(500)).await;
 
-        let _ = server1
-            .send_message("Message from server 1".as_bytes())
-            .await;
-        let _ = server2
-            .send_message("Message from server 2".as_bytes())
-            .await;
+        let _ = server1.send_message("Message from server 1".as_bytes()).await;
+        let _ = server2.send_message("Message from server 2".as_bytes()).await;
 
         sleep(Duration::from_millis(500)).await;
 
-        let _ = server1
-            .send_message("Another message from server 1".as_bytes())
-            .await;
-        let _ = server2
-            .send_message("Another message from server 2".as_bytes())
-            .await;
+        let _ = server1.send_message("Another message from server 1".as_bytes()).await;
+        let _ = server2.send_message("Another message from server 2".as_bytes()).await;
 
         // Wait for messages to be processed
         sleep(Duration::from_millis(500)).await;

@@ -1,23 +1,20 @@
 #![allow(dead_code)]
-use crate::DebugClient;
-use crate::EngineApiClient;
-use crate::{AuthLayer, AuthService};
+use crate::{AuthLayer, AuthService, DebugClient, EngineApiClient};
 use alloy_eips::Encodable2718;
 use alloy_primitives::{B256, Bytes, TxKind, U256, address, hex};
-use alloy_rpc_types_engine::{ExecutionPayload, JwtSecret};
 use alloy_rpc_types_engine::{
-    ForkchoiceState, ForkchoiceUpdated, PayloadAttributes, PayloadId, PayloadStatus,
-    PayloadStatusEnum,
+    ExecutionPayload, ForkchoiceState, ForkchoiceUpdated, JwtSecret, PayloadAttributes, PayloadId,
+    PayloadStatus, PayloadStatusEnum,
 };
 use alloy_rpc_types_eth::BlockNumberOrTag;
 use bytes::BytesMut;
 use eyre::{Context, ContextCompat};
-use futures::FutureExt;
-use futures::future::BoxFuture;
-use jsonrpsee::core::middleware::layer::RpcLogger;
-use jsonrpsee::http_client::RpcService;
-use jsonrpsee::http_client::{HttpClient, transport::HttpBackend};
-use jsonrpsee::proc_macros::rpc;
+use futures::{FutureExt, future::BoxFuture};
+use jsonrpsee::{
+    core::middleware::layer::RpcLogger,
+    http_client::{HttpClient, RpcService, transport::HttpBackend},
+    proc_macros::rpc,
+};
 use op_alloy_consensus::TxDeposit;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use parking_lot::Mutex;
@@ -26,21 +23,29 @@ use rollup_boost_types::payload::{
     NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion,
 };
 use serde_json::Value;
-use services::op_reth::{AUTH_RPC_PORT, OpRethConfig, OpRethImage, OpRethMehods, P2P_PORT};
-use services::rollup_boost::{RollupBoost, RollupBoostConfig};
-use std::collections::HashSet;
-use std::net::TcpListener;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::{Arc, LazyLock};
-use std::time::{Duration, SystemTime};
-use std::{fs::File, io::BufReader, time::UNIX_EPOCH};
-use testcontainers::core::ContainerPort;
-use testcontainers::core::client::docker_client_instance;
-use testcontainers::core::logs::LogFrame;
-use testcontainers::core::logs::consumer::LogConsumer;
-use testcontainers::runners::AsyncRunner;
-use testcontainers::{ContainerAsync, ImageExt};
+use services::{
+    op_reth::{AUTH_RPC_PORT, OpRethConfig, OpRethImage, OpRethMethods, P2P_PORT},
+    rollup_boost::{RollupBoost, RollupBoostConfig},
+};
+use std::{
+    collections::HashSet,
+    fs::File,
+    io::BufReader,
+    net::TcpListener,
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, LazyLock},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use testcontainers::{
+    ContainerAsync, ImageExt,
+    core::{
+        ContainerPort,
+        client::docker_client_instance,
+        logs::{LogFrame, consumer::LogConsumer},
+    },
+    runners::AsyncRunner,
+};
 use time::{OffsetDateTime, format_description};
 use tokio::io::AsyncWriteExt as _;
 use tower_http::sensitive_headers::SetSensitiveRequestHeaders;
@@ -90,9 +95,7 @@ impl EngineApi {
             .build(url)
             .context("Failed to create http client")?;
 
-        Ok(Self {
-            engine_api_client: client,
-        })
+        Ok(Self { engine_api_client: client })
     }
 
     pub async fn get_payload(
@@ -158,10 +161,8 @@ impl EngineApi {
     }
 
     pub async fn set_max_da_size(&self, max_da_size: u64, max_da_gas: u64) -> eyre::Result<bool> {
-        Ok(
-            MinerApiClient::set_max_da_size(&self.engine_api_client, max_da_size, max_da_gas)
-                .await?,
-        )
+        Ok(MinerApiClient::set_max_da_size(&self.engine_api_client, max_da_size, max_da_gas)
+            .await?)
     }
 }
 
@@ -278,11 +279,7 @@ impl RollupBoostTestHarnessBuilder {
 
     pub async fn async_log_file(&self, service_name: &str) -> eyre::Result<tokio::fs::File> {
         let file_path = self.file_path(service_name)?;
-        Ok(tokio::fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(file_path)
-            .await?)
+        Ok(tokio::fs::OpenOptions::new().append(true).create(true).open(file_path).await?)
     }
 
     pub async fn log_consumer(&self, service_name: &str) -> eyre::Result<LoggingConsumer> {
@@ -319,25 +316,16 @@ impl RollupBoostTestHarnessBuilder {
         let builder_log_consumer = self.log_consumer("builder").await?;
         let rollup_boost_log_file_path = self.file_path("rollup_boost")?;
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-        let genesis = Genesis {
-            timestamp,
-            isthmus_block: self.isthmus_block,
-            block_time: self.block_time,
-        };
+        let genesis =
+            Genesis { timestamp, isthmus_block: self.isthmus_block, block_time: self.block_time };
 
         let genesis_str = genesis.to_string()?;
 
         let l2_p2p_port = get_available_port();
         let l2 = OpRethConfig::default()
-            .set_p2p_secret(Some(PathBuf::from(format!(
-                "{}/p2p_secret.hex",
-                *TEST_DATA
-            ))))
+            .set_p2p_secret(Some(PathBuf::from(format!("{}/p2p_secret.hex", *TEST_DATA))))
             .set_genesis(genesis_str.clone())
             .build()?
             .with_mapped_port(l2_p2p_port, ContainerPort::Tcp(P2P_PORT))
@@ -352,7 +340,7 @@ impl RollupBoostTestHarnessBuilder {
         let res = client.inspect_container(l2.id(), None).await?;
         let name = res.name.unwrap()[1..].to_string(); // remove the leading '/'
 
-        let l2_enode = format!("enode://{}@{}:{}", L2_P2P_ENODE, name, P2P_PORT);
+        let l2_enode = format!("enode://{L2_P2P_ENODE}@{name}:{P2P_PORT}");
 
         let builder_p2p_port = get_available_port();
         let builder = OpRethConfig::default()
@@ -378,8 +366,8 @@ impl RollupBoostTestHarnessBuilder {
             start_proxy_server(proxy_handler, proxy_port, builder_authrpc_port).await?;
             builder_authrpc_port = proxy_port
         };
-        let builder_url = format!("http://localhost:{}/", builder_authrpc_port);
-        println!("proxy authrpc: {}", builder_url);
+        let builder_url = format!("http://localhost:{builder_authrpc_port}/");
+        println!("proxy authrpc: {builder_url}");
 
         // Start Rollup-boost instance
         let mut rollup_boost = RollupBoostConfig::default();
@@ -397,12 +385,7 @@ impl RollupBoostTestHarnessBuilder {
         println!("rollup-boost authrpc: {}", rollup_boost.rpc_endpoint());
         println!("rollup-boost metrics: {}", rollup_boost.metrics_endpoint());
 
-        Ok(RollupBoostTestHarness {
-            l2,
-            builder,
-            rollup_boost,
-            genesis,
-        })
+        Ok(RollupBoostTestHarness { l2, builder, rollup_boost, genesis })
     }
 }
 
@@ -489,10 +472,11 @@ impl SimpleBlockGenerator {
 
         let txns = match version {
             PayloadVersion::V4 => {
-                // Starting on the Ishtmus hardfork, the payload attributes must include a "BlockInfo"
-                // transaction which is a deposit transaction with info about the gas fees on L1.
-                // Op-Reth will fail to process the block if the state resulting from executing this transaction
-                // is not set in REVM.
+                // Starting on the Ishtmus hardfork, the payload attributes must include a
+                // "BlockInfo" transaction which is a deposit transaction with info
+                // about the gas fees on L1. Op-Reth will fail to process the block
+                // if the state resulting from executing this transaction is not set
+                // in REVM.
                 let tx = create_deposit_tx();
                 Some(vec![tx])
             }
@@ -531,10 +515,8 @@ impl SimpleBlockGenerator {
         let payload = self.engine_api.get_payload(version, payload_id).await?;
 
         // Submit the new payload to the node
-        let validation_status = self
-            .engine_api
-            .new_payload(NewPayload::from(payload.clone()))
-            .await?;
+        let validation_status =
+            self.engine_api.new_payload(NewPayload::from(payload.clone())).await?;
 
         if validation_status.status != PayloadStatusEnum::Valid {
             return Err(eyre::eyre!("Invalid payload status"));
@@ -544,9 +526,7 @@ impl SimpleBlockGenerator {
         let new_block_hash = execution_payload.block_hash();
 
         // Update the chain's head
-        self.engine_api
-            .update_forkchoice(self.latest_hash, new_block_hash, None)
-            .await?;
+        self.engine_api.update_forkchoice(self.latest_hash, new_block_hash, None).await?;
 
         // Update internal state
         self.latest_hash = new_block_hash;
@@ -587,7 +567,7 @@ impl BlockBuilderCreatorValidator {
     pub async fn get_block_creator(&self, block_hash: B256) -> eyre::Result<Option<PayloadSource>> {
         let contents = std::fs::read_to_string(&self.file)?;
 
-        let search_query = format!("returning block hash={:#x}", block_hash);
+        let search_query = format!("returning block hash={block_hash:#x}");
 
         // Find the log line containing the block hash
         for line in contents.lines() {
@@ -605,7 +585,7 @@ impl BlockBuilderCreatorValidator {
                     match context {
                         "builder" => return Ok(Some(PayloadSource::Builder)),
                         "l2" => return Ok(Some(PayloadSource::L2)),
-                        _ => panic!("Unknown context: {}", context),
+                        _ => panic!("Unknown context: {context}"),
                     }
                 } else {
                     panic!("no context found");

@@ -160,7 +160,7 @@ commands:
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$ROOT_DIR/rust/target/release/rollup-boost" >> "$BASH_ENV"
 
   rust-prepare:
     parameters:
@@ -965,6 +965,39 @@ jobs:
           flags: unit
       - rust-save-build-cache: *kona-coverage-cache
 
+  # Rollup Boost integration tests (requires Docker + Redis)
+  rollup-boost-integration-tests:
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          prefix: rollup-boost-integration
+      - install-cargo-binstall
+      - run:
+          name: Install nextest
+          command: |
+            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
+      - run:
+          name: Install redis-server
+          # NEEDRESTART_MODE ensures we're not prompted for restarts interactively in CI.
+          command: |
+            export NEEDRESTART_MODE=a
+            sudo -E apt-get update -y
+            sudo -E apt-get install -y redis-server
+      - run:
+          name: Run rollup-boost integration tests
+          working_directory: rust
+          no_output_timeout: 40m
+          command: just test-integration
+      - rust-save-build-cache:
+          directory: rust
+          prefix: rollup-boost-integration
+
   # Kona Link Checker
   kona-link-checker:
     docker:
@@ -1165,6 +1198,12 @@ workflows:
       # OP-Reth crate-specific jobs
       # -----------------------------------------------------------------------
       - op-reth-compact-codec:
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # Rollup Boost crate-specific jobs
+      # -----------------------------------------------------------------------
+      - rollup-boost-integration-tests:
           context: *rust-ci-context
 
       - rust-ci-cargo-tests:

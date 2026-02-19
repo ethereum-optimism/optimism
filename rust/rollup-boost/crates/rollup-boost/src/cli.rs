@@ -39,7 +39,7 @@ pub struct RollupBoostLibArgs {
     pub ignore_unhealthy_builders: bool,
 
     #[clap(flatten)]
-    pub flashblocks_ws: Option<FlashblocksWsArgs>,
+    pub flashblocks_ws: FlashblocksWsArgs,
 
     #[clap(flatten)]
     pub flashblocks_p2p: Option<FlashblocksP2PArgs>,
@@ -130,13 +130,9 @@ impl RollupBoostServiceArgs {
         let rpc_module: RpcModule<()> = rollup_boost.try_into()?;
 
         // Build and start the server
-        let http_middleware =
-            tower::ServiceBuilder::new()
-                .layer(probe_layer)
-                .layer(ProxyLayer::new(
-                    l2_http_client.clone(),
-                    builder_http_client.clone(),
-                ));
+        let http_middleware = tower::ServiceBuilder::new()
+            .layer(probe_layer)
+            .layer(ProxyLayer::new(l2_http_client.clone(), builder_http_client.clone()));
 
         let server = Server::builder()
             .set_http_middleware(http_middleware)
@@ -201,7 +197,7 @@ impl std::str::FromStr for LogFormat {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use std::result::Result;
 
     use super::*;
@@ -218,7 +214,7 @@ pub mod tests {
         assert!(!args.metrics);
         assert_eq!(args.rpc_host, "127.0.0.1");
         assert_eq!(args.rpc_port, 8081);
-        assert!(args.lib.flashblocks_ws.is_none());
+        assert!(!args.lib.flashblocks_ws.flashblocks_ws);
         assert!(args.lib.flashblocks_p2p.is_none());
 
         Ok(())
@@ -238,10 +234,7 @@ pub mod tests {
             FLASHBLOCKS_VK,
         ]);
 
-        assert!(
-            args.is_err(),
-            "flashblocks args should be invalid without --flashblocks-p2p flag"
-        );
+        assert!(args.is_err(), "flashblocks args should be invalid without --flashblocks-p2p flag");
 
         Ok(())
     }
@@ -261,10 +254,8 @@ pub mod tests {
             FLASHBLOCKS_VK,
         ])?;
 
-        let flashblocks = args
-            .lib
-            .flashblocks_p2p
-            .expect("flashblocks should be Some when flag is passed");
+        let flashblocks =
+            args.lib.flashblocks_p2p.expect("flashblocks should be Some when flag is passed");
         assert!(flashblocks.flashblocks_p2p);
 
         Ok(())
@@ -285,10 +276,8 @@ pub mod tests {
             FLASHBLOCKS_VK,
         ])?;
 
-        let flashblocks = args
-            .lib
-            .flashblocks_p2p
-            .expect("flashblocks should be Some when flag is passed");
+        let flashblocks =
+            args.lib.flashblocks_p2p.expect("flashblocks should be Some when flag is passed");
         assert!(flashblocks.flashblocks_p2p);
 
         Ok(())
@@ -345,10 +334,8 @@ pub mod tests {
         assert_eq!(args.debug_host, "localhost");
         assert_eq!(args.debug_server_port, 6666);
 
-        let flashblocks = args
-            .lib
-            .flashblocks_p2p
-            .expect("flashblocks should be Some when flag is passed");
+        let flashblocks =
+            args.lib.flashblocks_p2p.expect("flashblocks should be Some when flag is passed");
         assert!(flashblocks.flashblocks_p2p);
 
         Ok(())
@@ -443,11 +430,11 @@ pub mod tests {
         use tempfile::NamedTempFile;
 
         let mut builder_jwt_file = NamedTempFile::new()?;
-        writeln!(builder_jwt_file, "{}", SECRET)?;
+        writeln!(builder_jwt_file, "{SECRET}")?;
         let builder_jwt_path = builder_jwt_file.path();
 
         let mut l2_jwt_file = NamedTempFile::new()?;
-        writeln!(l2_jwt_file, "{}", SECRET)?;
+        writeln!(l2_jwt_file, "{SECRET}")?;
         let l2_jwt_path = l2_jwt_file.path();
 
         let args = RollupBoostServiceArgs::try_parse_from([

@@ -1,23 +1,23 @@
 [package]
 name = "rollup-boost-types"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
 description = "Core types for Rollup Boost"
-license = "MIT"
+license.workspace = true
 readme = "../../README.md"
 
 [dependencies]
-alloy-primitives = { workspace = true }
-alloy-rlp = { workspace = true }
-alloy-rpc-types-engine = { workspace = true }
-alloy-rpc-types-eth = { workspace = true }
-alloy-serde = { workspace = true }
-futures = { workspace = true }
-moka = { workspace = true }
-op-alloy-rpc-types-engine = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-tracing = { workspace = true }
-thiserror = { workspace = true }
-ed25519-dalek = { workspace = true }
-blake3 = { workspace = true }
+alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-rlp.workspace = true
+alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+alloy-rpc-types-eth = { workspace = true, features = ["serde"] }
+alloy-serde.workspace = true
+futures.workspace = true
+moka = { workspace = true, features = ["future"] }
+op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive", "std"] }
+serde_json = { workspace = true, features = ["std"] }
+tracing.workspace = true
+thiserror.workspace = true
+ed25519-dalek.workspace = true
+blake3.workspace = true

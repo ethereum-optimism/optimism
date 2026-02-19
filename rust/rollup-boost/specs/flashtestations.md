@@ -623,7 +623,7 @@ This approach ensures that addresses transition from valid to outdated as Intel'
 
 ### Gas Cost Considerations and Future Optimizations
 
-The individual attestation verification approach prioritizes simplicity but requires running an offchain observation service for maintaning freshness of attestations. Also, each verification requires running the complete attestation verification process against current endorsements.
+The individual attestation verification approach prioritizes simplicity but requires running an offchain observation service for maintaining freshness of attestations. Also, each verification requires running the complete attestation verification process against current endorsements.
 
 Future optimizations could include **Validation on Access**, where the system would verify the endorsement status upon each call to `getRegistration`. This could be achieved by enhancing the `ParsedAttestation` struct to track necessary endorsement data (or a reference to it). The `getRegistration` function would then validate the freshness of the endorsements used during attestation directly against on-chain PCCS data with each call. Should it detect stale data, a subsequent new attestation would be triggered. Here also there's potential to reduce Gas Costs by only reattesting against the updated PCCS endorsement data rather the whole quote.
 

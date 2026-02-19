@@ -15,8 +15,7 @@ pub struct FlashblocksWsArgs {
         long = "flashblocks",
         id = "flashblocks_ws",
         conflicts_with = "flashblocks_p2p",
-        env,
-        default_value = "false"
+        env
     )]
     pub flashblocks_ws: bool,
 
@@ -51,11 +50,13 @@ pub struct FlashblocksWebsocketConfig {
     #[arg(long, env, default_value = "5000")]
     pub flashblock_builder_ws_connect_timeout_ms: u64,
 
-    /// Interval in milliseconds between ping messages sent to upstream servers to detect unresponsive connections
+    /// Interval in milliseconds between ping messages sent to upstream servers to detect
+    /// unresponsive connections
     #[arg(long, env, default_value = "500")]
     pub flashblock_builder_ws_ping_interval_ms: u64,
 
-    /// Timeout in milliseconds to wait for pong responses from upstream servers before considering the connection dead
+    /// Timeout in milliseconds to wait for pong responses from upstream servers before considering
+    /// the connection dead
     #[arg(long, env, default_value = "1500")]
     pub flashblock_builder_ws_pong_timeout_ms: u64,
 }
@@ -97,13 +98,7 @@ impl FlashblocksWebsocketConfig {
 #[group(requires = "flashblocks_p2p")]
 pub struct FlashblocksP2PArgs {
     /// Enable Flashblocks P2P Authorization
-    #[arg(
-        long,
-        id = "flashblocks_p2p",
-        conflicts_with = "flashblocks_ws",
-        env,
-        required = false
-    )]
+    #[arg(long, id = "flashblocks_p2p", conflicts_with = "flashblocks_ws", env, required = false)]
     pub flashblocks_p2p: bool,
 
     #[arg(

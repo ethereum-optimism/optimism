@@ -97,3 +97,73 @@ func (s *KonaSupervisor) Stop() {
 	s.p.Require().NoError(err, "Must stop")
 	s.sub = nil
 }
+
+func WithKonaSupervisor(supervisorID stack.ComponentID, clusterID stack.ComponentID, l1ELID stack.ComponentID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
+		require := p.Require()
+
+		l1EL, ok := orch.GetL1EL(l1ELID)
+		require.True(ok, "need L1 EL node to connect supervisor to")
+
+		cluster, ok := orch.GetCluster(clusterID)
+		require.True(ok, "need cluster to determine dependency set")
+
+		require.NotNil(cluster.cfgset, "need a full config set")
+		require.NoError(cluster.cfgset.CheckChains(), "config set must be valid")
+
+		tempDataDir := p.TempDir()
+
+		cfgDir := p.TempDir()
+
+		depsetCfgPath := cfgDir + "/depset.json"
+		depsetData, err := cluster.DepSet().MarshalJSON()
+		require.NoError(err, "failed to marshal dependency set")
+		p.Require().NoError(err, os.WriteFile(depsetCfgPath, depsetData, 0o644))
+
+		rollupCfgPath := cfgDir + "/rollup-config-*.json"
+		for _, l2NetID := range orch.registry.IDsByKind(stack.KindL2Network) {
+			l2Net, ok := orch.GetL2Network(l2NetID)
+			require.True(ok, "need l2 network")
+			chainID := l2Net.id.ChainID()
+			rollupData, err := json.Marshal(l2Net.rollupCfg)
+			require.NoError(err, "failed to marshal rollup config")
+			p.Require().NoError(err, os.WriteFile(cfgDir+"/rollup-config-"+chainID.String()+".json", rollupData, 0o644))
+		}
+
+		envVars := []string{
+			"RPC_ADDR=127.0.0.1",
+			"DATADIR=" + tempDataDir,
+			"DEPENDENCY_SET=" + depsetCfgPath,
+			"ROLLUP_CONFIG_PATHS=" + rollupCfgPath,
+			"L1_RPC=" + l1EL.UserRPC(),
+			"RPC_ENABLE_ADMIN=true",
+			"L2_CONSENSUS_NODES=",
+			"L2_CONSENSUS_JWT_SECRET=",
+			"KONA_LOG_LEVEL=3", // info level, consistent with l2_cl_kona.go
+			"KONA_LOG_STDOUT_FORMAT=json",
+		}
+
+		execPath, err := EnsureRustBinary(p, RustBinarySpec{
+			SrcDir:  "rust",
+			Package: "kona-supervisor",
+			Binary:  "kona-supervisor",
+		})
+		p.Require().NoError(err, "prepare kona-supervisor binary")
+		p.Require().NotEmpty(execPath, "kona-supervisor binary path resolved")
+
+		konaSupervisor := &KonaSupervisor{
+			id:       supervisorID,
+			userRPC:  "", // retrieved from logs
+			execPath: execPath,
+			args:     []string{},
+			env:      envVars,
+			p:        p,
+		}
+		orch.registry.Register(supervisorID, konaSupervisor)
+		p.Logger().Info("Starting kona-supervisor")
+		konaSupervisor.Start()
+		p.Cleanup(konaSupervisor.Stop)
+		p.Logger().Info("Kona-supervisor is up", "rpc", konaSupervisor.UserRPC())
+	})
+}

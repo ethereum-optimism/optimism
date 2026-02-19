@@ -37,7 +37,7 @@ func TestFlashblocksStream(gt *testing.T) {
 	ctx, span := tracer.Start(ctx, "test chains")
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
 	flashblocksStreamRate := os.Getenv("FLASHBLOCKS_STREAM_RATE_MS")
@@ -87,6 +87,8 @@ func TestFlashblocksStream(gt *testing.T) {
 	listening := true
 	for listening {
 		select {
+		case <-ctx.Done():
+			t.Errorf("timed out waiting for flashblocks streams to complete: %v", ctx.Err())
 		case <-doneListening:
 			doneListening = nil
 		case <-builderDone:

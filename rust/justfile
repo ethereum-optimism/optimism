@@ -41,9 +41,14 @@ build-op-reth:
 # Run all tests (unit + doc tests)
 test: test-unit test-docs
 
-# Run unit tests (excluding online tests)
+# Run unit tests (excluding online and integration tests)
 test-unit *args="-E '!test(test_online)'":
-  cargo nextest run --workspace --all-features {{args}}
+  cargo nextest run --workspace --all-features --exclude rollup-boost --exclude flashblocks-websocket-proxy {{args}}
+  cargo nextest run -p rollup-boost -p flashblocks-websocket-proxy {{args}}
+
+# Run integration tests (requires Docker and redis-server)
+test-integration *args='':
+  cargo nextest run -p rollup-boost -p flashblocks-websocket-proxy --features integration {{args}}
 
 # Run online tests only
 test-online:

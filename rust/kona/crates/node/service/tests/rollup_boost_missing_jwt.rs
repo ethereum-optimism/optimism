@@ -32,7 +32,7 @@ mod tests {
             },
             // Default is ExecutionMode::Enabled in the crate; rely on that or set explicitly if
             // needed.
-            flashblocks_ws: Some(FlashblocksWsArgs {
+            flashblocks_ws: FlashblocksWsArgs {
                 flashblocks_ws: true,
                 flashblocks_builder_url: "ws://127.0.0.1:1111".parse().unwrap(),
                 flashblocks_host: "127.0.0.1".to_string(),
@@ -44,7 +44,7 @@ mod tests {
                     flashblock_builder_ws_ping_interval_ms: 500,
                     flashblock_builder_ws_pong_timeout_ms: 1500,
                 },
-            }),
+            },
             flashblocks_p2p: None,
             block_selection_policy: None,
             execution_mode: ExecutionMode::Enabled,

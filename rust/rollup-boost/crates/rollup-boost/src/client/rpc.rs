@@ -1,8 +1,9 @@
-use crate::client::auth::AuthLayer;
-use crate::client::http::HttpClient as RollupBoostHttpClient;
-use crate::server::EngineApiClient;
-use crate::version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA};
-use crate::{EngineApiExt, ExecutionMode, FlashblocksEngineApiClient as _};
+use crate::{
+    EngineApiExt, ExecutionMode, FlashblocksEngineApiClient as _,
+    client::{auth::AuthLayer, http::HttpClient as RollupBoostHttpClient},
+    server::EngineApiClient,
+    version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA},
+};
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::{
     ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtError, JwtSecret, PayloadId,
@@ -13,11 +14,11 @@ use clap::Parser;
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use eyre::bail;
 use http::{HeaderMap, Uri};
-use jsonrpsee::core::async_trait;
-use jsonrpsee::core::middleware::layer::RpcLogger;
-use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder, RpcService};
-use jsonrpsee::types::ErrorObjectOwned;
+use jsonrpsee::{
+    core::{async_trait, middleware::layer::RpcLogger},
+    http_client::{HttpClient, HttpClientBuilder, RpcService, transport::HttpBackend},
+    types::ErrorObjectOwned,
+};
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
@@ -25,13 +26,11 @@ use op_alloy_rpc_types_engine::{
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
 use paste::paste;
-use rollup_boost_types::authorization::Authorization;
-use rollup_boost_types::payload::{
-    NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion,
+use rollup_boost_types::{
+    authorization::Authorization,
+    payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion},
 };
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use thiserror::Error;
 use tracing::{info, instrument};
 
@@ -115,8 +114,7 @@ pub struct FlashblocksP2PKeys {
 
 /// Client interface for interacting with execution layer node's Engine API.
 ///
-/// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
-///
+/// - **Engine API** calls are facilitated via the `auth_client` (requires JWT authentication).
 #[derive(Clone, Debug)]
 pub struct RpcClient {
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
@@ -132,8 +130,7 @@ pub struct RpcClient {
 /// fork_choice_updated_v3 with attributes is converted into
 /// a flashblocks_fork_choice_updated_v3 and an Authorization token is generated
 ///
-/// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
-///
+/// - **Engine API** calls are facilitated via the `auth_client` (requires JWT authentication).
 #[derive(Clone, Debug)]
 pub struct FlasblocksP2PRpcClient {
     /// Inner RPC client
@@ -145,7 +142,8 @@ pub struct FlasblocksP2PRpcClient {
 }
 
 impl RpcClient {
-    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and without auth for general execution layer APIs.
+    /// Initializes a new [`RpcClient`] with JWT auth for the Engine API and without auth for
+    /// general execution layer APIs.
     pub fn new(
         auth_rpc: Uri,
         auth_rpc_jwt_secret: JwtSecret,
@@ -163,11 +161,7 @@ impl RpcClient {
             .request_timeout(Duration::from_millis(timeout))
             .build(auth_rpc.to_string())?;
 
-        Ok(Self {
-            auth_client,
-            auth_rpc,
-            payload_source,
-        })
+        Ok(Self { auth_client, auth_rpc, payload_source })
     }
 
     #[instrument(
@@ -201,15 +195,10 @@ impl RpcClient {
         }
 
         if res.is_invalid() {
-            return Err(RpcClientError::InvalidPayload(
-                res.payload_status.status.to_string(),
-            ))
-            .set_code();
+            return Err(RpcClientError::InvalidPayload(res.payload_status.status.to_string()))
+                .set_code();
         }
-        info!(
-            "Successfully sent fork_choice_updated_v3 to {}",
-            self.payload_source
-        );
+        info!("Successfully sent fork_choice_updated_v3 to {}", self.payload_source);
 
         Ok(res)
     }
@@ -230,11 +219,7 @@ impl RpcClient {
     ) -> ClientResult<OpExecutionPayloadEnvelopeV3> {
         tracing::Span::current().record("payload_id", payload_id.to_string());
         info!("Sending get_payload_v3 to {}", self.payload_source);
-        Ok(self
-            .auth_client
-            .get_payload_v3(payload_id)
-            .await
-            .set_code()?)
+        Ok(self.auth_client.get_payload_v3(payload_id).await.set_code()?)
     }
 
     #[instrument(
@@ -284,11 +269,7 @@ impl RpcClient {
         payload_id: PayloadId,
     ) -> ClientResult<OpExecutionPayloadEnvelopeV4> {
         info!("Sending get_payload_v4 to {}", self.payload_source);
-        Ok(self
-            .auth_client
-            .get_payload_v4(payload_id)
-            .await
-            .set_code()?)
+        Ok(self.auth_client.get_payload_v4(payload_id).await.set_code()?)
     }
 
     pub async fn get_payload(
@@ -328,12 +309,7 @@ impl RpcClient {
 
         let res = self
             .auth_client
-            .new_payload_v4(
-                payload,
-                versioned_hashes,
-                parent_beacon_block_root,
-                execution_requests,
-            )
+            .new_payload_v4(payload, versioned_hashes, parent_beacon_block_root, execution_requests)
             .await
             .set_code()?;
 
@@ -371,11 +347,7 @@ impl RpcClient {
         number: BlockNumberOrTag,
         full: bool,
     ) -> ClientResult<Block> {
-        Ok(self
-            .auth_client
-            .get_block_by_number(number, full)
-            .await
-            .set_code()?)
+        Ok(self.auth_client.get_block_by_number(number, full).await.set_code()?)
     }
 }
 
@@ -386,8 +358,7 @@ impl EngineApiExt for RpcClient {
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> ClientResult<ForkchoiceUpdated> {
-        self.fork_choice_updated_v3(fork_choice_state, payload_attributes)
-            .await
+        self.fork_choice_updated_v3(fork_choice_state, payload_attributes).await
     }
 
     async fn new_payload(&self, new_payload: NewPayload) -> ClientResult<PayloadStatus> {
@@ -429,10 +400,7 @@ impl FlasblocksP2PRpcClient {
         fork_choice_state: ForkchoiceState,
         payload_attributes: OpPayloadAttributes,
     ) -> ClientResult<ForkchoiceUpdated> {
-        info!(
-            "Sending flashblocks_fork_choice_updated_v3 to {}",
-            self.inner.payload_source
-        );
+        info!("Sending flashblocks_fork_choice_updated_v3 to {}", self.inner.payload_source);
 
         let payload_id = payload_attributes.payload_id(&fork_choice_state.head_block_hash, 3);
         let authorization = Authorization::new(
@@ -458,10 +426,8 @@ impl FlasblocksP2PRpcClient {
         }
 
         if res.is_invalid() {
-            return Err(RpcClientError::InvalidPayload(
-                res.payload_status.status.to_string(),
-            ))
-            .set_code();
+            return Err(RpcClientError::InvalidPayload(res.payload_status.status.to_string()))
+                .set_code();
         }
         info!(
             "Successfully sent flashblocks_fork_choice_updated_v3 to {}",
@@ -488,11 +454,9 @@ impl EngineApiExt for FlasblocksP2PRpcClient {
                 .flashblocks_fork_choice_updated_v3(fork_choice_state, attrs)
                 .await
                 .set_code()?),
-            (attrs, _) => Ok(self
-                .inner
-                .fork_choice_updated_v3(fork_choice_state, attrs)
-                .await
-                .set_code()?),
+            (attrs, _) => {
+                Ok(self.inner.fork_choice_updated_v3(fork_choice_state, attrs).await.set_code()?)
+            }
         }
     }
 
@@ -544,13 +508,8 @@ impl ClientArgs {
     }
 
     pub fn new_rpc_client(&self, payload_source: PayloadSource) -> eyre::Result<RpcClient> {
-        RpcClient::new(
-            self.url.clone(),
-            self.get_auth_jwt()?,
-            self.timeout,
-            payload_source,
-        )
-        .map_err(eyre::Report::from)
+        RpcClient::new(self.url.clone(), self.get_auth_jwt()?, self.timeout, payload_source)
+            .map_err(eyre::Report::from)
     }
 
     pub fn new_http_client(
@@ -566,7 +525,8 @@ impl ClientArgs {
     }
 }
 
-/// Generates Clap argument structs with a prefix to create a unique namespace when specifying RPC client config via the CLI.
+/// Generates Clap argument structs with a prefix to create a unique namespace when specifying RPC
+/// client config via the CLI.
 macro_rules! define_client_args {
     ($(($name:ident, $prefix:ident)),*) => {
         $(
@@ -609,22 +569,26 @@ macro_rules! define_client_args {
 define_client_args!((BuilderArgs, builder), (L2ClientArgs, l2));
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use http::Uri;
     use jsonrpsee::core::client::ClientT;
     use parking_lot::Mutex;
 
     use alloy_rpc_types_engine::JwtSecret;
-    use jsonrpsee::core::client::Error as ClientError;
-    use jsonrpsee::server::{ServerBuilder, ServerHandle};
-    use jsonrpsee::{RpcModule, rpc_params};
+    use jsonrpsee::{
+        RpcModule,
+        core::client::Error as ClientError,
+        rpc_params,
+        server::{ServerBuilder, ServerHandle},
+    };
     use rollup_boost_types::payload::PayloadSource;
-    use std::collections::HashSet;
-    use std::net::SocketAddr;
-    use std::net::TcpListener;
-    use std::result::Result;
-    use std::str::FromStr;
-    use std::sync::LazyLock;
+    use std::{
+        collections::HashSet,
+        net::{SocketAddr, TcpListener},
+        result::Result,
+        str::FromStr,
+        sync::LazyLock,
+    };
 
     use super::*;
 
@@ -646,7 +610,7 @@ pub mod tests {
     async fn valid_jwt() {
         let port = get_available_port();
         let secret = JwtSecret::from_hex(SECRET).unwrap();
-        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, port)).unwrap();
+        let auth_rpc = Uri::from_str(&format!("http://{AUTH_ADDR}:{port}")).unwrap();
         let client = RpcClient::new(auth_rpc, secret, 1000, PayloadSource::L2).unwrap();
         let response = send_request(client.auth_client, port).await;
         assert!(response.is_ok());
@@ -656,9 +620,7 @@ pub mod tests {
     async fn send_request(client: RpcClientService, port: u16) -> Result<String, ClientError> {
         let server = spawn_server(port).await;
 
-        let response = client
-            .request::<String, _>("greet_melkor", rpc_params![])
-            .await;
+        let response = client.request::<String, _>("greet_melkor", rpc_params![]).await;
 
         server.stop().unwrap();
         server.stopped().await;
@@ -682,9 +644,7 @@ pub mod tests {
 
         // Create a mock rpc module
         let mut module = RpcModule::new(());
-        module
-            .register_method("greet_melkor", |_, _, _| "You are the dark lord")
-            .unwrap();
+        module.register_method("greet_melkor", |_, _, _| "You are the dark lord").unwrap();
 
         server.start(module)
     }

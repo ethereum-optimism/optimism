@@ -24,6 +24,7 @@ test edge='':
   RUST_BACKTRACE=1 cargo nextest run \
     --features "asm-keccak {{edge}}" --locked \
     --workspace \
+    --exclude rollup-boost --exclude flashblocks-websocket-proxy --exclude rollup-boost-types \
     --no-tests=warn \
     -E "!kind(test) and not binary(e2e_testsuite) and not test(test_online)"
 

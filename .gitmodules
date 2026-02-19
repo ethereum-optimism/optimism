@@ -38,6 +38,3 @@
 [submodule "op-rbuilder"]
 	path = op-rbuilder
 	url = https://github.com/flashbots/op-rbuilder
-[submodule "rollup-boost"]
-	path = rollup-boost
-	url = https://github.com/flashbots/rollup-boost

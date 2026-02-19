@@ -60,10 +60,8 @@ impl OpRethConfig {
     }
 
     pub fn build(self) -> eyre::Result<OpRethImage> {
-        let genesis = self
-            .genesis
-            .clone()
-            .ok_or_else(|| eyre::eyre!("Genesis configuration not found"))?;
+        let genesis =
+            self.genesis.clone().ok_or_else(|| eyre::eyre!("Genesis configuration not found"))?;
 
         let mut copy_to_sources = vec![
             CopyToContainer::new(
@@ -74,22 +72,14 @@ impl OpRethConfig {
         ];
 
         if let Some(p2p_secret) = &self.p2p_secret {
-            let p2p_string = std::fs::read_to_string(p2p_secret)
-                .unwrap()
-                .replace("\n", "");
-            copy_to_sources.push(CopyToContainer::new(
-                p2p_string.into_bytes(),
-                "/p2p_secret.hex".to_string(),
-            ));
+            let p2p_string = std::fs::read_to_string(p2p_secret).unwrap().replace("\n", "");
+            copy_to_sources
+                .push(CopyToContainer::new(p2p_string.into_bytes(), "/p2p_secret.hex".to_string()));
         }
 
         let expose_ports = vec![];
 
-        Ok(OpRethImage {
-            config: self,
-            copy_to_sources,
-            expose_ports,
-        })
+        Ok(OpRethImage { config: self, copy_to_sources, expose_ports })
     }
 }
 
@@ -152,10 +142,7 @@ impl Image for OpRethImage {
         }
         if !self.config.trusted_peers.is_empty() {
             println!("Trusted peers: {:?}", self.config.trusted_peers);
-            cmd.extend([
-                "--trusted-peers".to_string(),
-                self.config.trusted_peers.join(","),
-            ]);
+            cmd.extend(["--trusted-peers".to_string(), self.config.trusted_peers.join(",")]);
         }
         if self.config.ipcdisable {
             cmd.push("--ipcdisable".to_string());
@@ -168,12 +155,12 @@ impl Image for OpRethImage {
     }
 }
 
-pub trait OpRethMehods {
+pub trait OpRethMethods {
     async fn auth_rpc(&self) -> eyre::Result<Uri>;
     async fn auth_rpc_port(&self) -> eyre::Result<u16>;
 }
 
-impl OpRethMehods for ContainerAsync<OpRethImage> {
+impl OpRethMethods for ContainerAsync<OpRethImage> {
     async fn auth_rpc_port(&self) -> eyre::Result<u16> {
         Ok(self.get_host_port_ipv4(AUTH_RPC_PORT).await?)
     }

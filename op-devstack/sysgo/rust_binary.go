@@ -16,7 +16,7 @@ import (
 
 // RustBinarySpec describes a Rust binary to be built and located.
 type RustBinarySpec struct {
-	SrcDir  string // directory name relative to monorepo root, e.g. "rollup-boost"
+	SrcDir  string // directory name relative to monorepo root, e.g. "rust" or "op-rbuilder"
 	Package string // cargo package name, e.g. "rollup-boost"
 	Binary  string // binary name, e.g. "rollup-boost"
 }

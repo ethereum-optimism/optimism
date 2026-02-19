@@ -105,7 +105,7 @@ func (r *RollupBoostNode) Start() {
 	r.sub = NewSubProcess(r.p, stdOut, stdErr)
 
 	execPath, err := EnsureRustBinary(r.p, RustBinarySpec{
-		SrcDir:  "rollup-boost",
+		SrcDir:  "rust",
 		Package: "rollup-boost",
 		Binary:  "rollup-boost",
 	})

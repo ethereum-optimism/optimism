@@ -44,6 +44,11 @@ members = [
   "op-reth/crates/txpool/",
   "op-reth/examples/*",
 
+  # Rollup Boost
+  "rollup-boost/crates/rollup-boost",
+  "rollup-boost/crates/websocket-proxy",
+  "rollup-boost/crates/rollup-boost-types",
+
   # Alloy OP EVM
   "alloy-op-evm/",
 
@@ -55,6 +60,7 @@ default-members = [
   "kona/bin/client",
   "kona/bin/node",
   "op-reth/bin/",
+  "rollup-boost/crates/rollup-boost",
 ]
 
 # ==================== WORKSPACE METADATA ====================
@@ -231,7 +237,6 @@ kona-host = { path = "kona/bin/host", version = "1.0.2", default-features = fals
 kona-client = { path = "kona/bin/client", version = "1.0.2", default-features = false }
 
 # Protocol
-kona-comp = { path = "kona/crates/batcher/comp", version = "0.4.5", default-features = false }
 kona-derive = { path = "kona/crates/protocol/derive", version = "0.4.5", default-features = false }
 kona-interop = { path = "kona/crates/protocol/interop", version = "0.4.5", default-features = false }
 kona-genesis = { path = "kona/crates/protocol/genesis", version = "0.4.5", default-features = false }
@@ -479,6 +484,8 @@ c-kzg = { version = "2.1.5", default-features = false }
 enr = { version = "0.13", default-features = false }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 sha2 = { version = "0.10.9", default-features = false }
+blake3 = "1"
+ed25519-dalek = { version = "2", features = ["serde"] }
 secp256k1 = { version = "0.31.1", default-features = false }
 ark-ff = { version = "0.5.0", default-features = false }
 ark-bls12-381 = { version = "0.5.0", default-features = false }
@@ -514,6 +521,10 @@ tracing = { version = "0.1.44", default-features = false }
 tracing-appender = "0.2.4"
 tracing-loki = "0.2.6"
 tracing-subscriber = { version = "0.3.22", default-features = false }
+opentelemetry = { version = "0.28.0", default-features = false }
+opentelemetry-otlp = { version = "0.28.0", default-features = false }
+opentelemetry_sdk = { version = "0.28.0", default-features = false }
+tracing-opentelemetry = "0.29.0"
 
 # ==================== TESTING ====================
 arbitrary = { version = "1.4.2", features = ["derive"] }
@@ -529,10 +540,17 @@ proptest-derive = "0.7"
 proptest-arbitrary-interop = "0.1.0"
 rstest = "0.26.1"
 similar-asserts = { version = "1.7.0", features = ["serde"] }
-tempfile = "3.24.0"
+assert_cmd = "2.0.10"
+ctor = "0.4.1"
+predicates = "3.1.2"
+redis-test = "1"
 serial_test = "3"
+tempfile = "3.24.0"
 test-case = "3"
 test-fuzz = "7.2.5"
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["redis"] }
+time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
 
 # ==================== COMPRESSION ====================
 alloc-no-stdlib = "2.0.4"
@@ -551,9 +569,14 @@ ipnet = "2.11.0"
 libp2p = "0.56.0"
 libp2p-stream = "0.4.0-alpha"
 libp2p-identity = "0.2.13"
+axum = "0.8.1"
+dotenvy = "0.15.7"
+hostname = "0.4.0"
+hyper-rustls = "0.27.0"
 openssl = "0.10.75"
 
 # ==================== MISC ====================
+backoff = "0.4.0"
 ambassador = "0.5.0"
 anyhow = { version = "1.0.101", default-features = false }
 aquamarine = "0.6"
@@ -584,6 +607,7 @@ eyre = "0.6.12"
 fdlimit = "0.3.0"
 fixed-map = { version = "0.9", default-features = false }
 glob = "0.3.3"
+hex = "0.4"
 http = "1.4.0"
 http-body = "1.0"
 http-body-util = "0.1.3"
@@ -614,10 +638,12 @@ rand = { version = "0.9.2", default-features = false }
 rand_08 = { package = "rand", version = "0.8" }
 ratatui = "0.30.0"
 rayon = "1.11.0"
+redis = "0.30.0"
 reqwest = { version = "0.13.2", default-features = false, features = ["query"] }
 ringbuffer = "0.16.0"
-rollup-boost = "0.7.13"
-rollup-boost-types = "0.1.0"
+rollup-boost = { path = "rollup-boost/crates/rollup-boost" }
+rollup-boost-types = { version = "0.1.0", path = "rollup-boost/crates/rollup-boost-types" }
+flashblocks-websocket-proxy = { path = "rollup-boost/crates/websocket-proxy" }
 rustc-hash = { version = "2.1", default-features = false }
 rustls = { version = "0.23", default-features = false }
 rustls-pemfile = { version = "2.2", default-features = false }
@@ -634,6 +660,7 @@ tar = "0.4.44"
 thiserror = { version = "2.0.18", default-features = false }
 unsigned-varint = "0.8.0"
 url = { version = "2.5.8", default-features = false }
+uuid = { version = "1.17.0", features = ["v4"] }
 vergen = "9.1.0"
 vergen-git2 = "9.1.0"
 byteorder = "1"
@@ -662,3 +689,6 @@ op-alloy-rpc-types = { path = "op-alloy/crates/rpc-types" }
 op-alloy = { path = "op-alloy/crates/op-alloy" }
 # Duplicated by: alloy-evm (crates.io)
 alloy-op-hardforks = { path = "alloy-op-hardforks/" }
+# Rollup Boost local paths
+rollup-boost = { path = "rollup-boost/crates/rollup-boost" }
+rollup-boost-types = { path = "rollup-boost/crates/rollup-boost-types" }
