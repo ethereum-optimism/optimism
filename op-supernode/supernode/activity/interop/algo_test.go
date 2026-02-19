@@ -32,7 +32,8 @@ type verifyInteropTestCase struct {
 func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 	t.Parallel()
 	interop, timestamp, blocks := tc.setup()
-	result, err := interop.verifyInteropMessages(timestamp, blocks)
+	l1Head := eth.BlockID{Number: 1000, Hash: common.HexToHash("0xL1")}
+	result, err := interop.verifyInteropMessages(timestamp, l1Head, blocks)
 
 	if tc.expectError {
 		require.Error(t, err)

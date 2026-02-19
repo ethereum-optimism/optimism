@@ -315,7 +315,7 @@ func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts
 	}
 	head := ss.LocalSafeL2
 	if num > head.Number {
-		c.log.Warn("target block number exceeds local safe head", "targetBlockNumber", num, "head", head.Number)
+		c.log.Debug("target block number exceeds local safe head", "targetBlockNumber", num, "head", head.Number)
 		return eth.L2BlockRef{}, ethereum.NotFound
 	}
 

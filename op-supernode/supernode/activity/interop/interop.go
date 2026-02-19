@@ -54,7 +54,7 @@ type Interop struct {
 	currentL1   eth.BlockID
 	finalizedL1 eth.BlockID
 
-	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+	verifyFn func(ts uint64, l1Head eth.BlockID, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
 
 	// pauseAtTimestamp is used for integration test control only.
 	// When non-zero, progressInterop will return early without processing
@@ -195,7 +195,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	i.finalizedL1 = finalizedL1
 
 	// Perform the interop evaluation
-	result, err := i.progressInterop()
+	result, err := i.progressInterop(localCurrentL1)
 	if err != nil {
 		i.log.Error("failed to progress interop", "err", err)
 		return false, err
@@ -268,7 +268,7 @@ func (i *Interop) collectFinalizedL1() (eth.BlockID, error) {
 	return finalizedL1, nil
 }
 
-func (i *Interop) progressInterop() (Result, error) {
+func (i *Interop) progressInterop(l1Head eth.BlockID) (Result, error) {
 	start := time.Now()
 	defer func() {
 		i.log.Debug("progressInterop: time taken", "time", time.Since(start))
@@ -323,7 +323,7 @@ func (i *Interop) progressInterop() (Result, error) {
 
 	// 3: validate interop messages
 	// and return the result and any errors
-	return i.verifyFn(ts, blocksAtTimestamp)
+	return i.verifyFn(ts, l1Head, blocksAtTimestamp)
 }
 
 func (i *Interop) handleResult(result Result) error {

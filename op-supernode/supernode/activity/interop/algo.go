@@ -36,9 +36,10 @@ var (
 //   - Verify the initiating message exists in the source chain's logsDB
 //   - Verify the initiating message timestamp < executing message timestamp
 //   - Verify the initiating message hasn't expired (within ExpiryTime)
-func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
+func (i *Interop) verifyInteropMessages(ts uint64, l1Head eth.BlockID, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
 	result := Result{
 		Timestamp:    ts,
+		L1Head:       l1Head,
 		L2Heads:      make(map[eth.ChainID]eth.BlockID),
 		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
 	}
