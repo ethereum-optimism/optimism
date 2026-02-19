@@ -643,8 +643,8 @@ func TestHandleResult(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				validResult := Result{
-					Timestamp: 1000,
-					L1Inclusion:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+					Timestamp:   1000,
+					L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
 					L2Heads: map[eth.ChainID]eth.BlockID{
 						mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
 					},
@@ -672,8 +672,8 @@ func TestHandleResult(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				invalidResult := Result{
-					Timestamp: 1000,
-					L1Inclusion:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+					Timestamp:   1000,
+					L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
 					L2Heads: map[eth.ChainID]eth.BlockID{
 						mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
 					},
@@ -773,8 +773,8 @@ func TestInvalidateBlock(t *testing.T) {
 				mock2 := h.Mock(8453)
 
 				invalidResult := Result{
-					Timestamp: 1000,
-					L1Inclusion:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+					Timestamp:   1000,
+					L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
 					L2Heads: map[eth.ChainID]eth.BlockID{
 						mock1.id: {Number: 500, Hash: common.HexToHash("0xL2-1")},
 						mock2.id: {Number: 600, Hash: common.HexToHash("0xL2-2")},
@@ -1265,9 +1265,9 @@ func TestReset(t *testing.T) {
 				// Add some verified results
 				for ts := uint64(98); ts <= 102; ts++ {
 					err := h.interop.verifiedDB.Commit(VerifiedResult{
-						Timestamp: ts,
-						L1Inclusion:    eth.BlockID{Number: ts},
-						L2Heads:   map[eth.ChainID]eth.BlockID{mock.id: {Number: ts}},
+						Timestamp:   ts,
+						L1Inclusion: eth.BlockID{Number: ts},
+						L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: ts}},
 					})
 					require.NoError(t, err)
 				}
