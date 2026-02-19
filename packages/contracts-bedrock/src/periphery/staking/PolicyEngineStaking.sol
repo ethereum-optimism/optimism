@@ -276,13 +276,13 @@ contract PolicyEngineStaking is ISemver {
         emit BeneficiaryAllowlistUpdated(msg.sender, _staker, _allowed);
 
         if (!_allowed) {
-            StakedData storage stakingData = stakingData[_staker];
-            if (stakingData.beneficiary == msg.sender && _staker != msg.sender) {
-                _decreasePeData(msg.sender, stakingData.stakedAmount);
+            StakedData storage stakedData = stakingData[_staker];
+            if (stakedData.beneficiary == msg.sender && _staker != msg.sender) {
+                _decreasePeData(msg.sender, stakedData.stakedAmount);
                 emit BeneficiaryRemoved(_staker, msg.sender);
 
-                stakingData.beneficiary = _staker;
-                _increasePeData(_staker, stakingData.stakedAmount);
+                stakedData.beneficiary = _staker;
+                _increasePeData(_staker, stakedData.stakedAmount);
                 emit BeneficiarySet(_staker, _staker);
             }
         }
