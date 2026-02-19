@@ -193,21 +193,21 @@ contract PolicyEngineStaking is ISemver {
             revert PolicyEngineStaking_NotAllowedToSetBeneficiary();
         }
 
-        StakedData storage stakingData = stakingData[msg.sender];
-        address currentBeneficiary = stakingData.beneficiary;
+        StakedData storage stakedData = stakingData[msg.sender];
+        address currentBeneficiary = stakedData.beneficiary;
 
         if (currentBeneficiary != _beneficiary) {
             if (currentBeneficiary != address(0)) {
-                _decreasePeData(currentBeneficiary, stakingData.stakedAmount);
+                _decreasePeData(currentBeneficiary, stakedData.stakedAmount);
                 emit BeneficiaryRemoved(msg.sender, currentBeneficiary);
             }
-            stakingData.beneficiary = _beneficiary;
+            stakedData.beneficiary = _beneficiary;
             emit BeneficiarySet(msg.sender, _beneficiary);
         }
 
-        stakingData.stakedAmount += _amount;
+        stakedData.stakedAmount += _amount;
 
-        uint128 peDelta = currentBeneficiary == _beneficiary ? _amount : stakingData.stakedAmount;
+        uint128 peDelta = currentBeneficiary == _beneficiary ? _amount : stakedData.stakedAmount;
         _increasePeData(_beneficiary, peDelta);
 
         STAKING_TOKEN.safeTransferFrom(msg.sender, address(this), uint256(_amount));
