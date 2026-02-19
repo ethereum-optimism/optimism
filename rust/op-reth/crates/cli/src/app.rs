@@ -114,6 +114,9 @@ where
             Commands::ReExecute(command) => {
                 runner.run_until_ctrl_c(command.execute::<OpNode>(components))
             }
+            Commands::OpProofs(command) => {
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
+            }
         }
     }
 

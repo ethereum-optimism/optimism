@@ -84,20 +84,21 @@ keccak-cache-global = [
 	"alloy-primitives/keccak-cache-global"
 ]
 test-utils = [
-    "reth-chainspec/test-utils",
-    "reth-consensus?/test-utils",
-    "reth-db?/test-utils",
-    "reth-evm?/test-utils",
-    "reth-revm?/test-utils",
-    "reth-network?/test-utils",
-    "reth-optimism-node?/test-utils",
-    "reth-primitives-traits/test-utils",
-    "reth-provider?/test-utils",
-    "reth-trie?/test-utils",
-    "reth-transaction-pool?/test-utils",
-    "reth-node-builder?/test-utils",
-    "reth-trie-db?/test-utils",
-    "reth-codecs?/test-utils",
+	"reth-chainspec/test-utils",
+	"reth-consensus?/test-utils",
+	"reth-db?/test-utils",
+	"reth-evm?/test-utils",
+	"reth-revm?/test-utils",
+	"reth-network?/test-utils",
+	"reth-optimism-node?/test-utils",
+	"reth-primitives-traits/test-utils",
+	"reth-provider?/test-utils",
+	"reth-trie?/test-utils",
+	"reth-transaction-pool?/test-utils",
+	"reth-node-builder?/test-utils",
+	"reth-trie-db?/test-utils",
+	"reth-codecs?/test-utils",
+	"reth-tasks?/test-utils"
 ]
 
 full = ["consensus", "evm", "node", "provider", "rpc", "trie", "pool", "network"]

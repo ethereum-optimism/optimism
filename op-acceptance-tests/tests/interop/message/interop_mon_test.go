@@ -46,10 +46,10 @@ func TestInteropMon(gt *testing.T) {
 
 	// send initiating message on chain A
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	initTx, _ := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)))
+	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)))
 
 	// send executing message on chain B
-	_, _ = bob.SendExecMessage(initTx, 0)
+	_ = bob.SendExecMessage(initMsg)
 
 	// Ensure the metrics are generated
 	require.EventuallyWithT(func(t *assert.CollectT) {

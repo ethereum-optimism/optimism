@@ -20,7 +20,7 @@ import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
 import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
@@ -43,14 +43,14 @@ abstract contract L2Genesis_TestInit is Test {
 
     function testProxyAdmin() internal view {
         // Verify owner in the proxy
-        assertEq(input.opChainProxyAdminOwner, IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        assertEq(input.opChainProxyAdminOwner, IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
 
         // Verify owner in the implementation to catch storage shifting issues
         // The implementation is stored in the code namespace
         address proxyAdminImpl = Predeploys.predeployToCodeNamespace(Predeploys.PROXY_ADMIN);
         assertEq(
             input.opChainProxyAdminOwner,
-            IProxyAdmin(proxyAdminImpl).owner(),
+            IL2ProxyAdmin(proxyAdminImpl).owner(),
             "ProxyAdmin implementation owner should match expected"
         );
     }

@@ -41,11 +41,11 @@ func TestInitExecMsg(gt *testing.T) {
 
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Trigger random init message at chain A
-	initIntent, _ := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
+	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
 	// Make sure supervisor indexes block which includes init message
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
 	// Single event in tx so index is 0
-	bob.SendExecMessage(initIntent, 0)
+	bob.SendExecMessage(initMsg)
 }
 
 // TestInitExecMsgWithDSL tests basic interop messaging with contract DSL

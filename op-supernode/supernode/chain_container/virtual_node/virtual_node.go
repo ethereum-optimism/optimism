@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"sync"
+	"time"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -148,7 +149,8 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 
 	// Stop the inner node if it's still running
 	if v.inner != nil {
-		stopCtx := context.Background()
+		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		if err := v.inner.Stop(stopCtx); err != nil {
 			v.log.Error("error stopping inner node", "err", err)
 		}
@@ -211,7 +213,7 @@ func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64)
 
 var ErrL1AtSafeHeadNotFound = errors.New("l1 at safe head not found")
 
-// L1AtSafeHead finds the earliest L1 block at which the provided L2 block became safe,
+// L1AtSafeHead finds the earliest L1 block at which the provided L2 block became local safe,
 // using the monotonicity of SafeDB (L2 safe head number is non-decreasing over L1).
 func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	v.mu.Lock()
@@ -261,7 +263,7 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 		prev := cursor.Number - 1
 		l1Prev, l2Prev, err := db.SafeHeadAtL1(ctx, prev)
 		if err != nil {
-			v.log.Error("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "err", err)
+			v.log.Error("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "target", target.Number, "err", err)
 			return eth.BlockID{}, err
 		}
 		if l2Prev.Number >= target.Number {

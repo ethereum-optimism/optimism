@@ -73,11 +73,7 @@ where
 
     // Ensure the hash included in the payload matches the block hash
     if expected_hash != sealed_block.hash() {
-        return Err(PayloadError::BlockHash {
-            execution: sealed_block.hash(),
-            consensus: expected_hash,
-        }
-        .into());
+        Err(PayloadError::BlockHash { execution: sealed_block.hash(), consensus: expected_hash })?;
     }
 
     shanghai::ensure_well_formed_fields(

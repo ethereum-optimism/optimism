@@ -202,11 +202,9 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: &rust-e2e-job-base
+      - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-kona-prestate:
-          <<: *rust-e2e-job-base
       - rust-build-binary: &cannon-kona-host
           name: cannon-kona-host
           directory: rust
@@ -236,8 +234,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
-            - cannon-kona-prestate
+            - cannon-prestate
             - cannon-kona-host
             - kona-build-release
             - op-reth-build
@@ -246,8 +243,7 @@ workflows:
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
-            - cannon-kona-prestate
+            - cannon-prestate
             - cannon-kona-host
             - kona-build-release
       # Proof tests - single kind only, interop excluded per original config

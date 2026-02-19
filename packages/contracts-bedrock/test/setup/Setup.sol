@@ -390,6 +390,7 @@ abstract contract Setup is FeatureFlags {
         labelPredeploy(Predeploys.SEQUENCER_FEE_WALLET);
         labelPredeploy(Predeploys.L2_ERC721_BRIDGE);
         labelPredeploy(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
+        labelPredeploy(Predeploys.PROXY_ADMIN);
         labelPredeploy(Predeploys.BASE_FEE_VAULT);
         labelPredeploy(Predeploys.L1_FEE_VAULT);
         labelPredeploy(Predeploys.OPERATOR_FEE_VAULT);

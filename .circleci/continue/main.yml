@@ -620,7 +620,7 @@ commands:
               export PACKAGE="--package << parameters.package >>"
             fi
 
-            export BINARY="--all-targets"
+            export BINARY=""
             if [ -n "<< parameters.binary >>" ]; then
               export BINARY="--bin << parameters.binary >>"
             fi
@@ -630,7 +630,7 @@ commands:
               export FEATURES="--all-features"
             fi
 
-            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES
+            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
@@ -1839,6 +1839,28 @@ jobs:
           paths:
             - "/home/circleci/.cache/golangci-lint"
 
+  go-binaries-for-sysgo:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: large
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - go-restore-cache:
+          namespace: sysgo-go-binaries
+      - run:
+          name: Build Go binaries for sysgo
+          command: make cannon op-program
+      - go-save-cache:
+          namespace: sysgo-go-binaries
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "cannon/bin"
+            - "op-program/bin/op-program"
+            - "op-program/bin/op-program-client"
+
   check-op-geth-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2449,76 +2471,22 @@ jobs:
           command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client64.elf
           working_directory: cannon
 
-  cannon-prestate-quick:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - restore_cache:
-          name: Restore cannon prestate cache
-          key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
-      - run:
-          name: Build prestates
-          command: make cannon-prestates
-      - save_cache:
-          key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
-          name: Save Cannon prestate to cache
-          paths:
-            - "op-program/bin/prestate*.bin.gz"
-            - "op-program/bin/meta*.json"
-            - "op-program/bin/prestate-proof*.json"
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "op-program/bin/prestate*"
-            - "op-program/bin/meta*"
-            - "op-program/bin/op-program"
-            - "op-program/bin/op-program-client"
-            - "cannon/bin"
-
   cannon-prestate:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - setup_remote_docker
-      - run:
-          name: Build prestates
-          command: make reproducible-prestate
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "op-program/bin/prestate*"
-            - "op-program/bin/meta*"
-
-  cannon-kona-prestate:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      - restore_cache:
-          name: Restore kona cache
-          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile" }}
       - run:
-          name: Build kona prestates
-          command: just build-kona-prestates
-          working_directory: rust
-      - save_cache:
-          key: kona-prestate-{{ checksum "./rust/justfile" }}-{{ checksum "./rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile" }}
-          name: Save Kona to cache
-          paths:
-            - "rust/kona/prestate-artifacts-*/"
+          name: Build prestates
+          command: make -j reproducible-prestate
       - persist_to_workspace:
           root: .
           paths:
-            - "rust/kona/prestate-artifacts-*/*"
+            - "op-program/bin/prestate*"
+            - "op-program/bin/meta*"
+            - "rust/kona/prestate-artifacts-*/"
 
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
@@ -3130,7 +3098,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
       - go-tests:
           name: go-tests-short
           parallelism: 12
@@ -3138,7 +3106,8 @@ workflows:
           test_timeout: 20m
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
+            - go-binaries-for-sysgo
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
@@ -3156,7 +3125,7 @@ workflows:
               only: develop # Only runs on develop branch (post-merge)
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3189,12 +3158,12 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-      - cannon-prestate-quick:
+      - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - sanitize-op-program:
           requires:
-            - cannon-prestate-quick
+            - cannon-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-generated-mocks-op-node:
@@ -3225,9 +3194,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
-      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &cannon-kona-host
           name: cannon-kona-host
           directory: rust
@@ -3264,6 +3230,7 @@ workflows:
             - kona-build-release
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
+      - go-binaries-for-sysgo
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3275,10 +3242,10 @@ workflows:
             - discord
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
-            - cannon-kona-prestate
+            - cannon-prestate
             - cannon-kona-host
             - rust-binaries-for-sysgo
+            - go-binaries-for-sysgo
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
@@ -3568,7 +3535,7 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick:
+      - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
@@ -3590,7 +3557,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
             - rust-binaries-for-sysgo
       - op-acceptance-tests-flake-shake-report:
           requires:
@@ -3638,7 +3605,7 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate-quick: # needed for sysgo tests
+      - cannon-prestate: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
       - op-acceptance-sync-tests-docker:
@@ -3650,7 +3617,7 @@ workflows:
             - slack
           requires:
             - contracts-bedrock-build
-            - cannon-prestate-quick
+            - cannon-prestate
           matrix:
             parameters:
               network_preset:

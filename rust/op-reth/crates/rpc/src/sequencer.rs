@@ -5,7 +5,7 @@ use alloy_json_rpc::{RpcRecv, RpcSend};
 use alloy_primitives::{B256, hex};
 use alloy_rpc_client::{BuiltInConnectionString, ClientBuilder, RpcClient as Client};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
-use alloy_transport_http::{Http, reqwest};
+use alloy_transport_http::{Http, reqwest as alloy_reqwest};
 use std::{str::FromStr, sync::Arc, time::Instant};
 use thiserror::Error;
 use tracing::warn;
@@ -34,7 +34,7 @@ pub enum Error {
     ReqwestError(
         #[from]
         #[source]
-        reqwest::Error,
+        alloy_transport_http::reqwest::Error,
     ),
 }
 
@@ -70,21 +70,21 @@ impl SequencerClient {
         let sequencer_endpoint = sequencer_endpoint.into();
         let endpoint = BuiltInConnectionString::from_str(&sequencer_endpoint)?;
         if let BuiltInConnectionString::Http(url) = endpoint {
-            let mut builder = reqwest::Client::builder()
+            let mut builder = alloy_reqwest::Client::builder()
                 // we force use tls to prevent native issues
                 .use_rustls_tls();
 
             if !headers.is_empty() {
-                let mut header_map = reqwest::header::HeaderMap::new();
+                let mut header_map = alloy_reqwest::header::HeaderMap::new();
                 for header in headers {
                     if let Some((key, value)) = header.split_once('=') {
                         header_map.insert(
                             key.trim()
-                                .parse::<reqwest::header::HeaderName>()
+                                .parse::<alloy_reqwest::header::HeaderName>()
                                 .map_err(|err| Error::InvalidHeader(err.to_string()))?,
                             value
                                 .trim()
-                                .parse::<reqwest::header::HeaderValue>()
+                                .parse::<alloy_reqwest::header::HeaderValue>()
                                 .map_err(|err| Error::InvalidHeader(err.to_string()))?,
                         );
                     }
@@ -104,7 +104,7 @@ impl SequencerClient {
     /// Creates a new [`SequencerClient`] with http transport with the given http client.
     pub fn with_http_client(
         sequencer_endpoint: impl Into<String>,
-        client: reqwest::Client,
+        client: alloy_reqwest::Client,
     ) -> Result<Self, Error> {
         let sequencer_endpoint: String = sequencer_endpoint.into();
         let url = sequencer_endpoint

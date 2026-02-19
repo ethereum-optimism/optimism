@@ -18,10 +18,8 @@ import (
 
 // EngineController abstracts access to the L2 execution layer
 type EngineController interface {
-	// BlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
-	// clamped to the head of the specified label (Safe, Finalized, Unsafe).
-	// Must return ethereum.NotFound if there is no block at the specified timestamp for the given label.
-	BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
+	// L2BlockRefByNumber returns the L2 block reference for the given block number.
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
@@ -119,6 +117,10 @@ func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64
 	}
 	e.log.Debug("engine_controller: computed block number from timestamp",
 		"label", label, "timestamp", ts, "targetBlockNumber", num, "head", head.Number)
+	return e.l2.L2BlockRefByNumber(ctx, num)
+}
+
+func (e *simpleEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }
 

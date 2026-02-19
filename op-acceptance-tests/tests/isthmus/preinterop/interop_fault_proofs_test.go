@@ -13,3 +13,9 @@ func TestPreinteropFaultProofs(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	sfp.RunSuperFaultProofTest(t, sys)
 }
+
+func TestPreinteropFaultProofs_TraceExtensionActivation(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunTraceExtensionActivationTest(t, sys)
+}

@@ -36,15 +36,15 @@ type ChainContainer interface {
 	Resume(ctx context.Context) error
 
 	ID() eth.ChainID
-	BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
+	LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
-	L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
 	// RewindEngine rewinds the engine to the highest block with timestamp less than or equal to the given timestamp.
-	RewindEngine(ctx context.Context, timestamp uint64) error
+	// invalidatedBlock is the block that triggered the rewind and is passed to reset callbacks.
+	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
 	RegisterVerifier(v activity.VerificationActivity)
 	// FetchReceipts fetches the receipts for a given block by hash.
 	// Returns block info and receipts, or an error if the block or receipts cannot be fetched.
@@ -62,11 +62,12 @@ type ChainContainer interface {
 	SetResetCallback(cb ResetCallback)
 }
 
-type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
+type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
 
-// ResetCallback is called when the chain container resets to a given timestamp.
+// ResetCallback is called when the chain container resets due to an invalidated block.
 // The supernode uses this to notify activities about the reset.
-type ResetCallback func(chainID eth.ChainID, timestamp uint64)
+// invalidatedBlock is the block that was invalidated and triggered the reset.
+type ResetCallback func(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef)
 
 type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
@@ -158,7 +159,8 @@ func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity)
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
-func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+	initOverload.SuperAuthority = superAuthority
 	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
 }
 
@@ -195,7 +197,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 			// Pass the chain container as SuperAuthority for payload denylist checks
 			c.initOverload.SuperAuthority = c
 		}
-		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion)
+		// Pass in the chain container as a SuperAuthority
+		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
 		if c.pause.Load() {
 			c.log.Info("chain container paused")
 			time.Sleep(1 * time.Second)
@@ -293,13 +296,30 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 	return c.vncfg.Rollup.Genesis.L2Time + (blocknum * c.vncfg.Rollup.BlockTime), nil
 }
 
-// BlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
-// if the specified label contains a block at that timestamp
-func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+// LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
+// if the block at that timestamp is local safe.
+func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	if c.engine == nil {
 		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
 	}
-	return c.engine.BlockAtTimestamp(ctx, ts, label)
+
+	// Compute the target block directly from rollup config
+	num, err := c.vncfg.Rollup.TargetBlockNumber(ts)
+	c.log.Debug("computed target block number from timestamp", "timestamp", ts, "targetBlockNumber", num)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	ss, err := c.SyncStatus(ctx)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	head := ss.LocalSafeL2
+	if num > head.Number {
+		c.log.Warn("target block number exceeds local safe head", "targetBlockNumber", num, "head", head.Number)
+		return eth.L2BlockRef{}, ethereum.NotFound
+	}
+
+	return c.engine.L2BlockRefByNumber(ctx, num)
 }
 
 // SyncStatus returns the in-process op-node sync status for this chain.
@@ -315,10 +335,6 @@ func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 		return nil, err
 	}
 	return st, nil
-}
-
-func (c *simpleChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
-	return c.safeDBAtL2(ctx, l2Block)
 }
 
 // OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
@@ -350,7 +366,7 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 // VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
 // Must return ethereum.NotFound if there is no safe block at the specified timestamp.
 func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
-	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
+	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
 		c.log.Error("error determining l2 block at given timestamp", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
@@ -378,7 +394,7 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 
 // OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
 func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
-	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
+	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
 		c.log.Error("error determining l2 block at given timestamp", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
@@ -401,7 +417,7 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 		return nil, fmt.Errorf("rollup client not initialized")
 	}
 	// Determine the optimistic L2 block at timestamp (currently same as safe block at ts)
-	l2Block, err := c.BlockAtTimestamp(ctx, ts, eth.Safe)
+	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve L2 block at timestamp: %w", err)
 	}
@@ -457,7 +473,7 @@ func isCriticalRewindError(err error) bool {
 		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
 }
 
-func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64) error {
+func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	if c.vn == nil {
 		return fmt.Errorf("virtual node not initialized")
 	}
@@ -504,7 +520,7 @@ retryLoop:
 
 	// Notify activities about the reset
 	if c.onReset != nil {
-		c.onReset(c.chainID, timestamp)
+		c.onReset(c.chainID, timestamp, invalidatedBlock)
 	}
 
 	// resume the chain container to trigger a new vn to be started
@@ -530,12 +546,4 @@ func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) uint64 {
 		return 0
 	}
 	return c.vncfg.Rollup.Genesis.L2Time + (blockNum * c.vncfg.Rollup.BlockTime)
-}
-
-// IsDenied checks if a block hash is on the deny list at the given height.
-func (c *simpleChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
-	if c.denyList == nil {
-		return false, fmt.Errorf("deny list not initialized")
-	}
-	return c.denyList.Contains(height, payloadHash)
 }

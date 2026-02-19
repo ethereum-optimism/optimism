@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -32,6 +33,75 @@ type EOA struct {
 	// el is the execution-layer node that this user operates against.
 	// This may be a L1 or L2 EL node.
 	el ELNode
+}
+
+// InitMessage represents an initiating message that has been sent and included on chain.
+type InitMessage struct {
+	Tx      *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
+	Receipt *types.Receipt
+}
+
+// BlockNumber returns the block number from the receipt.
+func (m *InitMessage) BlockNumber() *big.Int {
+	return m.Receipt.BlockNumber
+}
+
+// TxHash returns the transaction hash from the receipt.
+func (m *InitMessage) TxHash() common.Hash {
+	return m.Receipt.TxHash
+}
+
+// BlockHash returns the block hash from the receipt.
+func (m *InitMessage) BlockHash() common.Hash {
+	return m.Receipt.BlockHash
+}
+
+// BlockID returns the block ID from the receipt.
+func (m *InitMessage) BlockID() eth.BlockID {
+	return eth.BlockID{
+		Number: bigs.Uint64Strict(m.Receipt.BlockNumber),
+		Hash:   m.Receipt.BlockHash,
+	}
+}
+
+// String returns a human-readable representation of the InitMessage.
+func (m *InitMessage) String() string {
+	return fmt.Sprintf("InitMessage(block=%d, blockHash=%s, txHash=%s)", m.Receipt.BlockNumber, m.Receipt.BlockHash, m.Receipt.TxHash)
+}
+
+// ExecMessage represents an executing message that has been sent and included on chain.
+type ExecMessage struct {
+	Init    *InitMessage
+	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
+	Receipt *types.Receipt
+}
+
+// BlockNumber returns the block number from the receipt.
+func (m *ExecMessage) BlockNumber() *big.Int {
+	return m.Receipt.BlockNumber
+}
+
+// TxHash returns the transaction hash from the receipt.
+func (m *ExecMessage) TxHash() common.Hash {
+	return m.Receipt.TxHash
+}
+
+// BlockHash returns the block hash from the receipt.
+func (m *ExecMessage) BlockHash() common.Hash {
+	return m.Receipt.BlockHash
+}
+
+// BlockID returns the block ID from the receipt.
+func (m *ExecMessage) BlockID() eth.BlockID {
+	return eth.BlockID{
+		Number: bigs.Uint64Strict(m.Receipt.BlockNumber),
+		Hash:   m.Receipt.BlockHash,
+	}
+}
+
+// String returns a human-readable representation of the ExecMessage.
+func (m *ExecMessage) String() string {
+	return fmt.Sprintf("ExecMessage(init=%s, block=%d, blockHash=%s, txHash=%s)", m.Init, m.Receipt.BlockNumber, m.Receipt.BlockHash, m.Receipt.TxHash)
 }
 
 func NewEOA(key *Key, el ELNode) *EOA {
@@ -179,18 +249,18 @@ func (u *EOA) DeployWETH() common.Address {
 	return wethAddress
 }
 
-func (u *EOA) SendInitMessage(trigger *txintent.InitTrigger) (*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], *types.Receipt) {
+func (u *EOA) SendInitMessage(trigger *txintent.InitTrigger) *InitMessage {
 	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.Set(trigger)
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "init msg receipt not found")
 	u.log.Info("init message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
-	return tx, receipt
+	return &InitMessage{Tx: tx, Receipt: receipt}
 }
 
 // SendRandomInitMessage creates and sends a random initiating message using the given event logger.
 // topicCount specifies the number of topics (clamped to 1-4), dataLen specifies the opaque data length (minimum 1).
-func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Address, topicCount, dataLen int) (*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], *types.Receipt) {
+func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Address, topicCount, dataLen int) *InitMessage {
 	// Clamp topicCount to valid range [1, 4]
 	if topicCount > 4 {
 		topicCount = 4
@@ -217,30 +287,31 @@ func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Ad
 	return u.SendInitMessage(trigger)
 }
 
-func (u *EOA) SendExecMessage(initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], eventIdx int) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
+func (u *EOA) SendExecMessage(initMsg *InitMessage) *ExecMessage {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
-	tx.Content.DependOn(&initIntent.Result)
-	tx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initIntent.Result, eventIdx))
+	tx.Content.DependOn(&initMsg.Tx.Result)
+	tx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0))
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "exec msg receipt not found")
 	u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
 	// Check single ExecutingMessage triggered
 	u.t.Require().Equal(1, len(receipt.Logs))
-	return tx, receipt
+	return &ExecMessage{
+		Init:    initMsg,
+		Tx:      tx,
+		Receipt: receipt,
+	}
 }
 
 // SendInvalidExecMessage sends an executing message with an invalid identifier.
 // The log index is incremented to reference a non-existent log.
-func (u *EOA) SendInvalidExecMessage(
-	initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput],
-	eventIdx int,
-) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
-	result, err := initIntent.Result.Eval(u.ctx)
+func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
+	result, err := initMsg.Tx.Result.Eval(u.ctx)
 	u.t.Require().NoError(err, "failed to evaluate init result")
-	u.t.Require().Greater(len(result.Entries), eventIdx, "event index out of range")
+	u.t.Require().Greater(len(result.Entries), 0, "event index out of range")
 
 	// Get the message and modify it to be invalid by incrementing the log index
-	msg := result.Entries[eventIdx]
+	msg := result.Entries[0]
 	msg.Identifier.LogIndex++
 
 	// Create the exec trigger with the invalid message
@@ -251,7 +322,7 @@ func (u *EOA) SendInvalidExecMessage(
 
 	// The Fn just returns the pre-built trigger
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
-	tx.Content.DependOn(&initIntent.Result)
+	tx.Content.DependOn(&initMsg.Tx.Result)
 	tx.Content.Fn(func(ctx context.Context) (*txintent.ExecTrigger, error) {
 		return execTrigger, nil
 	})
@@ -259,7 +330,11 @@ func (u *EOA) SendInvalidExecMessage(
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "invalid exec msg receipt not found")
 	u.log.Info("invalid exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
-	return tx, receipt
+	return &ExecMessage{
+		Init:    initMsg,
+		Tx:      tx,
+		Receipt: receipt,
+	}
 }
 
 // SendPackedRandomInitMessages batches random messages and initiates them via a single multicall

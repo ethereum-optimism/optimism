@@ -6,10 +6,7 @@ use crate::{
     backend::util::store_ordered_trie,
 };
 use alloy_consensus::{Header, Sealed};
-use alloy_eips::{
-    eip2718::Encodable2718,
-    eip4844::{BlobTransactionSidecarItem, FIELD_ELEMENTS_PER_BLOB, IndexedBlobHash},
-};
+use alloy_eips::{eip2718::Encodable2718, eip4844::FIELD_ELEMENTS_PER_BLOB};
 use alloy_op_evm::OpEvmFactory;
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
@@ -34,6 +31,7 @@ use kona_proof::{
 };
 use kona_proof_interop::{HintType, PreState};
 use kona_protocol::{BlockInfo, OutputRoot, Predeploys};
+use kona_providers_alloy::BlobWithCommitmentAndProof;
 use kona_registry::{L1_CONFIGS, ROLLUP_CONFIGS};
 use std::sync::Arc;
 use tokio::task;
@@ -91,36 +89,26 @@ impl HintHandler for InteropHintHandler {
                 store_ordered_trie(kv.as_ref(), raw_receipts.as_slice()).await?;
             }
             HintType::L1Blob => {
-                ensure!(hint.data.len() == 48, "Invalid hint data length");
-
-                let hash_data_bytes: [u8; 32] = hint.data[0..32].try_into()?;
-                let index_data_bytes: [u8; 8] = hint.data[32..40].try_into()?;
-                let timestamp_data_bytes: [u8; 8] = hint.data[40..48].try_into()?;
-
-                let hash: B256 = hash_data_bytes.into();
-                let index = u64::from_be_bytes(index_data_bytes);
-                let timestamp = u64::from_be_bytes(timestamp_data_bytes);
+                let (hash, timestamp) = crate::single::parse_blob_hint(&hint.data)?;
 
                 let partial_block_ref = BlockInfo { timestamp, ..Default::default() };
-                let indexed_hash = IndexedBlobHash { index, hash };
 
-                // Fetch the blob sidecar from the blob provider.
-                let mut sidecars = providers
+                // Fetch the blob with proof from the blob provider.
+                let mut blobs = providers
                     .blobs
-                    .fetch_filtered_blob_sidecars(&partial_block_ref, &[indexed_hash])
+                    .fetch_blobs_with_proofs(&partial_block_ref, &[hash])
                     .await
-                    .map_err(|e| anyhow!("Failed to fetch blob sidecars: {e}"))?;
+                    .map_err(|e| anyhow!("Failed to fetch blobs with proofs: {e}"))?;
 
-                if sidecars.len() != 1 {
-                    anyhow::bail!("Expected 1 sidecar, got {}", sidecars.len());
+                if blobs.len() != 1 {
+                    anyhow::bail!("Expected 1 blob, got {}", blobs.len());
                 }
 
-                let BlobTransactionSidecarItem {
+                let BlobWithCommitmentAndProof {
                     blob,
                     kzg_proof: proof,
                     kzg_commitment: commitment,
-                    ..
-                } = sidecars.pop().expect("Expected 1 sidecar");
+                } = blobs.pop().expect("Expected 1 blob");
 
                 // Acquire a lock on the key-value store and set the preimages.
                 let mut kv_lock = kv.write().await;

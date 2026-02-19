@@ -2,12 +2,10 @@ package engine_controller
 
 import (
 	"context"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -166,30 +164,3 @@ func (m *mockL2) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, 
 }
 
 var _ l2Provider = (*mockL2)(nil)
-
-func TestEngineController_TargetBlockNumber(t *testing.T) {
-	t.Parallel()
-	rcfg := &rollup.Config{Genesis: rollup.Genesis{L2: eth.BlockID{Number: 0}, L2Time: 1_000}, BlockTime: 2, L2ChainID: big.NewInt(420)}
-	m := &mockL2{ref: eth.L2BlockRef{Number: 0, Time: 0}}
-	ec := &simpleEngineController{l2: m, rollup: rcfg, log: gethlog.New()}
-
-	// ts = genesis + 2*3 => block #3, with safe head above target
-	numRef, err := ec.BlockAtTimestamp(context.Background(), 1_000+2*3, eth.Safe)
-	require.NoError(t, err)
-	require.Equal(t, uint64(3), m.lastNum)
-	require.Equal(t, m.ref, numRef)
-	// ts = genesis + 2*1000 => block #1000, with safe head now below target
-	_, err = ec.BlockAtTimestamp(context.Background(), 1_000+2*1000, eth.Safe)
-	require.ErrorIs(t, err, ethereum.NotFound)
-}
-
-func TestEngineController_SentinelErrors(t *testing.T) {
-	t.Parallel()
-	ec := &simpleEngineController{l2: nil, rollup: nil}
-	_, err := ec.BlockAtTimestamp(context.Background(), 0, eth.Safe)
-	require.ErrorIs(t, err, ErrNoEngineClient)
-
-	ec = &simpleEngineController{l2: &mockL2{}, rollup: nil}
-	_, err = ec.BlockAtTimestamp(context.Background(), 0, eth.Safe)
-	require.ErrorIs(t, err, ErrNoRollupConfig)
-}

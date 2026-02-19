@@ -241,9 +241,9 @@ where
 
         let (tx, rx) = oneshot::channel();
         let builder = self.builder.clone();
-        self.spawner.spawn_blocking(Box::pin(async move {
+        self.spawner.spawn_blocking(move || {
             let _ = tx.send(builder.execute(args));
-        }));
+        });
         self.job = Some((Instant::now(), rx));
     }
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	mrand "math/rand"
 	"testing"
@@ -212,4 +213,178 @@ func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 }
 
 // note: nil-envelope behavior is not tested to match current implementation
+
+// TestEngineController_SafeL2Head tests SafeL2Head behavior with various configurations
+func TestEngineController_SafeL2Head(t *testing.T) {
+	tests := []struct {
+		name              string
+		supervisorEnabled bool
+		setupSuperAuth    func() *mockSuperAuthority
+		setupLocalSafe    *eth.L2BlockRef
+		setupDeprecated   *eth.L2BlockRef
+		setupEngine       func(*testutils.MockEngine)
+		expectPanic       string
+		expectResult      *eth.L2BlockRef
+	}{
+		{
+			name:              "with SuperAuthority returns verified block",
+			supervisorEnabled: true,
+			setupSuperAuth: func() *mockSuperAuthority {
+				return &mockSuperAuthority{
+					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
+				}
+			},
+			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupEngine: func(m *testutils.MockEngine) {
+				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
+			},
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50},
+		},
+		{
+			name:              "with SuperAuthority empty BlockID returns empty",
+			supervisorEnabled: true,
+			setupSuperAuth: func() *mockSuperAuthority {
+				return &mockSuperAuthority{fullyVerifiedL2Head: eth.BlockID{}}
+			},
+			expectResult: &eth.L2BlockRef{},
+		},
+		{
+			name:              "without SuperAuthority but supervisor enabled uses deprecated",
+			supervisorEnabled: true,
+			setupSuperAuth:    func() *mockSuperAuthority { return nil },
+			setupDeprecated:   &eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 200},
+			expectResult:      &eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 200},
+		},
+		{
+			name:              "without SuperAuthority and supervisor disabled uses local safe",
+			supervisorEnabled: false,
+			setupSuperAuth:    func() *mockSuperAuthority { return nil },
+			setupLocalSafe:    &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 300},
+			expectResult:      &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 300},
+		},
+		{
+			name:              "falls back to local safe when SuperAuthority block ahead of local safe",
+			supervisorEnabled: true,
+			setupSuperAuth: func() *mockSuperAuthority {
+				return &mockSuperAuthority{
+					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0xff}, Number: 200},
+				}
+			},
+			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+		},
+		{
+			name:              "panics when SuperAuthority block unknown to engine",
+			supervisorEnabled: true,
+			setupSuperAuth: func() *mockSuperAuthority {
+				return &mockSuperAuthority{
+					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0x99}, Number: 50},
+				}
+			},
+			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupEngine: func(m *testutils.MockEngine) {
+				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
+			},
+			expectPanic: "superAuthority supplied an identifier for the safe head which is not known to the engine",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var mockEngine *testutils.MockEngine
+			if tt.setupEngine != nil {
+				mockEngine = &testutils.MockEngine{}
+			}
+
+			cfg := &rollup.Config{}
+			emitter := &testutils.MockEmitter{}
+			var superAuthority rollup.SuperAuthority
+			if tt.setupSuperAuth != nil {
+				if sa := tt.setupSuperAuth(); sa != nil {
+					superAuthority = sa
+				}
+			}
+			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, tt.supervisorEnabled, &testutils.MockL1Source{}, emitter, superAuthority)
+			if tt.setupLocalSafe != nil {
+				ec.SetLocalSafeHead(*tt.setupLocalSafe)
+			}
+			if tt.setupDeprecated != nil {
+				ec.SetSafeHead(*tt.setupDeprecated)
+			}
+
+			if tt.setupEngine != nil {
+				tt.setupEngine(mockEngine)
+			}
+
+			if tt.expectPanic != "" {
+				require.PanicsWithValue(t, tt.expectPanic, func() {
+					ec.SafeL2Head()
+				})
+			} else {
+				result := ec.SafeL2Head()
+				require.Equal(t, *tt.expectResult, result)
+			}
+		})
+	}
+}
+
+// TestEngineController_ForkchoiceUpdateUsesSuperAuthority tests that forkchoice
+// updates use SafeL2Head() which respects SuperAuthority
+func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: 1000,
+		},
+		BlockTime: 2,
+	}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	// Set SuperAuthority with verified head at block 60
+	verifiedRef := eth.L2BlockRef{
+		Hash:   common.Hash{0xdd},
+		Number: 60,
+	}
+	mockSA := &mockSuperAuthority{
+		fullyVerifiedL2Head: verifiedRef.ID(),
+	}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, true, &testutils.MockL1Source{}, emitter, mockSA)
+
+	// Set heads
+	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	localSafeRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 80}
+	finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}
+
+	ec.unsafeHead = unsafeRef
+	ec.SetLocalSafeHead(localSafeRef)
+	ec.SetFinalizedHead(finalizedRef)
+
+	// Mock initializeUnknowns calls
+	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
+	// SafeL2Head is called multiple times during initialization and forkchoice - be generous
+	for i := 0; i < 10; i++ {
+		mockEngine.ExpectL2BlockRefByHash(verifiedRef.Hash, verifiedRef, nil)
+	}
+	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, localSafeRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, finalizedRef, nil)
+
+	// Expect emitter events
+	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
+
+	// Expect forkchoice update with SuperAuthority's safe head
+	expectedFC := eth.ForkchoiceState{
+		HeadBlockHash:      unsafeRef.Hash,
+		SafeBlockHash:      verifiedRef.Hash, // from SuperAuthority
+		FinalizedBlockHash: finalizedRef.Hash,
+	}
+	mockEngine.ExpectForkchoiceUpdate(&expectedFC, nil, &eth.ForkchoiceUpdatedResult{
+		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
+	}, nil)
+
+	// Trigger forkchoice update
+	ec.needFCUCall = true
+	err := ec.tryUpdateEngineInternal(context.Background())
+	require.NoError(t, err)
+}
+
 // SuperAuthority tests are in super_authority_deny_test.go

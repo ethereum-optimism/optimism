@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
@@ -60,8 +59,7 @@ func TestPreNoInbox(gt *testing.T) {
 		t.Logger().Info("Timestamps", "interopTime", *interopTime, "now", time.Now().Unix())
 	})
 
-	var initReceipt *types.Receipt
-	var initTx *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
+	var initMsg *dsl.InitMessage
 	// try interop before the upgrade, confirm that messages do not get included
 	{
 		// two EOAs for triggering the init and exec interop txs
@@ -78,20 +76,20 @@ func TestPreNoInbox(gt *testing.T) {
 
 		// send initiating message on chain A
 		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-		initTx, initReceipt = alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)))
+		initMsg = alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)))
 
 		// at least one block between the init tx on chain A and the exec tx on chain B
 		sys.L2ChainB.WaitForBlock()
 
 		// send executing message on chain B and confirm we got an error
 		execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](bob.Plan())
-		execTx.Content.DependOn(&initTx.Result)
-		execTx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initTx.Result, 0))
+		execTx.Content.DependOn(&initMsg.Tx.Result)
+		execTx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0))
 		execReceipt, err := execTx.PlannedTx.Included.Eval(sys.T.Ctx())
 		require.ErrorContains(err, "implementation not initialized", "error did not contain expected string")
 		require.Nil(execReceipt)
 
-		t.Logger().Info("initReceipt", "blocknum", initReceipt.BlockNumber, "txhash", initReceipt.TxHash)
+		t.Logger().Info("initReceipt", "msg", initMsg)
 
 		// confirm we are still pre-interop
 		require.False(sys.L2ChainA.IsActivated(*interopTimeA))
@@ -103,7 +101,7 @@ func TestPreNoInbox(gt *testing.T) {
 	{
 		ctx := sys.T.Ctx()
 
-		execTrigger, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &initTx.Result, 0)(ctx)
+		execTrigger, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0)(ctx)
 		require.NoError(err)
 
 		ed := stypes.ExecutingDescriptor{Timestamp: uint64(time.Now().Unix())}

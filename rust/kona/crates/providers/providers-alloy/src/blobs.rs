@@ -3,22 +3,32 @@
 use crate::BeaconClient;
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use alloy_eips::eip4844::{
-    Blob, BlobTransactionSidecarItem, IndexedBlobHash, env_settings::EnvKzgSettings,
-};
-use alloy_primitives::FixedBytes;
+use alloy_eips::eip4844::{Blob, Bytes48, env_settings::EnvKzgSettings};
+use alloy_primitives::{B256, FixedBytes};
 use async_trait::async_trait;
 use kona_derive::{BlobProvider, BlobProviderError};
 use kona_protocol::BlockInfo;
 use std::{boxed::Box, string::ToString, vec::Vec};
 
-/// A boxed blob with index.
+/// A boxed blob.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoxedBlobWithIndex {
-    /// The index of the blob.
-    pub index: u64,
+pub struct BoxedBlob {
     /// The blob data.
     pub blob: Box<Blob>,
+}
+
+/// A blob with its KZG commitment and proof.
+///
+/// This is used by the host to store blob preimages. Unlike `BlobTransactionSidecarItem`,
+/// this does not include an index field since blobs are fetched by hash, not by index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlobWithCommitmentAndProof {
+    /// The blob data.
+    pub blob: Box<Blob>,
+    /// The KZG commitment for the blob.
+    pub kzg_commitment: Bytes48,
+    /// The KZG proof for the blob.
+    pub kzg_proof: Bytes48,
 }
 
 /// An online implementation of the [`BlobProvider`] trait.
@@ -73,8 +83,8 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
     async fn fetch_filtered_blobs(
         &self,
         slot: u64,
-        blob_hashes: &[IndexedBlobHash],
-    ) -> Result<Vec<BoxedBlobWithIndex>, BlobProviderError> {
+        blob_hashes: &[B256],
+    ) -> Result<Vec<BoxedBlob>, BlobProviderError> {
         kona_macros::inc!(gauge, Metrics::BLOB_FETCHES);
 
         let result = self
@@ -91,13 +101,13 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
         result
     }
 
-    /// Converts a vector of boxed blobs with index to a vector of blob transaction sidecar items.
+    /// Converts a vector of boxed blobs to a vector of blobs with their KZG commitments and proofs.
     ///
     /// Note: for performance reasons, we need to transmute the blobs to the `c_kzg::Blob` type to
     /// avoid the overhead of moving the blobs around or reallocating the memory.
-    fn sidecar_from_blobs(
-        blobs: Vec<BoxedBlobWithIndex>,
-    ) -> Result<Vec<BlobTransactionSidecarItem>, c_kzg::Error> {
+    fn blobs_with_proofs(
+        blobs: Vec<BoxedBlob>,
+    ) -> Result<Vec<BlobWithCommitmentAndProof>, c_kzg::Error> {
         blobs
             .into_iter()
             .map(|blob| {
@@ -120,8 +130,7 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
                 let alloy_blob =
                     unsafe { Box::from_raw(Box::<c_kzg::Blob>::into_raw(kzg_blob) as *mut Blob) };
 
-                Ok(BlobTransactionSidecarItem {
-                    index: blob.index,
+                Ok(BlobWithCommitmentAndProof {
                     blob: alloy_blob,
                     kzg_commitment: FixedBytes::from(*commitment),
                     kzg_proof: FixedBytes::from(*proof),
@@ -130,16 +139,17 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
             .collect()
     }
 
-    /// Fetches blob sidecars for the given block reference and blob hashes.
-    /// Does not validate the blobs. Recomputes the kzg proofs associated with the blobs.
+    /// Fetches and validates blobs for the given block reference and blob hashes.
+    /// Recomputes the kzg proofs associated with the blobs and returns as a vector of
+    /// [`BlobWithCommitmentAndProof`]s.
     ///
     /// Use [`Self::beacon_client`] to fetch the blobs without recomputing the kzg
     /// proofs/commitments.
-    pub async fn fetch_filtered_blob_sidecars(
+    pub async fn fetch_blobs_with_proofs(
         &self,
         block_ref: &BlockInfo,
-        blob_hashes: &[IndexedBlobHash],
-    ) -> Result<Vec<BlobTransactionSidecarItem>, BlobProviderError> {
+        blob_hashes: &[B256],
+    ) -> Result<Vec<BlobWithCommitmentAndProof>, BlobProviderError> {
         if blob_hashes.is_empty() {
             return Ok(Default::default());
         }
@@ -150,7 +160,7 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
         // Fetch blobs for the slot using.
         let blobs = self.fetch_filtered_blobs(slot, blob_hashes).await?;
 
-        Self::sidecar_from_blobs(blobs)
+        Self::blobs_with_proofs(blobs)
             .map_err(|e| BlobProviderError::Backend(format!("KZG commitment error: {e}")))
     }
 }
@@ -162,36 +172,27 @@ where
 {
     type Error = BlobProviderError;
 
-    /// Fetches blobs that were confirmed in the specified L1 block with the given indexed
-    /// hashes. The blobs are validated for their index and hashes using the specified
-    /// [`IndexedBlobHash`].
+    /// Fetches blobs that were confirmed in the specified L1 block with the given versioned
+    /// hashes. The blobs are already validated by the beacon client by recomputing their
+    /// commitments and checking against the expected hashes.
     async fn get_and_validate_blobs(
         &mut self,
         block_ref: &BlockInfo,
-        blob_hashes: &[IndexedBlobHash],
+        blob_hashes: &[B256],
     ) -> Result<Vec<Box<Blob>>, Self::Error> {
-        // Fetch the blob sidecars for the given block reference and blob hashes.
-        let blobs = self.fetch_filtered_blob_sidecars(block_ref, blob_hashes).await?;
+        if blob_hashes.is_empty() {
+            return Ok(Default::default());
+        }
 
-        // Validate the blob sidecars straight away with the num hashes.
-        let blobs = blobs
-            .into_iter()
-            .enumerate()
-            .map(|(i, sidecar)| {
-                let hash = blob_hashes
-                    .get(i)
-                    .ok_or_else(|| BlobProviderError::Backend("Missing blob hash".to_string()))?
-                    .hash
-                    .as_slice();
+        // Calculate the slot for the given timestamp.
+        let slot = Self::slot(self.genesis_time, self.slot_interval, block_ref.timestamp)?;
 
-                if sidecar.to_kzg_versioned_hash() != hash {
-                    return Err(BlobProviderError::Backend("KZG commitment mismatch".to_string()));
-                }
+        // Fetch and validate blobs from the beacon client.
+        // The beacon client already validates each blob by recomputing its commitment
+        // and checking it against the expected hash.
+        let blobs = self.fetch_filtered_blobs(slot, blob_hashes).await?;
 
-                Ok(sidecar.blob)
-            })
-            .collect::<Result<Vec<Box<Blob>>, BlobProviderError>>()
-            .map_err(|e| BlobProviderError::Backend(e.to_string()))?;
-        Ok(blobs)
+        // Extract the blob data from BoxedBlob wrappers
+        Ok(blobs.into_iter().map(|boxed_blob| boxed_blob.blob).collect())
     }
 }

@@ -8,6 +8,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+pub mod debug;
 pub mod engine;
 pub mod error;
 pub mod eth;
@@ -15,6 +16,7 @@ pub mod historical;
 pub mod metrics;
 pub mod miner;
 pub mod sequencer;
+pub mod state;
 pub mod witness;
 
 #[cfg(feature = "client")]
@@ -22,5 +24,5 @@ pub use engine::OpEngineApiClient;
 pub use engine::{OP_ENGINE_CAPABILITIES, OpEngineApi, OpEngineApiServer};
 pub use error::{OpEthApiError, OpInvalidTransactionError, SequencerClientError};
 pub use eth::{OpEthApi, OpEthApiBuilder, OpReceiptBuilder};
-pub use metrics::SequencerMetrics;
+pub use metrics::{EthApiExtMetrics, SequencerMetrics};
 pub use sequencer::SequencerClient;

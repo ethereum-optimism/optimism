@@ -38,7 +38,7 @@ func (m *mockCC) Resume(ctx context.Context) error { return nil }
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {
 }
 
-func (m *mockCC) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
 func (m *mockCC) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
@@ -81,7 +81,7 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 	// Return minimal output response; tests only assert presence/count
 	return &eth.OutputResponse{}, nil
 }
-func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64) error {
+func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil
 }
 
@@ -119,7 +119,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2000},
-				SafeL2:      eth.L2BlockRef{Time: 200},
+				LocalSafeL2: eth.L2BlockRef{Time: 200},
 				FinalizedL2: eth.L2BlockRef{Time: 150},
 			},
 		},
@@ -131,7 +131,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2100},
-				SafeL2:      eth.L2BlockRef{Time: 180},
+				LocalSafeL2: eth.L2BlockRef{Time: 180},
 				FinalizedL2: eth.L2BlockRef{Time: 140},
 			},
 		},

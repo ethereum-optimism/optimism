@@ -103,6 +103,7 @@ type Intent struct {
 var (
 	ErrL1ContractsLocatorUndefined = errors.New("L1ContractsLocator undefined")
 	ErrL2ContractsLocatorUndefined = errors.New("L2ContractsLocator undefined")
+	ErrPAOMustBeSpecified          = errors.New("l1ProxyAdminOwner and l2ProxyAdminOwner must be specified in intent.toml - they are not set by default")
 )
 
 func (c *Intent) L1ChainIDBig() *big.Int {
@@ -169,6 +170,9 @@ func (c *Intent) validateStandardValues() error {
 	}
 
 	for _, chain := range c.Chains {
+		if chain.Roles.L1ProxyAdminOwner == emptyAddress || chain.Roles.L2ProxyAdminOwner == emptyAddress {
+			return fmt.Errorf("%w", ErrPAOMustBeSpecified)
+		}
 		if err := chain.Check(); err != nil {
 			return err
 		}
@@ -195,12 +199,16 @@ func (c *Intent) validateStandardValues() error {
 
 	challenger, _ := standard.ChallengerAddressFor(c.L1ChainID)
 	l1ProxyAdminOwner, _ := standard.L1ProxyAdminOwner(c.L1ChainID)
+	l2ProxyAdminOwner, _ := standard.L2ProxyAdminOwner(c.L1ChainID)
 	for chainIndex := range c.Chains {
 		if c.Chains[chainIndex].Roles.Challenger != challenger {
 			return fmt.Errorf("invalid challenger address for chain: %s", c.Chains[chainIndex].ID)
 		}
 		if c.Chains[chainIndex].Roles.L1ProxyAdminOwner != l1ProxyAdminOwner {
 			return fmt.Errorf("invalid l1ProxyAdminOwner address for chain: %s", c.Chains[chainIndex].ID)
+		}
+		if c.Chains[chainIndex].Roles.L2ProxyAdminOwner != l2ProxyAdminOwner {
+			return fmt.Errorf("invalid l2ProxyAdminOwner address for chain: %s", c.Chains[chainIndex].ID)
 		}
 	}
 
@@ -360,14 +368,8 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 	if err != nil {
 		return Intent{}, fmt.Errorf("error getting challenger address: %w", err)
 	}
-	l1ProxyAdminOwner, err := standard.L1ProxyAdminOwner(l1ChainId)
-	if err != nil {
-		return Intent{}, fmt.Errorf("error getting L1ProxyAdminOwner: %w", err)
-	}
-	l2ProxyAdminOwner, err := standard.L2ProxyAdminOwner(l1ChainId)
-	if err != nil {
-		return Intent{}, fmt.Errorf("error getting OpChainProxyAdminOwner: %w", err)
-	}
+	// L1ProxyAdminOwner and L2ProxyAdminOwner are not set by default - users must specify them manually
+	// in intent.toml before deployment.
 
 	for _, l2ChainID := range l2ChainIds {
 		intent.Chains = append(intent.Chains, &ChainIntent{
@@ -378,8 +380,8 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 			GasLimit:                 standard.GasLimit,
 			Roles: ChainRoles{
 				Challenger:        challenger,
-				L1ProxyAdminOwner: l1ProxyAdminOwner,
-				L2ProxyAdminOwner: l2ProxyAdminOwner,
+				L1ProxyAdminOwner: common.Address{}, // Must be specified manually in intent.toml
+				L2ProxyAdminOwner: common.Address{}, // Must be specified manually in intent.toml
 			},
 			UseRevenueShare: standard.UseRevenueShare,
 			// CustomGasToken defaults to disabled (all fields nil/empty)

@@ -1,6 +1,8 @@
 //! Shows how to manually access the database
 
-use reth_op::{chainspec::BASE_MAINNET, node::OpNode, provider::providers::ReadOnlyConfig};
+use reth_op::{
+    chainspec::BASE_MAINNET, node::OpNode, provider::providers::ReadOnlyConfig, tasks::Runtime,
+};
 
 // Providers are zero-cost abstractions on top of an opened MDBX Transaction
 // exposing a familiar API to query the chain's information without requiring knowledge
@@ -12,9 +14,14 @@ fn main() -> eyre::Result<()> {
     // The path to data directory, e.g. "~/.local/reth/share/base"
     let datadir = std::env::var("RETH_DATADIR")?;
 
+    let runtime = Runtime::test();
+
     // Instantiate a provider factory for Ethereum mainnet using the provided datadir path.
-    let factory = OpNode::provider_factory_builder()
-        .open_read_only(BASE_MAINNET.clone(), ReadOnlyConfig::from_datadir(datadir))?;
+    let factory = OpNode::provider_factory_builder().open_read_only(
+        BASE_MAINNET.clone(),
+        ReadOnlyConfig::from_datadir(datadir),
+        runtime,
+    )?;
 
     // obtain a provider access that has direct access to the database.
     let _provider = factory.provider();

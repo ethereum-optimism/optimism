@@ -11,7 +11,6 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 const EnvVarPrefix = "OP_INTEROP_FILTER"
@@ -59,10 +58,34 @@ var (
 		Usage: "Path to JWT secret key for admin RPC authentication. " +
 			"Keys are 32 bytes, hex encoded in a file. " +
 			"A new key will be generated if the file is missing. " +
-			"Required when rpc.enable-admin is set.",
+			"Required when admin.rpc.addr is set.",
 		EnvVars:   prefixEnvVars("ADMIN_JWT_SECRET"),
 		Value:     "",
 		TakesFile: true,
+	}
+	AdminRPCAddrFlag = &cli.StringFlag{
+		Name:    "admin.rpc.addr",
+		Usage:   "Address to bind admin RPC server. If empty, admin RPC is disabled.",
+		EnvVars: prefixEnvVars("ADMIN_RPC_ADDR"),
+		Value:   "",
+	}
+	AdminRPCPortFlag = &cli.IntFlag{
+		Name:    "admin.rpc.port",
+		Usage:   "Port to bind admin RPC server.",
+		EnvVars: prefixEnvVars("ADMIN_RPC_PORT"),
+		Value:   8546,
+	}
+	RPCAddrFlag = &cli.StringFlag{
+		Name:    "rpc.addr",
+		Usage:   "RPC listening address",
+		EnvVars: prefixEnvVars("RPC_ADDR"),
+		Value:   "0.0.0.0",
+	}
+	RPCPortFlag = &cli.IntFlag{
+		Name:    "rpc.port",
+		Usage:   "RPC listening port",
+		EnvVars: prefixEnvVars("RPC_PORT"),
+		Value:   8545,
 	}
 	PollIntervalFlag = &cli.StringFlag{
 		Name:    "poll-interval",
@@ -89,12 +112,15 @@ var optionalFlags = []cli.Flag{
 	BackfillDurationFlag,
 	MessageExpiryWindowFlag,
 	JWTSecretFlag,
+	AdminRPCAddrFlag,
+	AdminRPCPortFlag,
+	RPCAddrFlag,
+	RPCPortFlag,
 	PollIntervalFlag,
 	ValidationIntervalFlag,
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)

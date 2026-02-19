@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 # reth
+reth-basic-payload-builder.workspace = true
 reth-evm.workspace = true
 reth-primitives-traits = { workspace = true, features = ["op"] }
 reth-storage-api.workspace = true
@@ -21,6 +22,7 @@ reth-rpc-eth-types.workspace = true
 reth-rpc-server-types.workspace = true
 reth-tasks = { workspace = true, features = ["rayon"] }
 reth-transaction-pool.workspace = true
+reth-revm.workspace = true
 reth-rpc.workspace = true
 reth-rpc-api.workspace = true
 reth-node-api.workspace = true
@@ -28,6 +30,8 @@ reth-node-builder.workspace = true
 reth-chainspec.workspace = true
 reth-chain-state.workspace = true
 reth-rpc-engine-api.workspace = true
+reth-payload-util.workspace = true
+reth-provider.workspace = true
 
 # op-reth
 reth-optimism-evm.workspace = true
@@ -37,14 +41,17 @@ reth-optimism-txpool.workspace = true
 # TODO remove node-builder import
 reth-optimism-primitives = { workspace = true, features = ["reth-codec", "serde-bincode-compat", "serde"] }
 reth-optimism-forks.workspace = true
+reth-optimism-trie.workspace = true
 
 # ethereum
 alloy-eips.workspace = true
 alloy-json-rpc.workspace = true
 alloy-primitives.workspace = true
+alloy-rlp.workspace = true
 alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-rpc-types-debug.workspace = true
+alloy-serde.workspace = true
 alloy-transport.workspace = true
 alloy-transport-http.workspace = true
 alloy-consensus.workspace = true
@@ -58,9 +65,11 @@ revm.workspace = true
 op-revm.workspace = true
 
 # async
+serde.workspace = true
 tokio.workspace = true
 futures.workspace = true
 tokio-stream.workspace = true
+reqwest.workspace = true
 async-trait.workspace = true
 tower.workspace = true
 
@@ -79,6 +88,9 @@ derive_more = { workspace = true, features = ["constructor"] }
 # metrics
 reth-metrics.workspace = true
 metrics.workspace = true
+
+# enum
+strum.workspace = true
 
 [dev-dependencies]
 reth-optimism-chainspec.workspace = true

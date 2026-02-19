@@ -14,6 +14,7 @@ const FLASHBLOCK_SEQUENCE_CHANNEL_SIZE: usize = 128;
 
 /// Outcome from executing a flashblock sequence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(unnameable_types)]
 pub struct SequenceExecutionOutcome {
     /// The block hash of the executed pending block
     pub block_hash: B256,

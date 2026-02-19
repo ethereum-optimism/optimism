@@ -2,6 +2,7 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"net/http"
 	"path/filepath"
@@ -112,7 +113,8 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 		return nil, m.safeHeadErr
 	}
 	return &eth.SyncStatus{
-		CurrentL1: eth.L1BlockRef{Hash: m.safeHeadL1.Hash, Number: m.safeHeadL1.Number},
+		CurrentL1:   eth.L1BlockRef{Hash: m.safeHeadL1.Hash, Number: m.safeHeadL1.Number},
+		LocalSafeL2: eth.L2BlockRef{Hash: m.safeHeadL2.Hash, Number: m.safeHeadL2.Number},
 	}, nil
 }
 
@@ -120,17 +122,20 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 
 // mockEngineController is a mock implementation of engine_controller.EngineController
 type mockEngineController struct {
-	blockAtTimestampResult eth.L2BlockRef
-	blockAtTimestampErr    error
-
-	rewindToTimestampCalled int
-	rewindTimestamp         uint64
-	rewindErr               error
-	rewindFunc              func(ctx context.Context, timestamp uint64) error // optional custom behavior
+	rewindToTimestampCalled  int
+	rewindTimestamp          uint64
+	rewindErr                error
+	rewindFunc               func(ctx context.Context, timestamp uint64) error // optional custom behavior
+	l2BlockRefByNumberResult eth.L2BlockRef
+	l2BlockRefByNumberErr    error
 }
 
 func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
-	return m.blockAtTimestampResult, m.blockAtTimestampErr
+	return eth.L2BlockRef{}, nil
+}
+
+func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return m.l2BlockRefByNumberResult, m.l2BlockRefByNumberErr
 }
 
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
@@ -167,13 +172,18 @@ func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) 
 	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
 }
 
-func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64) {}
+func (m *mockVerificationActivity) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
+	return eth.BlockID{}, 0
+}
+func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
+}
 
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{
 		Rollup: rollup.Config{
 			L2ChainID: big.NewInt(420),
+			BlockTime: 2, // Set a non-zero block time to avoid divide by zero
 		},
 	}
 }
@@ -375,7 +385,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -408,7 +418,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 			return nil // Exit immediately to trigger restart
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -449,7 +459,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 			return nil // Exit immediately
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -525,7 +535,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 		var totalStartCalls int
 		var mu sync.Mutex
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			mockVN := newMockVirtualNode()
 			mockVN.blockOnStart = true
 			mockVN.startFunc = func(ctx context.Context) error {
@@ -602,7 +612,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		// Call RewindEngine
 		ctx := context.Background()
 		rewindTimestamp := uint64(1234567890)
-		err := c.RewindEngine(ctx, rewindTimestamp)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: rewindTimestamp + 2}
+		err := c.RewindEngine(ctx, rewindTimestamp, invalidatedBlock)
 		require.NoError(t, err)
 
 		// Verify RewindToTimestamp was called with correct timestamp
@@ -637,7 +648,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		// Call RewindEngine - should retry and eventually fail
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second) // this will prevent infinite retries
 		defer cancel()
-		err := c.RewindEngine(ctx, 12345)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 
@@ -678,7 +690,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 
 				// Call RewindEngine - should fail immediately without retry
 				ctx := context.Background()
-				err := c.RewindEngine(ctx, 12345)
+				invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+				err := c.RewindEngine(ctx, 12345, invalidatedBlock)
 				require.Error(t, err)
 				require.ErrorIs(t, err, tc.err)
 
@@ -706,7 +719,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 
 		// Call RewindEngine - should fail on VN stop
 		ctx := context.Background()
-		err := c.RewindEngine(ctx, 12345)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 
@@ -739,7 +753,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 
 		// Call RewindEngine - should succeed after retries
 		ctx := context.Background()
-		err := c.RewindEngine(ctx, 12345)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
 		require.NoError(t, err)
 
 		// Verify RewindToTimestamp was called 3 times (2 failures + 1 success)
@@ -768,7 +783,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -810,7 +825,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 			return ctx.Err()
 		}
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -836,7 +851,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
 
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -881,7 +896,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 		mockVN := newMockVirtualNode()
 		mockVN.blockOnStart = true
-		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 			return mockVN
 		}
 
@@ -926,11 +941,11 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 
 		// Set up mock engine controller
 		mockEngine := &mockEngineController{
-			blockAtTimestampResult: eth.L2BlockRef{
+			l2BlockRefByNumberResult: eth.L2BlockRef{
 				Hash:   [32]byte{1},
 				Number: 100,
 			},
-			blockAtTimestampErr: nil,
+			l2BlockRefByNumberErr: nil,
 		}
 		impl.engine = mockEngine
 
@@ -949,4 +964,132 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 		require.Equal(t, eth.BlockID{}, l2)
 		require.Equal(t, eth.BlockID{}, l1)
 	})
+}
+
+// TestChainContainer_LocalSafeBlockAtTimestamp tests the LocalSafeBlockAtTimestamp method
+func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name              string
+		genesisTime       uint64
+		blockTime         uint64
+		targetTimestamp   uint64
+		localSafeNumber   uint64
+		engineResult      *eth.L2BlockRef
+		engineError       error
+		syncStatusError   error
+		engineNil         bool
+		expectError       error
+		expectResult      *eth.L2BlockRef
+		expectErrorString string
+	}
+
+	tests := []testCase{
+		{
+			name:            "returns block when target is before local safe head",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 1010,
+			localSafeNumber: 100,
+			engineResult:    &eth.L2BlockRef{Hash: [32]byte{1}, Number: 5, Time: 1010},
+			expectResult:    &eth.L2BlockRef{Hash: [32]byte{1}, Number: 5, Time: 1010},
+		},
+		{
+			name:            "returns NotFound when target exceeds local safe head",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 2000,
+			localSafeNumber: 100,
+			expectError:     ethereum.NotFound,
+		},
+		{
+			name:            "returns error when engine is nil",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 1000,
+			engineNil:       true,
+			expectError:     engine_controller.ErrNoEngineClient,
+		},
+		{
+			name:            "returns block at exact timestamp match",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 1020,
+			localSafeNumber: 100,
+			engineResult:    &eth.L2BlockRef{Hash: [32]byte{5}, Number: 10, Time: 1020},
+			expectResult:    &eth.L2BlockRef{Hash: [32]byte{5}, Number: 10, Time: 1020},
+		},
+		{
+			name:              "returns error when sync status fails",
+			genesisTime:       1000,
+			blockTime:         2,
+			targetTimestamp:   1000,
+			syncStatusError:   errors.New("sync status error"),
+			expectErrorString: "sync status error",
+		},
+		{
+			name:            "handles genesis block correctly",
+			genesisTime:     1000,
+			blockTime:       2,
+			targetTimestamp: 1000,
+			localSafeNumber: 10,
+			engineResult:    &eth.L2BlockRef{Hash: [32]byte{0}, Number: 0, Time: 1000},
+			expectResult:    &eth.L2BlockRef{Hash: [32]byte{0}, Number: 0, Time: 1000},
+		},
+	}
+
+	runTest := func(t *testing.T, tc testCase) {
+		chainID := eth.ChainIDFromUInt64(420)
+		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
+		initOverload := &rollupNode.InitializationOverrides{}
+
+		vncfg := createTestVNConfig()
+		vncfg.Rollup.Genesis.L2Time = tc.genesisTime
+		vncfg.Rollup.BlockTime = tc.blockTime
+
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		impl, ok := container.(*simpleChainContainer)
+		require.True(t, ok)
+
+		// Setup engine
+		if !tc.engineNil {
+			mockEngine := &mockEngineController{
+				l2BlockRefByNumberResult: eth.L2BlockRef{},
+				l2BlockRefByNumberErr:    tc.engineError,
+			}
+			if tc.engineResult != nil {
+				mockEngine.l2BlockRefByNumberResult = *tc.engineResult
+			}
+			impl.engine = mockEngine
+		}
+
+		// Setup virtual node
+		mockVN := newMockVirtualNode()
+		mockVN.safeHeadL2 = eth.BlockID{Number: tc.localSafeNumber}
+		mockVN.safeHeadErr = tc.syncStatusError
+		impl.vn = mockVN
+
+		// Execute test
+		result, err := container.LocalSafeBlockAtTimestamp(context.Background(), tc.targetTimestamp)
+
+		// Verify results
+		if tc.expectError != nil {
+			require.Error(t, err)
+			require.ErrorIs(t, err, tc.expectError)
+		} else if tc.expectErrorString != "" {
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.expectErrorString)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, *tc.expectResult, result)
+		}
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			runTest(t, tc)
+		})
+	}
 }

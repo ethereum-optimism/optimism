@@ -2,8 +2,8 @@
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use crate::blobs::BoxedBlobWithIndex;
-use alloy_eips::eip4844::{IndexedBlobHash, env_settings::EnvKzgSettings, kzg_to_versioned_hash};
+use crate::blobs::BoxedBlob;
+use alloy_eips::eip4844::{env_settings::EnvKzgSettings, kzg_to_versioned_hash};
 use alloy_primitives::{B256, FixedBytes};
 use alloy_rpc_types_beacon::sidecar::GetBlobsResponse;
 use alloy_transport_http::reqwest::{self, Client};
@@ -80,12 +80,12 @@ pub trait BeaconClient {
     async fn genesis_time(&self) -> Result<APIGenesisResponse, Self::Error>;
 
     /// Fetches blobs that were confirmed in the specified L1 block with the given slot.
-    /// Blob data is not checked for validity.
+    /// Blob data is checked for validity.
     async fn filtered_beacon_blobs(
         &self,
         slot: u64,
-        blob_hashes: &[IndexedBlobHash],
-    ) -> Result<Vec<BoxedBlobWithIndex>, Self::Error>;
+        blob_hashes: &[B256],
+    ) -> Result<Vec<BoxedBlob>, Self::Error>;
 }
 
 const BLOB_SIZE: usize = 131072;
@@ -154,9 +154,9 @@ impl OnlineBeaconClient {
     async fn filtered_beacon_blobs(
         &self,
         slot: u64,
-        blob_hashes: &[IndexedBlobHash],
-    ) -> Result<Vec<BoxedBlobWithIndex>, BeaconClientError> {
-        let params = blob_hashes.iter().map(|blob| blob.hash.to_string()).collect::<Vec<_>>();
+        blob_hashes: &[B256],
+    ) -> Result<Vec<BoxedBlob>, BeaconClientError> {
+        let params = blob_hashes.iter().map(|hash| hash.to_string()).collect::<Vec<_>>();
         let response = self
             .inner
             .get(format!("{}/{}/{}", self.base, BLOBS_METHOD_PREFIX, slot))
@@ -180,11 +180,11 @@ impl OnlineBeaconClient {
         // whose hash matches the input:
         blob_hashes
             .iter()
-            .map(|blob_hash| -> Result<BoxedBlobWithIndex, BeaconClientError> {
+            .map(|blob_hash| -> Result<BoxedBlob, BeaconClientError> {
                 let matching_data = returned_blobs_mapped_by_hash
-                    .get(&blob_hash.hash)
-                    .ok_or(BeaconClientError::BlobNotFound(blob_hash.hash.to_string()))?;
-                Ok(BoxedBlobWithIndex { blob: Box::new(**matching_data), index: blob_hash.index })
+                    .get(blob_hash)
+                    .ok_or(BeaconClientError::BlobNotFound(blob_hash.to_string()))?;
+                Ok(BoxedBlob { blob: Box::new(**matching_data) })
             })
             .collect::<Result<Vec<_>, BeaconClientError>>()
     }
@@ -234,8 +234,8 @@ impl BeaconClient for OnlineBeaconClient {
     async fn filtered_beacon_blobs(
         &self,
         slot: u64,
-        blob_hashes: &[IndexedBlobHash],
-    ) -> Result<Vec<BoxedBlobWithIndex>, BeaconClientError> {
+        blob_hashes: &[B256],
+    ) -> Result<Vec<BoxedBlob>, BeaconClientError> {
         kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_REQUESTS, "method" => "blobs");
 
         // Try to get the blobs from the blobs endpoint.
@@ -276,15 +276,12 @@ mod tests {
         let garbage_blob_data: Vec<Blob> = vec![FixedBytes::repeat_byte(2)];
         let required_query_param = format!("{TEST_BLOB_HASH_HEX},{TEST_BLOB_HASH_HEX}");
         let test_blob_hash: FixedBytes<32> = FixedBytes::from_hex(TEST_BLOB_HASH_HEX).unwrap();
-        let requested_blob_hashes: Vec<IndexedBlobHash> = vec![
-            IndexedBlobHash { index: 0, hash: test_blob_hash },
-            IndexedBlobHash { index: 2, hash: test_blob_hash },
-        ];
+        let requested_blob_hashes: Vec<B256> = vec![test_blob_hash, test_blob_hash];
 
         struct TestCase {
             name: &'static str,
             mock_response_data: Vec<Blob>,
-            want: Option<Vec<BoxedBlobWithIndex>>, // if none, expect an error
+            want: Option<Vec<BoxedBlob>>, // if none, expect an error
         }
 
         let test_cases = vec![
@@ -292,8 +289,8 @@ mod tests {
                 name: "Repeated Blob Data, expect success",
                 mock_response_data: repeated_blob_data,
                 want: Some(vec![
-                    BoxedBlobWithIndex { index: 0, blob: Box::new(TEST_BLOB_DATA) },
-                    BoxedBlobWithIndex { index: 2, blob: Box::new(TEST_BLOB_DATA) },
+                    BoxedBlob { blob: Box::new(TEST_BLOB_DATA) },
+                    BoxedBlob { blob: Box::new(TEST_BLOB_DATA) },
                 ]),
             },
             TestCase {

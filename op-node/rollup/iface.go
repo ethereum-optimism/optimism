@@ -10,6 +10,11 @@ import (
 // When running inside a supernode, this allows the engine controller to check
 // if payloads are denied before applying them, enabling coordinated block invalidation.
 type SuperAuthority interface {
+	// FullyVerifiedL2Head returns the fully verified L2 head block reference.
+	// The second return value indicates whether the caller should fall back to local-safe.
+	// If useLocalSafe is true, the BlockID return value should be ignored and local-safe used instead.
+	// If useLocalSafe is false, the BlockID is the cross-verified safe head.
+	FullyVerifiedL2Head() (head eth.BlockID, useLocalSafe bool)
 	// IsDenied checks if a payload hash is denied at the given block number.
 	// Returns true if the payload should not be applied.
 	// The error indicates if the check could not be performed (should be logged but not fatal).

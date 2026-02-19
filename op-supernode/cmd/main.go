@@ -80,8 +80,12 @@ func main() {
 		}
 
 		// Populate config with interop activation timestamp from CLI context if set
+		// Only set the pointer if the flag is explicitly provided by the user
+		// If not set, leave as nil to disable interop
 		if cliCtx != nil && cliCtx.IsSet(interop.InteropActivationTimestampFlag.Name) {
-			cfg.InteropActivationTimestamp = cliCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
+			ts := cliCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
+			cfg.InteropActivationTimestamp = &ts
+			l.Info("interop activation timestamp set from CLI", "timestamp", ts)
 		}
 
 		// Create the supernode, supplying the logger, version, and close function

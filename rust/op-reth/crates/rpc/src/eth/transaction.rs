@@ -44,6 +44,7 @@ where
 
     async fn send_transaction(
         &self,
+        origin: TransactionOrigin,
         tx: WithEncoded<Recovered<PoolPooledTx<Self::Pool>>>,
     ) -> Result<B256, Self::Error> {
         let (tx, recovered) = tx.split();
@@ -62,17 +63,17 @@ where
                 })?;
 
             // Retain tx in local tx pool after forwarding, for local RPC usage.
-            let _ = self.inner.eth_api.add_pool_transaction(pool_transaction).await.inspect_err(|err| {
+            let _ = self.inner.eth_api.add_pool_transaction(origin, pool_transaction).await.inspect_err(|err| {
                 tracing::warn!(target: "rpc::eth", %err, %hash, "successfully sent tx to sequencer, but failed to persist in local tx pool");
             });
 
             return Ok(hash);
         }
 
-        // submit the transaction to the pool with a `Local` origin
+        // submit the transaction to the pool with the given origin
         let AddedTransactionOutcome { hash, .. } = self
             .pool()
-            .add_transaction(TransactionOrigin::Local, pool_transaction)
+            .add_transaction(origin, pool_transaction)
             .await
             .map_err(Self::Error::from_eth_err)?;
 

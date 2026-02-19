@@ -73,7 +73,7 @@
   },
   "src/L2/FeeSplitter.sol:FeeSplitter": {
     "initCodeHash": "0xdaae3903628f760e36da47c8f8d75d20962d1811fb5129cb09eb01803e67c095",
-    "sourceCodeHash": "0x95dd8da08e907fa398c98710bb12fda9fb50d9688c5d2144fd9a424c99e672c5"
+    "sourceCodeHash": "0xdc50fe7643d26950527dac75d69ddbdebf0b5c4f061fe2938eada849e179a217"
   },
   "src/L2/GasPriceOracle.sol:GasPriceOracle": {
     "initCodeHash": "0xf72c23d9c3775afd7b645fde429d09800622d329116feb5ff9829634655123ca",
@@ -93,7 +93,7 @@
   },
   "src/L2/L1Withdrawer.sol:L1Withdrawer": {
     "initCodeHash": "0x6efb9055142e90b408c6312074243769df0d365f6f984e226e0320bec55a45b8",
-    "sourceCodeHash": "0x6a12e541b47b79f19d1061ff7b64ffdcffa1e8d06225cca6798daca53fd96890"
+    "sourceCodeHash": "0x7e438cbbe9a8248887b8c21f68c811f90a5cae4902cbbf7b0a1f6cd644dc42d9"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0xe160be403df12709c371c33195d1b9c3b5e9499e902e86bdabc8eed749c3fd61",
@@ -102,6 +102,10 @@
   "src/L2/L2ERC721Bridge.sol:L2ERC721Bridge": {
     "initCodeHash": "0x863f0f5b410983f3e51cd97c60a3a42915141b7452864d0e176571d640002b81",
     "sourceCodeHash": "0xc05bfcfadfd09a56cfea68e7c1853faa36d114d9a54cd307348be143e442c35a"
+  },
+  "src/L2/L2ProxyAdmin.sol:L2ProxyAdmin": {
+    "initCodeHash": "0x85b054c8105191d272014459858020a90fcf7db401ef0fb028999f967461d25a",
+    "sourceCodeHash": "0x0d402be0c35dcdd3f6642c2949932705dd09c8e2d08a06c328ccbf8ed6c65808"
   },
   "src/L2/L2StandardBridge.sol:L2StandardBridge": {
     "initCodeHash": "0xba5b288a396b34488ba7be68473305529c7da7c43e5f1cfc48d6a4aecd014103",
@@ -169,7 +173,7 @@
   },
   "src/L2/SuperchainRevSharesCalculator.sol:SuperchainRevSharesCalculator": {
     "initCodeHash": "0xdfff95660d2d470e198054bb1717a30a45a806d2eaa3720fb43acaa3356c9a3e",
-    "sourceCodeHash": "0x4f494790d6044882ca0150bb28bb4abbf45cd2617bbdae0ee13b0085961ca788"
+    "sourceCodeHash": "0x741d4fe13a88e0f2667ecb1c0c8a8550059800f8ef63241d6ffd14bf0a53ae5e"
   },
   "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge": {
     "initCodeHash": "0xb0d25dc03b9c84b07b263921c2b717e6caad3f4297fa939207e35978d7d25abe",
