@@ -54,7 +54,7 @@ type Interop struct {
 	currentL1   eth.BlockID
 	finalizedL1 eth.BlockID
 
-	verifyFn func(ts uint64, l1Head eth.BlockID, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
 
 	// pauseAtTimestamp is used for integration test control only.
 	// When non-zero, progressInterop will return early without processing
@@ -195,7 +195,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	i.finalizedL1 = finalizedL1
 
 	// Perform the interop evaluation
-	result, err := i.progressInterop(localCurrentL1)
+	result, err := i.progressInterop()
 	if err != nil {
 		i.log.Error("failed to progress interop", "err", err)
 		return false, err
@@ -217,13 +217,13 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	// the current L1s being considered by the Activity right now depend on what progress was made:
 	// - if interop failed to run, the current L1s are not updated
 	// - if interop ran but did not advance the verified timestamp, the CurrentL1 values collected are used directly
-	// - if interop ran and advanced the verified timestamp, the CurrentL1 is the L1 head at the verified timestamp
+	// - if interop ran and advanced the verified timestamp, the L1Inclusion is the L1 inclusion at the verified timestamp
 	// this is because the individual chains may advance their CurrentL1, and if progress is being made, we might not be done using the collected L1s.
 	verifiedAdvanced := !result.IsEmpty()
 	i.mu.Lock()
 	if verifiedAdvanced {
-		// the new CurrentL1 is the L1 head at the verified timestamp
-		i.currentL1 = result.L1Head
+		// the new CurrentL1 is the L1 inclusion at the verified timestamp
+		i.currentL1 = result.L1Inclusion
 	} else {
 		// the new CurrentL1 is the lowest CurrentL1 from the collected chains
 		i.currentL1 = localCurrentL1
@@ -268,7 +268,7 @@ func (i *Interop) collectFinalizedL1() (eth.BlockID, error) {
 	return finalizedL1, nil
 }
 
-func (i *Interop) progressInterop(l1Head eth.BlockID) (Result, error) {
+func (i *Interop) progressInterop() (Result, error) {
 	start := time.Now()
 	defer func() {
 		i.log.Debug("progressInterop: time taken", "time", time.Since(start))
@@ -323,7 +323,7 @@ func (i *Interop) progressInterop(l1Head eth.BlockID) (Result, error) {
 
 	// 3: validate interop messages
 	// and return the result and any errors
-	return i.verifyFn(ts, l1Head, blocksAtTimestamp)
+	return i.verifyFn(ts, blocksAtTimestamp)
 }
 
 func (i *Interop) handleResult(result Result) error {
@@ -462,7 +462,7 @@ func (i *Interop) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint
 	}
 
 	// Search backwards from the last timestamp to find the latest result
-	// where the L1 head is at or below the finalized L1 block number
+	// where the L1 inclusion block is at or below the finalized L1 block number
 	for ts := lastTs; ts > 0; ts-- {
 		result, err := i.verifiedDB.Get(ts)
 		if err != nil {
@@ -470,8 +470,8 @@ func (i *Interop) LatestFinalizedL2Block(chainID eth.ChainID) (eth.BlockID, uint
 			continue
 		}
 
-		// Check if this result's L1 head is at or below finalized L1
-		if result.L1Head.Number <= finalizedL1.Number {
+		// Check if this result's L1 inclusion is at or below finalized L1
+		if result.L1Inclusion.Number <= finalizedL1.Number {
 			// Found a finalized result, return the L2 head for this chain
 			head, ok := result.L2Heads[chainID]
 			if !ok {

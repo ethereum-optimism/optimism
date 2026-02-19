@@ -36,13 +36,33 @@ var (
 //   - Verify the initiating message exists in the source chain's logsDB
 //   - Verify the initiating message timestamp < executing message timestamp
 //   - Verify the initiating message hasn't expired (within ExpiryTime)
-func (i *Interop) verifyInteropMessages(ts uint64, l1Head eth.BlockID, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
+func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
 	result := Result{
 		Timestamp:    ts,
-		L1Head:       l1Head,
 		L2Heads:      make(map[eth.ChainID]eth.BlockID),
 		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
 	}
+
+	// Compute L1Inclusion: the maximum L1 block from which any L2 block was included
+	// This uses OptimisticAt to query the SafeDB for each chain's L1 inclusion block
+	var maxL1Inclusion eth.BlockID
+	firstL1 := true
+	for chainID := range blocksAtTimestamp {
+		chain, ok := i.chains[chainID]
+		if !ok {
+			continue
+		}
+		_, l1Block, err := chain.OptimisticAt(i.ctx, ts)
+		if err != nil {
+			i.log.Error("failed to get L1 inclusion for L2 block", "chainID", chainID, "timestamp", ts, "err", err)
+			return Result{}, fmt.Errorf("chain %s: failed to get L1 inclusion: %w", chainID, err)
+		}
+		if firstL1 || l1Block.Number > maxL1Inclusion.Number {
+			maxL1Inclusion = l1Block
+			firstL1 = false
+		}
+	}
+	result.L1Inclusion = maxL1Inclusion
 
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]

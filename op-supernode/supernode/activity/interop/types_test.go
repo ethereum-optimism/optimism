@@ -14,7 +14,7 @@ func TestResult_IsValid(t *testing.T) {
 	t.Run("returns true when InvalidHeads is nil", func(t *testing.T) {
 		r := Result{
 			Timestamp:    100,
-			L1Head:       eth.BlockID{Number: 1},
+			L1Inclusion:       eth.BlockID{Number: 1},
 			L2Heads:      map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 100}},
 			InvalidHeads: nil,
 		}
@@ -24,7 +24,7 @@ func TestResult_IsValid(t *testing.T) {
 	t.Run("returns true when InvalidHeads is empty map", func(t *testing.T) {
 		r := Result{
 			Timestamp:    100,
-			L1Head:       eth.BlockID{Number: 1},
+			L1Inclusion:       eth.BlockID{Number: 1},
 			L2Heads:      map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 100}},
 			InvalidHeads: map[eth.ChainID]eth.BlockID{},
 		}
@@ -34,7 +34,7 @@ func TestResult_IsValid(t *testing.T) {
 	t.Run("returns false when InvalidHeads has entries", func(t *testing.T) {
 		r := Result{
 			Timestamp: 100,
-			L1Head:    eth.BlockID{Number: 1},
+			L1Inclusion:    eth.BlockID{Number: 1},
 			L2Heads:   map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 100}},
 			InvalidHeads: map[eth.ChainID]eth.BlockID{
 				eth.ChainIDFromUInt64(10): {Number: 100, Hash: common.HexToHash("0xbad")},
@@ -64,7 +64,7 @@ func TestResult_ToVerifiedResult(t *testing.T) {
 
 		r := Result{
 			Timestamp: 12345,
-			L1Head: eth.BlockID{
+			L1Inclusion: eth.BlockID{
 				Hash:   common.HexToHash("0x1111"),
 				Number: 100,
 			},
@@ -80,14 +80,14 @@ func TestResult_ToVerifiedResult(t *testing.T) {
 		verified := r.ToVerifiedResult()
 
 		require.Equal(t, r.Timestamp, verified.Timestamp)
-		require.Equal(t, r.L1Head, verified.L1Head)
+		require.Equal(t, r.L1Inclusion, verified.L1Inclusion)
 		require.Equal(t, r.L2Heads, verified.L2Heads)
 	})
 
 	t.Run("handles nil L2Heads", func(t *testing.T) {
 		r := Result{
 			Timestamp: 100,
-			L1Head:    eth.BlockID{Number: 1},
+			L1Inclusion:    eth.BlockID{Number: 1},
 			L2Heads:   nil,
 		}
 
@@ -100,7 +100,7 @@ func TestResult_ToVerifiedResult(t *testing.T) {
 	t.Run("handles empty L2Heads", func(t *testing.T) {
 		r := Result{
 			Timestamp: 100,
-			L1Head:    eth.BlockID{Number: 1},
+			L1Inclusion:    eth.BlockID{Number: 1},
 			L2Heads:   map[eth.ChainID]eth.BlockID{},
 		}
 
@@ -113,7 +113,7 @@ func TestResult_ToVerifiedResult(t *testing.T) {
 		chainID := eth.ChainIDFromUInt64(10)
 		r := Result{
 			Timestamp: 100,
-			L1Head:    eth.BlockID{Number: 1},
+			L1Inclusion:    eth.BlockID{Number: 1},
 			L2Heads: map[eth.ChainID]eth.BlockID{
 				chainID: {Number: 200},
 			},

@@ -424,14 +424,14 @@ func TestProgressInterop(t *testing.T) {
 	t.Parallel()
 
 	// Default verifyFn that passes through
-	passThroughVerifyFn := func(ts uint64, l1Head eth.BlockID, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-		return Result{Timestamp: ts, L1Head: l1Head, L2Heads: blocks}, nil
+	passThroughVerifyFn := func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
 	}
 
 	tests := []struct {
 		name     string
 		setup    func(h *interopTestHarness) *interopTestHarness
-		verifyFn func(ts uint64, l1Head eth.BlockID, blocks map[eth.ChainID]eth.BlockID) (Result, error)
+		verifyFn func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error)
 		assert   func(t *testing.T, result Result, err error)
 		run      func(t *testing.T, h *interopTestHarness) // override for complex cases
 	}{
@@ -459,9 +459,7 @@ func TestProgressInterop(t *testing.T) {
 				h.interop.verifyFn = passThroughVerifyFn
 
 				// First progress
-				l1Head, err := h.interop.collectCurrentL1()
-				require.NoError(t, err)
-				result1, err := h.interop.progressInterop(l1Head)
+				result1, err := h.interop.progressInterop()
 				require.NoError(t, err)
 				require.Equal(t, uint64(1000), result1.Timestamp)
 
@@ -470,9 +468,7 @@ func TestProgressInterop(t *testing.T) {
 				require.NoError(t, err)
 
 				// Second progress should use next timestamp
-				l1Head, err = h.interop.collectCurrentL1()
-				require.NoError(t, err)
-				result2, err := h.interop.progressInterop(l1Head)
+				result2, err := h.interop.progressInterop()
 				require.NoError(t, err)
 				require.Equal(t, uint64(1001), result2.Timestamp)
 			},
@@ -509,7 +505,7 @@ func TestProgressInterop(t *testing.T) {
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 				}).Build()
 			},
-			verifyFn: func(ts uint64, l1Head eth.BlockID, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+			verifyFn: func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
 				return Result{}, errors.New("verification failed")
 			},
 			assert: func(t *testing.T, result Result, err error) {
@@ -531,10 +527,7 @@ func TestProgressInterop(t *testing.T) {
 			if tc.verifyFn != nil {
 				h.interop.verifyFn = tc.verifyFn
 			}
-			// Collect L1 head for progressInterop
-			l1Head, err := h.interop.collectCurrentL1()
-			require.NoError(t, err)
-			result, err := h.interop.progressInterop(l1Head)
+			result, err := h.interop.progressInterop()
 			tc.assert(t, result, err)
 		})
 	}
@@ -590,13 +583,11 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				h.interop.verifyFn = func(ts uint64, l1Head eth.BlockID, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{Timestamp: ts, L1Head: l1Head, L2Heads: blocks}, nil
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
 				}
 
-				l1Head, err := h.interop.collectCurrentL1()
-				require.NoError(t, err)
-				result, err := h.interop.progressInterop(l1Head)
+				result, err := h.interop.progressInterop()
 				require.NoError(t, err)
 
 				err = h.interop.handleResult(result)
@@ -653,7 +644,7 @@ func TestHandleResult(t *testing.T) {
 				mock := h.Mock(10)
 				validResult := Result{
 					Timestamp: 1000,
-					L1Head:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+					L1Inclusion:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
 					L2Heads: map[eth.ChainID]eth.BlockID{
 						mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
 					},
@@ -669,7 +660,7 @@ func TestHandleResult(t *testing.T) {
 				retrieved, err := h.interop.verifiedDB.Get(1000)
 				require.NoError(t, err)
 				require.Equal(t, validResult.Timestamp, retrieved.Timestamp)
-				require.Equal(t, validResult.L1Head, retrieved.L1Head)
+				require.Equal(t, validResult.L1Inclusion, retrieved.L1Inclusion)
 				require.Equal(t, validResult.L2Heads[mock.id], retrieved.L2Heads[mock.id])
 			},
 		},
@@ -682,7 +673,7 @@ func TestHandleResult(t *testing.T) {
 				mock := h.Mock(10)
 				invalidResult := Result{
 					Timestamp: 1000,
-					L1Head:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+					L1Inclusion:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
 					L2Heads: map[eth.ChainID]eth.BlockID{
 						mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
 					},
@@ -783,7 +774,7 @@ func TestInvalidateBlock(t *testing.T) {
 
 				invalidResult := Result{
 					Timestamp: 1000,
-					L1Head:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+					L1Inclusion:    eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
 					L2Heads: map[eth.ChainID]eth.BlockID{
 						mock1.id: {Number: 500, Hash: common.HexToHash("0xL2-1")},
 						mock2.id: {Number: 600, Hash: common.HexToHash("0xL2-2")},
@@ -860,17 +851,17 @@ func TestProgressAndRecord(t *testing.T) {
 				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				expectedL1Head := eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}
-				h.interop.verifyFn = func(ts uint64, l1Head eth.BlockID, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{Timestamp: ts, L1Head: expectedL1Head, L2Heads: blocks}, nil
+				expectedL1Inclusion := eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{Timestamp: ts, L1Inclusion: expectedL1Inclusion, L2Heads: blocks}, nil
 				}
 
 				madeProgress, err := h.interop.progressAndRecord()
 				require.NoError(t, err)
 				require.True(t, madeProgress, "valid result should advance verified timestamp")
 
-				require.Equal(t, expectedL1Head.Number, h.interop.currentL1.Number)
-				require.Equal(t, expectedL1Head.Hash, h.interop.currentL1.Hash)
+				require.Equal(t, expectedL1Inclusion.Number, h.interop.currentL1.Number)
+				require.Equal(t, expectedL1Inclusion.Hash, h.interop.currentL1.Hash)
 			},
 		},
 		{
@@ -886,10 +877,10 @@ func TestProgressAndRecord(t *testing.T) {
 				initialL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0x50")}
 				h.interop.currentL1 = initialL1
 
-				h.interop.verifyFn = func(ts uint64, l1Head eth.BlockID, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
 					return Result{
 						Timestamp:    ts,
-						L1Head:       eth.BlockID{Number: 999, Hash: common.HexToHash("0xShouldNotBeUsed")},
+						L1Inclusion:  eth.BlockID{Number: 999, Hash: common.HexToHash("0xShouldNotBeUsed")},
 						L2Heads:      blocks,
 						InvalidHeads: map[eth.ChainID]eth.BlockID{mock.id: {Number: 100}},
 					}, nil
@@ -949,8 +940,8 @@ func TestInterop_FullCycle(t *testing.T) {
 	require.False(t, hasBlocks)
 
 	// Stub verifyFn
-	interop.verifyFn = func(ts uint64, l1Head eth.BlockID, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-		return Result{Timestamp: ts, L1Head: l1Head, L2Heads: blocks}, nil
+	interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
 	}
 
 	// Run 3 cycles
@@ -959,7 +950,7 @@ func TestInterop_FullCycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint64(1000), l1.Number)
 
-		result, err := interop.progressInterop(l1)
+		result, err := interop.progressInterop()
 		require.NoError(t, err)
 		require.False(t, result.IsEmpty())
 
@@ -1000,7 +991,7 @@ func TestResult_IsEmpty(t *testing.T) {
 	}{
 		{"zero value", Result{}, true},
 		{"only timestamp", Result{Timestamp: 1000}, true},
-		{"with L1Head", Result{Timestamp: 1000, L1Head: eth.BlockID{Number: 100}}, false},
+		{"with L1Head", Result{Timestamp: 1000, L1Inclusion: eth.BlockID{Number: 100}}, false},
 		{"with L2Heads", Result{Timestamp: 1000, L2Heads: map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 50}}}, false},
 		{"with InvalidHeads", Result{Timestamp: 1000, InvalidHeads: map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 50}}}, false},
 	}
@@ -1275,7 +1266,7 @@ func TestReset(t *testing.T) {
 				for ts := uint64(98); ts <= 102; ts++ {
 					err := h.interop.verifiedDB.Commit(VerifiedResult{
 						Timestamp: ts,
-						L1Head:    eth.BlockID{Number: ts},
+						L1Inclusion:    eth.BlockID{Number: ts},
 						L2Heads:   map[eth.ChainID]eth.BlockID{mock.id: {Number: ts}},
 					})
 					require.NoError(t, err)
