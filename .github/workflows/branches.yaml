@@ -14,7 +14,7 @@ on:
       - '.github/workflows/branches.yaml'
       - 'ops/scripts/compute-git-versions.sh'
       - 'op-rbuilder/**'
-      - 'kona/**'
+      - 'rust/**'
   schedule:
     # Daily builds at 2 AM UTC (matches CircleCI schedule)
     - cron: '0 2 * * *'
@@ -66,6 +66,9 @@ jobs:
           - op-interop-filter
           - op-rbuilder
           - kona-node
+          - kona-client
+          - kona-host
+          - op-reth
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
@@ -110,6 +113,9 @@ jobs:
           - op-interop-filter
           - op-rbuilder
           - kona-node
+          - kona-client
+          - kona-host
+          - op-reth
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
@@ -151,6 +157,9 @@ jobs:
           - op-interop-filter
           - op-rbuilder
           - kona-node
+          - kona-host
+          - kona-client
+          - op-reth
         runner:
           - ubuntu-24.04
           - ubuntu-24.04-arm
@@ -158,6 +167,9 @@ jobs:
           # Rust images use ENTRYPOINT, so the version check command differs
           - image_name: op-rbuilder
           - image_name: kona-node
+          - image_name: kona-host
+          - image_name: kona-client
+          - image_name: op-reth
     runs-on: ${{ matrix.runner }}
     env:
       IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
@@ -175,6 +187,9 @@ jobs:
         image_name:
           - op-rbuilder
           - kona-node
+          - kona-host
+          - kona-client
+          - op-reth
         runner:
           - ubuntu-24.04
           - ubuntu-24.04-arm
