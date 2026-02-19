@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { L2ContractsManager } from "src/L2/L2ContractsManager.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Features } from "src/libraries/Features.sol";
+
+// Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
@@ -16,7 +22,9 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
+import { IProxy } from "interfaces/universal/IProxy.sol";
 
+// Contracts
 import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
@@ -32,9 +40,6 @@ import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
 import { NativeAssetLiquidity } from "src/L2/NativeAssetLiquidity.sol";
 import { LiquidityController } from "src/L2/LiquidityController.sol";
-import { Types } from "src/libraries/Types.sol";
-import { Features } from "src/libraries/Features.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
 
 /// @title L2ContractsManager_FullConfigExposer_Harness
 /// @notice Harness contract that exposes internal functions for testing.
@@ -56,8 +61,8 @@ contract L2ContractsManager_FullConfigExposer_Harness is L2ContractsManager {
             sequencerFeeWalletImpl: SEQUENCER_FEE_WALLET_IMPL,
             optimismMintableERC20FactoryImpl: OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL,
             l2ERC721BridgeImpl: L2_ERC721_BRIDGE_IMPL,
-            l1BlockAttributesImpl: L1_BLOCK_ATTRIBUTES_IMPL,
-            l1BlockAttributesCGTImpl: L1_BLOCK_ATTRIBUTES_CGT_IMPL,
+            l1BlockImpl: L1_BLOCK_IMPL,
+            l1BlockCGTImpl: L1_BLOCK_CGT_IMPL,
             l2ToL1MessagePasserImpl: L2_TO_L1_MESSAGE_PASSER_IMPL,
             l2ToL1MessagePasserCGTImpl: L2_TO_L1_MESSAGE_PASSER_CGT_IMPL,
             optimismMintableERC721FactoryImpl: OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL,
@@ -76,7 +81,8 @@ contract L2ContractsManager_FullConfigExposer_Harness is L2ContractsManager {
             superchainTokenBridgeImpl: SUPERCHAIN_TOKEN_BRIDGE_IMPL,
             nativeAssetLiquidityImpl: NATIVE_ASSET_LIQUIDITY_IMPL,
             liquidityControllerImpl: LIQUIDITY_CONTROLLER_IMPL,
-            feeSplitterImpl: FEE_SPLITTER_IMPL
+            feeSplitterImpl: FEE_SPLITTER_IMPL,
+            conditionalDeployerImpl: CONDITIONAL_DEPLOYER_IMPL
         });
     }
 }
@@ -96,7 +102,8 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         address sequencerFeeWalletImpl;
         address optimismMintableERC20FactoryImpl;
         address l2ERC721BridgeImpl;
-        address l1BlockAttributesImpl;
+        address l1BlockImpl;
+        address l1BlockCGTImpl;
         address l2ToL1MessagePasserImpl;
         address optimismMintableERC721FactoryImpl;
         address proxyAdminImpl;
@@ -124,6 +131,8 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         super.setUp();
         _loadImplementations();
         _deployL2CM();
+
+        skipIfDevFeatureDisabled(DevFeatures.L2CM);
     }
 
     /// @notice Deploys the target implementations for the predeploys.
@@ -136,8 +145,8 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.l2StandardBridgeImpl = address(new L2StandardBridge());
         implementations.optimismMintableERC20FactoryImpl = address(new OptimismMintableERC20Factory());
         implementations.l2ERC721BridgeImpl = address(new L2ERC721Bridge());
-        implementations.l1BlockAttributesImpl = address(new L1Block());
-        implementations.l1BlockAttributesCGTImpl = address(new L1BlockCGT());
+        implementations.l1BlockImpl = address(new L1Block());
+        implementations.l1BlockCGTImpl = address(new L1BlockCGT());
         implementations.l2ToL1MessagePasserImpl = address(new L2ToL1MessagePasser());
         implementations.l2ToL1MessagePasserCGTImpl = address(new L2ToL1MessagePasserCGT());
         implementations.optimismMintableERC721FactoryImpl = address(new OptimismMintableERC721Factory(address(0), 0));
@@ -164,6 +173,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             deployCode("src/L2/OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory");
         implementations.superchainTokenBridgeImpl = deployCode("src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge");
         implementations.feeSplitterImpl = deployCode("src/L2/FeeSplitter.sol:FeeSplitter");
+        implementations.conditionalDeployerImpl = deployCode("src/L2/ConditionalDeployer.sol:ConditionalDeployer");
     }
 
     /// @notice Deploys the L2ContractsManager with the loaded implementations.
@@ -193,7 +203,8 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         state_.optimismMintableERC20FactoryImpl =
             EIP1967Helper.getImplementation(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
         state_.l2ERC721BridgeImpl = EIP1967Helper.getImplementation(Predeploys.L2_ERC721_BRIDGE);
-        state_.l1BlockAttributesImpl = EIP1967Helper.getImplementation(Predeploys.L1_BLOCK_ATTRIBUTES);
+        state_.l1BlockImpl = EIP1967Helper.getImplementation(Predeploys.L1_BLOCK_ATTRIBUTES);
+        state_.l1BlockCGTImpl = EIP1967Helper.getImplementation(Predeploys.L1_BLOCK_ATTRIBUTES);
         state_.l2ToL1MessagePasserImpl = EIP1967Helper.getImplementation(Predeploys.L2_TO_L1_MESSAGE_PASSER);
         state_.optimismMintableERC721FactoryImpl =
             EIP1967Helper.getImplementation(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
@@ -241,7 +252,8 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             "OptimismMintableERC20Factory impl mismatch"
         );
         assertEq(_state1.l2ERC721BridgeImpl, _state2.l2ERC721BridgeImpl, "L2ERC721Bridge impl mismatch");
-        assertEq(_state1.l1BlockAttributesImpl, _state2.l1BlockAttributesImpl, "L1BlockAttributes impl mismatch");
+        assertEq(_state1.l1BlockImpl, _state2.l1BlockImpl, "L1Block impl mismatch");
+        assertEq(_state1.l1BlockCGTImpl, _state2.l1BlockCGTImpl, "L1BlockCGT impl mismatch");
         assertEq(_state1.l2ToL1MessagePasserImpl, _state2.l2ToL1MessagePasserImpl, "L2ToL1MessagePasser impl mismatch");
         assertEq(
             _state1.optimismMintableERC721FactoryImpl,
@@ -611,7 +623,7 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
         address postUpgradeL1BlockImpl = EIP1967Helper.getImplementation(Predeploys.L1_BLOCK_ATTRIBUTES);
         assertEq(
             postUpgradeL1BlockImpl,
-            implementations.l1BlockAttributesCGTImpl,
+            implementations.l1BlockCGTImpl,
             "L1Block should use CGT implementation on CGT networks"
         );
 
@@ -658,42 +670,6 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
 /// @notice Test that verifies all predeploys receive upgrade calls during L2CM upgrade.
 ///         Uses Predeploys.sol as the source of truth for which predeploys should be upgraded.
 contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_Test {
-    /// @notice Returns all predeploys from Predeploys.sol that should be upgraded by L2CM.
-    /// @dev IMPORTANT: This is the SOURCE OF TRUTH for upgrade coverage. All proxied predeploys from
-    ///      Predeploys.sol should be listed here. If a new predeploy is added to Predeploys.sol,
-    ///      it must be added here.
-    ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
-    function _getAllUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
-        predeploys_ = new address[](24);
-        // Core predeploys
-        predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
-        predeploys_[2] = Predeploys.L2_STANDARD_BRIDGE;
-        predeploys_[3] = Predeploys.SEQUENCER_FEE_WALLET;
-        predeploys_[4] = Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY;
-        predeploys_[5] = Predeploys.L2_ERC721_BRIDGE;
-        predeploys_[6] = Predeploys.L1_BLOCK_ATTRIBUTES;
-        predeploys_[7] = Predeploys.L2_TO_L1_MESSAGE_PASSER;
-        predeploys_[8] = Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
-        predeploys_[9] = Predeploys.PROXY_ADMIN;
-        predeploys_[10] = Predeploys.BASE_FEE_VAULT;
-        predeploys_[11] = Predeploys.L1_FEE_VAULT;
-        predeploys_[12] = Predeploys.OPERATOR_FEE_VAULT;
-        predeploys_[13] = Predeploys.SCHEMA_REGISTRY;
-        predeploys_[14] = Predeploys.EAS;
-        predeploys_[15] = Predeploys.FEE_SPLITTER;
-        // Interop predeploys
-        predeploys_[16] = Predeploys.CROSS_L2_INBOX;
-        predeploys_[17] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[18] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
-        predeploys_[19] = Predeploys.ETH_LIQUIDITY;
-        predeploys_[20] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
-        predeploys_[21] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
-        predeploys_[22] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
-        // CGT predeploys (conditionally deployed, but still must be included in the list)
-        predeploys_[23] = Predeploys.NATIVE_ASSET_LIQUIDITY;
-    }
-
     /// @notice Returns CGT-only predeploys that require initialization.
     /// @dev These are separate because they're only deployed on CGT networks.
     function _getCGTInitializablePredeploys() internal pure returns (address[] memory predeploys_) {
@@ -724,7 +700,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
     ///         Uses vm.expectCall() to verify that upgradeTo or upgradeToAndCall is called.
     /// @dev If L2CM misses a predeploy that exists in Predeploys.sol, this test will fail.
     function test_allPredeploysReceiveUpgradeCall_succeeds() public {
-        address[] memory allPredeploys = _getAllUpgradeablePredeploys();
+        address[] memory allPredeploys = Predeploys.getUpgradeablePredeploys();
 
         for (uint256 i = 0; i < allPredeploys.length; i++) {
             address predeploy = allPredeploys[i];

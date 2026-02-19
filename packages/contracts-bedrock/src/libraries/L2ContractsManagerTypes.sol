@@ -74,8 +74,8 @@ library L2ContractsManagerTypes {
         address sequencerFeeWalletImpl;
         address optimismMintableERC20FactoryImpl;
         address l2ERC721BridgeImpl;
-        address l1BlockAttributesImpl;
-        address l1BlockAttributesCGTImpl;
+        address l1BlockImpl;
+        address l1BlockCGTImpl;
         address l2ToL1MessagePasserImpl;
         address l2ToL1MessagePasserCGTImpl;
         address optimismMintableERC721FactoryImpl;
@@ -95,5 +95,6 @@ library L2ContractsManagerTypes {
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
         address feeSplitterImpl;
+        address conditionalDeployerImpl;
     }
 }

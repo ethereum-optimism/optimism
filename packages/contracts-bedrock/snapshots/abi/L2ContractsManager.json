@@ -40,12 +40,12 @@
           },
           {
             "internalType": "address",
-            "name": "l1BlockAttributesImpl",
+            "name": "l1BlockImpl",
             "type": "address"
           },
           {
             "internalType": "address",
-            "name": "l1BlockAttributesCGTImpl",
+            "name": "l1BlockCGTImpl",
             "type": "address"
           },
           {
@@ -141,6 +141,11 @@
           {
             "internalType": "address",
             "name": "feeSplitterImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "conditionalDeployerImpl",
             "type": "address"
           }
         ],

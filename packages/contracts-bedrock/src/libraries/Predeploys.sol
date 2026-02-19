@@ -225,4 +225,43 @@ library Predeploys {
 
         isUpgradeable_ = isPredeployNamespace(_proxy) && !notProxied(_proxy) && implementation.code.length > 0;
     }
+
+    /// @notice Returns all proxied predeploys that should be upgraded by L2CM.
+    ///         This means that for each of these predeploys, isUpgradeable(predeploy) should return true if running on
+    ///         a network that supports it.
+    /// @dev IMPORTANT: This is the SOURCE OF TRUTH for upgrade coverage. All proxied predeploys from
+    ///      Predeploys library should be listed here.
+    ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
+    function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
+        predeploys_ = new address[](26);
+        // Core predeploys
+        predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
+        predeploys_[2] = Predeploys.L2_STANDARD_BRIDGE;
+        predeploys_[3] = Predeploys.SEQUENCER_FEE_WALLET;
+        predeploys_[4] = Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY;
+        predeploys_[5] = Predeploys.L2_ERC721_BRIDGE;
+        predeploys_[6] = Predeploys.L1_BLOCK_ATTRIBUTES;
+        predeploys_[7] = Predeploys.L2_TO_L1_MESSAGE_PASSER;
+        predeploys_[8] = Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
+        predeploys_[9] = Predeploys.PROXY_ADMIN;
+        predeploys_[10] = Predeploys.BASE_FEE_VAULT;
+        predeploys_[11] = Predeploys.L1_FEE_VAULT;
+        predeploys_[12] = Predeploys.OPERATOR_FEE_VAULT;
+        predeploys_[13] = Predeploys.SCHEMA_REGISTRY;
+        predeploys_[14] = Predeploys.EAS;
+        predeploys_[15] = Predeploys.FEE_SPLITTER;
+        predeploys_[16] = Predeploys.CONDITIONAL_DEPLOYER;
+        // Interop predeploys
+        predeploys_[17] = Predeploys.CROSS_L2_INBOX;
+        predeploys_[18] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+        predeploys_[19] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
+        predeploys_[20] = Predeploys.ETH_LIQUIDITY;
+        predeploys_[21] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
+        predeploys_[22] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+        predeploys_[23] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
+        // CGT predeploys (conditionally deployed, but still must be included in the list)
+        predeploys_[24] = Predeploys.NATIVE_ASSET_LIQUIDITY;
+        predeploys_[25] = Predeploys.LIQUIDITY_CONTROLLER;
+    }
 }
