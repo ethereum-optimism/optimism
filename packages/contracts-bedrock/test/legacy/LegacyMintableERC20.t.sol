@@ -12,6 +12,9 @@ import { ILegacyMintableERC20 } from "interfaces/legacy/ILegacyMintableERC20.sol
 abstract contract LegacyMintableERC20_TestInit is CommonTest {
     LegacyMintableERC20 legacyMintableERC20;
 
+    event Mint(address indexed _account, uint256 _amount);
+    event Burn(address indexed _account, uint256 _amount);
+
     function setUp() public override {
         super.setUp();
 
@@ -51,15 +54,20 @@ contract LegacyMintableERC20_SupportsInterface_Test is LegacyMintableERC20_TestI
 /// @title LegacyMintableERC20_Mint_Test
 /// @notice Tests the `mint` function of the `LegacyMintableERC20` contract.
 contract LegacyMintableERC20_Mint_Test is LegacyMintableERC20_TestInit {
-    /// @notice Tests that the mint function works when called by the bridge
-    function test_mint_byBridge_succeeds() public {
+    /// @notice Tests minting with fuzzed recipient and amount
+    function testFuzz_mint_byBridge_succeeds(address _to, uint256 _amount) public {
+        vm.assume(_to != address(0));
         vm.prank(address(l2StandardBridge));
-        legacyMintableERC20.mint(address(this), 1000);
-        assertEq(legacyMintableERC20.balanceOf(address(this)), 1000);
+        vm.expectEmit(true, true, true, true);
+        emit Mint(_to, _amount);
+        legacyMintableERC20.mint(_to, _amount);
+        assertEq(legacyMintableERC20.balanceOf(_to), _amount);
     }
 
-    /// @notice Tests that the mint function fails when called by an address other than the bridge
-    function test_mint_byNonBridge_reverts() public {
+    /// @notice Tests that mint reverts for any non-bridge caller
+    function testFuzz_mint_byNonBridge_reverts(address _caller) public {
+        vm.assume(_caller != address(l2StandardBridge));
+        vm.prank(_caller);
         vm.expectRevert(bytes("Only L2 Bridge can mint and burn"));
         legacyMintableERC20.mint(address(this), 1000);
     }
@@ -68,18 +76,22 @@ contract LegacyMintableERC20_Mint_Test is LegacyMintableERC20_TestInit {
 /// @title LegacyMintableERC20_Burn_Test
 /// @notice Tests the `burn` function of the `LegacyMintableERC20` contract.
 contract LegacyMintableERC20_Burn_Test is LegacyMintableERC20_TestInit {
-    /// @notice Tests that the burn function works when called by the bridge
-    function test_burn_byBridge_succeeds() public {
+    /// @notice Tests burning with fuzzed amount
+    function testFuzz_burn_byBridge_succeeds(uint256 _amount) public {
         vm.prank(address(l2StandardBridge));
-        legacyMintableERC20.mint(address(this), 1000);
+        legacyMintableERC20.mint(address(this), _amount);
 
         vm.prank(address(l2StandardBridge));
-        legacyMintableERC20.burn(address(this), 1000);
+        vm.expectEmit(true, true, true, true);
+        emit Burn(address(this), _amount);
+        legacyMintableERC20.burn(address(this), _amount);
         assertEq(legacyMintableERC20.balanceOf(address(this)), 0);
     }
 
-    /// @notice Tests that the burn function fails when called by an address other than the bridge
-    function test_burn_byNonBridge_reverts() public {
+    /// @notice Tests that burn reverts for any non-bridge caller
+    function testFuzz_burn_byNonBridge_reverts(address _caller) public {
+        vm.assume(_caller != address(l2StandardBridge));
+        vm.prank(_caller);
         vm.expectRevert(bytes("Only L2 Bridge can mint and burn"));
         legacyMintableERC20.burn(address(this), 1000);
     }
