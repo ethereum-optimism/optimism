@@ -2,6 +2,7 @@ package interop
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -104,6 +105,11 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	t.Logger().Info("pre-finalized state",
 		"finalizedA", preFinalizedStatusA.FinalizedL2.Number,
 		"finalizedB", preFinalizedStatusB.FinalizedL2.Number)
+
+	// Wait for L1 head to finalise, which should imply L2 finalized head progression
+	// Use time travel to reduce walltime of test
+	sys.AdvanceTime(90 * time.Second)
+	sys.L1Network.WaitForFinalization()
 
 	// Wait for finalized heads to catch up to or past the snapshotted safe heads
 	// Finalized advancement depends on L1 finality, so use more attempts
