@@ -227,6 +227,10 @@
     "initCodeHash": "0x3a82e248129d19764bb975bb79b48a982f077f33bb508480bf8d2ec1c0c9810d",
     "sourceCodeHash": "0x955bd0c9b47e43219865e4e92abf28d916c96de20cbdf2f94c8ab14d02083759"
   },
+  "src/periphery/staking/PolicyEngineStaking.sol:PolicyEngineStaking": {
+    "initCodeHash": "0xb6862d7055bce4d60afc2fea2d1de249e555353f3109a78bffa223aff8e5a69b",
+    "sourceCodeHash": "0x888e4a6f09d3cfc5facf9e2c35daf9ab8b9d7289bef7c31b4ef1a014c2dc77f4"
+  },
   "src/safe/DeputyPauseModule.sol:DeputyPauseModule": {
     "initCodeHash": "0x18422b48c4901ed6fd9338d76d3c5aecfff9a7add34b05c6e21c23d0011ed6bf",
     "sourceCodeHash": "0xd15f4bb43e81a10317902cd8e27394581a59df2656b130727eb67543c985c72e"
