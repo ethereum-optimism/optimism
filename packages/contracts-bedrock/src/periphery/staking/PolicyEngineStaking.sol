@@ -40,6 +40,7 @@ contract PolicyEngineStaking is ISemver {
     bytes32 public constant PE_DATA_SLOT = 0;
 
     /// @notice The ERC20 token used for staking.
+    // nosemgrep: sol-safety-no-immutable-variables
     IERC20 internal immutable STAKING_TOKEN;
 
     /// @notice Slot 0: PE stakingData mapping.

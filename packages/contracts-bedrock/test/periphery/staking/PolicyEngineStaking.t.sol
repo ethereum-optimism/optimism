@@ -60,24 +60,6 @@ abstract contract PolicyEngineStaking_TestInit is CommonTest {
     }
 }
 
-/// @title PolicyEngineStaking_Constructor_Test
-/// @notice Tests that the constructor reverts on invalid arguments.
-contract PolicyEngineStaking_Constructor_Test is PolicyEngineStaking_TestInit {
-    /// @notice Tests that the constructor reverts when owner is zero address.
-    function test_constructor_zeroOwner_reverts() external {
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
-        vm.deployCode(
-            "PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(address(0), Predeploys.GOVERNANCE_TOKEN)
-        );
-    }
-
-    /// @notice Tests that the constructor reverts when token is zero address.
-    function test_constructor_zeroToken_reverts() external {
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
-        vm.deployCode("PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(owner, address(0)));
-    }
-}
-
 /// @title PolicyEngineStaking_TransferOwnership_Test
 /// @notice Tests the `transferOwnership` function.
 contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestInit {
@@ -638,6 +620,20 @@ contract PolicyEngineStaking_Constructor_Test is PolicyEngineStaking_TestInit {
         staking.unstake(amount);
         bobRaw = vm.load(address(staking), bobSlot);
         assertEq(uint128(uint256(bobRaw)), 0);
+    }
+
+    /// @notice Tests that the constructor reverts when owner is zero address.
+    function test_constructor_zeroOwner_reverts() external {
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
+        vm.deployCode(
+            "PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(address(0), Predeploys.GOVERNANCE_TOKEN)
+        );
+    }
+
+    /// @notice Tests that the constructor reverts when token is zero address.
+    function test_constructor_zeroToken_reverts() external {
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
+        vm.deployCode("PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(owner, address(0)));
     }
 }
 
