@@ -57,18 +57,25 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 		sys.L2BCL.ReachedFn(types.CrossSafe, initialTargetBlockNumB-1, attempts),
 	)
 
-	// Expect cross safe to stall since we paused the interop activity
+	// Expect cross safe and finalized to stall since we paused the interop activity
 	numAttempts := 2 // implies a 4s wait
 	dsl.CheckAll(t,
 		sys.L2ACL.NotAdvancedFn(types.CrossSafe, numAttempts),
 		sys.L2BCL.NotAdvancedFn(types.CrossSafe, numAttempts),
+		sys.L2ACL.NotAdvancedFn(types.Finalized, numAttempts),
+		sys.L2BCL.NotAdvancedFn(types.Finalized, numAttempts),
 	)
 
-	// Check EL labels - cross-safe should be stalled below initial target block numbers
+	// Check EL labels - cross-safeand finalized should be
+	// stalled below initial target block numbers
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
 	safeB := sys.L2ELB.BlockRefByLabel(eth.Safe)
+	finalizedA := sys.L2ELA.BlockRefByLabel(eth.Finalized)
+	finalizedB := sys.L2ELB.BlockRefByLabel(eth.Finalized)
 	require.Less(t, safeA.Number, initialTargetBlockNumA)
 	require.Less(t, safeB.Number, initialTargetBlockNumB)
+	require.Less(t, finalizedA.Number, initialTargetBlockNumA)
+	require.Less(t, finalizedB.Number, initialTargetBlockNumB)
 
 	// Resume interop verification
 	// expect cross safe to catch up
@@ -109,8 +116,8 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	)
 
 	// Verify finalized heads on EL
-	finalizedA := sys.L2ELA.BlockRefByLabel(eth.Finalized)
-	finalizedB := sys.L2ELB.BlockRefByLabel(eth.Finalized)
+	finalizedA = sys.L2ELA.BlockRefByLabel(eth.Finalized)
+	finalizedB = sys.L2ELB.BlockRefByLabel(eth.Finalized)
 	require.GreaterOrEqual(t, finalizedA.Number, snapshotSafeA, "finalized A should catch up to safe snapshot")
 	require.GreaterOrEqual(t, finalizedB.Number, snapshotSafeB, "finalized B should catch up to safe snapshot")
 
