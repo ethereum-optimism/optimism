@@ -212,10 +212,11 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		}
 		// SuperAuthority provided a cross-verified safe head
 		if (fvshid == eth.BlockID{}) {
-			// Fallback to genesis block (safe by consensus)
+			// Fallback to genesis block (safe by consensus) if possible
 			br, err := e.engine.L2BlockRefByNumber(e.ctx, 0)
 			if err != nil {
-				panic("cannot get genesis block from engine")
+				e.log.Warn("cannot get genesis block from engine")
+				return eth.L2BlockRef{}
 			}
 			return br
 		}
@@ -244,10 +245,11 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 			return e.localFinalizedHead
 		}
 		if (f == eth.BlockID{}) {
-			// Fallback to genesis block (final by consensus)
+			// Fallback to genesis block (final by consensus) if possible
 			br, err := e.engine.L2BlockRefByNumber(e.ctx, 0)
 			if err != nil {
-				panic("cannot get genesis block from engine")
+				e.log.Warn("cannot get genesis block from engine")
+				return eth.L2BlockRef{}
 			}
 			return br
 		}
