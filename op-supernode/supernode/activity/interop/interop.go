@@ -425,7 +425,6 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 // which guarantees that the verified data at that pauseAtTimestamp
 // originates from or before the supplied L1 block.
 func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64) {
-
 	// Get the last verified timestamp
 	lastTs, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
