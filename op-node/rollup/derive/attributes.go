@@ -163,7 +163,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	// don't need to fit within the system tx gas limit.
 	var upgradeGas uint64
 	if ba.rollupCfg.IsKarstActivationBlock(nextL2Time) {
-		nutTxs, nutGas, err := UpgradeTransactionsFromNUTBundle(forks.Karst, karstNUTBundleJSON)
+		nutTxs, nutGas, err := upgradeTransactionsFromNUTBundle(forks.Karst, karstNUTBundleJSON)
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build karst network upgrade txs: %w", err))
 		}

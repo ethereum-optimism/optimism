@@ -16,13 +16,13 @@ import (
 // Network Upgrade Transactions (NUTs) are read from a JSON file and
 // converted into deposit transactions.
 
-// NUTMetadata contains version information for the NUT bundle format.
-type NUTMetadata struct {
+// nutMetadata contains version information for the NUT bundle format.
+type nutMetadata struct {
 	Version string `json:"version"`
 }
 
-// NetworkUpgradeTransaction defines a single deposit transaction within a NUT bundle.
-type NetworkUpgradeTransaction struct {
+// networkUpgradeTransaction defines a single deposit transaction within a NUT bundle.
+type networkUpgradeTransaction struct {
 	Intent   string          `json:"intent"`
 	From     common.Address  `json:"from"`
 	To       *common.Address `json:"to"`
@@ -30,17 +30,17 @@ type NetworkUpgradeTransaction struct {
 	GasLimit uint64          `json:"gasLimit"`
 }
 
-// NUTBundle is the top-level structure of a NUT file.
-type NUTBundle struct {
-	ForkName     forks.Name                  `json:"-"`
-	Metadata     NUTMetadata                 `json:"metadata"`
-	Transactions []NetworkUpgradeTransaction `json:"transactions"`
+// nutBundle is the top-level structure of a NUT file.
+type nutBundle struct {
+	ForkName     forks.Name                   `json:"-"`
+	Metadata     nutMetadata                  `json:"metadata"`
+	Transactions []networkUpgradeTransaction `json:"transactions"`
 }
 
-// ReadNUTBundle reads and parses a NUT bundle from an io.Reader. The fork name
+// readNUTBundle reads and parses a NUT bundle from an io.Reader. The fork name
 // is used to namespace each transaction's intent when deriving source hashes.
-func ReadNUTBundle(fork forks.Name, r io.Reader) (*NUTBundle, error) {
-	var bundle NUTBundle
+func readNUTBundle(fork forks.Name, r io.Reader) (*nutBundle, error) {
+	var bundle nutBundle
 	if err := json.NewDecoder(r).Decode(&bundle); err != nil {
 		return nil, fmt.Errorf("failed to parse NUT bundle: %w", err)
 	}
@@ -48,8 +48,8 @@ func ReadNUTBundle(fork forks.Name, r io.Reader) (*NUTBundle, error) {
 	return &bundle, nil
 }
 
-// TotalGas returns the sum of gas limits across all transactions in the bundle.
-func (b *NUTBundle) TotalGas() uint64 {
+// totalGas returns the sum of gas limits across all transactions in the bundle.
+func (b *nutBundle) totalGas() uint64 {
 	var total uint64
 	for _, tx := range b.Transactions {
 		total += tx.GasLimit
@@ -57,8 +57,8 @@ func (b *NUTBundle) TotalGas() uint64 {
 	return total
 }
 
-// ToDepositTransactions converts the bundle's transactions into serialized deposit transactions.
-func (b *NUTBundle) ToDepositTransactions() ([]hexutil.Bytes, error) {
+// toDepositTransactions converts the bundle's transactions into serialized deposit transactions.
+func (b *nutBundle) toDepositTransactions() ([]hexutil.Bytes, error) {
 	txs := make([]hexutil.Bytes, 0, len(b.Transactions))
 	for i, nutTx := range b.Transactions {
 		if nutTx.Intent == "" {
@@ -87,18 +87,18 @@ func (b *NUTBundle) ToDepositTransactions() ([]hexutil.Bytes, error) {
 	return txs, nil
 }
 
-// UpgradeTransactionsFromNUTBundle parses an embedded NUT bundle JSON and returns
+// upgradeTransactionsFromNUTBundle parses an embedded NUT bundle JSON and returns
 // the deposit transactions along with the total gas required.
-func UpgradeTransactionsFromNUTBundle(fork forks.Name, bundleJSON []byte) ([]hexutil.Bytes, uint64, error) {
-	bundle, err := ReadNUTBundle(fork, bytes.NewReader(bundleJSON))
+func upgradeTransactionsFromNUTBundle(fork forks.Name, bundleJSON []byte) ([]hexutil.Bytes, uint64, error) {
+	bundle, err := readNUTBundle(fork, bytes.NewReader(bundleJSON))
 	if err != nil {
 		return nil, 0, err
 	}
 
-	txs, err := bundle.ToDepositTransactions()
+	txs, err := bundle.toDepositTransactions()
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return txs, bundle.TotalGas(), nil
+	return txs, bundle.totalGas(), nil
 }
