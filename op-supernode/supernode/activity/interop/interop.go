@@ -244,23 +244,6 @@ func (i *Interop) collectCurrentL1() (eth.BlockID, error) {
 	return currentL1, nil
 }
 
-func (i *Interop) collectFinalizedL1() (eth.BlockID, error) {
-	var finalizedL1 eth.BlockID
-	first := true
-	for _, chain := range i.chains {
-		status, err := chain.SyncStatus(i.ctx)
-		if err != nil {
-			return eth.BlockID{}, fmt.Errorf("chain %s not ready: %w", chain.ID(), err)
-		}
-		block := status.FinalizedL1
-		if first || block.Number < finalizedL1.Number {
-			finalizedL1 = block.ID()
-			first = false
-		}
-	}
-	return finalizedL1, nil
-}
-
 func (i *Interop) progressInterop() (Result, error) {
 	start := time.Now()
 	defer func() {
