@@ -1848,7 +1848,7 @@ jobs:
       - run:
           name: check nut locks
           command: |
-            make check-nut-locks
+            just check-nut-locks
 
   go-tests:
     parameters:
