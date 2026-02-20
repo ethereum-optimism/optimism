@@ -450,7 +450,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 			expectResult:   &eth.L2BlockRef{},
 		},
 		{
-			name: "panics when genesis lookup fails",
+			name: "returns empty block when genesis lookup fails",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{finalizedL2Head: eth.BlockID{}}
 			},
@@ -458,7 +458,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByNumber(0, eth.L2BlockRef{}, errors.New("genesis not found"))
 			},
-			expectPanic: "cannot get genesis block from engine",
+			expectResult: &eth.L2BlockRef{},
 		},
 		{
 			name: "panics when SuperAuthority block unknown to engine",
