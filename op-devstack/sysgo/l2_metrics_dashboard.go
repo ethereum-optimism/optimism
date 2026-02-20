@@ -135,9 +135,7 @@ func (g *L2MetricsDashboard) startGrafana() {
 func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 	return stack.Finally(func(orch *Orchestrator) {
 		// don't start prometheus or grafana if metrics are disabled or there is nothing exporting metrics.
-		orch.l2MetricsMu.RLock()
-		metricsLen := len(orch.l2MetricsEndpoints)
-		orch.l2MetricsMu.RUnlock()
+		metricsLen := orch.l2MetricsEndpoints.Len()
 		if !areMetricsEnabled() || metricsLen == 0 {
 			return
 		}
@@ -221,8 +219,7 @@ func getPrometheusConfigFilePath(p devtest.P, orch *Orchestrator) string {
 
 	var scrapeConfigs []prometheusScrapeConfigEntry
 
-	orch.l2MetricsMu.RLock()
-	for name, endpoints := range orch.l2MetricsEndpoints {
+	orch.l2MetricsEndpoints.Range(func(name string, endpoints []PrometheusMetricsTarget) bool {
 		var targets []string
 		for _, endpoint := range endpoints {
 			targets = append(targets, string(endpoint))
@@ -232,8 +229,8 @@ func getPrometheusConfigFilePath(p devtest.P, orch *Orchestrator) string {
 			Scheme:        "http",
 			StaticConfigs: []prometheusStaticConfig{{Targets: targets}},
 		})
-	}
-	orch.l2MetricsMu.RUnlock()
+		return true
+	})
 
 	yamlConfig := prometheusConfig{
 		Global: prometheusGlobalConfig{

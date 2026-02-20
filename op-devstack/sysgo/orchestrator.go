@@ -44,8 +44,7 @@ type Orchestrator struct {
 	supernodes locks.RWMap[stack.SupernodeID, *SuperNode]
 
 	// service name => prometheus endpoints to scrape
-	l2MetricsEndpoints map[string][]PrometheusMetricsTarget
-	l2MetricsMu        sync.RWMutex
+	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsTarget]
 
 	syncTester *SyncTesterService
 	faucet     *FaucetService
@@ -104,10 +103,9 @@ var _ stack.Orchestrator = (*Orchestrator)(nil)
 
 func NewOrchestrator(p devtest.P, hook stack.SystemHook) *Orchestrator {
 	o := &Orchestrator{
-		p:                  p,
-		sysHook:            hook,
-		registry:           stack.NewRegistry(),
-		l2MetricsEndpoints: make(map[string][]PrometheusMetricsTarget),
+		p:        p,
+		sysHook:  hook,
+		registry: stack.NewRegistry(),
 	}
 	o.controlPlane = &ControlPlane{o: o}
 	return o
@@ -138,26 +136,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	}
 
 	// Hydrate all components in the unified registry.
-	// Components are hydrated in kind order to maintain consistent ordering.
-	kindOrder := []stack.ComponentKind{
-		stack.KindSuperchain,
-		stack.KindCluster,
-		stack.KindL1Network,
-		stack.KindL2Network,
-		stack.KindL1ELNode,
-		stack.KindL1CLNode,
-		stack.KindL2ELNode,
-		stack.KindOPRBuilderNode,
-		stack.KindRollupBoostNode,
-		stack.KindL2CLNode,
-		stack.KindSupervisor,
-		stack.KindTestSequencer,
-		stack.KindL2Batcher,
-		stack.KindL2Challenger,
-		stack.KindL2Proposer,
-	}
-
-	for _, kind := range kindOrder {
+	for _, kind := range stack.HydrationComponentKindOrder() {
 		o.registry.RangeByKind(kind, func(id stack.ComponentID, component any) bool {
 			if h, ok := component.(hydrator); ok {
 				h.hydrate(sys)
@@ -176,14 +155,11 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 }
 
 func (o *Orchestrator) RegisterL2MetricsTargets(id stack.IDWithChain, endpoints ...PrometheusMetricsTarget) {
-	o.l2MetricsMu.Lock()
-	defer o.l2MetricsMu.Unlock()
-
-	if existing, ok := o.l2MetricsEndpoints[id.Key()]; ok {
+	wasSet := o.l2MetricsEndpoints.SetIfMissing(id.Key(), endpoints)
+	if !wasSet {
+		existing, _ := o.l2MetricsEndpoints.Get(id.Key())
 		o.p.Logger().Warn("multiple endpoints registered with the same key", "key", id.Key(), "existing", existing, "new", endpoints)
-		return
 	}
-	o.l2MetricsEndpoints[id.Key()] = endpoints
 }
 
 // InteropTestControl returns the InteropTestControl for a given SupernodeID.
@@ -199,4 +175,11 @@ func (o *Orchestrator) InteropTestControl(id stack.SupernodeID) stack.InteropTes
 
 type hydrator interface {
 	hydrate(system stack.ExtensibleSystem)
+}
+
+func rangeHydrateFn[I any, H hydrator](sys stack.ExtensibleSystem) func(id I, v H) bool {
+	return func(id I, v H) bool {
+		v.hydrate(sys)
+		return true
+	}
 }

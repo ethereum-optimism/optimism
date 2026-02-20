@@ -37,10 +37,9 @@ func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] 
 	opts := stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			absolutePrestate := PrestateForGameType(o.P(), gameType)
-			l2NetIDs := o.registry.IDsByKind(stack.KindL2Network)
-			l1ELIDs := o.registry.IDsByKind(stack.KindL1ELNode)
+			l1ELID, l2NetIDs := requireGameTypeTargetIDs(o)
 			for _, l2NetID := range l2NetIDs {
-				addGameType(o, absolutePrestate, gameType, stack.NewL1ELNodeID(l1ELIDs[0].Key(), l1ELIDs[0].ChainID()), l2NetID.ChainID())
+				addGameType(o, absolutePrestate, gameType, l1ELID, l2NetID.ChainID())
 			}
 		},
 	}
@@ -50,10 +49,9 @@ func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] 
 func WithRespectedGameType(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
-			l2NetIDs := o.registry.IDsByKind(stack.KindL2Network)
-			l1ELIDs := o.registry.IDsByKind(stack.KindL1ELNode)
+			l1ELID, l2NetIDs := requireGameTypeTargetIDs(o)
 			for _, l2NetID := range l2NetIDs {
-				setRespectedGameType(o, gameType, stack.NewL1ELNodeID(l1ELIDs[0].Key(), l1ELIDs[0].ChainID()), l2NetID.ChainID())
+				setRespectedGameType(o, gameType, l1ELID, l2NetID.ChainID())
 			}
 		},
 	}
@@ -76,13 +74,23 @@ func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
 		},
 		FinallyFn: func(o *Orchestrator) {
 			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
-			l2NetIDs := o.registry.IDsByKind(stack.KindL2Network)
-			l1ELIDs := o.registry.IDsByKind(stack.KindL1ELNode)
+			l1ELID, l2NetIDs := requireGameTypeTargetIDs(o)
 			for _, l2NetID := range l2NetIDs {
-				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, stack.NewL1ELNodeID(l1ELIDs[0].Key(), l1ELIDs[0].ChainID()), l2NetID.ChainID())
+				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, l1ELID, l2NetID.ChainID())
 			}
 		},
 	}
+}
+
+func requireGameTypeTargetIDs(o *Orchestrator) (stack.L1ELNodeID, []stack.ComponentID) {
+	require := o.P().Require()
+	l2NetIDs := o.registry.IDsByKind(stack.KindL2Network)
+	require.NotEmpty(l2NetIDs, "need at least one L2 network to configure game types")
+
+	l1ELIDs := o.registry.IDsByKind(stack.KindL1ELNode)
+	require.NotEmpty(l1ELIDs, "need at least one L1 EL node to configure game types")
+
+	return stack.NewL1ELNodeID(l1ELIDs[0].Key(), l1ELIDs[0].ChainID()), l2NetIDs
 }
 
 func WithChallengerCannonKonaEnabled() stack.Option[*Orchestrator] {
