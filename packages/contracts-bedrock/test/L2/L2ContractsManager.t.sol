@@ -6,6 +6,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { L2ContractsManager } from "src/L2/L2ContractsManager.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
+import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
@@ -23,6 +24,7 @@ import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 // Contracts
 import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
@@ -662,6 +664,60 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
             liquidityController.gasPayingTokenSymbol(),
             preUpgradeConfig.liquidityController.gasPayingTokenSymbol,
             "LiquidityController.gasPayingTokenSymbol not preserved"
+        );
+    }
+}
+
+/// @title L2ContractsManager_Upgrade_DowngradePrevention_Test
+/// @notice Test contract that verifies L2CM prevents downgrading predeploy implementations.
+contract L2ContractsManager_Upgrade_DowngradePrevention_Test is L2ContractsManager_Upgrade_Test {
+    /// @notice Tests that upgrade reverts when a non-initializable predeploy has a higher version than the new
+    /// implementation.
+    function test_upgrade_whenDowngradingNonInitializablePredeploy_reverts() public {
+        // Mock GasPriceOracle to report a version higher than the new implementation
+        string memory higherVersion = "999.0.0";
+        vm.mockCall(Predeploys.GAS_PRICE_ORACLE, abi.encodeCall(ISemver.version, ()), abi.encode(higherVersion));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L2ContractsManagerUtils.L2ContractsManager_DowngradeNotAllowed.selector, Predeploys.GAS_PRICE_ORACLE
+            )
+        );
+        _executeUpgrade();
+    }
+
+    /// @notice Tests that upgrade reverts when an initializable predeploy has a higher version than the new
+    /// implementation.
+    function test_upgrade_whenDowngradingInitializablePredeploy_reverts() public {
+        // Mock L2CrossDomainMessenger to report a version higher than the new implementation
+        string memory higherVersion = "999.0.0";
+        vm.mockCall(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER, abi.encodeCall(ISemver.version, ()), abi.encode(higherVersion)
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L2ContractsManagerUtils.L2ContractsManager_DowngradeNotAllowed.selector,
+                Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            )
+        );
+        _executeUpgrade();
+    }
+
+    /// @notice Tests that upgrade succeeds when the predeploy has the same version as the new implementation
+    /// (not a downgrade).
+    function test_upgrade_whenSameVersion_succeeds() public {
+        // Mock GasPriceOracle to report the same version as the new implementation
+        string memory implVersion = ISemver(implementations.gasPriceOracleImpl).version();
+        vm.mockCall(Predeploys.GAS_PRICE_ORACLE, abi.encodeCall(ISemver.version, ()), abi.encode(implVersion));
+
+        _executeUpgrade();
+
+        // Verify the upgrade went through
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.GAS_PRICE_ORACLE),
+            implementations.gasPriceOracleImpl,
+            "GasPriceOracle should be upgraded"
         );
     }
 }

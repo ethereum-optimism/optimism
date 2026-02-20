@@ -57,9 +57,7 @@ abstract contract OptimismSuperchainERC20_TestInit is Test {
         address _impl = Predeploys.predeployToCodeNamespace(_addr);
         vm.etch(
             _impl,
-            vm.getDeployedCode(
-                "forge-artifacts/OptimismSuperchainERC20Beacon.sol/OptimismSuperchainERC20Beacon.json"
-            )
+            vm.getDeployedCode("forge-artifacts/OptimismSuperchainERC20Beacon.sol/OptimismSuperchainERC20Beacon.json")
         );
 
         // Deploy the ERC1967Proxy contract at the Predeploy

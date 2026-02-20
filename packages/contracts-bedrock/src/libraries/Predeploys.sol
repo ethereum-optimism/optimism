@@ -4,9 +4,6 @@ pragma solidity ^0.8.0;
 // Libraries
 import { Fork } from "scripts/libraries/Config.sol";
 
-// Interfaces
-import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
-
 /// @title Predeploys
 /// @notice Contains constant addresses for protocol contracts that are pre-deployed to the L2 system.
 //          This excludes the preinstalls (non-protocol contracts).
@@ -217,13 +214,11 @@ library Predeploys {
     }
 
     /// @notice Returns true if the predeploy is upgradeable. In this context, upgradeable means that the predeploy
-    ///         is in the predeploy namespace, is proxied, and has an implementation contract with code.
+    ///         is in the predeploy namespace and it is proxied.
     /// @param _proxy The address of the predeploy.
     /// @return isUpgradeable_ True if the predeploy is upgradeable, false otherwise.
-    function isUpgradeable(address _proxy) internal view returns (bool isUpgradeable_) {
-        address implementation = IStaticERC1967Proxy(_proxy).implementation();
-
-        isUpgradeable_ = isPredeployNamespace(_proxy) && !notProxied(_proxy) && implementation.code.length > 0;
+    function isUpgradeable(address _proxy) internal pure returns (bool isUpgradeable_) {
+        isUpgradeable_ = isPredeployNamespace(_proxy) && !notProxied(_proxy);
     }
 
     /// @notice Returns all proxied predeploys that should be upgraded by L2CM.
