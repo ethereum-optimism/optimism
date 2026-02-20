@@ -49,9 +49,6 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
 	}
 
-	// Track whether any chain has same-timestamp messages that need cycle verification
-	hasSameTimestampMessages := false
-
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]
 		if !ok {
@@ -105,9 +102,8 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		for logIdx, execMsg := range execMsgs {
 			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg)
 			if err != nil {
-				// ErrSameTimestamp is not a failure - it means we need cycle verification
+				// ErrSameTimestamp is not a failure - cycle verification handles these separately
 				if errors.Is(err, ErrSameTimestamp) {
-					hasSameTimestampMessages = true
 					continue
 				}
 				i.log.Warn("invalid executing message",
@@ -125,18 +121,6 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		result.L2Heads[chainID] = expectedBlock
 		if !blockValid {
 			result.InvalidHeads[chainID] = expectedBlock
-		}
-	}
-
-	// If there are same-timestamp messages and cycleVerifyFn is set, run cycle verification
-	if hasSameTimestampMessages && i.cycleVerifyFn != nil {
-		cycleResult, err := i.cycleVerifyFn(ts, blocksAtTimestamp)
-		if err != nil {
-			return Result{}, fmt.Errorf("cycle verification failed: %w", err)
-		}
-		// Merge invalid heads from cycle verification into result
-		for chainID, invalidBlock := range cycleResult.InvalidHeads {
-			result.InvalidHeads[chainID] = invalidBlock
 		}
 	}
 

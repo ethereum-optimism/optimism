@@ -81,7 +81,9 @@ Process:
 */
 
 import (
+	"cmp"
 	"errors"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -203,36 +205,28 @@ func executingMessageBefore(chainEMs []*dependencyNode, targetLogIdx uint32) *de
 // 2. Cross-chain: depends on executingMessageBefore(targetChain, targetLogIdx) (if exists)
 func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*types.ExecutingMessage) *dependencyGraph {
 	graph := &dependencyGraph{}
-
-	// First pass: create nodes for all same-timestamp EMs, organized by chain
 	chainNodes := make(map[eth.ChainID][]*dependencyNode)
-	nodeByLocation := make(map[eth.ChainID]map[uint32]*dependencyNode)
 
+	// First pass: create nodes for all same-timestamp EMs
 	for chainID, emsMap := range chainEMs {
-		nodeByLocation[chainID] = make(map[uint32]*dependencyNode)
-
-		// Collect and sort log indices
-		var logIndices []uint32
 		for logIdx, em := range emsMap {
 			if em != nil && em.Timestamp == ts {
-				logIndices = append(logIndices, logIdx)
+				node := &dependencyNode{
+					chainID:  chainID,
+					logIndex: logIdx,
+					execMsg:  em,
+				}
+				graph.addNode(node)
+				chainNodes[chainID] = append(chainNodes[chainID], node)
 			}
 		}
-		// Sort log indices
-		sortUint32s(logIndices)
+	}
 
-		// Create nodes in order
-		for _, logIdx := range logIndices {
-			em := emsMap[logIdx]
-			node := &dependencyNode{
-				chainID:  chainID,
-				logIndex: logIdx,
-				execMsg:  em,
-			}
-			graph.addNode(node)
-			chainNodes[chainID] = append(chainNodes[chainID], node)
-			nodeByLocation[chainID][logIdx] = node
-		}
+	// Sort each chain's nodes by logIndex (map iteration order is non-deterministic)
+	for _, nodes := range chainNodes {
+		slices.SortFunc(nodes, func(a, b *dependencyNode) int {
+			return cmp.Compare(a.logIndex, b.logIndex)
+		})
 	}
 
 	// Second pass: add edges
@@ -263,17 +257,6 @@ func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*types.Execu
 	}
 
 	return graph
-}
-
-// sortUint32s sorts a slice of uint32 in ascending order.
-func sortUint32s(s []uint32) {
-	for i := 0; i < len(s); i++ {
-		for j := i + 1; j < len(s); j++ {
-			if s[j] < s[i] {
-				s[i], s[j] = s[j], s[i]
-			}
-		}
-	}
 }
 
 // verifyCycleMessages is the cycle verification function for same-timestamp interop.
