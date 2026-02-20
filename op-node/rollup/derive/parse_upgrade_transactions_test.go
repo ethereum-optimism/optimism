@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_readNUTBundle(t *testing.T) {
+func TestReadNUTBundle(t *testing.T) {
 	f, err := os.Open("testdata/test-nut.json")
 	require.NoError(t, err)
 	defer f.Close()
@@ -40,7 +40,7 @@ func Test_readNUTBundle(t *testing.T) {
 	require.Equal(t, uint64(5000000), tx1.GasLimit)
 }
 
-func Test_nutBundleToDepositTransactions(t *testing.T) {
+func TestNUTBundleToDepositTransactions(t *testing.T) {
 	f, err := os.Open("testdata/test-nut.json")
 	require.NoError(t, err)
 	defer f.Close()
@@ -74,13 +74,13 @@ func Test_nutBundleToDepositTransactions(t *testing.T) {
 	require.NotEqual(t, dep0.SourceHash(), dep1.SourceHash())
 }
 
-func Test_readNUTBundleInvalidJSON(t *testing.T) {
+func TestReadNUTBundleInvalidJSON(t *testing.T) {
 	_, err := readNUTBundle("Test", bytes.NewReader([]byte(`{invalid`)))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to parse NUT bundle")
 }
 
-func Test_nutBundleMissingIntent(t *testing.T) {
+func TestNUTBundleMissingIntent(t *testing.T) {
 	jsonData := []byte(`{
 		"metadata": {"version": "1.0.0"},
 		"transactions": [{
@@ -99,14 +99,18 @@ func Test_nutBundleMissingIntent(t *testing.T) {
 	require.Contains(t, err.Error(), "missing intent")
 }
 
-func Test_upgradeTransactionsFromNUTBundle(t *testing.T) {
-	bundleJSON, err := os.ReadFile("testdata/test-nut.json")
+func TestNUTBundleTotalGas(t *testing.T) {
+	f, err := os.Open("testdata/test-nut.json")
+	require.NoError(t, err)
+	defer f.Close()
+
+	bundle, err := readNUTBundle("Test", f)
 	require.NoError(t, err)
 
-	txs, totalGas, err := upgradeTransactionsFromNUTBundle("Test", bundleJSON)
+	txs, err := bundle.toDepositTransactions()
 	require.NoError(t, err)
 	require.Len(t, txs, 2)
-	require.Equal(t, uint64(1_000_000+5_000_000), totalGas)
+	require.Equal(t, uint64(1_000_000+5_000_000), bundle.totalGas())
 
 	// Verify gas matches sum of individual deposit tx gas limits
 	var sumGas uint64
@@ -114,18 +118,19 @@ func Test_upgradeTransactionsFromNUTBundle(t *testing.T) {
 		_, dep := toDepositTxn(t, tx)
 		sumGas += dep.Gas()
 	}
-	require.Equal(t, totalGas, sumGas)
+	require.Equal(t, bundle.totalGas(), sumGas)
 }
 
-func Test_upgradeTransactionsFromNUTBundleInvalidJSON(t *testing.T) {
-	_, _, err := upgradeTransactionsFromNUTBundle("Test", []byte(`{invalid`))
+func TestUpgradeTransactionsUnknownFork(t *testing.T) {
+	_, _, err := UpgradeTransactions("UnknownFork")
 	require.Error(t, err)
+	require.Contains(t, err.Error(), "no NUT bundle for fork")
 }
 
-// Test_nutBundleNullTo verifies that "to": null in JSON produces a contract creation (deploy) transaction.
+// TestNUTBundleNullTo verifies that "to": null in JSON produces a contract creation (deploy) transaction.
 // Although NUTs are expected to use Arachnid's deterministic deployer, this sending to null
 // is how previous deployments have been handled and is useful to maintain going forward.
-func Test_nutBundleNullTo(t *testing.T) {
+func TestNUTBundleNullTo(t *testing.T) {
 	jsonData := []byte(`{
 		"metadata": {"version": "1.0.0"},
 		"transactions": [{

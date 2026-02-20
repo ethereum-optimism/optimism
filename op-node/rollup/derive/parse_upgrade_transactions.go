@@ -91,17 +91,25 @@ func (b *nutBundle) toDepositTransactions() ([]hexutil.Bytes, error) {
 	return txs, nil
 }
 
-// upgradeTransactionsFromNUTBundle parses an embedded NUT bundle JSON and returns
-// the deposit transactions along with the total gas required.
-func upgradeTransactionsFromNUTBundle(fork forks.Name, bundleJSON []byte) ([]hexutil.Bytes, uint64, error) {
+// UpgradeTransactions returns the deposit transactions and total gas required for a
+// fork's NUT bundle. The fork name selects the embedded bundle JSON.
+func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
+	var bundleJSON []byte
+	switch fork {
+	case forks.Karst:
+		bundleJSON = karstNUTBundleJSON
+	default:
+		return nil, 0, fmt.Errorf("no NUT bundle for fork %s", fork)
+	}
+
 	bundle, err := readNUTBundle(fork, bytes.NewReader(bundleJSON))
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("reading %s NUT bundle: %w", fork, err)
 	}
 
 	txs, err := bundle.toDepositTransactions()
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("converting %s NUT bundle to deposit txs: %w", fork, err)
 	}
 
 	return txs, bundle.totalGas(), nil
