@@ -442,6 +442,11 @@
   },
   {
     "inputs": [],
+    "name": "PolicyEngineStaking_SelfAllowlist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PolicyEngineStaking_ZeroAddress",
     "type": "error"
   },

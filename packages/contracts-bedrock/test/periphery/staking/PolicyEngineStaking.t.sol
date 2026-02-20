@@ -683,6 +683,13 @@ contract PolicyEngineStaking_SetAllowedStaker_Test is PolicyEngineStaking_TestIn
         assertFalse(aliceAllowed);
         assertFalse(carolAllowed);
     }
+
+    /// @notice Tests that setAllowedStaker reverts when staker is msg.sender.
+    function test_setAllowedStaker_selfAllowlist_reverts() external {
+        vm.prank(bob);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_SelfAllowlist.selector);
+        staking.setAllowedStaker(bob, true);
+    }
 }
 
 /// @title PolicyEngineStaking_Integration_Test

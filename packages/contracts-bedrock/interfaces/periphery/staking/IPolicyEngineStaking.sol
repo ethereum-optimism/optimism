@@ -61,6 +61,9 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Thrown when trying to change beneficiary to the current beneficiary.
     error PolicyEngineStaking_SameBeneficiary();
 
+    /// @notice Thrown when trying to allowlist/disallow yourself.
+    error PolicyEngineStaking_SelfAllowlist();
+
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
 
@@ -106,7 +109,10 @@ interface IPolicyEngineStaking is ISemver {
     /// @param _amount The amount of OP tokens to unstake.
     function unstake(uint128 _amount) external;
 
-    /// @notice Sets whether a staker can set the caller as beneficiary.
+    /// @notice Sets whether a staker can set the caller as beneficiary. When disallowing,
+    ///         if the staker's current beneficiary is the caller, their stake attribution is
+    ///         moved back to the staker (beneficiary reset to self).
+    ///
     /// @param _staker  The staker address.
     /// @param _allowed Whether the staker is allowed to set the caller as beneficiary.
     function setAllowedStaker(address _staker, bool _allowed) external;

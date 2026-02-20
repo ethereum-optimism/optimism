@@ -127,6 +127,9 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Thrown when trying to change beneficiary to the current beneficiary.
     error PolicyEngineStaking_SameBeneficiary();
 
+    /// @notice Thrown when trying to allowlist/disallow yourself.
+    error PolicyEngineStaking_SelfAllowlist();
+
     /// @notice Constructs the PolicyEngineStaking contract.
     /// @param _ownerAddr The address that can pause and unpause staking.
     /// @param _token The ERC20 token used for staking.
@@ -269,16 +272,21 @@ contract PolicyEngineStaking is ISemver {
         emit Unstaked(msg.sender, _amount);
     }
 
-    /// @notice Sets whether a staker can set the caller as beneficiary.
+    /// @notice Sets whether a staker can set the caller as beneficiary. When disallowing,
+    ///         if the staker's current beneficiary is the caller, their stake attribution is
+    ///         moved back to the staker (beneficiary reset to self).
+    ///
     /// @param _staker The staker to allow or deny.
     /// @param _allowed The allowed state.
     function setAllowedStaker(address _staker, bool _allowed) public {
+        if (_staker == msg.sender) revert PolicyEngineStaking_SelfAllowlist();
+
         allowlist[msg.sender][_staker] = _allowed;
         emit BeneficiaryAllowlistUpdated(msg.sender, _staker, _allowed);
 
         if (!_allowed) {
             StakedData storage stakedData = stakingData[_staker];
-            if (stakedData.beneficiary == msg.sender && _staker != msg.sender) {
+            if (stakedData.beneficiary == msg.sender) {
                 _decreasePeData(msg.sender, stakedData.stakedAmount);
                 emit BeneficiaryRemoved(_staker, msg.sender);
 
