@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
+
+//go:embed karst_nut_bundle.json
+var karstNUTBundleJSON []byte
 
 // Network Upgrade Transactions (NUTs) are read from a JSON file and
 // converted into deposit transactions.

@@ -2,7 +2,6 @@ package derive
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,9 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
-
-//go:embed karst_nut_bundle.json
-var karstNUTBundleJSON []byte
 
 type DependencySet interface {
 	// Chains returns the number of chains in the dependency set
