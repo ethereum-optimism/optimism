@@ -241,6 +241,10 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
+			// Interop verification *never* expects to be given chain data for chains that are not part of the supernode,
+			// so this test is not helpful except to demonstrate the specified behavior: if chain data is available
+			// but is not part of the chains map for some reason, it should not be used at all, as it is unrelated to the
+			// superchain's interop verification.
 			name: "ValidBlocks/UnregisteredChainsSkipped",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
 				registeredChain := eth.ChainIDFromUInt64(10)

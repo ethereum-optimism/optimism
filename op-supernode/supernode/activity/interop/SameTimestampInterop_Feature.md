@@ -10,13 +10,13 @@
 
 This feature enables **same-timestamp interop verification** for the supernode's interop activity. Currently, the interop verification logic (`algo.go`) rejects any executing message whose initiating message has a timestamp `>=` the executing message's timestamp. This feature relaxes that constraint to allow **same-timestamp** messages (`==`), while future timestamps (`>`) remain invalid.
 
-Same-timestamp messages introduce **circular dependency** scenarios: Chain A block at T=1000 may contain an executing message referencing an initiating message on Chain B also at T=1000, and vice versa. These require special verification logic that can resolve cycles.
+Same-timestamp messages introduce **cycle** scenarios: Chain A block at T=1000 may contain an executing message referencing an initiating message on Chain B also at T=1000, and vice versa. These require special verification logic that can resolve cycles.
 
 ### Goals
 1. Allow same-timestamp messages (change `>=` to `>` in timestamp check)
 2. Introduce `cycleVerifyFn` as a pluggable function alongside `verifyFn` for same-timestamp verification
 3. Route same-timestamp messages through `cycleVerifyFn`, propagating invalid heads from cycle verification into the overall result
-4. Implement cycle verification algorithm in `circular.go`
+4. Implement cycle verification algorithm in `cycle.go`
 
 ---
 
@@ -27,7 +27,7 @@ Same-timestamp messages introduce **circular dependency** scenarios: Chain A blo
 | 1 | Allow same-timestamp messages | `>= → >` in timestamp check | ✅ New tests for same-ts allowed | ✅ **AMENDED**: Update to expect same-ts passes (no block replacement) |
 | 2 | Add `cycleVerifyFn` field | New field on `Interop` struct | ✅ Mock tests | ✅ No change needed yet |
 | 3 | Route same-timestamp through `cycleVerifyFn` | Detection + delegation logic | ✅ Routing tests | ✅ Tests show cycle path being taken |
-| 4 | Implement `circular.go` | Algorithm implementation | ✅ Algorithm tests | ✅ Tests verify cycle resolution behavior |
+| 4 | Implement `cycle.go` | Algorithm implementation | ✅ Algorithm tests | ✅ Tests verify cycle resolution behavior |
 
 ### Acceptance Test Evolution Strategy
 
@@ -90,8 +90,8 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 
 ---
 
-### Subfeature 4: Implement Cycle Verification in `circular.go`
-**Change**: Create `circular.go` with the actual same-timestamp cycle verification algorithm.
+### Subfeature 4: Implement Cycle Verification in `cycle.go`
+**Change**: Create `cycle.go` with the actual same-timestamp cycle verification algorithm.
 
 **Unit Tests**: (To be defined when we reach this subfeature - algorithm details pending from developer)
 
@@ -116,7 +116,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 > Let's begin. We are going to implement same-timestamp interop. the way we will do it is thusly:
 > 1. to the interop function, next to the verifyFn, we will also add cycleVerifyFn...
 > 2. because it is a pluggable function, let's begin with tests...
-> 3. We will create a file called `circular.go` inside interop...
+> 3. We will create a file called `cycle.go` inside interop...
 
 **Actions taken**:
 1. Read `interop.go` to understand the Interop struct and `verifyFn` field
@@ -222,7 +222,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 
 **Actions taken**:
 
-1. **Created `circular.go`**:
+1. **Created `cycle.go`**:
    - Added `verifyCycleMessages` method as stub implementation
    - Returns valid `Result` with all blocks in `L2Heads`
    - TODO comment for actual algorithm implementation
@@ -244,7 +244,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
    - No linter errors
 
 **Files Modified**:
-- `op-supernode/supernode/activity/interop/circular.go` (NEW)
+- `op-supernode/supernode/activity/interop/cycle.go` (NEW)
 - `op-supernode/supernode/activity/interop/interop.go`
 - `op-supernode/supernode/activity/interop/interop_test.go`
 
@@ -259,7 +259,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 > [Algorithm description: Kahn's topological sort with dependencyNode structure]
 > Start with a test plan.
 
-**Algorithm specification documented** (see `circular.go` spec comment):
+**Algorithm specification documented** (see `cycle.go` spec comment):
 - Build dependency graph from same-timestamp executing messages
 - Each node tracks `dependsOn` (outgoing) and `dependedOnBy` (incoming) edges
 - Kahn's algorithm: iteratively remove nodes with no `dependedOnBy`, mark resolved
@@ -267,7 +267,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 
 **Actions taken**:
 
-1. **Created `circular_test.go`**:
+1. **Created `cycle_test.go`**:
    - Test plan documented in header comment
    - `TestDependencyGraph_AddNode` - verifies node addition
    - `TestDependencyGraph_AddEdge` - verifies edge bidirectional linkage
@@ -282,7 +282,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
      - Cross-chain valid exec message (resolves)
      - Cross-chain mutual exec (cycle detected)
 
-2. **Implemented `checkCycle` in `circular.go`**:
+2. **Implemented `checkCycle` in `cycle.go`**:
    - Added `ErrCycle` error variable
    - Implemented Kahn's topological sort algorithm:
      - Part 1: Find nodes with no `dependedOnBy`, mark resolved, add to removeSet
@@ -295,8 +295,8 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
    - Full test suite passes: `go test ./supernode/activity/interop/...`
 
 **Files Modified**:
-- `op-supernode/supernode/activity/interop/circular.go`
-- `op-supernode/supernode/activity/interop/circular_test.go` (NEW)
+- `op-supernode/supernode/activity/interop/cycle.go`
+- `op-supernode/supernode/activity/interop/cycle_test.go` (NEW)
 
 **Next**: Implement `verifyCycleMessages` to build the dependency graph from actual blockchain data and call `checkCycle`.
 
@@ -317,23 +317,23 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 
 **Actions taken**:
 
-1. **Added `executingMessageBefore` helper** (`circular.go`):
+1. **Added `executingMessageBefore` helper** (`cycle.go`):
    - Finds the latest EM with `logIndex <= targetLogIdx` in a sorted slice
    - Returns nil if no such EM exists (no dependency to add)
 
-2. **Added `buildCycleGraph` function** (`circular.go`):
+2. **Added `buildCycleGraph` function** (`cycle.go`):
    - Takes `ts` and `chainEMs map[chainID]map[logIdx]*ExecutingMessage`
    - Creates nodes for same-timestamp EMs only
    - Adds intra-chain edges: EM depends on previous EM on same chain
    - Adds cross-chain edges: EM depends on `executingMessageBefore(targetChain, refLogIdx)`
 
-3. **Updated `verifyCycleMessages`** (`circular.go`):
+3. **Updated `verifyCycleMessages`** (`cycle.go`):
    - Collects same-timestamp EMs from all chains via `db.OpenBlock`
    - Calls `buildCycleGraph` to construct dependency graph
    - Calls `checkCycle` to detect cycles
    - Returns InvalidHeads for all chains with same-ts EMs if cycle detected
 
-4. **Test cases** (`circular_test.go`):
+4. **Test cases** (`cycle_test.go`):
    - `TestExecutingMessageBefore`: 6 test cases covering empty, no-match, exact match, latest before, edge cases
    - `TestBuildCycleGraph`: 10 test cases covering:
      - Empty graph, past-timestamp refs, single EM
@@ -343,8 +343,8 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
      - Prior EMs creating mutual dependency → CYCLE
 
 **Files Modified**:
-- `op-supernode/supernode/activity/interop/circular.go`
-- `op-supernode/supernode/activity/interop/circular_test.go`
+- `op-supernode/supernode/activity/interop/cycle.go`
+- `op-supernode/supernode/activity/interop/cycle_test.go`
 
 **Status**: All unit tests pass. Feature implementation complete.
 
@@ -366,7 +366,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 2. **Added `TestSupernodeSameTimestampCycle`**:
    - Creates mutual same-timestamp exec messages: A executes B, B executes A
    - Both chains emit init messages at log 0, exec messages at log 1
-   - This creates a circular dependency that cycle detection identifies
+   - This creates a cycle that cycle detection identifies
    - Verifies both blocks are replaced after validation
 
 3. **Commit**: `c9dcdf87c3` - "acceptance: add cycle detection test and rename same_timestamp_test.go"
@@ -395,7 +395,7 @@ cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Re
 | `TestProgressInteropWithCycleVerify/cycleVerifyFn_error_propagated` | Errors bubble up |
 | `TestProgressInteropWithCycleVerify/both_verifyFn_and_cycleVerifyFn_invalid_heads_are_merged` | InvalidHeads combined |
 
-#### circular_test.go - Graph Construction & Cycle Detection
+#### cycle_test.go - Graph Construction & Cycle Detection
 | Test | Description |
 |------|-------------|
 | `TestDependencyGraph_AddNode` | Node addition works |
