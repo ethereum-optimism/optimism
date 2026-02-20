@@ -448,6 +448,83 @@ func RunTraceExtensionActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 	}
 }
 
+// RunUnsafeProposalTest verifies that proposing an unsafe block (one without
+// batch data on L1) is correctly identified as invalid.
+func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	chains[0].Batcher.Stop()
+	chains[1].Batcher.Stop()
+	defer func() {
+		chains[0].Batcher.Start()
+		chains[1].Batcher.Start()
+	}()
+	awaitSafeHeadsStalled(t, sys.L2CLA, sys.L2CLB)
+
+	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
+
+	// Ensure both chains have produced the target blocks as unsafe.
+	for _, c := range chains {
+		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
+		t.Require().NoError(err)
+		c.EL.Reached(eth.Unsafe, target, 60)
+	}
+
+	// L1 head where neither chain has batch data at endTimestamp.
+	resp := awaitOptimisticPattern(t, sys.SuperRoots, endTimestamp,
+		nil, []eth.ChainID{chains[0].ID, chains[1].ID})
+	l1Head := resp.CurrentL1
+
+	agreedTimestamp := endTimestamp - 1
+	startTimestamp := agreedTimestamp
+	agreedSuperRoot := superRootAtTimestamp(t, chains, agreedTimestamp)
+	agreedClaim := agreedSuperRoot.Marshal()
+
+	// Disputed claim: transition state with step 1 but no optimistic blocks.
+	// This claims a transition happened, but since the blocks at endTimestamp
+	// are only unsafe (no batch data on L1), the correct answer is InvalidTransition.
+	disputedClaim := marshalTransition(agreedSuperRoot, 1)
+
+	tests := []*transitionTest{
+		{
+			Name:               "ProposedUnsafeBlock-NotValid",
+			AgreedClaim:        agreedClaim,
+			DisputedClaim:      disputedClaim,
+			DisputedTraceIndex: 0,
+			L1Head:             l1Head,
+			ClaimTimestamp:     endTimestamp,
+			ExpectValid:        false,
+		},
+		{
+			Name:               "ProposedUnsafeBlock-ShouldBeInvalid",
+			AgreedClaim:        agreedClaim,
+			DisputedClaim:      super.InvalidTransition,
+			DisputedTraceIndex: 0,
+			L1Head:             l1Head,
+			ClaimTimestamp:     endTimestamp,
+			ExpectValid:        true,
+		},
+	}
+
+	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
+	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
+
+	for _, test := range tests {
+		t.Run(test.Name+"-fpp", func(t devtest.T) {
+			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
+				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
+				test.ClaimTimestamp, test.ExpectValid)
+		})
+		t.Run(test.Name+"-challenger", func(t devtest.T) {
+			t.Skip("TODO(#19059): Unskip this once supernode supports unsafe superroots")
+			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
+		})
+	}
+}
+
 // RunSuperFaultProofTest encapsulates the basic super fault proof test flow.
 func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
