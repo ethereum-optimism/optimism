@@ -565,11 +565,11 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 			expectError: true,
 			errorMsg:    "database error",
-		validate: func(t *testing.T, result Result) {
-			require.True(t, result.IsEmpty())
+			validate: func(t *testing.T, result Result) {
+				require.True(t, result.IsEmpty())
+			},
 		},
-	},
-}
+	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
