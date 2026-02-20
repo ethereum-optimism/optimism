@@ -800,7 +800,7 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
 	startTimestamp := endTimestamp - 1
 
-	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp + 2)
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
 	sys.L2CLB.Reached(types.CrossSafe, bigs.Uint64Strict(execMsg.BlockNumber()), 10)
 	sys.L2ELB.AssertExecMessageNotInBlock(execMsg)
 
