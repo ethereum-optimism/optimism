@@ -26,6 +26,7 @@ members = [
 
   # Op-Reth
   "op-reth/bin/",
+  "op-reth/bin/proof-bench/",
   "op-reth/crates/chainspec/",
   "op-reth/crates/cli/",
   "op-reth/crates/consensus/",

@@ -5,7 +5,7 @@ use eyre::ErrReport;
 use reth_db::DatabaseEnv;
 use reth_node_builder::{NodeBuilder, WithLaunchContext};
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_cli::{chainspec::OpChainSpecParser, Cli};
+use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
 use reth_optimism_node::{args::RollupArgs, proof_history};
 use tracing::info;
 

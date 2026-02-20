@@ -1,4 +1,4 @@
-use crate::utils::{balance_of_slot, CONTRACT};
+use crate::utils::{CONTRACT, balance_of_slot};
 use alloy_primitives::Address;
 use serde::{Deserialize, Serialize};
 use serde_json::json;

@@ -1,4 +1,4 @@
-use alloy_primitives::{keccak256, Address, B256, U256};
+use alloy_primitives::{Address, B256, U256, keccak256};
 
 pub const CONTRACT: &str = "0x4200000000000000000000000000000000000006";
 
