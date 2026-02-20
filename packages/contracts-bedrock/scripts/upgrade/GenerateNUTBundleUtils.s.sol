@@ -18,8 +18,13 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
 
 contract GenerateNUTBundleUtils is Script {
+    /// @notice Array of predeploy addresses to upgrade.
     address[] public predeploys;
+
+    /// @notice Fork to use for the upgrade.
     Fork public fork;
+
+    /// @notice Flag to use custom gas token for the upgrade.
     bool public useCustomGasToken;
 
     constructor(Fork _fork, bool _useCustomGasToken) {
