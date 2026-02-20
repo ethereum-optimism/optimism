@@ -92,9 +92,10 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	}
 
 	log.Info("initializing interop activity? %v", cfg.RawCtx.IsSet(interop.InteropActivationTimestampFlag.Name))
-	// Initialize interop activity if the activation timestamp is set
-	if cfg.InteropActivationTimestamp > 0 {
-		interopActivity := interop.New(log.New("activity", "interop"), cfg.InteropActivationTimestamp, s.chains, cfg.DataDir)
+	// Initialize interop activity if the activation timestamp is set (non-nil)
+	// If it's nil, don't start interop. If it's non-nil (including 0), do start it.
+	if cfg.InteropActivationTimestamp != nil {
+		interopActivity := interop.New(log.New("activity", "interop"), *cfg.InteropActivationTimestamp, s.chains, cfg.DataDir)
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)
