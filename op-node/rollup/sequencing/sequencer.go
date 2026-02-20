@@ -1,7 +1,10 @@
 package sequencing
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -288,7 +291,35 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	defer cancel()
 	if err := d.conductor.CommitUnsafePayload(ctx, x.Envelope); err != nil {
 		d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{
-			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w %+v", err, x.Envelope),
+			Err: func() error {
+				type EnvelopeEncoding struct {
+					JSON string
+					SSZ  string
+				}
+
+				envelopeJSON, marshalErr := json.Marshal(x.Envelope)
+				if marshalErr != nil {
+					return fmt.Errorf("failed to commit unsafe payload to conductor: %w (could not marshal Envelope to JSON: %v)", err, marshalErr)
+				}
+
+				var buf bytes.Buffer
+				_, sszErr := x.Envelope.MarshalSSZ(&buf)
+				if sszErr != nil {
+					return fmt.Errorf("failed to commit unsafe payload to conductor: %w (could not marshal Envelope to SSZ: %v)", err, sszErr)
+				}
+
+				encodings := EnvelopeEncoding{
+					JSON: string(envelopeJSON),
+					SSZ:  hex.EncodeToString(buf.Bytes()),
+				}
+
+				encodingsJSON, encodingsErr := json.Marshal(encodings)
+				if encodingsErr != nil {
+					return fmt.Errorf("failed to commit unsafe payload to conductor: %w (could not marshal EnvelopeEncoding to JSON: %v)", err, encodingsErr)
+				}
+
+				return fmt.Errorf("failed to commit unsafe payload to conductor: %w. encodings=%s", err, encodingsJSON)
+			}(),
 		})
 		return
 	}
