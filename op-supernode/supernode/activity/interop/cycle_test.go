@@ -1,48 +1,5 @@
 package interop
 
-/*
-TEST PLAN: Same-Timestamp Cycle Verification
-
-KEY INSIGHT: executingMessageBefore semantics
-  - Dependencies are only between Executing Messages (EMs), not all logs.
-  - When EM references log index X, we depend on executingMessageBefore(chain, X):
-    the latest EM with logIndex <= X on that chain.
-  - If no such EM exists, NO cross-chain edge is added.
-  - Therefore: If Chain B has no EMs at or before the referenced log index,
-    no dependency is created even if A references B.
-
-Tests are organized by component:
-
-1. Graph Construction Tests
-   - Test node creation with correct chainID and logIndex
-   - Test edge creation updates both dependsOn and dependedOnBy
-   - executingMessageBefore: empty chain, no match, single match, latest match
-
-2. Kahn's Algorithm Tests (checkCycle function)
-   - Empty graph → returns nil (no cycle)
-   - Single node, no deps → resolves successfully
-   - Linear chain (A→B→C) → resolves successfully (acyclic)
-   - Simple cycle (A↔B) → returns error (cycle detected)
-   - Complex cycle (A→B→C→A) → returns error (cycle detected)
-   - Diamond pattern (A→B, A→C, B→D, C→D) → resolves successfully (acyclic)
-   - Mixed: some nodes cyclic, some not → returns error
-
-3. buildCycleGraph Tests
-   - Mutual EMs referencing each other's exact log index → CYCLE
-   - Mutual EMs where one references before the other's EM → depends on setup
-   - Triangle patterns
-
-4. Integration Tests (verifyCycleMessages)
-   - No same-timestamp exec msgs → valid result
-   - Same-timestamp exec msgs, no cycle → valid result
-   - Same-timestamp exec msgs with cycle → invalid heads returned
-
-5. Edge Cases
-   - Self-referential message (A:L0 exec A:L0) → error
-   - Unknown source chain → error
-   - Log index out of bounds → error
-*/
-
 import (
 	"testing"
 

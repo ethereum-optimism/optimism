@@ -1,23 +1,5 @@
 package same_timestamp_invalid
 
-/*
-SPECIFICATION: Same-Timestamp Interop Tests
-
-Same-timestamp interop allows executing messages to reference initiating messages
-from the SAME timestamp. This enables cross-chain communication within the same
-block time across the interop set.
-
-Validation rules:
-- An executing message MAY reference an initiating message from the same timestamp (VALID)
-- An executing message MUST NOT reference a non-existent log index (INVALID)
-- Same-timestamp messages MUST NOT form circular dependencies (INVALID if cycle detected)
-
-Test scenarios:
-1. ValidSameTimestamp: A executes B's init at same timestamp - VALID, no replacement
-2. InvalidTransitive: B has bad log index, causes transitive invalidation of A
-3. CycleDetection: A↔B mutual exec creates cycle, both replaced
-*/
-
 import (
 	"context"
 	"math/rand"
