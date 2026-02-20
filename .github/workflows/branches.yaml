@@ -158,7 +158,6 @@ jobs:
           - op-rbuilder
           - kona-node
           - kona-host
-          - kona-client
           - op-reth
         runner:
           - ubuntu-24.04
@@ -168,7 +167,6 @@ jobs:
           - image_name: op-rbuilder
           - image_name: kona-node
           - image_name: kona-host
-          - image_name: kona-client
           - image_name: op-reth
     runs-on: ${{ matrix.runner }}
     env:
@@ -188,7 +186,6 @@ jobs:
           - op-rbuilder
           - kona-node
           - kona-host
-          - kona-client
           - op-reth
         runner:
           - ubuntu-24.04
