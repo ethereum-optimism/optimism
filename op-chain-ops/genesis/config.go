@@ -616,6 +616,7 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 		{L2GenesisTimeOffset: d.L2GenesisHoloceneTimeOffset, Name: string(L2AllocsHolocene)},
 		{L2GenesisTimeOffset: d.L2GenesisIsthmusTimeOffset, Name: string(L2AllocsIsthmus)},
 		{L2GenesisTimeOffset: d.L2GenesisJovianTimeOffset, Name: string(L2AllocsJovian)},
+		{L2GenesisTimeOffset: d.L2GenesisKarstTimeOffset, Name: string(L2AllocsKarst)},
 		{L2GenesisTimeOffset: d.L2GenesisInteropTimeOffset, Name: string(L2AllocsInterop)},
 	}
 }
