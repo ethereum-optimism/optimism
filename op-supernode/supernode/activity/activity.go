@@ -35,8 +35,22 @@ type RPCActivity interface {
 type VerificationActivity interface {
 	Activity
 	Name() string
+
+	// Reset resets the activity's state.
+	Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef)
+
+	// CurrentL1 returns the current L1 block ID.
 	CurrentL1() eth.BlockID
+
+	// VerifiedAtTimestamp returns true if the activity has verified the data at the given timestamp.
 	VerifiedAtTimestamp(ts uint64) (bool, error)
+
+	// LatestVerifiedL2Block returns the latest L2 block which has been verified,
+	// along with the timestamp at which it was verified.
 	LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64)
+
+	// VerifiedBlockAtL1 returns the verified L2 block and timestamp
+	// which guarantees that the verified data at that timestamp
+	// originates from or before the supplied L1 block.
 	VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64)
 }
