@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestSupernodeInteropInvalidMessageReplacement tests that:
@@ -117,4 +118,40 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 		"invalid_block_number", invalidBlockNumber,
 		"invalid_block_hash", invalidBlockHash,
 	)
+}
+func TestSupernodeInteropInvalidMessageReplacement_Simple(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+
+	// Create funded EOAs on both chains
+	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+
+	// Deploy event logger on chain A
+	eventLoggerA := alice.DeployEventLogger()
+
+	rng := rand.New(rand.NewSource(12345))
+
+	// Send an initiating message on chain A
+	initMsg := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
+
+	t.Logger().Info("initiating message sent on chain A",
+		"block", initMsg.BlockNumber(),
+		"hash", initMsg.BlockHash(),
+	)
+
+	// Send an INVALID executing message on chain B
+	execMsg := bob.SendInvalidExecMessage(initMsg)
+	invalidBlockNumber := bigs.Uint64Strict(execMsg.BlockNumber())
+	invalidBlockHash := execMsg.BlockHash()
+	invalidBlockTimestamp := sys.L2B.TimestampForBlockNum(invalidBlockNumber)
+	t.Logger().Info("invalid executing message sent on chain B",
+		"block", invalidBlockNumber,
+		"hash", invalidBlockHash,
+		"timestamp", invalidBlockTimestamp,
+	)
+
+	sys.Supernode.AwaitValidatedTimestamp(invalidBlockTimestamp)
+	sys.L2BCL.Reached(types.CrossSafe, bigs.Uint64Strict(execMsg.BlockNumber()), 10)
+	sys.L2ELB.AssertExecMessageNotInBlock(execMsg)
 }
