@@ -3230,7 +3230,9 @@ workflows:
             - kona-build-release
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
-      - go-binaries-for-sysgo
+      - go-binaries-for-sysgo:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3343,6 +3345,7 @@ workflows:
               ignore: /.*/
           context:
             - oplabs-gcr-release
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
             - contracts-bedrock-build
@@ -3560,6 +3563,8 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
       - op-acceptance-tests-flake-shake-report:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - op-acceptance-tests-flake-shake
       - op-acceptance-tests-flake-shake-promote:
