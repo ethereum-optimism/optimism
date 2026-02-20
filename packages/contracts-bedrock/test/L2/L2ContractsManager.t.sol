@@ -52,41 +52,6 @@ contract L2ContractsManager_FullConfigExposer_Harness is L2ContractsManager {
     function loadFullConfig() external view returns (L2ContractsManagerTypes.FullConfig memory) {
         return _loadFullConfig();
     }
-
-    /// @notice Returns the target implementations for the L2 predeploys.
-    function implementations() external view returns (L2ContractsManagerTypes.Implementations memory) {
-        return L2ContractsManagerTypes.Implementations({
-            storageSetterImpl: STORAGE_SETTER_IMPL,
-            l2CrossDomainMessengerImpl: L2_CROSS_DOMAIN_MESSENGER_IMPL,
-            gasPriceOracleImpl: GAS_PRICE_ORACLE_IMPL,
-            l2StandardBridgeImpl: L2_STANDARD_BRIDGE_IMPL,
-            sequencerFeeWalletImpl: SEQUENCER_FEE_WALLET_IMPL,
-            optimismMintableERC20FactoryImpl: OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL,
-            l2ERC721BridgeImpl: L2_ERC721_BRIDGE_IMPL,
-            l1BlockImpl: L1_BLOCK_IMPL,
-            l1BlockCGTImpl: L1_BLOCK_CGT_IMPL,
-            l2ToL1MessagePasserImpl: L2_TO_L1_MESSAGE_PASSER_IMPL,
-            l2ToL1MessagePasserCGTImpl: L2_TO_L1_MESSAGE_PASSER_CGT_IMPL,
-            optimismMintableERC721FactoryImpl: OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL,
-            proxyAdminImpl: PROXY_ADMIN_IMPL,
-            baseFeeVaultImpl: BASE_FEE_VAULT_IMPL,
-            l1FeeVaultImpl: L1_FEE_VAULT_IMPL,
-            operatorFeeVaultImpl: OPERATOR_FEE_VAULT_IMPL,
-            schemaRegistryImpl: SCHEMA_REGISTRY_IMPL,
-            easImpl: EAS_IMPL,
-            crossL2InboxImpl: CROSS_L2_INBOX_IMPL,
-            l2ToL2CrossDomainMessengerImpl: L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL,
-            superchainETHBridgeImpl: SUPERCHAIN_ETH_BRIDGE_IMPL,
-            ethLiquidityImpl: ETH_LIQUIDITY_IMPL,
-            optimismSuperchainERC20FactoryImpl: OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL,
-            optimismSuperchainERC20BeaconImpl: OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL,
-            superchainTokenBridgeImpl: SUPERCHAIN_TOKEN_BRIDGE_IMPL,
-            nativeAssetLiquidityImpl: NATIVE_ASSET_LIQUIDITY_IMPL,
-            liquidityControllerImpl: LIQUIDITY_CONTROLLER_IMPL,
-            feeSplitterImpl: FEE_SPLITTER_IMPL,
-            conditionalDeployerImpl: CONDITIONAL_DEPLOYER_IMPL
-        });
-    }
 }
 
 /// @title L2ContractsManager_Upgrade_Test
