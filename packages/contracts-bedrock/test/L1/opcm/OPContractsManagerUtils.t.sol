@@ -331,6 +331,18 @@ contract OPContractsManagerUtils_LoadBytes_Test is OPContractsManagerUtils_TestI
         assertEq(result, _overrideData, "Should return override data");
     }
 
+    /// @notice Tests that loadBytes reverts when the source address has no code.
+    function test_loadBytes_sourceNoCode_reverts() public {
+        address eoa = makeAddr("eoa");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOPContractsManagerUtils.OPContractsManagerUtils_ConfigLoadFailed.selector, "testField"
+            )
+        );
+        utils.loadBytes(eoa, MOCK_SELECTOR, "testField", _emptyInstructions());
+    }
+
     /// @notice Tests that loadBytes reverts when the source call fails.
     function test_loadBytes_sourceCallFails_reverts() public {
         // Mock the source to revert.

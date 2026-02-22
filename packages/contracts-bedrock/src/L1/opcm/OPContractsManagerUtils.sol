@@ -195,6 +195,12 @@ contract OPContractsManagerUtils {
             return overrideInstruction.data;
         }
 
+        // Check that the source contract has code. Calling an EOA returns success with empty
+        // data, which would cause issues when the caller tries to decode the result.
+        if (_source.code.length == 0) {
+            revert OPContractsManagerUtils_ConfigLoadFailed(_name);
+        }
+
         // Otherwise, load the data from the source contract.
         (bool success, bytes memory result) = address(_source).staticcall(abi.encodePacked(_selector));
         if (!success) {

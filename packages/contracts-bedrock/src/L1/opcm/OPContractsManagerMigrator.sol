@@ -11,7 +11,6 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
-import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
@@ -107,7 +106,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // what we use here.
         IOPContractsManagerUtils.ProxyDeployArgs memory proxyDeployArgs = IOPContractsManagerUtils.ProxyDeployArgs({
             proxyAdmin: _input.chainSystemConfigs[0].proxyAdmin(),
-            addressManager: IAddressManager(address(0)), // AddressManager NOT needed for these proxies.
+            addressManager: _input.chainSystemConfigs[0].proxyAdmin().addressManager(),
             l2ChainId: block.timestamp,
             saltMixer: "interop salt mixer"
         });
