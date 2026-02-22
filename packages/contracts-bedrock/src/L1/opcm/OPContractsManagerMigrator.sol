@@ -63,6 +63,11 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      temporary need to support the interop migration action. It will likely be removed in
     ///      the near future once interop support is baked more directly into OPCM. It does NOT
     ///      look or function like all of the other functions in OPCMv2.
+    /// @dev NOTE: This function is designed exclusively for the case of N independent pre-interop
+    ///      chains merging into a single interop set. It does NOT support partial migration (i.e.,
+    ///      migrating a subset of chains that share a lockbox), re-migration of already-migrated
+    ///      chains, or any other migration scenario. Re-calling this function on already-migrated
+    ///      portals will corrupt the shared DisputeGameFactory used by all migrated chains.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
         // Check that the starting respected game type is a valid super game type.
@@ -156,6 +161,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
 
             // Initialize the new ETHLockbox.
+            // NOTE: Shared contracts (ETHLockbox, AnchorStateRegistry, DelayedWETH) are
+            // intentionally initialized with chainSystemConfigs[0]. All chains are validated to
+            // share the same ProxyAdmin owner and SuperchainConfig, so the first chain's
+            // SystemConfig is used as the canonical governance reference for shared contracts.
             _upgrade(
                 proxyDeployArgs.proxyAdmin,
                 address(ethLockbox),
