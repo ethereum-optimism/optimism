@@ -1275,6 +1275,7 @@ workflows:
     when:
       or:
         - equal: ["develop", <<pipeline.git.branch>>]
+        - equal: ["webhook", << pipeline.trigger_source >>] # Only trigger on push to develop, not scheduled runs
     jobs:
       - kona-publish-prestate-artifacts:
           name: kona-publish-<<matrix.version>>
