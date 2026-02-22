@@ -1283,4 +1283,4 @@ workflows:
               version: ["kona-client", "kona-client-int"]
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - oplabs-gcr
+            - oplabs-network-optimism-io-bucket
