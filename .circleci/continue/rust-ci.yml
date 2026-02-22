@@ -1273,7 +1273,7 @@ workflows:
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:
     when:
-      or:
+      and:
         - equal: ["develop", <<pipeline.git.branch>>]
         - equal: ["webhook", << pipeline.trigger_source >>] # Only trigger on push to develop, not scheduled runs
     jobs:
