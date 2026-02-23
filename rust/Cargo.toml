@@ -16,7 +16,6 @@ members = [
   "kona/bin/*",
   "kona/crates/proof/*",
   "kona/crates/node/*",
-  "kona/crates/supervisor/*",
   "kona/crates/protocol/*",
   "kona/crates/providers/*",
   "kona/crates/utilities/*",
@@ -54,7 +53,6 @@ default-members = [
   "kona/bin/host",
   "kona/bin/client",
   "kona/bin/node",
-  "kona/bin/supervisor",
   "op-reth/bin/",
 ]
 
@@ -248,14 +246,6 @@ kona-sources = { path = "kona/crates/node/sources", version = "0.1.2", default-f
 kona-node-service = { path = "kona/crates/node/service", version = "0.1.3", default-features = false }
 kona-disc = { path = "kona/crates/node/disc", version = "0.1.2", default-features = false }
 kona-gossip = { path = "kona/crates/node/gossip", version = "0.1.2", default-features = false }
-
-# Supervisor
-kona-supervisor-rpc = { path = "kona/crates/supervisor/rpc", version = "0.1.1", default-features = false }
-kona-supervisor-core = { path = "kona/crates/supervisor/core", version = "0.1.0", default-features = false }
-kona-supervisor-service = { path = "kona/crates/supervisor/service", version = "0.1.0", default-features = false }
-kona-supervisor-types = { path = "kona/crates/supervisor/types", version = "0.1.1", default-features = false }
-kona-supervisor-storage = { path = "kona/crates/supervisor/storage", version = "0.1.0", default-features = false }
-kona-supervisor-metrics = { path = "kona/crates/supervisor/metrics", version = "0.1.0", default-features = false }
 
 # Providers
 kona-providers-alloy = { path = "kona/crates/providers/providers-alloy", version = "0.3.3", default-features = false }

@@ -89,7 +89,6 @@ commands:
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
 
@@ -604,7 +603,7 @@ jobs:
       - run:
           name: Install nextest
           command: |
-            command -v cargo-nextest >/dev/null || cargo binstall --no-confirm cargo-nextest
+            command -v cargo-nextest >/dev/null || cargo binstall --locked --no-confirm cargo-nextest
       - run:
           name: Run cargo tests
           working_directory: <<parameters.directory>>

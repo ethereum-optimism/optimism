@@ -409,7 +409,6 @@ commands:
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
 
@@ -2039,7 +2038,6 @@ jobs:
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       # Restore cached Go modules
@@ -2143,7 +2141,6 @@ jobs:
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
             echo "export RUST_BINARY_PATH_KONA_NODE=$BIN_DIR/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$BIN_DIR/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       - restore_cache:

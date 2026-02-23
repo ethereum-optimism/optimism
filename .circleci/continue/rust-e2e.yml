@@ -133,28 +133,6 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
 
-  # Kona Supervisor E2E Tests
-  kona-supervisor-e2e-tests:
-    parameters:
-      test_pkg:
-        description: The test package to run
-        type: string
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-build:
-          <<: *kona-rust-build-release
-          binary: "kona-supervisor"
-      - run:
-          name: Run supervisor tests for <<parameters.test_pkg>>
-          working_directory: rust/kona
-          no_output_timeout: 40m
-          command: |
-            just test-e2e-sysgo supervisor "/supervisor/<<parameters.test_pkg>>"
-
   # Kona Proof Action Tests (from proof.yaml)
   kona-proof-action-tests:
     parameters:
@@ -256,17 +234,3 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
-  # Kona supervisor E2E tests - manual dispatch only
-  kona-supervisor-e2e:
-    when:
-      and:
-        - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
-        - equal: ["api", << pipeline.trigger_source >>]
-    jobs:
-      - kona-supervisor-e2e-tests:
-          name: kona-supervisor-<<matrix.test_pkg>>
-          matrix:
-            parameters:
-              test_pkg: ["pre_interop", "l1reorg/sysgo"]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
