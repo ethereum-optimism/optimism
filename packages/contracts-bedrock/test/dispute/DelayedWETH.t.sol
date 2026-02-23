@@ -558,7 +558,7 @@ contract DelayedWETH_Hold_Test is DelayedWETH_TestInit {
     /// @notice Tests that holding all WETH by non-owner
     ///         using the single-arg overload fails.
     /// @param _sender Random address for access control.
-    function testFuzz_hold_withoutAmount_byNonOwner_fails(address _sender) public {
+    function testFuzz_hold_noAmountNonOwner_fails(address _sender) public {
         vm.assume(_sender != proxyAdminOwner);
 
         // Hold fails.
