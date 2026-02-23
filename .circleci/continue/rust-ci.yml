@@ -61,7 +61,10 @@ commands:
       - run:
           name: Install Rust toolchain (<< parameters.channel >>)
           command: |
-            rustup default << parameters.toolchain_version >>
+            TOOLCHAIN="<< parameters.toolchain_version >>"
+
+            rustup toolchain install "$TOOLCHAIN"
+            rustup default "$TOOLCHAIN"
 
             if [ -n "<< parameters.components >>" ]; then
               rustup component add << parameters.components >>
@@ -325,7 +328,7 @@ jobs:
       command:
         description: "Format check command to run"
         type: string
-        default: "cargo +nightly fmt --all --check"
+        default: "just fmt-check"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
@@ -335,10 +338,10 @@ jobs:
       - rust-prepare-and-restore-cache: &fmt-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
-          components: rustfmt
+      - run:
+          name: Install nightly toolchain
+          working_directory: <<parameters.directory>>
+          command: just install-nightly
       - run:
           name: Check formatting
           working_directory: <<parameters.directory>>
@@ -515,11 +518,7 @@ jobs:
       command:
         description: "Doc build command to run"
         type: string
-        default: "cargo +nightly doc --workspace --all-features --no-deps --document-private-items"
-      rustdocflags:
-        description: "RUSTDOCFLAGS environment variable"
-        type: string
-        default: "--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options"
+        default: "just lint-docs"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
@@ -530,15 +529,14 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-docs
           features: "all"
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
+      - run:
+          name: Install nightly toolchain
+          working_directory: <<parameters.directory>>
+          command: just install-nightly
       - run:
           name: Build documentation
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
-          environment:
-            RUSTDOCFLAGS: <<parameters.rustdocflags>>
           command: <<parameters.command>>
       - rust-save-build-cache: *docs-cache-args
 
@@ -634,9 +632,10 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-udeps
           profile: "release"
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
+      - run:
+          name: Install nightly toolchain
+          working_directory: <<parameters.directory>>
+          command: just install-nightly
       - install-cargo-binstall
       - run:
           name: Install cargo-udeps
@@ -1207,14 +1206,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
-  scheduled-kona-sync:
-    when:
-      equal: [build_weekly, <<pipeline.schedule.name>>]
-    jobs:
-      - kona-update-monorepo:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:
     when:
@@ -1230,3 +1221,4 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
+

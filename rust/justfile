@@ -1,5 +1,7 @@
 set positional-arguments
 
+NIGHTLY := "nightly-2026-02-20"
+
 # Aliases
 alias t := test
 alias l := lint
@@ -9,6 +11,12 @@ alias b := build
 # default recipe to display help information
 default:
   @just --list
+
+############################### Toolchain ############################
+
+# Install the pinned nightly toolchain
+install-nightly:
+  rustup toolchain install {{NIGHTLY}} --component rustfmt
 
 ############################### Build ###############################
 
@@ -56,11 +64,11 @@ lint: fmt-check lint-clippy lint-docs
 
 # Check formatting (requires nightly)
 fmt-check:
-  cargo +nightly fmt --all -- --check
+  cargo +{{NIGHTLY}} fmt --all -- --check
 
 # Fix formatting (requires nightly)
 fmt-fix:
-  cargo +nightly fmt --all
+  cargo +{{NIGHTLY}} fmt --all
 
 # Run clippy
 lint-clippy:
@@ -68,7 +76,8 @@ lint-clippy:
 
 # Lint Rust documentation
 lint-docs:
-  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items
+  RUSTDOCFLAGS="--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options" \
+    cargo +{{NIGHTLY}} doc --workspace --all-features --no-deps --document-private-items
 
 ############################ no_std #################################
 
@@ -127,7 +136,7 @@ bench:
 
 # Check for unused dependencies (requires nightly + cargo-udeps)
 check-udeps:
-  cargo +nightly udeps --release --workspace --all-features --all-targets
+  cargo +{{NIGHTLY}} udeps --release --workspace --all-features --all-targets
 
 # Run cargo hack for feature powerset checking
 # shuffle: "true" to shuffle package order before partitioning (spreads heavy/light crates more evenly)
