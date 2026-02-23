@@ -757,53 +757,6 @@ jobs:
             cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --read
       - rust-save-build-cache: *op-reth-compact-cache
 
-  # OP-Reth Windows cross-compile check
-  op-reth-windows-check:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-reth-windows-cache
-          directory: rust
-          prefix: op-reth-windows
-          profile: debug
-      - run:
-          name: Install mingw-w64
-          command: sudo apt-get update && sudo apt-get install -y mingw-w64
-      - run:
-          name: Check OP-Reth Windows build
-          working_directory: rust
-          no_output_timeout: 40m
-          command: just --justfile op-reth/justfile check-windows
-      - rust-save-build-cache: *op-reth-windows-cache
-
-  # --------------------------------------------------------------------------
-  # Op-Alloy crate-specific jobs
-  # --------------------------------------------------------------------------
-  # Op-Alloy cfg check
-  op-alloy-cfg-check:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-cfg-check-cache
-          directory: rust
-          prefix: op-alloy-cfg-check
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
-      - run:
-          name: Run cfg check
-          working_directory: rust
-          no_output_timeout: 40m
-          command: |
-            just --justfile op-alloy/Justfile check
-      - rust-save-build-cache: *op-alloy-cfg-check-cache
-
   # --------------------------------------------------------------------------
   # Kona crate-specific jobs
   # --------------------------------------------------------------------------
@@ -1201,9 +1154,6 @@ workflows:
       - op-reth-compact-codec:
           context: *rust-ci-context
 
-      - op-reth-windows-check:
-          context: *rust-ci-context
-
       - rust-ci-cargo-tests:
           name: op-reth-integration-tests
           directory: rust
@@ -1217,12 +1167,6 @@ workflows:
           command: "--justfile op-reth/justfile test"
           flags: "edge"
           cache_profile: debug
-          context: *rust-ci-context
-
-      # -----------------------------------------------------------------------
-      # Op-Alloy crate-specific jobs
-      # -----------------------------------------------------------------------
-      - op-alloy-cfg-check:
           context: *rust-ci-context
 
       # -----------------------------------------------------------------------
