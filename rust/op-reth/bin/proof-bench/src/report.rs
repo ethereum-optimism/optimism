@@ -101,7 +101,7 @@ impl Reporter {
 
         let stdout = io::stdout();
         let mut handle = stdout.lock();
-        writeln!(handle, "{}", header).unwrap();
+        writeln!(handle, "{header}").unwrap();
         writeln!(handle, "{}", Self::SEP).unwrap();
     }
 
@@ -118,7 +118,7 @@ impl Reporter {
 
         let stdout = io::stdout();
         let mut handle = stdout.lock();
-        writeln!(handle, "{}", line).unwrap();
+        writeln!(handle, "{line}").unwrap();
     }
 
     pub fn print_summary(summary: &BenchSummary, total_duration: f64) {

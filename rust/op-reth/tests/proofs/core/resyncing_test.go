@@ -6,10 +6,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +40,7 @@ func TestResyncing(gt *testing.T) {
 		receipt, err := tx.Included.Eval(ctx)
 		require.NoError(gt, err)
 		require.Equal(gt, types.ReceiptStatusSuccessful, receipt.Status)
-		blockNumbers = append(blockNumbers, receipt.BlockNumber.Uint64())
+		blockNumbers = append(blockNumbers, bigs.Uint64Strict(receipt.BlockNumber))
 	}
 
 	// restart the node and ensure it can sync the missing blocks

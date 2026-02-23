@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,10 +38,10 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	receipt1, err := tx1.Included.Eval(ctx)
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt1.Status)
-	t.Logf("Transaction 1 included in block: %d", receipt1.BlockNumber.Uint64())
+	t.Logf("Transaction 1 included in block: %d", bigs.Uint64Strict(receipt1.BlockNumber))
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(receipt1.BlockNumber.Uint64())
-	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt1.BlockNumber.Uint64())
+	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt1.BlockNumber))
+	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, bigs.Uint64Strict(receipt1.BlockNumber))
 	sys.L2ELSequencerNode().WaitForBlockNumber(currentBlock.Number + 1)
 
 	// Block 2: Send transaction from second account
@@ -52,13 +53,13 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	receipt2, err := tx2.Included.Eval(ctx)
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt2.Status)
-	t.Logf("Transaction 2 included in block: %d", receipt2.BlockNumber.Uint64())
+	t.Logf("Transaction 2 included in block: %d", bigs.Uint64Strict(receipt2.BlockNumber))
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(receipt2.BlockNumber.Uint64())
-	utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, receipt2.BlockNumber.Uint64())
+	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt2.BlockNumber))
+	utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, bigs.Uint64Strict(receipt2.BlockNumber))
 
 	// Also verify we can get proofs for account 0 at block 2 (different block height)
-	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt2.BlockNumber.Uint64())
+	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, bigs.Uint64Strict(receipt2.BlockNumber))
 }
 
 // TestL2MultipleTransactionsInSingleBlock tests 2 different accounts sending transactions
@@ -90,29 +91,29 @@ func TestL2MultipleTransactionsInSingleBlock(gt *testing.T) {
 	receipt0, err := tx0.Included.Eval(ctx)
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt0.Status)
-	t.Logf("Transaction 0 included in block %d", receipt0.BlockNumber.Uint64())
+	t.Logf("Transaction 0 included in block %d", bigs.Uint64Strict(receipt0.BlockNumber))
 
 	receipt1, err := tx1.Included.Eval(ctx)
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt1.Status)
-	t.Logf("Transaction 1 included in block %d", receipt1.BlockNumber.Uint64())
+	t.Logf("Transaction 1 included in block %d", bigs.Uint64Strict(receipt1.BlockNumber))
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(receipt1.BlockNumber.Uint64())
+	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt1.BlockNumber))
 	// Txns can land in the same or different blocks depending on timing.
-	if receipt0.BlockNumber.Uint64() == receipt1.BlockNumber.Uint64() {
-		t.Logf("Both transactions included in the same L2 block: %d", receipt0.BlockNumber.Uint64())
+	if bigs.Uint64Strict(receipt0.BlockNumber) == bigs.Uint64Strict(receipt1.BlockNumber) {
+		t.Logf("Both transactions included in the same L2 block: %d", bigs.Uint64Strict(receipt0.BlockNumber))
 
 		// Verify both proofs against the same block state root
-		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt0.BlockNumber.Uint64())
-		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, receipt0.BlockNumber.Uint64())
+		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, bigs.Uint64Strict(receipt0.BlockNumber))
+		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, bigs.Uint64Strict(receipt0.BlockNumber))
 
 	} else {
 		t.Logf("Transactions in different blocks: %d and %d",
-			receipt0.BlockNumber.Uint64(), receipt1.BlockNumber.Uint64())
+			bigs.Uint64Strict(receipt0.BlockNumber), bigs.Uint64Strict(receipt1.BlockNumber))
 
 		// Different blocks: verify each proof's merkle root matches its respective block's state root
-		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt0.BlockNumber.Uint64())
-		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, receipt1.BlockNumber.Uint64())
+		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, bigs.Uint64Strict(receipt0.BlockNumber))
+		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, bigs.Uint64Strict(receipt1.BlockNumber))
 	}
 
 	t.Logf("Proof for account 0 and 1 verified successfully")

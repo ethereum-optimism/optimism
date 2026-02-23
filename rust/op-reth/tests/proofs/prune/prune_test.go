@@ -6,10 +6,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,9 +61,9 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt1.Status)
 
 	// Choose a deterministic target block: the later of the two inclusion blocks.
-	targetBlock := receipt0.BlockNumber.Uint64()
-	if receipt1.BlockNumber.Uint64() > targetBlock {
-		targetBlock = receipt1.BlockNumber.Uint64()
+	targetBlock := bigs.Uint64Strict(receipt0.BlockNumber)
+	if bigs.Uint64Strict(receipt1.BlockNumber) > targetBlock {
+		targetBlock = bigs.Uint64Strict(receipt1.BlockNumber)
 	}
 	t.Logf("Target block for proof validation (pre-prune): %d", targetBlock)
 

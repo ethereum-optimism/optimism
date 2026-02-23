@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
@@ -18,11 +19,11 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 
 	// deploy contract via helper
 	contract, receipt := utils.DeploySimpleStorage(t, user)
-	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), receipt.BlockNumber.Uint64())
+	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), bigs.Uint64Strict(receipt.BlockNumber))
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(receipt.BlockNumber.Uint64())
+	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt.BlockNumber))
 	// fetch and verify initial proof (should be zeroed storage)
-	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, receipt.BlockNumber.Uint64())
+	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, bigs.Uint64Strict(receipt.BlockNumber))
 
 	type caseEntry struct {
 		Block uint64
@@ -34,7 +35,7 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 		callRes := contract.SetValue(user, writeVal)
 
 		cases = append(cases, caseEntry{
-			Block: callRes.BlockNumber.Uint64(),
+			Block: bigs.Uint64Strict(callRes.BlockNumber),
 			Value: writeVal,
 		})
 		t.Logf("setValue transaction included in L2 block %d", callRes.BlockNumber)
@@ -43,12 +44,12 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	// test reset storage to zero
 	callRes := contract.SetValue(user, big.NewInt(0))
 	cases = append(cases, caseEntry{
-		Block: callRes.BlockNumber.Uint64(),
+		Block: bigs.Uint64Strict(callRes.BlockNumber),
 		Value: big.NewInt(0),
 	})
 	t.Logf("reset setValue transaction included in L2 block %d", callRes.BlockNumber)
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(callRes.BlockNumber.Uint64())
+	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(callRes.BlockNumber))
 	// for each case, get proof and verify
 	for _, c := range cases {
 		utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, c.Block)
@@ -67,11 +68,11 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 
 	// deploy contract via helper
 	contract, receipt := utils.DeployMultiStorage(t, user)
-	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), receipt.BlockNumber.Uint64())
+	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), bigs.Uint64Strict(receipt.BlockNumber))
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(receipt.BlockNumber.Uint64())
+	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt.BlockNumber))
 	// fetch and verify initial proof (should be zeroed storage)
-	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, receipt.BlockNumber.Uint64())
+	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, bigs.Uint64Strict(receipt.BlockNumber))
 
 	// set multiple storage slots
 	type caseEntry struct {
@@ -86,7 +87,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 		callRes := contract.SetValues(user, aVal, bVal)
 
 		cases = append(cases, caseEntry{
-			Block: callRes.BlockNumber.Uint64(),
+			Block: bigs.Uint64Strict(callRes.BlockNumber),
 			SlotValues: map[common.Hash]*big.Int{
 				common.HexToHash("0x0"): aVal,
 				common.HexToHash("0x1"): bVal,
@@ -98,7 +99,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	// test reset storage slots to zero
 	callRes := contract.SetValues(user, big.NewInt(0), big.NewInt(0))
 	cases = append(cases, caseEntry{
-		Block: callRes.BlockNumber.Uint64(),
+		Block: bigs.Uint64Strict(callRes.BlockNumber),
 		SlotValues: map[common.Hash]*big.Int{
 			common.HexToHash("0x0"): big.NewInt(0),
 			common.HexToHash("0x1"): big.NewInt(0),
@@ -106,7 +107,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	})
 	t.Logf("reset setValues transaction included in L2 block %d", callRes.BlockNumber)
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(callRes.BlockNumber.Uint64())
+	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(callRes.BlockNumber))
 	// for each case, get proof and verify
 	for _, c := range cases {
 		var slots []common.Hash
@@ -128,26 +129,26 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 
 	// deploy contract
 	contract, deployBlock := utils.DeployTokenVault(t, alice)
-	t.Logf("TokenVault deployed at %s block=%d", contract.Address().Hex(), deployBlock.BlockNumber.Uint64())
+	t.Logf("TokenVault deployed at %s block=%d", contract.Address().Hex(), bigs.Uint64Strict(deployBlock.BlockNumber))
 
 	userAddr := alice.Address()
 
 	// call deposit (payable)
 	depositAmount := eth.OneHundredthEther
 	depRes := contract.Deposit(alice, depositAmount)
-	depositBlock := depRes.BlockNumber.Uint64()
+	depositBlock := bigs.Uint64Strict(depRes.BlockNumber)
 	t.Logf("deposit included in block %d", depositBlock)
 
 	// call approve(spender, amount) - use same user as spender for simplicity, or create another funded EOA
 	approveAmount := big.NewInt(100)
 	spenderAddr := bob.Address()
 	approveRes := contract.Approve(alice, spenderAddr, approveAmount)
-	approveBlock := approveRes.BlockNumber.Uint64()
+	approveBlock := bigs.Uint64Strict(approveRes.BlockNumber)
 	t.Logf("approve included in block %d", approveBlock)
 
 	// call deactivateAllowance(spender)
 	deactRes := contract.DeactivateAllowance(alice, spenderAddr)
-	deactBlock := deactRes.BlockNumber.Uint64()
+	deactBlock := bigs.Uint64Strict(deactRes.BlockNumber)
 	t.Logf("deactivateAllowance included in block %d", deactBlock)
 
 	sys.L2ELValidatorNode().WaitForBlockNumber(deactBlock)

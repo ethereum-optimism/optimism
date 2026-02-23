@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,13 +47,13 @@ func TestDebugExecutionWitness(gt *testing.T) {
 	receipt, err := tx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
-	t.Logf("Transaction included in block: %d", receipt.BlockNumber.Uint64())
+	t.Logf("Transaction included in block: %d", bigs.Uint64Strict(receipt.BlockNumber))
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(receipt.BlockNumber.Uint64())
+	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt.BlockNumber))
 	l2RethClient := opRethELNode.Escape().L2EthClient()
 
 	// Get the block to inspect the state changes
-	block, err := l2RethClient.InfoByNumber(t.Ctx(), receipt.BlockNumber.Uint64())
+	block, err := l2RethClient.InfoByNumber(t.Ctx(), bigs.Uint64Strict(receipt.BlockNumber))
 	require.NoError(t, err)
 	t.Logf("Block %d has state root: %s", block.NumberU64(), block.Root().Hex())
 
@@ -83,7 +84,7 @@ func TestDebugExecutionWitness(gt *testing.T) {
 
 	// Verify the parent header matches the expected parent block
 	expectedParentNumber := block.NumberU64() - 1
-	require.Equal(t, expectedParentNumber, parentHeader.Number.Uint64(),
+	require.Equal(t, expectedParentNumber, bigs.Uint64Strict(parentHeader.Number),
 		"Parent header should be for block %d", expectedParentNumber)
 
 	// Get the actual parent block from the chain to verify state root

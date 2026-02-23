@@ -7,12 +7,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +35,7 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 
 	user := sys.FunderL2.NewFundedEOA(eth.OneEther)
 	contract, deployBlock := utils.DeploySimpleStorage(t, user)
-	t.Logf("SimpleStorage deployed at %s block=%d", contract.Address().Hex(), deployBlock.BlockNumber.Uint64())
+	t.Logf("SimpleStorage deployed at %s block=%d", contract.Address().Hex(), bigs.Uint64Strict(deployBlock.BlockNumber))
 
 	time.Sleep(12 * time.Second)
 	divergenceHead := sys.L2Chain.WaitForBlock()
@@ -50,10 +51,10 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	// deploy another contract in the reorged blocks
 	{
 		rContract, rDeployBlock := utils.DeploySimpleStorage(t, user)
-		t.Logf("Reorg SimpleStorage deployed at %s block=%d", rContract.Address().Hex(), rDeployBlock.BlockNumber.Uint64())
+		t.Logf("Reorg SimpleStorage deployed at %s block=%d", rContract.Address().Hex(), bigs.Uint64Strict(rDeployBlock.BlockNumber))
 
 		cases = append(cases, caseEntry{
-			Block: rDeployBlock.BlockNumber.Uint64(),
+			Block: bigs.Uint64Strict(rDeployBlock.BlockNumber),
 			addr:  rContract.Address(),
 			slots: []common.Hash{common.HexToHash("0x0")},
 		})
@@ -66,12 +67,12 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 		require.Equal(gt, types.ReceiptStatusSuccessful, receipt.Status)
 
 		cases = append(cases, caseEntry{
-			Block: receipt.BlockNumber.Uint64(),
+			Block: bigs.Uint64Strict(receipt.BlockNumber),
 			addr:  alice.Address(),
 			slots: []common.Hash{},
 		})
 		cases = append(cases, caseEntry{
-			Block: receipt.BlockNumber.Uint64(),
+			Block: bigs.Uint64Strict(receipt.BlockNumber),
 			addr:  bob.Address(),
 			slots: []common.Hash{},
 		})
@@ -81,7 +82,7 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 		callRes := contract.SetValue(user, val)
 
 		cases = append(cases, caseEntry{
-			Block: callRes.BlockNumber.Uint64(),
+			Block: bigs.Uint64Strict(callRes.BlockNumber),
 			addr:  contract.Address(),
 			slots: []common.Hash{common.HexToHash("0x0")},
 		})

@@ -6,8 +6,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestExecutePayloadSuccess(gt *testing.T) {
