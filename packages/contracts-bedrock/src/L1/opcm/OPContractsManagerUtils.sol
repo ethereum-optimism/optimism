@@ -51,6 +51,9 @@ contract OPContractsManagerUtils {
     /// @param _contract The address of the contract with extra version tags.
     error OPContractsManagerUtils_ExtraTagInProd(address _contract);
 
+    /// @notice Thrown when a contract is mid-initialization during an upgrade.
+    error OPContractsManagerUtils_InitializingDuringUpgrade();
+
     /// @notice Thrown when a config load fails.
     /// @param _name The name of the config that failed to load.
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
@@ -332,6 +335,23 @@ contract OPContractsManagerUtils {
         bytes32 current = IStorageSetter(_target).getBytes32(_slot);
         uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
         IStorageSetter(_target).setBytes32(_slot, bytes32(uint256(current) & mask));
+
+        // Also clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
+        // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
+        // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
+        bytes32 ozV5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
+        bytes32 v5Current = IStorageSetter(_target).getBytes32(ozV5Slot);
+        uint256 v5Value = uint256(v5Current);
+
+        // A contract should never be mid-initialization during an upgrade. The `_initializing`
+        // bool lives at byte offset 8 (bits 64..71). Revert if it is set.
+        if ((v5Value >> 64) & 0xFF != 0) {
+            revert OPContractsManagerUtils_InitializingDuringUpgrade();
+        }
+
+        // Zero the uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
+        uint256 v5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
+        IStorageSetter(_target).setBytes32(ozV5Slot, bytes32(v5Value & v5Mask));
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
