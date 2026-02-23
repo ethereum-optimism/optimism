@@ -677,7 +677,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
     function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
-        // Start validating the dispute game configs. Put allowed game types here.
+        // Start validating the dispute game configs. Put allowed game types here. Note that
+        // these game types are intentionally hardcoded rather than sourced from a shared utility.
+        // When new game types are added, this list and the corresponding list in the Migrator's
+        // _migratePortal function must both be updated.
         GameType[] memory validGameTypes = new GameType[](3);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
