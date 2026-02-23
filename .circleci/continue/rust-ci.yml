@@ -79,6 +79,7 @@ commands:
             echo "export CARGO_HOME=${MISE_CARGO_HOME}" >> "$BASH_ENV"
             echo "export RUSTUP_HOME=${MISE_RUSTUP_HOME}" >> "$BASH_ENV"
             echo "source ${MISE_CARGO_HOME}/env" >> "$BASH_ENV"
+            echo "export CARGO_INCREMENTAL=0" >> "$BASH_ENV"
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
@@ -117,7 +118,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "15"
+        default: "16"
       profile:
         description: "Profile to restore the cache for"
         type: string
