@@ -49,6 +49,7 @@ interface IOPContractsManagerUtils {
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
     error OPContractsManagerUtils_UnsupportedGameType();
+    error OPContractsManagerUtils_InitializingDuringUpgrade();
     error ReservedBitsSet();
     error UnsupportedERCVersion(uint8 version);
     error SemverComp_InvalidSemverParts();

@@ -59,6 +59,11 @@ contract OPContractsManagerUtils {
     /// @param _name The name of the proxy that couldn't be loaded.
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
 
+    /// @notice Thrown when the ERC-7201 Initializable slot indicates the contract is currently
+    ///         initializing during an upgrade. This is an impossible state and indicates something
+    ///         is deeply wrong.
+    error OPContractsManagerUtils_InitializingDuringUpgrade();
+
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
 
@@ -329,9 +334,30 @@ contract OPContractsManagerUtils {
 
         // Otherwise, we need to reset the initialized slot and call the initializer.
         // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
+        // This handles the OZ v4 Initializable layout where `_initialized` is a uint8 at slot 0.
         bytes32 current = IStorageSetter(_target).getBytes32(_slot);
         uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
         IStorageSetter(_target).setBytes32(_slot, bytes32(uint256(current) & mask));
+
+        // Also handle the OZ v5 Initializable layout (ERC-7201 namespaced storage).
+        // OZ v5 stores `_initialized` as uint64 and `_initializing` as bool in a struct at the
+        // ERC-7201 slot: keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1))
+        //                & ~bytes32(uint256(0xff))
+        // For v4 contracts, this slot is all zeros so this is a safe no-op.
+        // For v5 contracts, the v4 slot clear above is a no-op, and this correctly resets _initialized.
+        bytes32 ozV5Slot = 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+        bytes32 ozV5Value = IStorageSetter(_target).getBytes32(ozV5Slot);
+
+        // Check that `_initializing` (bool at byte offset 8) is not set. If it is, something is
+        // deeply wrong -- a contract should never be in the middle of initialization during upgrade.
+        if (uint8(uint256(ozV5Value) >> 64) != 0) {
+            revert OPContractsManagerUtils_InitializingDuringUpgrade();
+        }
+
+        // Zero the uint64 `_initialized` portion (low 8 bytes) of the ERC-7201 slot, preserving
+        // the rest of the slot (including the `_initializing` byte, which we verified is zero).
+        uint256 ozV5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
+        IStorageSetter(_target).setBytes32(ozV5Slot, bytes32(uint256(ozV5Value) & ozV5Mask));
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);

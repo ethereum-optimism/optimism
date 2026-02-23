@@ -482,11 +482,14 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
     /// @notice v2 implementation for testing.
     OPContractsManagerUtils_ImplV2_Harness internal implV2;
 
-    /// @notice Storage slot to reset during upgrade (slot 0 for OZ Initializable).
+    /// @notice Storage slot to reset during upgrade (slot 0 for OZ v4 Initializable).
     bytes32 internal constant TEST_SLOT = bytes32(uint256(0));
 
     /// @notice Byte offset within the slot for the initialized flag.
     uint8 internal constant TEST_OFFSET = 0;
+
+    /// @notice ERC-7201 namespaced slot for OZ v5 Initializable.
+    bytes32 internal constant OZ_V5_SLOT = 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
 
     function setUp() public override {
         super.setUp();
@@ -667,6 +670,162 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         );
 
         assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implBeta));
+    }
+
+    /// @notice Tests that v4 contracts still upgrade correctly (ERC-7201 slot is all zeros, no-op).
+    function test_upgrade_v4ContractStillWorks_succeeds() public {
+        // Set v1 as current implementation (simulates a v4-style contract).
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Set the v4 initialized slot to non-zero (simulates an initialized v4 contract).
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implementations.storageSetterImpl));
+        IStorageSetter(address(proxy)).setBytes32(TEST_SLOT, bytes32(uint256(1)));
+
+        // Restore the v1 implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // The ERC-7201 slot should be zero (v4 contracts don't use it).
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implementations.storageSetterImpl));
+        assertEq(uint256(IStorageSetter(address(proxy)).getBytes32(OZ_V5_SLOT)), 0);
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Upgrade from v1 to v2 should succeed.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        // Verify the implementation changed.
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
+    }
+
+    /// @notice Tests that a v5-style initialized slot at the ERC-7201 location gets cleared.
+    function test_upgrade_v5SlotCleared_succeeds() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Simulate a v5 contract by writing _initialized = 1 (uint64) at the ERC-7201 slot.
+        // The low 8 bytes represent _initialized, byte 8 is _initializing (false = 0).
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implementations.storageSetterImpl));
+        IStorageSetter(address(proxy)).setBytes32(OZ_V5_SLOT, bytes32(uint256(1)));
+
+        // Restore the v1 implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Upgrade should succeed -- the v5 slot gets cleared.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        // Verify the implementation changed.
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
+    }
+
+    /// @notice Tests that a higher v5 _initialized value (e.g., type(uint64).max) also gets cleared.
+    function test_upgrade_v5SlotMaxInitialized_succeeds() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Simulate max _initialized = type(uint64).max at the ERC-7201 slot.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implementations.storageSetterImpl));
+        IStorageSetter(address(proxy)).setBytes32(OZ_V5_SLOT, bytes32(uint256(type(uint64).max)));
+
+        // Restore the v1 implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Upgrade should succeed -- the v5 slot gets cleared.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
+    }
+
+    /// @notice Tests that upgrade reverts when the ERC-7201 _initializing flag is set.
+    function test_upgrade_v5InitializingDuringUpgrade_reverts() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Simulate a v5 contract with _initializing = true (byte 8 set to 1).
+        // Layout: [unused...][_initializing (1 byte)][_initialized (8 bytes)]
+        // _initializing at bit offset 64 (byte offset 8 from right).
+        uint256 initializingSlotValue = uint256(1) << 64 | uint256(1); // _initialized = 1, _initializing = true
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implementations.storageSetterImpl));
+        IStorageSetter(address(proxy)).setBytes32(OZ_V5_SLOT, bytes32(initializingSlotValue));
+
+        // Restore the v1 implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Upgrade should revert because _initializing is set.
+        vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_InitializingDuringUpgrade.selector);
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+    }
+
+    /// @notice Tests that the v5 slot clear preserves upper bytes beyond the _initialized and
+    ///         _initializing fields (defensive, since currently unused).
+    function test_upgrade_v5SlotPreservesUpperBytes_succeeds() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Write a value that has data in upper bytes (above byte 8) plus _initialized = 5.
+        // Upper bytes simulate future data that shouldn't be touched.
+        uint256 upperData = uint256(0xDEAD) << 128 | uint256(5); // upper data + _initialized = 5
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implementations.storageSetterImpl));
+        IStorageSetter(address(proxy)).setBytes32(OZ_V5_SLOT, bytes32(upperData));
+
+        // Restore the v1 implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Upgrade should succeed.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        // Verify the implementation changed.
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
     }
 }
 
