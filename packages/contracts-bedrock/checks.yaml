@@ -16,6 +16,7 @@
 #   - command: Shell command to run
 #   - depends: (optional) Checks that must complete first (within same phase)
 #   - retry-clean: (optional) If true, retry with clean build on failure
+# testing change
 
 phases:
   # Phase 1: Setup - runs sequentially
