@@ -962,6 +962,9 @@ func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[t
 		// is already reached. Since we can't send the txdata, we have to
 		// return it for later processing. We use nil error to skip error logging.
 		l.recordFailedDARequest(txdata.ID(), nil)
+		l.Log.Warn("Max concurrent DA requests reached, unable to publish to Alt DA at this time")
+		// Avoid busy looping
+		time.Sleep(1 * time.Second)
 	}
 }
 
