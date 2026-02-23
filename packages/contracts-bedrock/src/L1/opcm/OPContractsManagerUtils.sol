@@ -339,6 +339,11 @@ contract OPContractsManagerUtils {
         // Also clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
         // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
         // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
+        // Slot derivation (ERC-7201):
+        //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
+        // ~bytes32(uint256(0xff))
+        // Ref:
+        // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
         bytes32 ozV5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
         bytes32 v5Current = IStorageSetter(_target).getBytes32(ozV5Slot);
         uint256 v5Value = uint256(v5Current);
