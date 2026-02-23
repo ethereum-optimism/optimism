@@ -213,11 +213,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         vm.prank(anchorStateRegistry.proxyAdminOwner());
         anchorStateRegistry.initialize(
-            systemConfig,
-            disputeGameFactory,
-            newStartingRoot,
-            GameTypes.SUPER_CANNON_KONA,
-            true
+            systemConfig, disputeGameFactory, newStartingRoot, GameTypes.SUPER_CANNON_KONA, true
         );
 
         // anchorGame should be cleared.

@@ -504,6 +504,7 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
             abi.encode(true)
         );
 
+        // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
             chainPAO,
             abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_IncompatibleDevFeatures.selector)
@@ -547,6 +548,7 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
             )
         });
 
+        // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
             cfg, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInput.selector)
         );
