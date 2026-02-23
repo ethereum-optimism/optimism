@@ -3194,15 +3194,6 @@ workflows:
           ignore-dirs: ./packages/contracts-bedrock/lib
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # Acceptance test jobs (formerly in separate acceptance-tests workflow)
-      - rust-build-binary: &cannon-kona-host
-          name: cannon-kona-host
-          directory: rust
-          profile: "release"
-          binary: "kona-host"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: rust
@@ -3246,7 +3237,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - cannon-kona-host
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
       # Generate flaky test report
