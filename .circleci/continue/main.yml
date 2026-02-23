@@ -673,6 +673,10 @@ jobs:
         description: "Whether to save the cache at the end of the build"
         type: boolean
         default: true
+      persist_to_workspace:
+        description: "Whether to persist the built binaries to the CircleCI workspace"
+        type: boolean
+        default: false
     steps:
       - rust-build:
           directory: << parameters.directory >>
@@ -684,6 +688,13 @@ jobs:
           binary: << parameters.binary >>
           toolchain: << parameters.toolchain >>
           save_cache: << parameters.save_cache >>
+      - when:
+          condition: << parameters.persist_to_workspace >>
+          steps:
+            - persist_to_workspace:
+                root: .
+                paths:
+                  - "<< parameters.directory >>/target/<< parameters.profile >>"
 
   # Build a single Rust binary from a submodule.
   rust-build-submodule:
@@ -3100,6 +3111,7 @@ workflows:
           profile: "release"
           features: "default"
           save_cache: true
+          persist_to_workspace: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-submodule: &rust-build-op-rbuilder
@@ -3430,6 +3442,7 @@ workflows:
           directory: rust
           needs_clang: true
           profile: "release"
+          persist_to_workspace: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-submodule: *rust-build-op-rbuilder
