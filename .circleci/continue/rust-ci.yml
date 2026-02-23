@@ -117,7 +117,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "15"
+        default: "16"
       profile:
         description: "Profile to restore the cache for"
         type: string
