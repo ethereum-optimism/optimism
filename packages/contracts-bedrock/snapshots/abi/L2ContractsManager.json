@@ -350,6 +350,11 @@
   },
   {
     "inputs": [],
+    "name": "L2ContractsManager_InitializingDuringUpgrade",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "L2ContractsManager_OnlyDelegatecall",
     "type": "error"
   },

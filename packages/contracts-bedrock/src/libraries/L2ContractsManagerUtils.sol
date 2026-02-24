@@ -25,6 +25,9 @@ library L2ContractsManagerUtils {
     /// @param _target The address of the contract that was attempted to be downgraded.
     error L2ContractsManager_DowngradeNotAllowed(address _target);
 
+    /// @notice Thrown when a contract is in the process of being initialized during an upgrade.
+    error L2ContractsManager_InitializingDuringUpgrade();
+
     /// @notice Upgrades a predeploy to a new implementation without calling an initializer.
     ///         If the predeploy is not upgradeable, this function is a no-op.
     /// @param _proxy The proxy address of the predeploy.
@@ -111,6 +114,28 @@ library L2ContractsManagerUtils {
         bytes32 current = IStorageSetter(_proxy).getBytes32(_slot);
         uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
         IStorageSetter(_proxy).setBytes32(_slot, bytes32(uint256(current) & mask));
+
+        // Also clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
+        // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
+        // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
+        // Slot derivation (ERC-7201):
+        //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
+        // ~bytes32(uint256(0xff))
+        // Ref:
+        // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
+        bytes32 ozV5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
+        bytes32 v5Current = IStorageSetter(_proxy).getBytes32(ozV5Slot);
+        uint256 v5Value = uint256(v5Current);
+
+        // A contract should never be mid-initialization during an upgrade. The `_initializing`
+        // bool lives at byte offset 8 (bits 64..71). Revert if it is set.
+        if ((v5Value >> 64) & 0xFF != 0) {
+            revert L2ContractsManager_InitializingDuringUpgrade();
+        }
+
+        // Zero the uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
+        uint256 v5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
+        IStorageSetter(_proxy).setBytes32(ozV5Slot, bytes32(v5Value & v5Mask));
 
         // Upgrade to the implementation and call the initializer.
         IProxy(payable(_proxy)).upgradeToAndCall(_implementation, _data);

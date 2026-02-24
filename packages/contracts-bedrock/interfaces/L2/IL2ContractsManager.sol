@@ -20,6 +20,9 @@ interface IL2ContractsManager is ISemver {
     /// @notice Error thrown when a semver string has less than 3 parts.
     error SemverComp_InvalidSemverParts();
 
+    /// @notice Thrown when a contract is in the process of being initialized during an upgrade.
+    error L2ContractsManager_InitializingDuringUpgrade();
+
     /// @notice Executes the upgrade for all predeploys.
     /// @dev This function MUST be called via DELEGATECALL from the L2ProxyAdmin.
     function upgrade() external;
