@@ -175,9 +175,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 			}
 		}(chainID, chain)
 	}
-	<-ctx.Done()
-	s.log.Info("supernode received stop signal")
-	return ctx.Err()
+	return nil
 }
 
 func (s *Supernode) Stop(ctx context.Context) error {

@@ -76,11 +76,7 @@ func TestRunnableActivityGating(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 
-	done := make(chan struct{})
-	go func() { _ = s.Start(ctx); close(done) }()
-
-	<-done // wait until context canceled and Start exits
-
+	require.NoError(t, s.Start(ctx))
 	require.Equal(t, 1, run.started, "runnable activity should be started exactly once")
 	require.Equal(t, 0, run.stopped, "Stop is invoked during Stop(), not here")
 
