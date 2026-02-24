@@ -36,8 +36,8 @@ type networkUpgradeTransaction struct {
 
 // nutBundle is the top-level structure of a NUT file.
 type nutBundle struct {
-	ForkName     forks.Name                   `json:"-"`
-	Metadata     nutMetadata                  `json:"metadata"`
+	ForkName     forks.Name                  `json:"-"`
+	Metadata     nutMetadata                 `json:"metadata"`
 	Transactions []networkUpgradeTransaction `json:"transactions"`
 }
 
