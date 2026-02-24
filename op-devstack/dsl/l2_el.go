@@ -474,7 +474,7 @@ func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
 
 	for _, tx := range txs {
 		if tx.Hash() == txHash {
-			el.log.Info("confirmed transaction not in block", "blockNumber", blockNumber, "txHash", txHash)
+			el.log.Info("confirmed transaction in block", "blockNumber", blockNumber, "txHash", txHash)
 			return
 		}
 	}
