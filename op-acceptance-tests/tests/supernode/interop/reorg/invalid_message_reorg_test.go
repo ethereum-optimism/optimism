@@ -49,20 +49,20 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	rng := rand.New(rand.NewSource(12345))
 
 	// Send an initiating message on chain A
-	initTx, initReceipt := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
+	initMsg := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
 
 	t.Logger().Info("initiating message sent on chain A",
-		"block", initReceipt.BlockNumber,
-		"hash", initReceipt.BlockHash,
+		"block", initMsg.BlockNumber(),
+		"hash", initMsg.BlockHash(),
 	)
 
 	// Wait for chain B to catch up
 	sys.L2B.WaitForBlock()
 
 	// Send an INVALID executing message on chain B
-	_, invalidExecReceipt := bob.SendInvalidExecMessage(initTx, 0)
-	invalidBlockNumber := bigs.Uint64Strict(invalidExecReceipt.BlockNumber)
-	invalidBlockHash := invalidExecReceipt.BlockHash
+	execMsg := bob.SendInvalidExecMessage(initMsg)
+	invalidBlockNumber := bigs.Uint64Strict(execMsg.BlockNumber())
+	invalidBlockHash := execMsg.BlockHash()
 	invalidBlockTimestamp := sys.L2B.TimestampForBlockNum(invalidBlockNumber)
 	t.Logger().Info("invalid executing message sent on chain B",
 		"block", invalidBlockNumber,
@@ -111,7 +111,7 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 
 	// ASSERTION: The invalid transaction no longer exists in the chain
 	// The invalid exec message transaction should NOT be in the replacement block
-	sys.L2ELB.AssertTxNotInBlock(invalidBlockNumber, invalidExecReceipt.TxHash)
+	sys.L2ELB.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
 
 	t.Logger().Info("test complete: invalid block was replaced and verified",
 		"invalid_block_number", invalidBlockNumber,

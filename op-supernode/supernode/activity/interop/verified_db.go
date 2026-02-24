@@ -181,6 +181,11 @@ func (v *VerifiedDB) LastTimestamp() (uint64, bool) {
 	return v.lastTimestamp, v.initialized
 }
 
+// RewindAfter removes all verified results after the given timestamp.
+func (v *VerifiedDB) RewindAfter(timestamp uint64) (bool, error) {
+	return v.Rewind(timestamp + 1)
+}
+
 // Rewind removes all verified results at or after the given timestamp.
 // Returns true if any results were deleted, false otherwise.
 func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {

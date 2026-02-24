@@ -85,4 +85,4 @@ Example: `export RUST_LOG=engine_builder=trace,runtime=debug`
 
 [op-sepolia]: https://sepolia-optimism.etherscan.io
 [op-reth]: https://github.com/paradigmxyz/reth
-[new-issue]: https://github.com/op-rs/kona/issues/new
+[new-issue]: https://github.com/ethereum-optimism/optimism/issues/new

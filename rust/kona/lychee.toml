@@ -12,7 +12,7 @@ accept = [200, 403]
 exclude = [
     'foo.bar',
     'localhost',
-    '^https://github\.com/op-rs/kona/pull/',
+    '^https://github\.com/ethereum-optimism/optimism/pull/',
     '^https://www\.intel\.com/content/www/us/en/developer/tools/trust-domain-extensions/documentation\.html',
     'https://sepolia-optimism\.etherscan\.io'
 ]

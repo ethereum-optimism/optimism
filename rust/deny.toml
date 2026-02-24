@@ -17,6 +17,8 @@ ignore = [
   "RUSTSEC-2025-0012",
   # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
   "RUSTSEC-2025-0141",
+  # https://rustsec.org/advisories/RUSTSEC-2026-0002 lru unused directly: https://github.com/alloy-rs/alloy/pull/3460
+  "RUSTSEC-2026-0002",
 ]
 
 # This section is considered when running `cargo deny check bans`.

@@ -5,10 +5,7 @@ use crate::{
     single::cfg::SingleChainHost,
 };
 use alloy_consensus::Header;
-use alloy_eips::{
-    eip2718::Encodable2718,
-    eip4844::{BlobTransactionSidecarItem, FIELD_ELEMENTS_PER_BLOB, IndexedBlobHash},
-};
+use alloy_eips::{eip2718::Encodable2718, eip4844::FIELD_ELEMENTS_PER_BLOB};
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::Decodable;
@@ -19,8 +16,48 @@ use async_trait::async_trait;
 use kona_preimage::{PreimageKey, PreimageKeyType};
 use kona_proof::{Hint, HintType, l1::ROOTS_OF_UNITY};
 use kona_protocol::{BlockInfo, OutputRoot, Predeploys};
+use kona_providers_alloy::BlobWithCommitmentAndProof;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use tracing::warn;
+
+/// Parses a blob hint, supporting both legacy (48-byte) and new (40-byte) formats.
+///
+/// Returns the blob hash and timestamp.
+///
+/// ## Formats
+/// - Legacy: hash (32 bytes) + index (8 bytes) + timestamp (8 bytes) = 48 bytes
+/// - New: hash (32 bytes) + timestamp (8 bytes) = 40 bytes
+///
+/// The legacy index field is parsed but ignored.
+pub fn parse_blob_hint(hint_data: &[u8]) -> Result<(B256, u64)> {
+    match hint_data.len() {
+        48 => {
+            // Legacy format: hash (32) + index (8) + timestamp (8)
+            let hash_data_bytes: [u8; 32] = hint_data[0..32].try_into()?;
+            let _index_data_bytes: [u8; 8] = hint_data[32..40].try_into()?; // index no longer used
+            let timestamp_data_bytes: [u8; 8] = hint_data[40..48].try_into()?;
+
+            let hash: B256 = hash_data_bytes.into();
+            let timestamp = u64::from_be_bytes(timestamp_data_bytes);
+            Ok((hash, timestamp))
+        }
+        40 => {
+            // New format: hash (32) + timestamp (8)
+            let hash_data_bytes: [u8; 32] = hint_data[0..32].try_into()?;
+            let timestamp_data_bytes: [u8; 8] = hint_data[32..40].try_into()?;
+
+            let hash: B256 = hash_data_bytes.into();
+            let timestamp = u64::from_be_bytes(timestamp_data_bytes);
+            Ok((hash, timestamp))
+        }
+        _ => {
+            anyhow::bail!(
+                "Invalid blob hint length: expected 40 or 48 bytes, got {}",
+                hint_data.len()
+            );
+        }
+    }
+}
 
 /// The [`HintHandler`] for the [`SingleChainHost`].
 #[derive(Debug, Clone, Copy)]
@@ -74,33 +111,23 @@ impl HintHandler for SingleChainHintHandler {
                 store_ordered_trie(kv.as_ref(), raw_receipts.as_slice()).await?;
             }
             HintType::L1Blob => {
-                ensure!(hint.data.len() == 48, "Invalid hint data length");
-
-                let hash_data_bytes: [u8; 32] = hint.data[0..32].try_into()?;
-                let index_data_bytes: [u8; 8] = hint.data[32..40].try_into()?;
-                let timestamp_data_bytes: [u8; 8] = hint.data[40..48].try_into()?;
-
-                let hash: B256 = hash_data_bytes.into();
-                let index = u64::from_be_bytes(index_data_bytes);
-                let timestamp = u64::from_be_bytes(timestamp_data_bytes);
+                let (hash, timestamp) = parse_blob_hint(&hint.data)?;
 
                 let partial_block_ref = BlockInfo { timestamp, ..Default::default() };
-                let indexed_hash = IndexedBlobHash { index, hash };
 
                 // Fetch the blobs from the blob provider.
                 let mut blobs = providers
                     .blobs
-                    .fetch_filtered_blob_sidecars(&partial_block_ref, &[indexed_hash])
+                    .fetch_blobs_with_proofs(&partial_block_ref, &[hash])
                     .await
-                    .map_err(|e| anyhow!("Failed to fetch blob sidecars: {e}"))?;
+                    .map_err(|e| anyhow!("Failed to fetch blobs with proofs: {e}"))?;
                 if blobs.len() != 1 {
                     anyhow::bail!("Expected 1 blob, got {}", blobs.len());
                 }
-                let BlobTransactionSidecarItem {
+                let BlobWithCommitmentAndProof {
                     blob,
                     kzg_proof: proof,
                     kzg_commitment: commitment,
-                    ..
                 } = blobs.pop().expect("Expected 1 blob");
 
                 // Acquire a lock on the key-value store and set the preimages.
@@ -380,5 +407,53 @@ impl HintHandler for SingleChainHintHandler {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEST_HASH: B256 = B256::new([0x42u8; 32]);
+    const TEST_TIMESTAMP: u64 = 1234567890;
+
+    // Legacy format: hash (32 bytes) + index (8 bytes) + timestamp (8 bytes) = 48 bytes
+    const LEGACY_HINT: [u8; 48] = [
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, // Hash (32 bytes):
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFA, 0xCA, // Index (8 bytes, ignored)
+        0x00, 0x00, 0x00, 0x00, 0x49, 0x96, 0x02, 0xD2, // Timestamp (8 bytes): 1234567890
+    ];
+
+    // New format: hash (32 bytes) + timestamp (8 bytes) = 40 bytes
+    const NEW_HINT: [u8; 40] = [
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, // Hash (32 bytes)
+        0x00, 0x00, 0x00, 0x00, 0x49, 0x96, 0x02, 0xD2, // Timestamp (8 bytes): 1234567890
+    ];
+
+    #[test]
+    fn test_parse_blob_hint_formats() {
+        let (legacy_hash, legacy_timestamp) = parse_blob_hint(&LEGACY_HINT).unwrap();
+        let (new_hash, new_timestamp) = parse_blob_hint(&NEW_HINT).unwrap();
+
+        assert_eq!(legacy_hash, TEST_HASH);
+        assert_eq!(legacy_timestamp, TEST_TIMESTAMP);
+        assert_eq!(new_hash, TEST_HASH);
+        assert_eq!(new_timestamp, TEST_TIMESTAMP);
+    }
+
+    #[test]
+    fn test_parse_blob_hint_invalid_length() {
+        let hint_data = vec![0u8; 35];
+        let result = parse_blob_hint(&hint_data);
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Invalid blob hint length"));
+        assert!(err_msg.contains("expected 40 or 48 bytes"));
+        assert!(err_msg.contains("got 35"));
     }
 }

@@ -106,7 +106,7 @@ func (i *Interop) loadLogs(ts uint64) error {
 		}
 
 		// Get the block at timestamp ts
-		block, err := chain.BlockAtTimestamp(i.ctx, ts, eth.Safe)
+		block, err := chain.LocalSafeBlockAtTimestamp(i.ctx, ts)
 		if err != nil {
 			return fmt.Errorf("chain %s: failed to get block at timestamp %d: %w", chainID, ts, err)
 		}

@@ -203,9 +203,10 @@ func TestRPCCheckAccessList(gt *testing.T) {
 	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	_, initReceipt := alice.SendInitMessage(
+	initMsg := alice.SendInitMessage(
 		interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)),
 	)
+	initReceipt := initMsg.Receipt
 
 	logToAccess := func(chainID eth.ChainID, log *gethTypes.Log, timestamp uint64) types.Access {
 		msgPayload := make([]byte, 0)

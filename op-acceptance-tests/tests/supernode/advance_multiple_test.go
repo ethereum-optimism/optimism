@@ -14,7 +14,7 @@ import (
 // it confirms:
 // - the two L2 chains are different
 // - the two CLs are using the same supernode
-// - the two CLs are advancing unsafe and safe heads
+// - the two CLs are advancing unsafe and local safe heads
 func TestTwoChainProgress(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewTwoL2(t)
@@ -53,17 +53,17 @@ func TestTwoChainProgress(gt *testing.T) {
 			newStatusB.UnsafeL2.Number > statusB.UnsafeL2.Number
 	}, 30*time.Second, waitTime, "chains should advance unsafe heads")
 
-	// safe heads should advance
+	// local safe heads should advance
 	t.Require().Eventually(func() bool {
 		newStatusA := sys.L2ACL.SyncStatus()
 		newStatusB := sys.L2BCL.SyncStatus()
-		t.Logger().Info("waiting for safe head progression",
-			"chainA_safe", newStatusA.SafeL2.Number,
-			"chainB_safe", newStatusB.SafeL2.Number,
+		t.Logger().Info("waiting for local safe head progression",
+			"chainA_local_safe", newStatusA.LocalSafeL2.Number,
+			"chainB_local_safe", newStatusB.LocalSafeL2.Number,
 		)
-		return newStatusA.SafeL2.Number > statusA.SafeL2.Number &&
-			newStatusB.SafeL2.Number > statusB.SafeL2.Number
-	}, 60*time.Second, waitTime, "chains should advance safe heads")
+		return newStatusA.LocalSafeL2.Number > statusA.LocalSafeL2.Number &&
+			newStatusB.LocalSafeL2.Number > statusB.LocalSafeL2.Number
+	}, 60*time.Second, waitTime, "chains should advance local safe heads")
 
 	// Log final status
 	finalStatusA := sys.L2ACL.SyncStatus()

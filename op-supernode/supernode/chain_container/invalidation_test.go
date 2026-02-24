@@ -293,16 +293,9 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 
 // mockEngineForInvalidation implements engine_controller.EngineController for invalidation tests
 type mockEngineForInvalidation struct {
-	blockAtTimestampFn func(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
-	rewindCalled       bool
-	rewindTimestamp    uint64
-}
-
-func (m *mockEngineForInvalidation) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
-	if m.blockAtTimestampFn != nil {
-		return m.blockAtTimestampFn(ctx, ts, label)
-	}
-	return eth.L2BlockRef{}, nil
+	blockRef        eth.L2BlockRef
+	rewindCalled    bool
+	rewindTimestamp uint64
 }
 
 func (m *mockEngineForInvalidation) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
@@ -321,6 +314,10 @@ func (m *mockEngineForInvalidation) FetchReceipts(ctx context.Context, blockHash
 
 func (m *mockEngineForInvalidation) Close() error {
 	return nil
+}
+
+func (m *mockEngineForInvalidation) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return m.blockRef, nil
 }
 
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
@@ -434,9 +431,7 @@ func TestInvalidateBlock(t *testing.T) {
 
 			// Create mock engine
 			mockEng := &mockEngineForInvalidation{
-				blockAtTimestampFn: func(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
-					return eth.L2BlockRef{Hash: tt.currentBlockHash}, nil
-				},
+				blockRef: eth.L2BlockRef{Hash: tt.currentBlockHash},
 			}
 
 			// Create container with minimal config

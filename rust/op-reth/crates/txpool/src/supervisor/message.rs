@@ -1,5 +1,5 @@
 //! Interop message primitives.
-// Source: https://github.com/op-rs/kona
+// Source: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
 // Copyright © 2023 kona contributors Copyright © 2024 Optimism
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and

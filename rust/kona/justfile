@@ -3,8 +3,6 @@
 import "./tests/justfile"
 # Builds docker images for kona
 import "./docker/apps/justfile"
-# Vocs Documentation commands
-import "./docs/justfile"
 
 KONA_ROOT := source_directory()
 

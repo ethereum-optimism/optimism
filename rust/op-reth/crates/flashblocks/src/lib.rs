@@ -14,6 +14,9 @@ use std::sync::Arc;
 // Included to enable serde feature for OpReceipt type used transitively
 use reth_optimism_primitives as _;
 
+// Used by downstream crates that depend on this crate
+use alloy_rpc_types as _;
+
 mod consensus;
 pub use consensus::FlashBlockConsensusClient;
 
@@ -26,19 +29,28 @@ pub use sequence::{
 };
 
 mod service;
-pub use service::{FlashBlockBuildInfo, FlashBlockService};
+pub use service::{
+    CanonicalBlockNotification, FlashBlockBuildInfo, FlashBlockService,
+    create_canonical_block_channel,
+};
 
 mod worker;
+pub use worker::FlashblockCachedReceipt;
 
 mod cache;
 
+mod pending_state;
+pub use pending_state::{PendingBlockState, PendingStateRegistry};
+
 pub mod validation;
 
+mod tx_cache;
+pub use tx_cache::TransactionCache;
 #[cfg(test)]
 mod test_utils;
 
 mod ws;
-pub use ws::{FlashBlockDecoder, WsConnect, WsConnector, WsFlashBlockStream};
+pub use ws::{FlashBlockDecoder, WsConnect, WsFlashBlockStream};
 
 /// Receiver of the most recent [`PendingFlashBlock`] built out of [`FlashBlock`]s.
 ///

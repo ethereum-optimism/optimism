@@ -32,7 +32,7 @@ func (s *Superroot) ActivityName() string { return "superroot" }
 
 // Reset is a no-op for superroot - it always queries chain containers directly
 // and doesn't maintain any chain-specific cached state.
-func (s *Superroot) Reset(chainID eth.ChainID, timestamp uint64) {
+func (s *Superroot) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 	// No-op: superroot queries chain containers directly
 }
 
@@ -78,12 +78,12 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		// Conservative aggregation across chains: take the minimum timestamps.
 		// If any chain has a zero timestamp (not initialized), the aggregate is zero.
 		if !safeInitialized {
-			minSafeTimestamp = status.SafeL2.Time
+			minSafeTimestamp = status.LocalSafeL2.Time
 			safeInitialized = true
-		} else if minSafeTimestamp == 0 || status.SafeL2.Time == 0 {
+		} else if minSafeTimestamp == 0 || status.LocalSafeL2.Time == 0 {
 			minSafeTimestamp = 0
-		} else if status.SafeL2.Time < minSafeTimestamp {
-			minSafeTimestamp = status.SafeL2.Time
+		} else if status.LocalSafeL2.Time < minSafeTimestamp {
+			minSafeTimestamp = status.LocalSafeL2.Time
 		}
 
 		if !finalizedInitialized {

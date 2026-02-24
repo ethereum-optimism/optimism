@@ -23,10 +23,10 @@ ENV RUSTFLAGS="$RUSTFLAGS"
 ARG FEATURES=""
 ENV FEATURES=$FEATURES
 
-RUN cargo chef cook --profile $BUILD_PROFILE --features "$FEATURES" --recipe-path recipe.json --manifest-path /app/crates/optimism/bin/Cargo.toml
+RUN cargo chef cook --profile $BUILD_PROFILE --features "$FEATURES" --recipe-path recipe.json --manifest-path /app/op-reth/bin/Cargo.toml
 
 COPY . .
-RUN cargo build --profile $BUILD_PROFILE --features "$FEATURES" --bin op-reth --manifest-path /app/crates/optimism/bin/Cargo.toml
+RUN cargo build --profile $BUILD_PROFILE --features "$FEATURES" --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
 
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth
 RUN cp /app/target/$BUILD_PROFILE/op-reth /app/op-reth

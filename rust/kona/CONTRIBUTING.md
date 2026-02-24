@@ -28,4 +28,4 @@ Before working with this repository locally, you'll need to install the followin
 
 [book]: https://rollup.yoga
 
-[create-an-issue]: https://github.com/op-rs/kona/issues/new
+[create-an-issue]: https://github.com/ethereum-optimism/optimism/issues/new

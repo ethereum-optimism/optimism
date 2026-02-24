@@ -56,12 +56,12 @@ Nightly Docker images are automatically built and published every day at 2 AM UT
 
 ```sh
 # Pull the latest nightly build (multi-platform: linux/amd64, linux/arm64)
-docker pull ghcr.io/op-rs/kona/kona-node:nightly
-docker pull ghcr.io/op-rs/kona/kona-host:nightly
-docker pull ghcr.io/op-rs/kona/kona-supervisor:nightly
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:nightly
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-host:nightly
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-supervisor:nightly
 
 # Pull a specific date's nightly build
-docker pull ghcr.io/op-rs/kona/kona-node:nightly-2024-12-10
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:nightly-2024-12-10
 ```
 
 ### Manual Trigger
@@ -83,7 +83,7 @@ TAG="<target_name>/<version>"
 git tag -a $TAG -m "<tag description>" && git push origin tag $TAG
 ```
 
-To run the workflow manually, navigate over to the ["Build and Publish Docker Image"](https://github.com/op-rs/kona/actions/workflows/docker.yaml)
+To run the workflow manually, navigate over to the ["Build and Publish Docker Image"](https://github.com/ethereum-optimism/optimism/actions/workflows/docker.yaml)
 action. From there, run a `workflow_dispatch` trigger, select the tag you just pushed, and then finally select the image to release.
 
 Or, if you prefer to use the `gh` CLI, you can run:

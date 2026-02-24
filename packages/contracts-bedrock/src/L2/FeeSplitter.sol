@@ -7,7 +7,7 @@ import { Types } from "src/libraries/Types.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 // Interfaces
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
@@ -188,7 +188,7 @@ contract FeeSplitter is ISemver, Initializable {
     /// @notice Updates the fee disbursement interval. Only callable by the ProxyAdmin owner.
     /// @param _newFeeDisbursementInterval The new fee disbursement interval in seconds.
     function setFeeDisbursementInterval(uint128 _newFeeDisbursementInterval) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert FeeSplitter_OnlyProxyAdminOwner();
         }
         if (_newFeeDisbursementInterval == 0) {
@@ -205,7 +205,7 @@ contract FeeSplitter is ISemver, Initializable {
     /// @notice Updates the share calculator contract. Only callable by the ProxyAdmin owner.
     /// @param _newSharesCalculator The new share calculator contract.
     function setSharesCalculator(ISharesCalculator _newSharesCalculator) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
+        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert FeeSplitter_OnlyProxyAdminOwner();
         }
         if (address(_newSharesCalculator) == address(0)) revert FeeSplitter_SharesCalculatorCannotBeZero();

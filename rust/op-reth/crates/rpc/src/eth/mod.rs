@@ -1,6 +1,7 @@
 //! OP-Reth `eth_` endpoint implementation.
 
 pub mod ext;
+pub mod proofs;
 pub mod receipt;
 pub mod transaction;
 
@@ -12,25 +13,25 @@ use crate::{
     OpEthApiError, SequencerClient,
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
 };
-use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
-use alloy_primitives::{B256, U256};
+use alloy_primitives::U256;
 use alloy_rpc_types_eth::{Filter, Log};
-use alloy_transport_http::reqwest::Url;
 use eyre::WrapErr;
 use futures::StreamExt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
+use reqwest::Url;
 use reth_chainspec::{EthereumHardforks, Hardforks};
 use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_flashblocks::{
     FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
-    FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblocksListeners,
-    PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
+    FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
+    FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
+use reth_primitives_traits::NodePrimitives;
 use reth_rpc::eth::core::EthApiInner;
 use reth_rpc_eth_api::{
     EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcNodeCore,
@@ -41,10 +42,9 @@ use reth_rpc_eth_api::{
     },
 };
 use reth_rpc_eth_types::{
-    EthStateCache, FeeHistoryCache, GasPriceOracle, PendingBlock,
-    logs_utils::matching_block_logs_with_tx_hashes,
+    EthStateCache, FeeHistoryCache, GasPriceOracle, logs_utils::matching_block_logs_with_tx_hashes,
 };
-use reth_storage_api::{BlockReaderIdExt, ProviderHeader};
+use reth_storage_api::ProviderHeader;
 use reth_tasks::{
     TaskSpawner,
     pool::{BlockingTaskGuard, BlockingTaskPool},
@@ -183,20 +183,16 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         self.inner.flashblocks.as_ref().and_then(|f| *f.in_progress_rx.borrow())
     }
 
-    /// Extracts pending block if it matches the expected parent hash.
-    fn extract_matching_block(
+    /// Extracts the latest pending flashblock from flashblocks state, if available.
+    fn extract_pending_flashblock(
         &self,
         block: Option<&PendingFlashBlock<N::Primitives>>,
-        parent_hash: B256,
-    ) -> Option<PendingBlock<N::Primitives>> {
-        block.filter(|b| b.block().parent_hash() == parent_hash).map(|b| b.pending.clone())
+    ) -> Option<PendingFlashBlock<N::Primitives>> {
+        block.cloned()
     }
 
     /// Awaits a fresh flashblock if one is being built, otherwise returns current.
-    async fn flashblock(
-        &self,
-        parent_hash: B256,
-    ) -> eyre::Result<Option<PendingBlock<N::Primitives>>> {
+    async fn flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>> {
         let Some(rx) = self.inner.flashblocks.as_ref().map(|f| &f.pending_block_rx) else {
             return Ok(None);
         };
@@ -208,8 +204,8 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             // Check if this is the first flashblock or the next consecutive index
             let is_next_index = current_index.is_none_or(|idx| build_info.index == idx + 1);
 
-            // Wait only for relevant flashblocks: matching parent and next in sequence
-            if build_info.parent_hash == parent_hash && is_next_index {
+            // Wait for the next in-sequence flashblock to reduce stale pending responses.
+            if is_next_index {
                 let mut rx_clone = rx.clone();
                 // Wait up to MAX_FLASHBLOCK_WAIT_DURATION for a new flashblock to arrive
                 let _ = time::timeout(MAX_FLASHBLOCK_WAIT_DURATION, rx_clone.changed()).await;
@@ -217,24 +213,20 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         }
 
         // Fall back to current block
-        Ok(self.extract_matching_block(rx.borrow().as_ref(), parent_hash))
+        Ok(self.extract_pending_flashblock(rx.borrow().as_ref()))
     }
 
-    /// Returns a [`PendingBlock`] that is built out of flashblocks.
+    /// Returns a [`PendingFlashBlock`] that is built out of flashblocks.
     ///
     /// If flashblocks receiver is not set, then it always returns `None`.
     ///
     /// It may wait up to 50ms for a fresh flashblock if one is currently being built.
-    pub async fn pending_flashblock(&self) -> eyre::Result<Option<PendingBlock<N::Primitives>>>
+    pub async fn pending_flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>>
     where
         OpEthApiError: FromEvmError<N::Evm>,
         Rpc: RpcConvert<Primitives = N::Primitives>,
     {
-        let Some(latest) = self.provider().latest_header()? else {
-            return Ok(None);
-        };
-
-        self.flashblock(latest.hash()).await
+        self.flashblock().await
     }
 }
 
@@ -545,6 +537,7 @@ where
         >,
     NetworkT: RpcTypes,
     OpRpcConvert<N, NetworkT>: RpcConvert<Network = NetworkT>,
+    <<N::Types as NodeTypes>::Primitives as NodePrimitives>::Receipt: FlashblockCachedReceipt,
     OpEthApi<N, OpRpcConvert<N, NetworkT>>:
         FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
 {
@@ -590,7 +583,7 @@ where
             let flashblocks_sequence = service.block_sequence_broadcaster().clone();
             let received_flashblocks = service.flashblocks_broadcaster().clone();
             let in_progress_rx = service.subscribe_in_progress();
-            ctx.components.task_executor().spawn(Box::pin(service.run(tx)));
+            ctx.components.task_executor().spawn_task(Box::pin(service.run(tx)));
 
             if flashblock_consensus {
                 info!(target: "reth::cli", "Launching FlashBlockConsensusClient");
@@ -598,7 +591,7 @@ where
                     ctx.engine_handle.clone(),
                     flashblocks_sequence.subscribe(),
                 )?;
-                ctx.components.task_executor().spawn(Box::pin(flashblock_client.run()));
+                ctx.components.task_executor().spawn_task(Box::pin(flashblock_client.run()));
             }
 
             Some(FlashblocksListeners::new(

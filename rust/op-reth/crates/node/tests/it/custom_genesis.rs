@@ -36,13 +36,10 @@ async fn test_op_node_custom_genesis_number() {
     let wallet = Arc::new(Mutex::new(Wallet::default().with_chain_id(chain_spec.chain().into())));
 
     // Configure and launch the node
-    let mut config =
-        NodeConfig::new(chain_spec.clone()).with_unused_ports().with_datadir_args(DatadirArgs {
-            datadir: reth_db::test_utils::tempdir_path().into(),
-            ..Default::default()
-        });
-    config.network.discovery.discv5_port = 0;
-    config.network.discovery.discv5_port_ipv6 = 0;
+    let config = NodeConfig::new(chain_spec.clone()).with_datadir_args(DatadirArgs {
+        datadir: reth_db::test_utils::tempdir_path().into(),
+        ..Default::default()
+    });
     let db = create_test_rw_db_with_path(
         config
             .datadir
@@ -50,7 +47,7 @@ async fn test_op_node_custom_genesis_number() {
             .unwrap_or_chain_default(config.chain.chain(), config.datadir.clone())
             .db(),
     );
-    let tasks = reth_tasks::TaskManager::current();
+    let runtime = reth_tasks::Runtime::test();
     let node_handle = NodeBuilder::new(config.clone())
         .with_database(db)
         .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
@@ -58,7 +55,7 @@ async fn test_op_node_custom_genesis_number() {
         .with_add_ons(OpNode::new(Default::default()).add_ons())
         .launch_with_fn(|builder| {
             let launcher = EngineNodeLauncher::new(
-                tasks.executor(),
+                runtime.clone(),
                 builder.config.datadir(),
                 Default::default(),
             );

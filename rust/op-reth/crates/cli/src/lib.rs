@@ -37,7 +37,7 @@ pub use commands::{import::ImportOpCommand, import_receipts::ImportReceiptsOpCom
 use reth_optimism_chainspec::OpChainSpec;
 use reth_rpc_server_types::{DefaultRpcModuleValidator, RpcModuleValidator};
 
-use std::{ffi::OsString, fmt, marker::PhantomData, sync::Arc};
+use std::{ffi::OsString, fmt, marker::PhantomData};
 
 use chainspec::OpChainSpecParser;
 use clap::Parser;
@@ -121,7 +121,7 @@ where
     /// [`NodeCommand`](reth_cli_commands::node::NodeCommand).
     pub fn run<L, Fut>(self, launcher: L) -> eyre::Result<()>
     where
-        L: FnOnce(WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>, C::ChainSpec>>, Ext) -> Fut,
+        L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, C::ChainSpec>>, Ext) -> Fut,
         Fut: Future<Output = eyre::Result<()>>,
     {
         self.with_runner(CliRunner::try_default_runtime()?, launcher)
@@ -130,7 +130,7 @@ where
     /// Execute the configured cli command with the provided [`CliRunner`].
     pub fn with_runner<L, Fut>(self, runner: CliRunner, launcher: L) -> eyre::Result<()>
     where
-        L: FnOnce(WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>, C::ChainSpec>>, Ext) -> Fut,
+        L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, C::ChainSpec>>, Ext) -> Fut,
         Fut: Future<Output = eyre::Result<()>>,
     {
         let mut this = self.configure();

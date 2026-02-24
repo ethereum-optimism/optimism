@@ -14,6 +14,11 @@ pub struct PendingFlashBlock<N: NodePrimitives> {
     /// The complete pending block built out of all received Flashblocks.
     #[deref]
     pub pending: PendingBlock<N>,
+    /// Canonical anchor hash used for state lookups when this block was built.
+    ///
+    /// For canonical builds this equals `pending.block().parent_hash()`.
+    /// For speculative builds this points to the canonical ancestor used for storage reads.
+    pub canonical_anchor_hash: B256,
     /// A sequential index that identifies the last Flashblock added to this block.
     pub last_flashblock_index: u64,
     /// The last Flashblock block hash,
@@ -26,11 +31,18 @@ impl<N: NodePrimitives> PendingFlashBlock<N> {
     /// Create new pending flashblock.
     pub const fn new(
         pending: PendingBlock<N>,
+        canonical_anchor_hash: B256,
         last_flashblock_index: u64,
         last_flashblock_hash: B256,
         has_computed_state_root: bool,
     ) -> Self {
-        Self { pending, last_flashblock_index, last_flashblock_hash, has_computed_state_root }
+        Self {
+            pending,
+            canonical_anchor_hash,
+            last_flashblock_index,
+            last_flashblock_hash,
+            has_computed_state_root,
+        }
     }
 
     /// Returns the properly calculated state root for that block if it was computed.

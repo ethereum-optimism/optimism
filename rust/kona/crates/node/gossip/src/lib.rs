@@ -13,8 +13,10 @@
 //! - [`P2pRpcRequest`]: RPC interface for network administration
 //! - [`Metrics`]: Metrics collection for monitoring and observability
 
-#![doc(html_logo_url = "https://raw.githubusercontent.com/op-rs/kona/main/assets/kona-logo.png")]
-#![doc(issue_tracker_base_url = "https://github.com/op-rs/kona/issues/")]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/ethereum-optimism/optimism/develop/rust/kona/assets/kona-logo.png"
+)]
+#![doc(issue_tracker_base_url = "https://github.com/ethereum-optimism/optimism/issues/")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 

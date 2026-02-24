@@ -9,7 +9,6 @@ type Repository struct {
 
 const (
 	opLabsToolsRegistry = "us-docker.pkg.dev/oplabs-tools-artifacts/images"
-	paradigmRegistry    = "ghcr.io/paradigmxyz"
 )
 
 // NewRepository creates a new Repository instance with predefined mappings
@@ -23,8 +22,7 @@ func NewRepository() *Repository {
 			"op-batcher":    opLabsToolsRegistry,
 			"op-proposer":   opLabsToolsRegistry,
 			"op-challenger": opLabsToolsRegistry,
-			// Paradigm images
-			"op-reth": paradigmRegistry,
+			"op-reth":       opLabsToolsRegistry,
 		},
 	}
 }

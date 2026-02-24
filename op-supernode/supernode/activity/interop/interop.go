@@ -105,7 +105,6 @@ func New(
 		verifiedDB:          verifiedDB,
 		logsDBs:             logsDBs,
 		dataDir:             dataDir,
-		currentL1:           eth.BlockID{},
 		activationTimestamp: activationTimestamp,
 	}
 	// default to using the verifyInteropMessages function
@@ -193,6 +192,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		i.log.Error("failed to collect current L1", "err", err)
 		return false, err
 	}
+
 	// Perform the interop evaluation
 	result, err := i.progressInterop()
 	if err != nil {
@@ -216,13 +216,13 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	// the current L1s being considered by the Activity right now depend on what progress was made:
 	// - if interop failed to run, the current L1s are not updated
 	// - if interop ran but did not advance the verified timestamp, the CurrentL1 values collected are used directly
-	// - if interop ran and advanced the verified timestamp, the CurrentL1 is the L1 head at the verified timestamp
+	// - if interop ran and advanced the verified timestamp, the L1Inclusion is the L1 inclusion at the verified timestamp
 	// this is because the individual chains may advance their CurrentL1, and if progress is being made, we might not be done using the collected L1s.
 	verifiedAdvanced := !result.IsEmpty()
 	i.mu.Lock()
 	if verifiedAdvanced {
-		// the new CurrentL1 is the L1 head at the verified timestamp
-		i.currentL1 = result.L1Head
+		// the new CurrentL1 is the L1 inclusion at the verified timestamp
+		i.currentL1 = result.L1Inclusion
 	} else {
 		// the new CurrentL1 is the lowest CurrentL1 from the collected chains
 		i.currentL1 = localCurrentL1
@@ -293,6 +293,12 @@ func (i *Interop) progressInterop() (Result, error) {
 	// 2: load the logs up through the next timestamp
 	// the previous timestamp is assumed to already be downloaded and verified
 	if err := i.loadLogs(ts); err != nil {
+		// If the logsDB is empty (likely after a reset), treat it like chains not ready
+		// The chains will rebuild blocks and we'll retry on the next tick
+		if errors.Is(err, ErrPreviousTimestampNotSealed) {
+			i.log.Info("logsDB not ready (likely after reset), returning early", "timestamp", ts, "err", err)
+			return Result{}, nil
+		}
 		i.log.Error("failed to load logs", "err", err)
 		return Result{}, err
 	}
@@ -374,7 +380,7 @@ func (i *Interop) checkChainsReady(ts uint64) (map[eth.ChainID]eth.BlockID, erro
 	// Query all chains in parallel
 	for _, chain := range i.chains {
 		go func(c cc.ChainContainer) {
-			block, err := c.BlockAtTimestamp(i.ctx, ts, eth.Safe)
+			block, err := c.LocalSafeBlockAtTimestamp(i.ctx, ts)
 			if err != nil {
 				results <- result{chainID: c.ID(), err: fmt.Errorf("chain %s not ready for timestamp %d: %w", c.ID(), ts, err)}
 				return
@@ -421,76 +427,131 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return i.verifiedDB.Has(ts)
 }
 
-// Reset is called when a chain container resets to a given timestamp.
+// LatestVerifiedL3Block returns the latest L2 block which has been verified,
+// along with the timestamp at which it was verified.
+func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
+	emptyBlock := eth.BlockID{}
+	ts, ok := i.verifiedDB.LastTimestamp()
+	if !ok {
+		return emptyBlock, 0
+	}
+	res, err := i.verifiedDB.Get(ts)
+	if err != nil {
+		return emptyBlock, 0
+	}
+	head, ok := res.L2Heads[chainID]
+	if !ok {
+		return emptyBlock, 0
+	}
+	return head, ts
+}
+
+// VerifiedBlockAtL1 returns the verified L2 block and timestamp
+// which guarantees that the verified data at that pauseAtTimestamp
+// originates from or before the supplied L1 block.
+func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64) {
+	// Get the last verified timestamp
+	lastTs, ok := i.verifiedDB.LastTimestamp()
+	if !ok {
+		return eth.BlockID{}, 0
+	}
+
+	// Search backwards from the last timestamp to find the latest result
+	// where the L1 inclusion block is at or below the supplied L1 block number
+	for ts := lastTs; ts > 0; ts-- {
+		result, err := i.verifiedDB.Get(ts)
+		if err != nil {
+			// Timestamp might not exist (due to gaps or rewinds), continue searching
+			continue
+		}
+
+		// Check if this result's L1 inclusion is at or below the supplied L1 block number
+		if result.L1Inclusion.Number <= l1Block.Number {
+			// Found a finalized result, return the L2 head for this chain
+			head, ok := result.L2Heads[chainID]
+			if !ok {
+				return eth.BlockID{}, 0
+			}
+			return head, ts
+		}
+	}
+
+	// No verified block found
+	return eth.BlockID{}, 0
+}
+
+// Reset is called when a chain container resets due to an invalidated block.
 // It prunes the logsDB and verifiedDB for that chain at and after the timestamp.
-func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64) {
+// The invalidatedBlock contains the block info that triggered the reset.
+func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
 	i.log.Warn("Reset called",
 		"chainID", chainID,
 		"timestamp", timestamp,
+		"invalidatedBlock", invalidatedBlock,
 	)
 
-	chain, chainOk := i.chains[chainID]
-	if !chainOk {
-		i.log.Error("chain not found for reset", "chainID", chainID)
-		return
-	}
 	db, dbOk := i.logsDBs[chainID]
 	if !dbOk {
 		i.log.Error("logsDB not found for reset", "chainID", chainID)
 		return
 	}
 
-	i.resetLogsDB(chainID, chain, db, timestamp)
+	i.resetLogsDB(chainID, db, invalidatedBlock)
 	i.resetVerifiedDB(timestamp)
 
 	// Reset the currentL1 to force re-evaluation
 	i.currentL1 = eth.BlockID{}
 }
 
-// resetLogsDB rewinds or clears the logsDB for a chain to the block before the given timestamp.
-func (i *Interop) resetLogsDB(chainID eth.ChainID, chain cc.ChainContainer, db LogsDB, timestamp uint64) {
-	blockTime := chain.BlockTime()
-	targetTs := timestamp - blockTime
-	targetBlock, err := chain.BlockAtTimestamp(i.ctx, targetTs, eth.Safe)
+// resetLogsDB rewinds or clears the logsDB for a chain to the block before the invalidated block.
+// The invalidatedBlock provides the block info directly, avoiding RPC calls during reset.
+func (i *Interop) resetLogsDB(chainID eth.ChainID, db LogsDB, invalidatedBlock eth.BlockRef) {
+	// The target block is the parent of the invalidated block
+	targetBlockID := eth.BlockID{
+		Hash:   invalidatedBlock.ParentHash,
+		Number: invalidatedBlock.Number - 1,
+	}
+
+	i.log.Info("resetLogsDB: computing target from invalidated block",
+		"chainID", chainID,
+		"invalidatedBlock", invalidatedBlock.Number,
+		"targetBlock", targetBlockID.Number,
+	)
+
+	// Check the first block in the logsDB to decide whether to clear or rewind
+	firstBlock, err := db.FirstSealedBlock()
 	if err != nil {
-		// If we can't find the target block, clear the entire logsDB
-		i.log.Warn("failed to get block at timestamp, clearing logsDB", "chainID", chainID, "timestamp", targetTs, "err", err)
+		// If logsDB is empty or has an error, clear it
+		i.log.Info("logsDB appears empty or errored, clearing", "chainID", chainID, "err", err)
 		if clearErr := db.Clear(&noopInvalidator{}); clearErr != nil {
 			i.log.Error("failed to clear logsDB", "chainID", chainID, "err", clearErr)
 		}
 		return
 	}
 
-	// Check the first block in the logsDB to decide whether to clear or rewind
-	firstBlock, err := db.FirstSealedBlock()
-	if err != nil {
-		i.log.Error("failed to get first block", "chainID", chainID, "err", err)
-		return
-	}
-
-	if firstBlock.Number > targetBlock.Number {
-		i.log.Info("logsDB is to be cleared", "chainID", chainID)
+	if firstBlock.Number > targetBlockID.Number {
+		i.log.Info("logsDB is to be cleared", "chainID", chainID, "firstBlock", firstBlock.Number, "targetBlock", targetBlockID.Number)
 		if err := db.Clear(&noopInvalidator{}); err != nil {
 			i.log.Error("failed to clear logsDB", "chainID", chainID, "err", err)
 		}
 	} else {
-		i.log.Info("logsDB is to be rewound", "chainID", chainID, "targetBlock", targetBlock.Number, "firstBlock", firstBlock.Number)
-		if err := db.Rewind(&noopInvalidator{}, targetBlock.ID()); err != nil {
+		i.log.Info("logsDB is to be rewound", "chainID", chainID, "targetBlock", targetBlockID.Number, "firstBlock", firstBlock.Number)
+		if err := db.Rewind(&noopInvalidator{}, targetBlockID); err != nil {
 			i.log.Error("failed to rewind logsDB", "chainID", chainID, "err", err)
 		}
 	}
 }
 
-// resetVerifiedDB removes any verified results at or after the given timestamp.
+// resetVerifiedDB removes any verified results after the given timestamp.
 func (i *Interop) resetVerifiedDB(timestamp uint64) {
 	if i.verifiedDB == nil {
 		return
 	}
 
-	deleted, err := i.verifiedDB.Rewind(timestamp)
+	deleted, err := i.verifiedDB.RewindAfter(timestamp)
 	if err != nil {
 		i.log.Error("failed to rewind verifiedDB",
 			"timestamp", timestamp,

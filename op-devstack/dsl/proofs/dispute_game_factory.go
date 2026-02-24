@@ -523,6 +523,7 @@ func runFPPForStep(f *DisputeGameFactory, tmpDir string, inputs utils.LocalGameI
 	cmd.Dir = tmpDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = append(append(cmd.Env, os.Environ()...), "NO_COLOR=1")
 	err = cmd.Run()
 	f.require.NoError(err, "Failed to execute game")
 }

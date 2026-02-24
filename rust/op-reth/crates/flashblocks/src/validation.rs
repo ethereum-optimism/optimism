@@ -7,8 +7,9 @@
 //! 1. [`FlashblockSequenceValidator`] - Validates that incoming flashblocks follow the expected
 //!    sequence ordering (consecutive indices within a block, proper block transitions).
 //!
-//! 2. [`ReorgDetector`] - Detects chain reorganizations by comparing transaction hash sets between
-//!    tracked (pending) state and canonical chain state.
+//! 2. [`ReorgDetector`] - Detects chain reorganizations by comparing full block fingerprints (block
+//!    hash, parent hash, and transaction hashes) between tracked (pending) state and canonical
+//!    chain state.
 //!
 //! 3. [`CanonicalBlockReconciler`] - Determines the appropriate strategy for reconciling pending
 //!    flashblock state when new canonical blocks arrive.
@@ -110,25 +111,46 @@ impl FlashblockSequenceValidator {
     }
 }
 
+/// Fingerprint for a tracked block (pending/cached sequence).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackedBlockFingerprint {
+    /// Block number.
+    pub block_number: u64,
+    /// Block hash.
+    pub block_hash: B256,
+    /// Parent hash.
+    pub parent_hash: B256,
+    /// Ordered transaction hashes in the block.
+    pub tx_hashes: Vec<B256>,
+}
+
+/// Fingerprint for a canonical block notification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalBlockFingerprint {
+    /// Block number.
+    pub block_number: u64,
+    /// Block hash.
+    pub block_hash: B256,
+    /// Parent hash.
+    pub parent_hash: B256,
+    /// Ordered transaction hashes in the block.
+    pub tx_hashes: Vec<B256>,
+}
+
 /// Result of a reorganization detection check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReorgDetectionResult {
-    /// Transaction sets match exactly.
+    /// Tracked and canonical fingerprints match exactly.
     NoReorg,
-    /// Transaction sets differ (counts included for diagnostics).
-    ReorgDetected {
-        /// Number of transactions in the tracked (pending) set.
-        tracked_count: usize,
-        /// Number of transactions in the canonical chain set.
-        canonical_count: usize,
-    },
+    /// Tracked and canonical fingerprints differ.
+    ReorgDetected,
 }
 
 impl ReorgDetectionResult {
     /// Returns `true` if a reorganization was detected.
     #[inline]
     pub const fn is_reorg(&self) -> bool {
-        matches!(self, Self::ReorgDetected { .. })
+        matches!(self, Self::ReorgDetected)
     }
 
     /// Returns `true` if no reorganization was detected.
@@ -138,22 +160,33 @@ impl ReorgDetectionResult {
     }
 }
 
-/// Detects chain reorganizations by comparing transaction hash sets.
+/// Detects chain reorganizations by comparing full block fingerprints.
 ///
-/// A reorg is detected when the transaction hashes in the pending (tracked) state
-/// don't match the transaction hashes in the canonical block. This can happen when:
-/// - Different transactions were included
-/// - Transactions were reordered
-/// - Transaction count differs
+/// A reorg is detected when any fingerprint component differs:
+/// - Block hash
+/// - Parent hash
+/// - Transaction hash list (including ordering)
 ///
 /// # Example
 ///
 /// ```
 /// use alloy_primitives::B256;
-/// use reth_optimism_flashblocks::validation::{ReorgDetectionResult, ReorgDetector};
+/// use reth_optimism_flashblocks::validation::{
+///     CanonicalBlockFingerprint, ReorgDetectionResult, ReorgDetector, TrackedBlockFingerprint,
+/// };
 ///
-/// let tracked = vec![B256::repeat_byte(1), B256::repeat_byte(2)];
-/// let canonical = vec![B256::repeat_byte(1), B256::repeat_byte(2)];
+/// let tracked = TrackedBlockFingerprint {
+///     block_number: 100,
+///     block_hash: B256::repeat_byte(0xAA),
+///     parent_hash: B256::repeat_byte(0x11),
+///     tx_hashes: vec![B256::repeat_byte(1), B256::repeat_byte(2)],
+/// };
+/// let canonical = CanonicalBlockFingerprint {
+///     block_number: 100,
+///     block_hash: B256::repeat_byte(0xAA),
+///     parent_hash: B256::repeat_byte(0x11),
+///     tx_hashes: vec![B256::repeat_byte(1), B256::repeat_byte(2)],
+/// };
 ///
 /// let result = ReorgDetector::detect(&tracked, &canonical);
 /// assert_eq!(result, ReorgDetectionResult::NoReorg);
@@ -162,20 +195,18 @@ impl ReorgDetectionResult {
 pub struct ReorgDetector;
 
 impl ReorgDetector {
-    /// Compares tracked vs canonical transaction hashes to detect reorgs.
-    ///
-    /// Returns `ReorgDetected` if counts differ, hashes differ, or order differs.
+    /// Compares tracked vs canonical block fingerprints to detect reorgs.
     pub fn detect(
-        tracked_tx_hashes: &[B256],
-        canonical_tx_hashes: &[B256],
+        tracked: &TrackedBlockFingerprint,
+        canonical: &CanonicalBlockFingerprint,
     ) -> ReorgDetectionResult {
-        if tracked_tx_hashes == canonical_tx_hashes {
+        if tracked.block_hash == canonical.block_hash &&
+            tracked.parent_hash == canonical.parent_hash &&
+            tracked.tx_hashes == canonical.tx_hashes
+        {
             ReorgDetectionResult::NoReorg
         } else {
-            ReorgDetectionResult::ReorgDetected {
-                tracked_count: tracked_tx_hashes.len(),
-                canonical_count: canonical_tx_hashes.len(),
-            }
+            ReorgDetectionResult::ReorgDetected
         }
     }
 }
@@ -251,8 +282,8 @@ impl CanonicalBlockReconciler {
         reorg_detected: bool,
     ) -> ReconciliationStrategy {
         // Check if pending state exists
-        let (earliest, latest) = match (pending_earliest_block, pending_latest_block) {
-            (Some(e), Some(l)) => (e, l),
+        let latest = match (pending_earliest_block, pending_latest_block) {
+            (Some(_e), Some(l)) => l,
             _ => return ReconciliationStrategy::NoPendingState,
         };
 
@@ -266,8 +297,8 @@ impl CanonicalBlockReconciler {
             return ReconciliationStrategy::HandleReorg;
         }
 
-        // Check depth limit
-        let depth = canonical_block_number.saturating_sub(earliest);
+        // Check depth limit: how many pending blocks are ahead of canonical tip.
+        let depth = latest.saturating_sub(canonical_block_number);
         if depth > max_depth {
             return ReconciliationStrategy::DepthLimitExceeded { depth, max_depth };
         }
@@ -388,53 +419,70 @@ mod tests {
     mod reorg_detector {
         use super::*;
 
-        #[test]
-        fn test_no_reorg_identical_sequences() {
-            assert_eq!(ReorgDetector::detect(&[], &[]), ReorgDetectionResult::NoReorg);
+        fn tracked(
+            block_hash: B256,
+            parent_hash: B256,
+            tx_hashes: Vec<B256>,
+        ) -> TrackedBlockFingerprint {
+            TrackedBlockFingerprint { block_number: 100, block_hash, parent_hash, tx_hashes }
+        }
 
-            let hashes = vec![B256::repeat_byte(0x01)];
-            assert_eq!(ReorgDetector::detect(&hashes, &hashes), ReorgDetectionResult::NoReorg);
-
-            let hashes =
-                vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02), B256::repeat_byte(0x03)];
-            assert_eq!(ReorgDetector::detect(&hashes, &hashes), ReorgDetectionResult::NoReorg);
+        fn canonical(
+            block_hash: B256,
+            parent_hash: B256,
+            tx_hashes: Vec<B256>,
+        ) -> CanonicalBlockFingerprint {
+            CanonicalBlockFingerprint { block_number: 100, block_hash, parent_hash, tx_hashes }
         }
 
         #[test]
-        fn test_reorg_different_order() {
-            let tracked = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
-            let canonical = vec![B256::repeat_byte(0x02), B256::repeat_byte(0x01)];
+        fn test_no_reorg_identical_fingerprint() {
+            let hashes = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
+            let tracked = tracked(B256::repeat_byte(0xAA), B256::repeat_byte(0x11), hashes.clone());
+            let canonical = canonical(B256::repeat_byte(0xAA), B256::repeat_byte(0x11), hashes);
+            assert_eq!(ReorgDetector::detect(&tracked, &canonical), ReorgDetectionResult::NoReorg);
+        }
+
+        #[test]
+        fn test_reorg_on_parent_hash_mismatch_with_identical_txs() {
+            let hashes = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
+            let tracked = tracked(B256::repeat_byte(0xAA), B256::repeat_byte(0x11), hashes.clone());
+            let canonical = canonical(B256::repeat_byte(0xAA), B256::repeat_byte(0x22), hashes);
 
             assert_eq!(
                 ReorgDetector::detect(&tracked, &canonical),
-                ReorgDetectionResult::ReorgDetected { tracked_count: 2, canonical_count: 2 }
+                ReorgDetectionResult::ReorgDetected
             );
         }
 
         #[test]
-        fn test_reorg_different_counts() {
-            let tracked = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
-            let canonical = vec![B256::repeat_byte(0x01)];
+        fn test_reorg_on_block_hash_mismatch_with_identical_txs() {
+            let hashes = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
+            let tracked = tracked(B256::repeat_byte(0xAA), B256::repeat_byte(0x11), hashes.clone());
+            let canonical = canonical(B256::repeat_byte(0xBB), B256::repeat_byte(0x11), hashes);
 
             assert_eq!(
                 ReorgDetector::detect(&tracked, &canonical),
-                ReorgDetectionResult::ReorgDetected { tracked_count: 2, canonical_count: 1 }
-            );
-
-            assert_eq!(
-                ReorgDetector::detect(&canonical, &tracked),
-                ReorgDetectionResult::ReorgDetected { tracked_count: 1, canonical_count: 2 }
+                ReorgDetectionResult::ReorgDetected
             );
         }
 
         #[test]
-        fn test_reorg_different_hashes() {
-            let tracked = vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)];
-            let canonical = vec![B256::repeat_byte(0x03), B256::repeat_byte(0x04)];
+        fn test_reorg_on_tx_hash_mismatch() {
+            let tracked = tracked(
+                B256::repeat_byte(0xAA),
+                B256::repeat_byte(0x11),
+                vec![B256::repeat_byte(0x01), B256::repeat_byte(0x02)],
+            );
+            let canonical = canonical(
+                B256::repeat_byte(0xAA),
+                B256::repeat_byte(0x11),
+                vec![B256::repeat_byte(0x01), B256::repeat_byte(0x03)],
+            );
 
             assert_eq!(
                 ReorgDetector::detect(&tracked, &canonical),
-                ReorgDetectionResult::ReorgDetected { tracked_count: 2, canonical_count: 2 }
+                ReorgDetectionResult::ReorgDetected
             );
         }
 
@@ -444,8 +492,7 @@ mod tests {
             assert!(no_reorg.is_no_reorg());
             assert!(!no_reorg.is_reorg());
 
-            let reorg =
-                ReorgDetectionResult::ReorgDetected { tracked_count: 1, canonical_count: 2 };
+            let reorg = ReorgDetectionResult::ReorgDetected;
             assert!(reorg.is_reorg());
             assert!(!reorg.is_no_reorg());
         }
@@ -513,11 +560,15 @@ mod tests {
         fn test_depth_limit_exceeded() {
             assert_eq!(
                 CanonicalBlockReconciler::reconcile(Some(100), Some(120), 115, 10, false),
-                ReconciliationStrategy::DepthLimitExceeded { depth: 15, max_depth: 10 }
+                ReconciliationStrategy::Continue
             );
             assert_eq!(
                 CanonicalBlockReconciler::reconcile(Some(100), Some(105), 101, 0, false),
-                ReconciliationStrategy::DepthLimitExceeded { depth: 1, max_depth: 0 }
+                ReconciliationStrategy::DepthLimitExceeded { depth: 4, max_depth: 0 }
+            );
+            assert_eq!(
+                CanonicalBlockReconciler::reconcile(Some(100), Some(200), 130, 64, false),
+                ReconciliationStrategy::DepthLimitExceeded { depth: 70, max_depth: 64 }
             );
         }
 
@@ -541,7 +592,7 @@ mod tests {
             // Zero depth is OK with max_depth=0
             assert_eq!(
                 CanonicalBlockReconciler::reconcile(Some(100), Some(105), 100, 0, false),
-                ReconciliationStrategy::Continue
+                ReconciliationStrategy::DepthLimitExceeded { depth: 5, max_depth: 0 }
             );
         }
     }

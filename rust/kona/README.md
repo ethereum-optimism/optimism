@@ -7,15 +7,6 @@
 </h4>
 
 <p align="center">
-  <a href="https://github.com/op-rs/kona/releases"><img src="https://img.shields.io/github/v/release/op-rs/kona?style=flat&labelColor=1C2C2E&color=C96329&logo=GitHub&logoColor=white"></a>
-  <a href="https://docs.rs/kona-derive/"><img src="https://img.shields.io/docsrs/kona-derive?style=flat&labelColor=1C2C2E&color=C96329&logo=Rust&logoColor=white"></a>
-  <a href="https://github.com/op-rs/kona/actions/workflows/rust_ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/op-rs/kona/rust_ci.yaml?style=flat&labelColor=1C2C2E&label=ci&color=BEC5C9&logo=GitHub%20Actions&logoColor=BEC5C9" alt="CI"></a>
-  <a href="https://app.codecov.io/gh/op-rs/kona"><img src="https://img.shields.io/codecov/c/gh/op-rs/kona?style=flat&labelColor=1C2C2E&logo=Codecov&color=BEC5C9&logoColor=BEC5C9" alt="Codecov"></a>
-  <a href="https://github.com/op-rs/kona/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/License-MIT-d1d1f6.svg?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=googledocs&label=license&logoColor=BEC5C9" alt="License"></a>
-  <a href="https://rollup.yoga"><img src="https://img.shields.io/badge/Docs-854a15?style=flat&labelColor=1C2C2E&color=BEC5C9&logo=mdBook&logoColor=BEC5C9" alt="Docs"></a>
-</p>
-
-<p align="center">
   <a href="#whats-kona">What's Kona?</a> •
   <a href="#overview">Overview</a> •
   <a href="#msrv">MSRV</a> •
@@ -31,7 +22,7 @@ We have taken the decision to move `Kona` to `https://github.com/ethereum-optimi
 This repository will get archived mid January 2026.
 
 
-The commit/contribution history will be maintained, thanks for contributing to `op-rs/kona` and we can't wait to see you in `https://github.com/ethereum-optimism/optimism`!
+The commit/contribution history will be maintained, thanks for contributing to `ethereum-optimism/optimism` and we can't wait to see you in `https://github.com/ethereum-optimism/optimism`!
 
 
 ## What's Kona?
@@ -48,7 +39,7 @@ getting started with building your own programs, and a reference for the librari
 
 > [!NOTE]
 >
-> Ethereum (Alloy) types modified for the OP Stack live in [op-alloy](https://github.com/alloy-rs/op-alloy).
+> Ethereum (Alloy) types modified for the OP Stack live in [op-alloy](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-alloy).
 
 **Binaries**
 
@@ -147,7 +138,7 @@ follows the linting rules and passes clippy.
 
 ## License
 
-Licensed under the [MIT license.](https://github.com/op-rs/kona/blob/main/LICENSE.md)
+Licensed under the [MIT license.](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/LICENSE.md)
 
 > [!NOTE]
 >
@@ -159,7 +150,7 @@ Licensed under the [MIT license.](https://github.com/op-rs/kona/blob/main/LICENS
 
 [alloy]: https://github.com/alloy-rs/alloy
 [maili]: https://github.com/op-rs/maili
-[op-alloy]: https://github.com/alloy-rs/op-alloy
+[op-alloy]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-alloy
 [contributing]: https://rollup.yoga/intro/contributing
 [op-stack]: https://github.com/ethereum-optimism/optimism
 [superchain-registry]: https://github.com/ethereum-optimism/superchain-registry

@@ -14,7 +14,7 @@ import { SafeSend } from "src/universal/SafeSend.sol";
 // Contracts
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { INativeAssetLiquidity } from "interfaces/L2/INativeAssetLiquidity.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 /// @title CGT_Minter
 /// @notice An actor with the minter role (can mint and burn)
@@ -202,7 +202,7 @@ contract CustomGasToken_Invariants_Test is CommonTest {
         randomActor.initAddresses(address(actor_minter), address(actor_funder));
 
         // Authorize the minter actor (simple access control in unit tests)
-        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        vm.prank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
         liquidityController.authorizeMinter(address(actor_minter));
 
         // Create the initial supply

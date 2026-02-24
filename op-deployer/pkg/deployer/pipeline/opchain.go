@@ -134,6 +134,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 	// Select which OPCM to use based on dev feature flag
 	opcmAddr := st.ImplementationsDeployment.OpcmImpl
 	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
+		// TODO(#19151): Replace this with the OPCMV2DevFlag constant when we fix import cycles.
 		opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
 		if isDevFeatureEnabled(devFeatureBitmap, opcmV2Flag) {
 			opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
@@ -211,6 +212,7 @@ func shouldDeployOPChain(st *state.State, chainID common.Hash) bool {
 	return true
 }
 
+// TODO(#19151): Remove this function when we fix import cycles.
 // isDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
 // This mirrors the function in devfeatures.go to avoid import cycles.
 func isDevFeatureEnabled(bitmap, flag common.Hash) bool {

@@ -5,14 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
 )
 
 // TestSupernodeInteropBidirectionalMessages tests sending messages in both directions
@@ -37,26 +33,18 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	rng := rand.New(rand.NewSource(54321))
 
 	// Send A -> B message
-	initTriggerAtoB := randomInitTrigger(rng, eventLoggerA, 2, 10)
-	initTxAtoB, initReceiptAtoB := alice.SendInitMessage(initTriggerAtoB)
+	initMsgAtoB := alice.SendRandomInitMessage(rng, eventLoggerA, 2, 10)
 	sys.L2B.WaitForBlock()
-	_, execReceiptAtoB := bob.SendExecMessage(initTxAtoB, 0)
+	execMsgAtoB := bob.SendExecMessage(initMsgAtoB)
 
-	t.Logger().Info("A->B message sent",
-		"init_block", initReceiptAtoB.BlockNumber,
-		"exec_block", execReceiptAtoB.BlockNumber,
-	)
+	t.Logger().Info("A->B message sent", "msg", execMsgAtoB)
 
 	// Send B -> A message
-	initTriggerBtoA := randomInitTrigger(rng, eventLoggerB, 2, 10)
-	initTxBtoA, initReceiptBtoA := bob.SendInitMessage(initTriggerBtoA)
+	initMsgBtoA := bob.SendRandomInitMessage(rng, eventLoggerB, 2, 10)
 	sys.L2A.WaitForBlock()
-	_, execReceiptBtoA := alice.SendExecMessage(initTxBtoA, 0)
+	execMsgBtoA := alice.SendExecMessage(initMsgBtoA)
 
-	t.Logger().Info("B->A message sent",
-		"init_block", initReceiptBtoA.BlockNumber,
-		"exec_block", execReceiptBtoA.BlockNumber,
-	)
+	t.Logger().Info("B->A message sent", "msg", execMsgBtoA)
 
 	// Wait for all messages to become safe
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
@@ -67,35 +55,19 @@ func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 		statusB := sys.L2BCL.SyncStatus()
 
 		// All blocks should be safe
-		return statusA.SafeL2.Number > bigs.Uint64Strict(initReceiptAtoB.BlockNumber) &&
-			statusA.SafeL2.Number > bigs.Uint64Strict(execReceiptBtoA.BlockNumber) &&
-			statusB.SafeL2.Number > bigs.Uint64Strict(execReceiptAtoB.BlockNumber) &&
-			statusB.SafeL2.Number > bigs.Uint64Strict(initReceiptBtoA.BlockNumber)
+		return statusA.SafeL2.Number > bigs.Uint64Strict(initMsgAtoB.BlockNumber()) &&
+			statusA.SafeL2.Number > bigs.Uint64Strict(execMsgBtoA.BlockNumber()) &&
+			statusB.SafeL2.Number > bigs.Uint64Strict(execMsgAtoB.BlockNumber()) &&
+			statusB.SafeL2.Number > bigs.Uint64Strict(initMsgBtoA.BlockNumber())
 	}, timeout, time.Second, "bidirectional messages should become safe")
 
 	t.Logger().Info("bidirectional messages processed successfully")
-}
-
-// randomInitTrigger creates a random init trigger for testing.
-func randomInitTrigger(rng *rand.Rand, eventLoggerAddress common.Address, topicCount, dataLen int) *txintent.InitTrigger {
-	if topicCount > 4 {
-		topicCount = 4 // Max 4 topics in EVM logs
-	}
-	if topicCount < 1 {
-		topicCount = 1
-	}
-	if dataLen < 1 {
-		dataLen = 1
-	}
-
-	topics := make([][32]byte, topicCount)
-	for i := range topics {
-		copy(topics[i][:], testutils.RandomData(rng, 32))
-	}
-
-	return &txintent.InitTrigger{
-		Emitter:    eventLoggerAddress,
-		Topics:     topics,
-		OpaqueData: testutils.RandomData(rng, dataLen),
+	finalStatusA := sys.L2ACL.SyncStatus()
+	finalStatusB := sys.L2BCL.SyncStatus()
+	for _, s := range []eth.L2BlockRef{finalStatusA.SafeL2, finalStatusB.SafeL2} {
+		t.Require().NotZero(t, s.Time, "SafeL2.Time was zero")
+		t.Require().NotZero(t, s.L1Origin, "SafeL2.L1Origin was zero")
+		t.Require().NotZero(t, s.ParentHash, "SafeL2.ParentHash was zero")
+		t.Require().NotZero(t, s.Hash, "SafeL2.Hash was zero")
 	}
 }

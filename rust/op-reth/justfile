@@ -29,18 +29,3 @@ check-windows:
 examples:
   cargo build --examples --locked
 
-# Install documentation dependencies
-docs-install:
-    cd docs/vocs && bun install
-
-# Start the documentation development server
-docs-dev: docs-install
-    cd docs/vocs && bun run dev
-
-# Build the documentation for production
-docs-build: docs-install
-    cd docs/vocs && bun run build
-
-# Preview the built documentation
-docs-preview: docs-build
-    cd docs/vocs && bun run preview

@@ -147,11 +147,18 @@ cannon:  ## Builds cannon binary
 	make -C ./cannon cannon
 .PHONY: cannon
 
-reproducible-prestate:   ## Builds reproducible prestates for op-program and kona
+reproducible-prestate-op-program:
 	make -C ./op-program build-reproducible-prestate
-	cd kona && just build-reproducible-prestate
+.PHONY: reproducible-prestate-op-program
+
+reproducible-prestate-kona:
+	cd rust && just build-kona-reproducible-prestate
+.PHONY: reproducible-prestate-kona
+
+reproducible-prestate:  reproducible-prestate-op-program reproducible-prestate-kona ## Builds reproducible prestates for op-program and kona
+	# Output the prestate hashes after all the builds complete so they are easy to find at the end of the build logs.
 	make -C ./op-program output-prestate-hash
-	cd kona && just output-prestate-hash
+	cd rust && just output-kona-prestate-hash
 .PHONY: reproducible-prestate
 
 cannon-prestates: cannon op-program

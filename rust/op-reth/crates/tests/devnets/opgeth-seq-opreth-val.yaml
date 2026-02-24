@@ -1,0 +1,74 @@
+# A simple network configuration for kurtosis (https://github.com/ethpandaops/optimism-package)
+# Spins up chain with two participating EL/CL pairs.
+# One with op-geth/op-node (sequencer role) and one with op-reth/op-node (verifier role).
+
+optimism_package:
+  observability:
+    enabled: true
+    grafana_params:
+      # Will load the dashboards from default branch.
+      dashboard_sources:
+        - github.com/op-rs/op-reth/etc/grafana
+      image: "grafana/grafana:12.3.0"
+  faucet:
+    enabled: true
+  test-sequencers:
+    sequencer:
+      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-test-sequencer:9243bb0452efa3fd255556631688d1255723384a
+      enabled: true
+  chains:
+    chain0:
+      # Chain with only two nodes
+      participants:
+        sequencer:
+          el:
+            type: op-geth
+            log_level: "debug"
+          cl:
+            type: op-node
+            log_level: "debug"
+            extra_params: [--experimental.sequencer-api=true]
+          sequencer: true
+        verifier:
+          el:
+            type: op-reth
+            # Note: we use the local image for now. This allows us to run the tests in CI pipelines without publishing new docker images every time.
+            image: op-reth:local
+            extra_params: [
+              --proofs-history,
+              --proofs-history.window=200,
+              --proofs-history.prune-interval=1m,
+              --proofs-history.storage-path=/data/proofs-history
+            ]
+          cl: 
+            type: op-node
+            log_level: "debug"
+            extra_params: [--experimental.sequencer-api=true]
+          sequencer: false
+      network_params:
+        network: "kurtosis"
+        network_id: "2151908"
+        seconds_per_slot: 2
+
+  global_log_level: "info"
+  global_node_selectors: {}
+  global_tolerations: []
+  persistent: false
+ethereum_package:
+  participants:
+  - el_type: geth
+    cl_type: teku
+    cl_image: consensys/teku:25.7.1
+  network_params:
+    preset: minimal
+    genesis_delay: 5
+    additional_preloaded_contracts: '
+      {
+        "0x4e59b44847b379578588920cA78FbF26c0B4956C": {
+          "balance": "0ETH",
+          "code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3",
+          "storage": {},
+          "nonce": "1"
+        }
+      }
+    '

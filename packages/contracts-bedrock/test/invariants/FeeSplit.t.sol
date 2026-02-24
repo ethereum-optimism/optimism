@@ -5,7 +5,7 @@ import { StdUtils } from "forge-std/StdUtils.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
@@ -124,7 +124,7 @@ contract FeeSplitter_Preconditions is CommonTest {
     function setMinAmount(uint256 _minAmount, uint256 _vaultIndex) public {
         _vaultIndex = bound(_vaultIndex, 0, 3);
 
-        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        vm.prank(IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner());
 
         if (_vaultIndex == 0) {
             IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).setMinWithdrawalAmount(_minAmount);
