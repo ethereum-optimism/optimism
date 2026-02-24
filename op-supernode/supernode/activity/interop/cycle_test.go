@@ -380,11 +380,11 @@ func TestBuildCycleGraph(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		chainEMs          map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage
-		expectCycle       bool
-		expectInCycle     []eth.ChainID // chains that should be in the cycle (only checked if expectCycle)
-		expectNotInCycle  []eth.ChainID // chains that should NOT be in cycle (bystanders)
+		name             string
+		chainEMs         map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage
+		expectCycle      bool
+		expectInCycle    []eth.ChainID // chains that should be in the cycle (only checked if expectCycle)
+		expectNotInCycle []eth.ChainID // chains that should NOT be in cycle (bystanders)
 	}{
 		{
 			name:        "empty graph - no cycle",
@@ -490,4 +490,3 @@ func TestBuildCycleGraph(t *testing.T) {
 		})
 	}
 }
-

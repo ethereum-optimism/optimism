@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
@@ -258,18 +259,18 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 			logger.Info("Closed sequencer", "err", closeErr)
 		})
 
-	testSequencerNode := &TestSequencer{
-		id:        testSequencerID,
-		userRPC:   sq.RPC(),
-		jwtSecret: jwtSecret,
-		sequencers: map[eth.ChainID]seqtypes.SequencerID{
-			l1CLID.ChainID(): l1SequencerID,
-			l2CLID.ChainID(): l2SequencerID,
-		},
-	}
-	logger.Info("Sequencer User RPC", "http_endpoint", testSequencerNode.userRPC)
-	orch.testSequencers.Set(testSequencerID, testSequencerNode)
-})
+		testSequencerNode := &TestSequencer{
+			id:        testSequencerID,
+			userRPC:   sq.RPC(),
+			jwtSecret: jwtSecret,
+			sequencers: map[eth.ChainID]seqtypes.SequencerID{
+				l1CLID.ChainID(): l1SequencerID,
+				l2CLID.ChainID(): l2SequencerID,
+			},
+		}
+		logger.Info("Sequencer User RPC", "http_endpoint", testSequencerNode.userRPC)
+		orch.testSequencers.Set(testSequencerID, testSequencerNode)
+	})
 }
 
 // WithTestSequencer2L2 creates a test sequencer that can build blocks on two L2 chains.
