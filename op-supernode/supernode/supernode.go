@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -142,8 +143,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 	// Start metrics service
 	if s.metrics != nil {
 		s.wg.Add(1)
-		s.metrics.Start(func(err error) {
-			defer s.wg.Done()
+		s.metrics.Start(s.wg.Done, func(err error) {
 			if s.requestStop != nil {
 				s.requestStop(err)
 			}
@@ -160,7 +160,16 @@ func (s *Supernode) Start(ctx context.Context) error {
 			s.wg.Add(1)
 			go func(run activity.RunnableActivity) {
 				defer s.wg.Done()
-				if err := run.Start(ctx); err != nil {
+				err := run.Start(ctx)
+				switch err {
+				case nil:
+					s.log.Error("activity quit unexpectedly")
+				case context.Canceled:
+					// This is the happy path, normal / clean shutdown
+					s.log.Info("activity closing due to cancelled context")
+				case context.DeadlineExceeded:
+					s.log.Warn("activity quit due to deadline exceeded")
+				default:
 					s.log.Error("error starting runnable activity", "error", err)
 				}
 			}(run)
@@ -188,6 +197,8 @@ func (s *Supernode) Stop(ctx context.Context) error {
 		defer cancel()
 		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 			s.log.Error("error shutting down rpc server", "error", err)
+		} else {
+			s.log.Info("rpc server stopped")
 		}
 	}
 	if s.metrics != nil {
@@ -195,11 +206,15 @@ func (s *Supernode) Stop(ctx context.Context) error {
 		defer cancel()
 		if err := s.metrics.Stop(shutdownCtx); err != nil {
 			s.log.Error("error shutting down metrics server", "error", err)
+		} else {
+			s.log.Info("metrics server stopped")
 		}
 	}
 	if s.rpcRouter != nil {
 		if err := s.rpcRouter.Close(); err != nil {
 			s.log.Error("error closing rpc router", "error", err)
+		} else {
+			s.log.Info("rpc router closed")
 		}
 	}
 
@@ -208,6 +223,8 @@ func (s *Supernode) Stop(ctx context.Context) error {
 		if run, ok := a.(activity.RunnableActivity); ok {
 			if err := run.Stop(ctx); err != nil {
 				s.log.Error("error stopping runnable activity", "error", err)
+			} else {
+				s.log.Info("runnable activity stopped", "activity", reflect.TypeOf(a).String())
 			}
 		}
 	}
@@ -215,9 +232,12 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	for chainID, chain := range s.chains {
 		if err := chain.Stop(ctx); err != nil {
 			s.log.Error("error stopping chain container", "chain_id", chainID.String(), "error", err)
+		} else {
+			s.log.Info("chain container stopped", "chain_id", chainID.String())
 		}
 	}
 
+	s.log.Info("all chain containers stopped, waiting for goroutines to finish")
 	s.wg.Wait()
 
 	if s.l1Client != nil {

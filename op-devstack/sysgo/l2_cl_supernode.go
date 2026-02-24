@@ -109,10 +109,8 @@ func (n *SuperNode) Start() {
 	n.sn = sn
 	n.cancel = cancel
 
-	// Start Supernode in background
-	go func() {
-		_ = n.sn.Start(ctx)
-	}()
+	err = n.sn.Start(ctx)
+	n.p.Require().NoError(err)
 
 	// Wait for the RPC addr and save userRPC/interop endpoints
 	if addr, err := n.sn.WaitRPCAddr(ctx); err == nil {
