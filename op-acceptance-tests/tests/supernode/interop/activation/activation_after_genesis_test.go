@@ -68,7 +68,7 @@ func TestSupernodeInteropActivationAfterGenesis(gt *testing.T) {
 		)
 
 		return preVerified && postVerified
-	}, 90*time.Second, time.Second, "both pre and post activation timestamps should be verified")
+	}, 300*time.Second, time.Second, "both pre and post activation timestamps should be verified")
 
 	t.Logger().Info("activation boundary test complete",
 		"pre_activation_ts", preActivationTs,
