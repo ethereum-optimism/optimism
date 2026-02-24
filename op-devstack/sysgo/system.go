@@ -564,16 +564,18 @@ func NewDefaultSupernodeInteropProofsSystemIDs(l1ID, l2AID, l2BID eth.ChainID) D
 }
 
 func DefaultSupernodeIsthmusSuperProofsSystem(dest *DefaultSupernodeInteropProofsSystemIDs) stack.Option[*Orchestrator] {
-	return defaultSupernodeSuperProofsSystem(dest)
+	return defaultSupernodeSuperProofsSystem(dest, nil)
 }
 
 // DefaultSupernodeInteropProofsSystem creates a super-roots proofs system that sources super-roots via op-supernode
 // (instead of op-supervisor). Interop is enabled at genesis.
 func DefaultSupernodeInteropProofsSystem(dest *DefaultSupernodeInteropProofsSystemIDs) stack.Option[*Orchestrator] {
-	return defaultSupernodeSuperProofsSystem(dest, WithInteropAtGenesis())
+	return defaultSupernodeSuperProofsSystem(dest,
+		[]SupernodeOption{WithSupernodeInteropAtGenesis()},
+		WithInteropAtGenesis())
 }
 
-func defaultSupernodeSuperProofsSystem(dest *DefaultSupernodeInteropProofsSystemIDs, deployerOpts ...DeployerOption) stack.CombinedOption[*Orchestrator] {
+func defaultSupernodeSuperProofsSystem(dest *DefaultSupernodeInteropProofsSystemIDs, snOpts []SupernodeOption, deployerOpts ...DeployerOption) stack.CombinedOption[*Orchestrator] {
 	ids := NewDefaultSupernodeInteropProofsSystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
 	opt := stack.Combine[*Orchestrator]()
 
@@ -599,7 +601,9 @@ func defaultSupernodeSuperProofsSystem(dest *DefaultSupernodeInteropProofsSystem
 	opt.Add(WithL2ELNode(ids.L2BEL))
 
 	// Shared supernode for both L2 chains (registers per-chain L2CL proxies)
-	opt.Add(WithSharedSupernodeCLs(ids.Supernode, []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
+	opt.Add(WithSharedSupernodeCLs(ids.Supernode,
+		[]L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}},
+		ids.L1CL, ids.L1EL, snOpts...))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
 
