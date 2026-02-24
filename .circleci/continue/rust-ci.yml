@@ -813,11 +813,11 @@ jobs:
               $L2_CHAIN_ID
             cargo llvm-cov report --lcov --output-path client_host_cov.lcov
 
-  # Kona Rust CI - Lint (cannon/asterisc targets)
+  # Kona Rust CI - Lint (cannon target)
   kona-cargo-lint:
     parameters:
       target:
-        description: The lint target (native, cannon, asterisc)
+        description: The lint target (native, cannon)
         type: string
     machine:
       image: <<pipeline.parameters.c-base_image>>
@@ -842,7 +842,7 @@ jobs:
   kona-build-fpvm:
     parameters:
       target:
-        description: The build target (cannon-client, asterisc-client)
+        description: The build target (cannon-client)
         type: string
     machine:
       image: <<pipeline.parameters.c-base_image>>
@@ -1119,7 +1119,7 @@ workflows:
       - rust-build-binary:
           name: rust-msrv
           directory: rust
-          toolchain: "1.88.0"
+          toolchain: "1.92.0"
           context: *rust-ci-context
 
       # -----------------------------------------------------------------------
@@ -1130,7 +1130,7 @@ workflows:
           directory: rust
           command: |
             just check-no-std
-          toolchain: "1.88.0"
+          toolchain: "1.92.0"
           context: *rust-ci-context
 
       - rust-ci-cargo-hack-build:
@@ -1175,14 +1175,14 @@ workflows:
           name: kona-lint-<<matrix.target>>
           matrix:
             parameters:
-              target: ["cannon", "asterisc"]
+              target: ["cannon"]
           context: *rust-ci-context
 
       - kona-build-fpvm:
           name: kona-build-fpvm-<<matrix.target>>
           matrix:
             parameters:
-              target: ["cannon-client", "asterisc-client"]
+              target: ["cannon-client"]
           context: *rust-ci-context
 
       - kona-coverage:
