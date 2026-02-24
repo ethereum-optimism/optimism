@@ -50,10 +50,7 @@ func TestCleanShutdown(t *testing.T) {
 
 	s := newTestSupernode(t, []activity.Activity{&mockRunnable{}})
 
-	// Cancel the start context after a brief window so Start() exits promptly.
-	startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelStart()
-	require.NoError(t, s.Start(startCtx))
+	require.NoError(t, s.Start(context.Background()))
 
 	// Run Stop() in a goroutine so we can race it against the deadline.
 	stopCtx, cancelStop := context.WithTimeout(context.Background(), stopDeadline)
