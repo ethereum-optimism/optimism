@@ -128,6 +128,7 @@ contract GenerateNUTBundleUtils_ComputeCreate2Address_Test is GenerateNUTBundleU
     function testFuzz_computeCreate2Address_differentSalts_succeeds(bytes32 _salt1, bytes32 _salt2) public view {
         vm.assume(_salt1 != bytes32(0));
         vm.assume(_salt2 != bytes32(0));
+        vm.assume(_salt1 != _salt2);
         bytes memory code = vm.getCode("StorageSetter.sol:StorageSetter");
 
         address addr1 = utils.computeCreate2Address(code, _salt1);
@@ -232,6 +233,30 @@ contract GenerateNUTBundleUtils_CreateDeploymentTxnWithArgs_Test is GenerateNUTB
             abi.encodePacked(vm.getCode("OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory"), args);
         bytes memory expectedData = abi.encodeCall(ConditionalDeployer.deploy, (_salt, code));
         assertEq(keccak256(txn.data), keccak256(expectedData), "Transaction data should include constructor args");
+    }
+
+    /// @notice Tests that createDeploymentTxnWithArgs with empty args equals createDeploymentTxn.
+    function testFuzz_createDeploymentTxnWithArgs_emptyArgsEquivalence_succeeds(bytes32 _salt, uint64 _gasLimit)
+        public
+        view
+    {
+        vm.assume(_salt != bytes32(0));
+        vm.assume(_gasLimit > 0);
+
+        NetworkUpgradeTxns.NetworkUpgradeTxn memory txnWithArgs = utils.createDeploymentTxnWithArgs(
+            TEST_UPGRADE_NAME, "StorageSetter", "StorageSetter.sol:StorageSetter", "", _salt, _gasLimit
+        );
+
+        NetworkUpgradeTxns.NetworkUpgradeTxn memory txnWithoutArgs = utils.createDeploymentTxn(
+            TEST_UPGRADE_NAME, "StorageSetter", "StorageSetter.sol:StorageSetter", _salt, _gasLimit
+        );
+
+        // Verify all fields match
+        assertEq(txnWithArgs.intent, txnWithoutArgs.intent, "intent should match");
+        assertEq(txnWithArgs.from, txnWithoutArgs.from, "from should match");
+        assertEq(txnWithArgs.to, txnWithoutArgs.to, "to should match");
+        assertEq(txnWithArgs.gasLimit, txnWithoutArgs.gasLimit, "gasLimit should match");
+        assertEq(keccak256(txnWithArgs.data), keccak256(txnWithoutArgs.data), "data should match");
     }
 }
 
