@@ -18,16 +18,23 @@ import (
 
 // mock runnable activity
 type mockRunnable struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
 	started int
 	stopped int
 }
 
 func (m *mockRunnable) Start(ctx context.Context) error {
 	m.started++
-	<-ctx.Done()
-	return ctx.Err()
+	m.ctx, m.cancel = context.WithCancel(ctx)
+	<-m.ctx.Done()
+	return m.ctx.Err()
 }
-func (m *mockRunnable) Stop(ctx context.Context) error { m.stopped++; return nil }
+func (m *mockRunnable) Stop(ctx context.Context) error {
+	m.stopped++
+	m.cancel()
+	return nil
+}
 func (m *mockRunnable) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 }
 
