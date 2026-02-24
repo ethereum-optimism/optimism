@@ -38,15 +38,17 @@ import (
 )
 
 type ApplyConfig struct {
-	L1RPCUrl         string
-	Workdir          string
-	PrivateKey       string
-	DeploymentTarget DeploymentTarget
-	Logger           log.Logger
-	CacheDir         string
-	privateKeyECDSA  *ecdsa.PrivateKey
-	PreStateBuilder  pipeline.PreStateBuilder
-	UseForge         bool
+	L1RPCUrl               string
+	Workdir                string
+	PrivateKey             string
+	DeploymentTarget       DeploymentTarget
+	Logger                 log.Logger
+	CacheDir               string
+	privateKeyECDSA        *ecdsa.PrivateKey
+	PreStateBuilder        pipeline.PreStateBuilder
+	UseForge               bool
+	TxPrepareRetryInterval time.Duration
+	TxPrepareMaxAttempts   int
 }
 
 func (a *ApplyConfig) Check() error {
@@ -110,14 +112,16 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
 		if err := Apply(ctx, ApplyConfig{
-			L1RPCUrl:         l1RPCUrl,
-			Workdir:          workdir,
-			PrivateKey:       privateKey,
-			DeploymentTarget: depTarget,
-			Logger:           l,
-			CacheDir:         cacheDir,
-			PreStateBuilder:  preStateBuilder,
-			UseForge:         cliCtx.Bool(UseForgeFlagName),
+			L1RPCUrl:               l1RPCUrl,
+			Workdir:                workdir,
+			PrivateKey:             privateKey,
+			DeploymentTarget:       depTarget,
+			Logger:                 l,
+			CacheDir:               cacheDir,
+			PreStateBuilder:        preStateBuilder,
+			UseForge:               cliCtx.Bool(UseForgeFlagName),
+			TxPrepareRetryInterval: cliCtx.Duration(TxPrepareRetryIntervalFlagName),
+			TxPrepareMaxAttempts:   cliCtx.Int(TxPrepareMaxAttemptsFlagName),
 		}); err != nil {
 			return err
 		}
@@ -256,18 +260,20 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 	}
 
 	if err := ApplyPipeline(ctx, ApplyPipelineOpts{
-		L1RPCUrl:           cfg.L1RPCUrl,
-		DeploymentTarget:   cfg.DeploymentTarget,
-		DeployerPrivateKey: cfg.privateKeyECDSA,
-		Intent:             intent,
-		State:              st,
-		Logger:             cfg.Logger,
-		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
-		CacheDir:           cfg.CacheDir,
-		PreStateBuilder:    cfg.PreStateBuilder,
-		UseForge:           cfg.UseForge,
-		PrivateKey:         cfg.PrivateKey,
-		Workdir:            cfg.Workdir,
+		L1RPCUrl:               cfg.L1RPCUrl,
+		DeploymentTarget:       cfg.DeploymentTarget,
+		DeployerPrivateKey:     cfg.privateKeyECDSA,
+		Intent:                 intent,
+		State:                  st,
+		Logger:                 cfg.Logger,
+		StateWriter:            pipeline.WorkdirStateWriter(cfg.Workdir),
+		CacheDir:               cfg.CacheDir,
+		PreStateBuilder:        cfg.PreStateBuilder,
+		UseForge:               cfg.UseForge,
+		PrivateKey:             cfg.PrivateKey,
+		Workdir:                cfg.Workdir,
+		TxPrepareRetryInterval: cfg.TxPrepareRetryInterval,
+		TxPrepareMaxAttempts:   cfg.TxPrepareMaxAttempts,
 	}); err != nil {
 		return err
 	}
@@ -281,18 +287,20 @@ type pipelineStage struct {
 }
 
 type ApplyPipelineOpts struct {
-	L1RPCUrl           string
-	DeploymentTarget   DeploymentTarget
-	DeployerPrivateKey *ecdsa.PrivateKey
-	Intent             *state.Intent
-	State              *state.State
-	Logger             log.Logger
-	StateWriter        pipeline.StateWriter
-	CacheDir           string
-	PreStateBuilder    pipeline.PreStateBuilder
-	UseForge           bool
-	PrivateKey         string
-	Workdir            string
+	L1RPCUrl               string
+	DeploymentTarget       DeploymentTarget
+	DeployerPrivateKey     *ecdsa.PrivateKey
+	Intent                 *state.Intent
+	State                  *state.State
+	Logger                 log.Logger
+	StateWriter            pipeline.StateWriter
+	CacheDir               string
+	PreStateBuilder        pipeline.PreStateBuilder
+	UseForge               bool
+	PrivateKey             string
+	Workdir                string
+	TxPrepareRetryInterval time.Duration
+	TxPrepareMaxAttempts   int
 }
 
 func ApplyPipeline(
@@ -385,11 +393,13 @@ func ApplyPipeline(
 		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(opts.DeployerPrivateKey, chainID))
 
 		bcaster, err = broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:  opts.Logger,
-			ChainID: new(big.Int).SetUint64(intent.L1ChainID),
-			Client:  l1Client,
-			Signer:  signer,
-			From:    deployer,
+			Logger:                 opts.Logger,
+			ChainID:                new(big.Int).SetUint64(intent.L1ChainID),
+			Client:                 l1Client,
+			Signer:                 signer,
+			From:                   deployer,
+			TxPrepareRetryInterval: opts.TxPrepareRetryInterval,
+			TxPrepareMaxAttempts:   opts.TxPrepareMaxAttempts,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create broadcaster: %w", err)

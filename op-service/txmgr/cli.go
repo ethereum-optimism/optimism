@@ -640,6 +640,15 @@ type Config struct {
 	// gapped nonce error in the blob pool).
 	RetryInterval time.Duration
 
+	// TxPrepareRetryInterval is the interval between retries when preparing
+	// (crafting) a transaction fails, e.g. due to gas estimation failures.
+	// Defaults to 2 seconds if zero.
+	TxPrepareRetryInterval time.Duration
+
+	// TxPrepareMaxAttempts is the maximum number of attempts when preparing
+	// (crafting) a transaction. Defaults to 30 if zero.
+	TxPrepareMaxAttempts int
+
 	// MaxRetries is the maximum number of times to retry sending a
 	// transaction. This is used to limit the number of times we retry
 	// sending a transaction if it fails with a non-fatal error (e.g. the

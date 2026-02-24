@@ -35,11 +35,13 @@ type KeyedBroadcaster struct {
 }
 
 type KeyedBroadcasterOpts struct {
-	Logger  log.Logger
-	ChainID *big.Int
-	Client  *ethclient.Client
-	Signer  opcrypto.SignerFn
-	From    common.Address
+	Logger                 log.Logger
+	ChainID                *big.Int
+	Client                 *ethclient.Client
+	Signer                 opcrypto.SignerFn
+	From                   common.Address
+	TxPrepareRetryInterval time.Duration // 0 means default (2s)
+	TxPrepareMaxAttempts   int           // 0 means default (30)
 }
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
@@ -55,6 +57,8 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		Signer:                    cfg.Signer,
 		From:                      cfg.From,
 		GasPriceEstimatorFn:       DeployerGasPriceEstimator,
+		TxPrepareRetryInterval:    cfg.TxPrepareRetryInterval,
+		TxPrepareMaxAttempts:      cfg.TxPrepareMaxAttempts,
 	}
 
 	minTipCap, err := eth.GweiToWei(1.0)

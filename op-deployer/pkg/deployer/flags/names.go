@@ -23,7 +23,9 @@ const (
 	ContractNameFlagName     = "contract-name"
 	VerifierTypeFlagName     = "verifier"
 	VerifierUrlFlagName      = "verifier-url"
-	UseForgeFlagName         = "use-forge"
+	UseForgeFlagName                = "use-forge"
+	TxPrepareRetryIntervalFlagName  = "tx-prepare-retry-interval"
+	TxPrepareMaxAttemptsFlagName    = "tx-prepare-max-attempts"
 )
 
 func DefaultCacheDir() string {

@@ -381,7 +381,15 @@ func (m *SimpleTxManager) SendAsync(ctx context.Context, candidate TxCandidate, 
 
 // prepare prepares the transaction for sending.
 func (m *SimpleTxManager) prepare(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
-	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
+	prepareInterval := m.cfg.TxPrepareRetryInterval
+	if prepareInterval == 0 {
+		prepareInterval = 2 * time.Second
+	}
+	prepareMaxAttempts := m.cfg.TxPrepareMaxAttempts
+	if prepareMaxAttempts == 0 {
+		prepareMaxAttempts = 30
+	}
+	tx, err := retry.Do(ctx, prepareMaxAttempts, retry.Fixed(prepareInterval), func() (*types.Transaction, error) {
 		if m.closed.Load() {
 			return nil, ErrClosed
 		}

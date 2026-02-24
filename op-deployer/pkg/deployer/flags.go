@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
@@ -29,7 +30,9 @@ const (
 	ContractNameFlagName     = flags.ContractNameFlagName
 	VerifierTypeFlagName     = flags.VerifierTypeFlagName
 	VerifierUrlFlagName      = flags.VerifierUrlFlagName
-	UseForgeFlagName         = flags.UseForgeFlagName
+	UseForgeFlagName                = flags.UseForgeFlagName
+	TxPrepareRetryIntervalFlagName  = flags.TxPrepareRetryIntervalFlagName
+	TxPrepareMaxAttemptsFlagName    = flags.TxPrepareMaxAttemptsFlagName
 )
 
 var (
@@ -141,6 +144,18 @@ var (
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   false,
 	}
+	TxPrepareRetryIntervalFlag = &cli.DurationFlag{
+		Name:    TxPrepareRetryIntervalFlagName,
+		Usage:   "Interval between retries when transaction preparation fails (e.g. gas estimation). Lower values speed up deployment on local chains.",
+		EnvVars: PrefixEnvVar("TX_PREPARE_RETRY_INTERVAL"),
+		Value:   2 * time.Second,
+	}
+	TxPrepareMaxAttemptsFlag = &cli.IntFlag{
+		Name:    TxPrepareMaxAttemptsFlagName,
+		Usage:   "Maximum number of attempts when preparing transactions.",
+		EnvVars: PrefixEnvVar("TX_PREPARE_MAX_ATTEMPTS"),
+		Value:   30,
+	}
 	ValidateFlag = &cli.StringFlag{
 		Name:    "validate",
 		Usage:   "automatically validate deployment after apply. Specify validator version (e.g., v2.0.0) or 'auto' to auto-detect from state.json. If not specified, validation is skipped.",
@@ -169,6 +184,8 @@ var ApplyFlags = []cli.Flag{
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
+	TxPrepareRetryIntervalFlag,
+	TxPrepareMaxAttemptsFlag,
 	ValidateFlag,
 }
 
