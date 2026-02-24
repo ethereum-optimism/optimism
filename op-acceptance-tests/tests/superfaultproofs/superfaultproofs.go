@@ -366,6 +366,24 @@ func buildTransitionTests(
 			ClaimTimestamp:     endTimestamp,
 			ExpectValid:        true,
 		},
+		{
+			Name:               "ConsolidateStep",
+			AgreedClaim:        padding(consolidateStep),
+			DisputedClaim:      end.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+			ExpectValid:        true,
+		},
+		{
+			Name:               "ConsolidateStep-InvalidNoChange",
+			AgreedClaim:        padding(consolidateStep),
+			DisputedClaim:      padding(consolidateStep),
+			DisputedTraceIndex: consolidateStep,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+			ExpectValid:        false,
+		},
 	}
 }
 
