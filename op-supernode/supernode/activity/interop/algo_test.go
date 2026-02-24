@@ -232,36 +232,36 @@ func TestVerifyInteropMessages(t *testing.T) {
 					Checksum:  suptypes.MessageChecksum{0x01},
 				}
 
-			sourceDB := &algoMockLogsDB{
-				openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: sharedTimestamp},
-				containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: sharedTimestamp},
-			}
+				sourceDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: sharedTimestamp},
+					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: sharedTimestamp},
+				}
 
-			destDB := &algoMockLogsDB{
-				openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: sharedTimestamp},
-				openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
-					0: execMsg,
-				},
-			}
+				destDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: sharedTimestamp},
+					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+						0: execMsg,
+					},
+				}
 
-			l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
+				l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
 
-			interop := &Interop{
-				log: gethlog.New(),
-				logsDBs: map[eth.ChainID]LogsDB{
-					sourceChainID: sourceDB,
-					destChainID:   destDB,
-				},
-				chains: map[eth.ChainID]cc.ChainContainer{
-					sourceChainID: newMockChainWithL1(sourceChainID, l1Block),
-					destChainID:   newMockChainWithL1(destChainID, l1Block),
-				},
-			}
+				interop := &Interop{
+					log: gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{
+						sourceChainID: sourceDB,
+						destChainID:   destDB,
+					},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						sourceChainID: newMockChainWithL1(sourceChainID, l1Block),
+						destChainID:   newMockChainWithL1(destChainID, l1Block),
+					},
+				}
 
-			return interop, sharedTimestamp, map[eth.ChainID]eth.BlockID{
-				sourceChainID: sourceBlock,
-				destChainID:   destBlock,
-			}
+				return interop, sharedTimestamp, map[eth.ChainID]eth.BlockID{
+					sourceChainID: sourceBlock,
+					destChainID:   destBlock,
+				}
 			},
 			validate: func(t *testing.T, result Result) {
 				// Same-timestamp messages should now be VALID

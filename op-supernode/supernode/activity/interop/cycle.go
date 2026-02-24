@@ -78,11 +78,6 @@ func checkCycle(g *dependencyGraph) error {
 
 		// Part 2: Remove items in removeSet from dependedOnBy of all nodes
 		for _, removed := range removeSet {
-			for _, dependent := range removed.dependedOnBy {
-				// This shouldn't happen since removed nodes have empty dependedOnBy,
-				// but we clear it anyway for completeness
-				dependent.dependsOn = removeFromSlice(dependent.dependsOn, removed)
-			}
 			// Remove this node from dependedOnBy of nodes it depends on
 			for _, dependency := range removed.dependsOn {
 				dependency.dependedOnBy = removeFromSlice(dependency.dependedOnBy, removed)
@@ -125,7 +120,7 @@ func executingMessageBefore(chainEMs []*dependencyNode, targetLogIdx uint32) *de
 // 2. Cross-chain: depends on executingMessageBefore(targetChain, targetLogIdx) (if exists)
 func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*types.ExecutingMessage) *dependencyGraph {
 	graph := &dependencyGraph{}
-	chainNodes := make(map[eth.ChainID][]*dependencyNode)
+	orderedExecutingMessages := make(map[eth.ChainID][]*dependencyNode)
 
 	// First pass: create nodes for all same-timestamp EMs
 	for chainID, emsMap := range chainEMs {
@@ -137,41 +132,31 @@ func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*types.Execu
 					execMsg:  em,
 				}
 				graph.addNode(node)
-				chainNodes[chainID] = append(chainNodes[chainID], node)
+				orderedExecutingMessages[chainID] = append(orderedExecutingMessages[chainID], node)
 			}
 		}
 	}
 
 	// Sort each chain's nodes by logIndex (map iteration order is non-deterministic)
-	for _, nodes := range chainNodes {
+	for _, nodes := range orderedExecutingMessages {
 		slices.SortFunc(nodes, func(a, b *dependencyNode) int {
 			return cmp.Compare(a.logIndex, b.logIndex)
 		})
 	}
 
 	// Second pass: add edges
-	for chainID, nodes := range chainNodes {
+	for _, nodes := range orderedExecutingMessages {
 		for i, node := range nodes {
-			// Intra-chain edge: depends on previous EM on same chain
+			// all nodes point back to the previous node on the same chain
 			if i > 0 {
-				prevNode := nodes[i-1]
-				graph.addEdge(node, prevNode)
+				graph.addEdge(node, nodes[i-1])
 			}
 
-			// Cross-chain edge: depends on executingMessageBefore on target chain
-			if node.execMsg != nil {
-				targetChain := node.execMsg.ChainID
-				targetLogIdx := node.execMsg.LogIdx
-
-				// Skip if referencing same chain (would be handled by intra-chain)
-				if targetChain == chainID {
-					continue
-				}
-
-				targetChainNodes := chainNodes[targetChain]
-				if depNode := executingMessageBefore(targetChainNodes, targetLogIdx); depNode != nil {
-					graph.addEdge(node, depNode)
-				}
+			// all nodes also point to their target
+			targetChainEMs := orderedExecutingMessages[node.execMsg.ChainID]
+			target := executingMessageBefore(targetChainEMs, node.execMsg.LogIdx)
+			if target != nil {
+				graph.addEdge(node, target)
 			}
 		}
 	}
@@ -190,30 +175,21 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 		L2Heads:   blocksAtTimestamp,
 	}
 
-	// Collect all same-timestamp executing messages from each chain
+	// collect all EMs for the given blocks per chain
 	chainEMs := make(map[eth.ChainID]map[uint32]*types.ExecutingMessage)
 	for chainID, blockID := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]
 		if !ok {
+			// Chain not in logsDBs - skip it for cycle verification
 			continue
 		}
-
 		_, _, execMsgs, err := db.OpenBlock(blockID.Number)
 		if err != nil {
-			// Skip blocks we can't open - they may be handled elsewhere
+			// Can't open block - no EMs to add to the graph for this chain
+			// This can happen if the logsDB is empty or the block hasn't been indexed
 			continue
 		}
-
-		// Filter to only same-timestamp EMs
-		sameTS := make(map[uint32]*types.ExecutingMessage)
-		for logIdx, em := range execMsgs {
-			if em != nil && em.Timestamp == ts {
-				sameTS[logIdx] = em
-			}
-		}
-		if len(sameTS) > 0 {
-			chainEMs[chainID] = sameTS
-		}
+		chainEMs[chainID] = execMsgs
 	}
 
 	// Build dependency graph and check for cycles

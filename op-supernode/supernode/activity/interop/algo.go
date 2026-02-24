@@ -21,17 +21,11 @@ var (
 
 	// ErrTimestampViolation is returned when an executing message references
 	// an initiating message with a timestamp > the executing message's timestamp.
-	// Same-timestamp (==) is allowed for same-timestamp interop.
 	ErrTimestampViolation = errors.New("initiating message timestamp must not be greater than executing message timestamp")
 
 	// ErrMessageExpired is returned when an executing message references
 	// an initiating message that has expired (older than ExpiryTime).
 	ErrMessageExpired = errors.New("initiating message has expired")
-
-	// ErrSameTimestamp is a sentinel error indicating that the executing message
-	// references an initiating message from the same timestamp. These messages
-	// require cycle verification and are not immediately validated.
-	ErrSameTimestamp = errors.New("same-timestamp message requires cycle verification")
 )
 
 // verifyInteropMessages validates all executing messages at the given timestamp.
@@ -128,10 +122,6 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		for logIdx, execMsg := range execMsgs {
 			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg)
 			if err != nil {
-				// ErrSameTimestamp is not a failure - cycle verification handles these separately
-				if errors.Is(err, ErrSameTimestamp) {
-					continue
-				}
 				i.log.Warn("invalid executing message",
 					"chain", chainID,
 					"block", expectedBlock.Number,
@@ -156,7 +146,6 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 // verifyExecutingMessage verifies a single executing message by checking:
 //  1. The initiating message exists in the source chain's database
 //  2. The initiating message's timestamp is not greater than the executing block's timestamp
-//     (same-timestamp is handled by the cycleVerifyFn)
 //  3. The initiating message hasn't expired (timestamp + ExpiryTime >= executing timestamp)
 func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	// Get the source chain's logsDB
@@ -166,8 +155,6 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	}
 
 	// Verify timestamp ordering: initiating message timestamp must be <= executing block timestamp.
-	// Same-timestamp messages (==) are ALLOWED for same-timestamp interop.
-	// Only future timestamps (>) are invalid.
 	if execMsg.Timestamp > executingTimestamp {
 		return fmt.Errorf("initiating timestamp %d > executing timestamp %d: %w",
 			execMsg.Timestamp, executingTimestamp, ErrTimestampViolation)
@@ -177,12 +164,6 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	if execMsg.Timestamp+ExpiryTime < executingTimestamp {
 		return fmt.Errorf("initiating timestamp %d + expiry %d < executing timestamp %d: %w",
 			execMsg.Timestamp, ExpiryTime, executingTimestamp, ErrMessageExpired)
-	}
-
-	// Same-timestamp messages require cycle verification.
-	// Return ErrSameTimestamp to signal that this message should be verified by cycleVerifyFn.
-	if execMsg.Timestamp == executingTimestamp {
-		return ErrSameTimestamp
 	}
 
 	// Build the query for the initiating message
