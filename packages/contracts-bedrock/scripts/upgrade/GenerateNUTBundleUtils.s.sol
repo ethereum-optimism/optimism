@@ -79,21 +79,13 @@ contract GenerateNUTBundleUtils is Script {
         }
     }
 
-    /// @notice Computes the CREATE2 address for given initcode and salt.
+    /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.
     /// @dev Uses the DeterministicDeploymentProxy address as the deployer.
-    ///      Formula: keccak256(0xff ++ deployer ++ salt ++ keccak256(initcode))[12:]
     /// @param _code The contract initcode (creation bytecode).
     /// @param _salt The CREATE2 salt.
     /// @return expected_ The computed contract address.
     function computeCreate2Address(bytes memory _code, bytes32 _salt) public pure returns (address expected_) {
-        bytes32 codeHash = keccak256(_code);
-        expected_ = address(
-            uint160(
-                uint256(
-                    keccak256(abi.encodePacked(bytes1(0xff), Preinstalls.DeterministicDeploymentProxy, _salt, codeHash))
-                )
-            )
-        );
+        expected_ = vm.computeCreate2Address(_salt, keccak256(_code), Preinstalls.DeterministicDeploymentProxy);
     }
 
     /// @notice Creates a deployment transaction via ConditionalDeployer.
