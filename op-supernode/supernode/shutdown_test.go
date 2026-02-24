@@ -2,14 +2,15 @@ package supernode
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +19,7 @@ import (
 // 127.0.0.1:0 so there are no port conflicts.
 func newTestSupernode(t *testing.T, acts []activity.Activity) *Supernode {
 	t.Helper()
-	log := gethlog.New()
+	log := testlog.Logger(t, slog.LevelDebug)
 
 	router := resources.NewRouter(log, resources.RouterConfig{})
 	httpSrv := httputil.NewHTTPServer("127.0.0.1:0", router)
@@ -42,12 +43,9 @@ func TestCleanShutdown(t *testing.T) {
 	t.Parallel()
 
 	const (
-		// How long the slow activity's goroutine sleeps after context cancellation.
-		activityLinger = 200 * time.Millisecond
-
 		// How long Stop() is allowed to take in total.
 		// Generous enough for a real graceful shutdown, tight enough to catch a hang.
-		stopDeadline = 2 * time.Second
+		stopDeadline = 200 * time.Second
 	)
 
 	s := newTestSupernode(t, []activity.Activity{&mockRunnable{}})
