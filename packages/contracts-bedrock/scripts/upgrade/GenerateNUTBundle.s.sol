@@ -40,6 +40,12 @@ contract GenerateNUTBundle is Script {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] txns;
     }
 
+    /// @notice Configuration for a predeploy contract deployment.
+    /// @param name Human-readable name for the contract.
+    /// @param artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
+    /// @param args ABI-encoded constructor arguments.
+    /// @param deploymentGasLimit Gas limit for the deployment transaction.
+    /// @param implementation Expected implementation address after deployment.
     struct PredeployConfig {
         string name;
         string artifactPath;
@@ -171,13 +177,12 @@ contract GenerateNUTBundle is Script {
     // ========================================
 
     /// @notice Pre-implementation deployment phase for fork-specific setup.
-    /// @dev This function executes BEFORE any predeploy implementations are deployed. It is the
-    ///      designated location for adding fork-specific deployment or upgrade logic that must
-    ///      occur prior to the standard implementation deployment phase. The rest of the script
-    ///      follows a fixed structure and should not be modified. Add new fork-specific logic
-    ///      here by checking the input.fork value and calling the appropriate helper functions.
-    /// @dev IMPORTANT: This is one of only TWO extension points in this script. Do not modify
-    ///      the core deployment flow in _generateImplementationDeployments or other fixed phases.
+    /// @dev Any transactions added to the txns array within this function will be executed BEFORE
+    ///      any predeploy implementations are deployed. This is the designated location for adding
+    ///      fork-specific deployment or upgrade logic that must occur prior to the standard
+    ///      implementation deployment phase. The rest of the script follows a fixed structure and
+    ///      should not be modified. Add new fork-specific logic here by checking the input.fork
+    ///      value and calling the appropriate helper functions.
     function _preImplementationDeployments() internal {
         if (input.fork == Fork.JOVIAN) {
             // ConditionalDeployer deployment + upgrade
@@ -257,6 +262,7 @@ contract GenerateNUTBundle is Script {
     /// @notice Generates implementation deployment transactions for all predeploys.
     /// @dev This function is called for all upgrades. It deploys implementation contracts
     ///      via ConditionalDeployer.deploy(), which ensures idempotent deployments.
+    /// @dev IMPORTANT: Only modify this function if you need to add or modify a fixed implementation deployment.
     function _generateImplementationDeployments() internal {
         // Deploy StorageSetter first (not a predeploy, but needed for L2CM)
         txns.push(
@@ -352,9 +358,10 @@ contract GenerateNUTBundle is Script {
     // HELPERS
     // ========================================
 
-    /// @notice Computes all expected implementation addresses for the upgrade.
-    /// @dev All addresses are deterministically computed using CREATE2 with the provided salt.
-    ///      This ensures identical addresses across all chains executing the upgrade.
+    /// @notice Retrieves all expected implementation addresses for the upgrade.
+    /// @dev All addresses are looked up from the predeploysConfig mapping, which contains
+    ///      deterministically computed CREATE2 addresses using the provided salt. This ensures
+    ///      identical addresses across all chains executing the upgrade.
     /// @return implementations_ Struct containing all implementation addresses.
     function _getImplementations()
         internal
@@ -398,6 +405,8 @@ contract GenerateNUTBundle is Script {
         });
     }
 
+    /// @notice Builds the predeploy configuration mapping for all contracts to be deployed.
+    /// @dev IMPORTANT: Only modify this function if you need to add or modify a predeploy configuration.
     function _buildPredeployConfigs() internal {
         predeploysConfig[Predeploys.L2_CROSS_DOMAIN_MESSENGER] = PredeployConfig({
             name: "L2CrossDomainMessenger",
