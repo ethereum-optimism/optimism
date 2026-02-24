@@ -56,6 +56,8 @@ func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
 	// The proof DSL depends only on super-roots and can be backed by either source.
 	t.Gate().True(len(system.Supervisors()) > 0 || len(system.Supernodes()) > 0, "expected at least one supervisor or supernode")
 
+	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
+
 	l1Net := system.L1Network(match.FirstL1Network)
 	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
 
@@ -76,16 +78,11 @@ func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
 		challengerCfg = l2A.L2Challengers()[0].Config()
 	}
 
-	var testSequencer *dsl.TestSequencer
-	if len(system.TestSequencers()) > 0 {
-		testSequencer = dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer)))
-	}
-
 	out := &SingleChainInterop{
 		Log:              t.Logger(),
 		T:                t,
 		system:           system,
-		TestSequencer:    testSequencer,
+		TestSequencer:    dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
 		Supervisor:       supervisor,
 		SuperRoots:       superRoots,
 		ControlPlane:     orch.ControlPlane(),
