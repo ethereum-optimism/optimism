@@ -393,148 +393,41 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.CONDITIONAL_DEPLOYER, CONDITIONAL_DEPLOYER_IMPL);
     }
 
-    /// @notice Returns the implementation address of the StorageSetter contract.
-    function storageSetterImpl() public view returns (address) {
-        return STORAGE_SETTER_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the GasPriceOracle contract.
-    function gasPriceOracleImpl() public view returns (address) {
-        return GAS_PRICE_ORACLE_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L2CrossDomainMessenger contract.
-    function l2CrossDomainMessengerImpl() public view returns (address) {
-        return L2_CROSS_DOMAIN_MESSENGER_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L2StandardBridge contract.
-    function l2StandardBridgeImpl() public view returns (address) {
-        return L2_STANDARD_BRIDGE_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the SequencerFeeWallet contract.
-    function sequencerFeeWalletImpl() public view returns (address) {
-        return SEQUENCER_FEE_WALLET_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the OptimismMintableERC20Factory contract.
-    function optimismMintableERC20FactoryImpl() public view returns (address) {
-        return OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L2ERC721Bridge contract.
-    function l2ERC721BridgeImpl() public view returns (address) {
-        return L2_ERC721_BRIDGE_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L1Block contract.
-    function l1BlockImpl() public view returns (address) {
-        return L1_BLOCK_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L1Block contract for custom gas token networks.
-    function l1BlockCGTImpl() public view returns (address) {
-        return L1_BLOCK_CGT_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L2ToL1MessagePasser contract.
-    function l2ToL1MessagePasserImpl() public view returns (address) {
-        return L2_TO_L1_MESSAGE_PASSER_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L2ToL1MessagePasser contract for custom gas token networks.
-    function l2ToL1MessagePasserCGTImpl() public view returns (address) {
-        return L2_TO_L1_MESSAGE_PASSER_CGT_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the OptimismMintableERC721Factory contract.
-    function optimismMintableERC721FactoryImpl() public view returns (address) {
-        return OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the ProxyAdmin contract.
-    function proxyAdminImpl() public view returns (address) {
-        return PROXY_ADMIN_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the BaseFeeVault contract.
-    function baseFeeVaultImpl() public view returns (address) {
-        return BASE_FEE_VAULT_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L1FeeVault contract.
-    function l1FeeVaultImpl() public view returns (address) {
-        return L1_FEE_VAULT_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the OperatorFeeVault contract.
-    function operatorFeeVaultImpl() public view returns (address) {
-        return OPERATOR_FEE_VAULT_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the SchemaRegistry contract.
-    function schemaRegistryImpl() public view returns (address) {
-        return SCHEMA_REGISTRY_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the EAS contract.
-    function easImpl() public view returns (address) {
-        return EAS_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the CrossL2Inbox contract.
-    function crossL2InboxImpl() public view returns (address) {
-        return CROSS_L2_INBOX_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the L2ToL2CrossDomainMessenger contract.
-    function l2ToL2CrossDomainMessengerImpl() public view returns (address) {
-        return L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the SuperchainETHBridge contract.
-    function superchainETHBridgeImpl() public view returns (address) {
-        return SUPERCHAIN_ETH_BRIDGE_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the ETHLiquidity contract.
-    function ethLiquidityImpl() public view returns (address) {
-        return ETH_LIQUIDITY_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the OptimismSuperchainERC20Factory contract.
-    function optimismSuperchainERC20FactoryImpl() public view returns (address) {
-        return OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the OptimismSuperchainERC20Beacon contract.
-    function optimismSuperchainERC20BeaconImpl() public view returns (address) {
-        return OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the SuperchainTokenBridge contract.
-    function superchainTokenBridgeImpl() public view returns (address) {
-        return SUPERCHAIN_TOKEN_BRIDGE_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the NativeAssetLiquidity contract.
-    function nativeAssetLiquidityImpl() public view returns (address) {
-        return NATIVE_ASSET_LIQUIDITY_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the LiquidityController contract.
-    function liquidityControllerImpl() public view returns (address) {
-        return LIQUIDITY_CONTROLLER_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the FeeSplitter contract.
-    function feeSplitterImpl() public view returns (address) {
-        return FEE_SPLITTER_IMPL;
-    }
-
-    /// @notice Returns the implementation address of the ConditionalDeployer contract.
-    function conditionalDeployerImpl() public view returns (address) {
-        return CONDITIONAL_DEPLOYER_IMPL;
+    /// @notice Returns the implementation addresses for each predeploy upgraded by the L2ContractsManager.
+    /// @return implementations_ The implementation addresses for each predeploy upgraded by the L2ContractsManager.
+    function getImplementations()
+        external
+        view
+        returns (L2ContractsManagerTypes.Implementations memory implementations_)
+    {
+        implementations_.storageSetterImpl = STORAGE_SETTER_IMPL;
+        implementations_.l2CrossDomainMessengerImpl = L2_CROSS_DOMAIN_MESSENGER_IMPL;
+        implementations_.gasPriceOracleImpl = GAS_PRICE_ORACLE_IMPL;
+        implementations_.l2StandardBridgeImpl = L2_STANDARD_BRIDGE_IMPL;
+        implementations_.sequencerFeeWalletImpl = SEQUENCER_FEE_WALLET_IMPL;
+        implementations_.optimismMintableERC20FactoryImpl = OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL;
+        implementations_.l2ERC721BridgeImpl = L2_ERC721_BRIDGE_IMPL;
+        implementations_.l1BlockImpl = L1_BLOCK_IMPL;
+        implementations_.l1BlockCGTImpl = L1_BLOCK_CGT_IMPL;
+        implementations_.l2ToL1MessagePasserImpl = L2_TO_L1_MESSAGE_PASSER_IMPL;
+        implementations_.l2ToL1MessagePasserCGTImpl = L2_TO_L1_MESSAGE_PASSER_CGT_IMPL;
+        implementations_.optimismMintableERC721FactoryImpl = OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL;
+        implementations_.proxyAdminImpl = PROXY_ADMIN_IMPL;
+        implementations_.baseFeeVaultImpl = BASE_FEE_VAULT_IMPL;
+        implementations_.l1FeeVaultImpl = L1_FEE_VAULT_IMPL;
+        implementations_.operatorFeeVaultImpl = OPERATOR_FEE_VAULT_IMPL;
+        implementations_.schemaRegistryImpl = SCHEMA_REGISTRY_IMPL;
+        implementations_.easImpl = EAS_IMPL;
+        implementations_.crossL2InboxImpl = CROSS_L2_INBOX_IMPL;
+        implementations_.l2ToL2CrossDomainMessengerImpl = L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL;
+        implementations_.superchainETHBridgeImpl = SUPERCHAIN_ETH_BRIDGE_IMPL;
+        implementations_.ethLiquidityImpl = ETH_LIQUIDITY_IMPL;
+        implementations_.optimismSuperchainERC20FactoryImpl = OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL;
+        implementations_.optimismSuperchainERC20BeaconImpl = OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL;
+        implementations_.superchainTokenBridgeImpl = SUPERCHAIN_TOKEN_BRIDGE_IMPL;
+        implementations_.nativeAssetLiquidityImpl = NATIVE_ASSET_LIQUIDITY_IMPL;
+        implementations_.liquidityControllerImpl = LIQUIDITY_CONTROLLER_IMPL;
+        implementations_.feeSplitterImpl = FEE_SPLITTER_IMPL;
+        implementations_.conditionalDeployerImpl = CONDITIONAL_DEPLOYER_IMPL;
     }
 }

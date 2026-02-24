@@ -687,6 +687,129 @@ contract L2ContractsManager_Upgrade_DowngradePrevention_Test is L2ContractsManag
     }
 }
 
+/// @title L2ContractsManager_GetImplementations_Test
+/// @notice Tests for the getImplementations() getter function.
+contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrade_Test {
+    /// @notice Tests that getImplementations returns all implementation addresses matching the constructor input.
+    function test_getImplementations_returnsAllImplementations_succeeds() public view {
+        L2ContractsManagerTypes.Implementations memory result = l2cm.getImplementations();
+
+        assertEq(result.storageSetterImpl, implementations.storageSetterImpl, "storageSetterImpl mismatch");
+        assertEq(
+            result.l2CrossDomainMessengerImpl,
+            implementations.l2CrossDomainMessengerImpl,
+            "l2CrossDomainMessengerImpl mismatch"
+        );
+        assertEq(result.gasPriceOracleImpl, implementations.gasPriceOracleImpl, "gasPriceOracleImpl mismatch");
+        assertEq(result.l2StandardBridgeImpl, implementations.l2StandardBridgeImpl, "l2StandardBridgeImpl mismatch");
+        assertEq(
+            result.sequencerFeeWalletImpl, implementations.sequencerFeeWalletImpl, "sequencerFeeWalletImpl mismatch"
+        );
+        assertEq(
+            result.optimismMintableERC20FactoryImpl,
+            implementations.optimismMintableERC20FactoryImpl,
+            "optimismMintableERC20FactoryImpl mismatch"
+        );
+        assertEq(result.l2ERC721BridgeImpl, implementations.l2ERC721BridgeImpl, "l2ERC721BridgeImpl mismatch");
+        assertEq(result.l1BlockImpl, implementations.l1BlockImpl, "l1BlockImpl mismatch");
+        assertEq(result.l1BlockCGTImpl, implementations.l1BlockCGTImpl, "l1BlockCGTImpl mismatch");
+        assertEq(
+            result.l2ToL1MessagePasserImpl, implementations.l2ToL1MessagePasserImpl, "l2ToL1MessagePasserImpl mismatch"
+        );
+        assertEq(
+            result.l2ToL1MessagePasserCGTImpl,
+            implementations.l2ToL1MessagePasserCGTImpl,
+            "l2ToL1MessagePasserCGTImpl mismatch"
+        );
+        assertEq(
+            result.optimismMintableERC721FactoryImpl,
+            implementations.optimismMintableERC721FactoryImpl,
+            "optimismMintableERC721FactoryImpl mismatch"
+        );
+        assertEq(result.proxyAdminImpl, implementations.proxyAdminImpl, "proxyAdminImpl mismatch");
+        assertEq(result.baseFeeVaultImpl, implementations.baseFeeVaultImpl, "baseFeeVaultImpl mismatch");
+        assertEq(result.l1FeeVaultImpl, implementations.l1FeeVaultImpl, "l1FeeVaultImpl mismatch");
+        assertEq(result.operatorFeeVaultImpl, implementations.operatorFeeVaultImpl, "operatorFeeVaultImpl mismatch");
+        assertEq(result.schemaRegistryImpl, implementations.schemaRegistryImpl, "schemaRegistryImpl mismatch");
+        assertEq(result.easImpl, implementations.easImpl, "easImpl mismatch");
+        assertEq(result.crossL2InboxImpl, implementations.crossL2InboxImpl, "crossL2InboxImpl mismatch");
+        assertEq(
+            result.l2ToL2CrossDomainMessengerImpl,
+            implementations.l2ToL2CrossDomainMessengerImpl,
+            "l2ToL2CrossDomainMessengerImpl mismatch"
+        );
+        assertEq(
+            result.superchainETHBridgeImpl, implementations.superchainETHBridgeImpl, "superchainETHBridgeImpl mismatch"
+        );
+        assertEq(result.ethLiquidityImpl, implementations.ethLiquidityImpl, "ethLiquidityImpl mismatch");
+        assertEq(
+            result.optimismSuperchainERC20FactoryImpl,
+            implementations.optimismSuperchainERC20FactoryImpl,
+            "optimismSuperchainERC20FactoryImpl mismatch"
+        );
+        assertEq(
+            result.optimismSuperchainERC20BeaconImpl,
+            implementations.optimismSuperchainERC20BeaconImpl,
+            "optimismSuperchainERC20BeaconImpl mismatch"
+        );
+        assertEq(
+            result.superchainTokenBridgeImpl,
+            implementations.superchainTokenBridgeImpl,
+            "superchainTokenBridgeImpl mismatch"
+        );
+        assertEq(
+            result.nativeAssetLiquidityImpl,
+            implementations.nativeAssetLiquidityImpl,
+            "nativeAssetLiquidityImpl mismatch"
+        );
+        assertEq(
+            result.liquidityControllerImpl, implementations.liquidityControllerImpl, "liquidityControllerImpl mismatch"
+        );
+        assertEq(result.feeSplitterImpl, implementations.feeSplitterImpl, "feeSplitterImpl mismatch");
+        assertEq(
+            result.conditionalDeployerImpl, implementations.conditionalDeployerImpl, "conditionalDeployerImpl mismatch"
+        );
+    }
+
+    /// @notice Tests that no field in getImplementations() is left uninitialized
+    ///         when all implementations are provided to the constructor.
+    function test_getImplementations_noFieldIsZero_succeeds() public view {
+        L2ContractsManagerTypes.Implementations memory result = l2cm.getImplementations();
+
+        assertTrue(result.storageSetterImpl != address(0), "storageSetterImpl is zero");
+        assertTrue(result.l2CrossDomainMessengerImpl != address(0), "l2CrossDomainMessengerImpl is zero");
+        assertTrue(result.gasPriceOracleImpl != address(0), "gasPriceOracleImpl is zero");
+        assertTrue(result.l2StandardBridgeImpl != address(0), "l2StandardBridgeImpl is zero");
+        assertTrue(result.sequencerFeeWalletImpl != address(0), "sequencerFeeWalletImpl is zero");
+        assertTrue(result.optimismMintableERC20FactoryImpl != address(0), "optimismMintableERC20FactoryImpl is zero");
+        assertTrue(result.l2ERC721BridgeImpl != address(0), "l2ERC721BridgeImpl is zero");
+        assertTrue(result.l1BlockImpl != address(0), "l1BlockImpl is zero");
+        assertTrue(result.l1BlockCGTImpl != address(0), "l1BlockCGTImpl is zero");
+        assertTrue(result.l2ToL1MessagePasserImpl != address(0), "l2ToL1MessagePasserImpl is zero");
+        assertTrue(result.l2ToL1MessagePasserCGTImpl != address(0), "l2ToL1MessagePasserCGTImpl is zero");
+        assertTrue(result.optimismMintableERC721FactoryImpl != address(0), "optimismMintableERC721FactoryImpl is zero");
+        assertTrue(result.proxyAdminImpl != address(0), "proxyAdminImpl is zero");
+        assertTrue(result.baseFeeVaultImpl != address(0), "baseFeeVaultImpl is zero");
+        assertTrue(result.l1FeeVaultImpl != address(0), "l1FeeVaultImpl is zero");
+        assertTrue(result.operatorFeeVaultImpl != address(0), "operatorFeeVaultImpl is zero");
+        assertTrue(result.schemaRegistryImpl != address(0), "schemaRegistryImpl is zero");
+        assertTrue(result.easImpl != address(0), "easImpl is zero");
+        assertTrue(result.crossL2InboxImpl != address(0), "crossL2InboxImpl is zero");
+        assertTrue(result.l2ToL2CrossDomainMessengerImpl != address(0), "l2ToL2CrossDomainMessengerImpl is zero");
+        assertTrue(result.superchainETHBridgeImpl != address(0), "superchainETHBridgeImpl is zero");
+        assertTrue(result.ethLiquidityImpl != address(0), "ethLiquidityImpl is zero");
+        assertTrue(
+            result.optimismSuperchainERC20FactoryImpl != address(0), "optimismSuperchainERC20FactoryImpl is zero"
+        );
+        assertTrue(result.optimismSuperchainERC20BeaconImpl != address(0), "optimismSuperchainERC20BeaconImpl is zero");
+        assertTrue(result.superchainTokenBridgeImpl != address(0), "superchainTokenBridgeImpl is zero");
+        assertTrue(result.nativeAssetLiquidityImpl != address(0), "nativeAssetLiquidityImpl is zero");
+        assertTrue(result.liquidityControllerImpl != address(0), "liquidityControllerImpl is zero");
+        assertTrue(result.feeSplitterImpl != address(0), "feeSplitterImpl is zero");
+        assertTrue(result.conditionalDeployerImpl != address(0), "conditionalDeployerImpl is zero");
+    }
+}
+
 /// @title L2ContractsManager_Upgrade_Coverage_Test
 /// @notice Test that verifies all predeploys receive upgrade calls during L2CM upgrade.
 ///         Uses Predeploys.sol as the source of truth for which predeploys should be upgraded.
