@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Utilities
-import { Script } from "forge-std/Script.sol";
+import { Vm } from "forge-std/Vm.sol";
 
 // Libraries
 import { Fork } from "scripts/libraries/Config.sol";
@@ -17,7 +17,9 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 // Contracts
 import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
 
-contract GenerateNUTBundleUtils is Script {
+contract GenerateNUTBundleUtils {
+    Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
     /// @notice Array of predeploy addresses to upgrade.
     address[] public predeploys;
 

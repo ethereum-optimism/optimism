@@ -17,7 +17,7 @@ import { UpgradeConfig } from "scripts/libraries/UpgradeConfig.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // Contracts
-import { GenerateNUTBundleUtils } from "scripts/upgrade/GenerateNUTBundleUtils.s.sol";
+import { GenerateNUTBundleUtils } from "scripts/upgrade/GenerateNUTBundleUtils.sol";
 
 /// @title GenerateNUTBundle
 /// @notice Generates Network Upgrade Transaction (NUT) bundles for L2 hardfork upgrades.

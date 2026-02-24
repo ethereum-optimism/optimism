@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Test } from "test/setup/Test.sol";
 
 // Scripts
-import { GenerateNUTBundleUtils } from "scripts/upgrade/GenerateNUTBundleUtils.s.sol";
+import { GenerateNUTBundleUtils } from "scripts/upgrade/GenerateNUTBundleUtils.sol";
 
 // Libraries
 import { Fork } from "scripts/libraries/Config.sol";
