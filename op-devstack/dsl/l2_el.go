@@ -13,8 +13,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var emptyHash = common.Hash{}
@@ -329,15 +330,15 @@ func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized ui
 	}))
 }
 
-func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
+func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl suptypes.SafetyLevel) eth.BlockID {
 	el.require.Equal(chainID, el.inner.ID().ChainID(), "chain ID mismatch")
 	var blockRef eth.L2BlockRef
 	switch lvl {
-	case types.Finalized:
+	case suptypes.Finalized:
 		blockRef = el.BlockRefByLabel(eth.Finalized)
-	case types.CrossSafe, types.LocalSafe:
+	case suptypes.CrossSafe, suptypes.LocalSafe:
 		blockRef = el.BlockRefByLabel(eth.Safe)
-	case types.CrossUnsafe, types.LocalUnsafe:
+	case suptypes.CrossUnsafe, suptypes.LocalUnsafe:
 		blockRef = el.BlockRefByLabel(eth.Unsafe)
 	default:
 		el.require.NoError(errors.New("invalid safety level"))
@@ -345,16 +346,31 @@ func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) 
 	return blockRef.ID()
 }
 
-func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+// WaitForReceipt waits for a transaction receipt to be available, retrying until found or timeout.
+func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
+	var receipt *types.Receipt
+	err := retry.Do0(el.ctx, 30, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() error {
+		var err error
+		receipt, err = el.inner.EthClient().TransactionReceipt(el.ctx, txHash)
+		if err != nil {
+			return fmt.Errorf("waiting for receipt of %s: %w", txHash.Hex(), err)
+		}
+		return nil
+	})
+	el.require.NoError(err, "failed to get receipt for tx %s", txHash.Hex())
+	return receipt
+}
+
+func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
 	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
 
 func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
-	el.Matched(refNode, types.LocalUnsafe, attempts)
+	el.Matched(refNode, suptypes.LocalUnsafe, attempts)
 }
 
 // WaitForPendingNonceMatchFn returns a lambda that waits for the pending nonce of an account to match the provided reference nonce

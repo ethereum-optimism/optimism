@@ -107,29 +107,31 @@ type DefaultTwoL2SystemIDs struct {
 	L2BCL stack.L2CLNodeID
 	L2BEL stack.L2ELNodeID
 
-	Supernode   stack.SupernodeID
-	L2ABatcher  stack.L2BatcherID
-	L2AProposer stack.L2ProposerID
-	L2BBatcher  stack.L2BatcherID
-	L2BProposer stack.L2ProposerID
+	Supernode     stack.SupernodeID
+	TestSequencer stack.TestSequencerID
+	L2ABatcher    stack.L2BatcherID
+	L2AProposer   stack.L2ProposerID
+	L2BBatcher    stack.L2BatcherID
+	L2BProposer   stack.L2ProposerID
 }
 
 func NewDefaultTwoL2SystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultTwoL2SystemIDs {
 	return DefaultTwoL2SystemIDs{
-		L1:          stack.L1NetworkID(l1ID),
-		L1EL:        stack.NewL1ELNodeID("l1", l1ID),
-		L1CL:        stack.NewL1CLNodeID("l1", l1ID),
-		L2A:         stack.L2NetworkID(l2AID),
-		L2ACL:       stack.NewL2CLNodeID("sequencer", l2AID),
-		L2AEL:       stack.NewL2ELNodeID("sequencer", l2AID),
-		L2B:         stack.L2NetworkID(l2BID),
-		L2BCL:       stack.NewL2CLNodeID("sequencer", l2BID),
-		L2BEL:       stack.NewL2ELNodeID("sequencer", l2BID),
-		Supernode:   stack.NewSupernodeID("supernode-two-l2-system", l2AID, l2BID),
-		L2ABatcher:  stack.NewL2BatcherID("main", l2AID),
-		L2AProposer: stack.NewL2ProposerID("main", l2AID),
-		L2BBatcher:  stack.NewL2BatcherID("main", l2BID),
-		L2BProposer: stack.NewL2ProposerID("main", l2BID),
+		L1:            stack.L1NetworkID(l1ID),
+		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
+		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
+		L2A:           stack.L2NetworkID(l2AID),
+		L2ACL:         stack.NewL2CLNodeID("sequencer", l2AID),
+		L2AEL:         stack.NewL2ELNodeID("sequencer", l2AID),
+		L2B:           stack.L2NetworkID(l2BID),
+		L2BCL:         stack.NewL2CLNodeID("sequencer", l2BID),
+		L2BEL:         stack.NewL2ELNodeID("sequencer", l2BID),
+		Supernode:     stack.NewSupernodeID("supernode-two-l2-system", l2AID, l2BID),
+		TestSequencer: "test-sequencer-2l2",
+		L2ABatcher:    stack.NewL2BatcherID("main", l2AID),
+		L2AProposer:   stack.NewL2ProposerID("main", l2AID),
+		L2BBatcher:    stack.NewL2BatcherID("main", l2BID),
+		L2BProposer:   stack.NewL2ProposerID("main", l2BID),
 	}
 }
 
@@ -265,6 +267,9 @@ func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySecond
 	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
 
 	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
+	// Test sequencer for deterministic block building on both L2 chains
+	opt.Add(WithTestSequencer2L2(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L2BCL, ids.L1EL, ids.L2AEL, ids.L2BEL))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
