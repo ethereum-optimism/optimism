@@ -114,19 +114,16 @@ contract GenerateNUTBundleTest is Test {
         // 5. L2ContractsManager deployment
         // 6. Upgrade execution
 
-        // Verify first transaction sourceHash corresponds to ConditionalDeployer deployment
-        bytes32 expectedCDDeploymentSourceHash = NetworkUpgradeTxns.sourceHash("jovian: ConditionalDeployer Deployment");
+        // Verify first transaction intent corresponds to ConditionalDeployer deployment
         assertEq(
-            output.txns[0].sourceHash,
-            expectedCDDeploymentSourceHash,
+            output.txns[0].intent,
+            "jovian: ConditionalDeployer Deployment",
             "First transaction should be ConditionalDeployer deployment"
         );
 
-        bytes32 expectedCDUpgradeSourceHash =
-            NetworkUpgradeTxns.sourceHash("jovian: Upgrade ConditionalDeployer Implementation");
         assertEq(
-            output.txns[1].sourceHash,
-            expectedCDUpgradeSourceHash,
+            output.txns[1].intent,
+            "jovian: Upgrade ConditionalDeployer Implementation",
             "Second transaction should be ConditionalDeployer upgrade"
         );
 
@@ -182,17 +179,10 @@ contract GenerateNUTBundleTest is Test {
     {
         assertEq(_output1.txns.length, _output2.txns.length, "Should produce same number of transactions");
         for (uint256 i = 0; i < _output1.txns.length; i++) {
-            assertEq(_output1.txns[i].sourceHash, _output2.txns[i].sourceHash, "Transaction sourceHash should match");
+            assertEq(_output1.txns[i].intent, _output2.txns[i].intent, "Transaction intent should match");
             assertEq(_output1.txns[i].from, _output2.txns[i].from, "Transaction from should match");
             assertEq(_output1.txns[i].to, _output2.txns[i].to, "Transaction to should match");
-            assertEq(_output1.txns[i].mint, _output2.txns[i].mint, "Transaction mint should match");
-            assertEq(_output1.txns[i].value, _output2.txns[i].value, "Transaction value should match");
-            assertEq(_output1.txns[i].gas, _output2.txns[i].gas, "Transaction gas should match");
-            assertEq(
-                _output1.txns[i].isSystemTransaction,
-                _output2.txns[i].isSystemTransaction,
-                "Transaction isSystemTransaction should match"
-            );
+            assertEq(_output1.txns[i].gasLimit, _output2.txns[i].gasLimit, "Transaction gasLimit should match");
             assertEq(
                 keccak256(_output1.txns[i].data), keccak256(_output2.txns[i].data), "Transaction data should match"
             );

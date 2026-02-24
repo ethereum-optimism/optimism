@@ -137,13 +137,10 @@ contract GenerateNUTBundleUtils {
     {
         bytes memory code = abi.encodePacked(vm.getCode(_artifactPath), _args);
         txn_ = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            sourceHash: NetworkUpgradeTxns.sourceHash(string.concat(_upgradeName, ": Deploy ", _name, " Implementation")),
+            intent: string.concat(_upgradeName, ": Deploy ", _name, " Implementation"),
             from: Constants.DEPOSITOR_ACCOUNT,
             to: Predeploys.CONDITIONAL_DEPLOYER,
-            mint: 0,
-            value: 0,
-            gas: _gasLimit,
-            isSystemTransaction: false,
+            gasLimit: _gasLimit,
             data: abi.encodeCall(ConditionalDeployer.deploy, (_salt, code))
         });
     }
@@ -170,13 +167,10 @@ contract GenerateNUTBundleUtils {
         returns (NetworkUpgradeTxns.NetworkUpgradeTxn memory txn_)
     {
         txn_ = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            sourceHash: NetworkUpgradeTxns.sourceHash(string.concat(_upgradeName, ": Upgrade ", _name, " Implementation")),
+            intent: string.concat(_upgradeName, ": Upgrade ", _name, " Implementation"),
             from: address(0),
             to: _proxy,
-            mint: 0,
-            value: 0,
-            gas: _gasLimit,
-            isSystemTransaction: false,
+            gasLimit: _gasLimit,
             data: abi.encodeCall(IProxy.upgradeTo, (_implementation))
         });
     }

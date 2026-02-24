@@ -154,13 +154,10 @@ contract GenerateNUTBundle is Script {
 
         for (uint256 i = 0; i < _output.txns.length; i++) {
             require(_output.txns[i].data.length > 0, "GenerateNUTBundle: invalid transaction data");
+            require(bytes(_output.txns[i].intent).length > 0, "GenerateNUTBundle: invalid transaction intent");
             // Note: from can be address(0) for certain upgrade transactions (e.g., ProxyAdmin upgrade)
             require(_output.txns[i].to != address(0), "GenerateNUTBundle: invalid transaction to");
-            require(_output.txns[i].gas > 0, "GenerateNUTBundle: invalid transaction gas");
-            require(
-                _output.txns[i].isSystemTransaction == false,
-                "GenerateNUTBundle: invalid transaction isSystemTransaction"
-            );
+            require(_output.txns[i].gasLimit > 0, "GenerateNUTBundle: invalid transaction gasLimit");
         }
     }
 
@@ -220,13 +217,10 @@ contract GenerateNUTBundle is Script {
 
         txns.push(
             NetworkUpgradeTxns.NetworkUpgradeTxn({
-                sourceHash: NetworkUpgradeTxns.sourceHash(string.concat(upgradeName, ": ConditionalDeployer Deployment")),
+                intent: string.concat(upgradeName, ": ConditionalDeployer Deployment"),
                 from: Constants.DEPOSITOR_ACCOUNT,
                 to: Preinstalls.DeterministicDeploymentProxy,
-                mint: 0,
-                value: 0,
-                gas: gasLimits.conditionalDeployerDeployment,
-                isSystemTransaction: false,
+                gasLimit: gasLimits.conditionalDeployerDeployment,
                 data: abi.encodePacked(salt, conditionalDeployerCode)
             })
         );
@@ -342,13 +336,10 @@ contract GenerateNUTBundle is Script {
         // Create upgrade execution transaction
         txns.push(
             NetworkUpgradeTxns.NetworkUpgradeTxn({
-                sourceHash: NetworkUpgradeTxns.sourceHash(string.concat(upgradeName, ": L2ProxyAdmin Upgrade Predeploys")),
+                intent: string.concat(upgradeName, ": L2ProxyAdmin Upgrade Predeploys"),
                 from: Constants.DEPOSITOR_ACCOUNT,
                 to: Predeploys.PROXY_ADMIN,
-                mint: 0,
-                value: 0,
-                gas: gasLimits.upgradeExecution,
-                isSystemTransaction: false,
+                gasLimit: gasLimits.upgradeExecution,
                 data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (l2cm))
             })
         );

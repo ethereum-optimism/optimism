@@ -8,51 +8,27 @@ import { console } from "forge-std/console.sol";
 
 /// @title NetworkUpgradeTxns
 /// @notice Standard library for generating Network Upgrade Transaction (NUT) artifacts.
-///         Provides minimal interface to create DepositTx-compatible transaction metadata.
+///         Generates simplified JSON format that is converted to deposit transactions by op-node.
 library NetworkUpgradeTxns {
     using stdJson for string;
 
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    /// @notice Source domain for upgrade transactions
-    uint64 internal constant UPGRADE_DEPOSIT_SOURCE_DOMAIN = 2;
-
     /// @notice Represents a single Network Upgrade Transaction
-    ///         Maps to the fields of the `DepositTx` struct defined in
-    ///         https://github.com/ethereum-optimism/op-geth/blob/optimism/core/types/deposit_tx.go
+    ///         This struct is serialized to JSON and later converted to a DepositTx by op-node.
+    ///         See op-node/rollup/derive/parse_upgrade_transactions.go for conversion logic.
     /// @dev Fields MUST be in alphabetical order for JSON parseJson/abi.decode to work.
-    /// @param data The data of the transaction.
+    /// @param data The calldata for the transaction.
     /// @param from The address of the sender of the transaction.
-    /// @param gas The gas limit for the transaction.
-    /// @param isSystemTransaction Whether this transaction is exempt from the L2 gas limit.
-    /// @param mint The amount of ETH to mint on L2, locked on L1, 0 if no minting.
-    /// @param sourceHash The hash that uniquely identifies the source of the deposit.
-    /// @param to The address of the recipient of the transaction, address zero means contract creation.
-    /// @param value The amount of ETH to transfer from L2 balance, executed after mint (if any).
+    /// @param gasLimit The gas limit for the transaction.
+    /// @param intent Human-readable description of the transaction's purpose.
+    /// @param to The address of the recipient of the transaction.
     struct NetworkUpgradeTxn {
         bytes data;
         address from;
-        uint64 gas;
-        bool isSystemTransaction;
-        uint256 mint;
-        bytes32 sourceHash;
+        uint64 gasLimit;
+        string intent;
         address to;
-        uint256 value;
-    }
-
-    /// @notice Calculates the source hash for an upgrade transaction.
-    /// @param _intent Human-readable intent string.
-    /// @return sourceHash_ The computed source hash.
-    function sourceHash(string memory _intent) internal pure returns (bytes32 sourceHash_) {
-        bytes32 intentHash = keccak256(bytes(_intent));
-        bytes memory domainInput = new bytes(64);
-
-        assembly {
-            mstore(add(domainInput, 56), shl(192, UPGRADE_DEPOSIT_SOURCE_DOMAIN))
-            mstore(add(domainInput, 64), intentHash)
-        }
-
-        sourceHash_ = keccak256(domainInput);
     }
 
     /// @notice Writes the transactions array to a JSON file.
@@ -90,12 +66,9 @@ library NetworkUpgradeTxns {
 
         vm.serializeBytes(key, "data", _txn.data);
         vm.serializeAddress(key, "from", _txn.from);
-        vm.serializeUint(key, "gas", uint256(_txn.gas));
-        vm.serializeBool(key, "isSystemTransaction", _txn.isSystemTransaction);
-        vm.serializeUint(key, "mint", _txn.mint);
-        vm.serializeBytes32(key, "sourceHash", _txn.sourceHash);
-        vm.serializeAddress(key, "to", _txn.to);
-        serializedJson_ = vm.serializeUint(key, "value", _txn.value);
+        vm.serializeUint(key, "gasLimit", uint256(_txn.gasLimit));
+        vm.serializeString(key, "intent", _txn.intent);
+        serializedJson_ = vm.serializeAddress(key, "to", _txn.to);
         console.log(serializedJson_);
     }
 

@@ -161,18 +161,15 @@ contract GenerateNUTBundleUtils_CreateDeploymentTxn_Test is GenerateNUTBundleUti
         );
 
         // Verify transaction fields
+        assertEq(
+            txn.intent,
+            string.concat(TEST_UPGRADE_NAME, ": Deploy StorageSetter Implementation"),
+            "Transaction intent should match"
+        );
         assertEq(txn.from, Constants.DEPOSITOR_ACCOUNT, "Transaction from should be DEPOSITOR_ACCOUNT");
         assertEq(txn.to, Predeploys.CONDITIONAL_DEPLOYER, "Transaction to should be CONDITIONAL_DEPLOYER");
-        assertEq(txn.mint, 0, "Transaction mint should be 0");
-        assertEq(txn.value, 0, "Transaction value should be 0");
-        assertEq(txn.gas, _gasLimit, "Transaction gas should match");
-        assertEq(txn.isSystemTransaction, false, "Transaction should not be system transaction");
+        assertEq(txn.gasLimit, _gasLimit, "Transaction gasLimit should match");
         assertGt(txn.data.length, 0, "Transaction data should not be empty");
-
-        // Verify sourceHash
-        bytes32 expectedSourceHash =
-            NetworkUpgradeTxns.sourceHash(string.concat(TEST_UPGRADE_NAME, ": Deploy StorageSetter Implementation"));
-        assertEq(txn.sourceHash, expectedSourceHash, "Transaction sourceHash should match");
 
         // Verify data is encoded correctly (should be ConditionalDeployer.deploy(salt, code))
         bytes memory code = vm.getCode("StorageSetter.sol:StorageSetter");
@@ -193,13 +190,10 @@ contract GenerateNUTBundleUtils_CreateDeploymentTxn_Test is GenerateNUTBundleUti
         );
 
         // Verify all fields match
-        assertEq(txn1.sourceHash, txn2.sourceHash, "sourceHash should match");
+        assertEq(txn1.intent, txn2.intent, "intent should match");
         assertEq(txn1.from, txn2.from, "from should match");
         assertEq(txn1.to, txn2.to, "to should match");
-        assertEq(txn1.mint, txn2.mint, "mint should match");
-        assertEq(txn1.value, txn2.value, "value should match");
-        assertEq(txn1.gas, txn2.gas, "gas should match");
-        assertEq(txn1.isSystemTransaction, txn2.isSystemTransaction, "isSystemTransaction should match");
+        assertEq(txn1.gasLimit, txn2.gasLimit, "gasLimit should match");
         assertEq(keccak256(txn1.data), keccak256(txn2.data), "data should match");
     }
 }
@@ -223,19 +217,15 @@ contract GenerateNUTBundleUtils_CreateDeploymentTxnWithArgs_Test is GenerateNUTB
         );
 
         // Verify transaction fields
+        assertEq(
+            txn.intent,
+            string.concat(TEST_UPGRADE_NAME, ": Deploy OptimismMintableERC721Factory Implementation"),
+            "Transaction intent should match"
+        );
         assertEq(txn.from, Constants.DEPOSITOR_ACCOUNT, "Transaction from should be DEPOSITOR_ACCOUNT");
         assertEq(txn.to, Predeploys.CONDITIONAL_DEPLOYER, "Transaction to should be CONDITIONAL_DEPLOYER");
-        assertEq(txn.mint, 0, "Transaction mint should be 0");
-        assertEq(txn.value, 0, "Transaction value should be 0");
-        assertEq(txn.gas, _gasLimit, "Transaction gas should match");
-        assertEq(txn.isSystemTransaction, false, "Transaction should not be system transaction");
+        assertEq(txn.gasLimit, _gasLimit, "Transaction gasLimit should match");
         assertGt(txn.data.length, 0, "Transaction data should not be empty");
-
-        // Verify sourceHash
-        bytes32 expectedSourceHash = NetworkUpgradeTxns.sourceHash(
-            string.concat(TEST_UPGRADE_NAME, ": Deploy OptimismMintableERC721Factory Implementation")
-        );
-        assertEq(txn.sourceHash, expectedSourceHash, "Transaction sourceHash should match");
 
         // Verify data includes constructor args
         bytes memory code =
@@ -257,18 +247,15 @@ contract GenerateNUTBundleUtils_CreateUpgradeTxn_Test is GenerateNUTBundleUtils_
             utils.createUpgradeTxn(TEST_UPGRADE_NAME, "ProxyAdmin", Predeploys.PROXY_ADMIN, _implementation, _gasLimit);
 
         // Verify transaction fields
+        assertEq(
+            txn.intent,
+            string.concat(TEST_UPGRADE_NAME, ": Upgrade ProxyAdmin Implementation"),
+            "Transaction intent should match"
+        );
         assertEq(txn.from, address(0), "Transaction from should be address(0) for proxy upgrade");
         assertEq(txn.to, Predeploys.PROXY_ADMIN, "Transaction to should be ProxyAdmin");
-        assertEq(txn.mint, 0, "Transaction mint should be 0");
-        assertEq(txn.value, 0, "Transaction value should be 0");
-        assertEq(txn.gas, _gasLimit, "Transaction gas should match");
-        assertEq(txn.isSystemTransaction, false, "Transaction should not be system transaction");
+        assertEq(txn.gasLimit, _gasLimit, "Transaction gasLimit should match");
         assertGt(txn.data.length, 0, "Transaction data should not be empty");
-
-        // Verify sourceHash
-        bytes32 expectedSourceHash =
-            NetworkUpgradeTxns.sourceHash(string.concat(TEST_UPGRADE_NAME, ": Upgrade ProxyAdmin Implementation"));
-        assertEq(txn.sourceHash, expectedSourceHash, "Transaction sourceHash should match");
 
         // Verify data is encoded correctly (should be IProxy.upgradeTo(implementation))
         bytes memory expectedData = abi.encodeCall(IProxy.upgradeTo, (_implementation));
