@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="460" viewBox="0 0 960 460" style="background:#0f172a;font-family:'Courier New',monospace">
+<rect width="960" height="460" fill="#0f172a"/>
+<rect x="65" y="75" width="840" height="295" fill="#1e293b" rx="4"/>
+<text x="480" y="28" fill="#f1f5f9" font-size="15" text-anchor="middle" font-weight="bold" letter-spacing="0.5">CircleCI 'main' Workflow — Wall-Clock Runtime (develop branch)</text>
+<text x="480" y="50" fill="#94a3b8" font-size="11" text-anchor="middle">Feb 17–24, 2026  ·  32 runs: 7 success, 23 failed, 2 cancelled  ·  Avg 30.2m  ·  Range 6.4m–33.5m</text>
+<text x="57" y="374.0" fill="#64748b" font-size="10" text-anchor="end">0m</text>
+<line x1="65" y1="333.1" x2="905" y2="333.1" stroke="#334155" stroke-width="0.7"/>
+<text x="57" y="337.1" fill="#64748b" font-size="10" text-anchor="end">5m</text>
+<line x1="65" y1="296.2" x2="905" y2="296.2" stroke="#334155" stroke-width="1.5"/>
+<text x="57" y="300.2" fill="#64748b" font-size="10" text-anchor="end">10m</text>
+<line x1="65" y1="259.4" x2="905" y2="259.4" stroke="#334155" stroke-width="0.7"/>
+<text x="57" y="263.4" fill="#64748b" font-size="10" text-anchor="end">15m</text>
+<line x1="65" y1="222.5" x2="905" y2="222.5" stroke="#334155" stroke-width="1.5"/>
+<text x="57" y="226.5" fill="#64748b" font-size="10" text-anchor="end">20m</text>
+<line x1="65" y1="185.6" x2="905" y2="185.6" stroke="#334155" stroke-width="0.7"/>
+<text x="57" y="189.6" fill="#64748b" font-size="10" text-anchor="end">25m</text>
+<line x1="65" y1="148.8" x2="905" y2="148.8" stroke="#334155" stroke-width="1.5"/>
+<text x="57" y="152.8" fill="#64748b" font-size="10" text-anchor="end">30m</text>
+<line x1="65" y1="111.9" x2="905" y2="111.9" stroke="#334155" stroke-width="0.7"/>
+<text x="57" y="115.9" fill="#64748b" font-size="10" text-anchor="end">35m</text>
+<line x1="65" y1="75.0" x2="905" y2="75.0" stroke="#334155" stroke-width="1.5"/>
+<text x="57" y="79.0" fill="#64748b" font-size="10" text-anchor="end">40m</text>
+<line x1="65" y1="75" x2="65" y2="370" stroke="#475569" stroke-width="1.5"/>
+<line x1="65" y1="370" x2="905" y2="370" stroke="#475569" stroke-width="1.5"/>
+<text x="14" y="222" fill="#94a3b8" font-size="11" text-anchor="middle" transform="rotate(-90 14 222)">Duration (minutes)</text>
+<line x1="65.0" y1="75" x2="65.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="65.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 17</text>
+<line x1="170.0" y1="75" x2="170.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="170.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 18</text>
+<line x1="275.0" y1="75" x2="275.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="275.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 19</text>
+<line x1="380.0" y1="75" x2="380.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="380.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 20</text>
+<line x1="485.0" y1="75" x2="485.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="485.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 21</text>
+<line x1="590.0" y1="75" x2="590.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="590.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 22</text>
+<line x1="695.0" y1="75" x2="695.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="695.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 23</text>
+<line x1="800.0" y1="75" x2="800.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="800.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 24</text>
+<line x1="905.0" y1="75" x2="905.0" y2="370" stroke="#334155" stroke-width="1"/>
+<text x="905.0" y="386" fill="#64748b" font-size="10" text-anchor="middle">Feb 25</text>
+<rect x="170.0" y="75" width="105.0" height="295" fill="rgba(255,255,255,0.02)"/>
+<rect x="380.0" y="75" width="105.0" height="295" fill="rgba(255,255,255,0.02)"/>
+<rect x="590.0" y="75" width="105.0" height="295" fill="rgba(255,255,255,0.02)"/>
+<rect x="800.0" y="75" width="105.0" height="295" fill="rgba(255,255,255,0.02)"/>
+<line x1="65" y1="147.2" x2="905" y2="147.2" stroke="#475569" stroke-width="1.5" stroke-dasharray="6,3"/>
+<text x="909" y="151.2" fill="#64748b" font-size="10">avg 30.2m</text>
+<line x1="160.6" y1="151.3" x2="162.3" y2="146.0" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="162.3" y1="146.0" x2="166.0" y2="149.0" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="166.0" y1="149.0" x2="175.7" y2="150.2" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="175.7" y1="150.2" x2="210.7" y2="143.6" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="210.7" y1="143.6" x2="223.4" y2="135.6" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="223.4" y1="135.6" x2="226.2" y2="144.9" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="226.2" y1="144.9" x2="244.2" y2="151.6" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="244.2" y1="151.6" x2="258.6" y2="154.4" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="258.6" y1="154.4" x2="258.7" y2="136.7" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="258.7" y1="136.7" x2="270.1" y2="146.4" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="270.1" y1="146.4" x2="276.2" y2="151.1" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="276.2" y1="151.1" x2="291.9" y2="148.3" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="291.9" y1="148.3" x2="344.8" y2="141.1" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="344.8" y1="141.1" x2="345.3" y2="140.0" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="360.1" y1="144.0" x2="391.4" y2="134.6" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="391.4" y1="134.6" x2="430.5" y2="140.5" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="430.5" y1="140.5" x2="454.1" y2="144.9" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="454.1" y1="144.9" x2="454.8" y2="148.1" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="454.8" y1="148.1" x2="459.1" y2="122.8" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="459.1" y1="122.8" x2="466.7" y2="141.0" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="466.7" y1="141.0" x2="467.3" y2="125.6" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="467.3" y1="125.6" x2="476.6" y2="135.4" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="476.6" y1="135.4" x2="485.6" y2="129.7" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="485.6" y1="129.7" x2="671.6" y2="147.3" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="671.6" y1="147.3" x2="756.5" y2="135.5" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="756.5" y1="135.5" x2="773.1" y2="138.5" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="773.1" y1="138.5" x2="781.4" y2="322.9" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="781.4" y1="322.9" x2="802.6" y2="129.7" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<line x1="802.6" y1="129.7" x2="805.5" y2="132.6" stroke="#475569" stroke-width="1.5" opacity="0.6"/>
+<circle cx="160.6" cy="151.3" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="160.6" cy="151.3" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-17 21:51 UTC | failure | 29.6m | d194274e8614</title></circle>
+<circle cx="162.3" cy="146.0" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="162.3" cy="146.0" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-17 22:14 UTC | failure | 30.4m | 4be91607f3d3</title></circle>
+<circle cx="166.0" cy="149.0" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="166.0" cy="149.0" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-17 23:05 UTC | failure | 30.0m | 1fd2b9a06fd9</title></circle>
+<circle cx="175.7" cy="150.2" r="8" fill="#22c55e" opacity="0.2"/>
+<circle cx="175.7" cy="150.2" r="5" fill="#22c55e" stroke="#0f172a" stroke-width="1.5"><title>2026-02-18 01:18 UTC | success | 29.8m | b664c903372e</title></circle>
+<circle cx="210.7" cy="143.6" r="8" fill="#22c55e" opacity="0.2"/>
+<circle cx="210.7" cy="143.6" r="5" fill="#22c55e" stroke="#0f172a" stroke-width="1.5"><title>2026-02-18 09:18 UTC | success | 30.7m | 39ec1d9a91bd</title></circle>
+<circle cx="223.4" cy="135.6" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="223.4" cy="135.6" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-18 12:12 UTC | failure | 31.8m | fb233f160ddf</title></circle>
+<circle cx="226.2" cy="144.9" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="226.2" cy="144.9" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-18 12:50 UTC | failure | 30.5m | 2eb7e3c074b6</title></circle>
+<circle cx="244.2" cy="151.6" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="244.2" cy="151.6" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-18 16:57 UTC | failure | 29.6m | eb39df709331</title></circle>
+<circle cx="258.6" cy="154.4" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="258.6" cy="154.4" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-18 20:14 UTC | failure | 29.2m | ce852f96d29e</title></circle>
+<circle cx="258.7" cy="136.7" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="258.7" cy="136.7" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-18 20:16 UTC | failure | 31.6m | a439b465759f</title></circle>
+<circle cx="270.1" cy="146.4" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="270.1" cy="146.4" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-18 22:52 UTC | failure | 30.3m | 4d9612e18c53</title></circle>
+<circle cx="276.2" cy="151.1" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="276.2" cy="151.1" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-19 00:16 UTC | failure | 29.7m | afe708e6f04b</title></circle>
+<circle cx="291.9" cy="148.3" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="291.9" cy="148.3" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-19 03:51 UTC | failure | 30.1m | 01a0dd21137b</title></circle>
+<circle cx="344.8" cy="141.1" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="344.8" cy="141.1" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-19 15:57 UTC | failure | 31.0m | b7ec194d0116</title></circle>
+<circle cx="345.3" cy="140.0" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="345.3" cy="140.0" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-19 16:04 UTC | failure | 31.2m | 9ddfb4611b31</title></circle>
+<circle cx="353.9" cy="364.6" r="8" fill="#fbbf24" opacity="0.2"/>
+<circle cx="353.9" cy="364.6" r="5" fill="#fbbf24" stroke="#0f172a" stroke-width="1.5"><title>2026-02-19 18:01 UTC | cancelled | 0.7m | 3019251e80aa</title></circle>
+<circle cx="360.1" cy="144.0" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="360.1" cy="144.0" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-19 19:26 UTC | failure | 30.6m | 6679f0bd973b</title></circle>
+<circle cx="391.4" cy="134.6" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="391.4" cy="134.6" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-20 02:37 UTC | failure | 31.9m | 7f450c4d8ada</title></circle>
+<circle cx="430.5" cy="140.5" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="430.5" cy="140.5" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-20 11:32 UTC | failure | 31.1m | 00e13a158160</title></circle>
+<circle cx="454.1" cy="144.9" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="454.1" cy="144.9" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-20 16:55 UTC | failure | 30.5m | 13fccc1a5e18</title></circle>
+<circle cx="454.8" cy="148.1" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="454.8" cy="148.1" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-20 17:05 UTC | failure | 30.1m | c03b87edbfdb</title></circle>
+<circle cx="459.1" cy="122.8" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="459.1" cy="122.8" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-20 18:04 UTC | failure | 33.5m | dcc90121e199</title></circle>
+<circle cx="466.7" cy="141.0" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="466.7" cy="141.0" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-20 19:48 UTC | failure | 31.1m | 72aa180f976b</title></circle>
+<circle cx="467.3" cy="125.6" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="467.3" cy="125.6" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-20 19:57 UTC | failure | 33.1m | 4980b923bfcb</title></circle>
+<circle cx="476.6" cy="135.4" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="476.6" cy="135.4" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-20 22:04 UTC | failure | 31.8m | 1ed453f6084c</title></circle>
+<circle cx="485.6" cy="129.7" r="8" fill="#22c55e" opacity="0.2"/>
+<circle cx="485.6" cy="129.7" r="5" fill="#22c55e" stroke="#0f172a" stroke-width="1.5"><title>2026-02-21 00:07 UTC | success | 32.6m | 2460e59c3729</title></circle>
+<circle cx="671.6" cy="147.3" r="8" fill="#22c55e" opacity="0.2"/>
+<circle cx="671.6" cy="147.3" r="5" fill="#22c55e" stroke="#0f172a" stroke-width="1.5"><title>2026-02-22 18:39 UTC | success | 30.2m | 3a84e7bf195f</title></circle>
+<circle cx="756.5" cy="135.5" r="8" fill="#22c55e" opacity="0.2"/>
+<circle cx="756.5" cy="135.5" r="5" fill="#22c55e" stroke="#0f172a" stroke-width="1.5"><title>2026-02-23 14:03 UTC | success | 31.8m | ad286217ab7c</title></circle>
+<circle cx="773.1" cy="138.5" r="8" fill="#f87171" opacity="0.2"/>
+<circle cx="773.1" cy="138.5" r="5" fill="#f87171" stroke="#0f172a" stroke-width="1.5"><title>2026-02-23 17:51 UTC | failure | 31.4m | 608e7086f5c6</title></circle>
+<circle cx="781.4" cy="322.9" r="8" fill="#fbbf24" opacity="0.2"/>
+<circle cx="781.4" cy="322.9" r="5" fill="#fbbf24" stroke="#0f172a" stroke-width="1.5"><title>2026-02-23 19:44 UTC | cancelled | 6.4m | fbaf0b0d0264</title></circle>
+<circle cx="802.6" cy="129.7" r="8" fill="#22c55e" opacity="0.2"/>
+<circle cx="802.6" cy="129.7" r="5" fill="#22c55e" stroke="#0f172a" stroke-width="1.5"><title>2026-02-24 00:35 UTC | success | 32.6m | c60cdb1cf997</title></circle>
+<circle cx="805.5" cy="132.6" r="8" fill="#22c55e" opacity="0.2"/>
+<circle cx="805.5" cy="132.6" r="5" fill="#22c55e" stroke="#0f172a" stroke-width="1.5"><title>2026-02-24 01:15 UTC | success | 32.2m | e5850e52c7b8</title></circle>
+<circle cx="81" cy="412" r="5" fill="#22c55e"/>
+<text x="91" y="416" fill="#94a3b8" font-size="11">success</text>
+<circle cx="171" cy="412" r="5" fill="#f87171"/>
+<text x="181" y="416" fill="#94a3b8" font-size="11">failure</text>
+<circle cx="261" cy="412" r="5" fill="#fbbf24"/>
+<text x="271" y="416" fill="#94a3b8" font-size="11">cancelled</text>
+<text x="480" y="448" fill="#475569" font-size="9" text-anchor="middle">Data source: GitHub Checks API → CircleCI  ·  Generated 2026-02-24  ·  Wall-clock time = workflow start → completion</text>
+</svg>

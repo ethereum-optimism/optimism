@@ -1,0 +1,226 @@
+[
+  {
+    "sha": "e5850e52c7b8",
+    "commit_date": "2026-02-24T00:41",
+    "started_at": "2026-02-24T01:15:43Z",
+    "conclusion": "success",
+    "duration_min": 32.18333333333333
+  },
+  {
+    "sha": "c60cdb1cf997",
+    "commit_date": "2026-02-24T00:02",
+    "started_at": "2026-02-24T00:35:46Z",
+    "conclusion": "success",
+    "duration_min": 32.583333333333336
+  },
+  {
+    "sha": "fbaf0b0d0264",
+    "commit_date": "2026-02-23T18:55",
+    "started_at": "2026-02-23T19:44:35Z",
+    "conclusion": "cancelled",
+    "duration_min": 6.383333333333334
+  },
+  {
+    "sha": "608e7086f5c6",
+    "commit_date": "2026-02-23T17:18",
+    "started_at": "2026-02-23T17:51:32Z",
+    "conclusion": "failure",
+    "duration_min": 31.383333333333333
+  },
+  {
+    "sha": "ad286217ab7c",
+    "commit_date": "2026-02-23T13:29",
+    "started_at": "2026-02-23T14:03:29Z",
+    "conclusion": "success",
+    "duration_min": 31.8
+  },
+  {
+    "sha": "3a84e7bf195f",
+    "commit_date": "2026-02-22T18:06",
+    "started_at": "2026-02-22T18:39:31Z",
+    "conclusion": "success",
+    "duration_min": 30.2
+  },
+  {
+    "sha": "2460e59c3729",
+    "commit_date": "2026-02-20T23:08",
+    "started_at": "2026-02-21T00:07:51Z",
+    "conclusion": "success",
+    "duration_min": 32.583333333333336
+  },
+  {
+    "sha": "1ed453f6084c",
+    "commit_date": "2026-02-20T21:31",
+    "started_at": "2026-02-20T22:04:16Z",
+    "conclusion": "failure",
+    "duration_min": 31.816666666666666
+  },
+  {
+    "sha": "4980b923bfcb",
+    "commit_date": "2026-02-20T19:24",
+    "started_at": "2026-02-20T19:57:38Z",
+    "conclusion": "failure",
+    "duration_min": 33.13333333333333
+  },
+  {
+    "sha": "72aa180f976b",
+    "commit_date": "2026-02-20T19:16",
+    "started_at": "2026-02-20T19:48:37Z",
+    "conclusion": "failure",
+    "duration_min": 31.05
+  },
+  {
+    "sha": "dcc90121e199",
+    "commit_date": "2026-02-20T17:30",
+    "started_at": "2026-02-20T18:04:32Z",
+    "conclusion": "failure",
+    "duration_min": 33.516666666666666
+  },
+  {
+    "sha": "c03b87edbfdb",
+    "commit_date": "2026-02-20T16:32",
+    "started_at": "2026-02-20T17:05:31Z",
+    "conclusion": "failure",
+    "duration_min": 30.083333333333332
+  },
+  {
+    "sha": "13fccc1a5e18",
+    "commit_date": "2026-02-20T16:19",
+    "started_at": "2026-02-20T16:55:38Z",
+    "conclusion": "failure",
+    "duration_min": 30.516666666666666
+  },
+  {
+    "sha": "00e13a158160",
+    "commit_date": "2026-02-20T10:58",
+    "started_at": "2026-02-20T11:32:17Z",
+    "conclusion": "failure",
+    "duration_min": 31.116666666666667
+  },
+  {
+    "sha": "7f450c4d8ada",
+    "commit_date": "2026-02-20T02:02",
+    "started_at": "2026-02-20T02:37:00Z",
+    "conclusion": "failure",
+    "duration_min": 31.916666666666668
+  },
+  {
+    "sha": "6679f0bd973b",
+    "commit_date": "2026-02-19T18:52",
+    "started_at": "2026-02-19T19:26:27Z",
+    "conclusion": "failure",
+    "duration_min": 30.65
+  },
+  {
+    "sha": "3019251e80aa",
+    "commit_date": "2026-02-19T15:59",
+    "started_at": "2026-02-19T18:01:57Z",
+    "conclusion": "cancelled",
+    "duration_min": 0.7333333333333333
+  },
+  {
+    "sha": "9ddfb4611b31",
+    "commit_date": "2026-02-19T15:32",
+    "started_at": "2026-02-19T16:04:48Z",
+    "conclusion": "failure",
+    "duration_min": 31.183333333333334
+  },
+  {
+    "sha": "b7ec194d0116",
+    "commit_date": "2026-02-19T15:23",
+    "started_at": "2026-02-19T15:57:34Z",
+    "conclusion": "failure",
+    "duration_min": 31.033333333333335
+  },
+  {
+    "sha": "01a0dd21137b",
+    "commit_date": "2026-02-19T03:17",
+    "started_at": "2026-02-19T03:51:45Z",
+    "conclusion": "failure",
+    "duration_min": 30.066666666666666
+  },
+  {
+    "sha": "afe708e6f04b",
+    "commit_date": "2026-02-18T23:43",
+    "started_at": "2026-02-19T00:16:04Z",
+    "conclusion": "failure",
+    "duration_min": 29.683333333333334
+  },
+  {
+    "sha": "4d9612e18c53",
+    "commit_date": "2026-02-18T22:18",
+    "started_at": "2026-02-18T22:52:17Z",
+    "conclusion": "failure",
+    "duration_min": 30.316666666666666
+  },
+  {
+    "sha": "a439b465759f",
+    "commit_date": "2026-02-18T19:44",
+    "started_at": "2026-02-18T20:16:44Z",
+    "conclusion": "failure",
+    "duration_min": 31.633333333333333
+  },
+  {
+    "sha": "ce852f96d29e",
+    "commit_date": "2026-02-18T19:38",
+    "started_at": "2026-02-18T20:14:58Z",
+    "conclusion": "failure",
+    "duration_min": 29.233333333333334
+  },
+  {
+    "sha": "eb39df709331",
+    "commit_date": "2026-02-18T16:19",
+    "started_at": "2026-02-18T16:57:06Z",
+    "conclusion": "failure",
+    "duration_min": 29.616666666666667
+  },
+  {
+    "sha": "2eb7e3c074b6",
+    "commit_date": "2026-02-18T12:18",
+    "started_at": "2026-02-18T12:50:15Z",
+    "conclusion": "failure",
+    "duration_min": 30.516666666666666
+  },
+  {
+    "sha": "39ec1d9a91bd",
+    "commit_date": "2026-02-18T09:18",
+    "started_at": "2026-02-18T09:18:41Z",
+    "conclusion": "success",
+    "duration_min": 30.7
+  },
+  {
+    "sha": "fb233f160ddf",
+    "commit_date": "2026-02-18T02:31",
+    "started_at": "2026-02-18T12:12:57Z",
+    "conclusion": "failure",
+    "duration_min": 31.783333333333335
+  },
+  {
+    "sha": "b664c903372e",
+    "commit_date": "2026-02-18T01:18",
+    "started_at": "2026-02-18T01:18:28Z",
+    "conclusion": "success",
+    "duration_min": 29.8
+  },
+  {
+    "sha": "1fd2b9a06fd9",
+    "commit_date": "2026-02-17T22:29",
+    "started_at": "2026-02-17T23:05:26Z",
+    "conclusion": "failure",
+    "duration_min": 29.966666666666665
+  },
+  {
+    "sha": "4be91607f3d3",
+    "commit_date": "2026-02-17T21:42",
+    "started_at": "2026-02-17T22:14:36Z",
+    "conclusion": "failure",
+    "duration_min": 30.366666666666667
+  },
+  {
+    "sha": "d194274e8614",
+    "commit_date": "2026-02-17T21:19",
+    "started_at": "2026-02-17T21:51:35Z",
+    "conclusion": "failure",
+    "duration_min": 29.65
+  }
+]
