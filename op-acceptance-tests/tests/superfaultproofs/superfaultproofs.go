@@ -39,6 +39,7 @@ type chain struct {
 	Cfg     *rollup.Config
 	Rollup  apis.RollupClient
 	EL      *dsl.L2ELNode
+	CLNode  *dsl.L2CLNode
 	Batcher *dsl.L2Batcher
 }
 
@@ -56,8 +57,8 @@ type transitionTest struct {
 // orderedChains returns the two interop chains sorted by chain ID.
 func orderedChains(sys *presets.SimpleInterop) []*chain {
 	chains := []*chain{
-		{ID: sys.L2ChainA.ChainID(), Cfg: sys.L2ChainA.Escape().RollupConfig(), Rollup: sys.L2CLA.Escape().RollupAPI(), EL: sys.L2ELA, Batcher: sys.L2BatcherA},
-		{ID: sys.L2ChainB.ChainID(), Cfg: sys.L2ChainB.Escape().RollupConfig(), Rollup: sys.L2CLB.Escape().RollupAPI(), EL: sys.L2ELB, Batcher: sys.L2BatcherB},
+		{ID: sys.L2ChainA.ChainID(), Cfg: sys.L2ChainA.Escape().RollupConfig(), Rollup: sys.L2CLA.Escape().RollupAPI(), EL: sys.L2ELA, CLNode: sys.L2CLA, Batcher: sys.L2BatcherA},
+		{ID: sys.L2ChainB.ChainID(), Cfg: sys.L2ChainB.Escape().RollupConfig(), Rollup: sys.L2CLB.Escape().RollupAPI(), EL: sys.L2ELB, CLNode: sys.L2CLB, Batcher: sys.L2BatcherB},
 	}
 	slices.SortFunc(chains, func(a, b *chain) int { return a.ID.Cmp(b.ID) })
 	return chains
@@ -456,36 +457,55 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains := orderedChains(sys)
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 
+	// Stop chains[0]'s batcher first so its safe head stalls while chains[1]'s
+	// batcher continues to advance. This deterministically guarantees chains[0]
+	// has the lowest safe head — which is required because:
+	//  1. Step 0 in the super root trace transitions chains[0]. We need step 0
+	//     to produce InvalidTransition (no batch data for chains[0]'s block).
+	//  2. The agreed prestate at (endTimestamp - 1) must be verified for ALL
+	//     chains. Using chains[0]'s stalled safe head as the anchor ensures
+	//     that timestamp maps to a block at or below every chain's safe head.
 	chains[0].Batcher.Stop()
+	defer chains[0].Batcher.Start()
+	awaitSafeHeadsStalled(t, chains[0].CLNode)
+
+	stalledStatus, err := chains[0].Rollup.SyncStatus(t.Ctx())
+	t.Require().NoError(err)
+	stalledSafeHead := stalledStatus.SafeL2.Number
+
+	// Wait for chains[1]'s safe head to surpass chains[0]'s stalled safe head.
+	// chains[1]'s batcher is still running, so this is guaranteed to happen.
+	// We need strictly greater so that chains[1]'s block at endTimestamp
+	// (= TimestampForBlock(stalledSafeHead + 1)) is safe.
+	t.Require().Eventually(func() bool {
+		status1, err := chains[1].Rollup.SyncStatus(t.Ctx())
+		return err == nil && status1.SafeL2.Number > stalledSafeHead
+	}, 2*time.Minute, 2*time.Second, "chains[1] safe head should advance past chains[0]'s stalled safe head")
+
 	chains[1].Batcher.Stop()
-	defer func() {
-		chains[0].Batcher.Start()
-		chains[1].Batcher.Start()
-	}()
-	awaitSafeHeadsStalled(t, sys.L2CLA, sys.L2CLB)
+	defer chains[1].Batcher.Start()
+	awaitSafeHeadsStalled(t, chains[1].CLNode)
 
-	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
+	endTimestamp := chains[0].Cfg.TimestampForBlock(stalledSafeHead + 1)
+	agreedTimestamp := endTimestamp - 1
 
-	// Ensure both chains have produced the target blocks as unsafe.
-	for _, c := range chains {
-		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
-		t.Require().NoError(err)
-		c.EL.Reached(eth.Unsafe, target, 60)
-	}
+	// Ensure chains[0] has produced the target block as unsafe.
+	target, err := chains[0].Cfg.TargetBlockNumber(endTimestamp)
+	t.Require().NoError(err)
+	chains[0].EL.Reached(eth.Unsafe, target, 60)
 
-	// L1 head where neither chain has batch data at endTimestamp.
-	resp := awaitOptimisticPattern(t, sys.SuperRoots, endTimestamp,
-		nil, []eth.ChainID{chains[0].ID, chains[1].ID})
+	sys.SuperRoots.AwaitValidatedTimestamp(agreedTimestamp)
+	resp := sys.SuperRoots.SuperRootAtTimestamp(agreedTimestamp)
 	l1Head := resp.CurrentL1
 
-	agreedTimestamp := endTimestamp - 1
 	startTimestamp := agreedTimestamp
 	agreedSuperRoot := superRootAtTimestamp(t, chains, agreedTimestamp)
 	agreedClaim := agreedSuperRoot.Marshal()
 
 	// Disputed claim: transition state with step 1 but no optimistic blocks.
-	// This claims a transition happened, but since the blocks at endTimestamp
-	// are only unsafe (no batch data on L1), the correct answer is InvalidTransition.
+	// This claims a transition happened, but since chains[0]'s block at
+	// endTimestamp is only unsafe (no batch data on L1), the correct answer
+	// is InvalidTransition.
 	disputedClaim := marshalTransition(agreedSuperRoot, 1)
 
 	tests := []*transitionTest{
@@ -519,7 +539,6 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 				test.ClaimTimestamp, test.ExpectValid)
 		})
 		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			t.Skip("TODO(#19059): Unskip this once supernode supports unsafe superroots")
 			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
 		})
 	}
