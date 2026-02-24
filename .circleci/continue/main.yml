@@ -1668,7 +1668,8 @@ jobs:
           steps:
             - store_test_results:
                 path: packages/contracts-bedrock/results/results.xml
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   contracts-bedrock-upload:
     machine: true
