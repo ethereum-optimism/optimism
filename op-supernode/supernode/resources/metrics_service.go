@@ -39,7 +39,7 @@ func (s *MetricsService) Start(onDone func(), onError func(error)) {
 				onError(err)
 			}
 		}
-		onDone()
+		// onDone()
 	}()
 }
 

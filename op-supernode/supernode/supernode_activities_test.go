@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	rpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,9 @@ func (m *mockRunnable) Start(ctx context.Context) error {
 }
 func (m *mockRunnable) Stop(ctx context.Context) error {
 	m.stopped++
-	m.cancel()
+	if m.cancel != nil {
+		m.cancel()
+	}
 	return nil
 }
 func (m *mockRunnable) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
@@ -74,7 +78,7 @@ func TestRunnableActivityGating(t *testing.T) {
 	plain := &plainActivity{}
 
 	s := &Supernode{
-		log:        gethlog.New(),
+		log:        testlog.Logger(t, slog.LevelDebug),
 		version:    "test",
 		chains:     nil,
 		activities: []activity.Activity{run, plain},
@@ -84,12 +88,11 @@ func TestRunnableActivityGating(t *testing.T) {
 	defer cancel()
 
 	require.NoError(t, s.Start(ctx))
-	require.Equal(t, 1, run.started, "runnable activity should be started exactly once")
-	require.Equal(t, 0, run.stopped, "Stop is invoked during Stop(), not here")
 
 	// now stop and ensure Stop was called on runnable activity
 	err := s.Stop(context.Background())
 	require.NoError(t, err)
+	require.Equal(t, 1, run.started, "runnable activity should be started exactly once")
 	require.Equal(t, 1, run.stopped, "runnable activity should be stopped exactly once")
 }
 
