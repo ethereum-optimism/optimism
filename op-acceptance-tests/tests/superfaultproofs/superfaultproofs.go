@@ -797,6 +797,7 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
 
+
 	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
 	startTimestamp := endTimestamp - 1
 

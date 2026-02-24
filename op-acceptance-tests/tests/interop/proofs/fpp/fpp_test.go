@@ -47,13 +47,26 @@ func TestNextSuperRootNotFound(gt *testing.T) {
 	startTimestamp := chainBLastBlock.Time
 	endTimestamp := startTimestamp + blockTime
 
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp - 1)
+	t.Log("Validated timestamp", endTimestamp-1)
+
 	// Verify we have a super root at the last block timestamp
 	resp := sys.SuperRoots.SuperRootAtTimestamp(startTimestamp)
 	t.Require().NotNil(resp.Data)
 
+	// We have 1 second block times so we _should_ have a super root one second after startTimestamp
+	// and it should be the same as the super root at startTimestamp because there are no new blocks yet.
+	resp2 := sys.SuperRoots.SuperRootAtTimestamp(endTimestamp - 1)
+	t.Require().NotNil(resp2.Data)
+	t.Require().Len(resp2.OptimisticAtTimestamp, 2)
+	t.Log("Super root at", endTimestamp-1, "is", resp2.Data.SuperRoot)
+
 	// But not at the next block
 	resp = sys.SuperRoots.SuperRootAtTimestamp(endTimestamp)
 	t.Require().Nil(resp.Data)
+	t.Require().Len(resp.OptimisticAtTimestamp, 1) // Second chain is missing because it's not safe yet.
+	t.Require().Contains(resp.OptimisticAtTimestamp, sys.L2ChainA.ChainID())
+	t.Require().NotContains(resp.OptimisticAtTimestamp, sys.L2ChainB.ChainID())
 
 	// Run FPP from timestamp of safe head on second chain, to 2 seconds later.
 	dgf := sys.DisputeGameFactory()
