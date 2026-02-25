@@ -2,7 +2,9 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -349,7 +351,16 @@ func (s *Driver) eventLoop() {
 			s.metrics.RecordPipelineReset()
 			close(respCh)
 		case <-s.drain.Await():
-			if err := s.drain.Drain(); err != nil {
+			const maxDrainEvents = 20
+			drained := 0
+			err := s.drain.DrainUntil(func(ev event.Event) bool {
+				drained++
+				return drained >= maxDrainEvents
+			}, true)
+			if drained >= maxDrainEvents {
+				s.log.Info("event drain capped to avoid starving sequencer", "cap", maxDrainEvents)
+			}
+			if err != nil && !errors.Is(err, io.EOF) {
 				if s.driverCtx.Err() != nil {
 					return
 				} else {

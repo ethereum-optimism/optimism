@@ -19,8 +19,21 @@ func (ev BuildStartEvent) String() string {
 }
 
 func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent) {
+	eventReceivedTime := time.Now()
 	rpcCtx, cancel := context.WithTimeout(e.ctx, buildStartTimeout)
 	defer cancel()
+
+	// Calculate slot delay: how late are we compared to when we should start building?
+	// We should start building at (block_timestamp - block_time)
+	// slot_delay_ms = actual_start - expected_start
+	// Positive = late, Negative = early, ~0 = on time
+	blockTimestamp := time.Unix(int64(ev.Attributes.Attributes.Timestamp), 0)
+	expectedStart := blockTimestamp.Add(-time.Duration(e.rollupCfg.BlockTime) * time.Second)
+	slotDelayMs := eventReceivedTime.Sub(expectedStart).Milliseconds()
+
+	e.log.Info("BuildStartEvent received",
+		"block_number", ev.Attributes.Parent.Number+1,
+		"slot_delay_ms", slotDelayMs)
 
 	if ev.Attributes.DerivedFrom != (eth.L1BlockRef{}) &&
 		e.pendingSafeHead.Hash != ev.Attributes.Parent.Hash {

@@ -127,5 +127,6 @@ type SequencerStateListener interface {
 
 type Drain interface {
 	Drain() error
+	DrainUntil(fn func(ev event.Event) bool, excl bool) error
 	Await() <-chan struct{}
 }
