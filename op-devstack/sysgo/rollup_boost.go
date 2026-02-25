@@ -186,7 +186,7 @@ func WithRollupBoost(id stack.RollupBoostNodeID, l2ELID stack.L2ELNodeID, opts .
 		cfg := DefaultRollupBoostConfig()
 		RollupBoostOptionBundle(opts).Apply(orch, id, cfg)
 		// Source L2 engine/JWT from the L2 EL object (mandatory)
-		if l2EL, ok := orch.l2ELs.Get(l2ELID); ok {
+		if l2EL, ok := orch.GetL2EL(l2ELID); ok {
 			engineRPC := l2EL.EngineRPC()
 			switch {
 			case strings.HasPrefix(engineRPC, "ws://"):
@@ -218,7 +218,7 @@ func WithRollupBoost(id stack.RollupBoostNodeID, l2ELID stack.L2ELNodeID, opts .
 		r.Start()
 		p.Cleanup(r.Stop)
 		// Register for hydration
-		orch.rollupBoosts.Set(id, r)
+		orch.registry.Register(stack.ConvertRollupBoostNodeID(id).ComponentID, r)
 	})
 }
 
@@ -398,10 +398,11 @@ func RollupBoostWithExtraArgs(args ...string) RollupBoostOption {
 
 func RollupBoostWithBuilderNode(id stack.OPRBuilderNodeID) RollupBoostOption {
 	return RollupBoostOptionFn(func(orch *Orchestrator, rbID stack.RollupBoostNodeID, cfg *RollupBoostConfig) {
-		builderNode, ok := orch.oprbuilderNodes.Get(id)
+		builderComponent, ok := orch.registry.Get(stack.ConvertOPRBuilderNodeID(id).ComponentID)
 		if !ok {
 			orch.P().Require().FailNow("builder node not found")
 		}
+		builderNode := builderComponent.(*OPRBuilderNode)
 		cfg.BuilderURL = ensureHTTPURL(builderNode.authProxyURL)
 		cfg.BuilderJWTPath = builderNode.cfg.AuthRPCJWTPath
 		cfg.FlashblocksBuilderURL = builderNode.wsProxyURL

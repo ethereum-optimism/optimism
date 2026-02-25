@@ -370,7 +370,8 @@ contract GenerateNUTBundle is Script {
             superchainTokenBridgeImpl: implementationConfigs["SuperchainTokenBridge"].implementation,
             nativeAssetLiquidityImpl: implementationConfigs["NativeAssetLiquidity"].implementation,
             liquidityControllerImpl: implementationConfigs["LiquidityController"].implementation,
-            feeSplitterImpl: implementationConfigs["FeeSplitter"].implementation
+            feeSplitterImpl: implementationConfigs["FeeSplitter"].implementation,
+            conditionalDeployerImpl: implementationConfigs["ConditionalDeployer"].implementation
         });
     }
 
@@ -602,6 +603,15 @@ contract GenerateNUTBundle is Script {
             args: bytes(""),
             deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
             implementation: UpgradeUtils.computeCreate2Address(vm.getCode("FeeSplitter.sol:FeeSplitter"), SALT)
+        });
+        implementationConfigs["ConditionalDeployer"] = ImplementationConfig({
+            name: "ConditionalDeployer",
+            artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
+            args: bytes(""),
+            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            implementation: UpgradeUtils.computeCreate2Address(
+                vm.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
+            )
         });
     }
 }

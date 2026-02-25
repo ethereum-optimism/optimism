@@ -134,13 +134,13 @@ func WithDeployer() stack.Option[*Orchestrator] {
 				genesis:   wb.outL1Genesis,
 				blockTime: 6,
 			}
-			o.l1Nets.Set(l1ID.ChainID(), l1Net)
+			o.registry.Register(stack.ConvertL1NetworkID(l1ID).ComponentID, l1Net)
 
-			o.superchains.Set(superchainID, &Superchain{
+			o.registry.Register(stack.ConvertSuperchainID(superchainID).ComponentID, &Superchain{
 				id:         superchainID,
 				deployment: wb.outSuperchainDeployment,
 			})
-			o.clusters.Set(clusterID, &Cluster{
+			o.registry.Register(stack.ConvertClusterID(clusterID).ComponentID, &Cluster{
 				id:     clusterID,
 				cfgset: wb.outFullCfgSet,
 			})
@@ -162,7 +162,7 @@ func WithDeployer() stack.Option[*Orchestrator] {
 					deployment: l2Dep,
 					keys:       o.keys,
 				}
-				o.l2Nets.Set(l2ID.ChainID(), l2Net)
+				o.registry.Register(stack.ConvertL2NetworkID(l2ID).ComponentID, l2Net)
 			}
 		},
 	}

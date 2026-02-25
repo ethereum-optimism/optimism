@@ -119,8 +119,8 @@ prepare-upgrade-env *ARGS : build-go-ffi
   export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"
   echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
   export FORK_RPC_URL=$ETH_RPC_URL
-  export FORK_RETRIES=10
-  export FORK_BACKOFF=1000
+  export FOUNDRY_FORK_RETRIES=10
+  export FOUNDRY_FORK_RETRY_BACKOFF=1000
   export FORK_TEST=true
   {{ARGS}} \
   --match-path "test/{L1,dispute,cannon}/**"

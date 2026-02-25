@@ -28,7 +28,7 @@ func TestVerifiedDB_WriteAndRead(t *testing.T) {
 
 	result1 := VerifiedResult{
 		Timestamp: 1000,
-		L1Head: eth.BlockID{
+		L1Inclusion: eth.BlockID{
 			Hash:   common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"),
 			Number: 100,
 		},
@@ -57,7 +57,7 @@ func TestVerifiedDB_WriteAndRead(t *testing.T) {
 	retrieved, err := db.Get(1000)
 	require.NoError(t, err)
 	require.Equal(t, result1.Timestamp, retrieved.Timestamp)
-	require.Equal(t, result1.L1Head, retrieved.L1Head)
+	require.Equal(t, result1.L1Inclusion, retrieved.L1Inclusion)
 	require.Equal(t, len(result1.L2Heads), len(retrieved.L2Heads))
 	require.Equal(t, result1.L2Heads[chainID1], retrieved.L2Heads[chainID1])
 	require.Equal(t, result1.L2Heads[chainID2], retrieved.L2Heads[chainID2])
@@ -88,33 +88,33 @@ func TestVerifiedDB_SequentialCommits(t *testing.T) {
 
 	// Commit first timestamp
 	err = db.Commit(VerifiedResult{
-		Timestamp: 100,
-		L1Head:    eth.BlockID{Hash: common.HexToHash("0x01"), Number: 1},
-		L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x02"), Number: 2}},
+		Timestamp:   100,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x01"), Number: 1},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x02"), Number: 2}},
 	})
 	require.NoError(t, err)
 
 	// Commit next sequential timestamp should succeed
 	err = db.Commit(VerifiedResult{
-		Timestamp: 101,
-		L1Head:    eth.BlockID{Hash: common.HexToHash("0x03"), Number: 3},
-		L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x04"), Number: 4}},
+		Timestamp:   101,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x03"), Number: 3},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x04"), Number: 4}},
 	})
 	require.NoError(t, err)
 
 	// Try to commit non-sequential timestamp (gap)
 	err = db.Commit(VerifiedResult{
-		Timestamp: 105,
-		L1Head:    eth.BlockID{Hash: common.HexToHash("0x05"), Number: 5},
-		L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x06"), Number: 6}},
+		Timestamp:   105,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x05"), Number: 5},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x06"), Number: 6}},
 	})
 	require.ErrorIs(t, err, ErrNonSequential)
 
 	// Try to commit already committed timestamp
 	err = db.Commit(VerifiedResult{
-		Timestamp: 100,
-		L1Head:    eth.BlockID{Hash: common.HexToHash("0x07"), Number: 7},
-		L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x08"), Number: 8}},
+		Timestamp:   100,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x07"), Number: 7},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x08"), Number: 8}},
 	})
 	require.ErrorIs(t, err, ErrAlreadyCommitted)
 
@@ -132,16 +132,16 @@ func TestVerifiedDB_Persistence(t *testing.T) {
 	require.NoError(t, err)
 
 	err = db.Commit(VerifiedResult{
-		Timestamp: 500,
-		L1Head:    eth.BlockID{Hash: common.HexToHash("0xaaaa"), Number: 50},
-		L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xbbbb"), Number: 100}},
+		Timestamp:   500,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xaaaa"), Number: 50},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xbbbb"), Number: 100}},
 	})
 	require.NoError(t, err)
 
 	err = db.Commit(VerifiedResult{
-		Timestamp: 501,
-		L1Head:    eth.BlockID{Hash: common.HexToHash("0xcccc"), Number: 51},
-		L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xdddd"), Number: 101}},
+		Timestamp:   501,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xcccc"), Number: 51},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xdddd"), Number: 101}},
 	})
 	require.NoError(t, err)
 
@@ -161,7 +161,7 @@ func TestVerifiedDB_Persistence(t *testing.T) {
 	result, err := db2.Get(500)
 	require.NoError(t, err)
 	require.Equal(t, uint64(500), result.Timestamp)
-	require.Equal(t, common.HexToHash("0xaaaa"), result.L1Head.Hash)
+	require.Equal(t, common.HexToHash("0xaaaa"), result.L1Inclusion.Hash)
 
 	result, err = db2.Get(501)
 	require.NoError(t, err)
@@ -169,9 +169,9 @@ func TestVerifiedDB_Persistence(t *testing.T) {
 
 	// Next commit should continue from last timestamp
 	err = db2.Commit(VerifiedResult{
-		Timestamp: 502,
-		L1Head:    eth.BlockID{Hash: common.HexToHash("0xeeee"), Number: 52},
-		L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xffff"), Number: 102}},
+		Timestamp:   502,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xeeee"), Number: 52},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xffff"), Number: 102}},
 	})
 	require.NoError(t, err)
 }
@@ -192,9 +192,9 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		// Commit several timestamps
 		for ts := uint64(100); ts <= 105; ts++ {
 			err = db.Commit(VerifiedResult{
-				Timestamp: ts,
-				L1Head:    eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
-				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
 			})
 			require.NoError(t, err)
 		}
@@ -240,9 +240,9 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		// Commit up to timestamp 100
 		for ts := uint64(98); ts <= 100; ts++ {
 			err = db.Commit(VerifiedResult{
-				Timestamp: ts,
-				L1Head:    eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
-				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
 			})
 			require.NoError(t, err)
 		}
@@ -270,9 +270,9 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		// Commit a few entries
 		for ts := uint64(100); ts <= 102; ts++ {
 			err = db.Commit(VerifiedResult{
-				Timestamp: ts,
-				L1Head:    eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
-				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
 			})
 			require.NoError(t, err)
 		}
@@ -307,9 +307,9 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		// Commit 100-105
 		for ts := uint64(100); ts <= 105; ts++ {
 			err = db.Commit(VerifiedResult{
-				Timestamp: ts,
-				L1Head:    eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
-				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
 			})
 			require.NoError(t, err)
 		}
@@ -320,15 +320,15 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 
 		// Should be able to commit 103 again (sequential from 102)
 		err = db.Commit(VerifiedResult{
-			Timestamp: 103,
-			L1Head:    eth.BlockID{Hash: common.HexToHash("0xNEW"), Number: 103},
-			L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xNEW2"), Number: 103}},
+			Timestamp:   103,
+			L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xNEW"), Number: 103},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xNEW2"), Number: 103}},
 		})
 		require.NoError(t, err)
 
 		// Verify new data
 		result, err := db.Get(103)
 		require.NoError(t, err)
-		require.Equal(t, common.HexToHash("0xNEW"), result.L1Head.Hash)
+		require.Equal(t, common.HexToHash("0xNEW"), result.L1Inclusion.Hash)
 	})
 }

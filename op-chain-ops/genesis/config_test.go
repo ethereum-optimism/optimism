@@ -209,7 +209,8 @@ func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
 		{forks.Holocene, 5},
 		{forks.Isthmus, 6},
 		{forks.Jovian, 7},
-		{forks.Interop, 8},
+		{forks.Karst, 8},
+		{forks.Interop, 9},
 	}
 	for _, tt := range tests {
 		var d UpgradeScheduleDeployConfig

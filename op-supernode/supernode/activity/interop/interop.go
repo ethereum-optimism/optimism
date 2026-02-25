@@ -100,7 +100,6 @@ func New(
 		verifiedDB:          verifiedDB,
 		logsDBs:             logsDBs,
 		dataDir:             dataDir,
-		currentL1:           eth.BlockID{},
 		activationTimestamp: activationTimestamp,
 	}
 	// default to using the verifyInteropMessages function
@@ -187,6 +186,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		i.log.Error("failed to collect current L1", "err", err)
 		return false, err
 	}
+
 	// Perform the interop evaluation
 	result, err := i.progressInterop()
 	if err != nil {
@@ -210,13 +210,13 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	// the current L1s being considered by the Activity right now depend on what progress was made:
 	// - if interop failed to run, the current L1s are not updated
 	// - if interop ran but did not advance the verified timestamp, the CurrentL1 values collected are used directly
-	// - if interop ran and advanced the verified timestamp, the CurrentL1 is the L1 head at the verified timestamp
+	// - if interop ran and advanced the verified timestamp, the L1Inclusion is the L1 inclusion at the verified timestamp
 	// this is because the individual chains may advance their CurrentL1, and if progress is being made, we might not be done using the collected L1s.
 	verifiedAdvanced := !result.IsEmpty()
 	i.mu.Lock()
 	if verifiedAdvanced {
-		// the new CurrentL1 is the L1 head at the verified timestamp
-		i.currentL1 = result.L1Head
+		// the new CurrentL1 is the L1 inclusion at the verified timestamp
+		i.currentL1 = result.L1Inclusion
 	} else {
 		// the new CurrentL1 is the lowest CurrentL1 from the collected chains
 		i.currentL1 = localCurrentL1
@@ -419,6 +419,40 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 		return emptyBlock, 0
 	}
 	return head, ts
+}
+
+// VerifiedBlockAtL1 returns the verified L2 block and timestamp
+// which guarantees that the verified data at that pauseAtTimestamp
+// originates from or before the supplied L1 block.
+func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64) {
+	// Get the last verified timestamp
+	lastTs, ok := i.verifiedDB.LastTimestamp()
+	if !ok {
+		return eth.BlockID{}, 0
+	}
+
+	// Search backwards from the last timestamp to find the latest result
+	// where the L1 inclusion block is at or below the supplied L1 block number
+	for ts := lastTs; ts > 0; ts-- {
+		result, err := i.verifiedDB.Get(ts)
+		if err != nil {
+			// Timestamp might not exist (due to gaps or rewinds), continue searching
+			continue
+		}
+
+		// Check if this result's L1 inclusion is at or below the supplied L1 block number
+		if result.L1Inclusion.Number <= l1Block.Number {
+			// Found a finalized result, return the L2 head for this chain
+			head, ok := result.L2Heads[chainID]
+			if !ok {
+				return eth.BlockID{}, 0
+			}
+			return head, ts
+		}
+	}
+
+	// No verified block found
+	return eth.BlockID{}, 0
 }
 
 // Reset is called when a chain container resets due to an invalidated block.

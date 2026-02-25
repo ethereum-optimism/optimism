@@ -83,7 +83,7 @@ library UpgradeUtils {
     /// @notice Returns the array of predeploy names to upgrade.
     /// @dev Exception: StorageSetter is not a predeploy, but is upgraded in L2CM too.
     /// @return implementations_ Array of implementation names to upgrade.
-    function getImplementationsNamesToUpgrade() public pure returns (string[] memory implementations_) {
+    function getImplementationsNamesToUpgrade() internal pure returns (string[] memory implementations_) {
         implementations_ = new string[](IMPLEMENTATION_COUNT);
 
         // StorageSetter
@@ -128,7 +128,7 @@ library UpgradeUtils {
     /// @param _code The contract initcode (creation bytecode).
     /// @param _salt The CREATE2 salt.
     /// @return expected_ The computed contract address.
-    function computeCreate2Address(bytes memory _code, bytes32 _salt) public pure returns (address expected_) {
+    function computeCreate2Address(bytes memory _code, bytes32 _salt) internal pure returns (address expected_) {
         expected_ = vm.computeCreate2Address(_salt, keccak256(_code), Preinstalls.DeterministicDeploymentProxy);
     }
 
@@ -148,7 +148,7 @@ library UpgradeUtils {
         bytes32 _salt,
         uint64 _gasLimit
     )
-        public
+        internal
         view
         returns (NetworkUpgradeTxns.NetworkUpgradeTxn memory txn_)
     {
@@ -173,7 +173,7 @@ library UpgradeUtils {
         bytes32 _salt,
         uint64 _gasLimit
     )
-        public
+        internal
         view
         returns (NetworkUpgradeTxns.NetworkUpgradeTxn memory txn_)
     {
@@ -204,7 +204,7 @@ library UpgradeUtils {
         address _implementation,
         uint64 _gasLimit
     )
-        public
+        internal
         pure
         returns (NetworkUpgradeTxns.NetworkUpgradeTxn memory txn_)
     {

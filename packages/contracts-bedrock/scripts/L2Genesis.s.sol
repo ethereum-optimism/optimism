@@ -185,6 +185,10 @@ contract L2Genesis is Script {
             return;
         }
 
+        if (forkEquals(_fork, Fork.KARST)) {
+            return;
+        }
+
         if (forkEquals(_fork, Fork.INTEROP)) {
             return;
         }

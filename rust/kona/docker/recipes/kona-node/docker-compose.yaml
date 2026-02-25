@@ -33,7 +33,7 @@ services:
 
   op-reth:
     restart: unless-stopped
-    image: ${OP_RETH_NODE_IMAGE:-ghcr.io/paradigmxyz/op-reth:latest}
+    image: ${OP_RETH_NODE_IMAGE:-us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:develop}
     depends_on:
       - prometheus
     ports:
@@ -58,7 +58,7 @@ services:
 
   kona-node:
     restart: unless-stopped
-    image: ${KONA_NODE_IMAGE:-ghcr.io/op-rs/kona/kona-node:latest}
+    image: ${KONA_NODE_IMAGE:-us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:develop}
     depends_on:
       - prometheus
       - op-reth

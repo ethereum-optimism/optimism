@@ -56,12 +56,12 @@ Nightly Docker images are automatically built and published every day at 2 AM UT
 
 ```sh
 # Pull the latest nightly build (multi-platform: linux/amd64, linux/arm64)
-docker pull ghcr.io/op-rs/kona/kona-node:nightly
-docker pull ghcr.io/op-rs/kona/kona-host:nightly
-docker pull ghcr.io/op-rs/kona/kona-supervisor:nightly
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:nightly
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-host:nightly
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-supervisor:nightly
 
 # Pull a specific date's nightly build
-docker pull ghcr.io/op-rs/kona/kona-node:nightly-2024-12-10
+docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:nightly-2024-12-10
 ```
 
 ### Manual Trigger

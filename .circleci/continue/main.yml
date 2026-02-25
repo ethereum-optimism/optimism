@@ -452,7 +452,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "15"
+        default: &rust-cache-version "16"
       profile:
         description: "Profile to restore the cache for"
         type: string
@@ -486,7 +486,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "15"
+        default: *rust-cache-version
       profile:
         description: "Profile to save the cache for"
         type: string
@@ -527,7 +527,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "15"
+        default: *rust-cache-version
       profile:
         description: "Profile to restore the cache for"
         type: string
@@ -563,7 +563,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "15"
+        default: *rust-cache-version
       profile:
         description: "Profile to build the binary with"
         type: string
@@ -659,7 +659,7 @@ jobs:
       version:
         description: "Version of the cache"
         type: string
-        default: "15"
+        default: *rust-cache-version
       profile:
         description: "Profile to build the binary with"
         type: string
@@ -1372,11 +1372,9 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           when: on_fail
-      - when:
-          condition: always
-          steps:
-            - store_test_results:
-                path: packages/contracts-bedrock/results/results.xml
+      - store_test_results:
+          path: packages/contracts-bedrock/results
+          when: always
       - run:
           name: Lint forge test names
           command: just lint-forge-tests-check-no-build
@@ -1432,11 +1430,9 @@ jobs:
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "~/.cache/go-build"
-      - when:
-          condition: always
-          steps:
-            - store_test_results:
-                path: packages/contracts-bedrock/results/results.xml
+      - store_test_results:
+          path: packages/contracts-bedrock/results
+          when: always
       - notify-failures-on-develop
 
   # AI Contracts Test Maintenance System
@@ -1663,12 +1659,11 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
-      - when:
-          condition: always
-          steps:
-            - store_test_results:
-                path: packages/contracts-bedrock/results/results.xml
-      - notify-failures-on-develop
+      - store_test_results:
+          path: packages/contracts-bedrock/results
+          when: always
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   contracts-bedrock-upload:
     machine: true
@@ -3126,6 +3121,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
+            - go-binaries-for-sysgo
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3193,15 +3189,6 @@ workflows:
           ignore-dirs: ./packages/contracts-bedrock/lib
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # Acceptance test jobs (formerly in separate acceptance-tests workflow)
-      - rust-build-binary: &cannon-kona-host
-          name: cannon-kona-host
-          directory: rust
-          profile: "release"
-          binary: "kona-host"
-          save_cache: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: rust
@@ -3230,7 +3217,9 @@ workflows:
             - kona-build-release
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
-      - go-binaries-for-sysgo
+      - go-binaries-for-sysgo:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3243,7 +3232,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - cannon-kona-host
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
       # Generate flaky test report
@@ -3343,6 +3331,7 @@ workflows:
               ignore: /.*/
           context:
             - oplabs-gcr-release
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
             - contracts-bedrock-build
@@ -3560,6 +3549,8 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
       - op-acceptance-tests-flake-shake-report:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - op-acceptance-tests-flake-shake
       - op-acceptance-tests-flake-shake-promote:

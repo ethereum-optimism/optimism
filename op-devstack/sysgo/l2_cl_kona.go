@@ -165,8 +165,9 @@ func WithKonaNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1EL
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		followSource := func(orch *Orchestrator) string {
 			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
-			l2CLFollowSource, ok := orch.l2CLs.Get(l2FollowSourceID)
+			l2CLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2FollowSourceID).ComponentID)
 			p.Require().True(ok, "l2 CL Follow Source required")
+			l2CLFollowSource := l2CLComponent.(L2CLNode)
 			return l2CLFollowSource.UserRPC()
 		}(orch)
 		opts = append(opts, L2CLFollowSource(followSource))
@@ -184,19 +185,23 @@ func withKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 
 		require := p.Require()
 
-		l1Net, ok := orch.l1Nets.Get(l1CLID.ChainID())
+		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(l1CLID.ChainID())).ComponentID)
 		require.True(ok, "l1 network required")
+		l1Net := l1NetComponent.(*L1Network)
 
-		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID())
+		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(l2CLID.ChainID())).ComponentID)
 		require.True(ok, "l2 network required")
+		l2Net := l2NetComponent.(*L2Network)
 
 		l1ChainConfig := l1Net.genesis.Config
 
-		l1EL, ok := orch.l1ELs.Get(l1ELID)
+		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 		require.True(ok, "l1 EL node required")
+		l1EL := l1ELComponent.(L1ELNode)
 
-		l1CL, ok := orch.l1CLs.Get(l1CLID)
+		l1CLComponent, ok := orch.registry.Get(stack.ConvertL1CLNodeID(l1CLID).ComponentID)
 		require.True(ok, "l1 CL node required")
+		l1CL := l1CLComponent.(*L1CLNode)
 
 		l2EL, ok := orch.GetL2EL(l2ELID)
 		require.True(ok, "l2 EL node required")
@@ -301,6 +306,8 @@ func withKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		k.Start()
 		p.Cleanup(k.Stop)
 		p.Logger().Info("Kona-node is up", "rpc", k.UserRPC())
-		require.True(orch.l2CLs.SetIfMissing(l2CLID, k), "must not already exist")
+		cid := stack.ConvertL2CLNodeID(l2CLID).ComponentID
+		require.False(orch.registry.Has(cid), "must not already exist")
+		orch.registry.Register(cid, k)
 	}
 }
