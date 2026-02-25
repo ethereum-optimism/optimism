@@ -9,7 +9,9 @@
 !/op-deployer
 !/op-dripper
 !/op-challenger
-!/packages/contracts-bedrock/snapshots
+!/packages/contracts-bedrock
+# Exclude contract submodule libs from context (fetched via git inside Dockerfile)
+packages/contracts-bedrock/lib/
 !/op-dispute-mon
 !/op-conductor
 !/op-node
@@ -30,6 +32,7 @@
 # Exclude large rust build artifacts
 rust/target
 rust/.git
+!/.gitmodules
 !/go.mod
 !/go.sum
 !/justfiles
