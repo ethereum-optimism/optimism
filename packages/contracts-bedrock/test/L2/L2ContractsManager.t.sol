@@ -46,9 +46,7 @@ import { LiquidityController } from "src/L2/LiquidityController.sol";
 /// @title L2ContractsManager_FullConfigExposer_Harness
 /// @notice Harness contract that exposes internal functions for testing.
 contract L2ContractsManager_FullConfigExposer_Harness is L2ContractsManager {
-    constructor(L2ContractsManagerTypes.Implementations memory _implementations)
-        L2ContractsManager(_implementations)
-    { }
+    constructor(L2ContractsManagerTypes.Implementations memory _implementations) L2ContractsManager(_implementations) { }
 
     /// @notice Returns the full configuration for the L2 predeploys.
     function loadFullConfig() external view returns (L2ContractsManagerTypes.FullConfig memory) {
@@ -813,7 +811,8 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
 }
 
 /// @title L2ContractsManager_Upgrade_InteropFlag_Test
-/// @notice Tests that interop predeploy upgrades are correctly gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
+/// @notice Tests that interop predeploy upgrades are correctly gated behind the OPTIMISM_PORTAL_INTEROP dev feature
+/// flag.
 contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgrade_Test {
     /// @notice The list of interop predeploy addresses.
     address[] internal interopPredeploys;
@@ -879,7 +878,8 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
         );
     }
 
-    /// @notice Tests that all 7 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag is disabled.
+    /// @notice Tests that all 7 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
+    /// is disabled.
     function test_upgradeSkipsInteropPredeploys_whenInteropFlagDisabled_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
@@ -911,8 +911,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         return _predeploy == Predeploys.CROSS_L2_INBOX || _predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
             || _predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE || _predeploy == Predeploys.ETH_LIQUIDITY
             || _predeploy == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY
-            || _predeploy == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON
-            || _predeploy == Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
+            || _predeploy == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON || _predeploy == Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
     }
 
     /// @notice Returns CGT-only predeploys that require initialization.

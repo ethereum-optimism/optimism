@@ -96,12 +96,16 @@
     "sourceCodeHash": "0x7e438cbbe9a8248887b8c21f68c811f90a5cae4902cbbf7b0a1f6cd644dc42d9"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xc6953fefa5142a37061fc6e96d0ec251a8ff8bcc2d09e8fdeb023e8677ff17c7",
-    "sourceCodeHash": "0xa4fba8f6dd5f7e1cfcba63ca8b9d0fbe621d1fe33aeb6147a185045fcded7c14"
+    "initCodeHash": "0xf1789da2f1dbba63f18aa4846d25e2961ca7511069f174eed9b2964eac1db13d",
+    "sourceCodeHash": "0x17626adb09cc5969bc2c30979ab922747c8efb6e4d261a832bb7d1f2f54c2be3"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0xe160be403df12709c371c33195d1b9c3b5e9499e902e86bdabc8eed749c3fd61",
     "sourceCodeHash": "0x12ea125038b87e259a0d203e119faa6e9726ab2bdbc30430f820ccd48fe87e14"
+  },
+  "src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags": {
+    "initCodeHash": "0x68dbf30947fb184237861f59ef40b5f93f036332a98a74c694efd530fac30fd2",
+    "sourceCodeHash": "0xa4ccbbc6886cf94f2f918181f7add1ac986c7a50fe6dd1977e6fc7543caf3395"
   },
   "src/L2/L2ERC721Bridge.sol:L2ERC721Bridge": {
     "initCodeHash": "0x863f0f5b410983f3e51cd97c60a3a42915141b7452864d0e176571d640002b81",

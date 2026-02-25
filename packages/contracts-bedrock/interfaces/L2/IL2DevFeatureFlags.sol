@@ -12,13 +12,13 @@ interface IL2DevFeatureFlags is ISemver {
     function setDevFeatureBitmap(bytes32 _bitmap) external;
 
     /// @notice Returns the development feature bitmap.
-    /// @return The current development feature bitmap.
-    function devFeatureBitmap() external view returns (bytes32);
+    /// @return bitmap_ The current development feature bitmap.
+    function devFeatureBitmap() external view returns (bytes32 bitmap_);
 
     /// @notice Checks if a development feature is enabled.
     /// @param _feature The feature to check.
-    /// @return True if the feature is enabled, false otherwise.
-    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
+    /// @return enabled_ True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool enabled_);
 
     /// @notice Constructor placeholder for the interface.
     function __constructor__() external;

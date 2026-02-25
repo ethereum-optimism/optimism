@@ -37,8 +37,8 @@ contract L2DevFeatureFlags is ISemver {
 
     /// @notice Checks if a development feature is enabled.
     /// @param _feature The feature to check.
-    /// @return True if the feature is enabled, false otherwise.
-    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(devFeatureBitmap(), _feature);
+    /// @return enabled_ True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool enabled_) {
+        enabled_ = DevFeatures.isDevFeatureEnabled(devFeatureBitmap(), _feature);
     }
 }
