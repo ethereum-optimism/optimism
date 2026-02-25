@@ -9,6 +9,7 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
+import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 /// @title GenerateNUTBundleTest
 /// @notice Tests that GenerateNUTBundle correctly generates Network Upgrade Transaction bundles
@@ -64,24 +65,53 @@ contract GenerateNUTBundleTest is Test {
         // 1. ConditionalDeployer deployment
         // 2. ConditionalDeployer upgrade
         // 3. All implementation deployments (StorageSetter + predeploys)
-        // 4. ProxyAdmin upgrade
-        // 5. L2ContractsManager deployment (TODO)
-        // 6. Upgrade execution (TODO)
+        // 4. L2ProxyAdmin upgrade
+        // 5. L2ContractsManager deployment
+        // 6. Upgrade execution
 
-        // Verify first transaction intent corresponds to ConditionalDeployer deployment
+        // Verify ConditionalDeployer deployment
         assertEq(
             output.txns[0].intent,
             "jovian: ConditionalDeployer Deployment",
             "First transaction should be ConditionalDeployer deployment"
         );
 
+        // Verify ConditionalDeployer upgrade
         assertEq(
             output.txns[1].intent,
             "jovian: Upgrade ConditionalDeployer Implementation",
             "Second transaction should be ConditionalDeployer upgrade"
         );
 
-        /// TODO: Verify remaining transactions
+        string[] memory implementationsToUpgrade = UpgradeUtils.getImplementationsNamesToUpgrade();
+        for (uint256 i = 0; i < implementationsToUpgrade.length; i++) {
+            assertEq(
+                output.txns[i + 2].intent,
+                string.concat("jovian: Deploy ", implementationsToUpgrade[i], " Implementation"),
+                string.concat("Transaction should be ", implementationsToUpgrade[i], " deployment")
+            );
+        }
+
+        // Verify L2ProxyAdmin upgrade
+        assertEq(
+            output.txns[output.txns.length - 3].intent,
+            "jovian: Upgrade L2ProxyAdmin Implementation",
+            "Third to last transaction should be L2ProxyAdmin upgrade"
+        );
+
+        // Verify L2ContractsManager deployment
+        assertEq(
+            output.txns[output.txns.length - 2].intent,
+            "jovian: Deploy L2ContractsManager Implementation",
+            "Second to last transaction should be L2ContractsManager implementation deployment"
+        );
+
+        // Verify upgrade execution
+        assertEq(
+            output.txns[output.txns.length - 1].intent,
+            "jovian: L2ProxyAdmin Upgrade Predeploys",
+            "Last transaction should be L2ProxyAdmin upgrade predeploys"
+        );
     }
 
     /// @notice Tests that multiple runs produce deterministic results.
