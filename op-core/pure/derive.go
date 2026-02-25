@@ -3,6 +3,8 @@ package pure
 import (
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/params"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -33,6 +35,7 @@ import (
 // See op-node/rollup/derive/batches.go for the full upstream validation logic.
 func PureDerive(
 	cfg *rollup.Config,
+	l1ChainConfig *params.ChainConfig,
 	safeHead eth.L2BlockRef,
 	sysConfig eth.SystemConfig,
 	l1Blocks []L1Input,
@@ -111,7 +114,7 @@ func PureDerive(
 						return nil, fmt.Errorf("missing L1 block %d for batch epoch", batch.EpochNum)
 					}
 
-					block, err := buildAttributes(batch, epochL1, cursor, sysConfig, cfg)
+					block, err := buildAttributes(batch, epochL1, cursor, sysConfig, cfg, l1ChainConfig)
 					if err != nil {
 						return nil, fmt.Errorf("building attributes at L1 block %d: %w", l1Ref.Number, err)
 					}
@@ -151,7 +154,7 @@ func PureDerive(
 			if epochL1 == nil {
 				return nil, fmt.Errorf("missing L1 block %d for empty batch epoch", newOrigin.Number)
 			}
-			block, err := buildAttributes(emptyBatch, epochL1, cursor, sysConfig, cfg)
+			block, err := buildAttributes(emptyBatch, epochL1, cursor, sysConfig, cfg, l1ChainConfig)
 			if err != nil {
 				return nil, fmt.Errorf("building empty batch attributes at L1 block %d: %w", l1Ref.Number, err)
 			}

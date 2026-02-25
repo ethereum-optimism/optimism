@@ -41,7 +41,7 @@ func TestBuildAttributes_EpochStart(t *testing.T) {
 		SequenceNumber: 3,
 	}
 
-	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg)
+	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.Attributes)
@@ -94,7 +94,7 @@ func TestBuildAttributes_SameEpoch(t *testing.T) {
 		SequenceNumber: 2,
 	}
 
-	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg)
+	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -137,7 +137,7 @@ func TestBuildAttributes_EmptyBatch(t *testing.T) {
 			SequenceNumber: 0,
 		}
 
-		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg)
+		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 		require.NoError(t, err)
 
 		// L1 info deposit + 1 user deposit = 2 (no batch txs)
@@ -165,7 +165,7 @@ func TestBuildAttributes_EmptyBatch(t *testing.T) {
 			SequenceNumber: 1,
 		}
 
-		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg)
+		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 		require.NoError(t, err)
 
 		// Only L1 info deposit, no user deposits, no batch txs
@@ -196,7 +196,7 @@ func TestBuildAttributes_HoloceneFields(t *testing.T) {
 		SequenceNumber: 0,
 	}
 
-	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg)
+	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 	require.NoError(t, err)
 	require.NotNil(t, result.Attributes.EIP1559Params)
 	require.Equal(t, sysConfig.EIP1559Params, *result.Attributes.EIP1559Params)
@@ -226,7 +226,7 @@ func TestBuildAttributes_SequenceNumber(t *testing.T) {
 			SequenceNumber: 5,
 		}
 
-		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg)
+		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 		require.NoError(t, err)
 		require.NotNil(t, result)
 	})
@@ -246,7 +246,7 @@ func TestBuildAttributes_SequenceNumber(t *testing.T) {
 			SequenceNumber: 5,
 		}
 
-		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg)
+		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 		require.NoError(t, err)
 		require.NotNil(t, result)
 	})

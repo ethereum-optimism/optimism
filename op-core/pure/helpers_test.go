@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	gethparams "github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
@@ -59,6 +60,10 @@ func testSystemConfig() eth.SystemConfig {
 		BatcherAddr: common.HexToAddress("0xba7c4e500000000000000000000000000000ba7c"),
 		GasLimit:    30_000_000,
 	}
+}
+
+func testL1ChainConfig() *gethparams.ChainConfig {
+	return gethparams.AllDevChainProtocolChanges
 }
 
 func testSafeHead(cfg *rollup.Config) eth.L2BlockRef {

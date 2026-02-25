@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -31,6 +32,7 @@ func buildAttributes(
 	cursor l2Cursor,
 	sysConfig eth.SystemConfig,
 	cfg *rollup.Config,
+	l1ChainConfig *params.ChainConfig,
 ) (*DerivedBlock, error) {
 	epochChanged := uint64(batch.EpochNum) != cursor.L1Origin.Number
 
@@ -43,7 +45,7 @@ func buildAttributes(
 
 	l2Timestamp := batch.Timestamp
 
-	l1InfoTx, err := derive.L1InfoDeposit(cfg, nil, sysConfig, seqNumber, l1Block.blockInfo(), l2Timestamp)
+	l1InfoTx, err := derive.L1InfoDeposit(cfg, l1ChainConfig, sysConfig, seqNumber, eth.HeaderBlockInfo(l1Block.Header), l2Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info deposit tx: %w", err)
 	}

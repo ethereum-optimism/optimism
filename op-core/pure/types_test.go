@@ -55,7 +55,7 @@ func TestCursorAdvance(t *testing.T) {
 	require.Equal(t, uint64(3), c.SequenceNumber)
 }
 
-func TestL1InputBlockInfo(t *testing.T) {
+func TestL1InputHeaderBlockInfo(t *testing.T) {
 	header := &types.Header{
 		ParentHash:    common.HexToHash("0x99"),
 		Number:        big.NewInt(100),
@@ -64,8 +64,7 @@ func TestL1InputBlockInfo(t *testing.T) {
 		BaseFee:       big.NewInt(7),
 		ExcessBlobGas: ptrTo(uint64(0)),
 	}
-	input := &L1Input{Header: header}
-	info := input.blockInfo()
+	info := eth.HeaderBlockInfo(header)
 
 	require.Equal(t, header.Hash(), info.Hash())
 	require.Equal(t, header.ParentHash, info.ParentHash())
@@ -74,7 +73,6 @@ func TestL1InputBlockInfo(t *testing.T) {
 	require.Equal(t, header.MixDigest, info.MixDigest())
 	require.Equal(t, header.BaseFee, info.BaseFee())
 
-	// Header and HeaderRLP delegate to the underlying header
 	require.Equal(t, header, info.Header())
 	_, err := info.HeaderRLP()
 	require.NoError(t, err)

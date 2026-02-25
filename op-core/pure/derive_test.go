@@ -23,7 +23,7 @@ func TestPureDerive_SingleBatch(t *testing.T) {
 	l1Origin := makeTestL1Input(0) // safe head's L1 origin
 	l1 := makeL1WithBatch(t, cfg, 1, safeHead, sysConfig)
 
-	derived, err := PureDerive(cfg, safeHead, sysConfig, []L1Input{*l1Origin, *l1})
+	derived, err := PureDerive(cfg, testL1ChainConfig(), safeHead, sysConfig, []L1Input{*l1Origin, *l1})
 	require.NoError(t, err)
 	require.Len(t, derived, 1)
 
@@ -46,7 +46,7 @@ func TestPureDerive_EmptyEpoch(t *testing.T) {
 		l1Blocks[i] = *makeTestL1Input(i)
 	}
 
-	derived, err := PureDerive(cfg, safeHead, sysConfig, l1Blocks)
+	derived, err := PureDerive(cfg, testL1ChainConfig(), safeHead, sysConfig, l1Blocks)
 	require.NoError(t, err)
 	require.Greater(t, len(derived), 0, "empty batches should be generated when sequencer window expires")
 
@@ -65,7 +65,7 @@ func TestPureDerive_MultipleChannelsAndEpochs(t *testing.T) {
 
 	l1Blocks := makeMultiEpochL1Inputs(t, cfg, safeHead, sysConfig)
 
-	derived, err := PureDerive(cfg, safeHead, sysConfig, l1Blocks)
+	derived, err := PureDerive(cfg, testL1ChainConfig(), safeHead, sysConfig, l1Blocks)
 	require.NoError(t, err)
 	require.Greater(t, len(derived), 1, "should derive multiple blocks from multiple epochs")
 
@@ -133,7 +133,7 @@ func TestPureDerive_ChannelTimeout(t *testing.T) {
 	completeL1.BatcherData = [][]byte{completeTx}
 	l1Blocks = append(l1Blocks, *completeL1)
 
-	derived, err := PureDerive(cfg, safeHead, sysConfig, l1Blocks)
+	derived, err := PureDerive(cfg, testL1ChainConfig(), safeHead, sysConfig, l1Blocks)
 	require.NoError(t, err)
 
 	// The incomplete channel timed out. Only the complete channel produces a block.
@@ -170,7 +170,7 @@ func TestPureDerive_InvalidBatchSkipped(t *testing.T) {
 	l1.BatcherData = [][]byte{batcherTx}
 
 	l1Origin := makeTestL1Input(0) // safe head's L1 origin
-	derived, err := PureDerive(cfg, safeHead, sysConfig, []L1Input{*l1Origin, *l1})
+	derived, err := PureDerive(cfg, testL1ChainConfig(), safeHead, sysConfig, []L1Input{*l1Origin, *l1})
 	require.NoError(t, err)
 	require.Empty(t, derived, "invalid batch should be skipped without error")
 }
@@ -181,7 +181,7 @@ func TestPureDerive_RejectsPreKarst(t *testing.T) {
 	safeHead := testSafeHead(cfg)
 	sysConfig := testSystemConfig()
 
-	_, err := PureDerive(cfg, safeHead, sysConfig, nil)
+	_, err := PureDerive(cfg, testL1ChainConfig(), safeHead, sysConfig, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Karst fork")
 }
@@ -194,7 +194,7 @@ func TestPureDerive_ValidatesL1BlockRange(t *testing.T) {
 	// Start L1 blocks after the safe head's L1 origin (gap)
 	l1Blocks := []L1Input{*makeTestL1Input(5)}
 
-	_, err := PureDerive(cfg, safeHead, sysConfig, l1Blocks)
+	_, err := PureDerive(cfg, testL1ChainConfig(), safeHead, sysConfig, l1Blocks)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "l1Blocks start at")
 }
@@ -204,7 +204,7 @@ func TestPureDerive_EmptyL1Blocks(t *testing.T) {
 	safeHead := testSafeHead(cfg)
 	sysConfig := testSystemConfig()
 
-	derived, err := PureDerive(cfg, safeHead, sysConfig, nil)
+	derived, err := PureDerive(cfg, testL1ChainConfig(), safeHead, sysConfig, nil)
 	require.NoError(t, err)
 	require.Nil(t, derived)
 }
