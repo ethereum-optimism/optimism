@@ -813,7 +813,7 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
 }
 
 /// @title L2ContractsManager_Upgrade_InteropFlag_Test
-/// @notice Tests that interop predeploy upgrades are correctly gated behind the L2_INTEROP dev feature flag.
+/// @notice Tests that interop predeploy upgrades are correctly gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
 contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgrade_Test {
     /// @notice The list of interop predeploy addresses.
     address[] internal interopPredeploys;
@@ -829,9 +829,9 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
         interopPredeploys.push(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     }
 
-    /// @notice Tests that all 7 interop predeploys are upgraded when L2_INTEROP flag is enabled.
+    /// @notice Tests that all 7 interop predeploys are upgraded when OPTIMISM_PORTAL_INTEROP flag is enabled.
     function test_upgradeUpgradesInteropPredeploys_whenInteropFlagEnabled_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.L2_INTEROP);
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Capture pre-upgrade implementations
         address[] memory preUpgradeImpls = new address[](interopPredeploys.length);
@@ -879,9 +879,9 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
         );
     }
 
-    /// @notice Tests that all 7 interop predeploys retain pre-upgrade implementations when L2_INTEROP flag is disabled.
+    /// @notice Tests that all 7 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag is disabled.
     function test_upgradeSkipsInteropPredeploys_whenInteropFlagDisabled_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.L2_INTEROP);
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Capture pre-upgrade implementations
         address[] memory preUpgradeImpls = new address[](interopPredeploys.length);
@@ -896,7 +896,7 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
             assertEq(
                 EIP1967Helper.getImplementation(interopPredeploys[i]),
                 preUpgradeImpls[i],
-                "Interop predeploy should not be upgraded when L2_INTEROP is disabled"
+                "Interop predeploy should not be upgraded when OPTIMISM_PORTAL_INTEROP is disabled"
             );
         }
     }
@@ -906,7 +906,7 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
 /// @notice Test that verifies all predeploys receive upgrade calls during L2CM upgrade.
 ///         Uses Predeploys.sol as the source of truth for which predeploys should be upgraded.
 contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_Test {
-    /// @notice Checks if a predeploy is an interop predeploy gated behind the L2_INTEROP dev feature flag.
+    /// @notice Checks if a predeploy is an interop predeploy gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
     function _isInteropPredeploy(address _predeploy) internal pure returns (bool) {
         return _predeploy == Predeploys.CROSS_L2_INBOX || _predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
             || _predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE || _predeploy == Predeploys.ETH_LIQUIDITY
@@ -946,7 +946,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
     /// @dev If L2CM misses a predeploy that exists in Predeploys.sol, this test will fail.
     function test_allPredeploysReceiveUpgradeCall_succeeds() public {
         address[] memory allPredeploys = Predeploys.getUpgradeablePredeploys();
-        bool interopEnabled = isDevFeatureEnabled(DevFeatures.L2_INTEROP);
+        bool interopEnabled = isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         for (uint256 i = 0; i < allPredeploys.length; i++) {
             address predeploy = allPredeploys[i];
@@ -954,7 +954,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
             // Skip predeploys that are not deployed on this chain (e.g., CGT-only, interop-only)
             if (!_isPredeployUpgradeable(predeploy)) continue;
 
-            // Skip interop predeploys when L2_INTEROP flag is disabled
+            // Skip interop predeploys when OPTIMISM_PORTAL_INTEROP flag is disabled
             if (_isInteropPredeploy(predeploy) && !interopEnabled) continue;
 
             // Expect the appropriate upgrade call based on whether initialization is required

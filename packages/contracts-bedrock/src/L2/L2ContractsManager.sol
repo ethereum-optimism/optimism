@@ -373,9 +373,9 @@ contract L2ContractsManager is ISemver {
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
-        // Interop predeploys are gated behind the L2_INTEROP dev feature flag.
+        // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
         // When disabled, the proxies are not touched.
-        if (_isDevFeatureEnabled(DevFeatures.L2_INTEROP)) {
+        if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
             L2ContractsManagerUtils.upgradeTo(
                 Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
