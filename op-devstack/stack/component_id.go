@@ -37,6 +37,31 @@ const (
 	KindFlashblocksClient ComponentKind = "FlashblocksWSClient"
 )
 
+var hydrationComponentKindOrder = []ComponentKind{
+	KindSuperchain,
+	KindCluster,
+	KindL1Network,
+	KindL2Network,
+	KindL1ELNode,
+	KindL1CLNode,
+	KindL2ELNode,
+	KindOPRBuilderNode,
+	KindRollupBoostNode,
+	KindL2CLNode,
+	KindSupervisor,
+	KindTestSequencer,
+	KindL2Batcher,
+	KindL2Challenger,
+	KindL2Proposer,
+}
+
+// HydrationComponentKindOrder returns the deterministic kind ordering used by orchestrator hydration.
+func HydrationComponentKindOrder() []ComponentKind {
+	out := make([]ComponentKind, len(hydrationComponentKindOrder))
+	copy(out, hydrationComponentKindOrder)
+	return out
+}
+
 // IDShape defines which fields an ID uses.
 type IDShape uint8
 

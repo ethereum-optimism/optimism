@@ -82,21 +82,24 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 		logger := p.Logger()
 
 		orch.writeDefaultJWT()
-		l1EL, ok := orch.l1ELs.Get(l1ELID)
+		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 		require.True(ok, "l1 EL node required")
+		l1EL := l1ELComponent.(L1ELNode)
 		l1ELClient, err := ethclient.DialContext(p.Ctx(), l1EL.UserRPC())
 		require.NoError(err)
 		engineCl, err := dialEngine(p.Ctx(), l1EL.AuthRPC(), orch.jwtSecret)
 		require.NoError(err)
 
-		l1CL, ok := orch.l1CLs.Get(l1CLID)
+		l1CLComponent, ok := orch.registry.Get(stack.ConvertL1CLNodeID(l1CLID).ComponentID)
 		require.True(ok, "l1 CL node required")
+		l1CL := l1CLComponent.(*L1CLNode)
 
-		l2EL, ok := orch.l2ELs.Get(l2ELID)
+		l2EL, ok := orch.GetL2EL(l2ELID)
 		require.True(ok, "l2 EL node required")
 
-		l2CL, ok := orch.l2CLs.Get(l2CLID)
+		l2CLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2CLID).ComponentID)
 		require.True(ok, "l2 CL node required")
+		l2CL := l2CLComponent.(L2CLNode)
 
 		bid_L2 := seqtypes.BuilderID("test-standard-builder")
 		cid_L2 := seqtypes.CommitterID("test-standard-committer")
@@ -115,8 +118,9 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 		l2SequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l2CLID.ChainID()))
 		l1SequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l1ELID.ChainID()))
 
-		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(l1ELID.ChainID())).ComponentID)
 		require.True(ok, "l1 net required")
+		l1Net := l1NetComponent.(*L1Network)
 
 		v := &config.Ensemble{
 			Builders: map[seqtypes.BuilderID]*config.BuilderEntry{
@@ -268,6 +272,6 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 			},
 		}
 		logger.Info("Sequencer User RPC", "http_endpoint", testSequencerNode.userRPC)
-		orch.testSequencers.Set(testSequencerID, testSequencerNode)
+		orch.registry.Register(stack.ConvertTestSequencerID(testSequencerID).ComponentID, testSequencerNode)
 	})
 }

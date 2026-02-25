@@ -90,8 +90,9 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 		elP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1ELID))
 		require := orch.P().Require()
 
-		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(l1ELID.ChainID())).ComponentID)
 		require.True(ok, "L1 network must exist")
+		l1Net := l1NetComponent.(*L1Network)
 
 		blockTimeL1 := l1Net.blockTime
 		l1FinalizedDistance := uint64(20)
@@ -137,7 +138,9 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 			l1Geth:   l1Geth,
 			blobPath: blobPath,
 		}
-		require.True(orch.l1ELs.SetIfMissing(l1ELID, l1ELNode), "must not already exist")
+		elCID := stack.ConvertL1ELNodeID(l1ELID).ComponentID
+		require.False(orch.registry.Has(elCID), "must not already exist")
+		orch.registry.Register(elCID, l1ELNode)
 
 		l1CLNode := &L1CLNode{
 			id:             l1CLID,
@@ -145,7 +148,9 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 			beacon:         bcn,
 			fakepos:        &FakePoS{fakepos: fp, p: clP},
 		}
-		require.True(orch.l1CLs.SetIfMissing(l1CLID, l1CLNode), "must not already exist")
+		clCID := stack.ConvertL1CLNodeID(l1CLID).ComponentID
+		require.False(orch.registry.Has(clCID), "must not already exist")
+		orch.registry.Register(clCID, l1CLNode)
 	})
 }
 
@@ -159,13 +164,17 @@ func WithExtL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID, elRPCEndpo
 			id:      l1ELID,
 			userRPC: elRPCEndpoint,
 		}
-		require.True(orch.l1ELs.SetIfMissing(l1ELID, l1ELNode), "must not already exist")
+		elCID := stack.ConvertL1ELNodeID(l1ELID).ComponentID
+		require.False(orch.registry.Has(elCID), "must not already exist")
+		orch.registry.Register(elCID, l1ELNode)
 
 		// Create L1 CL node with external RPC
 		l1CLNode := &L1CLNode{
 			id:             l1CLID,
 			beaconHTTPAddr: clRPCEndpoint,
 		}
-		require.True(orch.l1CLs.SetIfMissing(l1CLID, l1CLNode), "must not already exist")
+		clCID := stack.ConvertL1CLNodeID(l1CLID).ComponentID
+		require.False(orch.registry.Has(clCID), "must not already exist")
+		orch.registry.Register(clCID, l1CLNode)
 	})
 }

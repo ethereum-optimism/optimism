@@ -71,8 +71,9 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 			id := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", elID.ChainID()))
 			require.NotContains(faucets, id, "one faucet per chain only")
 
-			el, ok := orch.l1ELs.Get(elID)
+			elComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(elID).ComponentID)
 			require.True(ok, "need L1 EL for faucet", elID)
+			el := elComponent.(L1ELNode)
 
 			faucets[id] = &fconf.FaucetEntry{
 				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},
@@ -86,8 +87,9 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 			id := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", elID.ChainID()))
 			require.NotContains(faucets, id, "one faucet per chain only")
 
-			el, ok := orch.l2ELs.Get(elID)
+			elComponent, ok := orch.registry.Get(stack.ConvertL2ELNodeID(elID).ComponentID)
 			require.True(ok, "need L2 EL for faucet", elID)
+			el := elComponent.(L2ELNode)
 
 			faucets[id] = &fconf.FaucetEntry{
 				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},

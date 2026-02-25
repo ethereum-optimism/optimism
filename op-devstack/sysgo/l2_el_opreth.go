@@ -189,8 +189,9 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
 		require := p.Require()
 
-		l2Net, ok := orch.l2Nets.Get(id.ChainID())
+		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(id.ChainID())).ComponentID)
 		require.True(ok, "L2 network required")
+		l2Net := l2NetComponent.(*L2Network)
 
 		cfg := DefaultL2ELConfig()
 		orch.l2ELOptions.Apply(p, id, cfg)       // apply global options
@@ -202,8 +203,9 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 
 		supervisorRPC := ""
 		if useInterop && cfg.SupervisorID != nil {
-			sup, ok := orch.supervisors.Get(*cfg.SupervisorID)
-			require.True(ok, "supervisor not found")
+			supComponent, ok := orch.registry.Get(stack.ConvertSupervisorID(*cfg.SupervisorID).ComponentID)
+			require.True(ok, "supervisor is required for interop")
+			sup := supComponent.(Supervisor)
 			supervisorRPC = sup.UserRPC()
 		}
 
@@ -324,6 +326,8 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		l2EL.Start()
 		p.Cleanup(l2EL.Stop)
 		p.Logger().Info("op-reth is ready", "userRPC", l2EL.userRPC, "authRPC", l2EL.authRPC)
-		require.True(orch.l2ELs.SetIfMissing(id, l2EL), "must be unique L2 EL node")
+		cid := stack.ConvertL2ELNodeID(id).ComponentID
+		require.False(orch.registry.Has(cid), "must be unique L2 EL node")
+		orch.registry.Register(cid, l2EL)
 	})
 }

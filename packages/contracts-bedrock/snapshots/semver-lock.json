@@ -95,6 +95,10 @@
     "initCodeHash": "0x6efb9055142e90b408c6312074243769df0d365f6f984e226e0320bec55a45b8",
     "sourceCodeHash": "0x7e438cbbe9a8248887b8c21f68c811f90a5cae4902cbbf7b0a1f6cd644dc42d9"
   },
+  "src/L2/L2ContractsManager.sol:L2ContractsManager": {
+    "initCodeHash": "0xc6953fefa5142a37061fc6e96d0ec251a8ff8bcc2d09e8fdeb023e8677ff17c7",
+    "sourceCodeHash": "0xa4fba8f6dd5f7e1cfcba63ca8b9d0fbe621d1fe33aeb6147a185045fcded7c14"
+  },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0xe160be403df12709c371c33195d1b9c3b5e9499e902e86bdabc8eed749c3fd61",
     "sourceCodeHash": "0x12ea125038b87e259a0d203e119faa6e9726ab2bdbc30430f820ccd48fe87e14"

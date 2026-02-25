@@ -119,11 +119,13 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
 		require := p.Require()
 
-		l1EL, ok := orch.l1ELs.Get(l1ELID)
+		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 		require.True(ok, "need L1 EL node to connect supervisor to")
+		l1EL := l1ELComponent.(L1ELNode)
 
-		cluster, ok := orch.clusters.Get(clusterID)
+		clusterComponent, ok := orch.registry.Get(stack.ConvertClusterID(clusterID).ComponentID)
 		require.True(ok, "need cluster to determine dependency set")
+		cluster := clusterComponent.(*Cluster)
 
 		require.NotNil(cluster.cfgset, "need a full config set")
 		require.NoError(cluster.cfgset.CheckChains(), "config set must be valid")
@@ -138,7 +140,9 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 		p.Require().NoError(err, os.WriteFile(depsetCfgPath, depsetData, 0o644))
 
 		rollupCfgPath := cfgDir + "/rollup-config-*.json"
-		for _, l2Net := range orch.l2Nets.Values() {
+		for _, l2NetID := range orch.registry.IDsByKind(stack.KindL2Network) {
+			l2NetComponent, _ := orch.registry.Get(l2NetID)
+			l2Net := l2NetComponent.(*L2Network)
 			chainID := l2Net.id.ChainID()
 			rollupData, err := json.Marshal(l2Net.rollupCfg)
 			require.NoError(err, "failed to marshal rollup config")
@@ -174,7 +178,7 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 			env:      envVars,
 			p:        p,
 		}
-		orch.supervisors.Set(supervisorID, konaSupervisor)
+		orch.registry.Register(stack.ConvertSupervisorID(supervisorID).ComponentID, konaSupervisor)
 		p.Logger().Info("Starting kona-supervisor")
 		konaSupervisor.Start()
 		p.Cleanup(konaSupervisor.Stop)

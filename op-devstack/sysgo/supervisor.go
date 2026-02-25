@@ -28,12 +28,14 @@ func WithManagedBySupervisor(l2CLID stack.L2CLNodeID, supervisorID stack.Supervi
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 
-		l2CL, ok := orch.l2CLs.Get(l2CLID)
+		l2CLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2CLID).ComponentID)
 		require.True(ok, "looking for L2 CL node to connect to supervisor")
+		l2CL := l2CLComponent.(L2CLNode)
 		interopEndpoint, secret := l2CL.InteropRPC()
 
-		s, ok := orch.supervisors.Get(supervisorID)
+		supComponent, ok := orch.registry.Get(stack.ConvertSupervisorID(supervisorID).ComponentID)
 		require.True(ok, "looking for supervisor")
+		s := supComponent.(Supervisor)
 
 		ctx := orch.P().Ctx()
 		supClient, err := dial.DialSupervisorClientWithTimeout(ctx, orch.P().Logger(), s.UserRPC(), client.WithLazyDial())
