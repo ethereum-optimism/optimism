@@ -27,7 +27,7 @@ _LDFLAGSSTRING := "'" + trim(
 
 build-go: (go_build "./bin/op-deployer" "./cmd/op-deployer" "-ldflags" _LDFLAGSSTRING)
 
-docker-build: build-contracts copy-contract-artifacts
+docker-build:
     #!/bin/bash
     cd ..
     export GIT_VERSION="untagged"
