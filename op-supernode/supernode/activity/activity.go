@@ -8,6 +8,7 @@ import (
 
 // Activity is an open interface to collect pluggable behaviors which satisfy sub-activitiy interfaces.
 type Activity interface {
+	Name() string
 	// Reset is called when a chain container resets due to an invalidated block.
 	// Activities should clean up any cached state for that chain at or after the timestamp.
 	// The invalidatedBlock is the block that was is the target of the reset
@@ -34,7 +35,6 @@ type RPCActivity interface {
 // VerificationActivity is an Activity that can be used to verify the correctness of the Supernode's Chains
 type VerificationActivity interface {
 	Activity
-	Name() string
 
 	// Reset resets the activity's state.
 	Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef)

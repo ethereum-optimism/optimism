@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -161,17 +160,17 @@ func (s *Supernode) Start(ctx context.Context) error {
 			go func(run activity.RunnableActivity) {
 				defer s.wg.Done()
 				err := run.Start(ctx)
-				activityType := reflect.TypeOf(a).String()
+				activityName := a.Name()
 				switch err {
 				case nil:
-					s.log.Error("activity quit unexpectedly", "type", activityType)
+					s.log.Error("activity quit unexpectedly", "name", activityName)
 				case context.Canceled:
 					// This is the happy path, normal / clean shutdown
-					s.log.Info("activity closing due to cancelled context", "type", activityType)
+					s.log.Info("activity closing due to cancelled context", "name", activityName)
 				case context.DeadlineExceeded:
-					s.log.Warn("activity quit due to deadline exceeded", "type", activityType)
+					s.log.Warn("activity quit due to deadline exceeded", "name", activityName)
 				default:
-					s.log.Error("error starting runnable activity", "type", activityType, "error", err)
+					s.log.Error("error starting runnable activity", "name", activityName, "error", err)
 				}
 			}(run)
 		}
@@ -221,12 +220,12 @@ func (s *Supernode) Stop(ctx context.Context) error {
 
 	// Stop runnable activities
 	for _, a := range s.activities {
-		activityType := reflect.TypeOf(a).String()
+		activityName := a.Name()
 		if run, ok := a.(activity.RunnableActivity); ok {
 			if err := run.Stop(ctx); err != nil {
-				s.log.Error("error stopping runnable activity", "type", activityType, "error", err)
+				s.log.Error("error stopping runnable activity", "name", activityName, "error", err)
 			} else {
-				s.log.Info("runnable activity stopped", "type", activityType)
+				s.log.Info("runnable activity stopped", "name", activityName)
 			}
 		}
 	}
