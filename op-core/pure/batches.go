@@ -12,6 +12,11 @@ import (
 // decodeBatches reads all batches from a completed channel's compressed data
 // and returns them as singular batches. Span batches are expanded into
 // individual singular batches using the provided L1 origins and cursor.
+//
+// With Karst active, span batches must not overlap the safe chain. If the first
+// batch in a span has timestamp <= cursor.Timestamp, the entire span is rejected.
+// See checkSpanBatchPrefix in op-node/rollup/derive/batches.go for the full
+// upstream overlap handling.
 func decodeBatches(
 	r io.Reader,
 	cfg *rollup.Config,
@@ -55,10 +60,19 @@ func decodeBatches(
 			if err != nil {
 				return nil, fmt.Errorf("deriving span batch: %w", err)
 			}
+
+			// Reject overlapping span batches. Under Karst, span batches that start
+			// at or before the safe head are invalid. This mirrors the overlap rejection
+			// in checkSpanBatchPrefix (op-node/rollup/derive/batches.go).
+			if spanBatch.GetTimestamp() <= cursor.Timestamp {
+				return nil, fmt.Errorf("span batch timestamp %d overlaps safe head at %d (rejected under Karst)",
+					spanBatch.GetTimestamp(), cursor.Timestamp)
+			}
+
 			l2SafeHead := eth.L2BlockRef{
-				Number:     cursor.Number,
-				Time:       cursor.Timestamp,
-				L1Origin:   cursor.L1Origin,
+				Number:         cursor.Number,
+				Time:           cursor.Timestamp,
+				L1Origin:       cursor.L1Origin,
 				SequenceNumber: cursor.SequenceNumber,
 			}
 			singular, err := spanBatch.GetSingularBatches(l1Origins, l2SafeHead)
@@ -75,8 +89,14 @@ func decodeBatches(
 	return batches, nil
 }
 
-// validateBatch checks whether a singular batch is valid given the current
-// derivation cursor and known L1 origins.
+// validateBatch performs simplified batch validation suitable for Karst and later.
+// It checks timestamp sequencing, epoch bounds, and epoch hash consistency.
+//
+// This is a subset of the full validation in op-node/rollup/derive/batches.go
+// (checkSingularBatch / CheckBatch). The upstream functions are unexported and
+// require an l2Fetcher for L2 state lookups that we intentionally avoid.
+// With Karst active, overlapping span batches are already rejected in decodeBatches,
+// so the remaining checks here are sufficient for correctness.
 func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth.L1BlockRef, cfg *rollup.Config) bool {
 	expectedTimestamp := cursor.Timestamp + cfg.BlockTime
 	if batch.Timestamp != expectedTimestamp {
@@ -104,13 +124,6 @@ func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth
 	}
 
 	return false
-}
-
-// needsEmptyBatch returns true when the sequencing window has expired,
-// meaning the cursor's L1 origin is more than SeqWindowSize blocks behind
-// the current L1 block.
-func needsEmptyBatch(cursor l2Cursor, currentL1 eth.L1BlockRef, cfg *rollup.Config) bool {
-	return currentL1.Number > cursor.L1Origin.Number+cfg.SeqWindowSize
 }
 
 // makeEmptyBatch creates a batch with no transactions at the next expected

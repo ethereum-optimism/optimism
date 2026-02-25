@@ -20,7 +20,8 @@ import (
 // Transaction ordering follows the OP Stack derivation spec:
 //  1. L1 info deposit transaction (always first)
 //  2. User deposit transactions (only at epoch boundaries)
-//  3. Batch transactions from the sequencer
+//  3. Network upgrade transactions (at fork activation blocks)
+//  4. Batch transactions from the sequencer
 func buildAttributes(
 	batch *derive.SingularBatch,
 	l1Block *L1Input,
@@ -38,9 +39,8 @@ func buildAttributes(
 	}
 
 	l2Timestamp := batch.Timestamp
-	blockInfo := &l1InputInfo{l1Block}
 
-	l1InfoTx, err := derive.L1InfoDeposit(cfg, nil, sysConfig, seqNumber, blockInfo, l2Timestamp)
+	l1InfoTx, err := derive.L1InfoDeposit(cfg, nil, sysConfig, seqNumber, l1Block.blockInfo(), l2Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info deposit tx: %w", err)
 	}
@@ -50,7 +50,23 @@ func buildAttributes(
 		return nil, fmt.Errorf("failed to encode L1 info deposit tx: %w", err)
 	}
 
-	txCount := 1 + len(batch.Transactions)
+	// Network upgrade transactions (NUTs). Only forks from Jovian onward are
+	// included; earlier forks (Ecotone, Fjord, Isthmus) cannot be activation
+	// blocks since PureDerive requires Karst to already be active.
+	var upgradeTxs []hexutil.Bytes
+
+	if cfg.IsJovianActivationBlock(l2Timestamp) {
+		jovianTxs, err := derive.JovianNetworkUpgradeTransactions()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build Jovian network upgrade txs: %w", err)
+		}
+		upgradeTxs = append(upgradeTxs, jovianTxs...)
+	}
+
+	// TODO: Add Karst NUTs here once KarstNetworkUpgradeTransactions() exists.
+	// Karst currently has no network upgrade transactions.
+
+	txCount := 1 + len(upgradeTxs) + len(batch.Transactions)
 	if epochChanged {
 		txCount += len(l1Block.Deposits)
 	}
@@ -67,6 +83,7 @@ func buildAttributes(
 		}
 	}
 
+	txs = append(txs, upgradeTxs...)
 	txs = append(txs, batch.Transactions...)
 
 	gasLimit := sysConfig.GasLimit
@@ -83,7 +100,7 @@ func buildAttributes(
 
 	attrs := &eth.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(l2Timestamp),
-		PrevRandao:            eth.Bytes32(l1Block.MixDigest),
+		PrevRandao:            eth.Bytes32(l1Block.Header.MixDigest),
 		SuggestedFeeRecipient: predeploys.SequencerFeeVaultAddr,
 		Transactions:          txs,
 		NoTxPool:              true,

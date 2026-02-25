@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -19,9 +20,10 @@ func TestPureDerive_SingleBatch(t *testing.T) {
 	safeHead := testSafeHead(cfg)
 	sysConfig := testSystemConfig()
 
+	l1Origin := makeTestL1Input(0) // safe head's L1 origin
 	l1 := makeL1WithBatch(t, cfg, 1, safeHead, sysConfig)
 
-	derived, err := PureDerive(cfg, safeHead, sysConfig, []L1Input{*l1})
+	derived, err := PureDerive(cfg, safeHead, sysConfig, []L1Input{*l1Origin, *l1})
 	require.NoError(t, err)
 	require.Len(t, derived, 1)
 
@@ -83,12 +85,13 @@ func TestPureDerive_ChannelTimeout(t *testing.T) {
 
 	// Create an incomplete channel at L1 block 1 (frame 0 of 2, not last).
 	incompleteL1 := makeTestL1Input(1)
+	incompleteL1Ref := incompleteL1.BlockRef()
 	incompleteChID := testChannelID(0xAA)
 
 	batch := &derive.SingularBatch{
 		ParentHash: safeHead.Hash,
-		EpochNum:   rollup.Epoch(incompleteL1.Number),
-		EpochHash:  incompleteL1.Hash,
+		EpochNum:   rollup.Epoch(incompleteL1Ref.Number),
+		EpochHash:  incompleteL1Ref.Hash,
 		Timestamp:  safeHead.Time + cfg.BlockTime,
 	}
 	channelData := encodeBatchToChannelData(t, batch)
@@ -108,6 +111,7 @@ func TestPureDerive_ChannelTimeout(t *testing.T) {
 	// Fill gap L1 blocks until timeout. Channel timeout is 50, so we need
 	// blocks 2..52 to cause timeout at block 52.
 	var l1Blocks []L1Input
+	l1Blocks = append(l1Blocks, *makeTestL1Input(0)) // safe head's L1 origin
 	l1Blocks = append(l1Blocks, *incompleteL1)
 	for i := uint64(2); i <= cfg.ChannelTimeoutBedrock+2; i++ {
 		l1Blocks = append(l1Blocks, *makeTestL1Input(i))
@@ -122,7 +126,7 @@ func TestPureDerive_ChannelTimeout(t *testing.T) {
 	completeBatch := &derive.SingularBatch{
 		ParentHash: safeHead.Hash,
 		EpochNum:   rollup.Epoch(1),
-		EpochHash:  incompleteL1.Hash,
+		EpochHash:  incompleteL1Ref.Hash,
 		Timestamp:  safeHead.Time + cfg.BlockTime,
 	}
 	completeChannelData := encodeBatchToChannelData(t, completeBatch)
@@ -167,24 +171,44 @@ func TestPureDerive_InvalidBatchSkipped(t *testing.T) {
 	batcherTx := wrapInFrames(channelData, chID)
 	l1.BatcherData = [][]byte{batcherTx}
 
-	derived, err := PureDerive(cfg, safeHead, sysConfig, []L1Input{*l1})
+	l1Origin := makeTestL1Input(0) // safe head's L1 origin
+	derived, err := PureDerive(cfg, safeHead, sysConfig, []L1Input{*l1Origin, *l1})
 	require.NoError(t, err)
 	require.Empty(t, derived, "invalid batch should be skipped without error")
 }
 
-func TestFindL1Origin(t *testing.T) {
-	l1Blocks := []L1Input{
-		*makeTestL1Input(5),
-		*makeTestL1Input(10),
-		*makeTestL1Input(15),
-	}
+func TestPureDerive_RejectsPreKarst(t *testing.T) {
+	cfg := testRollupConfig()
+	cfg.KarstTime = nil // disable Karst
+	safeHead := testSafeHead(cfg)
+	sysConfig := testSystemConfig()
 
-	found := findL1Origin(l1Blocks, 10)
-	require.NotNil(t, found)
-	require.Equal(t, uint64(10), found.Number)
+	_, err := PureDerive(cfg, safeHead, sysConfig, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Karst fork")
+}
 
-	notFound := findL1Origin(l1Blocks, 99)
-	require.Nil(t, notFound)
+func TestPureDerive_ValidatesL1BlockRange(t *testing.T) {
+	cfg := testRollupConfig()
+	safeHead := testSafeHead(cfg)
+	sysConfig := testSystemConfig()
+
+	// Start L1 blocks after the safe head's L1 origin (gap)
+	l1Blocks := []L1Input{*makeTestL1Input(5)}
+
+	_, err := PureDerive(cfg, safeHead, sysConfig, l1Blocks)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "l1Blocks start at")
+}
+
+func TestPureDerive_EmptyL1Blocks(t *testing.T) {
+	cfg := testRollupConfig()
+	safeHead := testSafeHead(cfg)
+	sysConfig := testSystemConfig()
+
+	derived, err := PureDerive(cfg, safeHead, sysConfig, nil)
+	require.NoError(t, err)
+	require.Nil(t, derived)
 }
 
 // makeMultiEpochL1Inputs builds several L1 blocks with batches at different
@@ -233,5 +257,21 @@ func makeMultiEpochL1Inputs(t *testing.T, cfg *rollup.Config, safeHead eth.L2Blo
 	chID3[0] = 0x03
 	l1Block3.BatcherData = [][]byte{wrapInFrames(chData3, chID3)}
 
-	return []L1Input{*l1Block1, *l1Block2, *l1Block3}
+	// Include block 0 (safe head's L1 origin) at the start.
+	l1Block0 := makeTestL1Input(0)
+	return []L1Input{*l1Block0, *l1Block1, *l1Block2, *l1Block3}
+}
+
+// Verify that test inputs are constructed correctly through BlockRef/BlockID.
+func TestL1InputIntegration(t *testing.T) {
+	l1 := makeTestL1Input(10)
+	ref := l1.BlockRef()
+	require.Equal(t, bigs.Uint64Strict(l1.Header.Number), ref.Number)
+	require.Equal(t, l1.Header.Hash(), ref.Hash)
+	require.Equal(t, l1.Header.ParentHash, ref.ParentHash)
+	require.Equal(t, l1.Header.Time, ref.Time)
+
+	id := l1.BlockID()
+	require.Equal(t, ref.Hash, id.Hash)
+	require.Equal(t, ref.Number, id.Number)
 }

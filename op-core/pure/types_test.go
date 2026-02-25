@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -12,28 +13,29 @@ import (
 
 func TestL1InputBlockRef(t *testing.T) {
 	input := L1Input{
-		Hash:        common.HexToHash("0xaa"),
-		Number:      100,
-		Timestamp:   1000,
-		ParentHash:  common.HexToHash("0x99"),
-		BaseFee:     big.NewInt(1),
-		BlobBaseFee: big.NewInt(1),
+		Header: &types.Header{
+			ParentHash: common.HexToHash("0x99"),
+			Number:     big.NewInt(100),
+			Time:       1000,
+			BaseFee:    big.NewInt(1),
+		},
 	}
 	ref := input.BlockRef()
-	require.Equal(t, input.Hash, ref.Hash)
-	require.Equal(t, input.Number, ref.Number)
-	require.Equal(t, input.Timestamp, ref.Time)
-	require.Equal(t, input.ParentHash, ref.ParentHash)
+	require.Equal(t, input.Header.Hash(), ref.Hash)
+	require.Equal(t, uint64(100), ref.Number)
+	require.Equal(t, uint64(1000), ref.Time)
+	require.Equal(t, input.Header.ParentHash, ref.ParentHash)
 }
 
 func TestL1InputBlockID(t *testing.T) {
 	input := L1Input{
-		Hash:   common.HexToHash("0xbb"),
-		Number: 42,
+		Header: &types.Header{
+			Number: big.NewInt(42),
+		},
 	}
 	id := input.BlockID()
-	require.Equal(t, input.Hash, id.Hash)
-	require.Equal(t, input.Number, id.Number)
+	require.Equal(t, input.Header.Hash(), id.Hash)
+	require.Equal(t, uint64(42), id.Number)
 }
 
 func TestCursorAdvance(t *testing.T) {
@@ -53,55 +55,44 @@ func TestCursorAdvance(t *testing.T) {
 	require.Equal(t, uint64(3), c.SequenceNumber)
 }
 
-func TestL1InputInfoBlockInfo(t *testing.T) {
-	input := &L1Input{
-		Hash:        common.HexToHash("0xaa"),
-		Number:      100,
-		Timestamp:   1000,
-		ParentHash:  common.HexToHash("0x99"),
-		MixDigest:   common.HexToHash("0xdd"),
-		BaseFee:     big.NewInt(7),
-		BlobBaseFee: big.NewInt(3),
+func TestL1InputBlockInfo(t *testing.T) {
+	header := &types.Header{
+		ParentHash:    common.HexToHash("0x99"),
+		Number:        big.NewInt(100),
+		Time:          1000,
+		MixDigest:     common.HexToHash("0xdd"),
+		BaseFee:       big.NewInt(7),
+		ExcessBlobGas: ptrTo(uint64(0)),
 	}
-	info := &l1InputInfo{input}
+	input := &L1Input{Header: header}
+	info := input.blockInfo()
 
-	require.Equal(t, input.Hash, info.Hash())
-	require.Equal(t, input.ParentHash, info.ParentHash())
-	require.Equal(t, input.Number, info.NumberU64())
-	require.Equal(t, input.Timestamp, info.Time())
-	require.Equal(t, input.MixDigest, info.MixDigest())
-	require.Equal(t, input.BaseFee, info.BaseFee())
-	require.Equal(t, input.BlobBaseFee, info.BlobBaseFee(nil))
+	require.Equal(t, header.Hash(), info.Hash())
+	require.Equal(t, header.ParentHash, info.ParentHash())
+	require.Equal(t, uint64(100), info.NumberU64())
+	require.Equal(t, uint64(1000), info.Time())
+	require.Equal(t, header.MixDigest, info.MixDigest())
+	require.Equal(t, header.BaseFee, info.BaseFee())
 
-	// Zero-value methods
-	require.Equal(t, common.Address{}, info.Coinbase())
-	require.Equal(t, common.Hash{}, info.Root())
-	require.Equal(t, common.Hash{}, info.ReceiptHash())
-	require.Equal(t, uint64(0), info.GasUsed())
-	require.Equal(t, uint64(0), info.GasLimit())
-	require.Nil(t, info.ParentBeaconRoot())
-	require.Nil(t, info.WithdrawalsRoot())
-
-	// ExcessBlobGas is non-nil when BlobBaseFee is set
-	require.NotNil(t, info.ExcessBlobGas())
-
-	// Header returns a valid header
-	h := info.Header()
-	require.Equal(t, input.ParentHash, h.ParentHash)
-	require.Equal(t, input.Number, h.Number.Uint64())
-
-	// HeaderRLP doesn't error
+	// Header and HeaderRLP delegate to the underlying header
+	require.Equal(t, header, info.Header())
 	_, err := info.HeaderRLP()
 	require.NoError(t, err)
 }
 
-func TestL1InputInfoNilBlobBaseFee(t *testing.T) {
-	input := &L1Input{
-		Hash:    common.HexToHash("0xaa"),
-		Number:  100,
-		BaseFee: big.NewInt(7),
+func TestCursorNeedsEmptyBatch(t *testing.T) {
+	cfg := testRollupConfig() // SeqWindowSize = 10
+
+	cursor := l2Cursor{
+		Number:    10,
+		Timestamp: 100,
+		L1Origin:  eth.BlockID{Number: 5},
 	}
-	info := &l1InputInfo{input}
-	require.Nil(t, info.BlobBaseFee(nil))
-	require.Nil(t, info.ExcessBlobGas())
+
+	// currentL1.Number (15) == cursor.L1Origin.Number (5) + SeqWindowSize (10)
+	// Not strictly greater, so window not expired
+	require.False(t, cursor.needsEmptyBatch(eth.L1BlockRef{Number: 15}, cfg))
+
+	// currentL1.Number (16) > cursor.L1Origin.Number (5) + SeqWindowSize (10)
+	require.True(t, cursor.needsEmptyBatch(eth.L1BlockRef{Number: 16}, cfg))
 }

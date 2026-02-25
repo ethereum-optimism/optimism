@@ -147,37 +147,6 @@ func TestValidateBatch_EpochTooNew(t *testing.T) {
 	require.False(t, validateBatch(batch, cursor, l1Origins, cfg))
 }
 
-func TestNeedEmptyBatch_WindowNotExpired(t *testing.T) {
-	cfg := testRollupConfig() // SeqWindowSize = 10
-
-	cursor := l2Cursor{
-		Number:    10,
-		Timestamp: 100,
-		L1Origin:  eth.BlockID{Number: 5},
-	}
-
-	// currentL1.Number (15) == cursor.L1Origin.Number (5) + SeqWindowSize (10)
-	// Not strictly greater, so window not expired
-	currentL1 := eth.L1BlockRef{Number: 15}
-
-	require.False(t, needsEmptyBatch(cursor, currentL1, cfg))
-}
-
-func TestNeedEmptyBatch_WindowExpired(t *testing.T) {
-	cfg := testRollupConfig() // SeqWindowSize = 10
-
-	cursor := l2Cursor{
-		Number:    10,
-		Timestamp: 100,
-		L1Origin:  eth.BlockID{Number: 5},
-	}
-
-	// currentL1.Number (16) > cursor.L1Origin.Number (5) + SeqWindowSize (10)
-	currentL1 := eth.L1BlockRef{Number: 16}
-
-	require.True(t, needsEmptyBatch(cursor, currentL1, cfg))
-}
-
 func TestMakeEmptyBatch(t *testing.T) {
 	cfg := testRollupConfig()
 	origin := testL1Ref(5)

@@ -15,6 +15,12 @@ type readyChannel struct {
 // channelAssembler implements Holocene single-channel strict-order assembly.
 // Only one channel is active at a time. Frames must arrive in order.
 // A frame for a new channel ID discards the current in-progress channel.
+//
+// This is intentionally separate from the existing ChannelAssembler in
+// op-node/rollup/derive/channel_assembler.go. That assembler is pull-based
+// (requires NextFrameProvider and Metrics interfaces) and designed for the
+// streaming pipeline. Our push-based model feeds frames directly, making a
+// simpler implementation appropriate.
 type channelAssembler struct {
 	current   *derive.Channel
 	currentID derive.ChannelID

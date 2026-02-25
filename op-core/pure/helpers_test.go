@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -38,14 +39,16 @@ func testRollupConfig() *rollup.Config {
 		ChannelTimeoutBedrock: 50,
 		L1ChainID:             big.NewInt(1),
 		L2ChainID:             big.NewInt(10),
-		// Activate all forks at genesis for post-Holocene only pipeline
-		RegolithTime: &zero,
-		CanyonTime:   &zero,
-		DeltaTime:    &zero,
-		EcotoneTime:  &zero,
-		FjordTime:    &zero,
-		GraniteTime:  &zero,
-		HoloceneTime: &zero,
+		// Activate all forks at genesis for post-Karst only pipeline
+		RegolithTime:           &zero,
+		CanyonTime:             &zero,
+		DeltaTime:              &zero,
+		EcotoneTime:            &zero,
+		FjordTime:              &zero,
+		GraniteTime:            &zero,
+		HoloceneTime:           &zero,
+		JovianTime:             &zero,
+		KarstTime:              &zero,
 		BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
 		DepositContractAddress: common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
 	}
@@ -70,13 +73,15 @@ func testSafeHead(cfg *rollup.Config) eth.L2BlockRef {
 
 func makeTestL1Input(num uint64) *L1Input {
 	return &L1Input{
-		Hash:        common.BigToHash(new(big.Int).SetUint64(num + 0x100)),
-		Number:      num,
-		Timestamp:   1000 + num*12,
-		BaseFee:     big.NewInt(7),
-		BlobBaseFee: big.NewInt(1),
-		ParentHash:  common.BigToHash(new(big.Int).SetUint64(num + 0x100 - 1)),
-		MixDigest:   common.BigToHash(new(big.Int).SetUint64(num + 0x200)),
+		Header: &types.Header{
+			ParentHash: common.BigToHash(new(big.Int).SetUint64(num + 0x100 - 1)),
+			Number:     new(big.Int).SetUint64(num),
+			Time:       1000 + num*12,
+			BaseFee:    big.NewInt(7),
+			MixDigest:  common.BigToHash(new(big.Int).SetUint64(num + 0x200)),
+			// ExcessBlobGas required for BlobBaseFee to work via HeaderBlockInfo
+			ExcessBlobGas: ptrTo(uint64(0)),
+		},
 	}
 }
 
@@ -153,6 +158,7 @@ func TestHelpers(t *testing.T) {
 	require.Equal(t, uint64(10), cfg.SeqWindowSize)
 	require.Equal(t, uint64(50), cfg.ChannelTimeoutBedrock)
 	require.NotNil(t, cfg.HoloceneTime)
+	require.NotNil(t, cfg.KarstTime)
 
 	sysCfg := testSystemConfig()
 	require.Equal(t, uint64(30_000_000), sysCfg.GasLimit)
@@ -162,8 +168,8 @@ func TestHelpers(t *testing.T) {
 	require.Equal(t, cfg.Genesis.L2.Number, safeHead.Number)
 
 	l1 := makeTestL1Input(5)
-	require.Equal(t, uint64(5), l1.Number)
-	require.Equal(t, uint64(1000+5*12), l1.Timestamp)
+	require.Equal(t, uint64(5), bigs.Uint64Strict(l1.Header.Number))
+	require.Equal(t, uint64(1000+5*12), l1.Header.Time)
 
 	dep := makeTestDeposit()
 	require.NotNil(t, dep)
