@@ -4,7 +4,6 @@ pragma solidity ^0.8.15;
 // Utilities
 import { Vm } from "forge-std/Vm.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { console } from "forge-std/console.sol";
 
 /// @title NetworkUpgradeTxns
 /// @notice Standard library for generating Network Upgrade Transaction (NUT) artifacts.
@@ -69,7 +68,6 @@ library NetworkUpgradeTxns {
         vm.serializeUint(key, "gasLimit", uint256(_txn.gasLimit));
         vm.serializeString(key, "intent", _txn.intent);
         serializedJson_ = vm.serializeAddress(key, "to", _txn.to);
-        console.log(serializedJson_);
     }
 
     /// @notice Reads upgrade transactions from a JSON file.
@@ -78,7 +76,6 @@ library NetworkUpgradeTxns {
     function readArtifact(string memory _inputPath) internal view returns (NetworkUpgradeTxn[] memory txns_) {
         string memory json = vm.readFile(_inputPath);
         bytes memory parsedData = vm.parseJson(json);
-        console.logBytes(parsedData);
         txns_ = abi.decode(parsedData, (NetworkUpgradeTxns.NetworkUpgradeTxn[]));
     }
 }
