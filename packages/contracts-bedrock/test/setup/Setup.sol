@@ -366,7 +366,8 @@ abstract contract Setup is FeatureFlags {
                 gasPayingTokenSymbol: deploy.cfg().gasPayingTokenSymbol(),
                 nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount(),
                 liquidityControllerOwner: deploy.cfg().liquidityControllerOwner(),
-                useL2CM: deploy.cfg().useL2CM()
+                useL2CM: deploy.cfg().useL2CM(),
+                devFeatureBitmap: devFeatureBitmap
             })
         );
 
@@ -410,6 +411,7 @@ abstract contract Setup is FeatureFlags {
         labelPredeploy(Predeploys.LIQUIDITY_CONTROLLER);
         labelPredeploy(Predeploys.FEE_SPLITTER);
         labelPredeploy(Predeploys.CONDITIONAL_DEPLOYER);
+        labelPredeploy(Predeploys.L2_DEV_FEATURE_FLAGS);
 
         // L2 Preinstalls
         labelPreinstall(Preinstalls.MultiCall3);
