@@ -1,4 +1,4 @@
-package proofs
+package serial
 
 import (
 	"testing"
