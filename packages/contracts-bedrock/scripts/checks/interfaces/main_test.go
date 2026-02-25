@@ -124,6 +124,21 @@ func TestNormalizeABI(t *testing.T) {
 			abi:  `[{"inputs":[{"internalType":"contract Test1","name":"test1","type":"address"},{"internalType":"contract ITest2","name":"test2","type":"address"}],"type":"function"}]`,
 			want: `[{"inputs":[{"internalType":"contract ITest1","name":"test1","type":"address"},{"internalType":"contract ITest2","name":"test2","type":"address"}],"type":"function"},{"inputs":[],"stateMutability":"nonpayable","type":"constructor"}]`,
 		},
+		{
+			name: "Trim leading underscores from input names",
+			abi:  `[{"inputs":[{"name":"_account","type":"address"}],"outputs":[],"type":"function","name":"test"}]`,
+			want: `[{"inputs":[{"name":"account","type":"address"}],"outputs":[],"type":"function","name":"test"},{"inputs":[],"stateMutability":"nonpayable","type":"constructor"}]`,
+		},
+		{
+			name: "Trim trailing underscores from output names",
+			abi:  `[{"inputs":[],"outputs":[{"name":"value_","type":"uint128"}],"type":"function","name":"test"}]`,
+			want: `[{"inputs":[],"outputs":[{"name":"value","type":"uint128"}],"type":"function","name":"test"},{"inputs":[],"stateMutability":"nonpayable","type":"constructor"}]`,
+		},
+		{
+			name: "Preserve __constructor__ name",
+			abi:  `[{"type":"function","name":"__constructor__","inputs":[],"stateMutability":"nonpayable","outputs":[]}]`,
+			want: `[{"type":"constructor","inputs":[],"stateMutability":"nonpayable"}]`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -197,6 +212,48 @@ func TestCompareABIs(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("compareABIs() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeAndCompareABIs(t *testing.T) {
+	tests := []struct {
+		name string
+		abi1 string
+		abi2 string
+		want bool
+	}{
+		{
+			name: "Underscore-prefixed input names match after normalization",
+			abi1: `[{"type":"function","name":"test","inputs":[{"name":"account","type":"address"}],"outputs":[]}]`,
+			abi2: `[{"type":"function","name":"test","inputs":[{"name":"_account","type":"address"}],"outputs":[]}]`,
+			want: true,
+		},
+		{
+			name: "Underscore-suffixed output names match after normalization",
+			abi1: `[{"type":"function","name":"test","inputs":[],"outputs":[{"name":"effectiveStake","type":"uint128"},{"name":"lastUpdate","type":"uint128"}]}]`,
+			abi2: `[{"type":"function","name":"test","inputs":[],"outputs":[{"name":"effectiveStake_","type":"uint128"},{"name":"lastUpdate_","type":"uint128"}]}]`,
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			norm1, err := normalizeABI(json.RawMessage(tt.abi1))
+			if err != nil {
+				t.Fatalf("normalizeABI(abi1) error = %v", err)
+			}
+			norm2, err := normalizeABI(json.RawMessage(tt.abi2))
+			if err != nil {
+				t.Fatalf("normalizeABI(abi2) error = %v", err)
+			}
+			got, err := compareABIs(norm1, norm2)
+			if err != nil {
+				t.Fatalf("compareABIs() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("normalizeABI+compareABIs() = %v, want %v", got, tt.want)
 			}
 		})
 	}

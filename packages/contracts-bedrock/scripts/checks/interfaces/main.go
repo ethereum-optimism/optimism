@@ -269,6 +269,9 @@ func normalizeABIItem(item map[string]interface{}) {
 			if key == "internalType" {
 				item[key] = normalizeInternalType(v)
 			}
+			if key == "name" && v != "__constructor__" {
+				item[key] = strings.Trim(v, "_")
+			}
 		case map[string]interface{}:
 			normalizeABIItem(v)
 		case []interface{}:
