@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -25,9 +27,8 @@ func decodeBatches(
 ) ([]*derive.SingularBatch, error) {
 	spec := rollup.NewChainSpec(cfg)
 	maxRLP := spec.MaxRLPBytesPerChannel(cursor.Timestamp)
-	isFjord := cfg.IsFjord(cursor.Timestamp)
 
-	readBatch, err := derive.BatchReader(r, maxRLP, isFjord)
+	readBatch, err := derive.BatchReader(r, maxRLP, true) // Fjord always active (implied by Karst)
 	if err != nil {
 		return nil, fmt.Errorf("creating batch reader: %w", err)
 	}
@@ -89,15 +90,15 @@ func decodeBatches(
 	return batches, nil
 }
 
-// validateBatch performs simplified batch validation suitable for Karst and later.
-// It checks timestamp sequencing, epoch bounds, and epoch hash consistency.
+// validateBatch performs batch validation matching the checks in
+// op-node/rollup/derive/batches.go (checkSingularBatch), minus checks that
+// require L2 state access:
+//   - Parent hash validation (deferred to post-execution via DerivedBlock.ExpectedParentHash)
 //
-// This is a subset of the full validation in op-node/rollup/derive/batches.go
-// (checkSingularBatch / CheckBatch). The upstream functions are unexported and
-// require an l2Fetcher for L2 state lookups that we intentionally avoid.
-// With Karst active, overlapping span batches are already rejected in decodeBatches,
-// so the remaining checks here are sufficient for correctness.
-func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth.L1BlockRef, cfg *rollup.Config) bool {
+// All other checks from checkSingularBatch are replicated here. With Karst active,
+// overlapping span batches are already rejected in decodeBatches.
+func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth.L1BlockRef, cfg *rollup.Config, l1InclusionNum uint64) bool {
+	// Timestamp must be the next expected L2 timestamp.
 	expectedTimestamp := cursor.Timestamp + cfg.BlockTime
 	if batch.Timestamp != expectedTimestamp {
 		return false
@@ -105,33 +106,75 @@ func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth
 
 	epochNum := uint64(batch.EpochNum)
 
+	// Sequence window: batch must be included within SeqWindowSize of its epoch.
+	if epochNum+cfg.SeqWindowSize < l1InclusionNum {
+		return false
+	}
+
+	// Epoch must be current or next (cannot skip epochs).
 	if epochNum < cursor.L1Origin.Number {
 		return false
 	}
-
-	if len(l1Origins) == 0 {
-		return false
-	}
-	latestOrigin := l1Origins[len(l1Origins)-1]
-	if epochNum > latestOrigin.Number {
+	if epochNum > cursor.L1Origin.Number+1 {
 		return false
 	}
 
-	for _, origin := range l1Origins {
-		if origin.Number == epochNum {
-			return batch.EpochHash == origin.Hash
+	// Find the batch's L1 origin and verify epoch hash.
+	var batchOrigin *eth.L1BlockRef
+	for i := range l1Origins {
+		if l1Origins[i].Number == epochNum {
+			batchOrigin = &l1Origins[i]
+			break
+		}
+	}
+	if batchOrigin == nil {
+		return false
+	}
+	if batch.EpochHash != batchOrigin.Hash {
+		return false
+	}
+
+	// Batch timestamp must be >= L1 origin timestamp.
+	if batch.Timestamp < batchOrigin.Time {
+		return false
+	}
+
+	// Sequencer time drift: L2 time must not exceed L1 time + MaxSequencerDrift.
+	spec := rollup.NewChainSpec(cfg)
+	maxDrift := batchOrigin.Time + spec.MaxSequencerDrift(batchOrigin.Time)
+	if batch.Timestamp > maxDrift {
+		if len(batch.Transactions) == 0 {
+			// Empty batches may exceed drift to maintain L2 time >= L1 time invariant,
+			// but only if they don't advance the epoch and the next origin isn't available.
+			if epochNum == cursor.L1Origin.Number {
+				for i := range l1Origins {
+					if l1Origins[i].Number == epochNum+1 {
+						if batch.Timestamp >= l1Origins[i].Time {
+							return false // should have adopted next origin
+						}
+						break
+					}
+				}
+			}
+		} else {
+			return false
 		}
 	}
 
-	return false
-}
-
-// makeEmptyBatch creates a batch with no transactions at the next expected
-// timestamp, advancing from the current cursor position.
-func makeEmptyBatch(cursor l2Cursor, cfg *rollup.Config) *derive.SingularBatch {
-	return &derive.SingularBatch{
-		EpochNum:  rollup.Epoch(cursor.L1Origin.Number),
-		EpochHash: cursor.L1Origin.Hash,
-		Timestamp: cursor.Timestamp + cfg.BlockTime,
+	// Fork activation blocks must not contain user transactions.
+	if cfg.IsKarstActivationBlock(batch.Timestamp) && len(batch.Transactions) > 0 {
+		return false
 	}
+
+	// Transaction validation.
+	for _, txBytes := range batch.Transactions {
+		if len(txBytes) == 0 {
+			return false
+		}
+		if txBytes[0] == types.DepositTxType {
+			return false
+		}
+	}
+
+	return true
 }

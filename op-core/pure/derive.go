@@ -24,11 +24,11 @@ import (
 //
 // Compared to the legacy pipeline (op-node/rollup/derive), this implementation
 // intentionally skips the following checks:
-//   - Parent hash validation against the actual L2 chain (deferred to post-execution)
+//   - Parent hash validation against the actual L2 chain (deferred to post-execution
+//     via DerivedBlock.ExpectedParentHash)
 //   - L2 block hash verification (no L2 state access)
 //   - Span batch overlap comparison (rejected by Karst; overlaps are invalid)
 //   - Pipeline reset / reorg handling (caller is responsible for providing correct inputs)
-//   - Sequencer drift checks requiring L2 state lookups
 //
 // See op-node/rollup/derive/batches.go for the full upstream validation logic.
 func PureDerive(
@@ -102,7 +102,7 @@ func PureDerive(
 				}
 
 				for _, batch := range batches {
-					if !validateBatch(batch, cursor, l1Origins, cfg) {
+					if !validateBatch(batch, cursor, l1Origins, cfg, l1Ref.Number) {
 						continue
 					}
 

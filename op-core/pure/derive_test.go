@@ -80,23 +80,24 @@ func TestPureDerive_MultipleChannelsAndEpochs(t *testing.T) {
 
 func TestPureDerive_ChannelTimeout(t *testing.T) {
 	cfg := testRollupConfig()
+	cfg.ChannelTimeoutBedrock = 2 // short timeout for testing
 	safeHead := testSafeHead(cfg)
 	sysConfig := testSystemConfig()
 
-	// Create an incomplete channel at L1 block 1 (frame 0 of 2, not last).
+	l1Block0 := makeTestL1Input(0) // safe head's L1 origin
+	l1Block0Ref := l1Block0.BlockRef()
+
+	// Create an incomplete channel at L1 block 1 (frame 0, not last).
 	incompleteL1 := makeTestL1Input(1)
-	incompleteL1Ref := incompleteL1.BlockRef()
 	incompleteChID := testChannelID(0xAA)
 
-	batch := &derive.SingularBatch{
+	channelData := encodeBatchToChannelData(t, &derive.SingularBatch{
 		ParentHash: safeHead.Hash,
-		EpochNum:   rollup.Epoch(incompleteL1Ref.Number),
-		EpochHash:  incompleteL1Ref.Hash,
+		EpochNum:   rollup.Epoch(l1Block0Ref.Number),
+		EpochHash:  l1Block0Ref.Hash,
 		Timestamp:  safeHead.Time + cfg.BlockTime,
-	}
-	channelData := encodeBatchToChannelData(t, batch)
+	})
 
-	// Split into two frames but only include the first (non-last) frame.
 	frame0 := derive.Frame{
 		ID:          incompleteChID,
 		FrameNumber: 0,
@@ -108,25 +109,23 @@ func TestPureDerive_ChannelTimeout(t *testing.T) {
 	require.NoError(t, frame0.MarshalBinary(&buf))
 	incompleteL1.BatcherData = [][]byte{buf.Bytes()}
 
-	// Fill gap L1 blocks until timeout. Channel timeout is 50, so we need
-	// blocks 2..52 to cause timeout at block 52.
+	// L1 blocks: 0 (origin), 1 (incomplete channel), 2, 3, 4 (complete channel).
+	// Timeout fires at block 4 (4 > 1 + 2). No empty batches generated
+	// because we're well within SeqWindowSize (10).
 	var l1Blocks []L1Input
-	l1Blocks = append(l1Blocks, *makeTestL1Input(0)) // safe head's L1 origin
+	l1Blocks = append(l1Blocks, *l1Block0)
 	l1Blocks = append(l1Blocks, *incompleteL1)
-	for i := uint64(2); i <= cfg.ChannelTimeoutBedrock+2; i++ {
-		l1Blocks = append(l1Blocks, *makeTestL1Input(i))
-	}
+	l1Blocks = append(l1Blocks, *makeTestL1Input(2))
+	l1Blocks = append(l1Blocks, *makeTestL1Input(3))
 
-	// After timeout, add a complete channel.
-	completeL1Num := cfg.ChannelTimeoutBedrock + 3
-	completeL1 := makeTestL1Input(completeL1Num)
+	// Complete channel at L1 block 4 (after timeout).
+	completeL1 := makeTestL1Input(4)
 	completeChID := testChannelID(0xBB)
 
-	// The batch must reference an L1 block we have. Use block 1's ref as epoch.
 	completeBatch := &derive.SingularBatch{
 		ParentHash: safeHead.Hash,
-		EpochNum:   rollup.Epoch(1),
-		EpochHash:  incompleteL1Ref.Hash,
+		EpochNum:   rollup.Epoch(l1Block0Ref.Number),
+		EpochHash:  l1Block0Ref.Hash,
 		Timestamp:  safeHead.Time + cfg.BlockTime,
 	}
 	completeChannelData := encodeBatchToChannelData(t, completeBatch)
@@ -137,8 +136,7 @@ func TestPureDerive_ChannelTimeout(t *testing.T) {
 	derived, err := PureDerive(cfg, safeHead, sysConfig, l1Blocks)
 	require.NoError(t, err)
 
-	// We should get at least one derived block from the complete channel.
-	// The incomplete channel should have timed out and produced nothing.
+	// The incomplete channel timed out. Only the complete channel produces a block.
 	foundFromComplete := false
 	for _, block := range derived {
 		if uint64(block.Attributes.Timestamp) == safeHead.Time+cfg.BlockTime {
@@ -146,7 +144,7 @@ func TestPureDerive_ChannelTimeout(t *testing.T) {
 			break
 		}
 	}
-	require.True(t, foundFromComplete, "should have a derived block from the complete channel after timeout")
+	require.True(t, foundFromComplete, "should derive block from complete channel after timeout")
 }
 
 func TestPureDerive_InvalidBatchSkipped(t *testing.T) {

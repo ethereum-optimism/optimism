@@ -76,7 +76,7 @@ func makeTestL1Input(num uint64) *L1Input {
 		Header: &types.Header{
 			ParentHash: common.BigToHash(new(big.Int).SetUint64(num + 0x100 - 1)),
 			Number:     new(big.Int).SetUint64(num),
-			Time:       1000 + num*12,
+			Time:       num * 2, // match L2 block time for simple epoch advancement in tests
 			BaseFee:    big.NewInt(7),
 			MixDigest:  common.BigToHash(new(big.Int).SetUint64(num + 0x200)),
 			// ExcessBlobGas required for BlobBaseFee to work via HeaderBlockInfo
@@ -169,7 +169,7 @@ func TestHelpers(t *testing.T) {
 
 	l1 := makeTestL1Input(5)
 	require.Equal(t, uint64(5), bigs.Uint64Strict(l1.Header.Number))
-	require.Equal(t, uint64(1000+5*12), l1.Header.Time)
+	require.Equal(t, uint64(5*2), l1.Header.Time)
 
 	dep := makeTestDeposit()
 	require.NotNil(t, dep)
