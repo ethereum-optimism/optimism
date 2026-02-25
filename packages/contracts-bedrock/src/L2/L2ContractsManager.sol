@@ -18,6 +18,8 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
 
@@ -132,8 +134,6 @@ contract L2ContractsManager is ISemver {
         OPERATOR_FEE_VAULT_IMPL = _implementations.operatorFeeVaultImpl;
         SCHEMA_REGISTRY_IMPL = _implementations.schemaRegistryImpl;
         EAS_IMPL = _implementations.easImpl;
-        // TODO(#18838): Add dev flagging for CrossL2Inbox and L2ToL2CrossDomainMessenger once DevFeatures is
-        // implemented for L2.
         CROSS_L2_INBOX_IMPL = _implementations.crossL2InboxImpl;
         L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL = _implementations.l2ToL2CrossDomainMessengerImpl;
         SUPERCHAIN_ETH_BRIDGE_IMPL = _implementations.superchainETHBridgeImpl;
@@ -373,24 +373,33 @@ contract L2ContractsManager is ISemver {
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
-        // TODO(#18838): Add dev flagging for CrossL2Inbox and L2ToL2CrossDomainMessenger once DevFeatures is
-        // implemented for L2.
-        L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
-        L2ContractsManagerUtils.upgradeTo(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
-        );
-        L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL);
-        L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL);
-        L2ContractsManagerUtils.upgradeTo(
-            Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL
-        );
-        L2ContractsManagerUtils.upgradeTo(
-            Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON, OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL
-        );
-        L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, SUPERCHAIN_TOKEN_BRIDGE_IMPL);
+        // Interop predeploys are gated behind the L2_INTEROP dev feature flag.
+        // When disabled, the proxies are not touched.
+        if (_isDevFeatureEnabled(DevFeatures.L2_INTEROP)) {
+            L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
+            L2ContractsManagerUtils.upgradeTo(
+                Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
+            );
+            L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL);
+            L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL);
+            L2ContractsManagerUtils.upgradeTo(
+                Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL
+            );
+            L2ContractsManagerUtils.upgradeTo(
+                Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON, OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL
+            );
+            L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, SUPERCHAIN_TOKEN_BRIDGE_IMPL);
+        }
         L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.CONDITIONAL_DEPLOYER, CONDITIONAL_DEPLOYER_IMPL);
+    }
+
+    /// @notice Checks if a development feature is enabled by reading from the L2DevFeatureFlags predeploy.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function _isDevFeatureEnabled(bytes32 _feature) internal view returns (bool) {
+        return IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).isDevFeatureEnabled(_feature);
     }
 
     /// @notice Returns the implementation addresses for each predeploy upgraded by the L2ContractsManager.
