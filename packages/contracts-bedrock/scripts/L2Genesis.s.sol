@@ -11,6 +11,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { OutputMode, OutputModeUtils, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 
 // Libraries
+import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -29,6 +30,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
@@ -82,6 +84,7 @@ contract L2Genesis is Script {
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
         bool useL2CM;
+        bytes32 devFeatureBitmap;
     }
 
     using ForkUtils for Fork;
@@ -278,6 +281,7 @@ contract L2Genesis is Script {
         }
         if (_input.useL2CM) {
             setConditionalDeployer(); // 2C
+            setL2DevFeatureFlags(_input); // 2D
         }
     }
 
@@ -593,6 +597,14 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     function setConditionalDeployer() internal {
         _setImplementationCode(Predeploys.CONDITIONAL_DEPLOYER);
+    }
+
+    /// @notice Sets up the L2DevFeatureFlags predeploy with the development feature bitmap.
+    function setL2DevFeatureFlags(Input memory _input) internal {
+        _setImplementationCode(Predeploys.L2_DEV_FEATURE_FLAGS);
+        vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
+        IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);
+        vm.stopPrank();
     }
 
     /// @notice Sets all the preinstalls.
