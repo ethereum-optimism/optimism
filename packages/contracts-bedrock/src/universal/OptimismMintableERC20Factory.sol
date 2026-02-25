@@ -51,8 +51,8 @@ contract OptimismMintableERC20Factory is ISemver, Initializable, IOptimismERC20F
     ///         the OptimismMintableERC20 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC20 contracts.
     /// @notice Semantic version.
-    /// @custom:semver 1.10.2
-    string public constant version = "1.10.2";
+    /// @custom:semver 1.10.3
+    string public constant version = "1.10.3";
 
     /// @notice Constructs the OptimismMintableERC20Factory contract.
     constructor() {
