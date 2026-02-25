@@ -211,14 +211,19 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		// start the virtual node
 		err := c.vn.Start(ctx)
 		if err != nil {
-			c.log.Warn("virtual node exited with error", "error", err)
+			c.log.Warn("virtual node exited with error", "vn_id", c.vn, "error", err)
+		} else {
+			c.log.Info("virtual node exited", "vn_id", c.vn)
 		}
 
 		// always stop the virtual node after it exits
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if stopErr := c.vn.Stop(stopCtx); stopErr != nil {
 			c.log.Error("error stopping virtual node", "error", stopErr)
+		} else {
+			c.log.Info("virtual node stopped", "vn_id", c.vn)
 		}
+
 		cancel()
 		if ctx.Err() != nil {
 			c.log.Info("chain container context cancelled, stopping restart loop", "ctx_err", ctx.Err())
@@ -230,7 +235,6 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 			c.log.Info("chain container stop requested, stopping restart loop")
 			break
 		}
-
 	}
 	c.log.Info("chain container exiting")
 	return nil
