@@ -269,9 +269,6 @@ func normalizeABIItem(item map[string]interface{}) {
 			if key == "internalType" {
 				item[key] = normalizeInternalType(v)
 			}
-			if key == "name" && v != "__constructor__" {
-				item[key] = strings.Trim(v, "_")
-			}
 		case map[string]interface{}:
 			normalizeABIItem(v)
 		case []interface{}:
@@ -280,6 +277,11 @@ func normalizeABIItem(item map[string]interface{}) {
 					normalizeABIItem(elemMap)
 				}
 			}
+			// Trim underscores from parameter names in inputs/outputs only,
+			// not from top-level function/event names.
+			if key == "inputs" || key == "outputs" {
+				normalizeParamNames(v)
+			}
 		}
 	}
 
@@ -287,6 +289,19 @@ func normalizeABIItem(item map[string]interface{}) {
 		item["type"] = "constructor"
 		delete(item, "name")
 		delete(item, "outputs")
+	}
+}
+
+// normalizeParamNames trims leading/trailing underscores from parameter names
+// in an ABI inputs/outputs array. This ensures that naming conventions like
+// _account vs account or value_ vs value don't cause false ABI mismatches.
+func normalizeParamNames(params []interface{}) {
+	for _, param := range params {
+		if paramMap, ok := param.(map[string]interface{}); ok {
+			if name, ok := paramMap["name"].(string); ok {
+				paramMap["name"] = strings.Trim(name, "_")
+			}
+		}
 	}
 }
 
