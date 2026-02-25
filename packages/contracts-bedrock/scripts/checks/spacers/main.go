@@ -115,7 +115,7 @@ func processFile(path string) (*common.Void, []error) {
 func main() {
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
-		[]string{"forge-artifacts/**/CrossDomainMessengerLegacySpacer{0,1}.json"},
+		[]string{"forge-artifacts/**/CrossDomainMessengerLegacySpacer{0,1}*.json"},
 		processFile,
 	); err != nil {
 		fmt.Printf("Error: %v\n", err)
