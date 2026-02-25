@@ -13,6 +13,37 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
+// nutBundleGlobs are the locations where NUT bundle JSON files may live.
+// Update this list when adding new bundle locations.
+var nutBundleGlobs = []string{
+	"op-node/rollup/derive/*_nut_bundle.json",
+	"op-core/nuts/*_nut_bundle.json",
+}
+
+// checkAllBundlesLocked searches known paths for *_nut_bundle.json files and
+// verifies each has a corresponding entry in fork_lock.toml.
+func checkAllBundlesLocked(root string, lockedBundles map[string]bool) error {
+	for _, pattern := range nutBundleGlobs {
+		matches, err := filepath.Glob(filepath.Join(root, pattern))
+		if err != nil {
+			return fmt.Errorf("globbing %s: %w", pattern, err)
+		}
+		for _, match := range matches {
+			rel, err := filepath.Rel(root, match)
+			if err != nil {
+				return err
+			}
+			if !lockedBundles[rel] {
+				return fmt.Errorf(
+					"NUT bundle %s has no entry in op-core/nuts/fork_lock.toml",
+					rel,
+				)
+			}
+		}
+	}
+	return nil
+}
+
 type forkLockEntry struct {
 	Bundle string `toml:"bundle"`
 	Hash   string `toml:"hash"`
@@ -37,7 +68,10 @@ func run(dir string) error {
 		return fmt.Errorf("reading fork lock file: %w", err)
 	}
 
+	lockedBundles := make(map[string]bool)
 	for fork, entry := range locks {
+		lockedBundles[entry.Bundle] = true
+
 		bundlePath := filepath.Join(root, entry.Bundle)
 		content, err := os.ReadFile(bundlePath)
 		if err != nil {
@@ -57,6 +91,11 @@ func run(dir string) error {
 		}
 
 		fmt.Printf("fork %s: bundle hash OK\n", fork)
+	}
+
+	// Reverse check: verify all NUT bundle JSONs have a lock entry
+	if err := checkAllBundlesLocked(root, lockedBundles); err != nil {
+		return err
 	}
 
 	return nil
