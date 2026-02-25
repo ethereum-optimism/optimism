@@ -136,7 +136,7 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
 		}
 
-		validity, _ := checkSpanBatchPrefix(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
+		validity, _ := CheckSpanBatchPrefix(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
 		switch validity {
 		case BatchAccept: // continue
 			spanBatch.LogContext(bs.Log()).Info("Found next valid span batch")

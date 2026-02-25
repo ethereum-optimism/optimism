@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -28,17 +27,12 @@ type L1Input struct {
 
 // BlockRef converts the L1 header to an eth.L1BlockRef.
 func (l *L1Input) BlockRef() eth.L1BlockRef {
-	return eth.L1BlockRef{
-		Hash:       l.Header.Hash(),
-		Number:     bigs.Uint64Strict(l.Header.Number),
-		ParentHash: l.Header.ParentHash,
-		Time:       l.Header.Time,
-	}
+	return *eth.BlockRefFromHeader(l.Header)
 }
 
 // BlockID returns the block's ID (hash + number).
 func (l *L1Input) BlockID() eth.BlockID {
-	return eth.BlockID{Hash: l.Header.Hash(), Number: bigs.Uint64Strict(l.Header.Number)}
+	return eth.HeaderBlockID(l.Header)
 }
 
 // blockInfo returns an eth.BlockInfo adapter for the L1Input's header,

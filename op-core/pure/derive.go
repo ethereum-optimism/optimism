@@ -96,7 +96,7 @@ func PureDerive(
 					continue
 				}
 
-				batches, err := decodeBatches(ready.channel.Reader(), cfg, l1Origins, cursor)
+				batches, err := decodeBatches(ready.channel.Reader(), cfg, l1Origins, cursor, ready.openBlock)
 				if err != nil {
 					continue
 				}

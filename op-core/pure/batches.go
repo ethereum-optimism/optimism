@@ -1,10 +1,12 @@
 package pure
 
 import (
+	"context"
 	"fmt"
 	"io"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -15,15 +17,14 @@ import (
 // and returns them as singular batches. Span batches are expanded into
 // individual singular batches using the provided L1 origins and cursor.
 //
-// With Karst active, span batches must not overlap the safe chain. If the first
-// batch in a span has timestamp <= cursor.Timestamp, the entire span is rejected.
-// See checkSpanBatchPrefix in op-node/rollup/derive/batches.go for the full
-// upstream overlap handling.
+// Span batch prefix validation is delegated to derive.CheckSpanBatchPrefix,
+// which rejects overlapping span batches under Karst.
 func decodeBatches(
 	r io.Reader,
 	cfg *rollup.Config,
 	l1Origins []eth.L1BlockRef,
 	cursor l2Cursor,
+	l1InclusionBlock eth.L1BlockRef,
 ) ([]*derive.SingularBatch, error) {
 	spec := rollup.NewChainSpec(cfg)
 	maxRLP := spec.MaxRLPBytesPerChannel(cursor.Timestamp)
@@ -62,20 +63,31 @@ func decodeBatches(
 				return nil, fmt.Errorf("deriving span batch: %w", err)
 			}
 
-			// Reject overlapping span batches. Under Karst, span batches that start
-			// at or before the safe head are invalid. This mirrors the overlap rejection
-			// in checkSpanBatchPrefix (op-node/rollup/derive/batches.go).
-			if spanBatch.GetTimestamp() <= cursor.Timestamp {
-				return nil, fmt.Errorf("span batch timestamp %d overlaps safe head at %d (rejected under Karst)",
-					spanBatch.GetTimestamp(), cursor.Timestamp)
-			}
-
 			l2SafeHead := eth.L2BlockRef{
 				Number:         cursor.Number,
 				Time:           cursor.Timestamp,
 				L1Origin:       cursor.L1Origin,
 				SequenceNumber: cursor.SequenceNumber,
 			}
+
+			// Build l1Blocks slice starting from the cursor's epoch, as
+			// CheckSpanBatchPrefix expects l1Blocks[0] to be the current epoch.
+			var l1Blocks []eth.L1BlockRef
+			for _, ref := range l1Origins {
+				if ref.Number >= cursor.L1Origin.Number {
+					l1Blocks = append(l1Blocks, ref)
+				}
+			}
+
+			validity, _ := derive.CheckSpanBatchPrefix(
+				context.Background(), cfg,
+				log.NewLogger(log.DiscardHandler()),
+				l1Blocks, l2SafeHead, spanBatch, l1InclusionBlock, nil,
+			)
+			if validity != derive.BatchAccept {
+				return nil, fmt.Errorf("span batch prefix check failed (validity=%d)", validity)
+			}
+
 			singular, err := spanBatch.GetSingularBatches(l1Origins, l2SafeHead)
 			if err != nil {
 				return nil, fmt.Errorf("expanding span batch: %w", err)

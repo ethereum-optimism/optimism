@@ -30,7 +30,7 @@ func TestDecodeBatches_SingularBatch(t *testing.T) {
 	cursor := newCursor(safeHead)
 	l1Origins := []eth.L1BlockRef{testL1Ref(0), l1Ref}
 
-	batches, err := decodeBatches(bytes.NewReader(channelData), cfg, l1Origins, cursor)
+	batches, err := decodeBatches(bytes.NewReader(channelData), cfg, l1Origins, cursor, l1Ref)
 	require.NoError(t, err)
 	require.Len(t, batches, 1)
 

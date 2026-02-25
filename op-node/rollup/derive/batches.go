@@ -191,10 +191,14 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 	return BatchAccept
 }
 
-// checkSpanBatchPrefix performs the span batch prefix rules for Holocene.
+// CheckSpanBatchPrefix performs the span batch prefix rules for Holocene.
 // Next to the validity, it also returns the parent L2 block as determined during the checks for
 // further consumption.
-func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
+//
+// Under Karst, overlapping span batches (timestamp < next expected) are dropped.
+// When l2Fetcher is nil, the parent hash check is skipped (for pure derivation
+// where L2 block hashes are not available).
+func CheckSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
 	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
 ) (BatchValidity, eth.L2BlockRef) {
 	// add details to the log
@@ -240,9 +244,14 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 	}
 
 	// finding parent block of the span batch.
-	// if the span batch does not overlap the current safe chain, parentBLock should be l2SafeHead.
+	// if the span batch does not overlap the current safe chain, parentBlock should be l2SafeHead.
 	parentBlock := l2SafeHead
 	if batch.GetTimestamp() < nextTimestamp {
+		// Under Karst, overlapping span batches are invalid.
+		if cfg.IsKarst(l2SafeHead.Time) {
+			log.Warn("dropping overlapping span batch under Karst")
+			return BatchDrop, eth.L2BlockRef{}
+		}
 		if batch.GetTimestamp() > l2SafeHead.Time {
 			// batch timestamp cannot be between safe head and next timestamp
 			log.Warn("batch has misaligned timestamp, block time is too short")
@@ -261,7 +270,9 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 			return BatchUndecided, eth.L2BlockRef{}
 		}
 	}
-	if !batch.CheckParentHash(parentBlock.Hash) {
+	// Skip parent hash check when l2Fetcher is nil (pure derivation mode
+	// where L2 block hashes are not available).
+	if l2Fetcher != nil && !batch.CheckParentHash(parentBlock.Hash) {
 		log.Warn("ignoring batch with mismatching parent hash", "parent_block", parentBlock.Hash)
 		return BatchDrop, parentBlock
 	}
@@ -308,7 +319,7 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
 	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
 ) BatchValidity {
-	prefixValidity, parentBlock := checkSpanBatchPrefix(ctx, cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock, l2Fetcher)
+	prefixValidity, parentBlock := CheckSpanBatchPrefix(ctx, cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock, l2Fetcher)
 	if prefixValidity != BatchAccept {
 		return prefixValidity
 	}
