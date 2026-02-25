@@ -286,12 +286,12 @@ reth-optimism-trie = { path = "op-reth/crates/trie/" }
 reth-optimism-txpool = { path = "op-reth/crates/txpool/" }
 
 # ==================== OP-ALLOY INTERNAL CRATES ====================
-op-alloy-consensus = { version = "0.23.1", path = "op-alloy/crates/consensus", default-features = false }
-op-alloy-network = { version = "0.23.1", path = "op-alloy/crates/network", default-features = false }
-op-alloy-provider = { version = "0.23.1", path = "op-alloy/crates/provider", default-features = false }
-op-alloy-rpc-types = { version = "0.23.1", path = "op-alloy/crates/rpc-types", default-features = false }
-op-alloy-rpc-types-engine = { version = "0.23.1", path = "op-alloy/crates/rpc-types-engine", default-features = false }
-op-alloy-rpc-jsonrpsee = { version = "0.23.1", path = "op-alloy/crates/rpc-jsonrpsee", default-features = false }
+op-alloy-consensus = { version = "0.24.0", path = "op-alloy/crates/consensus", default-features = false }
+op-alloy-network = { version = "0.24.0", path = "op-alloy/crates/network", default-features = false }
+op-alloy-provider = { version = "0.24.0", path = "op-alloy/crates/provider", default-features = false }
+op-alloy-rpc-types = { version = "0.24.0", path = "op-alloy/crates/rpc-types", default-features = false }
+op-alloy-rpc-types-engine = { version = "0.24.0", path = "op-alloy/crates/rpc-types-engine", default-features = false }
+op-alloy-rpc-jsonrpsee = { version = "0.24.0", path = "op-alloy/crates/rpc-jsonrpsee", default-features = false }
 
 # ==================== ALLOY-OP-EVM / ALLOY-OP-HARDFORKS ====================
 alloy-op-evm = { version = "0.26.3", path = "alloy-op-evm/", default-features = false }
@@ -437,7 +437,7 @@ alloy-transport-ipc = { version = "1.6.3", default-features = false }
 alloy-transport-ws = { version = "1.6.3", default-features = false }
 
 # ==================== OP-ALLOY (from crates.io) ====================
-op-alloy = { version = "0.23.1", path = "op-alloy/crates/op-alloy", default-features = false }
+op-alloy = { version = "0.24.0", path = "op-alloy/crates/op-alloy", default-features = false }
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== ASYNC ====================
