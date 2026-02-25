@@ -365,6 +365,7 @@ contract L2Genesis is Script {
         IOptimismMintableERC721Factory factory = IOptimismMintableERC721Factory(
             DeployUtils.create1({
                 _name: "OptimismMintableERC721Factory",
+                // TODO(#19318): Remove this constructor encoding once OptimismMintableERC721Factory is initializable.
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IOptimismMintableERC721Factory.__constructor__, (Predeploys.L2_ERC721_BRIDGE, _input.l1ChainID)

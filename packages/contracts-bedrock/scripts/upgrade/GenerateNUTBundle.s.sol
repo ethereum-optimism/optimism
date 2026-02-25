@@ -33,6 +33,7 @@ contract GenerateNUTBundle is Script {
     /// @notice Input parameters for bundle generation.
     /// @param l1ChainID The L1 chain ID.
     struct Input {
+        // TODO(#19318): Remove this input once OptimismMintableERC721Factory is initializable.
         uint256 l1ChainID;
     }
 
@@ -107,12 +108,10 @@ contract GenerateNUTBundle is Script {
         _preL2CMDeployment();
 
         // Phase 4: L2ContractsManager deployment
-        // TODO: Uncomment once L2ContractsManager is merged and ready for deployment
-        // _generateL2CMDeployment();
+        _generateL2CMDeployment();
 
         // Phase 5: Upgrade execution
-        // TODO: Uncomment once L2ContractsManager is merged and upgrade flow is finalized
-        // _generateUpgradeExecution();
+        _generateUpgradeExecution();
 
         // Copy storage array to memory array for return
         uint256 txnsLength = txns.length;
@@ -137,9 +136,8 @@ contract GenerateNUTBundle is Script {
     /// @param _output The output to assert.
     function _assertValidOutput(Output memory _output) internal pure {
         uint256 transactionCount = UpgradeUtils.getTransactionCount();
-        // TODO: Remove -2 once L2CM deployment and upgrade execution phases are added
         uint256 txnsLength = _output.txns.length;
-        require(txnsLength == transactionCount - 2, "GenerateNUTBundle: invalid transaction count");
+        require(txnsLength == transactionCount, "GenerateNUTBundle: invalid transaction count");
 
         for (uint256 i = 0; i < txnsLength; i++) {
             require(_output.txns[i].data.length > 0, "GenerateNUTBundle: invalid transaction data");
@@ -471,6 +469,7 @@ contract GenerateNUTBundle is Script {
             args: abi.encode(Predeploys.L2_ERC721_BRIDGE, _input.l1ChainID),
             deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
             implementation: UpgradeUtils.computeCreate2Address(
+                // TODO(#19318): Remove this constructor encoding once OptimismMintableERC721Factory is initializable.
                 abi.encodePacked(
                     vm.getCode("OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory"),
                     abi.encode(Predeploys.L2_ERC721_BRIDGE, _input.l1ChainID)
