@@ -390,16 +390,19 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, supernodeID stack.SupernodeI
 	exitFn := func(err error) { p.Require().NoError(err, "supernode critical error") }
 	sn, err := supernode.New(ctx, logger, "devstack", exitFn, snCfg, vnCfgs)
 	require.NoError(err)
-	go func() { _ = sn.Start(ctx) }()
+	require.NoError(sn.Start(ctx))
 	// Resolve bound address
 	addr, err := sn.WaitRPCAddr(ctx)
 	require.NoError(err, "failed waiting for supernode RPC addr")
 	base := "http://" + addr
 	p.Cleanup(func() {
-		stopCtx, c := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = sn.Stop(stopCtx)
-		c()
+		// cancel the start context first, so supernode goroutines can exit
+		// this is important since sn.Stop may block on goroutines spawned
+		// with the context passed to sn.Start
 		cancel()
+		stopCtx, c := context.WithTimeout(context.Background(), 5*time.Second)
+		defer c()
+		_ = sn.Stop(stopCtx)
 	})
 	// Wait for per-chain RPC routes to serve optimism_rollupConfig and register proxies
 	waitReady := func(u string) {
