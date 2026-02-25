@@ -3,6 +3,7 @@ package interop
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -42,6 +43,31 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		L2Heads:      make(map[eth.ChainID]eth.BlockID),
 		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
 	}
+
+	// Compute L1Inclusion: the earliest L1 block such that all L2 blocks at the
+	// supplied timestamp were derived
+	// from a source at or before that L1 block.
+	earliestL1Inclusion := eth.BlockID{
+		Number: math.MaxUint64,
+	}
+	for chainID := range blocksAtTimestamp {
+		chain, ok := i.chains[chainID]
+		if !ok {
+			continue
+		}
+		_, l1Block, err := chain.OptimisticAt(i.ctx, ts)
+		if err != nil {
+			i.log.Error("failed to get L1 inclusion for L2 block", "chainID", chainID, "timestamp", ts, "err", err)
+			return Result{}, fmt.Errorf("chain %s: failed to get L1 inclusion: %w", chainID, err)
+		}
+		if l1Block.Number < earliestL1Inclusion.Number {
+			earliestL1Inclusion = l1Block
+		}
+	}
+	if earliestL1Inclusion.Number == math.MaxUint64 {
+		return Result{}, fmt.Errorf("no L1 inclusion found for timestamp %d", ts)
+	}
+	result.L1Inclusion = earliestL1Inclusion
 
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]

@@ -61,7 +61,10 @@ commands:
       - run:
           name: Install Rust toolchain (<< parameters.channel >>)
           command: |
-            rustup default << parameters.toolchain_version >>
+            TOOLCHAIN="<< parameters.toolchain_version >>"
+
+            rustup toolchain install "$TOOLCHAIN"
+            rustup default "$TOOLCHAIN"
 
             if [ -n "<< parameters.components >>" ]; then
               rustup component add << parameters.components >>
@@ -79,6 +82,7 @@ commands:
             echo "export CARGO_HOME=${MISE_CARGO_HOME}" >> "$BASH_ENV"
             echo "export RUSTUP_HOME=${MISE_RUSTUP_HOME}" >> "$BASH_ENV"
             echo "source ${MISE_CARGO_HOME}/env" >> "$BASH_ENV"
+            echo "export CARGO_INCREMENTAL=0" >> "$BASH_ENV"
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
@@ -117,7 +121,7 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: "15"
+        default: "16"
       profile:
         description: "Profile to restore the cache for"
         type: string
@@ -324,7 +328,7 @@ jobs:
       command:
         description: "Format check command to run"
         type: string
-        default: "cargo +nightly fmt --all --check"
+        default: "just fmt-check"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
@@ -334,10 +338,10 @@ jobs:
       - rust-prepare-and-restore-cache: &fmt-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
-          components: rustfmt
+      - run:
+          name: Install nightly toolchain
+          working_directory: <<parameters.directory>>
+          command: just install-nightly
       - run:
           name: Check formatting
           working_directory: <<parameters.directory>>
@@ -514,11 +518,7 @@ jobs:
       command:
         description: "Doc build command to run"
         type: string
-        default: "cargo +nightly doc --workspace --all-features --no-deps --document-private-items"
-      rustdocflags:
-        description: "RUSTDOCFLAGS environment variable"
-        type: string
-        default: "--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options"
+        default: "just lint-docs"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge
@@ -529,15 +529,14 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-docs
           features: "all"
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
+      - run:
+          name: Install nightly toolchain
+          working_directory: <<parameters.directory>>
+          command: just install-nightly
       - run:
           name: Build documentation
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
-          environment:
-            RUSTDOCFLAGS: <<parameters.rustdocflags>>
           command: <<parameters.command>>
       - rust-save-build-cache: *docs-cache-args
 
@@ -633,9 +632,10 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-udeps
           profile: "release"
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
+      - run:
+          name: Install nightly toolchain
+          working_directory: <<parameters.directory>>
+          command: just install-nightly
       - install-cargo-binstall
       - run:
           name: Install cargo-udeps
@@ -755,53 +755,6 @@ jobs:
           command: |
             cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --read
       - rust-save-build-cache: *op-reth-compact-cache
-
-  # OP-Reth Windows cross-compile check
-  op-reth-windows-check:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-reth-windows-cache
-          directory: rust
-          prefix: op-reth-windows
-          profile: debug
-      - run:
-          name: Install mingw-w64
-          command: sudo apt-get update && sudo apt-get install -y mingw-w64
-      - run:
-          name: Check OP-Reth Windows build
-          working_directory: rust
-          no_output_timeout: 40m
-          command: just --justfile op-reth/justfile check-windows
-      - rust-save-build-cache: *op-reth-windows-cache
-
-  # --------------------------------------------------------------------------
-  # Op-Alloy crate-specific jobs
-  # --------------------------------------------------------------------------
-  # Op-Alloy cfg check
-  op-alloy-cfg-check:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-alloy-cfg-check-cache
-          directory: rust
-          prefix: op-alloy-cfg-check
-      - rust-install-toolchain:
-          channel: nightly
-          toolchain_version: nightly
-      - run:
-          name: Run cfg check
-          working_directory: rust
-          no_output_timeout: 40m
-          command: |
-            just --justfile op-alloy/Justfile check
-      - rust-save-build-cache: *op-alloy-cfg-check-cache
 
   # --------------------------------------------------------------------------
   # Kona crate-specific jobs
@@ -1054,7 +1007,7 @@ jobs:
           no_output_timeout: 60m
           command: |
             cd docker/fpvm-prestates
-            just "<<parameters.kind>>" "<<parameters.version>>" "../.."
+            just "<<parameters.kind>>" "<<parameters.version>>" "../../prestate-artifacts-<<parameters.kind>>"
       - run:
           name: Upload prestates to GCS
           working_directory: rust/kona
@@ -1200,9 +1153,6 @@ workflows:
       - op-reth-compact-codec:
           context: *rust-ci-context
 
-      - op-reth-windows-check:
-          context: *rust-ci-context
-
       - rust-ci-cargo-tests:
           name: op-reth-integration-tests
           directory: rust
@@ -1216,12 +1166,6 @@ workflows:
           command: "--justfile op-reth/justfile test"
           flags: "edge"
           cache_profile: debug
-          context: *rust-ci-context
-
-      # -----------------------------------------------------------------------
-      # Op-Alloy crate-specific jobs
-      # -----------------------------------------------------------------------
-      - op-alloy-cfg-check:
           context: *rust-ci-context
 
       # -----------------------------------------------------------------------
@@ -1262,19 +1206,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
-  scheduled-kona-sync:
-    when:
-      equal: [build_weekly, <<pipeline.schedule.name>>]
-    jobs:
-      - kona-update-monorepo:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:
     when:
-      or:
+      and:
         - equal: ["develop", <<pipeline.git.branch>>]
+        - equal: ["webhook", << pipeline.trigger_source >>] # Only trigger on push to develop, not scheduled runs
     jobs:
       - kona-publish-prestate-artifacts:
           name: kona-publish-<<matrix.version>>
@@ -1283,4 +1220,5 @@ workflows:
               version: ["kona-client", "kona-client-int"]
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - oplabs-gcr
+            - oplabs-network-optimism-io-bucket
+

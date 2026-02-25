@@ -7,6 +7,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 import { Burn } from "src/libraries/Burn.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
@@ -116,56 +117,71 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
 /// @notice Tests the `unlock` function of the `DelayedWETH` contract.
 contract DelayedWETH_Unlock_Test is DelayedWETH_TestInit {
     /// @notice Tests that unlocking once is successful.
-    function test_unlock_once_succeeds() public {
-        delayedWeth.unlock(alice, 1 ether);
+    /// @param _wad Amount of WETH to unlock.
+    function testFuzz_unlock_once_succeeds(uint256 _wad) public {
+        delayedWeth.unlock(alice, _wad);
         (uint256 amount, uint256 timestamp) = delayedWeth.withdrawals(address(this), alice);
-        assertEq(amount, 1 ether);
+        assertEq(amount, _wad);
         assertEq(timestamp, block.timestamp);
     }
 
-    /// @notice Tests that unlocking twice is successful and timestamp/amount is updated.
-    function test_unlock_twice_succeeds() public {
+    /// @notice Tests that unlocking twice is successful
+    ///         and timestamp/amount is updated.
+    /// @param _wad1 First unlock amount.
+    /// @param _wad2 Second unlock amount.
+    /// @param _timeDelta Time between unlocks.
+    function testFuzz_unlock_twice_succeeds(uint256 _wad1, uint256 _wad2, uint256 _timeDelta) public {
+        // Bound to prevent overflow on addition.
+        _wad1 = bound(_wad1, 0, type(uint128).max);
+        _wad2 = bound(_wad2, 0, type(uint128).max);
+        _timeDelta = bound(_timeDelta, 1, type(uint128).max);
+
         // Unlock once.
         uint256 ts = block.timestamp;
-        delayedWeth.unlock(alice, 1 ether);
+        delayedWeth.unlock(alice, _wad1);
         (uint256 amount1, uint256 timestamp1) = delayedWeth.withdrawals(address(this), alice);
-        assertEq(amount1, 1 ether);
+        assertEq(amount1, _wad1);
         assertEq(timestamp1, ts);
 
         // Go forward in time.
-        vm.warp(ts + 1);
+        vm.warp(ts + _timeDelta);
 
         // Unlock again works.
-        delayedWeth.unlock(alice, 1 ether);
+        delayedWeth.unlock(alice, _wad2);
         (uint256 amount2, uint256 timestamp2) = delayedWeth.withdrawals(address(this), alice);
-        assertEq(amount2, 2 ether);
-        assertEq(timestamp2, ts + 1);
+        assertEq(amount2, _wad1 + _wad2);
+        assertEq(timestamp2, ts + _timeDelta);
     }
 }
 
 /// @title DelayedWETH_Withdraw_Test
 /// @notice Tests the `withdraw` function of the `DelayedWETH` contract.
 contract DelayedWETH_Withdraw_Test is DelayedWETH_TestInit {
-    /// @notice Tests that withdrawing while unlocked and delay has passed is successful.
-    function test_withdraw_whileUnlocked_succeeds() public {
+    /// @notice Tests that withdrawing while unlocked and
+    ///         delay has passed is successful.
+    /// @param _wad Amount of WETH to withdraw.
+    function testFuzz_withdraw_whileUnlocked_succeeds(uint256 _wad) public {
+        _wad = bound(_wad, 0, type(uint192).max);
+
         // Deposit some WETH.
+        vm.deal(alice, _wad);
         vm.prank(alice);
-        delayedWeth.deposit{ value: 1 ether }();
+        delayedWeth.deposit{ value: _wad }();
         uint256 balance = address(alice).balance;
 
         // Unlock the withdrawal.
         vm.prank(alice);
-        delayedWeth.unlock(alice, 1 ether);
+        delayedWeth.unlock(alice, _wad);
 
         // Wait for the delay.
         vm.warp(block.timestamp + delayedWeth.delay() + 1);
 
         // Withdraw the WETH.
         vm.expectEmit(true, true, false, false);
-        emit Withdrawal(address(alice), 1 ether);
+        emit Withdrawal(address(alice), _wad);
         vm.prank(alice);
-        delayedWeth.withdraw(1 ether);
-        assertEq(address(alice).balance, balance + 1 ether);
+        delayedWeth.withdraw(_wad);
+        assertEq(address(alice).balance, balance + _wad);
     }
 
     /// @notice Tests that withdrawing when unlock was not called fails.
@@ -248,26 +264,31 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_TestInit {
         delayedWeth.withdraw(1 ether);
     }
 
-    /// @notice Tests that withdrawing while unlocked and delay has passed is successful.
-    function test_withdraw_withdrawFromWhileUnlocked_succeeds() public {
+    /// @notice Tests that withdrawing with sub-account
+    ///         while unlocked and delay has passed succeeds.
+    /// @param _wad Amount of WETH to withdraw.
+    function testFuzz_withdraw_withdrawFromWhileUnlocked_succeeds(uint256 _wad) public {
+        _wad = bound(_wad, 0, type(uint192).max);
+
         // Deposit some WETH.
+        vm.deal(alice, _wad);
         vm.prank(alice);
-        delayedWeth.deposit{ value: 1 ether }();
+        delayedWeth.deposit{ value: _wad }();
         uint256 balance = address(alice).balance;
 
         // Unlock the withdrawal.
         vm.prank(alice);
-        delayedWeth.unlock(alice, 1 ether);
+        delayedWeth.unlock(alice, _wad);
 
         // Wait for the delay.
         vm.warp(block.timestamp + delayedWeth.delay() + 1);
 
         // Withdraw the WETH.
         vm.expectEmit(true, true, false, false);
-        emit Withdrawal(address(alice), 1 ether);
+        emit Withdrawal(address(alice), _wad);
         vm.prank(alice);
-        delayedWeth.withdraw(alice, 1 ether);
-        assertEq(address(alice).balance, balance + 1 ether);
+        delayedWeth.withdraw(alice, _wad);
+        assertEq(address(alice).balance, balance + _wad);
     }
 
     /// @notice Tests that withdrawing when unlock was not called fails.
@@ -386,33 +407,67 @@ contract DelayedWETH_Recover_Test is DelayedWETH_TestInit {
     }
 
     /// @notice Tests that recovering WETH by non-owner fails.
-    function test_recover_byNonOwner_fails() public {
-        // Pretend to be a non-owner.
-        vm.prank(alice);
+    /// @param _sender Random address for access control.
+    function testFuzz_recover_byNonOwner_fails(address _sender) public {
+        vm.assume(_sender != proxyAdminOwner);
 
         // Recover fails.
         vm.expectRevert("DelayedWETH: not owner");
+        vm.prank(_sender);
         delayedWeth.recover(1 ether);
     }
 
-    /// @notice Tests that recovering more than the balance recovers what it can.
-    function test_recover_moreThanBalance_succeeds() public {
+    /// @notice Tests that recovering more than the balance
+    ///         recovers what it can.
+    /// @param _balance Contract balance.
+    /// @param _extra Extra amount above balance.
+    function testFuzz_recover_moreThanBalance_succeeds(uint256 _balance, uint256 _extra) public {
+        _balance = bound(_balance, 0, type(uint128).max);
+        _extra = bound(_extra, 1, type(uint128).max);
+        uint256 wad = _balance + _extra;
+
         // Mock owner to return alice.
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(alice));
 
-        // Give the contract some WETH to recover.
-        vm.deal(address(delayedWeth), 0.5 ether);
+        // Give the contract some ETH to recover.
+        vm.deal(address(delayedWeth), _balance);
 
         // Record the initial balance.
         uint256 initialBalance = address(alice).balance;
 
         // Recover the WETH.
         vm.prank(alice);
-        delayedWeth.recover(1 ether);
+        delayedWeth.recover(wad);
 
-        // Verify the WETH was recovered.
+        // Verify capped at actual balance.
         assertEq(address(delayedWeth).balance, 0);
-        assertEq(address(alice).balance, initialBalance + 0.5 ether);
+        assertEq(address(alice).balance, initialBalance + _balance);
+    }
+
+    /// @notice Tests that recovering less than the balance
+    ///         sends the exact requested amount.
+    /// @param _balance Contract balance.
+    /// @param _wad Amount to recover (less than balance).
+    function testFuzz_recover_partialAmount_succeeds(uint256 _balance, uint256 _wad) public {
+        _balance = bound(_balance, 1, type(uint128).max);
+        _wad = bound(_wad, 0, _balance - 1);
+
+        // Mock owner to return alice.
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(alice));
+
+        // Give the contract some ETH to recover.
+        vm.deal(address(delayedWeth), _balance);
+
+        // Record the initial balance.
+        uint256 initialBalance = address(alice).balance;
+
+        // Recover partial amount.
+        vm.prank(alice);
+        delayedWeth.recover(_wad);
+
+        // Verify exact amount was recovered.
+        assertEq(address(delayedWeth).balance, _balance - _wad);
+        assertEq(address(alice).balance, initialBalance + _wad);
     }
 
     /// @notice Tests that recover reverts when recipient reverts.
@@ -437,42 +492,48 @@ contract DelayedWETH_Recover_Test is DelayedWETH_TestInit {
 /// @notice Tests the `hold` function of the `DelayedWETH` contract.
 contract DelayedWETH_Hold_Test is DelayedWETH_TestInit {
     /// @notice Tests that holding WETH succeeds.
-    function test_hold_byOwner_succeeds() public {
-        uint256 amount = 1 ether;
+    /// @param _wad Amount of WETH to hold.
+    function testFuzz_hold_byOwner_succeeds(uint256 _wad) public {
+        _wad = bound(_wad, 0, type(uint192).max);
 
         // Pretend to be alice and deposit some WETH.
+        vm.deal(alice, _wad);
         vm.prank(alice);
-        delayedWeth.deposit{ value: amount }();
+        delayedWeth.deposit{ value: _wad }();
 
         // Get our balance before.
         uint256 initialBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Hold some WETH.
         vm.expectEmit(true, true, true, false);
-        emit Approval(alice, address(proxyAdminOwner), amount);
+        emit Approval(alice, address(proxyAdminOwner), _wad);
         vm.prank(proxyAdminOwner);
-        delayedWeth.hold(alice, amount);
+        delayedWeth.hold(alice, _wad);
 
         // Get our balance after.
         uint256 finalBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Verify the transfer.
-        assertEq(finalBalance, initialBalance + amount);
+        assertEq(finalBalance, initialBalance + _wad);
     }
 
-    function test_hold_withoutAmount_succeeds() public {
-        uint256 amount = 1 ether;
+    /// @notice Tests that holding all WETH without
+    ///         specifying amount succeeds.
+    /// @param _wad Amount of WETH to deposit and hold.
+    function testFuzz_hold_withoutAmount_succeeds(uint256 _wad) public {
+        _wad = bound(_wad, 0, type(uint192).max);
 
         // Pretend to be alice and deposit some WETH.
+        vm.deal(alice, _wad);
         vm.prank(alice);
-        delayedWeth.deposit{ value: amount }();
+        delayedWeth.deposit{ value: _wad }();
 
         // Get our balance before.
         uint256 initialBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
-        // Hold some WETH.
+        // Hold all WETH.
         vm.expectEmit(true, true, true, false);
-        emit Approval(alice, address(proxyAdminOwner), amount);
+        emit Approval(alice, address(proxyAdminOwner), _wad);
         vm.prank(proxyAdminOwner);
         delayedWeth.hold(alice); // without amount parameter
 
@@ -480,16 +541,39 @@ contract DelayedWETH_Hold_Test is DelayedWETH_TestInit {
         uint256 finalBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Verify the transfer.
-        assertEq(finalBalance, initialBalance + amount);
+        assertEq(finalBalance, initialBalance + _wad);
     }
 
     /// @notice Tests that holding WETH by non-owner fails.
-    function test_hold_byNonOwner_fails() public {
-        // Pretend to be a non-owner.
-        vm.prank(alice);
+    /// @param _sender Random address for access control.
+    function testFuzz_hold_byNonOwner_fails(address _sender) public {
+        vm.assume(_sender != proxyAdminOwner);
 
         // Hold fails.
         vm.expectRevert("DelayedWETH: not owner");
+        vm.prank(_sender);
         delayedWeth.hold(bob, 1 ether);
+    }
+
+    /// @notice Tests that holding all WETH by non-owner
+    ///         using the single-arg overload fails.
+    /// @param _sender Random address for access control.
+    function testFuzz_hold_noAmountNonOwner_fails(address _sender) public {
+        vm.assume(_sender != proxyAdminOwner);
+
+        // Hold fails.
+        vm.expectRevert("DelayedWETH: not owner");
+        vm.prank(_sender);
+        delayedWeth.hold(bob);
+    }
+}
+
+/// @title DelayedWETH_Version_Test
+/// @notice Tests the `version` function of the
+///         `DelayedWETH` contract.
+contract DelayedWETH_Version_Test is DelayedWETH_TestInit {
+    /// @notice Tests that the version string is valid semver.
+    function test_version_validFormat_succeeds() external view {
+        SemverComp.parse(delayedWeth.version());
     }
 }

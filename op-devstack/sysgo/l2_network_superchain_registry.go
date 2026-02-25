@@ -44,8 +44,9 @@ func WithL2NetworkFromSuperchainRegistry(l2NetworkID stack.L2NetworkID, networkN
 			keys:      orch.keys,
 		}
 
-		require.True(orch.l2Nets.SetIfMissing(l2NetworkID.ChainID(), l2Net),
-			fmt.Sprintf("must not already exist: %s", l2NetworkID))
+		cid := stack.ConvertL2NetworkID(l2NetworkID).ComponentID
+		require.False(orch.registry.Has(cid), fmt.Sprintf("must not already exist: %s", l2NetworkID))
+		orch.registry.Register(cid, l2Net)
 	})
 }
 
@@ -68,7 +69,7 @@ func WithEmptyDepSet(l2NetworkID stack.L2NetworkID, networkName string) stack.Op
 				cfgset: depset.FullConfigSetMerged{},
 			}
 
-			orch.clusters.Set(clusterID, cluster)
+			orch.registry.Register(stack.ConvertClusterID(clusterID).ComponentID, cluster)
 		}),
 	)
 }

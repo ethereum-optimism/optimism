@@ -467,8 +467,9 @@ func (b *OPRBuilderNode) Stop() {
 func WithOPRBuilderNode(id stack.OPRBuilderNodeID, opts ...OPRBuilderNodeOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
-		l2Net, ok := orch.l2Nets.Get(id.ChainID())
+		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(id.ChainID())).ComponentID)
 		p.Require().True(ok, "l2 network required")
+		l2Net := l2NetComponent.(*L2Network)
 
 		tempDir := p.TempDir()
 		data, err := json.Marshal(l2Net.genesis)
@@ -492,7 +493,7 @@ func WithOPRBuilderNode(id stack.OPRBuilderNodeID, opts ...OPRBuilderNodeOption)
 		p.Logger().Info("Starting OPRbuilderNode")
 		rb.Start()
 		p.Cleanup(rb.Stop)
-		orch.oprbuilderNodes.Set(id, rb)
+		orch.registry.Register(stack.ConvertOPRBuilderNodeID(id).ComponentID, rb)
 	})
 }
 

@@ -11,7 +11,11 @@ build-client-prestate-cannon-artifacts \
     out='./prestate-artifacts-cannon' \
     custom_config_dir='':
   #!/bin/bash
-  OUTPUT_DIR={{out}}
+  # Resolve output directory to an absolute path before changing directories
+  OUTPUT_DIR="{{out}}"
+  if [[ "$OUTPUT_DIR" != /* ]]; then
+    OUTPUT_DIR="$(pwd)/$OUTPUT_DIR"
+  fi
 
   # Docker bake env
   export CLIENT_BIN="{{kona_client_variant}}"

@@ -30,6 +30,7 @@ contract DeployConfig is Script {
     uint256 public l2GenesisGraniteTimeOffset;
     uint256 public l2GenesisHoloceneTimeOffset;
     uint256 public l2GenesisJovianTimeOffset;
+    uint256 public l2GenesisKarstTimeOffset;
     address public p2pSequencerAddress;
     address public batchInboxAddress;
     address public batchSenderAddress;
@@ -123,6 +124,7 @@ contract DeployConfig is Script {
         l2GenesisGraniteTimeOffset = _readOr(_json, "$.l2GenesisGraniteTimeOffset", NULL_OFFSET);
         l2GenesisHoloceneTimeOffset = _readOr(_json, "$.l2GenesisHoloceneTimeOffset", NULL_OFFSET);
         l2GenesisJovianTimeOffset = _readOr(_json, "$.l2GenesisJovianTimeOffset", NULL_OFFSET);
+        l2GenesisKarstTimeOffset = _readOr(_json, "$.l2GenesisKarstTimeOffset", NULL_OFFSET);
 
         p2pSequencerAddress = stdJson.readAddress(_json, "$.p2pSequencerAddress");
         batchInboxAddress = stdJson.readAddress(_json, "$.batchInboxAddress");
@@ -327,7 +329,9 @@ contract DeployConfig is Script {
     }
 
     function latestGenesisFork() internal view returns (Fork) {
-        if (l2GenesisJovianTimeOffset == 0) {
+        if (l2GenesisKarstTimeOffset == 0) {
+            return Fork.KARST;
+        } else if (l2GenesisJovianTimeOffset == 0) {
             return Fork.JOVIAN;
         } else if (l2GenesisHoloceneTimeOffset == 0) {
             return Fork.HOLOCENE;

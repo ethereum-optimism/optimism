@@ -88,10 +88,12 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orch
 		require := orch.P().Require()
 		l := orch.P().Logger()
 
-		l2CL1, ok := orch.l2CLs.Get(l2CL1ID)
+		l2CL1Component, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2CL1ID).ComponentID)
 		require.True(ok, "looking for L2 CL node 1 to connect p2p")
-		l2CL2, ok := orch.l2CLs.Get(l2CL2ID)
+		l2CL1 := l2CL1Component.(L2CLNode)
+		l2CL2Component, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2CL2ID).ComponentID)
 		require.True(ok, "looking for L2 CL node 2 to connect p2p")
+		l2CL2 := l2CL2Component.(L2CLNode)
 		require.Equal(l2CL1ID.ChainID(), l2CL2ID.ChainID(), "must be same l2 chain")
 
 		ctx := orch.P().Ctx()

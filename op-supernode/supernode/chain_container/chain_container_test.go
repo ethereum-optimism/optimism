@@ -113,6 +113,7 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 		return nil, m.safeHeadErr
 	}
 	return &eth.SyncStatus{
+		FinalizedL1: eth.L1BlockRef{},
 		CurrentL1:   eth.L1BlockRef{Hash: m.safeHeadL1.Hash, Number: m.safeHeadL1.Number},
 		LocalSafeL2: eth.L2BlockRef{Hash: m.safeHeadL2.Hash, Number: m.safeHeadL2.Number},
 	}, nil
@@ -176,6 +177,9 @@ func (m *mockVerificationActivity) LatestVerifiedL2Block(chainID eth.ChainID) (e
 	return eth.BlockID{}, 0
 }
 func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
+}
+func (m *mockVerificationActivity) VerifiedBlockAtL1(chainID eth.ChainID, l1BlockRef eth.L1BlockRef) (eth.BlockID, uint64) {
+	return eth.BlockID{}, 0
 }
 
 // Test helpers

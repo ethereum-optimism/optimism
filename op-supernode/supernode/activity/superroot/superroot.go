@@ -28,7 +28,7 @@ func New(log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer) *Superroo
 	}
 }
 
-func (s *Superroot) ActivityName() string { return "superroot" }
+func (s *Superroot) Name() string { return "superroot" }
 
 // Reset is a no-op for superroot - it always queries chain containers directly
 // and doesn't maintain any chain-specific cached state.

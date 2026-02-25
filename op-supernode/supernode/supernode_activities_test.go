@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	rpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -18,16 +20,29 @@ import (
 
 // mock runnable activity
 type mockRunnable struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
 	started int
 	stopped int
 }
 
+func (mockRunnable) Name() string {
+	return "mockRunnable"
+}
+
 func (m *mockRunnable) Start(ctx context.Context) error {
 	m.started++
-	<-ctx.Done()
-	return ctx.Err()
+	m.ctx, m.cancel = context.WithCancel(ctx)
+	<-m.ctx.Done()
+	return m.ctx.Err()
 }
-func (m *mockRunnable) Stop(ctx context.Context) error { m.stopped++; return nil }
+func (m *mockRunnable) Stop(ctx context.Context) error {
+	m.stopped++
+	if m.cancel != nil {
+		m.cancel()
+	}
+	return nil
+}
 func (m *mockRunnable) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 }
 
@@ -37,6 +52,10 @@ var _ activity.RunnableActivity = (*mockRunnable)(nil)
 
 // plain marker-only activity
 type plainActivity struct{}
+
+func (p *plainActivity) Name() string {
+	return "plainActivity"
+}
 
 func (p *plainActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 }
@@ -53,6 +72,7 @@ func (s *rpcSvc) Echo(_ context.Context) (string, error) { return "ok", nil }
 
 type rpcAct struct{}
 
+func (a *rpcAct) Name() string            { return "rpcActivity" }
 func (a *rpcAct) RPCNamespace() string    { return "act" }
 func (a *rpcAct) RPCService() interface{} { return &rpcSvc{} }
 func (a *rpcAct) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
@@ -67,7 +87,7 @@ func TestRunnableActivityGating(t *testing.T) {
 	plain := &plainActivity{}
 
 	s := &Supernode{
-		log:        gethlog.New(),
+		log:        testlog.Logger(t, slog.LevelDebug),
 		version:    "test",
 		chains:     nil,
 		activities: []activity.Activity{run, plain},
@@ -76,17 +96,12 @@ func TestRunnableActivityGating(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 
-	done := make(chan struct{})
-	go func() { _ = s.Start(ctx); close(done) }()
-
-	<-done // wait until context canceled and Start exits
-
-	require.Equal(t, 1, run.started, "runnable activity should be started exactly once")
-	require.Equal(t, 0, run.stopped, "Stop is invoked during Stop(), not here")
+	require.NoError(t, s.Start(ctx))
 
 	// now stop and ensure Stop was called on runnable activity
 	err := s.Stop(context.Background())
 	require.NoError(t, err)
+	require.Equal(t, 1, run.started, "runnable activity should be started exactly once")
 	require.Equal(t, 1, run.stopped, "runnable activity should be stopped exactly once")
 }
 

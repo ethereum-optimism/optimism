@@ -26,8 +26,9 @@ func NewMetricsService(log gethlog.Logger, listenAddr string, port int, handler 
 
 // Start begins serving metrics in a background goroutine. If the server exits with an error,
 // the optional onError callback is invoked.
-func (s *MetricsService) Start(onError func(error)) {
+func (s *MetricsService) Start(onDone func(), onError func(error)) {
 	if s.server == nil {
+		onDone()
 		return
 	}
 	go func() {
@@ -38,6 +39,7 @@ func (s *MetricsService) Start(onError func(error)) {
 				onError(err)
 			}
 		}
+		onDone()
 	}()
 }
 

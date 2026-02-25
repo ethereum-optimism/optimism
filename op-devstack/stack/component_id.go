@@ -37,6 +37,31 @@ const (
 	KindFlashblocksClient ComponentKind = "FlashblocksWSClient"
 )
 
+var hydrationComponentKindOrder = []ComponentKind{
+	KindSuperchain,
+	KindCluster,
+	KindL1Network,
+	KindL2Network,
+	KindL1ELNode,
+	KindL1CLNode,
+	KindL2ELNode,
+	KindOPRBuilderNode,
+	KindRollupBoostNode,
+	KindL2CLNode,
+	KindSupervisor,
+	KindTestSequencer,
+	KindL2Batcher,
+	KindL2Challenger,
+	KindL2Proposer,
+}
+
+// HydrationComponentKindOrder returns the deterministic kind ordering used by orchestrator hydration.
+func HydrationComponentKindOrder() []ComponentKind {
+	out := make([]ComponentKind, len(hydrationComponentKindOrder))
+	copy(out, hydrationComponentKindOrder)
+	return out
+}
+
 // IDShape defines which fields an ID uses.
 type IDShape uint8
 
@@ -92,6 +117,12 @@ func (id ComponentID) Kind() ComponentKind {
 
 func (id ComponentID) Shape() IDShape {
 	return id.shape
+}
+
+// HasChainID returns true if this ID has a chain ID component.
+// This is true for IDShapeKeyAndChain and IDShapeChainOnly shapes.
+func (id ComponentID) HasChainID() bool {
+	return id.shape == IDShapeKeyAndChain || id.shape == IDShapeChainOnly
 }
 
 func (id ComponentID) Key() string {

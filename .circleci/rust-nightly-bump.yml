@@ -1,0 +1,63 @@
+version: 2.1
+
+# Scheduled workflow to bump the pinned nightly Rust toolchain version.
+# Runs daily and opens a PR if the pin in rust/justfile is out of date.
+
+jobs:
+  bump-nightly:
+    docker:
+      - image: cimg/base:2024.01
+    steps:
+      - checkout
+
+      - run:
+          name: Compute nightly versions
+          command: |
+            TODAY=$(date -u +%Y-%m-%d)
+            LATEST="nightly-${TODAY}"
+            CURRENT=$(grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' rust/justfile | head -1)
+
+            echo "Latest nightly: $LATEST"
+            echo "Current pin:    $CURRENT"
+
+            echo "export LATEST=$LATEST" >> "$BASH_ENV"
+            echo "export CURRENT=$CURRENT" >> "$BASH_ENV"
+
+      - run:
+          name: Open PR if pin is outdated
+          command: |
+            if [ "$LATEST" = "$CURRENT" ]; then
+              echo "Pin is already up to date ($CURRENT). Nothing to do."
+              exit 0
+            fi
+
+            BRANCH="ci/bump-rust-nightly-${LATEST}"
+
+            # Authenticate git push via GITHUB_TOKEN_GOVERNANCE
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN_GOVERNANCE}@github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            git checkout -b "$BRANCH"
+
+            sed -i "s/NIGHTLY := \"${CURRENT}\"/NIGHTLY := \"${LATEST}\"/" rust/justfile
+            git add rust/justfile
+            git commit -m "ci: bump rust nightly pin to ${LATEST}"
+            git push origin "$BRANCH"
+
+            GH_TOKEN="$GITHUB_TOKEN_GOVERNANCE" gh pr create \
+              --title "ci: bump rust nightly pin to ${LATEST}" \
+              --body "Automated daily bump of the pinned nightly Rust toolchain from \`${CURRENT}\` to \`${LATEST}\`. CI on this PR will validate the new toolchain compiles cleanly." \
+              --base main \
+              --label "ci" || echo "PR may already exist for this branch."
+
+workflows:
+  scheduled-rust-nightly-bump:
+    triggers:
+      - schedule:
+          cron: "0 9 * * *"  # 09:00 UTC daily
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - bump-nightly:
+          context:
+            - circleci-repo-optimism
