@@ -30,6 +30,10 @@ func New(log gethlog.Logger, interval time.Duration) *Heartbeat {
 	return &Heartbeat{log: log, interval: interval}
 }
 
+func (h *Heartbeat) Name() string {
+	return "heartbeat"
+}
+
 // Start begins the periodic logging loop.
 func (h *Heartbeat) Start(ctx context.Context) error {
 	if h.interval <= 0 {

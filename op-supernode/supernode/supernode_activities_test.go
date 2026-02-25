@@ -26,6 +26,10 @@ type mockRunnable struct {
 	stopped int
 }
 
+func (mockRunnable) Name() string {
+	return "mockRunnable"
+}
+
 func (m *mockRunnable) Start(ctx context.Context) error {
 	m.started++
 	m.ctx, m.cancel = context.WithCancel(ctx)
@@ -49,6 +53,10 @@ var _ activity.RunnableActivity = (*mockRunnable)(nil)
 // plain marker-only activity
 type plainActivity struct{}
 
+func (p *plainActivity) Name() string {
+	return "plainActivity"
+}
+
 func (p *plainActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 }
 
@@ -64,6 +72,7 @@ func (s *rpcSvc) Echo(_ context.Context) (string, error) { return "ok", nil }
 
 type rpcAct struct{}
 
+func (a *rpcAct) Name() string            { return "rpcActivity" }
 func (a *rpcAct) RPCNamespace() string    { return "act" }
 func (a *rpcAct) RPCService() interface{} { return &rpcSvc{} }
 func (a *rpcAct) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
