@@ -557,13 +557,13 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 // =============================================================================
 
 type mockLogsDB struct {
-	latestBlock   eth.BlockID
-	hasBlocks     bool
-	seal          suptypes.BlockSeal
-	findSealErr   error
-	addLogErr     error
-	sealBlockErr  error
-	addLogCalls   int
+	latestBlock    eth.BlockID
+	hasBlocks      bool
+	seal           suptypes.BlockSeal
+	findSealErr    error
+	addLogErr      error
+	sealBlockErr   error
+	addLogCalls    int
 	sealBlockCalls []*sealBlockCall // Track all SealBlock calls
 
 	firstSealedBlock    suptypes.BlockSeal
