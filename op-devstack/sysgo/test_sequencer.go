@@ -290,25 +290,29 @@ func WithTestSequencer2L2(testSequencerID stack.TestSequencerID, l1CLID stack.L1
 		logger := p.Logger()
 
 		orch.writeDefaultJWT()
-		l1EL, ok := orch.l1ELs.Get(l1ELID)
+		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 		require.True(ok, "l1 EL node required")
+		l1EL := l1ELComponent.(L1ELNode)
 		l1ELClient, err := ethclient.DialContext(p.Ctx(), l1EL.UserRPC())
 		require.NoError(err)
 		engineCl, err := dialEngine(p.Ctx(), l1EL.AuthRPC(), orch.jwtSecret)
 		require.NoError(err)
 
-		l1CL, ok := orch.l1CLs.Get(l1CLID)
+		l1CLComponent, ok := orch.registry.Get(stack.ConvertL1CLNodeID(l1CLID).ComponentID)
 		require.True(ok, "l1 CL node required")
+		l1CL := l1CLComponent.(*L1CLNode)
 
-		l2AEL, ok := orch.l2ELs.Get(l2AELID)
+		l2AEL, ok := orch.GetL2EL(l2AELID)
 		require.True(ok, "l2A EL node required")
-		l2ACL, ok := orch.l2CLs.Get(l2ACLID)
+		l2ACLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2ACLID).ComponentID)
 		require.True(ok, "l2A CL node required")
+		l2ACL := l2ACLComponent.(L2CLNode)
 
-		l2BEL, ok := orch.l2ELs.Get(l2BELID)
+		l2BEL, ok := orch.GetL2EL(l2BELID)
 		require.True(ok, "l2B EL node required")
-		l2BCL, ok := orch.l2CLs.Get(l2BCLID)
+		l2BCLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2BCLID).ComponentID)
 		require.True(ok, "l2B CL node required")
+		l2BCL := l2BCLComponent.(L2CLNode)
 
 		// Builder/Signer/Committer/Publisher IDs for each chain
 		bid_L2A := seqtypes.BuilderID("test-standard-builder-A")
@@ -339,8 +343,9 @@ func WithTestSequencer2L2(testSequencerID stack.TestSequencerID, l1CLID stack.L1
 		l2BSequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l2BCLID.ChainID()))
 		l1SequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l1ELID.ChainID()))
 
-		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(l1ELID.ChainID())).ComponentID)
 		require.True(ok, "l1 net required")
+		l1Net := l1NetComponent.(*L1Network)
 
 		v := &config.Ensemble{
 			Builders: map[seqtypes.BuilderID]*config.BuilderEntry{
@@ -545,6 +550,6 @@ func WithTestSequencer2L2(testSequencerID stack.TestSequencerID, l1CLID stack.L1
 			},
 		}
 		logger.Info("Sequencer User RPC", "http_endpoint", testSequencerNode.userRPC)
-		orch.testSequencers.Set(testSequencerID, testSequencerNode)
+		orch.registry.Register(stack.ConvertTestSequencerID(testSequencerID).ComponentID, testSequencerNode)
 	})
 }
