@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 // Scripts
-import { Vm } from "forge-std/Vm.sol";
+import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 
@@ -34,6 +34,9 @@ library DeployUtils {
     ///         it is passed through to vm.getCode as-is since the caller has already provided disambiguation.
     ///         The explicit path is wrapped in a try/catch so that hosts which don't support artifact paths
     ///         (e.g., the Go script host in op-chain-ops) gracefully fall back to vm.getCode(_name).
+    ///         Under coverage, forge-artifacts/ contains the default profile's (optimized) artifacts, not
+    ///         the coverage profile's. Since coverage profiles have no additional_compiler_profiles, there
+    ///         is no ambiguity, so we skip the explicit path and let vm.getCode resolve naturally.
     /// @param _name Name of the contract, or a qualified "File.sol:Contract" identifier.
     /// @return The creation bytecode from the default profile artifact.
     function getCode(string memory _name) internal view returns (bytes memory) {
@@ -43,6 +46,12 @@ library DeployUtils {
             if (nameBytes[i] == ":" || nameBytes[i] == "/") {
                 return vm.getCode(_name);
             }
+        }
+        // Under coverage, forge-artifacts/ holds the default profile's artifacts, not the coverage
+        // profile's. Coverage profiles have no additional_compiler_profiles (no ambiguity), so
+        // plain vm.getCode resolves correctly.
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            return vm.getCode(_name);
         }
         // Try explicit default-profile artifact path for deterministic profile resolution.
         // Falls back to vm.getCode(_name) for hosts that don't support artifact paths
