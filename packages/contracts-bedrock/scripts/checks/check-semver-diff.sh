@@ -16,7 +16,11 @@ source "$SCRIPT_DIR/../ops/get-target-branch.sh"
 SEMVER_LOCK="snapshots/semver-lock.json"
 
 # Define excluded contracts.
+# L2ToL1MessagePasserCGT version is dynamically derived from its parent
+# (L2ToL1MessagePasser) via super.version(), so the check script cannot
+# detect version changes from the source literal alone.
 EXCLUDED_CONTRACTS=(
+  "src/L2/L2ToL1MessagePasserCGT.sol"
 )
 
 # Helper function to check if a contract is excluded.

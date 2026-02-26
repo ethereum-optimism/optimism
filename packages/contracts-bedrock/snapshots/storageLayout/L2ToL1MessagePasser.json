@@ -12,5 +12,12 @@
     "offset": 0,
     "slot": "1",
     "type": "uint240"
+  },
+  {
+    "bytes": "20",
+    "label": "compliance",
+    "offset": 0,
+    "slot": "2",
+    "type": "address"
   }
 ]

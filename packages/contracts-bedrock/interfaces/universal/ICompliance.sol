@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+
 /// @title ICompliance
 /// @notice Interface for the Compliance contract that provides optional compliance screening
 ///         for cross-chain transactions on OptimismPortal2 (deposits) and L2ToL1MessagePasser
@@ -44,11 +46,16 @@ interface ICompliance {
     /// @notice Emitted when a rejected transaction's ETH is refunded to the sender.
     event Refunded(bytes32 indexed id);
 
+    // Solady Ownable events
+    event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
+    event OwnershipHandoverRequested(address indexed pendingOwner);
+    event OwnershipHandoverCanceled(address indexed pendingOwner);
+
+    // ReinitializableBase event
+    event Initialized(uint8 version);
+
     /// @notice Thrown when the caller is not the bridge contract.
     error Compliance_OnlyBridge();
-
-    /// @notice Thrown when the caller is not the owner.
-    error Compliance_OnlyOwner();
 
     /// @notice Thrown when attempting to settle a transaction that is not pending.
     error Compliance_NotPending();
@@ -65,15 +72,25 @@ interface ICompliance {
     /// @notice Thrown when a rule returns an invalid status (Refunded).
     error Compliance_InvalidRuleStatus();
 
+    // Solady Ownable errors
+    error Unauthorized();
+    error NewOwnerIsZeroAddress();
+    error NoHandoverRequest();
+    error AlreadyInitialized();
+    error Reentrancy();
+
+    // ProxyAdminOwnedBase errors
+    error ProxyAdminOwnedBase_NotSharedProxyAdminOwner();
+    error ProxyAdminOwnedBase_NotProxyAdminOwner();
+    error ProxyAdminOwnedBase_NotProxyAdmin();
+    error ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner();
+    error ProxyAdminOwnedBase_ProxyAdminNotFound();
+    error ProxyAdminOwnedBase_NotResolvedDelegateProxy();
+
+    // ReinitializableBase errors
+    error ReinitializableBase_ZeroInitVersion();
+
     /// @notice Checks a transaction against all configured compliance rules.
-    /// @param _from       The sender of the transaction.
-    /// @param _to         The recipient of the transaction.
-    /// @param _value      The ETH value of the transaction.
-    /// @param _gasLimit   The gas limit for execution.
-    /// @param _isCreation Whether the transaction creates a contract.
-    /// @param _data       The calldata of the transaction.
-    /// @param _nonce      The nonce of the transaction (used for L2 withdrawals).
-    /// @return allowed_   True if the transaction is approved to proceed immediately.
     function check(
         address _from,
         address _to,
@@ -88,40 +105,15 @@ interface ICompliance {
         returns (bool allowed_);
 
     /// @notice Returns the Status of a cross chain message and whether it is final.
-    /// @dev    Masks off bit 255 (the owner-override flag) and returns the Status
-    ///         enum value from the least significant bits. A status is considered
-    ///         final when it is Refunded (always final) or when the owner-override
-    ///         flag (bit 255) is set (Pending or Rejected with an explicit owner
-    ///         decision). Rule re-evaluation in settle() must respect finality:
-    ///         a finalized status takes precedence even if rules would return a
-    ///         stricter result.
-    /// @param _id The hashed cross chain message identifier.
-    /// @return isFinal_ True if the status is final and cannot be changed by rule re-evaluation.
-    /// @return status_ The current Status of the message.
     function status(bytes32 _id) external view returns (bool isFinal_, Status status_);
 
     /// @notice Owner approves a pending transaction.
-    /// @param _id The unique identifier of the transaction.
     function approve(bytes32 _id) external;
 
     /// @notice Owner rejects a pending transaction.
-    /// @param _id The unique identifier of the transaction.
     function reject(bytes32 _id) external;
 
-    /// @notice Settles a pending transaction. Anyone can call this.
-    ///         The caller provides the full preimage fields; the contract recomputes the
-    ///         hash and verifies it against the stored status. If the owner has set an
-    ///         override, uses that. Otherwise re-evaluates rules. Approved transactions
-    ///         are forwarded to the bridge. Rejected transactions have their ETH refunded
-    ///         to the sender.
-    /// @param _from       The original depositor/withdrawer address.
-    /// @param _to         The recipient address on the remote chain.
-    /// @param _value      The ETH value.
-    /// @param _mint       The ETH to mint on L2 (msg.value for deposits, always 0 for withdrawals).
-    /// @param _gasLimit   The gas limit for remote execution.
-    /// @param _isCreation Whether this is a contract creation (always false for withdrawals).
-    /// @param _data       The calldata.
-    /// @param _nonce      The reserved nonce (always 0 for deposits).
+    /// @notice Settles a pending transaction.
     function settle(
         address _from,
         address _to,
@@ -135,29 +127,38 @@ interface ICompliance {
         external;
 
     /// @notice Adds a new compliance rule to the set.
-    /// @param _rule The address of the rule contract to add.
     function addRule(address _rule) external;
 
     /// @notice Removes a compliance rule from the set.
-    /// @param _rule The address of the rule contract to remove.
     function removeRule(address _rule) external;
 
     /// @notice Returns the bridge contract address.
     function bridge() external view returns (address payable);
 
     /// @notice Returns all rule addresses.
-    /// @return The array of rule contract addresses.
     function rules() external view returns (address[] memory);
 
     /// @notice Returns whether the given address is a registered rule.
-    /// @param _rule The address to check.
-    /// @return True if the address is a registered rule.
     function hasRule(address _rule) external view returns (bool);
 
     /// @notice Initializes the compliance contract.
-    /// @param _bridge The address of the bridge contract.
-    /// @param _owner  The address of the owner.
     function initialize(address _bridge, address _owner) external;
 
     function version() external pure returns (string memory);
+
+    // Solady Ownable functions
+    function owner() external view returns (address result);
+    function transferOwnership(address newOwner) external payable;
+    function renounceOwnership() external payable;
+    function requestOwnershipHandover() external payable;
+    function cancelOwnershipHandover() external payable;
+    function completeOwnershipHandover(address pendingOwner) external payable;
+    function ownershipHandoverExpiresAt(address pendingOwner) external view returns (uint256 result);
+
+    // ProxyAdminOwnedBase functions
+    function proxyAdmin() external view returns (IProxyAdmin);
+    function proxyAdminOwner() external view returns (address);
+
+    // ReinitializableBase functions
+    function initVersion() external view returns (uint8);
 }

@@ -39,7 +39,8 @@ contract MockBridge is IDonatable {
         payable
         returns (bool allowed_, bytes32 id_)
     {
-        allowed_ = ICompliance(compliance).check{ value: msg.value }(_from, _to, _value, _gasLimit, _isCreation, _data, _nonce);
+        allowed_ =
+            ICompliance(compliance).check{ value: msg.value }(_from, _to, _value, _gasLimit, _isCreation, _data, _nonce);
         id_ = keccak256(abi.encode(_from, _to, _value, msg.value, _gasLimit, _isCreation, _data, _nonce));
     }
 

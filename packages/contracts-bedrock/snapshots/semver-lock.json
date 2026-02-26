@@ -120,11 +120,11 @@
     "sourceCodeHash": "0x929831a2f0569b1289a5704f28390e0626925f72780847c426c747bc1454b934"
   },
   "src/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser": {
-    "initCodeHash": "0xe30675ea6623cd7390dd2cd1e9a523c92c66956dfab86d06e318eb410cd1989b",
-    "sourceCodeHash": "0xdc7bd63134eeab163a635950f2afd16b59f40f9cf1306f2ed33ad661cc7b4962"
+    "initCodeHash": "0xff22391dd6afdca5a506aa05de7d6bab199ef34a895291f343f09f7dabbfce5f",
+    "sourceCodeHash": "0xf421dd3099b0e948b54edabdc22a4c18e2b0d9eeec11d6f550efb3b076686bb3"
   },
   "src/L2/L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT": {
-    "initCodeHash": "0xf36eab44c41249b4d8ea95a21b70f1eae55b1a555384870c2f4ca306fa9121b6",
+    "initCodeHash": "0xa9563cae8cc3c11c3dc433f5406ec79af292c5954b066ad7275b356ac11ca9c3",
     "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
@@ -258,6 +258,10 @@
   "src/safe/SaferSafes.sol:SaferSafes": {
     "initCodeHash": "0x0ad1f0f33517132b06a225b51e6eac48904d4ad691e0045eb70244d811d0d99d",
     "sourceCodeHash": "0xd6683fe9be4019d34249ada5a4de3e597f1bd9cd473a89f6eff8f749a0b0e978"
+  },
+  "src/universal/Compliance.sol:Compliance": {
+    "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+    "sourceCodeHash": "0x8fe75cf4554524cd25160eee9ff866490a4cadc8725c8398526ccd4af58ea39f"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",

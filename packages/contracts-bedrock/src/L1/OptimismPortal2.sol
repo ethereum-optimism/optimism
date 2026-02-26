@@ -604,7 +604,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
                 msg.sender, _to, _value, _gasLimit, _isCreation, _data, 0
             );
             if (!allowed) return; // ETH held by compliance
-            // If allowed, ETH was returned via donateETH()
+                // If allowed, ETH was returned via donateETH()
         }
 
         // If using ETHLockbox, lock the ETH in the ETHLockbox.

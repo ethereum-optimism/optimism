@@ -112,7 +112,8 @@ abstract contract Compliance_TestInit is Test {
         internal
         returns (bool allowed_, bytes32 id_)
     {
-        (allowed_, id_) = mockBridge.callCheck{ value: _mint }(_from, _to, _value, _gasLimit, _isCreation, _data, _nonce);
+        (allowed_, id_) =
+            mockBridge.callCheck{ value: _mint }(_from, _to, _value, _gasLimit, _isCreation, _data, _nonce);
     }
 
     /// @dev Computes the expected id for a given set of params.
@@ -972,12 +973,9 @@ contract Compliance_Settle_Test is Compliance_TestInit {
 
         uint256 mint = 1 ether;
         vm.deal(address(this), mint);
-        (, bytes32 id) =
-            _doCheck(address(reentrant), to, value_, mint, gasLimit, isCreation, data, nonce);
+        (, bytes32 id) = _doCheck(address(reentrant), to, value_, mint, gasLimit, isCreation, data, nonce);
 
-        reentrant.setup(
-            address(compliance), to, value_, mint, gasLimit, isCreation, data, nonce
-        );
+        reentrant.setup(address(compliance), to, value_, mint, gasLimit, isCreation, data, nonce);
 
         vm.prank(owner);
         compliance.reject(id);
@@ -1107,5 +1105,5 @@ contract Compliance_ETHAccounting_Test is Compliance_TestInit {
 
 /// @notice Contract that rejects ETH transfers.
 contract NoReceive {
-    // No receive or fallback → ETH transfers revert
+// No receive or fallback → ETH transfers revert
 }

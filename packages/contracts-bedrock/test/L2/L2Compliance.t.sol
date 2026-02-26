@@ -11,18 +11,12 @@ import { L2Compliance } from "src/L2/L2Compliance.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 
 // Mocks
-import {
-    MockRuleApprove,
-    MockRulePending,
-    MockRuleReject
-} from "test/mocks/MockRule.sol";
+import { MockRuleApprove, MockRulePending, MockRuleReject } from "test/mocks/MockRule.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-
 // Interfaces
 import { ICompliance } from "interfaces/universal/ICompliance.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
@@ -205,10 +199,7 @@ contract L2Compliance_InitiateWithdrawal_Test is L2Compliance_TestInit {
         bytes32 messagePassedTopic = keccak256("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)");
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(l2ToL1MessagePasser)) {
-                assertTrue(
-                    logs[i].topics[0] != messagePassedTopic,
-                    "MessagePassed should not be emitted when flagged"
-                );
+                assertTrue(logs[i].topics[0] != messagePassedTopic, "MessagePassed should not be emitted when flagged");
             }
         }
     }
@@ -267,9 +258,8 @@ contract L2Compliance_InitiateWithdrawal_Test is L2Compliance_TestInit {
         vm.deal(alice, wdValue);
 
         // The compliance hash includes the versioned nonce
-        bytes32 complianceId = keccak256(
-            abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce)
-        );
+        bytes32 complianceId =
+            keccak256(abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce));
 
         vm.expectEmit(address(l2Compliance));
         emit Pending(complianceId, alice, target, wdValue, wdValue, uint64(wdGasLimit), nonce, wdData);
@@ -312,9 +302,8 @@ contract L2Compliance_MessagePasserApproved_Test is L2Compliance_TestInit {
             _data: wdData
         });
 
-        bytes32 complianceId = keccak256(
-            abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce)
-        );
+        bytes32 complianceId =
+            keccak256(abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce));
 
         vm.prank(complianceOwner);
         l2Compliance.approve(complianceId);
@@ -355,9 +344,8 @@ contract L2Compliance_MessagePasserApproved_Test is L2Compliance_TestInit {
             _data: wdData
         });
 
-        bytes32 complianceId = keccak256(
-            abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce)
-        );
+        bytes32 complianceId =
+            keccak256(abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce));
 
         vm.prank(complianceOwner);
         l2Compliance.approve(complianceId);
@@ -398,9 +386,8 @@ contract L2Compliance_MessagePasserApproved_Test is L2Compliance_TestInit {
             _data: wdData
         });
 
-        bytes32 complianceId = keccak256(
-            abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce)
-        );
+        bytes32 complianceId =
+            keccak256(abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce));
 
         vm.prank(complianceOwner);
         l2Compliance.approve(complianceId);
@@ -470,11 +457,7 @@ contract L2Compliance_SetCompliance_Test is L2Compliance_TestInit {
 
         vm.deal(alice, wdValue);
         vm.prank(alice);
-        l2ToL1MessagePasser.initiateWithdrawal{ value: wdValue }({
-            _target: target,
-            _gasLimit: wdGasLimit,
-            _data: hex""
-        });
+        l2ToL1MessagePasser.initiateWithdrawal{ value: wdValue }({ _target: target, _gasLimit: wdGasLimit, _data: hex"" });
 
         assertTrue(l2ToL1MessagePasser.sentMessages(withdrawalHash));
     }
@@ -550,9 +533,8 @@ contract L2Compliance_EndToEnd_Test is L2Compliance_TestInit {
 
         assertEq(address(l2Compliance).balance, wdValue);
 
-        bytes32 complianceId = keccak256(
-            abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce)
-        );
+        bytes32 complianceId =
+            keccak256(abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce));
         (, ICompliance.Status s) = l2Compliance.status(complianceId);
         assertEq(uint256(s), uint256(ICompliance.Status.Pending));
 
@@ -601,9 +583,8 @@ contract L2Compliance_EndToEnd_Test is L2Compliance_TestInit {
             _data: wdData
         });
 
-        bytes32 complianceId = keccak256(
-            abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce)
-        );
+        bytes32 complianceId =
+            keccak256(abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce));
 
         // Step 2: Owner rejects
         vm.prank(complianceOwner);
@@ -644,9 +625,8 @@ contract L2Compliance_EndToEnd_Test is L2Compliance_TestInit {
         // Nonce should have advanced
         assertEq(l2ToL1MessagePasser.messageNonce(), nonce + 1);
 
-        bytes32 complianceId = keccak256(
-            abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce)
-        );
+        bytes32 complianceId =
+            keccak256(abi.encode(alice, target, wdValue, wdValue, uint64(wdGasLimit), false, wdData, nonce));
 
         vm.prank(complianceOwner);
         l2Compliance.approve(complianceId);
@@ -693,14 +673,14 @@ contract L2Compliance_EndToEnd_Test is L2Compliance_TestInit {
         // isCreation = false, nonce = versioned nonce
         bytes32 complianceId = keccak256(
             abi.encode(
-                alice,           // _from
-                target,          // _to
-                wdValue,         // _value = msg.value
-                wdValue,         // _mint = msg.value (both are msg.value for L2)
+                alice, // _from
+                target, // _to
+                wdValue, // _value = msg.value
+                wdValue, // _mint = msg.value (both are msg.value for L2)
                 uint64(wdGasLimit),
-                false,           // _isCreation always false for withdrawals
+                false, // _isCreation always false for withdrawals
                 wdData,
-                nonce            // versioned nonce
+                nonce // versioned nonce
             )
         );
 
@@ -729,4 +709,3 @@ contract L2Compliance_EndToEnd_Test is L2Compliance_TestInit {
         assertTrue(l2ToL1MessagePasser.sentMessages(withdrawalHash));
     }
 }
-

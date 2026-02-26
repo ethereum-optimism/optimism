@@ -10,11 +10,7 @@ import { L1Compliance } from "src/L1/L1Compliance.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 
 // Mocks
-import {
-    MockRuleApprove,
-    MockRulePending,
-    MockRuleReject
-} from "test/mocks/MockRule.sol";
+import { MockRuleApprove, MockRulePending, MockRuleReject } from "test/mocks/MockRule.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -27,7 +23,6 @@ import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPort
 /// @title L1Compliance_TestInit
 /// @notice Shared setup for L1 compliance integration tests.
 abstract contract L1Compliance_TestInit is CommonTest {
-
     // Re-declare compliance events for Solidity 0.8.15 compatibility.
     event Pending(
         bytes32 indexed id,
@@ -300,7 +295,8 @@ contract L1Compliance_PortalApproved_Test is L1Compliance_TestInit {
         vm.prank(address(optimismPortal2));
         l1Compliance.check{ value: mint }(contractSender, target, 0, gasLimit, false, txData, 0);
 
-        bytes32 id = keccak256(abi.encode(contractSender, target, uint256(0), mint, gasLimit, false, txData, uint256(0)));
+        bytes32 id =
+            keccak256(abi.encode(contractSender, target, uint256(0), mint, gasLimit, false, txData, uint256(0)));
 
         vm.prank(complianceOwner);
         l1Compliance.approve(id);
@@ -348,7 +344,8 @@ contract L1Compliance_PortalApproved_Test is L1Compliance_TestInit {
 
     function test_approved_withLockbox_locksETH_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
-        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(optimismPortal2.ethLockbox()) == address(0)) {
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(optimismPortal2.ethLockbox()) == address(0))
+        {
             vm.skip(true);
         }
 
@@ -540,4 +537,3 @@ contract L1Compliance_EndToEnd_Test is L1Compliance_TestInit {
         l1Compliance.settle(alice, target, txValue, mint, gasLimit, false, txData, 0);
     }
 }
-

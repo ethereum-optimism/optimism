@@ -24,7 +24,14 @@ import { IRule } from "interfaces/universal/IRule.sol";
 ///         transactions pass through configurable rules before execution. Flagged transactions
 ///         are held pending; compliant transactions proceed without delay. Concrete implementations
 ///         (L1Compliance, L2Compliance) override `_executeApproved` to call the correct bridge.
-abstract contract Compliance is ProxyAdminOwnedBase, ReinitializableBase, Ownable, Initializable, ReentrancyGuard, ISemver {
+abstract contract Compliance is
+    ProxyAdminOwnedBase,
+    ReinitializableBase,
+    Ownable,
+    Initializable,
+    ReentrancyGuard,
+    ISemver
+{
     using EnumerableSetLib for EnumerableSetLib.AddressSet;
 
     /// @notice Emitted when a transaction is flagged as pending by compliance rules.
