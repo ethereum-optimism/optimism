@@ -46,6 +46,7 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/test/universal/WETH98.t.sol
+        - packages/contracts-bedrock/test/legacy/L1ChugSplashProxy.t.sol
 
   - id: sol-safety-natspec-semver-match
     languages: [generic]

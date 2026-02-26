@@ -47,8 +47,8 @@ library DeployUtils {
         // Try explicit default-profile artifact path for deterministic profile resolution.
         // Falls back to vm.getCode(_name) for hosts that don't support artifact paths
         // (e.g., the Go script host in op-chain-ops, which has no profile ambiguity).
-        try vm.getCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json")) returns (bytes memory code) {
-            return code;
+        try vm.getCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json")) returns (bytes memory code_) {
+            return code_;
         } catch {
             return vm.getCode(_name);
         }
