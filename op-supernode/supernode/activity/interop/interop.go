@@ -337,7 +337,14 @@ func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID) erro
 	if !ok {
 		return fmt.Errorf("chain %s not found", chainID)
 	}
-	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash)
+
+	// Fetch the full OutputV0 for the invalid block
+	output, err := chain.OutputV0AtL2BlockNumber(i.ctx, blockID.Number)
+	if err != nil {
+		return fmt.Errorf("failed to get output for block %d: %w", blockID.Number, err)
+	}
+
+	_, err = chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, output)
 	return err
 }
 

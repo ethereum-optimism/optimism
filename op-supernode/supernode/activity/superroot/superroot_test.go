@@ -74,6 +74,12 @@ func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint6
 	}
 	return m.output, nil
 }
+func (m *mockCC) OutputV0AtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	if m.outputErr != nil {
+		return nil, m.outputErr
+	}
+	return &eth.OutputV0{}, nil
+}
 func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
 	if m.optimisticErr != nil {
 		return nil, m.optimisticErr
@@ -98,7 +104,7 @@ func (m *mockCC) ID() eth.ChainID {
 }
 
 func (m *mockCC) BlockTime() uint64 { return 1 }
-func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, output *eth.OutputV0) (bool, error) {
 	return false, nil
 }
 func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {

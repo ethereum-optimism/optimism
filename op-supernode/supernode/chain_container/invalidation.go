@@ -8,12 +8,15 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	bolt "go.etcd.io/bbolt"
 )
 
 const (
 	denyListDBName = "denylist"
+	// denyListEntrySize is the size of each entry: payloadHash (32) + StateRoot (32) + MessagePasserStorageRoot (32)
+	denyListEntrySize = common.HashLength + 32 + 32 // 96 bytes
 )
 
 // denyListBucketName is the name of the bbolt bucket used to store denied block hashes.
@@ -58,9 +61,10 @@ func heightToKey(height uint64) []byte {
 	return key
 }
 
-// Add adds a payload hash to the deny list at the given block height.
-// Multiple hashes can be denied at the same height.
-func (d *DenyList) Add(height uint64, payloadHash common.Hash) error {
+// Add adds a payload hash and its associated output to the deny list at the given block height.
+// Multiple entries can be denied at the same height.
+// The output contains StateRoot, MessagePasserStorageRoot, and BlockHash (which should match payloadHash).
+func (d *DenyList) Add(height uint64, payloadHash common.Hash, output *eth.OutputV0) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -69,24 +73,26 @@ func (d *DenyList) Add(height uint64, payloadHash common.Hash) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(denyListBucketName)
 
-		// Get existing hashes at this height
+		// Get existing entries at this height
 		existing := b.Get(key)
-		var hashes []byte
+		var entries []byte
 		if existing != nil {
 			// Check if hash already exists
-			for i := 0; i+common.HashLength <= len(existing); i += common.HashLength {
+			for i := 0; i+denyListEntrySize <= len(existing); i += denyListEntrySize {
 				if common.BytesToHash(existing[i:i+common.HashLength]) == payloadHash {
 					// Already denied
 					return nil
 				}
 			}
-			hashes = make([]byte, len(existing), len(existing)+common.HashLength)
-			copy(hashes, existing)
+			entries = make([]byte, len(existing), len(existing)+denyListEntrySize)
+			copy(entries, existing)
 		}
 
-		// Append the new hash
-		hashes = append(hashes, payloadHash.Bytes()...)
-		return b.Put(key, hashes)
+		// Append the new entry: payloadHash (32) + StateRoot (32) + MessagePasserStorageRoot (32)
+		entries = append(entries, payloadHash.Bytes()...)
+		entries = append(entries, output.StateRoot[:]...)
+		entries = append(entries, output.MessagePasserStorageRoot[:]...)
+		return b.Put(key, entries)
 	})
 }
 
@@ -105,8 +111,8 @@ func (d *DenyList) Contains(height uint64, payloadHash common.Hash) (bool, error
 			return nil
 		}
 
-		// Search for the hash in the list
-		for i := 0; i+common.HashLength <= len(existing); i += common.HashLength {
+		// Search for the hash in the entries
+		for i := 0; i+denyListEntrySize <= len(existing); i += denyListEntrySize {
 			if common.BytesToHash(existing[i:i+common.HashLength]) == payloadHash {
 				found = true
 				return nil
@@ -133,13 +139,48 @@ func (d *DenyList) GetDeniedHashes(height uint64) ([]common.Hash, error) {
 			return nil
 		}
 
-		for i := 0; i+common.HashLength <= len(existing); i += common.HashLength {
+		for i := 0; i+denyListEntrySize <= len(existing); i += denyListEntrySize {
 			hashes = append(hashes, common.BytesToHash(existing[i:i+common.HashLength]))
 		}
 		return nil
 	})
 
 	return hashes, err
+}
+
+// GetOutput returns the OutputV0 associated with a denied payload hash at the given height.
+// Returns the output, whether it was found, and any error.
+func (d *DenyList) GetOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, bool, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	key := heightToKey(height)
+	var output *eth.OutputV0
+	var found bool
+
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		existing := b.Get(key)
+		if existing == nil {
+			return nil
+		}
+
+		// Search for the hash in the entries
+		for i := 0; i+denyListEntrySize <= len(existing); i += denyListEntrySize {
+			if common.BytesToHash(existing[i:i+common.HashLength]) == payloadHash {
+				found = true
+				output = &eth.OutputV0{
+					BlockHash: payloadHash,
+				}
+				copy(output.StateRoot[:], existing[i+common.HashLength:i+common.HashLength+32])
+				copy(output.MessagePasserStorageRoot[:], existing[i+common.HashLength+32:i+denyListEntrySize])
+				return nil
+			}
+		}
+		return nil
+	})
+
+	return output, found, err
 }
 
 // Close closes the database.
@@ -151,7 +192,7 @@ func (d *DenyList) Close() error {
 // currently uses that block at the specified height.
 // Returns true if a rewind was triggered, false otherwise.
 // Note: Genesis block (height=0) cannot be invalidated as there is no prior block to rewind to.
-func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, output *eth.OutputV0) (bool, error) {
 	if c.denyList == nil {
 		return false, fmt.Errorf("deny list not initialized")
 	}
@@ -162,13 +203,14 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	}
 
 	// Add to deny list first
-	if err := c.denyList.Add(height, payloadHash); err != nil {
+	if err := c.denyList.Add(height, payloadHash, output); err != nil {
 		return false, fmt.Errorf("failed to add block to deny list: %w", err)
 	}
 
 	c.log.Info("added block to deny list",
 		"height", height,
 		"payloadHash", payloadHash,
+		"outputRoot", eth.OutputRoot(output),
 	)
 
 	// Check if the current chain uses this block at this height

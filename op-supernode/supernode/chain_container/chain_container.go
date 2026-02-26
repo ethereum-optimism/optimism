@@ -41,6 +41,7 @@ type ChainContainer interface {
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
+	OutputV0AtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
 	// RewindEngine rewinds the engine to the highest block with timestamp less than or equal to the given timestamp.
 	// invalidatedBlock is the block that triggered the rewind and is passed to reset callbacks.
@@ -53,8 +54,9 @@ type ChainContainer interface {
 	BlockTime() uint64
 	// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
 	// currently uses that block at the specified height.
+	// The output parameter contains the full OutputV0 structure for the invalidated block.
 	// Returns true if a rewind was triggered, false otherwise.
-	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error)
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, output *eth.OutputV0) (bool, error)
 	// IsDenied checks if a block hash is on the deny list at the given height.
 	IsDenied(height uint64, payloadHash common.Hash) (bool, error)
 	// SetResetCallback sets a callback that is invoked when the chain resets.
@@ -351,6 +353,14 @@ func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2
 		return eth.Bytes32{}, err
 	}
 	return eth.OutputRoot(out), nil
+}
+
+// OutputV0AtL2BlockNumber returns the full OutputV0 structure for the specified L2 block number.
+func (c *simpleChainContainer) OutputV0AtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	if c.engine == nil {
+		return nil, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
 }
 
 // safeDBAtL2 delegates to the virtual node to resolve the earliest L1 at which the L2 became safe.

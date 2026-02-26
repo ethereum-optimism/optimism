@@ -584,6 +584,9 @@ func (m *statefulMockChainContainer) OptimisticAt(ctx context.Context, ts uint64
 func (m *statefulMockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }
+func (m *statefulMockChainContainer) OutputV0AtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	return &eth.OutputV0{}, nil
+}
 func (m *statefulMockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
 	return nil, nil
 }
@@ -597,7 +600,7 @@ func (m *statefulMockChainContainer) BlockTime() uint64 { return 1 }
 func (m *statefulMockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil
 }
-func (m *statefulMockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (m *statefulMockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, output *eth.OutputV0) (bool, error) {
 	return false, nil
 }
 func (m *statefulMockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {

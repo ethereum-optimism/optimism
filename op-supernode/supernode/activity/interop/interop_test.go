@@ -1062,6 +1062,7 @@ type mockChainContainer struct {
 type invalidateBlockCall struct {
 	height      uint64
 	payloadHash common.Hash
+	output      *eth.OutputV0
 }
 
 func newMockChainContainer(id uint64) *mockChainContainer {
@@ -1105,6 +1106,13 @@ func (m *mockChainContainer) OptimisticAt(ctx context.Context, ts uint64) (eth.B
 func (m *mockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }
+func (m *mockChainContainer) OutputV0AtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	return &eth.OutputV0{
+		StateRoot:                eth.Bytes32{0x01},
+		MessagePasserStorageRoot: eth.Bytes32{0x02},
+		BlockHash:                common.BigToHash(big.NewInt(int64(l2BlockNum))),
+	}, nil
+}
 func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
 	return nil, nil
 }
@@ -1136,10 +1144,10 @@ func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64,
 	return nil
 }
 func (m *mockChainContainer) BlockTime() uint64 { return 1 }
-func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, output *eth.OutputV0) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.invalidateBlockCalls = append(m.invalidateBlockCalls, invalidateBlockCall{height: height, payloadHash: payloadHash})
+	m.invalidateBlockCalls = append(m.invalidateBlockCalls, invalidateBlockCall{height: height, payloadHash: payloadHash, output: output})
 	return m.invalidateBlockRet, m.invalidateBlockErr
 }
 func (m *mockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
