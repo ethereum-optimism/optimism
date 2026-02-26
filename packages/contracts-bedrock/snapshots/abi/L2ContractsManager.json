@@ -147,6 +147,11 @@
             "internalType": "address",
             "name": "conditionalDeployerImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2DevFeatureFlagsImpl",
+            "type": "address"
           }
         ],
         "internalType": "struct L2ContractsManagerTypes.Implementations",
@@ -306,6 +311,11 @@
           {
             "internalType": "address",
             "name": "conditionalDeployerImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l2DevFeatureFlagsImpl",
             "type": "address"
           }
         ],

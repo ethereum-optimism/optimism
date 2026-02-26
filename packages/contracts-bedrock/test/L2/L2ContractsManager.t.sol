@@ -263,9 +263,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         );
         assertEq(_state1.liquidityControllerImpl, _state2.liquidityControllerImpl, "LiquidityController impl mismatch");
         assertEq(_state1.feeSplitterImpl, _state2.feeSplitterImpl, "FeeSplitter impl mismatch");
-        assertEq(
-            _state1.l2DevFeatureFlagsImpl, _state2.l2DevFeatureFlagsImpl, "L2DevFeatureFlags impl mismatch"
-        );
+        assertEq(_state1.l2DevFeatureFlagsImpl, _state2.l2DevFeatureFlagsImpl, "L2DevFeatureFlags impl mismatch");
 
         // Assert config values are equal
         assertEq(
@@ -775,9 +773,7 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertEq(
             result.conditionalDeployerImpl, implementations.conditionalDeployerImpl, "conditionalDeployerImpl mismatch"
         );
-        assertEq(
-            result.l2DevFeatureFlagsImpl, implementations.l2DevFeatureFlagsImpl, "l2DevFeatureFlagsImpl mismatch"
-        );
+        assertEq(result.l2DevFeatureFlagsImpl, implementations.l2DevFeatureFlagsImpl, "l2DevFeatureFlagsImpl mismatch");
     }
 
     /// @notice Tests that no field in getImplementations() is left uninitialized
