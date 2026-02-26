@@ -37,16 +37,7 @@ abstract contract Compliance_TestInit is Test {
         uint256 nonce,
         bytes data
     );
-    event Rejected(
-        bytes32 indexed id,
-        address indexed from,
-        address indexed to,
-        uint256 value,
-        uint256 mint,
-        uint64 gasLimit,
-        uint256 nonce,
-        bytes data
-    );
+    event Rejected(bytes32 indexed id);
     event Approved(bytes32 indexed id);
     event Refunded(bytes32 indexed id);
 
@@ -159,7 +150,7 @@ contract Compliance_Initialize_Test is Compliance_TestInit {
 // Rule Management Tests
 // ============================================================
 
-contract Compliance_RuleManagement_Test is Compliance_TestInit {
+contract Compliance_addRule_Test is Compliance_TestInit {
     function test_addRule_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(ruleApprove));
@@ -235,7 +226,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         compliance.check(from, to, value_, gasLimit, isCreation, data, nonce);
     }
 
-    function test_check_zeroRules_approves_succeeds() external {
+    function test_check_zeroRulesApproves_succeeds() external {
         uint256 mint = 1 ether;
         vm.deal(address(this), mint);
 
@@ -251,7 +242,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         assertEq(address(mockBridge).balance, mint);
     }
 
-    function test_check_ruleApproves_returnsTrue_succeeds() external {
+    function test_check_ruleApprovesReturnsTrue_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(ruleApprove));
 
@@ -264,7 +255,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         assertEq(address(mockBridge).balance, mint);
     }
 
-    function test_check_rulePending_returnsFalse_succeeds() external {
+    function test_check_rulePendingReturnsFalse_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -287,7 +278,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Pending));
     }
 
-    function test_check_ruleRejects_returnsFalse_succeeds() external {
+    function test_check_ruleRejectsReturnsFalse_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(ruleReject));
 
@@ -297,7 +288,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         bytes32 expectedId = _computeId(from, to, value_, mint, gasLimit, isCreation, data, nonce);
 
         vm.expectEmit(address(compliance));
-        emit Rejected(expectedId, from, to, value_, mint, gasLimit, nonce, data);
+        emit Rejected(expectedId);
 
         (bool allowed, bytes32 id) = _doCheck(from, to, value_, mint, gasLimit, isCreation, data, nonce);
         assertFalse(allowed);
@@ -317,7 +308,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         _doCheck(from, to, value_, 1 ether, gasLimit, isCreation, data, nonce);
     }
 
-    function test_check_strictest_pendingOverApprove_succeeds() external {
+    function test_check_strictestPendingOverApprove_succeeds() external {
         vm.startPrank(owner);
         compliance.addRule(address(ruleApprove));
         compliance.addRule(address(rulePending));
@@ -332,7 +323,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Pending));
     }
 
-    function test_check_strictest_rejectedOverPending_succeeds() external {
+    function test_check_strictestRejectedOverPending_succeeds() external {
         vm.startPrank(owner);
         compliance.addRule(address(rulePending));
         compliance.addRule(address(ruleReject));
@@ -347,7 +338,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Rejected));
     }
 
-    function test_check_strictest_rejectedOverApprove_succeeds() external {
+    function test_check_strictestRejectedOverApprove_succeeds() external {
         vm.startPrank(owner);
         compliance.addRule(address(ruleApprove));
         compliance.addRule(address(ruleReject));
@@ -362,7 +353,7 @@ contract Compliance_Check_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Rejected));
     }
 
-    function test_check_zeroValue_approves_succeeds() external {
+    function test_check_zeroValueApproves_succeeds() external {
         // No rules, msg.value=0 → approve without donateETH call
         (bool allowed,) = _doCheck(from, to, value_, 0, gasLimit, isCreation, data, nonce);
         assertTrue(allowed);
@@ -407,9 +398,6 @@ contract Compliance_Approve_Test is Compliance_TestInit {
         uint256 mint = 1 ether;
         vm.deal(address(this), mint);
         (, bytes32 id) = _doCheck(from, to, value_, mint, gasLimit, isCreation, data, nonce);
-
-        vm.expectEmit(address(compliance));
-        emit Approved(id);
 
         vm.prank(owner);
         compliance.approve(id);
@@ -518,6 +506,9 @@ contract Compliance_Reject_Test is Compliance_TestInit {
         vm.deal(address(this), mint);
         (, bytes32 id) = _doCheck(from, to, value_, mint, gasLimit, isCreation, data, nonce);
 
+        vm.expectEmit(address(compliance));
+        emit Rejected(id);
+
         vm.prank(owner);
         compliance.reject(id);
 
@@ -537,6 +528,9 @@ contract Compliance_Reject_Test is Compliance_TestInit {
 
         vm.prank(owner);
         compliance.approve(id);
+
+        vm.expectEmit(address(compliance));
+        emit Rejected(id);
 
         vm.prank(owner);
         compliance.reject(id);
@@ -615,14 +609,14 @@ contract Compliance_Reject_Test is Compliance_TestInit {
 // ============================================================
 
 contract Compliance_Status_Test is Compliance_TestInit {
-    function test_status_unknown_returnsNotFinalApproved_succeeds() external view {
+    function test_status_unknownReturnsNotFinalApproved_succeeds() external view {
         bytes32 unknownId = keccak256("unknown");
         (bool isFinal, ICompliance.Status s) = compliance.status(unknownId);
         assertFalse(isFinal);
         assertEq(uint256(s), uint256(ICompliance.Status.Approved));
     }
 
-    function test_status_pending_notFinal_succeeds() external {
+    function test_status_pendingNotFinal_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -635,7 +629,7 @@ contract Compliance_Status_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Pending));
     }
 
-    function test_status_rejected_notFinal_succeeds() external {
+    function test_status_rejectedNotFinal_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(ruleReject));
 
@@ -648,7 +642,7 @@ contract Compliance_Status_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Rejected));
     }
 
-    function test_status_overrideApproved_isFinal_succeeds() external {
+    function test_status_overrideApprovedIsFinal_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -664,7 +658,7 @@ contract Compliance_Status_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Approved));
     }
 
-    function test_status_overrideRejected_isFinal_succeeds() external {
+    function test_status_overrideRejectedIsFinal_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -680,7 +674,7 @@ contract Compliance_Status_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Rejected));
     }
 
-    function test_status_refunded_isFinal_succeeds() external {
+    function test_status_refundedIsFinal_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -722,7 +716,7 @@ contract Compliance_Settle_Test is Compliance_TestInit {
         compliance.settle(from, to, value_ + 1, mint, gasLimit, isCreation, data, nonce);
     }
 
-    function test_settle_ownerApproved_executes_succeeds() external {
+    function test_settle_ownerApprovedExecutes_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -754,7 +748,7 @@ contract Compliance_Settle_Test is Compliance_TestInit {
         assertEq(mockBridge.lastMint(), mint);
     }
 
-    function test_settle_ownerRejected_refunds_succeeds() external {
+    function test_settle_ownerRejectedRefunds_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -778,7 +772,7 @@ contract Compliance_Settle_Test is Compliance_TestInit {
         assertEq(from.balance, fromBalBefore + mint);
     }
 
-    function test_settle_ownerRejected_zeroMint_succeeds() external {
+    function test_settle_ownerRejectedZeroMint_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -797,7 +791,7 @@ contract Compliance_Settle_Test is Compliance_TestInit {
         assertEq(uint256(s), uint256(ICompliance.Status.Refunded));
     }
 
-    function test_settle_pending_noOp_succeeds() external {
+    function test_settle_pendingNoOp_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -815,7 +809,7 @@ contract Compliance_Settle_Test is Compliance_TestInit {
         assertEq(address(compliance).balance, mint);
     }
 
-    function test_settle_reEval_rulesNowApprove_succeeds() external {
+    function test_settle_reEvalRulesNowApprove_succeeds() external {
         MockRuleConfigurable configRule = new MockRuleConfigurable(ICompliance.Status.Pending);
 
         vm.prank(owner);
@@ -840,7 +834,7 @@ contract Compliance_Settle_Test is Compliance_TestInit {
         assertTrue(mockBridge.approvedCalled());
     }
 
-    function test_settle_reEval_rulesNowReject_succeeds() external {
+    function test_settle_reEvalRulesNowReject_succeeds() external {
         MockRuleConfigurable configRule = new MockRuleConfigurable(ICompliance.Status.Pending);
 
         vm.prank(owner);
@@ -865,7 +859,7 @@ contract Compliance_Settle_Test is Compliance_TestInit {
         assertEq(from.balance, fromBalBefore + mint);
     }
 
-    function test_settle_reEval_rulesStillPending_noOp_succeeds() external {
+    function test_settle_reEvalRulesStillPendingNoOp_succeeds() external {
         MockRuleConfigurable configRule = new MockRuleConfigurable(ICompliance.Status.Pending);
 
         vm.prank(owner);
@@ -949,7 +943,7 @@ contract Compliance_Settle_Test is Compliance_TestInit {
 
     function test_settle_refundFails_reverts() external {
         // _from is a contract that rejects ETH
-        address payable noReceive = payable(address(new NoReceive()));
+        address payable noReceive = payable(address(new Compliance_NoReceive_Harness()));
 
         vm.prank(owner);
         compliance.addRule(address(rulePending));
@@ -1034,8 +1028,8 @@ contract Compliance_Settle_Test is Compliance_TestInit {
 // ETH Accounting Tests
 // ============================================================
 
-contract Compliance_ETHAccounting_Test is Compliance_TestInit {
-    function test_eth_approvedCheck_returnedViaDonate_succeeds() external {
+contract Compliance_Uncategorized_Test is Compliance_TestInit {
+    function test_eth_approvedCheckReturnedViaDonate_succeeds() external {
         uint256 mint = 2 ether;
         vm.deal(address(this), mint);
 
@@ -1048,7 +1042,7 @@ contract Compliance_ETHAccounting_Test is Compliance_TestInit {
         assertEq(address(mockBridge).balance, bridgeBefore + mint);
     }
 
-    function test_eth_flaggedCheck_heldByCompliance_succeeds() external {
+    function test_eth_flaggedCheckHeldByCompliance_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -1062,7 +1056,7 @@ contract Compliance_ETHAccounting_Test is Compliance_TestInit {
         assertEq(address(compliance).balance, complianceBefore + mint);
     }
 
-    function test_eth_settleApproved_forwardedToBridge_succeeds() external {
+    function test_eth_settleApprovedForwardedToBridge_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -1080,7 +1074,7 @@ contract Compliance_ETHAccounting_Test is Compliance_TestInit {
         assertEq(address(mockBridge).balance, bridgeBefore + mint);
     }
 
-    function test_eth_settleRejected_refundedToFrom_succeeds() external {
+    function test_eth_settleRejectedRefundedToFrom_succeeds() external {
         vm.prank(owner);
         compliance.addRule(address(rulePending));
 
@@ -1104,6 +1098,6 @@ contract Compliance_ETHAccounting_Test is Compliance_TestInit {
 // ============================================================
 
 /// @notice Contract that rejects ETH transfers.
-contract NoReceive {
+contract Compliance_NoReceive_Harness {
 // No receive or fallback → ETH transfers revert
 }

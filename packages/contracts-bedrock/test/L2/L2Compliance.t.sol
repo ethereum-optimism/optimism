@@ -36,16 +36,7 @@ abstract contract L2Compliance_TestInit is CommonTest {
         uint256 nonce,
         bytes data
     );
-    event Rejected(
-        bytes32 indexed id,
-        address indexed from,
-        address indexed to,
-        uint256 value,
-        uint256 mint,
-        uint64 gasLimit,
-        uint256 nonce,
-        bytes data
-    );
+    event Rejected(bytes32 indexed id);
     event Approved(bytes32 indexed id);
     event Refunded(bytes32 indexed id);
 
@@ -97,7 +88,7 @@ abstract contract L2Compliance_TestInit is CommonTest {
 // InitiateWithdrawal with Compliance
 // ============================================================
 
-contract L2Compliance_InitiateWithdrawal_Test is L2Compliance_TestInit {
+contract L2Compliance_check_Test is L2Compliance_TestInit {
     function test_initiateWithdrawal_approved_succeeds() external {
         vm.prank(complianceOwner);
         l2Compliance.addRule(address(ruleApprove));
@@ -136,7 +127,7 @@ contract L2Compliance_InitiateWithdrawal_Test is L2Compliance_TestInit {
         assertEq(l2ToL1MessagePasser.messageNonce(), nonce + 1);
     }
 
-    function test_initiateWithdrawal_flagged_reservesNonce_succeeds() external {
+    function test_initiateWithdrawal_flaggedReservesNonce_succeeds() external {
         vm.prank(complianceOwner);
         l2Compliance.addRule(address(rulePending));
 
@@ -175,7 +166,7 @@ contract L2Compliance_InitiateWithdrawal_Test is L2Compliance_TestInit {
         assertEq(address(l2Compliance).balance, wdValue);
     }
 
-    function test_initiateWithdrawal_flagged_noMessagePassed_succeeds() external {
+    function test_initiateWithdrawal_flaggedNoMessagePassed_succeeds() external {
         vm.prank(complianceOwner);
         l2Compliance.addRule(address(rulePending));
 
@@ -204,7 +195,7 @@ contract L2Compliance_InitiateWithdrawal_Test is L2Compliance_TestInit {
         }
     }
 
-    function test_initiateWithdrawal_noCompliance_legacyBehavior_succeeds() external {
+    function test_initiateWithdrawal_noComplianceLegacyBehavior_succeeds() external {
         // Disable compliance
         vm.prank(l2ProxyAdminOwner);
         l2ToL1MessagePasser.setCompliance(address(0));
@@ -277,7 +268,7 @@ contract L2Compliance_InitiateWithdrawal_Test is L2Compliance_TestInit {
 // MessagePasser approved() callback
 // ============================================================
 
-contract L2Compliance_MessagePasserApproved_Test is L2Compliance_TestInit {
+contract L2Compliance_settle_Test is L2Compliance_TestInit {
     function test_approved_notCompliance_reverts() external {
         vm.expectRevert(IL2ToL1MessagePasser.L2ToL1MessagePasser_OnlyCompliance.selector);
         l2ToL1MessagePasser.approved(alice, bob, 1 ether, 100_000, hex"", 0);
@@ -414,7 +405,7 @@ contract L2Compliance_MessagePasserApproved_Test is L2Compliance_TestInit {
 // SetCompliance Tests
 // ============================================================
 
-contract L2Compliance_SetCompliance_Test is L2Compliance_TestInit {
+contract L2Compliance_initialize_Test is L2Compliance_TestInit {
     function test_setCompliance_fromProxyAdmin_succeeds() external {
         vm.prank(l2ProxyAdmin);
         l2ToL1MessagePasser.setCompliance(address(0xdead));
@@ -433,7 +424,7 @@ contract L2Compliance_SetCompliance_Test is L2Compliance_TestInit {
         l2ToL1MessagePasser.setCompliance(address(0xdead));
     }
 
-    function test_setCompliance_toZero_disables_succeeds() external {
+    function test_setCompliance_toZeroDisables_succeeds() external {
         vm.prank(l2ProxyAdminOwner);
         l2ToL1MessagePasser.setCompliance(address(0));
         assertEq(l2ToL1MessagePasser.compliance(), address(0));
@@ -467,7 +458,7 @@ contract L2Compliance_SetCompliance_Test is L2Compliance_TestInit {
 // DonateETH Tests
 // ============================================================
 
-contract L2Compliance_DonateETH_Test is L2Compliance_TestInit {
+contract L2Compliance_Uncategorized_Test is L2Compliance_TestInit {
     function test_donateETH_acceptsETH_succeeds() external {
         uint256 amount = 1 ether;
         vm.deal(address(this), amount);
@@ -510,7 +501,7 @@ contract L2Compliance_DonateETH_Test is L2Compliance_TestInit {
 // End-to-End Tests
 // ============================================================
 
-contract L2Compliance_EndToEnd_Test is L2Compliance_TestInit {
+contract L2Compliance_approve_Test is L2Compliance_TestInit {
     function test_e2e_flagThenApproveThenSettle_succeeds() external {
         vm.prank(complianceOwner);
         l2Compliance.addRule(address(rulePending));
@@ -648,7 +639,7 @@ contract L2Compliance_EndToEnd_Test is L2Compliance_TestInit {
         assertTrue(l2ToL1MessagePasser.sentMessages(withdrawalHash));
     }
 
-    function test_e2e_L2HashComputation_succeeds() external {
+    function test_e2e_l2HashComputation_succeeds() external {
         vm.prank(complianceOwner);
         l2Compliance.addRule(address(rulePending));
 

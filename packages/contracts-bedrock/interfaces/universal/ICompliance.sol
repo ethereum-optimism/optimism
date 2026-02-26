@@ -28,17 +28,9 @@ interface ICompliance {
         bytes data
     );
 
-    /// @notice Emitted when a transaction is rejected by compliance rules.
-    event Rejected(
-        bytes32 indexed id,
-        address indexed from,
-        address indexed to,
-        uint256 value,
-        uint256 mint,
-        uint64 gasLimit,
-        uint256 nonce,
-        bytes data
-    );
+    /// @notice Emitted when a transaction is rejected — either automatically during check()
+    ///         or when the owner calls reject().
+    event Rejected(bytes32 indexed id);
 
     /// @notice Emitted when a transaction is approved (either automatically or by the owner).
     event Approved(bytes32 indexed id);

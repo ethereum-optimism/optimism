@@ -34,16 +34,7 @@ abstract contract L1Compliance_TestInit is CommonTest {
         uint256 nonce,
         bytes data
     );
-    event Rejected(
-        bytes32 indexed id,
-        address indexed from,
-        address indexed to,
-        uint256 value,
-        uint256 mint,
-        uint64 gasLimit,
-        uint256 nonce,
-        bytes data
-    );
+    event Rejected(bytes32 indexed id);
     // Note: These don't conflict with Events base class which has no Approved/Refunded events.
     event Approved(bytes32 indexed id);
     event Refunded(bytes32 indexed id);
@@ -88,7 +79,7 @@ abstract contract L1Compliance_TestInit is CommonTest {
 // DepositTransaction with Compliance
 // ============================================================
 
-contract L1Compliance_DepositTransaction_Test is L1Compliance_TestInit {
+contract L1Compliance_check_Test is L1Compliance_TestInit {
     function test_depositTransaction_approved_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
@@ -116,7 +107,7 @@ contract L1Compliance_DepositTransaction_Test is L1Compliance_TestInit {
         });
     }
 
-    function test_depositTransaction_flaggedPending_noDeposit_succeeds() external {
+    function test_depositTransaction_flaggedPendingNoDeposit_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         vm.prank(complianceOwner);
@@ -147,7 +138,7 @@ contract L1Compliance_DepositTransaction_Test is L1Compliance_TestInit {
         assertEq(address(l1Compliance).balance, mint);
     }
 
-    function test_depositTransaction_flaggedRejected_noDeposit_succeeds() external {
+    function test_depositTransaction_flaggedRejectedNoDeposit_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         vm.prank(complianceOwner);
@@ -162,7 +153,7 @@ contract L1Compliance_DepositTransaction_Test is L1Compliance_TestInit {
 
         bytes32 expectedId = keccak256(abi.encode(alice, target, uint256(0), mint, gasLimit, false, txData, uint256(0)));
         vm.expectEmit(address(l1Compliance));
-        emit Rejected(expectedId, alice, target, 0, mint, gasLimit, 0, txData);
+        emit Rejected(expectedId);
 
         vm.prank(alice, alice);
         optimismPortal2.depositTransaction{ value: mint }({
@@ -176,7 +167,7 @@ contract L1Compliance_DepositTransaction_Test is L1Compliance_TestInit {
         assertEq(address(l1Compliance).balance, mint);
     }
 
-    function test_depositTransaction_noCompliance_legacyBehavior_succeeds() external {
+    function test_depositTransaction_noComplianceLegacyBehavior_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         // Disable compliance
@@ -202,7 +193,7 @@ contract L1Compliance_DepositTransaction_Test is L1Compliance_TestInit {
         });
     }
 
-    function testFuzz_depositTransaction_approved_correctOpaqueData_succeeds(
+    function testFuzz_depositTransaction_approvedCorrectOpaqueData_succeeds(
         address _to,
         uint256 _value,
         uint256 _mint,
@@ -238,7 +229,7 @@ contract L1Compliance_DepositTransaction_Test is L1Compliance_TestInit {
 // Portal approved() callback
 // ============================================================
 
-contract L1Compliance_PortalApproved_Test is L1Compliance_TestInit {
+contract L1Compliance_settle_Test is L1Compliance_TestInit {
     function test_approved_notCompliance_reverts() external {
         vm.expectRevert(IOptimismPortal.OptimismPortal_OnlyCompliance.selector);
         optimismPortal2.approved(alice, bob, 0, 0, 100_000, false, hex"");
@@ -277,7 +268,7 @@ contract L1Compliance_PortalApproved_Test is L1Compliance_TestInit {
         l1Compliance.settle(alice, target, 0, mint, gasLimit, false, txData, 0);
     }
 
-    function test_approved_contractSender_aliased_succeeds() external {
+    function test_approved_contractSenderAliased_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         vm.prank(complianceOwner);
@@ -309,7 +300,7 @@ contract L1Compliance_PortalApproved_Test is L1Compliance_TestInit {
         l1Compliance.settle(contractSender, target, 0, mint, gasLimit, false, txData, 0);
     }
 
-    function test_approved_eoaSender_notAliased_succeeds() external {
+    function test_approved_eoaSenderNotAliased_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         vm.prank(complianceOwner);
@@ -342,7 +333,7 @@ contract L1Compliance_PortalApproved_Test is L1Compliance_TestInit {
         l1Compliance.settle(alice, target, 0, mint, gasLimit, false, txData, 0);
     }
 
-    function test_approved_withLockbox_locksETH_succeeds() external {
+    function test_approved_withLockboxLocksETH_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(optimismPortal2.ethLockbox()) == address(0))
         {
@@ -384,7 +375,7 @@ contract L1Compliance_PortalApproved_Test is L1Compliance_TestInit {
 // DonateETH Tests
 // ============================================================
 
-contract L1Compliance_DonateETH_Test is L1Compliance_TestInit {
+contract L1Compliance_Uncategorized_Test is L1Compliance_TestInit {
     function test_donateETH_acceptsETH_succeeds() external {
         uint256 amount = 1 ether;
         vm.deal(address(this), amount);
@@ -415,7 +406,7 @@ contract L1Compliance_DonateETH_Test is L1Compliance_TestInit {
 // End-to-End Tests
 // ============================================================
 
-contract L1Compliance_EndToEnd_Test is L1Compliance_TestInit {
+contract L1Compliance_approve_Test is L1Compliance_TestInit {
     function test_e2e_flagThenApproveThenSettle_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 

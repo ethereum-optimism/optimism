@@ -46,17 +46,9 @@ abstract contract Compliance is
         bytes data
     );
 
-    /// @notice Emitted when a transaction is rejected by compliance rules.
-    event Rejected(
-        bytes32 indexed id,
-        address indexed from,
-        address indexed to,
-        uint256 value,
-        uint256 mint,
-        uint64 gasLimit,
-        uint256 nonce,
-        bytes data
-    );
+    /// @notice Emitted when a transaction is rejected — either automatically during check()
+    ///         or when the owner calls reject().
+    event Rejected(bytes32 indexed id);
 
     /// @notice Emitted when a transaction is approved (either automatically or by the owner).
     event Approved(bytes32 indexed id);
@@ -235,7 +227,7 @@ abstract contract Compliance is
         if (strictest == ICompliance.Status.Pending) {
             emit Pending(id, _from, _to, _value, msg.value, _gasLimit, _nonce, _data);
         } else if (strictest == ICompliance.Status.Rejected) {
-            emit Rejected(id, _from, _to, _value, msg.value, _gasLimit, _nonce, _data);
+            emit Rejected(id);
         }
 
         return false;
@@ -251,7 +243,6 @@ abstract contract Compliance is
         }
         // Set override bit (bit 255) and Approved status.
         _status[_id] = OVERRIDE_BIT | uint256(ICompliance.Status.Approved);
-        emit Approved(_id);
     }
 
     /// @notice Owner rejects a transaction. Sets the override bit (bit 255).
@@ -265,6 +256,7 @@ abstract contract Compliance is
         }
         // Set override bit (bit 255) and Rejected status.
         _status[_id] = OVERRIDE_BIT | uint256(ICompliance.Status.Rejected);
+        emit Rejected(_id);
     }
 
     /// @notice Called by anybody to progress the state of the deposit.
@@ -285,12 +277,11 @@ abstract contract Compliance is
     ///
     ///      ETH flow per resolved status:
     ///      - Approved: deletes the status entry (_status[id] = 0) and calls
-    ///        bridge.approved{value: held}(...) to execute the held transaction
-    ///        using the caller-provided preimage fields (verified by hash). For
-    ///        deposits, _mint is the forwarded ETH. For withdrawals, _value is
-    ///        the forwarded ETH. Deleting the status entry prevents
-    ///        double-execution (a subsequent settle on the same preimage will
-    ///        find _status[id] == 0 and revert).
+    ///        bridge.approved{value: _mint}(...) to execute the held transaction
+    ///        using the caller-provided preimage fields (verified by hash). The
+    ///        _mint field is the forwarded ETH for both deposits and withdrawals.
+    ///        Deleting the status entry prevents double-execution (a subsequent
+    ///        settle on the same preimage will find _status[id] == 0 and revert).
     ///      - Rejected: marks status as Refunded and sends the held ETH back to
     ///        the original sender (_from).
     ///      - Pending: no-op, the transaction remains held.
@@ -299,7 +290,7 @@ abstract contract Compliance is
     /// @param _from       The original depositor/withdrawer address.
     /// @param _to         The recipient address on the remote chain.
     /// @param _value      The ETH value.
-    /// @param _mint       The ETH to mint on L2 (msg.value for deposits, always 0 for withdrawals).
+    /// @param _mint       The ETH held in custody (msg.value from the original check() call).
     /// @param _gasLimit   The gas limit for remote execution.
     /// @param _isCreation Whether this is a contract creation (always false for withdrawals).
     /// @param _data       The calldata.

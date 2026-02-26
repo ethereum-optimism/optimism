@@ -36,6 +36,11 @@ var excludeContracts = []string{
 	// TODO: Interfaces that need to be fixed
 	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
 	"KontrolCheatsBase", "IResolvedDelegateProxy",
+
+	// Solady Ownable has a different ABI than the minimal IOwnable interface.
+	// Contracts that use Solady Ownable define their full interface separately
+	// (e.g. ICompliance includes all Solady Ownable functions).
+	"IOwnable",
 }
 
 // excludeSourceContracts is a list of contracts that are allowed to not have interfaces
