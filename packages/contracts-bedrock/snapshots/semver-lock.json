@@ -261,7 +261,7 @@
   },
   "src/universal/Compliance.sol:Compliance": {
     "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-    "sourceCodeHash": "0x8fe75cf4554524cd25160eee9ff866490a4cadc8725c8398526ccd4af58ea39f"
+    "sourceCodeHash": "0x20004842c48efaadc9720b7cc3027e7ebdb77a7e9bff2d5d4442296e9575f67b"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",
