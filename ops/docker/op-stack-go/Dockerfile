@@ -190,8 +190,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   git fetch --depth 1 --filter=blob:none origin "$GIT_COMMIT" && \
   git checkout FETCH_HEAD -- packages/contracts-bedrock/lib && \
   git submodule update --init --recursive --depth 1 -j 8 packages/contracts-bedrock/lib && \
-  just GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" \
-  op-deployer/build
+  just GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" op-deployer/build
 
 FROM --platform=$BUILDPLATFORM builder AS op-dripper-builder
 ARG OP_DRIPPER_VERSION=v0.0.0
