@@ -24,12 +24,33 @@ library DeployUtils {
 
     bytes32 internal constant DEFAULT_SALT = keccak256("op-stack-contract-impls-salt-v0");
 
+    /// @notice Returns the creation bytecode for a contract from the default compiler profile's artifact.
+    ///         When `additional_compiler_profiles` is configured in foundry.toml, a contract may be compiled
+    ///         with multiple profiles (e.g., default and dispute). Using `vm.getCode(name)` alone can
+    ///         non-deterministically resolve to the wrong profile's artifact. By constructing the explicit
+    ///         artifact file path (`forge-artifacts/<Name>.sol/<Name>.json`), we ensure the default profile's
+    ///         bytecode is always returned.
+    ///         If the name already contains a colon (e.g., "File.sol:Contract"), it is passed through to
+    ///         vm.getCode as-is since the caller has already provided disambiguation.
+    /// @param _name Name of the contract, or a qualified "File.sol:Contract" identifier.
+    /// @return The creation bytecode from the default profile artifact.
+    function getCode(string memory _name) internal view returns (bytes memory) {
+        // If the name contains a colon, the caller already provided a qualified identifier.
+        bytes memory nameBytes = bytes(_name);
+        for (uint256 i = 0; i < nameBytes.length; i++) {
+            if (nameBytes[i] == ":") {
+                return vm.getCode(_name);
+            }
+        }
+        return vm.getCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json"));
+    }
+
     /// @notice Deploys a contract with the given name and arguments via CREATE.
     /// @param _name Name of the contract to deploy.
     /// @param _args ABI-encoded constructor arguments.
     /// @return addr_ Address of the deployed contract.
     function create1(string memory _name, bytes memory _args) internal returns (address payable addr_) {
-        bytes memory bytecode = abi.encodePacked(vm.getCode(_name), _args);
+        bytes memory bytecode = abi.encodePacked(getCode(_name), _args);
         assembly {
             addr_ := create(0, add(bytecode, 0x20), mload(bytecode))
         }
@@ -79,7 +100,7 @@ library DeployUtils {
     /// @param _salt Salt for the CREATE2 operation.
     /// @return addr_ Address of the deployed contract.
     function create2(string memory _name, bytes memory _args, bytes32 _salt) internal returns (address payable) {
-        bytes memory initCode = abi.encodePacked(vm.getCode(_name), _args);
+        bytes memory initCode = abi.encodePacked(getCode(_name), _args);
         address preComputedAddress = vm.computeCreate2Address(_salt, keccak256(initCode));
         require(preComputedAddress.code.length == 0, "DeployUtils: contract already deployed");
         return create2asm(initCode, _salt);
@@ -150,7 +171,7 @@ library DeployUtils {
         internal
         returns (address payable addr_)
     {
-        bytes memory initCode = abi.encodePacked(vm.getCode(_name), _args);
+        bytes memory initCode = abi.encodePacked(getCode(_name), _args);
         address preComputedAddress = vm.computeCreate2Address(_salt, keccak256(initCode));
         if (preComputedAddress.code.length > 0) {
             addr_ = payable(preComputedAddress);
