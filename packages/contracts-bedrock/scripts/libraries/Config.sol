@@ -37,6 +37,7 @@ enum Fork {
     HOLOCENE,
     ISTHMUS,
     JOVIAN,
+    KARST,
     INTEROP
 }
 
@@ -60,6 +61,8 @@ library ForkUtils {
             return "isthmus";
         } else if (_fork == Fork.JOVIAN) {
             return "jovian";
+        } else if (_fork == Fork.KARST) {
+            return "karst";
         } else {
             return "unknown";
         }
@@ -207,6 +210,8 @@ library Config {
             return Fork.ISTHMUS;
         } else if (forkHash == keccak256(bytes("jovian"))) {
             return Fork.JOVIAN;
+        } else if (forkHash == keccak256(bytes("karst"))) {
+            return Fork.KARST;
         } else {
             revert(string.concat("Config: unknown fork: ", forkStr));
         }

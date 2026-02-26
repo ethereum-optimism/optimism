@@ -64,6 +64,8 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Thrown when trying to allowlist/disallow yourself.
     error PolicyEngineStaking_SelfAllowlist();
 
+    function __constructor__(address _ownerAddr, address _token) external;
+
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
 

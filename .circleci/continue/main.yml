@@ -1372,11 +1372,9 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           when: on_fail
-      - when:
-          condition: always
-          steps:
-            - store_test_results:
-                path: packages/contracts-bedrock/results/results.xml
+      - store_test_results:
+          path: packages/contracts-bedrock/results
+          when: always
       - run:
           name: Lint forge test names
           command: just lint-forge-tests-check-no-build
@@ -1432,11 +1430,9 @@ jobs:
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "~/.cache/go-build"
-      - when:
-          condition: always
-          steps:
-            - store_test_results:
-                path: packages/contracts-bedrock/results/results.xml
+      - store_test_results:
+          path: packages/contracts-bedrock/results
+          when: always
       - notify-failures-on-develop
 
   # AI Contracts Test Maintenance System
@@ -1663,12 +1659,11 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
-      - when:
-          condition: always
-          steps:
-            - store_test_results:
-                path: packages/contracts-bedrock/results/results.xml
-      - notify-failures-on-develop
+      - store_test_results:
+          path: packages/contracts-bedrock/results
+          when: always
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   contracts-bedrock-upload:
     machine: true

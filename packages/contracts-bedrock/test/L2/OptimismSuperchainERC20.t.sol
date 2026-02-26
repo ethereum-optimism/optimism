@@ -55,7 +55,10 @@ abstract contract OptimismSuperchainERC20_TestInit is Test {
         // Deploy the OptimismSuperchainERC20Beacon implementation
         address _addr = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
         address _impl = Predeploys.predeployToCodeNamespace(_addr);
-        vm.etch(_impl, vm.getDeployedCode("OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon"));
+        vm.etch(
+            _impl,
+            vm.getDeployedCode("forge-artifacts/OptimismSuperchainERC20Beacon.sol/OptimismSuperchainERC20Beacon.json")
+        );
 
         // Deploy the ERC1967Proxy contract at the Predeploy
         bytes memory code = vm.getDeployedCode("universal/Proxy.sol:Proxy");

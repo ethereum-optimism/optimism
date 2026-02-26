@@ -113,6 +113,8 @@ func WithExtL2Node(id stack.L2ELNodeID, elRPCEndpoint string) stack.Option[*Orch
 			userRPC:  elRPCEndpoint,
 			readOnly: true,
 		}
-		require.True(orch.l2ELs.SetIfMissing(id, l2ELNode), "must not already exist")
+		cid := stack.ConvertL2ELNodeID(id).ComponentID
+		require.False(orch.registry.Has(cid), "must not already exist")
+		orch.registry.Register(cid, l2ELNode)
 	})
 }

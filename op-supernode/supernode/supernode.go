@@ -91,7 +91,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		superroot.New(log.New("activity", "superroot"), s.chains),
 	}
 
-	log.Info("initializing interop activity? %v", cfg.RawCtx.IsSet(interop.InteropActivationTimestampFlag.Name))
+	log.Info("initializing interop activity? %v", cfg.InteropActivationTimestamp != nil)
 	// Initialize interop activity if the activation timestamp is set (non-nil)
 	// If it's nil, don't start interop. If it's non-nil (including 0), do start it.
 	if cfg.InteropActivationTimestamp != nil {
@@ -142,8 +142,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 	// Start metrics service
 	if s.metrics != nil {
 		s.wg.Add(1)
-		s.metrics.Start(func(err error) {
-			defer s.wg.Done()
+		s.metrics.Start(s.wg.Done, func(err error) {
 			if s.requestStop != nil {
 				s.requestStop(err)
 			}
@@ -160,8 +159,18 @@ func (s *Supernode) Start(ctx context.Context) error {
 			s.wg.Add(1)
 			go func(run activity.RunnableActivity) {
 				defer s.wg.Done()
-				if err := run.Start(ctx); err != nil {
-					s.log.Error("error starting runnable activity", "error", err)
+				err := run.Start(ctx)
+				activityName := a.Name()
+				switch err {
+				case nil:
+					s.log.Error("activity quit unexpectedly", "name", activityName)
+				case context.Canceled:
+					// This is the happy path, normal / clean shutdown
+					s.log.Info("activity closing due to cancelled context", "name", activityName)
+				case context.DeadlineExceeded:
+					s.log.Warn("activity quit due to deadline exceeded", "name", activityName)
+				default:
+					s.log.Error("error starting runnable activity", "name", activityName, "error", err)
 				}
 			}(run)
 		}
@@ -175,9 +184,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 			}
 		}(chainID, chain)
 	}
-	<-ctx.Done()
-	s.log.Info("supernode received stop signal")
-	return ctx.Err()
+	return nil
 }
 
 func (s *Supernode) Stop(ctx context.Context) error {
@@ -190,6 +197,8 @@ func (s *Supernode) Stop(ctx context.Context) error {
 		defer cancel()
 		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 			s.log.Error("error shutting down rpc server", "error", err)
+		} else {
+			s.log.Info("rpc server stopped")
 		}
 	}
 	if s.metrics != nil {
@@ -197,19 +206,26 @@ func (s *Supernode) Stop(ctx context.Context) error {
 		defer cancel()
 		if err := s.metrics.Stop(shutdownCtx); err != nil {
 			s.log.Error("error shutting down metrics server", "error", err)
+		} else {
+			s.log.Info("metrics server stopped")
 		}
 	}
 	if s.rpcRouter != nil {
 		if err := s.rpcRouter.Close(); err != nil {
 			s.log.Error("error closing rpc router", "error", err)
+		} else {
+			s.log.Info("rpc router closed")
 		}
 	}
 
 	// Stop runnable activities
 	for _, a := range s.activities {
+		activityName := a.Name()
 		if run, ok := a.(activity.RunnableActivity); ok {
 			if err := run.Stop(ctx); err != nil {
-				s.log.Error("error stopping runnable activity", "error", err)
+				s.log.Error("error stopping runnable activity", "name", activityName, "error", err)
+			} else {
+				s.log.Info("runnable activity stopped", "name", activityName)
 			}
 		}
 	}
@@ -217,14 +233,19 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	for chainID, chain := range s.chains {
 		if err := chain.Stop(ctx); err != nil {
 			s.log.Error("error stopping chain container", "chain_id", chainID.String(), "error", err)
+		} else {
+			s.log.Info("chain container stopped", "chain_id", chainID.String())
 		}
 	}
 
+	s.log.Info("all chain containers stopped, waiting for goroutines to finish")
 	s.wg.Wait()
+	s.log.Info("goroutines finished, closing l1 client")
 
 	if s.l1Client != nil {
 		s.l1Client.Close()
 	}
+	s.log.Info("l1 client closed, supernode stopped")
 
 	return nil
 }

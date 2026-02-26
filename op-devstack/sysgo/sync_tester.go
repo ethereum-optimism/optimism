@@ -58,7 +58,7 @@ func WithSyncTester(syncTesterID stack.SyncTesterID, l2ELs []stack.L2ELNodeID) s
 			id := sttypes.SyncTesterID(fmt.Sprintf("dev-sync-tester-%s", elID.ChainID()))
 			require.NotContains(syncTesters, id, "one sync tester per chain only")
 
-			el, ok := orch.l2ELs.Get(elID)
+			el, ok := orch.GetL2EL(elID)
 			require.True(ok, "need L2 EL for sync tester", elID)
 
 			syncTesters[id] = &stconf.SyncTesterEntry{

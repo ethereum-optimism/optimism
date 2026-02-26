@@ -68,22 +68,24 @@ func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stac
 			require.NotNil(o.wb, "must have a world builder")
 			require.NotEmpty(o.wb.output.ImplementationsDeployment.OpcmImpl, "must have an OPCM implementation")
 
-			l1EL, ok := o.l1ELs.Get(l1ELID)
+			l1ELComponent, ok := o.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
 			require.True(ok, "must have L1 EL node")
+			l1EL := l1ELComponent.(L1ELNode)
 			rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 			require.NoError(err)
 			client := ethclient.NewClient(rpcClient)
 			w3Client := w3.NewClient(rpcClient)
 
 			var superrootTime uint64
-			// Supernode does not support super roots at geensis.
+			// Supernode does not support super roots at genesis.
 			// So let's wait for safe heads to advance before querying atTimestamp.
 			for _, clID := range clIDs {
-				cl, ok := o.l2CLs.Get(clID)
+				l2CLComponent, ok := o.registry.Get(stack.ConvertL2CLNodeID(clID).ComponentID)
 				require.True(ok, "must have L2 CL node")
+				l2CL := l2CLComponent.(L2CLNode)
 				// TODO(#18947): Ideally, we should be able to wait on the supernode's SyncStatus directly
 				// rather than check the sync statuses of all CLs
-				rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), cl.UserRPC())
+				rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), l2CL.UserRPC())
 				t.Require().NoError(err)
 				defer rollupClient.Close()
 				ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
@@ -286,8 +288,9 @@ func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts,
 }
 
 func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervisorID stack.SupervisorID) eth.Bytes32 {
-	supervisor, ok := o.supervisors.Get(supervisorID)
+	supervisorComponent, ok := o.registry.Get(stack.ConvertSupervisorID(supervisorID).ComponentID)
 	t.Require().True(ok, "must have supervisor")
+	supervisor := supervisorComponent.(Supervisor)
 
 	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
 	t.Require().NoError(err)
