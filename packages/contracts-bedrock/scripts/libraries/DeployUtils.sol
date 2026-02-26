@@ -30,19 +30,28 @@ library DeployUtils {
     ///         non-deterministically resolve to the wrong profile's artifact. By constructing the explicit
     ///         artifact file path (`forge-artifacts/<Name>.sol/<Name>.json`), we ensure the default profile's
     ///         bytecode is always returned.
-    ///         If the name already contains a colon (e.g., "File.sol:Contract"), it is passed through to
-    ///         vm.getCode as-is since the caller has already provided disambiguation.
+    ///         If the name already contains a colon or slash (e.g., "File.sol:Contract" or an explicit path),
+    ///         it is passed through to vm.getCode as-is since the caller has already provided disambiguation.
+    ///         The explicit path is wrapped in a try/catch so that hosts which don't support artifact paths
+    ///         (e.g., the Go script host in op-chain-ops) gracefully fall back to vm.getCode(_name).
     /// @param _name Name of the contract, or a qualified "File.sol:Contract" identifier.
     /// @return The creation bytecode from the default profile artifact.
     function getCode(string memory _name) internal view returns (bytes memory) {
-        // If the name contains a colon, the caller already provided a qualified identifier.
+        // If the name contains a colon or slash, the caller already provided a qualified identifier.
         bytes memory nameBytes = bytes(_name);
         for (uint256 i = 0; i < nameBytes.length; i++) {
-            if (nameBytes[i] == ":") {
+            if (nameBytes[i] == ":" || nameBytes[i] == "/") {
                 return vm.getCode(_name);
             }
         }
-        return vm.getCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json"));
+        // Try explicit default-profile artifact path for deterministic profile resolution.
+        // Falls back to vm.getCode(_name) for hosts that don't support artifact paths
+        // (e.g., the Go script host in op-chain-ops, which has no profile ambiguity).
+        try vm.getCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json")) returns (bytes memory code) {
+            return code;
+        } catch {
+            return vm.getCode(_name);
+        }
     }
 
     /// @notice Deploys a contract with the given name and arguments via CREATE.
