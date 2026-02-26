@@ -34,26 +34,27 @@ contract GovernanceToken_Constructor_Test is GovernanceToken_TestInit {
 /// @title GovernanceToken_Mint_Test
 /// @notice Tests the `mint` function of the `GovernanceToken` contract.
 contract GovernanceToken_Mint_Test is GovernanceToken_TestInit {
-    /// @notice Tests that the owner can successfully call `mint`.
-    function test_mint_fromOwner_succeeds() external {
-        // Mint 100 tokens.
+    /// @notice Tests that the owner can mint tokens to any
+    ///         account with any amount.
+    function testFuzz_mint_fromOwner_succeeds(address _account, uint256 _amount) external {
+        vm.assume(_account != address(0));
+        _amount = bound(_amount, 0, type(uint224).max);
         vm.prank(owner);
-        governanceToken.mint(owner, 100);
+        governanceToken.mint(_account, _amount);
 
-        // Balances have updated correctly.
-        assertEq(governanceToken.balanceOf(owner), 100);
-        assertEq(governanceToken.totalSupply(), 100);
+        assertEq(governanceToken.balanceOf(_account), _amount);
+        assertEq(governanceToken.totalSupply(), _amount);
     }
 
-    /// @notice Tests that `mint` reverts when called by a non-owner.
-    function test_mint_fromNotOwner_reverts() external {
-        // Mint 100 tokens as rando.
-        vm.prank(rando);
+    /// @notice Tests that `mint` reverts when called by
+    ///         any non-owner address.
+    function testFuzz_mint_fromNotOwner_reverts(address _caller) external {
+        vm.assume(_caller != owner);
+        vm.prank(_caller);
         vm.expectRevert("Ownable: caller is not the owner");
-        governanceToken.mint(owner, 100);
+        governanceToken.mint(rando, 100);
 
-        // Balance does not update.
-        assertEq(governanceToken.balanceOf(owner), 0);
+        assertEq(governanceToken.balanceOf(rando), 0);
         assertEq(governanceToken.totalSupply(), 0);
     }
 }
@@ -62,123 +63,110 @@ contract GovernanceToken_Mint_Test is GovernanceToken_TestInit {
 /// @notice General tests that are not testing any function directly of the `GovernanceToken`
 ///         contract or are testing multiple functions at once.
 contract GovernanceToken_Uncategorized_Test is GovernanceToken_TestInit {
-    /// @notice Tests that the owner can successfully call `burn`.
-    function test_burn_succeeds() external {
-        // Mint 100 tokens to rando.
+    /// @notice Tests that a holder can burn any valid
+    ///         amount of their tokens.
+    function testFuzz_burn_anyAmount_succeeds(uint256 _mintAmount, uint256 _burnAmount) external {
+        _mintAmount = bound(_mintAmount, 0, type(uint224).max);
+        _burnAmount = bound(_burnAmount, 0, _mintAmount);
         vm.prank(owner);
-        governanceToken.mint(rando, 100);
+        governanceToken.mint(rando, _mintAmount);
 
-        // Rando burns their tokens.
         vm.prank(rando);
-        governanceToken.burn(50);
+        governanceToken.burn(_burnAmount);
 
-        // Balances have updated correctly.
-        assertEq(governanceToken.balanceOf(rando), 50);
-        assertEq(governanceToken.totalSupply(), 50);
+        assertEq(governanceToken.balanceOf(rando), _mintAmount - _burnAmount);
+        assertEq(governanceToken.totalSupply(), _mintAmount - _burnAmount);
     }
 
-    /// @notice Tests that the owner can successfully call `burnFrom`.
-    function test_burnFrom_succeeds() external {
-        // Mint 100 tokens to rando.
+    /// @notice Tests that an approved spender can burn
+    ///         tokens from another account.
+    function testFuzz_burnFrom_approvedAmount_succeeds(uint256 _mintAmount, uint256 _burnAmount) external {
+        _mintAmount = bound(_mintAmount, 0, type(uint224).max);
+        _burnAmount = bound(_burnAmount, 0, _mintAmount);
         vm.prank(owner);
-        governanceToken.mint(rando, 100);
+        governanceToken.mint(rando, _mintAmount);
 
-        // Rando approves owner to burn 50 tokens.
         vm.prank(rando);
-        governanceToken.approve(owner, 50);
+        governanceToken.approve(owner, _burnAmount);
 
-        // Owner burns 50 tokens from rando.
         vm.prank(owner);
-        governanceToken.burnFrom(rando, 50);
+        governanceToken.burnFrom(rando, _burnAmount);
 
-        // Balances have updated correctly.
-        assertEq(governanceToken.balanceOf(rando), 50);
-        assertEq(governanceToken.totalSupply(), 50);
+        assertEq(governanceToken.balanceOf(rando), _mintAmount - _burnAmount);
+        assertEq(governanceToken.totalSupply(), _mintAmount - _burnAmount);
     }
 
-    /// @notice Tests that `transfer` correctly transfers tokens.
-    function test_transfer_succeeds() external {
-        // Mint 100 tokens to rando.
+    /// @notice Tests that `transfer` correctly moves
+    ///         any valid amount between accounts.
+    function testFuzz_transfer_anyAmount_succeeds(uint256 _mintAmount, uint256 _transferAmount) external {
+        _mintAmount = bound(_mintAmount, 0, type(uint224).max);
+        _transferAmount = bound(_transferAmount, 0, _mintAmount);
         vm.prank(owner);
-        governanceToken.mint(rando, 100);
+        governanceToken.mint(rando, _mintAmount);
 
-        // Rando transfers 50 tokens to owner.
         vm.prank(rando);
-        governanceToken.transfer(owner, 50);
+        governanceToken.transfer(owner, _transferAmount);
 
-        // Balances have updated correctly.
-        assertEq(governanceToken.balanceOf(owner), 50);
-        assertEq(governanceToken.balanceOf(rando), 50);
-        assertEq(governanceToken.totalSupply(), 100);
+        assertEq(governanceToken.balanceOf(owner), _transferAmount);
+        assertEq(governanceToken.balanceOf(rando), _mintAmount - _transferAmount);
+        assertEq(governanceToken.totalSupply(), _mintAmount);
     }
 
-    /// @notice Tests that `approve` correctly sets allowances.
-    function test_approve_succeeds() external {
-        // Mint 100 tokens to rando.
-        vm.prank(owner);
-        governanceToken.mint(rando, 100);
-
-        // Rando approves owner to spend 50 tokens.
+    /// @notice Tests that `approve` correctly sets
+    ///         allowance to any value.
+    function testFuzz_approve_anyAmount_succeeds(uint256 _amount) external {
         vm.prank(rando);
-        governanceToken.approve(owner, 50);
+        governanceToken.approve(owner, _amount);
 
-        // Allowances have updated.
-        assertEq(governanceToken.allowance(rando, owner), 50);
+        assertEq(governanceToken.allowance(rando, owner), _amount);
     }
 
-    /// @notice Tests that `transferFrom` correctly transfers tokens.
-    function test_transferFrom_succeeds() external {
-        // Mint 100 tokens to rando.
+    /// @notice Tests that `transferFrom` correctly moves
+    ///         tokens using an approved allowance.
+    function testFuzz_transferFrom_approvedAmount_succeeds(uint256 _mintAmount, uint256 _transferAmount) external {
+        _mintAmount = bound(_mintAmount, 0, type(uint224).max);
+        _transferAmount = bound(_transferAmount, 0, _mintAmount);
         vm.prank(owner);
-        governanceToken.mint(rando, 100);
+        governanceToken.mint(rando, _mintAmount);
 
-        // Rando approves owner to spend 50 tokens.
         vm.prank(rando);
-        governanceToken.approve(owner, 50);
+        governanceToken.approve(owner, _transferAmount);
 
-        // Owner transfers 50 tokens from rando to owner.
         vm.prank(owner);
-        governanceToken.transferFrom(rando, owner, 50);
+        governanceToken.transferFrom(rando, owner, _transferAmount);
 
-        // Balances have updated correctly.
-        assertEq(governanceToken.balanceOf(owner), 50);
-        assertEq(governanceToken.balanceOf(rando), 50);
-        assertEq(governanceToken.totalSupply(), 100);
+        assertEq(governanceToken.balanceOf(owner), _transferAmount);
+        assertEq(governanceToken.balanceOf(rando), _mintAmount - _transferAmount);
+        assertEq(governanceToken.totalSupply(), _mintAmount);
     }
 
-    /// @notice Tests that `increaseAllowance` correctly increases allowances.
-    function test_increaseAllowance_succeeds() external {
-        // Mint 100 tokens to rando.
-        vm.prank(owner);
-        governanceToken.mint(rando, 100);
+    /// @notice Tests that `increaseAllowance` adds the
+    ///         correct amount to existing allowance.
+    function testFuzz_increaseAllowance_anyAmount_succeeds(uint256 _initial, uint256 _increase) external {
+        // Prevent overflow when summing.
+        _initial = bound(_initial, 0, type(uint128).max);
+        _increase = bound(_increase, 0, type(uint128).max);
 
-        // Rando approves owner to spend 50 tokens.
         vm.prank(rando);
-        governanceToken.approve(owner, 50);
+        governanceToken.approve(owner, _initial);
 
-        // Rando increases allowance by 50 tokens.
         vm.prank(rando);
-        governanceToken.increaseAllowance(owner, 50);
+        governanceToken.increaseAllowance(owner, _increase);
 
-        // Allowances have updated.
-        assertEq(governanceToken.allowance(rando, owner), 100);
+        assertEq(governanceToken.allowance(rando, owner), _initial + _increase);
     }
 
-    /// @notice Tests that `decreaseAllowance` correctly decreases allowances.
-    function test_decreaseAllowance_succeeds() external {
-        // Mint 100 tokens to rando.
-        vm.prank(owner);
-        governanceToken.mint(rando, 100);
+    /// @notice Tests that `decreaseAllowance` subtracts
+    ///         the correct amount from existing allowance.
+    function testFuzz_decreaseAllowance_anyAmount_succeeds(uint256 _initial, uint256 _decrease) external {
+        _decrease = bound(_decrease, 0, _initial);
 
-        // Rando approves owner to spend 100 tokens.
         vm.prank(rando);
-        governanceToken.approve(owner, 100);
+        governanceToken.approve(owner, _initial);
 
-        // Rando decreases allowance by 50 tokens.
         vm.prank(rando);
-        governanceToken.decreaseAllowance(owner, 50);
+        governanceToken.decreaseAllowance(owner, _decrease);
 
-        // Allowances have updated.
-        assertEq(governanceToken.allowance(rando, owner), 50);
+        assertEq(governanceToken.allowance(rando, owner), _initial - _decrease);
     }
 }
