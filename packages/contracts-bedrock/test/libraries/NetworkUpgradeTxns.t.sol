@@ -130,7 +130,8 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
     function test_writeArtifact_emptyArray_succeeds() public {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
         string memory outputPath = "deployments/nut-test-empty.json";
-        NetworkUpgradeTxns.writeArtifact(txns, outputPath);
+        NetworkUpgradeTxns.BundleMetadata memory metadata = NetworkUpgradeTxns.BundleMetadata({ version: "" });
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, outputPath);
     }
 
     /// @notice Test writeArtifact creates valid JSON file
@@ -154,7 +155,8 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
         });
 
         string memory outputPath = "deployments/nut-test.json";
-        NetworkUpgradeTxns.writeArtifact(txns, outputPath);
+        NetworkUpgradeTxns.BundleMetadata memory metadata = NetworkUpgradeTxns.BundleMetadata({ version: "1.0.0" });
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, outputPath);
 
         // Read json file and validate the transactions
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns = NetworkUpgradeTxns.readArtifact(outputPath);
@@ -247,7 +249,8 @@ contract NetworkUpgradeTxns_Uncategorized_Test is NetworkUpgradeTxns_TestInit {
 
         // Write transactions to JSON file
         string memory outputPath = "deployments/nut-ecotone-upgrade-test.json";
-        NetworkUpgradeTxns.writeArtifact(txns, outputPath);
+        NetworkUpgradeTxns.BundleMetadata memory metadata = NetworkUpgradeTxns.BundleMetadata({ version: "1.0.0" });
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, outputPath);
 
         // Read back the transactions
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns = NetworkUpgradeTxns.readArtifact(outputPath);

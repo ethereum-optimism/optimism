@@ -13,6 +13,12 @@ library NetworkUpgradeTxns {
 
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
+    /// @notice Metadata for the Network Upgrade Transaction bundle.
+    /// @param version Bundle format version for compatibility tracking.
+    struct BundleMetadata {
+        string version;
+    }
+
     /// @notice Represents a single Network Upgrade Transaction
     ///         This struct is serialized to JSON and later converted to a DepositTx by op-node.
     ///         See op-node/rollup/derive/parse_upgrade_transactions.go for conversion logic.
@@ -30,23 +36,38 @@ library NetworkUpgradeTxns {
         address to;
     }
 
-    /// @notice Writes the transactions array to a JSON file.
+    /// @notice Writes the nut bundle to a JSON file.
     /// @param _txns The array of upgrade transactions.
+    /// @param _metadata The bundle metadata.
     /// @param _outputPath The file path for the output JSON.
-    function writeArtifact(NetworkUpgradeTxn[] memory _txns, string memory _outputPath) internal {
-        string memory finalJson = "[";
+    function writeArtifact(
+        NetworkUpgradeTxn[] memory _txns,
+        BundleMetadata memory _metadata,
+        string memory _outputPath
+    )
+        internal
+    {
+        // Build transactions array
+        string memory txnsArray = "[";
 
         for (uint256 i = 0; i < _txns.length; i++) {
             string memory txnJson = serializeTxn(_txns[i], i);
-            finalJson = string.concat(finalJson, txnJson);
+            txnsArray = string.concat(txnsArray, txnJson);
             if (i < _txns.length - 1) {
-                finalJson = string.concat(finalJson, ",");
+                txnsArray = string.concat(txnsArray, ",");
             }
         }
 
-        finalJson = string.concat(finalJson, "]");
+        txnsArray = string.concat(txnsArray, "]");
 
-        // Writes the final serialized JSON array to file.
+        // Build metadata object
+        string memory metadataKey = "metadata";
+        string memory metadataJson = vm.serializeString(metadataKey, "version", _metadata.version);
+
+        // Build final bundle manually to avoid string escaping of the transactions array
+        string memory finalJson = string.concat("{\"metadata\":", metadataJson, ",\"transactions\":", txnsArray, "}");
+
+        // Writes the final serialized JSON bundle to file
         vm.writeJson(finalJson, _outputPath);
     }
 
@@ -75,7 +96,8 @@ library NetworkUpgradeTxns {
     /// @return txns_ The array of upgrade transactions.
     function readArtifact(string memory _inputPath) internal view returns (NetworkUpgradeTxn[] memory txns_) {
         string memory json = vm.readFile(_inputPath);
-        bytes memory parsedData = vm.parseJson(json);
+        // Parse the transactions array from the bundle structure
+        bytes memory parsedData = vm.parseJson(json, ".transactions");
         txns_ = abi.decode(parsedData, (NetworkUpgradeTxns.NetworkUpgradeTxn[]));
     }
 }

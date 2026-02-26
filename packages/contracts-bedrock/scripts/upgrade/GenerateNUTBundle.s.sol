@@ -27,6 +27,9 @@ contract GenerateNUTBundle is Script {
     /// @notice Name of the upgrade.
     string internal constant UPGRADE_NAME = "jovian";
 
+    /// @notice Version of the upgrade bundle.
+    string internal constant BUNDLE_VERSION = "1.0.0";
+
     /// @notice Path to the upgrade artifact.
     string public constant UPGRADE_ARTIFACT_PATH = "deployments/nut-jovian-upgrade.json";
 
@@ -122,8 +125,10 @@ contract GenerateNUTBundle is Script {
 
         _assertValidOutput(output_);
 
-        // Write transactions to artifact
-        NetworkUpgradeTxns.writeArtifact(txns, UPGRADE_ARTIFACT_PATH);
+        // Write transactions to artifact with metadata
+        NetworkUpgradeTxns.BundleMetadata memory metadata =
+            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, UPGRADE_ARTIFACT_PATH);
     }
 
     /// @notice Asserts the input is valid.
