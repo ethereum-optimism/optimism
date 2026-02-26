@@ -34,6 +34,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_ProofNotOldEnough();
     error OptimismPortal_Unproven();
     error OptimismPortal_InvalidLockboxState();
+    error OptimismPortal_OnlyCompliance();
     error OutOfGas();
     error UnexpectedList();
     error UnexpectedString();
@@ -47,6 +48,18 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     receive() external payable;
 
     function anchorStateRegistry() external view returns (IAnchorStateRegistry);
+    function approved(
+        address _from,
+        address _to,
+        uint256 _value,
+        uint256 _mint,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes calldata _data
+    )
+        external
+        payable;
+    function compliance() external view returns (address);
     function ethLockbox() external view returns (IETHLockbox);
     function checkWithdrawal(bytes32 _withdrawalHash, address _proofSubmitter) external view;
     function depositTransaction(
@@ -71,7 +84,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         external;
     function finalizedWithdrawals(bytes32) external view returns (bool);
     function guardian() external view returns (address);
-    function initialize(ISystemConfig _systemConfig, IAnchorStateRegistry _anchorStateRegistry) external;
+    function initialize(ISystemConfig _systemConfig, IAnchorStateRegistry _anchorStateRegistry, address _compliance) external;
     function initVersion() external view returns (uint8);
     function l2Sender() external view returns (address);
     function minimumGasLimit(uint64 _byteCount) external pure returns (uint64);

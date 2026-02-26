@@ -344,7 +344,7 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function
         vm.prank(address(proxyAdmin));
-        optimismPortal2.initialize(systemConfig, anchorStateRegistry);
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, address(0));
     }
 
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
@@ -366,7 +366,7 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function with the sender
         vm.prank(_sender);
-        optimismPortal2.initialize(systemConfig, anchorStateRegistry);
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry, address(0));
     }
 }
 

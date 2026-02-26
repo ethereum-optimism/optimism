@@ -797,7 +797,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cts.proxyAdmin,
                 address(_cts.optimismPortal),
                 impls.optimismPortalImpl,
-                abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry))
+                abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, address(0)))
             );
         }
 

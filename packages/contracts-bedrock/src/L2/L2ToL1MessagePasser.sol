@@ -6,9 +6,13 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Burn } from "src/libraries/Burn.sol";
+import { Storage } from "src/libraries/Storage.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ICompliance } from "interfaces/universal/ICompliance.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000016
@@ -28,6 +32,15 @@ contract L2ToL1MessagePasser is ISemver {
 
     /// @notice A unique value hashed with each withdrawal.
     uint240 internal msgNonce;
+
+    /// @notice Address of the compliance module (address(0) if disabled).
+    address public compliance;
+
+    /// @notice Thrown when the caller is not the compliance contract.
+    error L2ToL1MessagePasser_OnlyCompliance();
+
+    /// @notice Thrown when the caller is not the proxy admin or its owner.
+    error L2ToL1MessagePasser_OnlyProxyAdminOwner();
 
     /// @notice Emitted any time a withdrawal is initiated.
     /// @param nonce          Unique value corresponding to each withdrawal.
@@ -51,9 +64,9 @@ contract L2ToL1MessagePasser is ISemver {
     /// @param amount Amount of ETH that was burned.
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    /// @custom:semver 1.2.0
+    /// @custom:semver 1.3.0
     function version() public pure virtual returns (string memory) {
-        return "1.2.0";
+        return "1.3.0";
     }
 
     /// @notice Allows users to withdraw ETH by sending directly to this contract.
@@ -76,9 +89,26 @@ contract L2ToL1MessagePasser is ISemver {
     /// @param _gasLimit Minimum gas limit for executing the message on L1.
     /// @param _data     Data to forward to L1 target.
     function initiateWithdrawal(address _target, uint256 _gasLimit, bytes memory _data) public payable virtual {
+        uint256 nonce = messageNonce();
+
+        // If compliance is enabled, check the transaction against the compliance rules.
+        if (compliance != address(0)) {
+            bool allowed = ICompliance(compliance).check{ value: msg.value }(
+                msg.sender, _target, msg.value, uint64(_gasLimit), false, _data, nonce
+            );
+            if (!allowed) {
+                // Nonce is reserved but transaction is held by compliance.
+                unchecked {
+                    ++msgNonce;
+                }
+                return;
+            }
+            // If allowed, ETH was returned via donateETH().
+        }
+
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
-                nonce: messageNonce(),
+                nonce: nonce,
                 sender: msg.sender,
                 target: _target,
                 value: msg.value,
@@ -89,11 +119,63 @@ contract L2ToL1MessagePasser is ISemver {
 
         sentMessages[withdrawalHash] = true;
 
-        emit MessagePassed(messageNonce(), msg.sender, _target, msg.value, _gasLimit, _data, withdrawalHash);
+        emit MessagePassed(nonce, msg.sender, _target, msg.value, _gasLimit, _data, withdrawalHash);
 
         unchecked {
             ++msgNonce;
         }
+    }
+
+    /// @notice Sets the compliance module address. Only callable by the proxy admin or its owner.
+    /// @param _compliance Address of the compliance module (address(0) to disable).
+    function setCompliance(address _compliance) external {
+        address proxyAdmin = Storage.getAddress(Constants.PROXY_OWNER_ADDRESS);
+        if (msg.sender != proxyAdmin && msg.sender != IProxyAdmin(proxyAdmin).owner()) {
+            revert L2ToL1MessagePasser_OnlyProxyAdminOwner();
+        }
+        compliance = _compliance;
+    }
+
+    /// @notice Accepts ETH without triggering a withdrawal. Used by the compliance module
+    ///         to return ETH when a transaction is approved during check().
+    function donateETH() external payable {
+        // Intentionally empty.
+    }
+
+    /// @notice Called by the compliance module to finalize an approved withdrawal.
+    /// @param _from    The original sender of the withdrawal.
+    /// @param _target  The L1 target address.
+    /// @param _value   The ETH value of the withdrawal.
+    /// @param _gasLimit The gas limit for execution.
+    /// @param _data    The calldata of the withdrawal.
+    /// @param _nonce   The nonce that was reserved during initiateWithdrawal.
+    function approved(
+        address _from,
+        address _target,
+        uint256 _value,
+        uint64 _gasLimit,
+        bytes calldata _data,
+        uint256 _nonce
+    )
+        external
+        payable
+    {
+        if (msg.sender != compliance) revert L2ToL1MessagePasser_OnlyCompliance();
+
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
+            Types.WithdrawalTransaction({
+                nonce: _nonce,
+                sender: _from,
+                target: _target,
+                value: _value,
+                gasLimit: _gasLimit,
+                data: _data
+            })
+        );
+
+        sentMessages[withdrawalHash] = true;
+
+        emit MessagePassed(_nonce, _from, _target, _value, _gasLimit, _data, withdrawalHash);
     }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two

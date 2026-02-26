@@ -13,13 +13,29 @@ interface IL2ToL1MessagePasser {
     );
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
+    error L2ToL1MessagePasser_OnlyCompliance();
+    error L2ToL1MessagePasser_OnlyProxyAdminOwner();
+
     receive() external payable;
 
     function MESSAGE_VERSION() external view returns (uint16);
+    function approved(
+        address _from,
+        address _target,
+        uint256 _value,
+        uint64 _gasLimit,
+        bytes calldata _data,
+        uint256 _nonce
+    )
+        external
+        payable;
     function burn() external;
+    function compliance() external view returns (address);
+    function donateETH() external payable;
     function initiateWithdrawal(address _target, uint256 _gasLimit, bytes memory _data) external payable;
     function messageNonce() external view returns (uint256);
     function sentMessages(bytes32) external view returns (bool);
+    function setCompliance(address _compliance) external;
     function version() external view returns (string memory);
 
     function __constructor__() external;

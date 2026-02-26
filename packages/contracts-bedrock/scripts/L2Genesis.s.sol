@@ -302,6 +302,9 @@ contract L2Genesis is Script {
             setConditionalDeployer(); // 2C
             setL2DevFeatureFlags(_input); // 2D
         }
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.COMPLIANCE)) {
+            setL2Compliance(); // 2E
+        }
     }
 
     function setInteropPredeployProxies() internal { }
@@ -618,6 +621,12 @@ contract L2Genesis is Script {
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);
     }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    function setL2Compliance() internal {
+        _setImplementationCode(Predeploys.L2_COMPLIANCE);
+    }
+
 
     /// @notice Sets all the preinstalls.
     function setPreinstalls() internal {
