@@ -106,6 +106,8 @@ contract L2ContractsManager is ISemver {
     address internal immutable FEE_SPLITTER_IMPL;
     /// @notice CONDITIONAL_DEPLOYER implementation.
     address internal immutable CONDITIONAL_DEPLOYER_IMPL;
+    /// @notice L2DevFeatureFlags implementation.
+    address internal immutable L2_DEV_FEATURE_FLAGS_IMPL;
 
     /// @notice Constructor for the L2ContractsManager contract.
     /// @param _implementations The implementation struct containing the new implementation addresses for the L2
@@ -145,6 +147,7 @@ contract L2ContractsManager is ISemver {
         LIQUIDITY_CONTROLLER_IMPL = _implementations.liquidityControllerImpl;
         FEE_SPLITTER_IMPL = _implementations.feeSplitterImpl;
         CONDITIONAL_DEPLOYER_IMPL = _implementations.conditionalDeployerImpl;
+        L2_DEV_FEATURE_FLAGS_IMPL = _implementations.l2DevFeatureFlagsImpl;
     }
 
     /// @notice Executes the upgrade for all predeploys.
@@ -373,8 +376,8 @@ contract L2ContractsManager is ISemver {
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
-        // When disabled, the proxies are not touched.
         if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
             L2ContractsManagerUtils.upgradeTo(
@@ -438,5 +441,6 @@ contract L2ContractsManager is ISemver {
         implementations_.liquidityControllerImpl = LIQUIDITY_CONTROLLER_IMPL;
         implementations_.feeSplitterImpl = FEE_SPLITTER_IMPL;
         implementations_.conditionalDeployerImpl = CONDITIONAL_DEPLOYER_IMPL;
+        implementations_.l2DevFeatureFlagsImpl = L2_DEV_FEATURE_FLAGS_IMPL;
     }
 }

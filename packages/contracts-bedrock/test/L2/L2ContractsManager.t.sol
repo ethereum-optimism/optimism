@@ -90,6 +90,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
         address feeSplitterImpl;
+        address l2DevFeatureFlagsImpl;
         // Config values, take advantage of the harness to capture the config values
         L2ContractsManagerTypes.FullConfig config;
     }
@@ -141,6 +142,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.superchainTokenBridgeImpl = deployCode("src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge");
         implementations.feeSplitterImpl = deployCode("src/L2/FeeSplitter.sol:FeeSplitter");
         implementations.conditionalDeployerImpl = deployCode("src/L2/ConditionalDeployer.sol:ConditionalDeployer");
+        implementations.l2DevFeatureFlagsImpl = deployCode("src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags");
     }
 
     /// @notice Deploys the L2ContractsManager with the loaded implementations.
@@ -195,6 +197,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         state_.nativeAssetLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.NATIVE_ASSET_LIQUIDITY);
         state_.liquidityControllerImpl = EIP1967Helper.getImplementation(Predeploys.LIQUIDITY_CONTROLLER);
         state_.feeSplitterImpl = EIP1967Helper.getImplementation(Predeploys.FEE_SPLITTER);
+        state_.l2DevFeatureFlagsImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
 
         // Capture config values using the harness
         state_.config = l2cm.loadFullConfig();
@@ -260,6 +263,9 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         );
         assertEq(_state1.liquidityControllerImpl, _state2.liquidityControllerImpl, "LiquidityController impl mismatch");
         assertEq(_state1.feeSplitterImpl, _state2.feeSplitterImpl, "FeeSplitter impl mismatch");
+        assertEq(
+            _state1.l2DevFeatureFlagsImpl, _state2.l2DevFeatureFlagsImpl, "L2DevFeatureFlags impl mismatch"
+        );
 
         // Assert config values are equal
         assertEq(
@@ -769,6 +775,9 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertEq(
             result.conditionalDeployerImpl, implementations.conditionalDeployerImpl, "conditionalDeployerImpl mismatch"
         );
+        assertEq(
+            result.l2DevFeatureFlagsImpl, implementations.l2DevFeatureFlagsImpl, "l2DevFeatureFlagsImpl mismatch"
+        );
     }
 
     /// @notice Tests that no field in getImplementations() is left uninitialized
@@ -807,6 +816,7 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertTrue(result.liquidityControllerImpl != address(0), "liquidityControllerImpl is zero");
         assertTrue(result.feeSplitterImpl != address(0), "feeSplitterImpl is zero");
         assertTrue(result.conditionalDeployerImpl != address(0), "conditionalDeployerImpl is zero");
+        assertTrue(result.l2DevFeatureFlagsImpl != address(0), "l2DevFeatureFlagsImpl is zero");
     }
 }
 

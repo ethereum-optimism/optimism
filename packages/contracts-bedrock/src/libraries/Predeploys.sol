@@ -233,7 +233,7 @@ library Predeploys {
     ///      Predeploys library should be listed here.
     ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
     function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
-        predeploys_ = new address[](26);
+        predeploys_ = new address[](27);
         // Core predeploys
         predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
@@ -263,5 +263,7 @@ library Predeploys {
         // CGT predeploys (conditionally deployed, but still must be included in the list)
         predeploys_[24] = Predeploys.NATIVE_ASSET_LIQUIDITY;
         predeploys_[25] = Predeploys.LIQUIDITY_CONTROLLER;
+        // Dev feature flags bitmap
+        predeploys_[26] = Predeploys.L2_DEV_FEATURE_FLAGS;
     }
 }
