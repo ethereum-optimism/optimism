@@ -49,9 +49,15 @@ library DeployUtils {
         }
         // Under coverage, forge-artifacts/ holds the default profile's artifacts, not the coverage
         // profile's. Coverage profiles have no additional_compiler_profiles (no ambiguity), so
-        // plain vm.getCode resolves correctly.
-        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
-            return vm.getCode(_name);
+        // plain vm.getCode resolves correctly. The try/catch guards against hosts that don't
+        // implement vm.isContext (e.g., the Go script host in op-chain-ops).
+        try vm.isContext(VmSafe.ForgeContext.Coverage) returns (bool isCoverage_) {
+            if (isCoverage_) {
+                return vm.getCode(_name);
+            }
+        } catch {
+            // Intentionally empty: the Go script host doesn't implement vm.isContext, so we
+            // silently fall through to the artifact-path resolution below.
         }
         // Try explicit default-profile artifact path for deterministic profile resolution.
         // Falls back to vm.getCode(_name) for hosts that don't support artifact paths
