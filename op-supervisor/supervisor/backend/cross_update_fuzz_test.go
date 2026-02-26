@@ -671,23 +671,21 @@ func FuzzChainProcessEventInvariants(f *testing.F) {
 			srcChainA.ExpectL2BlockRefByNumber(target, newLocalUnsafe, nil)
 			srcChainA.ExpectFetchReceipts(newLocalUnsafe.Hash, nil, nil)
 
+			chainProcEvent := superevents.LocalUnsafeReceivedEvent{
+				ChainID:        chainA,
+				NewLocalUnsafe: newLocalUnsafe.BlockRef(),
+			}
 			ex.Enqueue(event.AnnotatedEvent{
-				Ctx: context.Background(),
-				Event: superevents.ChainProcessEvent{
-					ChainID: chainA,
-					Target:  target,
-				},
+				Ctx:          context.Background(),
+				Event:        chainProcEvent,
 				EmitPriority: event.High,
 			})
 
 			require.NoError(t, ex.DrainUntil(
 				func(ev event.Event) bool {
-					return ev == superevents.ChainProcessEvent{
-						ChainID: chainA,
-						Target:  target,
-					}
+					return ev == chainProcEvent
 				}, false))
-			t.Log("ChainProcessEvent processed")
+			t.Log("LocalUnsafeReceivedEvent processed")
 
 			t.Log("Final State")
 			// Safety properties
@@ -709,23 +707,21 @@ func FuzzChainProcessEventInvariants(f *testing.F) {
 				t.Skip()
 			}
 
+			chainProcEvent := superevents.LocalUnsafeReceivedEvent{
+				ChainID:        chainA,
+				NewLocalUnsafe: chainABlocks[target].BlockRef(),
+			}
 			ex.Enqueue(event.AnnotatedEvent{
-				Ctx: context.Background(),
-				Event: superevents.ChainProcessEvent{
-					ChainID: chainA,
-					Target:  target,
-				},
+				Ctx:          context.Background(),
+				Event:        chainProcEvent,
 				EmitPriority: event.High,
 			})
 
 			require.NoError(t, ex.DrainUntil(
 				func(ev event.Event) bool {
-					return ev == superevents.ChainProcessEvent{
-						ChainID: chainA,
-						Target:  target,
-					}
+					return ev == chainProcEvent
 				}, false))
-			t.Log("ChainProcessEvent processed")
+			t.Log("LocalUnsafeReceivedEvent processed")
 
 			t.Log("Final State")
 			// Safety properties
@@ -1066,20 +1062,19 @@ func ChainsInit(t *testing.T, b *SupervisorBackend, ex *event.GlobalSyncExec, ra
 		for i := int(crossSafe) + 1; i < len(randomChain.chainBlocks[chain]); i++ {
 			block := randomChain.chainBlocks[chain][i]
 
+			chainProcEvent := superevents.LocalUnsafeReceivedEvent{
+				ChainID:        chain,
+				NewLocalUnsafe: block.BlockRef(),
+			}
 			ex.Enqueue(event.AnnotatedEvent{
-				Ctx: context.Background(),
-				Event: superevents.ChainProcessEvent{
-					ChainID: chain,
-					Target:  block.Number,
-				},
+				Ctx:          context.Background(),
+				Event:        chainProcEvent,
 				EmitPriority: event.High,
 			})
 
 			ex.DrainUntil(
 				func(ev event.Event) bool {
-					return ev == superevents.ChainProcessEvent{
-						ChainID: chain,
-						Target:  block.Number}
+					return ev == chainProcEvent
 				}, false)
 
 			if block.Number <= localSafe {
