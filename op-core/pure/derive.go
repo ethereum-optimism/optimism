@@ -3,11 +3,11 @@ package pure
 import (
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -18,8 +18,9 @@ import (
 // The function is stateless and deterministic: given the same inputs it always
 // produces the same outputs. No network access, no caching, no side effects.
 //
-// l1Blocks should contain L1 blocks starting from safeHead.L1Origin.Number.
-// The caller must ensure this range is complete.
+// l1Blocks must be contiguous and strictly ordered by number. They should start
+// at least ChannelTimeoutBedrock blocks before safeHead.L1Origin.Number to
+// ensure channels opened before the safe head can still be decoded.
 //
 // Requires the Karst fork to be active at the safe head timestamp. Before Karst,
 // span batches may overlap the safe chain, which this implementation does not support.
@@ -36,6 +37,7 @@ import (
 func PureDerive(
 	cfg *rollup.Config,
 	l1ChainConfig *params.ChainConfig,
+	lgr log.Logger,
 	safeHead eth.L2BlockRef,
 	sysConfig eth.SystemConfig,
 	l1Blocks []L1Input,
@@ -48,26 +50,34 @@ func PureDerive(
 		return nil, nil
 	}
 
-	// Validate that l1Blocks start from the safe head's L1 origin.
-	firstL1Num := bigs.Uint64Strict(l1Blocks[0].Header.Number)
-	if firstL1Num > safeHead.L1Origin.Number {
-		return nil, fmt.Errorf("l1Blocks start at %d but safe head L1 origin is %d", firstL1Num, safeHead.L1Origin.Number)
+	// L1 blocks must be contiguous and strictly ordered. Compute the base
+	// number so we can do O(1) lookups by index arithmetic.
+	firstL1Num := l1Blocks[0].Header.Number.Uint64()
+
+	// Require l1Blocks to start at least ChannelTimeoutBedrock before the safe
+	// head's L1 origin so that channels opened before the safe head are available.
+	requiredStart := safeHead.L1Origin.Number
+	if requiredStart > cfg.ChannelTimeoutBedrock {
+		requiredStart -= cfg.ChannelTimeoutBedrock
+	} else {
+		requiredStart = 0
+	}
+	if firstL1Num > requiredStart {
+		return nil, fmt.Errorf("l1Blocks start at %d but must start at or before %d (safe head origin %d minus channel timeout %d)",
+			firstL1Num, requiredStart, safeHead.L1Origin.Number, cfg.ChannelTimeoutBedrock)
 	}
 
 	cursor := newCursor(safeHead)
 	assembler := newChannelAssembler()
 
-	// Build index for O(1) lookups by L1 block number.
-	l1ByNumber := make(map[uint64]int, len(l1Blocks))
 	l1Origins := make([]eth.L1BlockRef, len(l1Blocks))
 	for i := range l1Blocks {
-		num := bigs.Uint64Strict(l1Blocks[i].Header.Number)
-		l1ByNumber[num] = i
 		l1Origins[i] = l1Blocks[i].BlockRef()
 	}
 
 	findL1 := func(number uint64) *L1Input {
-		if idx, ok := l1ByNumber[number]; ok {
+		idx := int(number - firstL1Num)
+		if idx >= 0 && idx < len(l1Blocks) {
 			return &l1Blocks[idx]
 		}
 		return nil
@@ -79,8 +89,8 @@ func PureDerive(
 		l1 := l1Blocks[i]
 		l1Ref := l1.BlockRef()
 
-		for _, log := range l1.ConfigLogs {
-			if err := derive.ProcessSystemConfigUpdateLogEvent(&sysConfig, log, cfg, l1.Header.Time); err != nil {
+		for _, configLog := range l1.ConfigLogs {
+			if err := derive.ProcessSystemConfigUpdateLogEvent(&sysConfig, configLog, cfg, l1.Header.Time); err != nil {
 				return nil, fmt.Errorf("processing system config update at L1 block %d: %w", l1Ref.Number, err)
 			}
 		}
@@ -90,6 +100,7 @@ func PureDerive(
 		for _, txData := range l1.BatcherData {
 			frames, err := derive.ParseFrames(txData)
 			if err != nil {
+				lgr.Warn("failed to parse frames", "l1_block", l1Ref.Number, "err", err)
 				continue
 			}
 
@@ -99,14 +110,15 @@ func PureDerive(
 					continue
 				}
 
-				batches, err := decodeBatches(ready.channel.Reader(), cfg, l1Origins, cursor, ready.openBlock)
-				if err != nil {
-					continue
-				}
+				lgr.Debug("channel ready", "channel", ready.id, "l1_block", l1Ref.Number)
+
+				batches := decodeBatches(lgr, ready.channel.Reader(), cfg, l1Origins, cursor, ready.openBlock)
 
 				for _, batch := range batches {
-					if !validateBatch(batch, cursor, l1Origins, cfg, l1Ref.Number) {
-						continue
+					if !validateBatch(lgr, batch, cursor, l1Origins, cfg, l1Ref.Number) {
+						lgr.Warn("invalid batch, flushing channel",
+							"timestamp", batch.Timestamp, "epoch", batch.EpochNum, "l1_block", l1Ref.Number)
+						break
 					}
 
 					epochL1 := findL1(uint64(batch.EpochNum))

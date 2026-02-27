@@ -6,12 +6,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+var testLogger = log.NewLogger(log.DiscardHandler())
 
 func TestDecodeBatches_SingularBatch(t *testing.T) {
 	cfg := testRollupConfig()
@@ -30,8 +33,7 @@ func TestDecodeBatches_SingularBatch(t *testing.T) {
 	cursor := newCursor(safeHead)
 	l1Origins := []eth.L1BlockRef{testL1Ref(0), l1Ref}
 
-	batches, err := decodeBatches(bytes.NewReader(channelData), cfg, l1Origins, cursor, l1Ref)
-	require.NoError(t, err)
+	batches := decodeBatches(testLogger, bytes.NewReader(channelData), cfg, l1Origins, cursor, l1Ref)
 	require.Len(t, batches, 1)
 
 	decoded := batches[0]
@@ -59,7 +61,7 @@ func TestValidateBatch_ValidSingular(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.True(t, validateBatch(batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.True(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_WrongTimestamp(t *testing.T) {
@@ -80,7 +82,7 @@ func TestValidateBatch_WrongTimestamp(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_SpanBatchNoOverlap(t *testing.T) {
@@ -102,7 +104,7 @@ func TestValidateBatch_SpanBatchNoOverlap(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_EpochTooOld(t *testing.T) {
@@ -124,7 +126,7 @@ func TestValidateBatch_EpochTooOld(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{oldOrigin, testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_EpochTooNew(t *testing.T) {
@@ -145,7 +147,7 @@ func TestValidateBatch_EpochTooNew(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_SequenceWindowExpired(t *testing.T) {
@@ -167,7 +169,7 @@ func TestValidateBatch_SequenceWindowExpired(t *testing.T) {
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
 	// Inclusion at block 16: epochNum(5) + SeqWindowSize(10) = 15 < 16 → expired
-	require.False(t, validateBatch(batch, cursor, l1Origins, cfg, 16))
+	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, 16))
 }
 
 func TestValidateBatch_EpochSkip(t *testing.T) {
@@ -189,7 +191,7 @@ func TestValidateBatch_EpochSkip(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6), testL1Ref(7)}
 
-	require.False(t, validateBatch(batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_DepositTxRejected(t *testing.T) {
@@ -211,5 +213,5 @@ func TestValidateBatch_DepositTxRejected(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }

@@ -2,7 +2,6 @@ package pure
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -17,38 +16,48 @@ import (
 // and returns them as singular batches. Span batches are expanded into
 // individual singular batches using the provided L1 origins and cursor.
 //
+// Decode errors are logged and cause the function to return whatever batches
+// were successfully decoded so far. Only programming errors (bugs) would
+// warrant propagating errors upward; all data-dependent failures are treated
+// as bad input.
+//
 // Span batch prefix validation is delegated to derive.CheckSpanBatchPrefix,
-// which rejects overlapping span batches under Karst.
+// which rejects overlapping span batches under Karst. If the prefix check
+// returns BatchPast, the span batch is skipped. Any other non-Accept result
+// causes the function to return the batches collected so far.
 func decodeBatches(
+	lgr log.Logger,
 	r io.Reader,
 	cfg *rollup.Config,
 	l1Origins []eth.L1BlockRef,
 	cursor l2Cursor,
 	l1InclusionBlock eth.L1BlockRef,
-) ([]*derive.SingularBatch, error) {
+) []*derive.SingularBatch {
 	spec := rollup.NewChainSpec(cfg)
 	maxRLP := spec.MaxRLPBytesPerChannel(cursor.Timestamp)
 
 	readBatch, err := derive.BatchReader(r, maxRLP, true) // Fjord always active (implied by Karst)
 	if err != nil {
-		return nil, fmt.Errorf("creating batch reader: %w", err)
+		lgr.Warn("failed to create batch reader", "err", err)
+		return nil
 	}
 
 	var batches []*derive.SingularBatch
 	for {
 		batchData, err := readBatch()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, fmt.Errorf("reading batch: %w", err)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			lgr.Warn("failed to read batch", "err", err)
+			return batches
 		}
 
 		switch batchData.GetBatchType() {
 		case derive.SingularBatchType:
 			singular, err := derive.GetSingularBatch(batchData)
 			if err != nil {
-				return nil, fmt.Errorf("extracting singular batch: %w", err)
+				lgr.Warn("failed to extract singular batch", "err", err)
+				return batches
 			}
 			batches = append(batches, singular)
 
@@ -60,7 +69,8 @@ func decodeBatches(
 				cfg.L2ChainID,
 			)
 			if err != nil {
-				return nil, fmt.Errorf("deriving span batch: %w", err)
+				lgr.Warn("failed to derive span batch", "err", err)
+				return batches
 			}
 
 			l2SafeHead := eth.L2BlockRef{
@@ -81,25 +91,32 @@ func decodeBatches(
 
 			validity, _ := derive.CheckSpanBatchPrefix(
 				context.Background(), cfg,
-				log.NewLogger(log.DiscardHandler()),
+				lgr,
 				l1Blocks, l2SafeHead, spanBatch, l1InclusionBlock, nil,
 			)
+			if validity == derive.BatchPast {
+				lgr.Debug("span batch is past safe head, skipping")
+				continue
+			}
 			if validity != derive.BatchAccept {
-				return nil, fmt.Errorf("span batch prefix check failed (validity=%d)", validity)
+				lgr.Warn("span batch prefix check failed", "validity", validity)
+				return batches
 			}
 
 			singular, err := spanBatch.GetSingularBatches(l1Origins, l2SafeHead)
 			if err != nil {
-				return nil, fmt.Errorf("expanding span batch: %w", err)
+				lgr.Warn("failed to expand span batch", "err", err)
+				return batches
 			}
 			batches = append(batches, singular...)
 
 		default:
-			return nil, fmt.Errorf("unknown batch type: %d", batchData.GetBatchType())
+			lgr.Warn("unknown batch type", "type", batchData.GetBatchType())
+			return batches
 		}
 	}
 
-	return batches, nil
+	return batches
 }
 
 // validateBatch performs batch validation matching the checks in
@@ -109,10 +126,10 @@ func decodeBatches(
 //
 // All other checks from checkSingularBatch are replicated here. With Karst active,
 // overlapping span batches are already rejected in decodeBatches.
-func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth.L1BlockRef, cfg *rollup.Config, l1InclusionNum uint64) bool {
-	// Timestamp must be the next expected L2 timestamp.
+func validateBatch(lgr log.Logger, batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth.L1BlockRef, cfg *rollup.Config, l1InclusionNum uint64) bool {
 	expectedTimestamp := cursor.Timestamp + cfg.BlockTime
 	if batch.Timestamp != expectedTimestamp {
+		lgr.Warn("batch has wrong timestamp", "expected", expectedTimestamp, "got", batch.Timestamp)
 		return false
 	}
 
@@ -120,14 +137,17 @@ func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth
 
 	// Sequence window: batch must be included within SeqWindowSize of its epoch.
 	if epochNum+cfg.SeqWindowSize < l1InclusionNum {
+		lgr.Warn("batch sequence window expired", "epoch", epochNum, "inclusion", l1InclusionNum, "window", cfg.SeqWindowSize)
 		return false
 	}
 
 	// Epoch must be current or next (cannot skip epochs).
 	if epochNum < cursor.L1Origin.Number {
+		lgr.Warn("batch epoch too old", "epoch", epochNum, "cursor_origin", cursor.L1Origin.Number)
 		return false
 	}
 	if epochNum > cursor.L1Origin.Number+1 {
+		lgr.Warn("batch epoch too new", "epoch", epochNum, "cursor_origin", cursor.L1Origin.Number)
 		return false
 	}
 
@@ -140,14 +160,17 @@ func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth
 		}
 	}
 	if batchOrigin == nil {
+		lgr.Warn("batch epoch L1 origin not found", "epoch", epochNum)
 		return false
 	}
 	if batch.EpochHash != batchOrigin.Hash {
+		lgr.Warn("batch epoch hash mismatch", "epoch", epochNum, "expected", batchOrigin.Hash, "got", batch.EpochHash)
 		return false
 	}
 
 	// Batch timestamp must be >= L1 origin timestamp.
 	if batch.Timestamp < batchOrigin.Time {
+		lgr.Warn("batch timestamp before L1 origin", "batch_time", batch.Timestamp, "l1_time", batchOrigin.Time)
 		return false
 	}
 
@@ -162,28 +185,33 @@ func validateBatch(batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth
 				for i := range l1Origins {
 					if l1Origins[i].Number == epochNum+1 {
 						if batch.Timestamp >= l1Origins[i].Time {
-							return false // should have adopted next origin
+							lgr.Warn("empty batch exceeds drift but should have adopted next origin")
+							return false
 						}
 						break
 					}
 				}
 			}
 		} else {
+			lgr.Warn("batch exceeds sequencer drift", "batch_time", batch.Timestamp, "max_drift", maxDrift)
 			return false
 		}
 	}
 
 	// Fork activation blocks must not contain user transactions.
 	if cfg.IsKarstActivationBlock(batch.Timestamp) && len(batch.Transactions) > 0 {
+		lgr.Warn("batch has transactions at Karst activation block")
 		return false
 	}
 
 	// Transaction validation.
 	for _, txBytes := range batch.Transactions {
 		if len(txBytes) == 0 {
+			lgr.Warn("batch contains empty transaction")
 			return false
 		}
 		if txBytes[0] == types.DepositTxType {
+			lgr.Warn("batch contains deposit transaction")
 			return false
 		}
 	}
