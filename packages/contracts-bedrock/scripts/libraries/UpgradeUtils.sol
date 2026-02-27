@@ -45,7 +45,7 @@ library UpgradeUtils {
         // Fixed
         uint64 l2cmDeployment;
         uint64 upgradeExecution;
-        // Jovian
+        // Karst
         uint64 conditionalDeployerDeployment;
         uint64 conditionalDeployerUpgrade;
         uint64 proxyAdminUpgrade;
@@ -54,8 +54,8 @@ library UpgradeUtils {
     /// @notice Returns the total number of transactions for the current upgrade.
     /// @dev Total count:
     ///      - 28 implementation deployments
-    ///      - [JOVIAN]2 ConditionalDeployer (deployment + upgrade)
-    ///      - [JOVIAN] 1 ProxyAdmin upgrade
+    ///      - [KARST]2 ConditionalDeployer (deployment + upgrade)
+    ///      - [KARST] 1 ProxyAdmin upgrade
     ///      - 1 L2CM deployment
     ///      - 1 Upgrade Predeploys call
     function getTransactionCount() internal pure returns (uint256 txnCount_) {
@@ -73,7 +73,7 @@ library UpgradeUtils {
             // Fixed
             l2cmDeployment: DEFAULT_DEPLOYMENT_GAS,
             upgradeExecution: type(uint64).max,
-            // Jovian
+            // Karst
             conditionalDeployerDeployment: DEFAULT_DEPLOYMENT_GAS,
             conditionalDeployerUpgrade: DEFAULT_UPGRADE_GAS,
             proxyAdminUpgrade: DEFAULT_UPGRADE_GAS
@@ -135,7 +135,7 @@ library UpgradeUtils {
     /// @notice Creates a deployment transaction via ConditionalDeployer.
     /// @dev The transaction calls ConditionalDeployer.deploy(salt, code) which performs
     ///      idempotent CREATE2 deployment via the DeterministicDeploymentProxy.
-    /// @param _upgradeName Human-readable upgrade name (e.g., "Jovian").
+    /// @param _upgradeName Human-readable upgrade name (e.g., "Karst").
     /// @param _name Human-readable name for the contract being deployed.
     /// @param _artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
     /// @param _salt CREATE2 salt for address computation.
@@ -158,7 +158,7 @@ library UpgradeUtils {
     /// @notice Creates a deployment transaction via ConditionalDeployer with constructor arguments.
     /// @dev The transaction calls ConditionalDeployer.deploy(salt, code) which performs
     ///      idempotent CREATE2 deployment via the DeterministicDeploymentProxy.
-    /// @param _upgradeName Human-readable upgrade name (e.g., "Jovian").
+    /// @param _upgradeName Human-readable upgrade name (e.g., "Karst").
     /// @param _name Human-readable name for the contract being deployed.
     /// @param _artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
     /// @param _args ABI-encoded constructor arguments.
@@ -191,7 +191,7 @@ library UpgradeUtils {
     /// @dev The transaction calls IProxy(proxy).upgradeTo(implementation).
     ///      For the ProxyAdmin upgrade, the sender must be address(0) to use the
     ///      zero-address upgrade path in the Proxy.sol implementation.
-    /// @param _upgradeName Human-readable upgrade name (e.g., "Jovian").
+    /// @param _upgradeName Human-readable upgrade name (e.g., "Karst").
     /// @param _name Human-readable name for the contract being upgraded.
     /// @param _proxy Address of the proxy contract.
     /// @param _implementation Address of the new implementation.

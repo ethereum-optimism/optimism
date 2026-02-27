@@ -57,14 +57,14 @@ contract GenerateNUTBundleTest is Test {
         // Verify ConditionalDeployer deployment
         assertEq(
             output.txns[0].intent,
-            "jovian: ConditionalDeployer Deployment",
+            "karst: ConditionalDeployer Deployment",
             "First transaction should be ConditionalDeployer deployment"
         );
 
         // Verify ConditionalDeployer upgrade
         assertEq(
             output.txns[1].intent,
-            "jovian: Upgrade ConditionalDeployer Implementation",
+            "karst: Upgrade ConditionalDeployer Implementation",
             "Second transaction should be ConditionalDeployer upgrade"
         );
 
@@ -72,7 +72,7 @@ contract GenerateNUTBundleTest is Test {
         for (uint256 i = 0; i < implementationsToUpgrade.length; i++) {
             assertEq(
                 output.txns[i + 2].intent,
-                string.concat("jovian: Deploy ", implementationsToUpgrade[i], " Implementation"),
+                string.concat("karst: Deploy ", implementationsToUpgrade[i], " Implementation"),
                 string.concat("Transaction should be ", implementationsToUpgrade[i], " deployment")
             );
         }
@@ -80,21 +80,21 @@ contract GenerateNUTBundleTest is Test {
         // Verify L2ProxyAdmin upgrade
         assertEq(
             output.txns[output.txns.length - 3].intent,
-            "jovian: Upgrade L2ProxyAdmin Implementation",
+            "karst: Upgrade L2ProxyAdmin Implementation",
             "Third to last transaction should be L2ProxyAdmin upgrade"
         );
 
         // Verify L2ContractsManager deployment
         assertEq(
             output.txns[output.txns.length - 2].intent,
-            "jovian: Deploy L2ContractsManager Implementation",
+            "karst: Deploy L2ContractsManager Implementation",
             "Second to last transaction should be L2ContractsManager implementation deployment"
         );
 
         // Verify upgrade execution
         assertEq(
             output.txns[output.txns.length - 1].intent,
-            "jovian: L2ProxyAdmin Upgrade Predeploys",
+            "karst: L2ProxyAdmin Upgrade Predeploys",
             "Last transaction should be L2ProxyAdmin upgrade predeploys"
         );
     }

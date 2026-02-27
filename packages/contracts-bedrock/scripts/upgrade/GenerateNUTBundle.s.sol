@@ -25,13 +25,13 @@ contract GenerateNUTBundle is Script {
     bytes32 internal constant SALT = bytes32(uint256(keccak256("optimism.network-upgrade")));
 
     /// @notice Name of the upgrade.
-    string internal constant UPGRADE_NAME = "jovian";
+    string internal constant UPGRADE_NAME = "karst";
 
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
 
     /// @notice Path to the upgrade artifact.
-    string public constant UPGRADE_ARTIFACT_PATH = "deployments/nut-jovian-upgrade.json";
+    string public constant UPGRADE_ARTIFACT_PATH = "deployments/nut-karst-upgrade.json";
 
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
@@ -192,7 +192,7 @@ contract GenerateNUTBundle is Script {
     }
 
     // ========================================
-    // JOVIAN-ONLY NUTs
+    // KARST-ONLY NUTs
     // ========================================
 
     /// @notice Generates ConditionalDeployer deployment and upgrade transactions.
