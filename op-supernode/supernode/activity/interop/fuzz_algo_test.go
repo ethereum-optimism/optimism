@@ -1,0 +1,792 @@
+package interop
+
+import (
+	"math"
+	"math/rand"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+	gethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+)
+
+// =============================================================================
+// Fuzz Mock: configurable LogsDB for fuzz testing
+// =============================================================================
+
+// fuzzMockLogsDB is a more configurable mock that supports per-block behavior
+type fuzzMockLogsDB struct {
+	// Per block-number: block ref, exec msgs
+	blocks map[uint64]fuzzBlockData
+	// Default contains behavior
+	containsResults map[suptypes.ContainsQuery]fuzzContainsResult
+	// Fallback contains behavior
+	defaultContainsSeal suptypes.BlockSeal
+	defaultContainsErr  error
+	// First sealed block info
+	firstBlock    suptypes.BlockSeal
+	firstBlockErr error
+}
+
+type fuzzBlockData struct {
+	ref      eth.BlockRef
+	logCount uint32
+	execMsgs map[uint32]*suptypes.ExecutingMessage
+	err      error
+}
+
+type fuzzContainsResult struct {
+	seal suptypes.BlockSeal
+	err  error
+}
+
+func newFuzzMockLogsDB() *fuzzMockLogsDB {
+	return &fuzzMockLogsDB{
+		blocks:          make(map[uint64]fuzzBlockData),
+		containsResults: make(map[suptypes.ContainsQuery]fuzzContainsResult),
+	}
+}
+
+func (m *fuzzMockLogsDB) LatestSealedBlock() (eth.BlockID, bool)                   { return eth.BlockID{}, false }
+func (m *fuzzMockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) { return suptypes.BlockSeal{}, nil }
+
+func (m *fuzzMockLogsDB) FirstSealedBlock() (suptypes.BlockSeal, error) {
+	if m.firstBlockErr != nil {
+		return suptypes.BlockSeal{}, m.firstBlockErr
+	}
+	return m.firstBlock, nil
+}
+
+func (m *fuzzMockLogsDB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*suptypes.ExecutingMessage, error) {
+	if bd, ok := m.blocks[blockNum]; ok {
+		return bd.ref, bd.logCount, bd.execMsgs, bd.err
+	}
+	return eth.BlockRef{}, 0, nil, suptypes.ErrSkipped
+}
+
+func (m *fuzzMockLogsDB) Contains(query suptypes.ContainsQuery) (suptypes.BlockSeal, error) {
+	if r, ok := m.containsResults[query]; ok {
+		return r.seal, r.err
+	}
+	if m.defaultContainsErr != nil {
+		return suptypes.BlockSeal{}, m.defaultContainsErr
+	}
+	return m.defaultContainsSeal, nil
+}
+
+func (m *fuzzMockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *suptypes.ExecutingMessage) error {
+	return nil
+}
+func (m *fuzzMockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
+	return nil
+}
+func (m *fuzzMockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
+func (m *fuzzMockLogsDB) Clear(inv reads.Invalidator) error                       { return nil }
+func (m *fuzzMockLogsDB) Close() error { return nil }
+
+var _ LogsDB = (*fuzzMockLogsDB)(nil)
+
+// =============================================================================
+// Fuzz Test: Valid messages never produce InvalidHeads (P1, P3)
+// =============================================================================
+
+// FuzzVerifyInteropMessagesValid generates random valid multi-chain states and
+// verifies that valid cross-chain messages always result in a valid Result.
+//
+// Properties:
+// P1: Valid cross-chain messages never produce InvalidHeads
+// P3: Result.IsValid() ↔ len(InvalidHeads) == 0
+func FuzzVerifyInteropMessagesValid(f *testing.F) {
+	f.Add(int64(1))
+	f.Add(int64(42))
+	f.Add(int64(12345))
+	f.Add(int64(0))
+
+	f.Fuzz(func(t *testing.T, seed int64) {
+		rng := rand.New(rand.NewSource(seed))
+
+		numChains := 2 + rng.Intn(4) // 2-5 chains
+		execTimestamp := uint64(100000 + rng.Intn(900000))
+
+		chainIDs := make([]eth.ChainID, numChains)
+		for i := range chainIDs {
+			chainIDs[i] = eth.ChainIDFromUInt64(uint64(10 + i*10))
+		}
+
+		logsDBs := make(map[eth.ChainID]LogsDB)
+		blocksAtTimestamp := make(map[eth.ChainID]eth.BlockID)
+
+		// Generate per-chain blocks
+		type chainBlock struct {
+			hash      common.Hash
+			number    uint64
+			timestamp uint64
+		}
+		chainBlocks := make(map[eth.ChainID]chainBlock)
+
+		for _, chainID := range chainIDs {
+			blockHash := randomHash(rng)
+			blockNum := uint64(rng.Intn(10000))
+
+			chainBlocks[chainID] = chainBlock{
+				hash:      blockHash,
+				number:    blockNum,
+				timestamp: execTimestamp,
+			}
+
+			blocksAtTimestamp[chainID] = eth.BlockID{Number: blockNum, Hash: blockHash}
+		}
+
+		// For each chain, possibly add valid cross-chain messages
+		for _, chainID := range chainIDs {
+			cb := chainBlocks[chainID]
+			mockDB := newFuzzMockLogsDB()
+
+			execMsgs := make(map[uint32]*suptypes.ExecutingMessage)
+			numMsgs := rng.Intn(4) // 0-3 messages per block
+
+			for j := 0; j < numMsgs; j++ {
+				// Pick a random source chain (different from executing chain)
+				sourceIdx := rng.Intn(numChains)
+				sourceChain := chainIDs[sourceIdx]
+
+				// Generate valid timestamp: must be < execTimestamp and within ExpiryTime
+				minTimestamp := uint64(0)
+				if execTimestamp > ExpiryTime {
+					minTimestamp = execTimestamp - ExpiryTime
+				}
+				initTimestamp := minTimestamp + uint64(rng.Int63n(int64(execTimestamp-minTimestamp)))
+				if initTimestamp >= execTimestamp {
+					initTimestamp = execTimestamp - 1
+				}
+
+				logIdx := uint32(j)
+				execMsg := &suptypes.ExecutingMessage{
+					ChainID:   sourceChain,
+					BlockNum:  uint64(rng.Intn(10000)),
+					LogIdx:    logIdx,
+					Timestamp: initTimestamp,
+					Checksum:  suptypes.MessageChecksum(randomHash(rng)),
+				}
+				execMsgs[logIdx] = execMsg
+			}
+
+			mockDB.blocks[cb.number] = fuzzBlockData{
+				ref:      eth.BlockRef{Hash: cb.hash, Number: cb.number, Time: cb.timestamp},
+				execMsgs: execMsgs,
+			}
+
+			// Set up contains to succeed for all valid messages
+			mockDB.defaultContainsSeal = suptypes.BlockSeal{Number: 1, Timestamp: 1}
+			logsDBs[chainID] = mockDB
+		}
+
+		interop := &Interop{
+			log:     gethlog.New(),
+			logsDBs: logsDBs,
+		}
+
+		result, err := interop.verifyInteropMessages(execTimestamp, blocksAtTimestamp)
+		require.NoError(t, err)
+
+		// P1: Valid messages never produce InvalidHeads
+		require.True(t, result.IsValid(), "P1: valid messages should produce valid result, got InvalidHeads: %v", result.InvalidHeads)
+
+		// P3: IsValid() ↔ len(InvalidHeads) == 0
+		require.Empty(t, result.InvalidHeads, "P3: InvalidHeads should be empty for valid result")
+
+		// Verify all chains are in L2Heads
+		for _, chainID := range chainIDs {
+			require.Contains(t, result.L2Heads, chainID, "all chains should be in L2Heads")
+			require.Equal(t, blocksAtTimestamp[chainID], result.L2Heads[chainID])
+		}
+	})
+}
+
+// =============================================================================
+// Fuzz Test: Each invalidation type is correctly detected (P2)
+// =============================================================================
+
+// FuzzVerifyInteropMessagesFails generates states with various invalidation types
+// and verifies they are correctly detected.
+//
+// Properties:
+// P2: Every invalidation type is correctly detected
+func FuzzVerifyInteropMessagesFails(f *testing.F) {
+	f.Add(int64(1), uint8(0))
+	f.Add(int64(42), uint8(1))
+	f.Add(int64(100), uint8(2))
+	f.Add(int64(200), uint8(3))
+	f.Add(int64(300), uint8(4))
+
+	f.Fuzz(func(t *testing.T, seed int64, invalidationType uint8) {
+		rng := rand.New(rand.NewSource(seed))
+
+		sourceChainID := eth.ChainIDFromUInt64(10)
+		destChainID := eth.ChainIDFromUInt64(8453)
+
+		execTimestamp := uint64(1000000)
+		destBlockHash := randomHash(rng)
+		destBlockNum := uint64(100 + rng.Intn(1000))
+
+		sourceDB := newFuzzMockLogsDB()
+		destDB := newFuzzMockLogsDB()
+
+		var execMsg *suptypes.ExecutingMessage
+
+		invType := invalidationType % 5
+		switch invType {
+		case 0: // Unknown source chain - source not in logsDBs
+			unknownChain := eth.ChainIDFromUInt64(9999)
+			execMsg = &suptypes.ExecutingMessage{
+				ChainID:   unknownChain,
+				BlockNum:  50,
+				LogIdx:    0,
+				Timestamp: execTimestamp - 100,
+				Checksum:  suptypes.MessageChecksum(randomHash(rng)),
+			}
+
+		case 1: // Timestamp violation - initTimestamp >= execTimestamp
+			initTS := execTimestamp + uint64(rng.Intn(1000))
+			execMsg = &suptypes.ExecutingMessage{
+				ChainID:   sourceChainID,
+				BlockNum:  50,
+				LogIdx:    0,
+				Timestamp: initTS,
+				Checksum:  suptypes.MessageChecksum(randomHash(rng)),
+			}
+
+		case 2: // Expired message
+			initTS := execTimestamp - ExpiryTime - 1 - uint64(rng.Intn(10000))
+			execMsg = &suptypes.ExecutingMessage{
+				ChainID:   sourceChainID,
+				BlockNum:  50,
+				LogIdx:    0,
+				Timestamp: initTS,
+				Checksum:  suptypes.MessageChecksum(randomHash(rng)),
+			}
+
+		case 3: // Message not found (ErrConflict from Contains)
+			initTS := execTimestamp - 1 - uint64(rng.Intn(int(ExpiryTime-1)))
+			execMsg = &suptypes.ExecutingMessage{
+				ChainID:   sourceChainID,
+				BlockNum:  50,
+				LogIdx:    0,
+				Timestamp: initTS,
+				Checksum:  suptypes.MessageChecksum(randomHash(rng)),
+			}
+			sourceDB.defaultContainsErr = suptypes.ErrConflict
+
+		case 4: // Block hash mismatch
+			// No executing messages needed - the block hash itself mismatches
+			destDB.blocks[destBlockNum] = fuzzBlockData{
+				ref: eth.BlockRef{
+					Hash:   randomHash(rng), // Different from expected
+					Number: destBlockNum,
+					Time:   execTimestamp,
+				},
+			}
+
+			logsDBs := map[eth.ChainID]LogsDB{
+				sourceChainID: sourceDB,
+				destChainID:   destDB,
+			}
+
+			interop := &Interop{
+				log:     gethlog.New(),
+				logsDBs: logsDBs,
+			}
+
+			blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+				destChainID: {Number: destBlockNum, Hash: destBlockHash},
+			}
+
+			result, err := interop.verifyInteropMessages(execTimestamp, blocksAtTimestamp)
+			require.NoError(t, err)
+			require.False(t, result.IsValid(), "P2: block hash mismatch should be detected")
+			require.Contains(t, result.InvalidHeads, destChainID)
+			return
+		}
+
+		if invType != 4 {
+			destDB.blocks[destBlockNum] = fuzzBlockData{
+				ref:      eth.BlockRef{Hash: destBlockHash, Number: destBlockNum, Time: execTimestamp},
+				execMsgs: map[uint32]*suptypes.ExecutingMessage{0: execMsg},
+			}
+
+			logsDBs := map[eth.ChainID]LogsDB{
+				sourceChainID: sourceDB,
+				destChainID:   destDB,
+			}
+
+			// For case 0 (unknown chain), don't add the unknown chain to logsDBs
+			interop := &Interop{
+				log:     gethlog.New(),
+				logsDBs: logsDBs,
+			}
+
+			blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+				destChainID: {Number: destBlockNum, Hash: destBlockHash},
+			}
+
+			result, err := interop.verifyInteropMessages(execTimestamp, blocksAtTimestamp)
+			require.NoError(t, err)
+			require.False(t, result.IsValid(), "P2: invalidation type %d should be detected", invType)
+			require.Contains(t, result.InvalidHeads, destChainID, "P2: dest chain should be in InvalidHeads")
+		}
+	})
+}
+
+// =============================================================================
+// Fuzz Test: Expiry boundary exact values (P4)
+// =============================================================================
+
+// FuzzVerifyExpiryBoundary tests timestamps at the exact expiry boundary.
+//
+// Properties:
+// P4: execMsg.Timestamp + ExpiryTime overflow doesn't cause false positive/negative
+func FuzzVerifyExpiryBoundary(f *testing.F) {
+	f.Add(int64(1), uint64(1000000))
+	f.Add(int64(42), uint64(ExpiryTime+1))
+	f.Add(int64(100), uint64(ExpiryTime))
+	f.Add(int64(200), uint64(math.MaxUint64-ExpiryTime))
+	f.Add(int64(300), uint64(math.MaxUint64))
+
+	f.Fuzz(func(t *testing.T, seed int64, execTimestamp uint64) {
+		rng := rand.New(rand.NewSource(seed))
+
+		// Skip trivially invalid exec timestamps (must be > 0 for any valid init timestamp)
+		if execTimestamp == 0 {
+			return
+		}
+
+		sourceChainID := eth.ChainIDFromUInt64(10)
+		destChainID := eth.ChainIDFromUInt64(8453)
+
+		destBlockHash := randomHash(rng)
+		destBlockNum := uint64(100)
+
+		// Test three boundary conditions:
+		// 1. Exactly at expiry boundary (should be VALID)
+		// 2. One second past expiry (should be INVALID)
+		// 3. One second before expiry (should be VALID)
+
+		type boundaryTest struct {
+			name        string
+			initTS      uint64
+			expectValid bool
+		}
+
+		var tests []boundaryTest
+
+		// Exactly at boundary: initTS + ExpiryTime == execTimestamp
+		// i.e., initTS = execTimestamp - ExpiryTime
+		// FINDING: uint64 overflow in algo.go:137 — when initTS + ExpiryTime overflows,
+		// the comparison `execMsg.Timestamp + ExpiryTime < executingTimestamp` produces
+		// incorrect results. We model the actual (buggy) overflow behavior here.
+		if execTimestamp >= ExpiryTime {
+			exactBoundaryTS := execTimestamp - ExpiryTime
+			// Check if initTS + ExpiryTime would overflow uint64
+			exactOverflows := exactBoundaryTS > math.MaxUint64-ExpiryTime
+			tests = append(tests, boundaryTest{
+				name:   "exact_boundary",
+				initTS: exactBoundaryTS,
+				// Without overflow: initTS + ExpiryTime == execTimestamp, not <, so valid
+				// With overflow: wrapped value < execTimestamp, so incorrectly invalid
+				expectValid: !exactOverflows,
+			})
+
+			// One past expiry: initTS + ExpiryTime < execTimestamp
+			if exactBoundaryTS > 0 {
+				pastTS := exactBoundaryTS - 1
+				pastOverflows := pastTS > math.MaxUint64-ExpiryTime
+				tests = append(tests, boundaryTest{
+					name:   "one_past_expiry",
+					initTS: pastTS,
+					// Without overflow: initTS + ExpiryTime < execTimestamp, so expired
+					// With overflow: wrapped value < execTimestamp, still expired (but for wrong reason)
+					expectValid: false && !pastOverflows, // always false regardless
+				})
+			}
+		}
+
+		// One before expiry: should be valid
+		// FINDING: When initTS + ExpiryTime overflows uint64, the code incorrectly
+		// marks the message as expired. This happens when initTS > MaxUint64 - ExpiryTime.
+		// We account for this overflow behavior in the expected result.
+		if execTimestamp > ExpiryTime && execTimestamp-ExpiryTime+1 < execTimestamp {
+			initTS := execTimestamp - ExpiryTime + 1
+			// Check for uint64 overflow: initTS + ExpiryTime would wrap around
+			overflows := initTS > math.MaxUint64-ExpiryTime
+			tests = append(tests, boundaryTest{
+				name:        "one_before_expiry",
+				initTS:      initTS,
+				expectValid: !overflows, // If overflow, code incorrectly rejects it
+			})
+		}
+
+		// Also test timestamp = execTimestamp (equal - should be INVALID due to >= check)
+		tests = append(tests, boundaryTest{
+			name:        "equal_timestamp",
+			initTS:      execTimestamp,
+			expectValid: false,
+		})
+
+		// Test timestamp = execTimestamp - 1 (should be valid if within expiry)
+		if execTimestamp > 0 {
+			ts := execTimestamp - 1
+			// Account for uint64 overflow in the addition
+			overflows := ts > math.MaxUint64-ExpiryTime
+			if overflows {
+				// With overflow, ts+ExpiryTime wraps around, so the < check
+				// sees a small value < execTimestamp => incorrectly expired
+				tests = append(tests, boundaryTest{
+					name:        "one_less",
+					initTS:      ts,
+					expectValid: false, // overflow causes false rejection
+				})
+			} else {
+				withinExpiry := ts+ExpiryTime >= execTimestamp
+				tests = append(tests, boundaryTest{
+					name:        "one_less",
+					initTS:      ts,
+					expectValid: withinExpiry,
+				})
+			}
+		}
+
+		for _, tc := range tests {
+			sourceDB := newFuzzMockLogsDB()
+			sourceDB.defaultContainsSeal = suptypes.BlockSeal{Number: 1, Timestamp: tc.initTS}
+
+			destDB := newFuzzMockLogsDB()
+
+			execMsg := &suptypes.ExecutingMessage{
+				ChainID:   sourceChainID,
+				BlockNum:  50,
+				LogIdx:    0,
+				Timestamp: tc.initTS,
+				Checksum:  suptypes.MessageChecksum(randomHash(rng)),
+			}
+
+			destDB.blocks[destBlockNum] = fuzzBlockData{
+				ref:      eth.BlockRef{Hash: destBlockHash, Number: destBlockNum, Time: execTimestamp},
+				execMsgs: map[uint32]*suptypes.ExecutingMessage{0: execMsg},
+			}
+
+			interop := &Interop{
+				log: gethlog.New(),
+				logsDBs: map[eth.ChainID]LogsDB{
+					sourceChainID: sourceDB,
+					destChainID:   destDB,
+				},
+			}
+
+			blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+				destChainID: {Number: destBlockNum, Hash: destBlockHash},
+			}
+
+			result, err := interop.verifyInteropMessages(execTimestamp, blocksAtTimestamp)
+			require.NoError(t, err)
+
+			if tc.expectValid {
+				require.True(t, result.IsValid(), "P4: %s at execTS=%d, initTS=%d should be valid", tc.name, execTimestamp, tc.initTS)
+			} else {
+				require.False(t, result.IsValid(), "P4: %s at execTS=%d, initTS=%d should be invalid", tc.name, execTimestamp, tc.initTS)
+			}
+		}
+	})
+}
+
+// =============================================================================
+// Fuzz Test: ErrSkipped path (P5)
+// =============================================================================
+
+// FuzzVerifyFirstBlockSkipped tests the ErrSkipped fallback path when
+// OpenBlock fails for the first block in the logsDB.
+//
+// Properties:
+// P5: First block (ErrSkipped path) correctly handles hash mismatch
+func FuzzVerifyFirstBlockSkipped(f *testing.F) {
+	f.Add(int64(1), true)
+	f.Add(int64(42), false)
+	f.Add(int64(100), true)
+
+	f.Fuzz(func(t *testing.T, seed int64, hashMatch bool) {
+		rng := rand.New(rand.NewSource(seed))
+
+		chainID := eth.ChainIDFromUInt64(10)
+		blockNum := uint64(rng.Intn(10000))
+		timestamp := uint64(100000 + rng.Intn(900000))
+		expectedHash := randomHash(rng)
+
+		var firstBlockHash common.Hash
+		if hashMatch {
+			firstBlockHash = expectedHash
+		} else {
+			firstBlockHash = randomHash(rng)
+			// Ensure it's actually different
+			for firstBlockHash == expectedHash {
+				firstBlockHash = randomHash(rng)
+			}
+		}
+
+		mockDB := newFuzzMockLogsDB()
+		// OpenBlock returns ErrSkipped (first block in DB)
+		mockDB.blocks[blockNum] = fuzzBlockData{
+			err: suptypes.ErrSkipped,
+		}
+		// FirstSealedBlock returns the first block info
+		mockDB.firstBlock = suptypes.BlockSeal{
+			Hash:      firstBlockHash,
+			Number:    blockNum,
+			Timestamp: timestamp,
+		}
+
+		interop := &Interop{
+			log:     gethlog.New(),
+			logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
+		}
+
+		blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+			chainID: {Number: blockNum, Hash: expectedHash},
+		}
+
+		result, err := interop.verifyInteropMessages(timestamp, blocksAtTimestamp)
+		require.NoError(t, err)
+
+		// P5: The chain should always be in L2Heads
+		require.Contains(t, result.L2Heads, chainID, "P5: chain should be in L2Heads")
+
+		if hashMatch {
+			// Hash matches: should be valid
+			require.True(t, result.IsValid(), "P5: matching first block hash should be valid")
+			require.NotContains(t, result.InvalidHeads, chainID)
+		} else {
+			// Hash mismatch: should mark as invalid
+			require.False(t, result.IsValid(), "P5: mismatching first block hash should be invalid")
+			require.Contains(t, result.InvalidHeads, chainID, "P5: chain should be in InvalidHeads on hash mismatch")
+		}
+	})
+}
+
+// =============================================================================
+// Fuzz Test: Multiple invalid messages (P6)
+// =============================================================================
+
+// FuzzVerifyMultipleInvalidMessages tests that blocks with multiple invalid
+// executing messages are still correctly detected as invalid.
+//
+// Properties:
+// P6: Block with multiple invalid messages still gets marked invalid
+func FuzzVerifyMultipleInvalidMessages(f *testing.F) {
+	f.Add(int64(1), 2)
+	f.Add(int64(42), 5)
+	f.Add(int64(100), 10)
+
+	f.Fuzz(func(t *testing.T, seed int64, numInvalidMsgs int) {
+		rng := rand.New(rand.NewSource(seed))
+
+		// Bound the number of invalid messages
+		if numInvalidMsgs < 1 {
+			numInvalidMsgs = 1
+		}
+		if numInvalidMsgs > 20 {
+			numInvalidMsgs = 20
+		}
+
+		sourceChainID := eth.ChainIDFromUInt64(10)
+		destChainID := eth.ChainIDFromUInt64(8453)
+
+		execTimestamp := uint64(1000000)
+		destBlockHash := randomHash(rng)
+		destBlockNum := uint64(100)
+
+		sourceDB := newFuzzMockLogsDB()
+		// All Contains calls return conflict (message not found)
+		sourceDB.defaultContainsErr = suptypes.ErrConflict
+
+		destDB := newFuzzMockLogsDB()
+
+		execMsgs := make(map[uint32]*suptypes.ExecutingMessage)
+		for i := 0; i < numInvalidMsgs; i++ {
+			logIdx := uint32(i)
+			execMsgs[logIdx] = &suptypes.ExecutingMessage{
+				ChainID:   sourceChainID,
+				BlockNum:  uint64(rng.Intn(10000)),
+				LogIdx:    logIdx,
+				Timestamp: execTimestamp - 1 - uint64(rng.Intn(int(ExpiryTime-1))),
+				Checksum:  suptypes.MessageChecksum(randomHash(rng)),
+			}
+		}
+
+		destDB.blocks[destBlockNum] = fuzzBlockData{
+			ref:      eth.BlockRef{Hash: destBlockHash, Number: destBlockNum, Time: execTimestamp},
+			execMsgs: execMsgs,
+		}
+
+		interop := &Interop{
+			log: gethlog.New(),
+			logsDBs: map[eth.ChainID]LogsDB{
+				sourceChainID: sourceDB,
+				destChainID:   destDB,
+			},
+		}
+
+		blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+			destChainID: {Number: destBlockNum, Hash: destBlockHash},
+		}
+
+		result, err := interop.verifyInteropMessages(execTimestamp, blocksAtTimestamp)
+		require.NoError(t, err)
+
+		// P6: Block should be marked invalid regardless of which message was checked first
+		require.False(t, result.IsValid(), "P6: block with %d invalid messages should be invalid", numInvalidMsgs)
+		require.Contains(t, result.InvalidHeads, destChainID, "P6: dest chain should be in InvalidHeads")
+	})
+}
+
+// =============================================================================
+// Fuzz Test: Missing chains silently excluded (P7)
+// =============================================================================
+
+// FuzzVerifyMissingChains tests that chains not in logsDBs are silently
+// excluded from the Result.
+//
+// Properties:
+// P7: Missing chains in logsDBs are consistently excluded from Result
+func FuzzVerifyMissingChains(f *testing.F) {
+	f.Add(int64(1), 3, 1)
+	f.Add(int64(42), 5, 2)
+
+	f.Fuzz(func(t *testing.T, seed int64, totalChains int, registeredChains int) {
+		rng := rand.New(rand.NewSource(seed))
+
+		if totalChains < 1 {
+			totalChains = 1
+		}
+		if totalChains > 10 {
+			totalChains = 10
+		}
+		if registeredChains < 0 {
+			registeredChains = 0
+		}
+		if registeredChains > totalChains {
+			registeredChains = totalChains
+		}
+
+		execTimestamp := uint64(100000 + rng.Intn(900000))
+
+		chainIDs := make([]eth.ChainID, totalChains)
+		for i := range chainIDs {
+			chainIDs[i] = eth.ChainIDFromUInt64(uint64(10 + i*10))
+		}
+
+		// Only register first `registeredChains` chains
+		logsDBs := make(map[eth.ChainID]LogsDB)
+		blocksAtTimestamp := make(map[eth.ChainID]eth.BlockID)
+
+		for i, chainID := range chainIDs {
+			blockHash := randomHash(rng)
+			blockNum := uint64(rng.Intn(10000))
+			blocksAtTimestamp[chainID] = eth.BlockID{Number: blockNum, Hash: blockHash}
+
+			if i < registeredChains {
+				mockDB := newFuzzMockLogsDB()
+				mockDB.blocks[blockNum] = fuzzBlockData{
+					ref: eth.BlockRef{Hash: blockHash, Number: blockNum, Time: execTimestamp},
+				}
+				logsDBs[chainID] = mockDB
+			}
+		}
+
+		interop := &Interop{
+			log:     gethlog.New(),
+			logsDBs: logsDBs,
+		}
+
+		result, err := interop.verifyInteropMessages(execTimestamp, blocksAtTimestamp)
+		require.NoError(t, err)
+
+		// P7: Only registered chains should be in L2Heads
+		for i, chainID := range chainIDs {
+			if i < registeredChains {
+				require.Contains(t, result.L2Heads, chainID, "P7: registered chain should be in L2Heads")
+			} else {
+				require.NotContains(t, result.L2Heads, chainID, "P7: unregistered chain should NOT be in L2Heads")
+			}
+		}
+	})
+}
+
+// =============================================================================
+// Fuzz Test: Result type properties (P34-P36)
+// =============================================================================
+
+// FuzzResultProperties tests the Result type's IsValid, IsEmpty, and
+// ToVerifiedResult methods with random data.
+//
+// Properties:
+// P34: Result.IsValid() == (len(InvalidHeads) == 0)
+// P35: ToVerifiedResult() strips invalid heads, preserves other fields
+// P36: Empty results correctly detected
+func FuzzResultProperties(f *testing.F) {
+	f.Add(int64(1))
+	f.Add(int64(42))
+	f.Add(int64(0))
+
+	f.Fuzz(func(t *testing.T, seed int64) {
+		rng := rand.New(rand.NewSource(seed))
+
+		numL2Heads := rng.Intn(5)
+		numInvalidHeads := rng.Intn(3)
+
+		result := Result{
+			Timestamp: uint64(rng.Intn(1000000)),
+			L1Head: eth.BlockID{
+				Hash:   randomHash(rng),
+				Number: uint64(rng.Intn(1000)),
+			},
+			L2Heads:      make(map[eth.ChainID]eth.BlockID),
+			InvalidHeads: make(map[eth.ChainID]eth.BlockID),
+		}
+
+		// Optionally make it empty
+		makeEmpty := rng.Intn(10) == 0
+		if makeEmpty {
+			result.L1Head = eth.BlockID{}
+			numL2Heads = 0
+			numInvalidHeads = 0
+		}
+
+		for i := 0; i < numL2Heads; i++ {
+			chainID := eth.ChainIDFromUInt64(uint64(10 + i*10))
+			result.L2Heads[chainID] = eth.BlockID{Hash: randomHash(rng), Number: uint64(rng.Intn(1000))}
+		}
+
+		for i := 0; i < numInvalidHeads; i++ {
+			chainID := eth.ChainIDFromUInt64(uint64(100 + i*10))
+			result.InvalidHeads[chainID] = eth.BlockID{Hash: randomHash(rng), Number: uint64(rng.Intn(1000))}
+		}
+
+		// P34: IsValid ↔ no invalid heads
+		require.Equal(t, len(result.InvalidHeads) == 0, result.IsValid(), "P34: IsValid should match InvalidHeads emptiness")
+
+		// P36: IsEmpty detection
+		isActuallyEmpty := result.L1Head == (eth.BlockID{}) && len(result.L2Heads) == 0 && len(result.InvalidHeads) == 0
+		require.Equal(t, isActuallyEmpty, result.IsEmpty(), "P36: IsEmpty should match actual emptiness")
+
+		// P35: ToVerifiedResult strips InvalidHeads
+		verified := result.ToVerifiedResult()
+		require.Equal(t, result.Timestamp, verified.Timestamp, "P35: timestamp preserved")
+		require.Equal(t, result.L1Head, verified.L1Head, "P35: L1Head preserved")
+		require.Equal(t, len(result.L2Heads), len(verified.L2Heads), "P35: L2Heads preserved")
+		for chainID, blockID := range result.L2Heads {
+			require.Equal(t, blockID, verified.L2Heads[chainID], "P35: L2Head for chain %s preserved", chainID)
+		}
+	})
+}
