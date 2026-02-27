@@ -21,11 +21,10 @@ import (
 )
 
 const (
-	versionMethod        = "eth/v1/node/version"
-	specMethod           = "eth/v1/config/spec"
-	genesisMethod        = "eth/v1/beacon/genesis"
-	sidecarsMethodPrefix = "eth/v1/beacon/blob_sidecars/"
-	blobsMethodPrefix    = "eth/v1/beacon/blobs/"
+	versionMethod     = "eth/v1/node/version"
+	specMethod        = "eth/v1/config/spec"
+	genesisMethod     = "eth/v1/beacon/genesis"
+	blobsMethodPrefix = "eth/v1/beacon/blobs/"
 )
 
 type L1BeaconClientConfig struct {
