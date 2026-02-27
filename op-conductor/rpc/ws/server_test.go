@@ -558,7 +558,7 @@ func TestUpstreamPingDetectsAndReconnectsOnSilentConnection(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.CloseNow()
+		defer conn.CloseNow() //nolint:errcheck
 		connectCount.Add(1)
 
 		// Send one message so the first connection is productive.
