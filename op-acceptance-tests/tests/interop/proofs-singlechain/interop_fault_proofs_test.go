@@ -13,4 +13,3 @@ func TestInteropSingleChainFaultProofs(gt *testing.T) {
 	sys := presets.NewSingleChainInterop(t)
 	sfp.RunSingleChainSuperFaultProofSmokeTest(t, sys)
 }
-

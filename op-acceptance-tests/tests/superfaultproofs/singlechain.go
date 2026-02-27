@@ -157,4 +157,3 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 		})
 	}
 }
-

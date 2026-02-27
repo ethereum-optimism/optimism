@@ -648,16 +648,18 @@ func NewDefaultSingleChainSupernodeProofsSystemIDs(l1ID, l2AID eth.ChainID) Defa
 // DefaultSingleChainSupernodeIsthmusSuperProofsSystem creates a single-chain super-roots proofs
 // system using op-supernode without interop at genesis (preinterop).
 func DefaultSingleChainSupernodeIsthmusSuperProofsSystem(dest *DefaultSingleChainSupernodeProofsSystemIDs) stack.Option[*Orchestrator] {
-	return defaultSingleChainSupernodeSuperProofsSystem(dest)
+	return defaultSingleChainSupernodeSuperProofsSystem(dest, nil)
 }
 
 // DefaultSingleChainSupernodeInteropProofsSystem creates a single-chain super-roots proofs
 // system using op-supernode with interop enabled at genesis.
 func DefaultSingleChainSupernodeInteropProofsSystem(dest *DefaultSingleChainSupernodeProofsSystemIDs) stack.Option[*Orchestrator] {
-	return defaultSingleChainSupernodeSuperProofsSystem(dest, WithInteropAtGenesis())
+	return defaultSingleChainSupernodeSuperProofsSystem(dest,
+		[]SupernodeOption{WithSupernodeInteropAtGenesis()},
+		WithInteropAtGenesis())
 }
 
-func defaultSingleChainSupernodeSuperProofsSystem(dest *DefaultSingleChainSupernodeProofsSystemIDs, deployerOpts ...DeployerOption) stack.CombinedOption[*Orchestrator] {
+func defaultSingleChainSupernodeSuperProofsSystem(dest *DefaultSingleChainSupernodeProofsSystemIDs, snOpts []SupernodeOption, deployerOpts ...DeployerOption) stack.CombinedOption[*Orchestrator] {
 	ids := NewDefaultSingleChainSupernodeProofsSystemIDs(DefaultL1ID, DefaultL2AID)
 	opt := stack.Combine[*Orchestrator]()
 
@@ -681,7 +683,9 @@ func defaultSingleChainSupernodeSuperProofsSystem(dest *DefaultSingleChainSupern
 	opt.Add(WithL2ELNode(ids.L2AEL))
 
 	// Shared supernode for the single L2 chain
-	opt.Add(WithSharedSupernodeCLs(ids.Supernode, []L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}}, ids.L1CL, ids.L1EL))
+	opt.Add(WithSharedSupernodeCLs(ids.Supernode,
+		[]L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}},
+		ids.L1CL, ids.L1EL, snOpts...))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
 
