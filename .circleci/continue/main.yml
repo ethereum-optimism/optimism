@@ -694,7 +694,8 @@ jobs:
             - persist_to_workspace:
                 root: .
                 paths:
-                  - "<< parameters.directory >>/target/<< parameters.profile >>"
+                  - "<< parameters.directory >>/target/<< parameters.profile >>/kona-*"
+                  - "<< parameters.directory >>/target/<< parameters.profile >>/op-reth"
 
   # Build a single Rust binary from a submodule.
   rust-build-submodule:
