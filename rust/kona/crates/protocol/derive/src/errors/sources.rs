@@ -49,7 +49,7 @@ impl From<BlobProviderError> for PipelineErrorKind {
             BlobProviderError::SidecarLengthMismatch(_, _) |
             BlobProviderError::SlotDerivation |
             BlobProviderError::BlobDecoding(_) => PipelineError::Provider(val.to_string()).crit(),
-            BlobProviderError::BlobNotFound(_, _) => ResetError::BlobsUnavailable.reset(),
+            BlobProviderError::BlobNotFound(slot, _) => ResetError::BlobsUnavailable(slot).reset(),
             BlobProviderError::Backend(_) => PipelineError::Provider(val.to_string()).temp(),
         }
     }

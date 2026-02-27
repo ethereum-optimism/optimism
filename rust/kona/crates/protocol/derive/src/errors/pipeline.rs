@@ -346,8 +346,8 @@ pub enum ResetError {
     NextL1BlockHashMismatch(B256, B256),
     /// Blobs referenced by an L1 block are permanently unavailable (e.g. missed beacon slot).
     /// The pipeline must reset to move past the offending L1 block.
-    #[error("Blobs unavailable: beacon node returned 404 for slot")]
-    BlobsUnavailable,
+    #[error("Blobs unavailable: beacon node returned 404 for slot {0}")]
+    BlobsUnavailable(u64),
 }
 
 impl ResetError {
@@ -435,6 +435,7 @@ mod tests {
                 Default::default(),
             )),
             ResetError::HoloceneActivation,
+            ResetError::BlobsUnavailable(0),
         ];
         for error in reset_errors {
             let expected = PipelineErrorKind::Reset(error.clone());
