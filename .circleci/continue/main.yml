@@ -692,11 +692,11 @@ jobs:
           condition: << parameters.persist_to_workspace >>
           steps:
             - persist_to_workspace:
-                root: "./<< parameters.directory >>/target/<< parameters.profile >>"
+                root: "."
                 paths:
-                  - "kona-*"
-                  - "op-*"
-                  - "rollup-boost"
+                  - "<< parameters.directory >>/target/<< parameters.profile >>/kona-*"
+                  - "<< parameters.directory >>/target/<< parameters.profile >>/op-*"
+                  - "<< parameters.directory >>/target/<< parameters.profile >>/rollup-boost"
 
   # Build a single Rust binary from a submodule.
   rust-build-submodule:
