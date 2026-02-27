@@ -46,9 +46,9 @@ pub enum BlobProviderError {
 impl From<BlobProviderError> for PipelineErrorKind {
     fn from(val: BlobProviderError) -> Self {
         match val {
-            BlobProviderError::SidecarLengthMismatch(_, _)
-            | BlobProviderError::SlotDerivation
-            | BlobProviderError::BlobDecoding(_) => PipelineError::Provider(val.to_string()).crit(),
+            BlobProviderError::SidecarLengthMismatch(_, _) |
+            BlobProviderError::SlotDerivation |
+            BlobProviderError::BlobDecoding(_) => PipelineError::Provider(val.to_string()).crit(),
             BlobProviderError::BlobNotFound(_, _) => ResetError::BlobsUnavailable.reset(),
             BlobProviderError::Backend(_) => PipelineError::Provider(val.to_string()).temp(),
         }

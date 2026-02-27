@@ -116,13 +116,10 @@ where
             return Ok(());
         }
 
-        let info = self
-            .chain_provider
-            .block_info_and_transactions_by_hash(block_ref.hash)
-            .await
-            .map_err(|e| -> PipelineErrorKind {
-                BlobProviderError::Backend(e.to_string()).into()
-            })?;
+        let info =
+            self.chain_provider.block_info_and_transactions_by_hash(block_ref.hash).await.map_err(
+                |e| -> PipelineErrorKind { BlobProviderError::Backend(e.to_string()).into() },
+            )?;
 
         let (mut data, blob_hashes) = self.extract_blob_data(info.1, batcher_address);
 
