@@ -521,12 +521,11 @@ func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
 	return tx.PlannedTx
 }
 
-// SubmitInvalidExecTo submits an exec message with an invalid log index (9999).
+// SubmitInvalidExecTo submits an exec message with an invalid log index.
 // This creates an exec that references a non-existent log, which should be detected as invalid.
 // Returns the planned tx which can be used to wait for inclusion later.
 func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx {
-	invalidMsg := p.Message
-	invalidMsg.Identifier.LogIndex = 9999 // Invalid log index
+	invalidMsg := MakeInvalidLogIndex(p.Message)
 
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
 	tx.Content.Set(&txintent.ExecTrigger{

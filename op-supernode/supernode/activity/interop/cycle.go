@@ -113,8 +113,7 @@ func executingMessageBefore(chainEMs []*dependencyNode, targetLogIdx uint32) *de
 }
 
 // buildCycleGraph constructs a dependency graph from executing messages at the given timestamp.
-// Only same-timestamp EMs are included in the graph.
-//
+// it assumes all executing messages are included on blocks of the given timestamp
 // For each EM, two types of edges are added:
 // 1. Intra-chain: depends on the previous EM on the same chain (if exists)
 // 2. Cross-chain: depends on executingMessageBefore(targetChain, targetLogIdx) (if exists)
@@ -183,10 +182,15 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 			// Chain not in logsDBs - skip it for cycle verification
 			continue
 		}
-		_, _, execMsgs, err := db.OpenBlock(blockID.Number)
+		blockRef, _, execMsgs, err := db.OpenBlock(blockID.Number)
 		if err != nil {
 			// Can't open block - no EMs to add to the graph for this chain
 			// This can happen if the logsDB is empty or the block hasn't been indexed
+			continue
+		}
+		// Verify the block has the expected timestamp
+		if blockRef.Time != ts {
+			// Block timestamp mismatch - skip this chain for cycle verification
 			continue
 		}
 		chainEMs[chainID] = execMsgs

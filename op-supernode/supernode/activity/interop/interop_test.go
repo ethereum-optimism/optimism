@@ -558,8 +558,7 @@ func TestProgressInteropWithCycleVerify(t *testing.T) {
 				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
 					return Result{Timestamp: ts, L2Heads: blocks}, nil
 				}
-				// cycleVerifyFn is set to verifyCycleMessages by default in New()
-				// which returns a valid result (stub implementation)
+				// cycleVerifyFn is overridden with this stub implementation.
 
 				result, err := h.interop.progressInterop()
 				require.NoError(t, err)

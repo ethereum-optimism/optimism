@@ -40,7 +40,7 @@ func NewDefaultMinimalSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemIDs 
 		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
 		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
 		L2Challenger:  stack.NewL2ChallengerID("main", l2ID),
-		TestSequencer: "test-sequencer",
+		TestSequencer: stack.NewTestSequencerID("test-sequencer"),
 	}
 	return ids
 }
@@ -127,7 +127,7 @@ func NewDefaultTwoL2SystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultTwoL2System
 		L2BCL:         stack.NewL2CLNodeID("sequencer", l2BID),
 		L2BEL:         stack.NewL2ELNodeID("sequencer", l2BID),
 		Supernode:     stack.NewSupernodeID("supernode-two-l2-system", l2AID, l2BID),
-		TestSequencer: "test-sequencer-2l2",
+		TestSequencer: stack.NewTestSequencerID("test-sequencer-2l2"),
 		L2ABatcher:    stack.NewL2BatcherID("main", l2AID),
 		L2AProposer:   stack.NewL2ProposerID("main", l2AID),
 		L2BBatcher:    stack.NewL2BatcherID("main", l2BID),
@@ -367,7 +367,7 @@ func NewDefaultSingleChainInteropSystemIDs(l1ID, l2AID eth.ChainID) DefaultSingl
 		Superchain:    "main", // TODO(#15244): hardcoded to match the deployer default ID
 		Cluster:       stack.ClusterID("main"),
 		Supervisor:    "1-primary", // prefix with number for ordering of supervisors
-		TestSequencer: "dev",
+		TestSequencer: stack.NewTestSequencerID("dev"),
 		L2A:           stack.L2NetworkID(l2AID),
 		L2ACL:         stack.NewL2CLNodeID("sequencer", l2AID),
 		L2AEL:         stack.NewL2ELNodeID("sequencer", l2AID),
@@ -790,7 +790,7 @@ func NewDefaultSingleChainSystemWithFlashblocksIDs(l1ID, l2ID eth.ChainID) Singl
 		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
 		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
 		L2Challenger:  stack.NewL2ChallengerID("main", l2ID),
-		TestSequencer: "test-sequencer",
+		TestSequencer: stack.NewTestSequencerID("test-sequencer"),
 	}
 	return ids
 }

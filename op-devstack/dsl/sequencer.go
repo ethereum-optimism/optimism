@@ -41,12 +41,8 @@ func (s *TestSequencer) SequenceBlock(t devtest.T, chainID eth.ChainID, parent c
 	require.NoError(t, ca.Next(t.Ctx()))
 }
 
-// SequenceBlockWithTxs builds a block at deterministic timestamp (parent.Time + blockTime)
-// and includes the specified raw transactions. This provides fine-grained control over
-// block building for tests that need specific transactions at specific timestamps.
-//
-// The block timestamp will be parent.Time + blockTime, regardless of wall-clock time.
-// This makes it ideal for same-timestamp interop testing.
+// SequenceBlockWithTxs builds a block with timestamp parent.Time + blockTime with the supplied transactions (bypassing the mempool).
+// This makes it ideal for same-timestamp interop testing, and avoids the chance that transactions are sequenced into later blocks.
 func (s *TestSequencer) SequenceBlockWithTxs(t devtest.T, chainID eth.ChainID, parent common.Hash, rawTxs [][]byte) {
 	ctx := t.Ctx()
 	ca := s.Escape().ControlAPI(chainID)
