@@ -44,7 +44,10 @@ impl BlobProvider for TestBlobProvider {
             return Err(BlobProviderError::SlotDerivation);
         }
         if self.should_return_not_found {
-            return Err(BlobProviderError::BlobNotFound(0, "mock: slot not found".into()));
+            return Err(BlobProviderError::BlobNotFound {
+                slot: 0,
+                reason: "mock: slot not found".into(),
+            });
         }
         let mut blobs = Vec::new();
         for blob_hash in blob_hashes {

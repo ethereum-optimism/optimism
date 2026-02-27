@@ -102,7 +102,10 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
                             "Beacon slot not found (404); slot may be missed or orphaned. \
                              Triggering pipeline reset."
                         );
-                        BlobProviderError::BlobNotFound(missing_slot, e.to_string())
+                        BlobProviderError::BlobNotFound {
+                            slot: missing_slot,
+                            reason: e.to_string(),
+                        }
                     },
                 )
             });
