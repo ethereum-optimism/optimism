@@ -2,7 +2,7 @@
 
 use crate::{
     BlobData, BlobProvider, BlobProviderError, ChainProvider, DataAvailabilityProvider,
-    PipelineError, PipelineResult,
+    PipelineError, PipelineErrorKind, PipelineResult,
 };
 use alloc::{boxed::Box, string::ToString, vec::Vec};
 use alloy_consensus::{
@@ -111,7 +111,7 @@ where
         &mut self,
         block_ref: &BlockInfo,
         batcher_address: Address,
-    ) -> Result<(), BlobProviderError> {
+    ) -> Result<(), PipelineErrorKind> {
         if self.open {
             return Ok(());
         }
@@ -120,7 +120,9 @@ where
             .chain_provider
             .block_info_and_transactions_by_hash(block_ref.hash)
             .await
-            .map_err(|e| BlobProviderError::Backend(e.to_string()))?;
+            .map_err(|e| -> PipelineErrorKind {
+                BlobProviderError::Backend(e.to_string()).into()
+            })?;
 
         let (mut data, blob_hashes) = self.extract_blob_data(info.1, batcher_address);
 
@@ -131,13 +133,39 @@ where
             return Ok(());
         }
 
-        let blobs =
-            self.blob_fetcher.get_and_validate_blobs(block_ref, &blob_hashes).await.map_err(
-                |e| {
-                    warn!(target: "blob_source", "Failed to fetch blobs: {e}");
-                    BlobProviderError::Backend(e.to_string())
-                },
-            )?;
+        let blobs = self
+            .blob_fetcher
+            .get_and_validate_blobs(block_ref, &blob_hashes)
+            .await
+            .map_err(|e| {
+                // Convert via Into<PipelineErrorKind> which routes:
+                //   BlobNotFound  -> PipelineErrorKind::Reset   (missed/orphaned slot)
+                //   Backend       -> PipelineErrorKind::Temporary (transient, retry)
+                //   others        -> PipelineErrorKind::Critical
+                let kind: PipelineErrorKind = e.into();
+                match &kind {
+                    PipelineErrorKind::Reset(_) => {
+                        warn!(
+                            target: "blob_source",
+                            block_hash = %block_ref.hash,
+                            block_number = block_ref.number,
+                            timestamp = block_ref.timestamp,
+                            "Blobs permanently unavailable (missed/orphaned beacon slot); \
+                             triggering pipeline reset"
+                        );
+                    }
+                    _ => {
+                        warn!(
+                            target: "blob_source",
+                            block_hash = %block_ref.hash,
+                            block_number = block_ref.number,
+                            timestamp = block_ref.timestamp,
+                            "Failed to fetch blobs: {kind}"
+                        );
+                    }
+                }
+                kind
+            })?;
 
         // Fill the blob pointers.
         let mut blob_index = 0;
@@ -149,7 +177,8 @@ where
                     }
                 }
                 Err(e) => {
-                    return Err(e.into());
+                    let err: BlobProviderError = e.into();
+                    return Err(err.into());
                 }
             }
         }
@@ -242,7 +271,7 @@ pub(crate) mod tests {
         let mut source = default_test_blob_source();
         assert!(matches!(
             source.load_blobs(&BlockInfo::default(), Address::ZERO).await,
-            Err(BlobProviderError::Backend(_))
+            Err(PipelineErrorKind::Temporary(_))
         ));
     }
 
@@ -270,7 +299,7 @@ pub(crate) mod tests {
         source.chain_provider.insert_block_with_transactions(1, block_info, txs);
         assert!(matches!(
             source.load_blobs(&BlockInfo::default(), batcher_address).await,
-            Err(BlobProviderError::Backend(_))
+            Err(PipelineErrorKind::Critical(_))
         ));
     }
 
@@ -345,5 +374,46 @@ pub(crate) mod tests {
         let mut source = default_test_blob_source();
         let err = source.next(&BlockInfo::default(), Address::ZERO).await.unwrap_err();
         assert!(matches!(err, PipelineErrorKind::Temporary(PipelineError::Provider(_))));
+    }
+
+    /// Regression test: a beacon node 404 (missed/orphaned slot) must propagate through
+    /// `load_blobs` as `PipelineErrorKind::Reset`, not as a temporary retryable error.
+    #[tokio::test]
+    async fn test_load_blobs_not_found_triggers_reset() {
+        let mut source = default_test_blob_source();
+        let block_info = BlockInfo::default();
+        let batcher_address =
+            alloy_primitives::address!("A83C816D4f9b2783761a22BA6FADB0eB0606D7B2");
+        source.batcher_address =
+            alloy_primitives::address!("11E9CA82A3a762b4B5bd264d4173a242e7a77064");
+        source.chain_provider.insert_block_with_transactions(1, block_info, valid_blob_txs());
+        source.blob_fetcher.should_return_not_found = true;
+
+        let err = source.load_blobs(&BlockInfo::default(), batcher_address).await.unwrap_err();
+        assert!(
+            matches!(err, PipelineErrorKind::Reset(_)),
+            "expected Reset for missed beacon slot, got {err:?}"
+        );
+    }
+
+    /// Regression test: `BlobProviderError::BlobNotFound` from the blob fetcher must surface
+    /// through `next()` as `PipelineErrorKind::Reset`, triggering a pipeline reset.
+    /// Without this, a missed beacon slot causes an infinite retry loop and safe head stall.
+    #[tokio::test]
+    async fn test_missed_beacon_slot_triggers_pipeline_reset() {
+        let mut source = default_test_blob_source();
+        let block_info = BlockInfo::default();
+        let batcher_address =
+            alloy_primitives::address!("A83C816D4f9b2783761a22BA6FADB0eB0606D7B2");
+        source.batcher_address =
+            alloy_primitives::address!("11E9CA82A3a762b4B5bd264d4173a242e7a77064");
+        source.chain_provider.insert_block_with_transactions(1, block_info, valid_blob_txs());
+        source.blob_fetcher.should_return_not_found = true;
+
+        let err = source.next(&BlockInfo::default(), batcher_address).await.unwrap_err();
+        assert!(
+            matches!(err, PipelineErrorKind::Reset(_)),
+            "expected Reset for missed beacon slot, got {err:?}"
+        );
     }
 }
