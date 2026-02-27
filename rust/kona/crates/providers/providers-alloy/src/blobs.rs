@@ -88,25 +88,23 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
     ) -> Result<Vec<BoxedBlob>, BlobProviderError> {
         kona_macros::inc!(gauge, Metrics::BLOB_FETCHES);
 
-        let result = self
-            .beacon_client
-            .filtered_beacon_blobs(slot, blob_hashes)
-            .await
-            .map_err(|e| {
-                if let Some(missing_slot) = B::slot_not_found(&e) {
-                    // The beacon node returned 404 for this slot. The slot was missed or
-                    // orphaned; its blobs will never be available. Map to BlobNotFound so
-                    // the pipeline issues a reset rather than retrying indefinitely.
-                    warn!(
-                        target: "blob_provider",
-                        slot = missing_slot,
-                        "Beacon slot not found (404); slot may be missed or orphaned. \
-                         Triggering pipeline reset."
-                    );
-                    BlobProviderError::BlobNotFound(missing_slot, e.to_string())
-                } else {
-                    BlobProviderError::Backend(e.to_string())
-                }
+        let result =
+            self.beacon_client.filtered_beacon_blobs(slot, blob_hashes).await.map_err(|e| {
+                B::slot_not_found(&e).map_or_else(
+                    || BlobProviderError::Backend(e.to_string()),
+                    |missing_slot| {
+                        // The beacon node returned 404 for this slot. The slot was missed or
+                        // orphaned; its blobs will never be available. Map to BlobNotFound so
+                        // the pipeline issues a reset rather than retrying indefinitely.
+                        warn!(
+                            target: "blob_provider",
+                            slot = missing_slot,
+                            "Beacon slot not found (404); slot may be missed or orphaned. \
+                             Triggering pipeline reset."
+                        );
+                        BlobProviderError::BlobNotFound(missing_slot, e.to_string())
+                    },
+                )
             });
 
         #[cfg(feature = "metrics")]

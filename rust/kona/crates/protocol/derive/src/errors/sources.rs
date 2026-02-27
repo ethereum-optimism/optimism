@@ -46,12 +46,10 @@ pub enum BlobProviderError {
 impl From<BlobProviderError> for PipelineErrorKind {
     fn from(val: BlobProviderError) -> Self {
         match val {
-            BlobProviderError::SidecarLengthMismatch(_, _) |
-            BlobProviderError::SlotDerivation |
-            BlobProviderError::BlobDecoding(_) => PipelineError::Provider(val.to_string()).crit(),
-            BlobProviderError::BlobNotFound(_, _) => {
-                ResetError::BlobsUnavailable.reset()
-            }
+            BlobProviderError::SidecarLengthMismatch(_, _)
+            | BlobProviderError::SlotDerivation
+            | BlobProviderError::BlobDecoding(_) => PipelineError::Provider(val.to_string()).crit(),
+            BlobProviderError::BlobNotFound(_, _) => ResetError::BlobsUnavailable.reset(),
             BlobProviderError::Backend(_) => PipelineError::Provider(val.to_string()).temp(),
         }
     }
@@ -80,8 +78,7 @@ mod tests {
             BlobProviderError::BlobDecoding(BlobDecodingError::InvalidFieldElement).into();
         assert!(matches!(err, PipelineErrorKind::Critical(_)));
 
-        let err: PipelineErrorKind =
-            BlobProviderError::Backend("transport error".into()).into();
+        let err: PipelineErrorKind = BlobProviderError::Backend("transport error".into()).into();
         assert!(matches!(err, PipelineErrorKind::Temporary(_)));
 
         // A 404 from the beacon node (missed/orphaned slot) must trigger a pipeline reset,

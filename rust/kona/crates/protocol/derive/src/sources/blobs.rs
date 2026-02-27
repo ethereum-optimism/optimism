@@ -133,39 +133,38 @@ where
             return Ok(());
         }
 
-        let blobs = self
-            .blob_fetcher
-            .get_and_validate_blobs(block_ref, &blob_hashes)
-            .await
-            .map_err(|e| {
-                // Convert via Into<PipelineErrorKind> which routes:
-                //   BlobNotFound  -> PipelineErrorKind::Reset   (missed/orphaned slot)
-                //   Backend       -> PipelineErrorKind::Temporary (transient, retry)
-                //   others        -> PipelineErrorKind::Critical
-                let kind: PipelineErrorKind = e.into();
-                match &kind {
-                    PipelineErrorKind::Reset(_) => {
-                        warn!(
-                            target: "blob_source",
-                            block_hash = %block_ref.hash,
-                            block_number = block_ref.number,
-                            timestamp = block_ref.timestamp,
-                            "Blobs permanently unavailable (missed/orphaned beacon slot); \
-                             triggering pipeline reset"
-                        );
+        let blobs =
+            self.blob_fetcher.get_and_validate_blobs(block_ref, &blob_hashes).await.map_err(
+                |e| {
+                    // Convert via Into<PipelineErrorKind> which routes:
+                    //   BlobNotFound  -> PipelineErrorKind::Reset   (missed/orphaned slot)
+                    //   Backend       -> PipelineErrorKind::Temporary (transient, retry)
+                    //   others        -> PipelineErrorKind::Critical
+                    let kind: PipelineErrorKind = e.into();
+                    match &kind {
+                        PipelineErrorKind::Reset(_) => {
+                            warn!(
+                                target: "blob_source",
+                                block_hash = %block_ref.hash,
+                                block_number = block_ref.number,
+                                timestamp = block_ref.timestamp,
+                                "Blobs permanently unavailable (missed/orphaned beacon slot); \
+                                 triggering pipeline reset"
+                            );
+                        }
+                        _ => {
+                            warn!(
+                                target: "blob_source",
+                                block_hash = %block_ref.hash,
+                                block_number = block_ref.number,
+                                timestamp = block_ref.timestamp,
+                                "Failed to fetch blobs: {kind}"
+                            );
+                        }
                     }
-                    _ => {
-                        warn!(
-                            target: "blob_source",
-                            block_hash = %block_ref.hash,
-                            block_number = block_ref.number,
-                            timestamp = block_ref.timestamp,
-                            "Failed to fetch blobs: {kind}"
-                        );
-                    }
-                }
-                kind
-            })?;
+                    kind
+                },
+            )?;
 
         // Fill the blob pointers.
         let mut blob_index = 0;
