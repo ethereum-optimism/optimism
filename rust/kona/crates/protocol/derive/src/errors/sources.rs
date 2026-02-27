@@ -90,11 +90,9 @@ mod tests {
 
         // A 404 from the beacon node (missed/orphaned slot) must trigger a pipeline reset,
         // not a temporary retry. Without this, the safe head stalls indefinitely.
-        let err: PipelineErrorKind = BlobProviderError::BlobNotFound {
-            slot: 13779552,
-            reason: "slot not found".into(),
-        }
-        .into();
+        let err: PipelineErrorKind =
+            BlobProviderError::BlobNotFound { slot: 13779552, reason: "slot not found".into() }
+                .into();
         assert!(
             matches!(err, PipelineErrorKind::Reset(_)),
             "BlobNotFound must map to Reset so the pipeline moves past the missed slot"
