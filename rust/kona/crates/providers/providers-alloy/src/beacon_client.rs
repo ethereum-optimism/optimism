@@ -367,7 +367,7 @@ mod tests {
         let requested_blob_hashes: Vec<B256> = vec![test_blob_hash];
 
         let server = MockServer::start();
-        let mut blobs_mock = server.mock(|when, then| {
+        let blobs_mock = server.mock(|when, then| {
             when.method(GET).path(format!("/eth/v1/beacon/blobs/{slot}"));
             then.status(404).body(r#"{"code":404,"message":"Block not found"}"#);
         });
