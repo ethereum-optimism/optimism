@@ -239,7 +239,7 @@ func (h *Handler) writePump(client *Client) {
 	}()
 
 	// Configure ping for connection keepalive
-	pingTicker := time.NewTicker(pingInterval)
+	pingTicker := time.NewTicker(h.pingInterval)
 	defer pingTicker.Stop()
 
 	for {
@@ -265,7 +265,7 @@ func (h *Handler) writePump(client *Client) {
 			}
 
 		case <-pingTicker.C:
-			pingCtx, cancel := context.WithTimeout(client.ctx, pongTimeout)
+			pingCtx, cancel := context.WithTimeout(client.ctx, h.pongTimeout)
 			err := client.conn.Ping(pingCtx)
 			cancel()
 

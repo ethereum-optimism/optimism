@@ -162,7 +162,7 @@ func (tc *testClient) Write(ctx context.Context, data []byte) error {
 	return tc.conn.Write(ctx, websocket.MessageText, data)
 }
 
-// setupTestServer creates a test WebSocket server with event tracking
+// setupTestServer creates a test WebSocket server with event tracking.
 func setupTestServer(t *testing.T) (*Handler, *testEventTracker, *httptest.Server, func()) {
 	t.Helper()
 
@@ -175,10 +175,12 @@ func setupTestServer(t *testing.T) (*Handler, *testEventTracker, *httptest.Serve
 	isLeaderFn := func(ctx context.Context) bool { return true }
 
 	handler := &Handler{
-		cfg:        cfg,
-		log:        logger,
-		isLeaderFn: isLeaderFn,
-		metrics:    &metrics.NoopMetricsImpl{},
+		cfg:          cfg,
+		log:          logger,
+		isLeaderFn:   isLeaderFn,
+		metrics:      &metrics.NoopMetricsImpl{},
+		pingInterval: defaultPingInterval,
+		pongTimeout:  defaultPongTimeout,
 	}
 
 	// Create event tracker for testing
@@ -291,11 +293,11 @@ func TestPingPongMechanism(t *testing.T) {
 
 // TestServerInitiatedPing tests that the server sends pings to clients
 func TestServerInitiatedPing(t *testing.T) {
-	_, tracker, server, cleanup := setupTestServer(t)
+	handler, tracker, server, cleanup := setupTestServer(t)
 	defer cleanup()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
-	ctx, cancel := context.WithTimeout(context.Background(), pingInterval+(5*time.Second))
+	ctx, cancel := context.WithTimeout(context.Background(), handler.pingInterval+(5*time.Second))
 	defer cancel()
 
 	// Create test client
@@ -310,7 +312,7 @@ func TestServerInitiatedPing(t *testing.T) {
 
 	// Wait for server to send a ping
 	select {
-	case <-time.After(pingInterval + (2 * time.Second)):
+	case <-time.After(handler.pingInterval + (2 * time.Second)):
 		t.Error("Timeout waiting for server ping")
 	case <-client.pingsReceived:
 		t.Log("Client received ping from server")
@@ -520,4 +522,152 @@ func TestHubShutdown(t *testing.T) {
 	}
 
 	t.Log("Hub shutdown completed successfully")
+}
+
+// TestUpstreamPingDetectsAndReconnectsOnSilentConnection verifies that
+// pingUpstream detects a TCP-alive / application-silent upstream and
+// triggers reconnection within pingInterval+pongTimeout, rather than waiting
+// for a 30 s per-Read timeout.
+//
+// Before the fix, listenToRollupBoost used context.WithTimeout(ctx, 30s) on
+// every Read call. coder/websocket destroys the TCP connection when a context
+// deadline expires (coder/websocket#242), so the upstream link was reset every
+// 30 s even when healthy, causing periodic flashblock gaps. The fix removes the
+// read timeout and adds pingUpstream so that only genuinely stale connections
+// trigger reconnection.
+//
+// This test fails without pingUpstream (old code) because a silent connection
+// is not detected within the test window; it passes with pingUpstream because
+// the pong timeout fires well within the deadline.
+func TestUpstreamPingDetectsAndReconnectsOnSilentConnection(t *testing.T) {
+	// Use short ping parameters so the test completes in ~400 ms.
+	const testPingInterval = 200 * time.Millisecond
+	const testPongTimeout = 100 * time.Millisecond
+
+	var connectCount atomic.Int64
+
+	// Upstream server: accepts connections and sends one flashblock message, but
+	// never answers pings (simulates a TCP-alive / application-silent link).
+	// CloseRead handles the WS close handshake so pingUpstream's conn.Close
+	// completes promptly; OnPingReceived=false suppresses pong replies.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			CompressionMode: websocket.CompressionDisabled,
+			OnPingReceived:  func(_ context.Context, _ []byte) bool { return false },
+		})
+		if err != nil {
+			return
+		}
+		defer conn.CloseNow()
+		connectCount.Add(1)
+
+		// Send one message so the first connection is productive.
+		_ = conn.Write(r.Context(), websocket.MessageText, []byte(`{"slot":1}`))
+
+		// CloseRead responds to close frames (so conn.Close in pingUpstream
+		// can complete the handshake promptly) but pings go unanswered.
+		closed := conn.CloseRead(r.Context())
+		<-closed.Done()
+	}))
+	t.Cleanup(upstream.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(upstream.URL, "http")
+
+	handler := &Handler{
+		cfg: Config{
+			WebsocketServerPort: 0,
+			RollupBoostWsURL:    wsURL,
+		},
+		log:          log.New("test", "upstream-reconnect"),
+		isLeaderFn:   func(context.Context) bool { return true },
+		metrics:      &metrics.NoopMetricsImpl{},
+		pingInterval: testPingInterval,
+		pongTimeout:  testPongTimeout,
+	}
+	handler.hub = newHub(handler.metrics)
+	go handler.hub.run()
+	t.Cleanup(func() {
+		select {
+		case <-handler.hub.done:
+		default:
+			close(handler.hub.done)
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	go handler.listenToRollupBoost(ctx)
+
+	// Expect ≥2 upstream connections: the initial dial plus one reconnect
+	// triggered by the pong timeout (testPingInterval + testPongTimeout ≈ 300 ms).
+	deadline := time.NewTimer(testPingInterval + testPongTimeout + 500*time.Millisecond)
+	defer deadline.Stop()
+	poll := time.NewTicker(20 * time.Millisecond)
+	defer poll.Stop()
+
+	for {
+		select {
+		case <-deadline.C:
+			t.Fatalf(
+				"upstream reconnect not observed: got %d connections (want ≥2); "+
+					"without pingUpstream a silent connection is not detected until the 30 s read timeout",
+				connectCount.Load(),
+			)
+		case <-poll.C:
+			if connectCount.Load() >= 2 {
+				return // reconnect observed — test passes
+			}
+		}
+	}
+}
+
+// TestReadPumpClientRemainsRegisteredDuringPingCycles verifies that a
+// subscribe-only client is not dropped by the server during normal operation.
+//
+// The old readPump implementation issued conn.Read with a 30 s timeout on each
+// iteration. When that deadline expired, coder/websocket destroyed the TCP
+// connection (coder/websocket#242), unregistering the client even though the
+// connection was healthy. The new implementation uses conn.CloseRead, which has
+// no per-call timeout and properly handles control frames without destroying
+// the underlying connection.
+//
+// Note: this test validates correct behaviour across multiple ping cycles but
+// does not fast-fail with the old 30 s hardcoded timeout (that would require
+// waiting >30 s). See TestUpstreamPingDetectsAndReconnectsOnSilentConnection
+// for the full root-cause regression test of the timeout-destroys-TCP bug.
+func TestReadPumpClientRemainsRegisteredDuringPingCycles(t *testing.T) {
+	// Run several server→client ping cycles quickly to exercise the
+	// control-frame path through readPump / CloseRead.
+	const testPingInterval = 50 * time.Millisecond
+	const testPongTimeout = 25 * time.Millisecond
+
+	handler, tracker, server, cleanup := setupTestServer(t)
+	handler.pingInterval = testPingInterval
+	handler.pongTimeout = testPongTimeout
+	defer cleanup()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	client, err := newTestClient(ctx, wsURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer client.Close()
+
+	waitForClientCount(t, tracker, 1, 2*time.Second, "initial connection")
+
+	// Let 5 server-initiated ping/pong cycles complete.
+	time.Sleep(5 * testPingInterval)
+
+	if tracker.getClientCount() != 1 {
+		t.Fatal("client was unexpectedly unregistered during idle ping cycles")
+	}
+
+	// Confirm the client can still receive broadcasts after the idle period.
+	const msg = "post-idle-broadcast"
+	handler.BroadcastMessage([]byte(msg))
+	waitForMessage(t, client, msg, 2*time.Second, "broadcast after ping cycles")
 }
