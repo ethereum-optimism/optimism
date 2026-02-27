@@ -29,11 +29,11 @@ abstract contract OptimismMintableERC721Factory_TestInit is CommonTest {
     }
 }
 
-/// @title OptimismMintableERC721Factory_Constructor_Test
-/// @notice Tests the `constructor` of the `OptimismMintableERC721Factory` contract.
-contract OptimismMintableERC721Factory_Constructor_Test is OptimismMintableERC721Factory_TestInit {
-    /// @notice Tests that the constructor sets the correct values.
-    function test_constructor_succeeds() external view {
+/// @title OptimismMintableERC721Factory_Initialize_Test
+/// @notice Tests the initialization of the `OptimismMintableERC721Factory` contract.
+contract OptimismMintableERC721Factory_Initialize_Test is OptimismMintableERC721Factory_TestInit {
+    /// @notice Tests that the initialization sets the correct values.
+    function test_initialize_succeeds() external view {
         assertEq(l2OptimismMintableERC721Factory.BRIDGE(), address(l2ERC721Bridge));
         assertEq(l2OptimismMintableERC721Factory.bridge(), address(l2ERC721Bridge));
         assertEq(l2OptimismMintableERC721Factory.REMOTE_CHAIN_ID(), deploy.cfg().l1ChainID());

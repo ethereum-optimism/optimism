@@ -7,6 +7,7 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
@@ -185,6 +186,12 @@ contract L2ContractsManager is ISemver {
             bridge: IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).bridge()
         });
 
+        // OptimismMintableERC721Factory
+        fullConfig_.mintableERC721Factory = L2ContractsManagerTypes.MintableERC721FactoryConfig({
+            bridge: IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).bridge(),
+            remoteChainID: IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).remoteChainID()
+        });
+
         // SequencerFeeVault
         fullConfig_.sequencerFeeVault = L2ContractsManagerUtils.readFeeVaultConfig(Predeploys.SEQUENCER_FEE_WALLET);
 
@@ -255,6 +262,19 @@ contract L2ContractsManager is ISemver {
             OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL,
             STORAGE_SETTER_IMPL,
             abi.encodeCall(IOptimismMintableERC20Factory.initialize, (_config.mintableERC20Factory.bridge)),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0
+        );
+
+        // OptimismMintableERC721Factory
+        L2ContractsManagerUtils.upgradeToAndCall(
+            Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY,
+            OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL,
+            STORAGE_SETTER_IMPL,
+            abi.encodeCall(
+                IOptimismMintableERC721Factory.initialize,
+                (_config.mintableERC721Factory.bridge, _config.mintableERC721Factory.remoteChainID)
+            ),
             INITIALIZABLE_SLOT_OZ_V4,
             0
         );

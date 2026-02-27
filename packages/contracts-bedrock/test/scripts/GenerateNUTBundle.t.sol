@@ -16,24 +16,17 @@ import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 ///         for L2 hardfork upgrades.
 contract GenerateNUTBundleTest is Test {
     GenerateNUTBundle script;
-    GenerateNUTBundle.Input input;
 
     uint256 constant TEST_L1_CHAIN_ID = 1;
 
     function setUp() public {
         script = new GenerateNUTBundle();
         script.setUp();
-
-        _setDefaultInput();
-    }
-
-    function _setDefaultInput() internal {
-        input = GenerateNUTBundle.Input({ l1ChainID: TEST_L1_CHAIN_ID });
     }
 
     /// @notice Tests that run succeeds.
     function test_run_succeeds() public {
-        GenerateNUTBundle.Output memory output = script.run(input);
+        GenerateNUTBundle.Output memory output = script.run();
 
         // Verify artifact written correctly
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns =
@@ -48,18 +41,10 @@ contract GenerateNUTBundleTest is Test {
         }
     }
 
-    /// @notice Tests that run reverts with zero l1ChainID.
-    function test_run_zeroL1ChainID_reverts() public {
-        input.l1ChainID = 0;
-
-        vm.expectRevert("GenerateNUTBundle: l1ChainID cannot be zero");
-        script.run(input);
-    }
-
     /// @notice Tests that transactions have correct structure.
     /// @dev Includes ConditionalDeployer and ProxyAdmin upgrades.
     function test_run_transactionStructure_succeeds() public {
-        GenerateNUTBundle.Output memory output = script.run(input);
+        GenerateNUTBundle.Output memory output = script.run();
 
         // Should include:
         // 1. ConditionalDeployer deployment
@@ -116,8 +101,8 @@ contract GenerateNUTBundleTest is Test {
 
     /// @notice Tests that multiple runs produce deterministic results.
     function test_run_deterministicOutput_succeeds() public {
-        GenerateNUTBundle.Output memory output1 = script.run(input);
-        GenerateNUTBundle.Output memory output2 = script.run(input);
+        GenerateNUTBundle.Output memory output1 = script.run();
+        GenerateNUTBundle.Output memory output2 = script.run();
 
         // Verify same number of transactions
         assertEq(output1.txns.length, output2.txns.length, "Should produce same number of transactions");

@@ -360,26 +360,16 @@ contract L2Genesis is Script {
         });
     }
 
-    /// @notice This predeploy is following the safety invariant #2,
+    /// @notice This predeploy is following the safety invariant #1.
     function setOptimismMintableERC721Factory(Input memory _input) internal {
-        IOptimismMintableERC721Factory factory = IOptimismMintableERC721Factory(
-            DeployUtils.create1({
-                _name: "OptimismMintableERC721Factory",
-                // TODO(#19318): Remove this constructor encoding once OptimismMintableERC721Factory is initializable.
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOptimismMintableERC721Factory.__constructor__, (Predeploys.L2_ERC721_BRIDGE, _input.l1ChainID)
-                    )
-                )
-            })
-        );
+        address impl = _setImplementationCode(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
 
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
-        vm.etch(impl, address(factory).code);
+        IOptimismMintableERC721Factory(impl).initialize({ _bridge: address(0), _remoteChainID: 0 });
 
-        /// Reset so its not included state dump
-        vm.etch(address(factory), "");
-        vm.resetNonce(address(factory));
+        IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).initialize({
+            _bridge: Predeploys.L2_ERC721_BRIDGE,
+            _remoteChainID: _input.l1ChainID
+        });
     }
 
     /// @notice This predeploy is following the safety invariant #1.

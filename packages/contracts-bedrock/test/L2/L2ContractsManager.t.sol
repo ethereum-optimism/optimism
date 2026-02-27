@@ -116,7 +116,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.l1BlockCGTImpl = address(new L1BlockCGT());
         implementations.l2ToL1MessagePasserImpl = address(new L2ToL1MessagePasser());
         implementations.l2ToL1MessagePasserCGTImpl = address(new L2ToL1MessagePasserCGT());
-        implementations.optimismMintableERC721FactoryImpl = address(new OptimismMintableERC721Factory(address(0), 0));
+        implementations.optimismMintableERC721FactoryImpl = address(new OptimismMintableERC721Factory());
         implementations.proxyAdminImpl = address(new ProxyAdmin(address(0)));
         implementations.superchainETHBridgeImpl = address(new SuperchainETHBridge());
         implementations.ethLiquidityImpl = address(new ETHLiquidity());
