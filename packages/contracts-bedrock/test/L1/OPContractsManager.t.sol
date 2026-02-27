@@ -1499,7 +1499,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_verifyOpcmCorrectness_succeeds() public {
-        skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
+        skipIfUnoptimized();
 
         // Set up environment variables with the actual OPCM addresses for tests that need them.
         // These values come from the StandardValidator that was deployed with the OPCM.

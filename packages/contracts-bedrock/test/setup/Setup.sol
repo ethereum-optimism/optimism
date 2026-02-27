@@ -23,6 +23,7 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -217,9 +218,16 @@ abstract contract Setup is FeatureFlags {
         console.log("Setup: L2 setup done!");
     }
 
-    /// @dev Skips tests when running in coverage mode.
-    function skipIfCoverage() public {
+    /// @dev Skips tests that require production-like bytecode. This includes coverage mode
+    ///      (which adds instrumentation) and unoptimized Foundry profiles (which produce
+    ///      different CREATE2 addresses and gas costs). Use for gas measurement tests,
+    ///      bytecode verification tests, and any test sensitive to compiler output.
+    function skipIfUnoptimized() public {
         if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            vm.skip(true);
+        }
+        string memory profile = Config.foundryProfile();
+        if (!LibString.eq(profile, "default") && !LibString.eq(profile, "ci")) {
             vm.skip(true);
         }
     }
