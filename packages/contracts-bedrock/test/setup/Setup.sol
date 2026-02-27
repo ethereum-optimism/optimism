@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { console2 as console } from "forge-std/console2.sol";
-import { Vm, VmSafe } from "forge-std/Vm.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 
@@ -23,7 +23,6 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -223,11 +222,7 @@ abstract contract Setup is FeatureFlags {
     ///      different CREATE2 addresses and gas costs). Use for gas measurement tests,
     ///      bytecode verification tests, and any test sensitive to compiler output.
     function skipIfUnoptimized() public {
-        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
-            vm.skip(true);
-        }
-        string memory profile = Config.foundryProfile();
-        if (!LibString.eq(profile, "default") && !LibString.eq(profile, "ci")) {
+        if (Config.isUnoptimized()) {
             vm.skip(true);
         }
     }
