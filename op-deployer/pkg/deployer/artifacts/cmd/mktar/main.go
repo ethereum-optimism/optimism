@@ -45,8 +45,6 @@ func init() {
 // Example: mktar -base ../packages/contracts-bedrock -out ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
 //
 // The output file will be a zstd-compressed tarball of the given base directory.
-// Do not confuse this script with the ops/publish-artifacts.sh script, which is
-// used to publish the tarball to GCS.
 func main() {
 	flag.Parse()
 
