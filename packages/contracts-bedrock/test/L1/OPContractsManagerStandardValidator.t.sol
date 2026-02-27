@@ -202,8 +202,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             // proxies so the validator sees the expected implementation addresses.
             {
                 string memory _profile = Config.foundryProfile();
-                bool _isOptimizedProfile =
-                    LibString.eq(_profile, "default") || LibString.eq(_profile, "ci");
+                bool _isOptimizedProfile = LibString.eq(_profile, "default") || LibString.eq(_profile, "ci");
                 if (!_isOptimizedProfile) {
                     IDelayedWETH _cannonWeth = DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.CANNON);
                     if (address(_cannonWeth) != address(0)) {
@@ -222,8 +221,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                             abi.encode(standardValidator.delayedWETHImpl())
                         );
                     }
-                    IDelayedWETH _cannonKonaWeth =
-                        DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.CANNON_KONA);
+                    IDelayedWETH _cannonKonaWeth = DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.CANNON_KONA);
                     if (address(_cannonKonaWeth) != address(0)) {
                         vm.mockCall(
                             address(proxyAdmin),

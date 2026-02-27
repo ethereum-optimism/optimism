@@ -281,11 +281,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // proxies so the validator sees the expected implementation addresses.
         {
             string memory _profile = Config.foundryProfile();
-            bool _isOptimizedProfile =
-                LibString.eq(_profile, "default") || LibString.eq(_profile, "ci");
+            bool _isOptimizedProfile = LibString.eq(_profile, "default") || LibString.eq(_profile, "ci");
             if (!_isOptimizedProfile) {
-                IDelayedWETH _cannonWeth =
-                    DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON);
+                IDelayedWETH _cannonWeth = DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON);
                 if (address(_cannonWeth) != address(0)) {
                     vm.mockCall(
                         address(proxyAdmin),
