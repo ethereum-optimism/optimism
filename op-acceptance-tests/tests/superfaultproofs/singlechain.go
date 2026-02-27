@@ -33,7 +33,7 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 
 	// Stop batch submission so safe head stalls, then we have a known boundary.
 	c.Batcher.Stop()
-	defer c.Batcher.Start()
+	t.Cleanup(c.Batcher.Start)
 	awaitSafeHeadsStalled(t, sys.L2CLA)
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
