@@ -164,16 +164,11 @@ where
         // Fill the blob pointers.
         let mut blob_index = 0;
         for blob in &mut data {
-            match blob.fill(&blobs, blob_index) {
-                Ok(should_increment) => {
-                    if should_increment {
-                        blob_index += 1;
-                    }
-                }
-                Err(e) => {
-                    let err: BlobProviderError = e.into();
-                    return Err(err.into());
-                }
+            let should_increment = blob
+                .fill(&blobs, blob_index)
+                .map_err(|e| -> PipelineErrorKind { BlobProviderError::from(e).into() })?;
+            if should_increment {
+                blob_index += 1;
             }
         }
 
