@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -403,6 +404,32 @@ func TestCheckChainsReady(t *testing.T) {
 			assert: func(t *testing.T, h *interopTestHarness, blocks map[eth.ChainID]eth.BlockID, err error) {
 				require.NoError(t, err)
 				require.Len(t, blocks, 5)
+			},
+		},
+		{
+			// Verify that checkChainsReady drains ALL goroutine results before returning,
+			// even when one chain errors early. Without the drain, the slow chain's goroutine
+			// would still be running concurrently when the next call spawns a new batch —
+			// causing goroutine accumulation under repeated retries.
+			name: "drains all goroutine results before returning on error",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					// Errors immediately, causing an early-return path.
+					m.blockAtTimestampErr = ethereum.NotFound
+				}).WithChain(8453, func(m *mockChainContainer) {
+					// Slow chain: takes longer than the fast-error chain.
+					// After checkChainsReady returns, callsCompleted must be 1,
+					// proving the function waited for this goroutine to finish.
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 200}
+					m.blockAtTimestampDelay = 30 * time.Millisecond
+				}).Build()
+			},
+			assert: func(t *testing.T, h *interopTestHarness, blocks map[eth.ChainID]eth.BlockID, err error) {
+				require.Error(t, err)
+				require.Nil(t, blocks)
+				// Both goroutines must have completed before checkChainsReady returned.
+				require.EqualValues(t, 1, h.Mock(10).callsCompleted.Load(), "chain 10 goroutine should have completed")
+				require.EqualValues(t, 1, h.Mock(8453).callsCompleted.Load(), "chain 8453 goroutine should have completed before return")
 			},
 		},
 	}
@@ -1193,8 +1220,13 @@ type mockChainContainer struct {
 	currentL1    eth.BlockRef
 	currentL1Err error
 
-	blockAtTimestamp    eth.L2BlockRef
-	blockAtTimestampErr error
+	blockAtTimestamp      eth.L2BlockRef
+	blockAtTimestampErr   error
+	blockAtTimestampDelay time.Duration // if set, sleeps this long before responding
+
+	// callsCompleted is incremented atomically when LocalSafeBlockAtTimestamp returns,
+	// allowing tests to verify all goroutines drained before checkChainsReady returned.
+	callsCompleted atomic.Int32
 
 	lastRequestedTimestamp uint64
 	mu                     sync.Mutex
@@ -1227,6 +1259,14 @@ func (m *mockChainContainer) Resume(ctx context.Context) error { return nil }
 func (m *mockChainContainer) RegisterVerifier(v activity.VerificationActivity) {
 }
 func (m *mockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	// Simulate slow chains. Sleep is outside the lock so it doesn't block other
+	// concurrent mock operations during tests.
+	if d := m.blockAtTimestampDelay; d > 0 {
+		time.Sleep(d)
+	}
+	// Increment after any simulated delay so callers can verify the goroutine
+	// has fully completed (not just started) by the time they observe the count.
+	defer m.callsCompleted.Add(1)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.blockAtTimestampErr != nil {
