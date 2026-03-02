@@ -1,14 +1,14 @@
-package pure
+package derive
 
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	opderive "github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/stretchr/testify/require"
 )
 
-func testChannelID(b byte) derive.ChannelID {
-	var id derive.ChannelID
+func testChannelID(b byte) opderive.ChannelID {
+	var id opderive.ChannelID
 	id[0] = b
 	return id
 }
@@ -17,7 +17,7 @@ func TestChannelAssembler_SingleFrameChannel(t *testing.T) {
 	ca := newChannelAssembler()
 	l1 := testL1Ref(1)
 
-	ready := ca.addFrame(derive.Frame{
+	ready := ca.addFrame(opderive.Frame{
 		ID:          testChannelID(0xAA),
 		FrameNumber: 0,
 		Data:        []byte("hello"),
@@ -35,7 +35,7 @@ func TestChannelAssembler_MultiFrameChannel(t *testing.T) {
 	chID := testChannelID(0xBB)
 	l1 := testL1Ref(1)
 
-	ready := ca.addFrame(derive.Frame{
+	ready := ca.addFrame(opderive.Frame{
 		ID:          chID,
 		FrameNumber: 0,
 		Data:        []byte("part1"),
@@ -44,7 +44,7 @@ func TestChannelAssembler_MultiFrameChannel(t *testing.T) {
 	require.Nil(t, ready, "channel should not be ready after first frame")
 
 	l1b := testL1Ref(2)
-	ready = ca.addFrame(derive.Frame{
+	ready = ca.addFrame(opderive.Frame{
 		ID:          chID,
 		FrameNumber: 1,
 		Data:        []byte("part2"),
@@ -63,7 +63,7 @@ func TestChannelAssembler_NewChannelDiscardsOld(t *testing.T) {
 	chB := testChannelID(0xBB)
 	l1 := testL1Ref(1)
 
-	ready := ca.addFrame(derive.Frame{
+	ready := ca.addFrame(opderive.Frame{
 		ID:          chA,
 		FrameNumber: 0,
 		Data:        []byte("A-frame0"),
@@ -73,7 +73,7 @@ func TestChannelAssembler_NewChannelDiscardsOld(t *testing.T) {
 	require.Equal(t, chA, ca.currentID)
 
 	l1b := testL1Ref(2)
-	ready = ca.addFrame(derive.Frame{
+	ready = ca.addFrame(opderive.Frame{
 		ID:          chB,
 		FrameNumber: 0,
 		Data:        []byte("B-frame0"),
@@ -90,7 +90,7 @@ func TestChannelAssembler_Timeout(t *testing.T) {
 	chID := testChannelID(0xCC)
 	l1Open := testL1Ref(10)
 
-	ca.addFrame(derive.Frame{
+	ca.addFrame(opderive.Frame{
 		ID:          chID,
 		FrameNumber: 0,
 		Data:        []byte("data"),
@@ -116,7 +116,7 @@ func TestChannelAssembler_OutOfOrderFrame(t *testing.T) {
 	chID := testChannelID(0xDD)
 	l1 := testL1Ref(1)
 
-	ready := ca.addFrame(derive.Frame{
+	ready := ca.addFrame(opderive.Frame{
 		ID:          chID,
 		FrameNumber: 0,
 		Data:        []byte("frame0"),
@@ -124,7 +124,7 @@ func TestChannelAssembler_OutOfOrderFrame(t *testing.T) {
 	}, l1)
 	require.Nil(t, ready)
 
-	ready = ca.addFrame(derive.Frame{
+	ready = ca.addFrame(opderive.Frame{
 		ID:          chID,
 		FrameNumber: 2, // skip frame 1
 		Data:        []byte("frame2"),
@@ -135,7 +135,7 @@ func TestChannelAssembler_OutOfOrderFrame(t *testing.T) {
 	require.NotNil(t, ca.current, "channel should still be in progress")
 	require.Equal(t, uint16(1), ca.nextFrame, "nextFrame should still expect frame 1")
 
-	ready = ca.addFrame(derive.Frame{
+	ready = ca.addFrame(opderive.Frame{
 		ID:          chID,
 		FrameNumber: 1,
 		Data:        []byte("frame1"),

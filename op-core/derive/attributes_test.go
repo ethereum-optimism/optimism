@@ -1,4 +1,4 @@
-package pure
+package derive
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	opderive "github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func TestBuildAttributes_EpochStart(t *testing.T) {
 	l1Hash := l1Block.Header.Hash()
 
 	userTx := hexutil.Bytes{0x01, 0x02, 0x03}
-	batch := &derive.SingularBatch{
+	batch := &opderive.SingularBatch{
 		ParentHash:   common.HexToHash("0xaaaa"),
 		EpochNum:     rollup.Epoch(l1Num),
 		EpochHash:    l1Hash,
@@ -41,12 +41,9 @@ func TestBuildAttributes_EpochStart(t *testing.T) {
 		SequenceNumber: 3,
 	}
 
-	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
+	attrs, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.NotNil(t, result.Attributes)
-
-	attrs := result.Attributes
+	require.NotNil(t, attrs)
 
 	// L1 info deposit + 2 user deposits + 1 batch tx = 4
 	require.GreaterOrEqual(t, len(attrs.Transactions), 3)
@@ -63,9 +60,6 @@ func TestBuildAttributes_EpochStart(t *testing.T) {
 
 	// The last transaction should be the batch tx
 	require.Equal(t, userTx, attrs.Transactions[len(attrs.Transactions)-1])
-
-	require.Equal(t, batch.ParentHash, result.ExpectedParentHash)
-	require.Equal(t, l1Block.BlockRef(), result.DerivedFrom)
 }
 
 func TestBuildAttributes_SameEpoch(t *testing.T) {
@@ -78,7 +72,7 @@ func TestBuildAttributes_SameEpoch(t *testing.T) {
 	l1Hash := l1Block.Header.Hash()
 
 	userTx := hexutil.Bytes{0xaa, 0xbb}
-	batch := &derive.SingularBatch{
+	batch := &opderive.SingularBatch{
 		ParentHash:   common.HexToHash("0xbbbb"),
 		EpochNum:     rollup.Epoch(l1Num),
 		EpochHash:    l1Hash,
@@ -94,11 +88,9 @@ func TestBuildAttributes_SameEpoch(t *testing.T) {
 		SequenceNumber: 2,
 	}
 
-	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
+	attrs, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	attrs := result.Attributes
+	require.NotNil(t, attrs)
 
 	// L1 info deposit + 1 batch tx = 2 (no user deposits because same epoch)
 	require.GreaterOrEqual(t, len(attrs.Transactions), 2)
@@ -122,7 +114,7 @@ func TestBuildAttributes_EmptyBatch(t *testing.T) {
 		l1Num := bigs.Uint64Strict(l1Block.Header.Number)
 		l1Hash := l1Block.Header.Hash()
 
-		batch := &derive.SingularBatch{
+		batch := &opderive.SingularBatch{
 			ParentHash:   common.HexToHash("0xcccc"),
 			EpochNum:     rollup.Epoch(l1Num),
 			EpochHash:    l1Hash,
@@ -137,11 +129,11 @@ func TestBuildAttributes_EmptyBatch(t *testing.T) {
 			SequenceNumber: 0,
 		}
 
-		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
+		attrs, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 		require.NoError(t, err)
 
 		// L1 info deposit + 1 user deposit = 2 (no batch txs)
-		require.Len(t, result.Attributes.Transactions, 2)
+		require.Len(t, attrs.Transactions, 2)
 	})
 
 	t.Run("empty batch same epoch", func(t *testing.T) {
@@ -150,7 +142,7 @@ func TestBuildAttributes_EmptyBatch(t *testing.T) {
 		l1Num := bigs.Uint64Strict(l1Block.Header.Number)
 		l1Hash := l1Block.Header.Hash()
 
-		batch := &derive.SingularBatch{
+		batch := &opderive.SingularBatch{
 			ParentHash:   common.HexToHash("0xdddd"),
 			EpochNum:     rollup.Epoch(l1Num),
 			EpochHash:    l1Hash,
@@ -165,11 +157,11 @@ func TestBuildAttributes_EmptyBatch(t *testing.T) {
 			SequenceNumber: 1,
 		}
 
-		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
+		attrs, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 		require.NoError(t, err)
 
 		// Only L1 info deposit, no user deposits, no batch txs
-		require.Len(t, result.Attributes.Transactions, 1)
+		require.Len(t, attrs.Transactions, 1)
 	})
 }
 
@@ -182,7 +174,7 @@ func TestBuildAttributes_HoloceneFields(t *testing.T) {
 	l1Num := bigs.Uint64Strict(l1Block.Header.Number)
 	l1Hash := l1Block.Header.Hash()
 
-	batch := &derive.SingularBatch{
+	batch := &opderive.SingularBatch{
 		ParentHash: common.HexToHash("0xeeee"),
 		EpochNum:   rollup.Epoch(l1Num),
 		EpochHash:  l1Hash,
@@ -196,12 +188,12 @@ func TestBuildAttributes_HoloceneFields(t *testing.T) {
 		SequenceNumber: 0,
 	}
 
-	result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
+	attrs, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 	require.NoError(t, err)
-	require.NotNil(t, result.Attributes.EIP1559Params)
-	require.Equal(t, sysConfig.EIP1559Params, *result.Attributes.EIP1559Params)
-	require.NotNil(t, result.Attributes.ParentBeaconBlockRoot)
-	require.NotNil(t, result.Attributes.Withdrawals)
+	require.NotNil(t, attrs.EIP1559Params)
+	require.Equal(t, sysConfig.EIP1559Params, *attrs.EIP1559Params)
+	require.NotNil(t, attrs.ParentBeaconBlockRoot)
+	require.NotNil(t, attrs.Withdrawals)
 }
 
 func TestBuildAttributes_SequenceNumber(t *testing.T) {
@@ -212,7 +204,7 @@ func TestBuildAttributes_SequenceNumber(t *testing.T) {
 	l1Hash := l1Block.Header.Hash()
 
 	t.Run("epoch start resets to zero", func(t *testing.T) {
-		batch := &derive.SingularBatch{
+		batch := &opderive.SingularBatch{
 			ParentHash: common.HexToHash("0x1111"),
 			EpochNum:   rollup.Epoch(l1Num),
 			EpochHash:  l1Hash,
@@ -226,13 +218,13 @@ func TestBuildAttributes_SequenceNumber(t *testing.T) {
 			SequenceNumber: 5,
 		}
 
-		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
+		attrs, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 		require.NoError(t, err)
-		require.NotNil(t, result)
+		require.NotNil(t, attrs)
 	})
 
 	t.Run("same epoch increments", func(t *testing.T) {
-		batch := &derive.SingularBatch{
+		batch := &opderive.SingularBatch{
 			ParentHash: common.HexToHash("0x2222"),
 			EpochNum:   rollup.Epoch(l1Num),
 			EpochHash:  l1Hash,
@@ -246,8 +238,8 @@ func TestBuildAttributes_SequenceNumber(t *testing.T) {
 			SequenceNumber: 5,
 		}
 
-		result, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
+		attrs, err := buildAttributes(batch, l1Block, cursor, sysConfig, cfg, testL1ChainConfig())
 		require.NoError(t, err)
-		require.NotNil(t, result)
+		require.NotNil(t, attrs)
 	})
 }

@@ -1,4 +1,4 @@
-package pure
+package derive
 
 import (
 	"fmt"
@@ -10,13 +10,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	opderive "github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// buildAttributes constructs a DerivedBlock (PayloadAttributes + metadata) from
-// a validated singular batch, its L1 origin, the current derivation cursor,
-// and the active system config.
+// buildAttributes constructs PayloadAttributes from a validated singular batch,
+// its L1 origin, the current derivation cursor, and the active system config.
 //
 // Transaction ordering follows the OP Stack derivation spec:
 //  1. L1 info deposit transaction (always first)
@@ -24,16 +23,16 @@ import (
 //  3. Batch transactions from the sequencer
 //
 // Network upgrade transactions (NUTs) are not included because all pre-Karst
-// forks are already active (PureDerive requires Karst), and Karst itself has
+// forks are already active (the Deriver requires Karst), and Karst itself has
 // no NUTs. Future forks with NUTs must be added here.
 func buildAttributes(
-	batch *derive.SingularBatch,
+	batch *opderive.SingularBatch,
 	l1Block *L1Input,
 	cursor l2Cursor,
 	sysConfig eth.SystemConfig,
 	cfg *rollup.Config,
 	l1ChainConfig *params.ChainConfig,
-) (*DerivedBlock, error) {
+) (*eth.PayloadAttributes, error) {
 	epochChanged := uint64(batch.EpochNum) != cursor.L1Origin.Number
 
 	var seqNumber uint64
@@ -45,7 +44,7 @@ func buildAttributes(
 
 	l2Timestamp := batch.Timestamp
 
-	l1InfoTx, err := derive.L1InfoDeposit(cfg, l1ChainConfig, sysConfig, seqNumber, eth.HeaderBlockInfo(l1Block.Header), l2Timestamp)
+	l1InfoTx, err := opderive.L1InfoDeposit(cfg, l1ChainConfig, sysConfig, seqNumber, eth.HeaderBlockInfo(l1Block.Header), l2Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info deposit tx: %w", err)
 	}
@@ -106,9 +105,5 @@ func buildAttributes(
 		attrs.MinBaseFee = &sysConfig.MinBaseFee
 	}
 
-	return &DerivedBlock{
-		Attributes:         attrs,
-		ExpectedParentHash: batch.ParentHash,
-		DerivedFrom:        l1Block.BlockRef(),
-	}, nil
+	return attrs, nil
 }

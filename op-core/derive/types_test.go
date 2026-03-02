@@ -1,4 +1,4 @@
-package pure
+package derive
 
 import (
 	"math/big"

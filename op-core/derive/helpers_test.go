@@ -1,4 +1,4 @@
-package pure
+package derive
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	opderive "github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -110,12 +110,27 @@ func testL1Ref(num uint64) eth.L1BlockRef {
 	return input.BlockRef()
 }
 
+// makeTestL1Chain creates a sequence of properly chained L1 inputs where each
+// block's ParentHash matches the previous block's actual hash. This is required
+// for AddL1Block's reorg detection.
+func makeTestL1Chain(count uint64) []*L1Input {
+	chain := make([]*L1Input, count)
+	for i := uint64(0); i < count; i++ {
+		input := makeTestL1Input(i)
+		if i > 0 {
+			input.Header.ParentHash = chain[i-1].Header.Hash()
+		}
+		chain[i] = input
+	}
+	return chain
+}
+
 // encodeBatchToChannelData RLP-encodes a singular batch and zlib-compresses
 // it into channel data (the format read by the channel reader stage).
-func encodeBatchToChannelData(t *testing.T, batch *derive.SingularBatch) []byte {
+func encodeBatchToChannelData(t *testing.T, batch *opderive.SingularBatch) []byte {
 	t.Helper()
 
-	bd := derive.NewBatchData(batch)
+	bd := opderive.NewBatchData(batch)
 	batchBytes, err := bd.MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal batch: %v", err)
@@ -142,8 +157,8 @@ func encodeBatchToChannelData(t *testing.T, batch *derive.SingularBatch) []byte 
 
 // wrapInFrames wraps channel data in a single-frame batcher transaction.
 // The result is a raw batcher tx data payload (DerivationVersion0 prefix + frame).
-func wrapInFrames(channelData []byte, channelID derive.ChannelID) []byte {
-	frame := derive.Frame{
+func wrapInFrames(channelData []byte, channelID opderive.ChannelID) []byte {
+	frame := opderive.Frame{
 		ID:          channelID,
 		FrameNumber: 0,
 		Data:        channelData,
@@ -188,7 +203,7 @@ func TestHelpers(t *testing.T) {
 	require.NotEmpty(t, l1WithBatch.BatcherData[0])
 
 	// Verify the batcher tx can be parsed as frames
-	frames, err := derive.ParseFrames(l1WithBatch.BatcherData[0])
+	frames, err := opderive.ParseFrames(l1WithBatch.BatcherData[0])
 	require.NoError(t, err)
 	require.Len(t, frames, 1)
 	require.True(t, frames[0].IsLast)
@@ -203,7 +218,7 @@ func makeL1WithBatch(t *testing.T, cfg *rollup.Config, l1Num uint64, safeHead et
 	l1 := makeTestL1Input(l1Num)
 	l1Ref := l1.BlockRef()
 
-	batch := &derive.SingularBatch{
+	batch := &opderive.SingularBatch{
 		ParentHash: safeHead.Hash,
 		EpochNum:   rollup.Epoch(l1Ref.Number),
 		EpochHash:  l1Ref.Hash,
@@ -212,7 +227,7 @@ func makeL1WithBatch(t *testing.T, cfg *rollup.Config, l1Num uint64, safeHead et
 
 	channelData := encodeBatchToChannelData(t, batch)
 
-	var chID derive.ChannelID
+	var chID opderive.ChannelID
 	copy(chID[:], common.Hex2Bytes("deadbeefdeadbeefdeadbeefdeadbeef"))
 	batcherTx := wrapInFrames(channelData, chID)
 

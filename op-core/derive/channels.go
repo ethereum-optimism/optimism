@@ -1,15 +1,15 @@
-package pure
+package derive
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	opderive "github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // readyChannel is a completed channel ready for batch decoding.
 type readyChannel struct {
-	id        derive.ChannelID
+	id        opderive.ChannelID
 	openBlock eth.L1BlockRef
-	channel   *derive.Channel
+	channel   *opderive.Channel
 }
 
 // channelAssembler implements Holocene single-channel strict-order assembly.
@@ -22,8 +22,8 @@ type readyChannel struct {
 // streaming pipeline. Our push-based model feeds frames directly, making a
 // simpler implementation appropriate.
 type channelAssembler struct {
-	current   *derive.Channel
-	currentID derive.ChannelID
+	current   *opderive.Channel
+	currentID opderive.ChannelID
 	openBlock eth.L1BlockRef
 	nextFrame uint16
 }
@@ -33,9 +33,9 @@ func newChannelAssembler() *channelAssembler {
 }
 
 // addFrame processes a single frame. Returns a readyChannel if the channel is complete.
-func (ca *channelAssembler) addFrame(frame derive.Frame, l1Ref eth.L1BlockRef) *readyChannel {
+func (ca *channelAssembler) addFrame(frame opderive.Frame, l1Ref eth.L1BlockRef) *readyChannel {
 	if ca.current == nil || frame.ID != ca.currentID {
-		ca.current = derive.NewChannel(frame.ID, l1Ref, true)
+		ca.current = opderive.NewChannel(frame.ID, l1Ref, true)
 		ca.currentID = frame.ID
 		ca.openBlock = l1Ref
 		ca.nextFrame = 0
@@ -60,6 +60,12 @@ func (ca *channelAssembler) addFrame(frame derive.Frame, l1Ref eth.L1BlockRef) *
 		return ready
 	}
 	return nil
+}
+
+// reset clears the assembler's in-progress channel state.
+func (ca *channelAssembler) reset() {
+	ca.current = nil
+	ca.nextFrame = 0
 }
 
 // checkTimeout returns true and discards the current channel if it has timed out.

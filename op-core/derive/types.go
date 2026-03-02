@@ -1,11 +1,17 @@
-package pure
+package derive
 
 import (
-	"github.com/ethereum/go-ethereum/common"
+	"errors"
+
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+var (
+	ErrNeedL1Data = errors.New("need more L1 data")
+	ErrReorg      = errors.New("L1 reorg detected")
 )
 
 // L1Input is a pre-processed L1 block containing only derivation-relevant data.
@@ -30,13 +36,6 @@ func (l *L1Input) BlockRef() eth.L1BlockRef {
 // BlockID returns the block's ID (hash + number).
 func (l *L1Input) BlockID() eth.BlockID {
 	return eth.HeaderBlockID(l.Header)
-}
-
-// DerivedBlock is a single derived L2 block -- payload attributes ready for execution.
-type DerivedBlock struct {
-	Attributes         *eth.PayloadAttributes
-	ExpectedParentHash common.Hash // from batch ParentHash field; zero if unavailable
-	DerivedFrom        eth.L1BlockRef
 }
 
 // l2Cursor tracks the derivation position without knowing the L2 block hash.
