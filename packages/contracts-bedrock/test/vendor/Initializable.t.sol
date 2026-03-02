@@ -387,7 +387,7 @@ contract Initializer_Test is CommonTest {
     function test_cannotReinitialize_succeeds() public {
         // Collect exclusions.
         uint256 j;
-        string[] memory excludes = new string[](10);
+        string[] memory excludes = new string[](12);
         // Contract is currently not being deployed as part of the standard deployment script.
         excludes[j++] = "src/L2/OptimismSuperchainERC20.sol";
         // Periphery contracts don't get deployed as part of the standard deployment script.
@@ -407,6 +407,9 @@ contract Initializer_Test is CommonTest {
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
         excludes[j++] = "src/L1/FeesDepositor.sol";
+        // Compliance contracts are not deployed as part of the standard deployment script.
+        excludes[j++] = "src/universal/Compliance.sol";
+        excludes[j++] = "src/L1/L1Compliance.sol";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);
