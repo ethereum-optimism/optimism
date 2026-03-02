@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 // Libraries
 import { Fork } from "scripts/libraries/Config.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title Predeploys
 /// @notice Contains constant addresses for protocol contracts that are pre-deployed to the L2 system.
@@ -178,14 +179,16 @@ library Predeploys {
     function isSupportedPredeploy(
         address _addr,
         uint256 _fork,
-        bool _enableCrossL2Inbox,
         bool _isCustomGasToken,
-        bool _useL2CM
+        bytes32 _devFeatureBitmap
     )
         internal
         pure
         returns (bool)
     {
+        bool _useL2CM = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.L2CM);
+        bool _useInterop = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
         return _addr == LEGACY_MESSAGE_PASSER || _addr == DEPLOYER_WHITELIST || _addr == WETH
             || _addr == L2_CROSS_DOMAIN_MESSENGER || _addr == GAS_PRICE_ORACLE || _addr == L2_STANDARD_BRIDGE
             || _addr == SEQUENCER_FEE_WALLET || _addr == OPTIMISM_MINTABLE_ERC20_FACTORY || _addr == L1_BLOCK_NUMBER
@@ -193,8 +196,8 @@ library Predeploys {
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
             || _addr == GOVERNANCE_TOKEN || _addr == FEE_SPLITTER
-            || (_fork >= uint256(Fork.INTEROP) && _enableCrossL2Inbox && _addr == CROSS_L2_INBOX)
-            || (_fork >= uint256(Fork.INTEROP) && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            || (_fork >= uint256(Fork.INTEROP) && _useInterop && _addr == CROSS_L2_INBOX)
+            || (_fork >= uint256(Fork.INTEROP) && _useInterop && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER)
             || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
             || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY) || (_useL2CM && _addr == CONDITIONAL_DEPLOYER)
             || (_useL2CM && _addr == L2_DEV_FEATURE_FLAGS);

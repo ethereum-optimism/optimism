@@ -11,6 +11,7 @@ import { LATEST_FORK } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
@@ -73,7 +74,7 @@ abstract contract L2Genesis_TestInit is Test {
             // If it's not a supported predeploy, skip next checks.
             if (
                 !Predeploys.isSupportedPredeploy(
-                    addr, uint256(LATEST_FORK), true, input.useCustomGasToken, input.useL2CM
+                    addr, uint256(LATEST_FORK), input.useCustomGasToken, input.devFeatureBitmap
                 )
             ) {
                 continue;
@@ -254,7 +255,6 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             operatorFeeVaultWithdrawalNetwork: 1,
             governanceTokenOwner: address(0x0000000000000000000000000000000000000009),
             fork: uint256(LATEST_FORK),
-            deployCrossL2Inbox: true,
             enableGovernance: true,
             fundDevAccounts: true,
             useRevenueShare: true,
@@ -265,8 +265,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
-            useL2CM: false,
-            devFeatureBitmap: bytes32(0)
+            devFeatureBitmap: bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP)
         });
     }
 
@@ -449,7 +448,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
 
     /// @notice Tests that enabling l2cm succeeds.
     function test_run_l2cm_succeeds() external {
-        input.useL2CM = true;
+        input.devFeatureBitmap |= DevFeatures.L2CM;
         genesis.run(input);
 
         testProxyAdmin();

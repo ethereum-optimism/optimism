@@ -35,6 +35,7 @@ import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
@@ -72,7 +73,6 @@ contract L2Genesis is Script {
         uint256 operatorFeeVaultWithdrawalNetwork;
         address governanceTokenOwner;
         uint256 fork;
-        bool deployCrossL2Inbox;
         bool enableGovernance;
         bool fundDevAccounts;
         bool useRevenueShare;
@@ -83,7 +83,6 @@ contract L2Genesis is Script {
         string gasPayingTokenSymbol;
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
-        bool useL2CM;
         bytes32 devFeatureBitmap;
     }
 
@@ -229,11 +228,7 @@ contract L2Genesis is Script {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (
-                Predeploys.isSupportedPredeploy(
-                    addr, _input.fork, _input.deployCrossL2Inbox, _input.useCustomGasToken, _input.useL2CM
-                )
-            ) {
+            if (Predeploys.isSupportedPredeploy(addr, _input.fork, _input.useCustomGasToken, _input.devFeatureBitmap)) {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -270,7 +265,7 @@ contract L2Genesis is Script {
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         setFeeSplitter(_input); // 2B: FeeSplitter
         if (_input.fork >= uint256(Fork.INTEROP)) {
-            if (_input.deployCrossL2Inbox) {
+            if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
                 setCrossL2Inbox(); // 22
             }
             setL2ToL2CrossDomainMessenger(); // 23
@@ -279,7 +274,7 @@ contract L2Genesis is Script {
             setLiquidityController(_input); // 29
             setNativeAssetLiquidity(_input); // 2A
         }
-        if (_input.useL2CM) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.L2CM)) {
             setConditionalDeployer(); // 2C
             setL2DevFeatureFlags(_input); // 2D
         }

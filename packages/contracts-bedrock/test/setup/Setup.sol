@@ -355,7 +355,6 @@ abstract contract Setup is FeatureFlags {
                 operatorFeeVaultWithdrawalNetwork: deploy.cfg().operatorFeeVaultWithdrawalNetwork(),
                 governanceTokenOwner: deploy.cfg().governanceTokenOwner(),
                 fork: uint256(l2Fork),
-                deployCrossL2Inbox: deploy.cfg().useInterop(),
                 enableGovernance: deploy.cfg().enableGovernance(),
                 fundDevAccounts: deploy.cfg().fundDevAccounts(),
                 useRevenueShare: deploy.cfg().useRevenueShare(),
@@ -366,7 +365,6 @@ abstract contract Setup is FeatureFlags {
                 gasPayingTokenSymbol: deploy.cfg().gasPayingTokenSymbol(),
                 nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount(),
                 liquidityControllerOwner: deploy.cfg().liquidityControllerOwner(),
-                useL2CM: deploy.cfg().useL2CM(),
                 devFeatureBitmap: devFeatureBitmap
             })
         );
