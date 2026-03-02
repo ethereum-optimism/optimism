@@ -218,6 +218,8 @@ func TestSuperroot_AtTimestamp_NotFoundOnVerifiedAt(t *testing.T) {
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
 			verifiedErr: fmt.Errorf("nope: %w", ethereum.NotFound),
+			optL2:       eth.BlockID{Number: 100},
+			optL1:       eth.BlockID{Number: 1000},
 		},
 		eth.ChainIDFromUInt64(11): &mockCC{
 			verL2:  eth.BlockID{Number: 200},
@@ -233,8 +235,49 @@ func TestSuperroot_AtTimestamp_NotFoundOnVerifiedAt(t *testing.T) {
 	actual, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
 	require.Nil(t, actual.Data)
+	// Chain 10 has no verified data but optimistic data is available, so it should be present
+	require.Contains(t, actual.OptimisticAtTimestamp, eth.ChainIDFromUInt64(10))
+	require.Contains(t, actual.OptimisticAtTimestamp, eth.ChainIDFromUInt64(11))
+}
+
+func TestSuperroot_AtTimestamp_NotFoundOnVerifiedAtAndOptimisticAt(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verifiedErr:   fmt.Errorf("nope: %w", ethereum.NotFound),
+			optimisticErr: ethereum.NotFound,
+		},
+		eth.ChainIDFromUInt64(11): &mockCC{
+			verL2:  eth.BlockID{Number: 200},
+			verL1:  eth.BlockID{Number: 1100},
+			optL2:  eth.BlockID{Number: 200},
+			optL1:  eth.BlockID{Number: 1100},
+			output: eth.Bytes32{0x12},
+			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2100}},
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	actual, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Nil(t, actual.Data)
+	// Chain 10 has neither verified nor optimistic data, so it should be absent
 	require.NotContains(t, actual.OptimisticAtTimestamp, eth.ChainIDFromUInt64(10))
 	require.Contains(t, actual.OptimisticAtTimestamp, eth.ChainIDFromUInt64(11))
+}
+
+func TestSuperroot_AtTimestamp_ErrorOnOptimisticAtWhenVerifiedNotFound(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verifiedErr:   fmt.Errorf("nope: %w", ethereum.NotFound),
+			optimisticErr: assertErr(),
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	_, err := api.AtTimestamp(context.Background(), 123)
+	require.Error(t, err)
 }
 
 func TestSuperroot_AtTimestamp_ErrorOnOutputRoot(t *testing.T) {

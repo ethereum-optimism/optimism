@@ -105,30 +105,38 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
 		if errors.Is(err, ethereum.NotFound) {
 			notFound = true
-			continue // To allow other chains to populate unverified blocks
+			// Fall through to still collect optimistic data for this chain
 		} else if err != nil {
 			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
+		} else {
+			// Verified data is available: update min required L1 and collect the output root
+			if verifiedL1.Number < minVerifiedRequiredL1.Number || minVerifiedRequiredL1 == (eth.BlockID{}) {
+				minVerifiedRequiredL1 = verifiedL1
+			}
+			// Compute output root at or before timestamp using the verified L2 block number
+			outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
+			if err != nil {
+				s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
+				return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to compute output root at L2 block %d for chain ID %v: %w", verifiedL2.Number, chainID, err)
+			}
+			chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
 		}
-		if verifiedL1.Number < minVerifiedRequiredL1.Number || minVerifiedRequiredL1 == (eth.BlockID{}) {
-			minVerifiedRequiredL1 = verifiedL1
-		}
-		// Compute output root at or before timestamp using the verified L2 block number
-		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
-		if err != nil {
-			s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to compute output root at L2 block %d for chain ID %v: %w", verifiedL2.Number, chainID, err)
-		}
-		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
-		// Optimistic output is the full output at the optimistic L2 block for the timestamp
+
+		// Collect optimistic data for this chain regardless of whether verified data is available.
+		// If optimistic data is also absent, the chain is simply excluded from OptimisticAtTimestamp.
 		optimisticOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
-		if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			continue
+		} else if err != nil {
 			s.log.Warn("failed to get optimistic block", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get optimistic block at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
 		}
 		// Also include the source L1 for context
 		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
-		if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			continue
+		} else if err != nil {
 			s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get optimistic source L1 at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
 		}
