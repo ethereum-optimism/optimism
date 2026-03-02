@@ -113,6 +113,9 @@ abstract contract CommonTest is Test, Setup, Events {
             devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
         }
 
+        // Sync the bitmap to deploy config after overrides
+        deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
+
         if (isForkTest()) {
             // Skip any test suite which uses a nonstandard configuration.
             if (useAltDAOverride || useInteropOverride) {
