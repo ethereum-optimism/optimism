@@ -6,6 +6,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
+import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Scripts
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
@@ -18,6 +19,8 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
+import { GameType } from "src/dispute/lib/LibUDT.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -224,6 +227,42 @@ abstract contract Setup is FeatureFlags {
     function skipIfUnoptimized() public {
         if (Config.isUnoptimized()) {
             vm.skip(true);
+        }
+    }
+
+    /// @dev Mocks getProxyImplementation for DelayedWETH and ETHLockbox proxies when running
+    ///      with an unoptimized Foundry profile. These proxies are not re-pointed during OPCM
+    ///      upgrades, so their CREATE2 implementation addresses diverge from mainnet when
+    ///      bytecode differs (unoptimized vs optimized). No-op for optimized profiles.
+    function mockUnoptimizedProxyImplementations(
+        IDisputeGameFactory _dgf,
+        IProxyAdmin _proxyAdmin,
+        address _ethLockbox,
+        address _delayedWETHImpl,
+        address _ethLockboxImpl
+    )
+        internal
+    {
+        if (!Config.isUnoptimized()) return;
+
+        GameType[3] memory gameTypes = [GameTypes.CANNON, GameTypes.PERMISSIONED_CANNON, GameTypes.CANNON_KONA];
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            IDelayedWETH delayedWETHProxy = DisputeGames.getGameImplDelayedWeth(_dgf, gameTypes[i]);
+            if (address(delayedWETHProxy) != address(0)) {
+                vm.mockCall(
+                    address(_proxyAdmin),
+                    abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(delayedWETHProxy))),
+                    abi.encode(_delayedWETHImpl)
+                );
+            }
+        }
+
+        if (_ethLockbox != address(0)) {
+            vm.mockCall(
+                address(_proxyAdmin),
+                abi.encodeCall(IProxyAdmin.getProxyImplementation, (_ethLockbox)),
+                abi.encode(_ethLockboxImpl)
+            );
         }
     }
 
