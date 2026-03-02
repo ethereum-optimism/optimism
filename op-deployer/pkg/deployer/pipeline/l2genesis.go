@@ -83,13 +83,18 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	cgt := buildCGTConfig(thisIntent)
 
-	// Check if L2CM feature is enabled
-	var useL2CM bool
-	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
-		// TODO(#19151): Replace this with the L2CMDevFlag constant when we fix import cycles.
-		l2CMFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
-		if isDevFeatureEnabled(devFeatureBitmap, l2CMFlag) {
-			useL2CM = true
+	// Build the dev feature bitmap from the intent's global deploy overrides.
+	var devFeatureBitmap common.Hash
+	if bitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
+		devFeatureBitmap = bitmap
+	}
+
+	// Enable interop features when multiple chains are configured.
+	if len(intent.Chains) > 1 {
+		// TODO(#19151): Replace this with the deployer.OptimismPortalInteropDevFlag constant when we fix import cycles.
+		interopFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+		for i := 0; i < 32; i++ {
+			devFeatureBitmap[i] = devFeatureBitmap[i] | interopFlag[i]
 		}
 	}
 
@@ -114,7 +119,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		OperatorFeeVaultRecipient:                thisIntent.OperatorFeeVaultRecipient,
 		GovernanceTokenOwner:                     overrides.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
-		DeployCrossL2Inbox:                       len(intent.Chains) > 1,
 		EnableGovernance:                         overrides.EnableGovernance,
 		FundDevAccounts:                          overrides.FundDevAccounts,
 		UseRevenueShare:                          thisIntent.UseRevenueShare,
@@ -126,7 +130,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		GasPayingTokenSymbol:       cgt.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount: cgt.NativeAssetLiquidityAmount,
 		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
-		UseL2CM:                    useL2CM,
+		DevFeatureBitmap:           devFeatureBitmap,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}

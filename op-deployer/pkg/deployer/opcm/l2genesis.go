@@ -28,7 +28,6 @@ type L2GenesisInput struct {
 	OperatorFeeVaultWithdrawalNetwork        *big.Int
 	GovernanceTokenOwner                     common.Address
 	Fork                                     *big.Int
-	DeployCrossL2Inbox                       bool
 	EnableGovernance                         bool
 	FundDevAccounts                          bool
 	UseRevenueShare                          bool
@@ -39,7 +38,7 @@ type L2GenesisInput struct {
 	GasPayingTokenSymbol                     string
 	NativeAssetLiquidityAmount               *big.Int
 	LiquidityControllerOwner                 common.Address
-	UseL2CM                                  bool
+	DevFeatureBitmap                         common.Hash
 }
 
 type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]
