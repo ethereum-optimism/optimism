@@ -9,7 +9,7 @@ parameters:
   # Required parameters (also in main.yml, merged during continuation)
   c-default_docker_image:
     type: string
-    default: cimg/base:2024.01
+    default: cimg/base:2026.03
   c-rust_e2e_dispatch:
     type: boolean
     default: false
