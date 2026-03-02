@@ -638,7 +638,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "L1Inclusion/MultipleChains_EarliestL1Selected",
+			name: "L1Inclusion/MultipleChains_HighestL1Selected",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
 				chain1ID := eth.ChainIDFromUInt64(10)
 				chain2ID := eth.ChainIDFromUInt64(8453)
@@ -648,8 +648,8 @@ func TestVerifyInteropMessages(t *testing.T) {
 				block2 := eth.BlockID{Number: 200, Hash: common.HexToHash("0x2")}
 				block3 := eth.BlockID{Number: 150, Hash: common.HexToHash("0x3")}
 
-				// Chain 1 has L1 at 60 (highest)
-				// Chain 2 has L1 at 45 (earliest - should be selected)
+				// Chain 1 has L1 at 60 (highest - should be selected)
+				// Chain 2 has L1 at 45 (earliest)
 				// Chain 3 has L1 at 50 (middle)
 				l1Block1 := eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}
 				l1Block2 := eth.BlockID{Number: 45, Hash: common.HexToHash("0xL1_2")}
@@ -694,7 +694,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 			validate: func(t *testing.T, result Result) {
 				// The earliest L1 block (45) should be selected
-				expectedL1 := eth.BlockID{Number: 45, Hash: common.HexToHash("0xL1_2")}
+				expectedL1 := eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}
 				require.True(t, result.IsValid())
 				require.Empty(t, result.InvalidHeads)
 				require.Equal(t, expectedL1, result.L1Inclusion)
