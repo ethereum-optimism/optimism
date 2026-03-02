@@ -264,10 +264,11 @@ contract L2Genesis is Script {
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         setFeeSplitter(_input); // 2B: FeeSplitter
-        if (_input.fork >= uint256(Fork.INTEROP)) {
-            if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-                setCrossL2Inbox(); // 22
-            }
+        if (
+            _input.fork >= uint256(Fork.INTEROP)
+                && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+        ) {
+            setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
         }
         if (_input.useCustomGasToken) {
