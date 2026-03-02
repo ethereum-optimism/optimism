@@ -128,7 +128,17 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                 Self::Temporary(PipelineError::Provider(format!("Transport error: {e}")))
             }
             AlloyChainProviderError::BlockNotFound(id) => {
-                ResetError::BlockNotFound(format!("{id}")).reset()
+                // A hash-based lookup returning not-found means the block was reorged
+                // out of the chain — retrying will never succeed, so reset.
+                // A number-based lookup returning not-found means the next L1 block
+                // hasn't been produced yet — this is transient, so Temporary.
+                let msg = format!("{id}");
+                match id {
+                    BlockId::Hash(_) => ResetError::BlockNotFound(msg).reset(),
+                    BlockId::Number(_) => {
+                        Self::Temporary(PipelineError::Provider(format!("L1 Block not found: {msg}")))
+                    }
+                }
             }
             AlloyChainProviderError::ReceiptsConversion(_) => {
                 Self::Temporary(PipelineError::Provider(
@@ -290,13 +300,22 @@ mod tests {
             AlloyChainProviderError::ReceiptsConversion(Default::default()).into();
         assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
 
-        // BlockNotFound means the L1 block disappeared (L1 reorg). Retrying will never
-        // succeed — the pipeline must reset. Without this, the safe head stalls.
+        // Hash-based BlockNotFound: the block was reorged out. Retrying will never succeed
+        // — the pipeline must reset. Without this, the safe head stalls on L1 reorgs.
         let kind: PipelineErrorKind =
-            AlloyChainProviderError::BlockNotFound(BlockId::default()).into();
+            AlloyChainProviderError::BlockNotFound(B256::default().into()).into();
         assert!(
             matches!(kind, PipelineErrorKind::Reset(_)),
-            "BlockNotFound must map to Reset so the pipeline recovers from L1 reorgs"
+            "hash-based BlockNotFound must map to Reset (block reorged out)"
+        );
+
+        // Number-based BlockNotFound: the next L1 block hasn't been mined yet. This is
+        // transient — the pipeline must wait, not reset.
+        let kind: PipelineErrorKind =
+            AlloyChainProviderError::BlockNotFound(0u64.into()).into();
+        assert!(
+            matches!(kind, PipelineErrorKind::Temporary(_)),
+            "number-based BlockNotFound must stay Temporary (block not yet produced)"
         );
     }
 }
