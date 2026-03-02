@@ -9,7 +9,7 @@ use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind};
 use alloy_transport_http::reqwest;
 use async_trait::async_trait;
-use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind};
+use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_protocol::BlockInfo;
 use lru::LruCache;
 use std::{boxed::Box, num::NonZeroUsize, vec::Vec};
@@ -128,7 +128,7 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                 Self::Temporary(PipelineError::Provider(format!("Transport error: {e}")))
             }
             AlloyChainProviderError::BlockNotFound(id) => {
-                Self::Temporary(PipelineError::Provider(format!("L1 Block not found: {id}")))
+                ResetError::BlockNotFound(format!("{id}")).reset()
             }
             AlloyChainProviderError::ReceiptsConversion(_) => {
                 Self::Temporary(PipelineError::Provider(
@@ -268,5 +268,36 @@ impl ChainProvider for AlloyChainProvider {
         kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "block_info_and_tx");
 
         Ok((block_info, block.body.transactions))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_alloy_chain_provider_error() {
+        // Transport errors are transient — retry makes sense.
+        let transport_err = AlloyChainProviderError::Transport(
+            alloy_transport::RpcError::Transport(alloy_transport::TransportErrorKind::Custom(
+                "timeout".into(),
+            )),
+        );
+        let kind: PipelineErrorKind = transport_err.into();
+        assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
+
+        // ReceiptsConversion is a transient decode failure.
+        let kind: PipelineErrorKind =
+            AlloyChainProviderError::ReceiptsConversion(Default::default()).into();
+        assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
+
+        // BlockNotFound means the L1 block disappeared (L1 reorg). Retrying will never
+        // succeed — the pipeline must reset. Without this, the safe head stalls.
+        let kind: PipelineErrorKind =
+            AlloyChainProviderError::BlockNotFound(BlockId::default()).into();
+        assert!(
+            matches!(kind, PipelineErrorKind::Reset(_)),
+            "BlockNotFound must map to Reset so the pipeline recovers from L1 reorgs"
+        );
     }
 }
