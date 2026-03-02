@@ -135,9 +135,9 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                 let msg = format!("{id}");
                 match id {
                     BlockId::Hash(_) => ResetError::BlockNotFound(msg).reset(),
-                    BlockId::Number(_) => {
-                        Self::Temporary(PipelineError::Provider(format!("L1 Block not found: {msg}")))
-                    }
+                    BlockId::Number(_) => Self::Temporary(PipelineError::Provider(format!(
+                        "L1 Block not found: {msg}"
+                    ))),
                 }
             }
             AlloyChainProviderError::ReceiptsConversion(_) => {
@@ -311,8 +311,7 @@ mod tests {
 
         // Number-based BlockNotFound: the next L1 block hasn't been mined yet. This is
         // transient — the pipeline must wait, not reset.
-        let kind: PipelineErrorKind =
-            AlloyChainProviderError::BlockNotFound(0u64.into()).into();
+        let kind: PipelineErrorKind = AlloyChainProviderError::BlockNotFound(0u64.into()).into();
         assert!(
             matches!(kind, PipelineErrorKind::Temporary(_)),
             "number-based BlockNotFound must stay Temporary (block not yet produced)"
