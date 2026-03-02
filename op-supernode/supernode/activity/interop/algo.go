@@ -47,9 +47,6 @@ func (i *Interop) l1Inclusion(ts uint64, blocksAtTimestamp blockPerChain) (eth.B
 			l1Inclusion = l1Block
 		}
 	}
-	if l1Inclusion.Number == 0 {
-		return eth.BlockID{}, fmt.Errorf("no L1 inclusion found for timestamp %d", ts)
-	}
 	return l1Inclusion, nil
 }
 
