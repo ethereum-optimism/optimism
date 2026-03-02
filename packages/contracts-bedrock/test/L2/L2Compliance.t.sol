@@ -17,6 +17,7 @@ import { MockRuleApprove, MockRulePending, MockRuleReject } from "test/mocks/Moc
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Features } from "src/libraries/Features.sol";
 // Interfaces
 import { ICompliance } from "interfaces/universal/ICompliance.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
@@ -53,6 +54,7 @@ abstract contract L2Compliance_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         complianceOwner = makeAddr("complianceOwner");
 
