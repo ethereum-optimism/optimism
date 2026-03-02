@@ -11,7 +11,7 @@ orbs:
 parameters:
   c-default_docker_image:
     type: string
-    default: cimg/base:2024.01
+    default: cimg/base:2026.03
   c-base_image:
     type: string
     default: default

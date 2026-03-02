@@ -59,6 +59,168 @@ func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 	}
 }
 
+func TestL1Inclusion(t *testing.T) {
+	t.Parallel()
+
+	type l1InclusionTestCase struct {
+		name        string
+		setup       func() (*Interop, uint64, map[eth.ChainID]eth.BlockID)
+		expectError bool
+		errorMsg    string
+		validate    func(t *testing.T, l1 eth.BlockID)
+	}
+
+	tests := []l1InclusionTestCase{
+		{
+			name: "SingleChain",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chainID := eth.ChainIDFromUInt64(10)
+				expectedBlock := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
+				l1Block := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")}
+
+				interop := &Interop{
+					log:     gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{},
+					chains:  map[eth.ChainID]cc.ChainContainer{chainID: &algoMockChain{id: chainID, optimisticL1: l1Block}},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
+			},
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")}, l1)
+			},
+		},
+		{
+			name: "MultipleChains_HighestL1Selected",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chain1ID := eth.ChainIDFromUInt64(10)
+				chain2ID := eth.ChainIDFromUInt64(8453)
+				chain3ID := eth.ChainIDFromUInt64(420)
+
+				// Chain 1 has L1 at 60 (highest - should be selected)
+				// Chain 2 has L1 at 45 (earliest)
+				// Chain 3 has L1 at 50 (middle)
+				interop := &Interop{
+					log:     gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						chain1ID: &algoMockChain{id: chain1ID, optimisticL1: eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}},
+						chain2ID: &algoMockChain{id: chain2ID, optimisticL1: eth.BlockID{Number: 45, Hash: common.HexToHash("0xL1_2")}},
+						chain3ID: &algoMockChain{id: chain3ID, optimisticL1: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_3")}},
+					},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{
+					chain1ID: {Number: 100, Hash: common.HexToHash("0x1")},
+					chain2ID: {Number: 200, Hash: common.HexToHash("0x2")},
+					chain3ID: {Number: 150, Hash: common.HexToHash("0x3")},
+				}
+			},
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}, l1)
+			},
+		},
+		{
+			name: "ChainNotInChainsMap_Skipped",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chain1ID := eth.ChainIDFromUInt64(10)
+				chain2ID := eth.ChainIDFromUInt64(8453) // Not in chains map
+
+				l1Block1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_1")}
+
+				interop := &Interop{
+					log:     gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						chain1ID: &algoMockChain{id: chain1ID, optimisticL1: l1Block1},
+						// chain2ID NOT in chains map
+					},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{
+					chain1ID: {Number: 100, Hash: common.HexToHash("0x1")},
+					chain2ID: {Number: 200, Hash: common.HexToHash("0x2")},
+				}
+			},
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_1")}, l1)
+			},
+		},
+		{
+			name: "OptimisticAtError_ReturnsError",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chainID := eth.ChainIDFromUInt64(10)
+
+				interop := &Interop{
+					log:     gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						chainID: &algoMockChain{id: chainID, optimisticAtErr: errors.New("optimistic at error")},
+					},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{
+					chainID: {Number: 100, Hash: common.HexToHash("0x123")},
+				}
+			},
+			expectError: true,
+			errorMsg:    "failed to get L1 inclusion",
+		},
+		{
+			name: "NoChains_ReturnsEmpty",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				interop := &Interop{
+					log:     gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{},
+					chains:  map[eth.ChainID]cc.ChainContainer{},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{}
+			},
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{}, l1)
+			},
+		},
+		{
+			name: "GenesisBlock_NoError",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chainID := eth.ChainIDFromUInt64(10)
+				// L1 genesis block at number 0
+				l1Block := eth.BlockID{Number: 0, Hash: common.HexToHash("0xGenesisL1")}
+
+				interop := &Interop{
+					log:     gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{},
+					chains:  map[eth.ChainID]cc.ChainContainer{chainID: &algoMockChain{id: chainID, optimisticL1: l1Block}},
+				}
+				return interop, 0, map[eth.ChainID]eth.BlockID{
+					chainID: {Number: 0, Hash: common.HexToHash("0x123")},
+				}
+			},
+			// Genesis blocks included at L1 block number 0 must not cause an error.
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 0, Hash: common.HexToHash("0xGenesisL1")}, l1)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			interop, ts, blocks := tc.setup()
+			l1, err := interop.l1Inclusion(ts, blocks)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errorMsg != "" {
+					require.Contains(t, err.Error(), tc.errorMsg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tc.validate != nil {
+				tc.validate(t, l1)
+			}
+		})
+	}
+}
+
 func TestVerifyInteropMessages(t *testing.T) {
 	t.Parallel()
 
@@ -598,205 +760,6 @@ func TestVerifyInteropMessages(t *testing.T) {
 				// Only invalid in InvalidHeads
 				require.NotContains(t, result.InvalidHeads, validChainID)
 				require.Contains(t, result.InvalidHeads, invalidChainID)
-			},
-		},
-		// L1Inclusion tests
-		{
-			name: "L1Inclusion/SingleChain",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				chainID := eth.ChainIDFromUInt64(10)
-				blockHash := common.HexToHash("0x123")
-				expectedBlock := eth.BlockID{Number: 100, Hash: blockHash}
-				l1Block := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")}
-
-				mockDB := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: blockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-
-				mockChain := &algoMockChain{
-					id:           chainID,
-					optimisticL1: l1Block,
-				}
-
-				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
-					chains:  map[eth.ChainID]cc.ChainContainer{chainID: mockChain},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
-			},
-			validate: func(t *testing.T, result Result) {
-				chainID := eth.ChainIDFromUInt64(10)
-				expectedBlock := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
-				expectedL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")}
-				require.True(t, result.IsValid())
-				require.Empty(t, result.InvalidHeads)
-				require.Equal(t, expectedBlock, result.L2Heads[chainID])
-				require.Equal(t, expectedL1, result.L1Inclusion)
-			},
-		},
-		{
-			name: "L1Inclusion/MultipleChains_EarliestL1Selected",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				chain1ID := eth.ChainIDFromUInt64(10)
-				chain2ID := eth.ChainIDFromUInt64(8453)
-				chain3ID := eth.ChainIDFromUInt64(420)
-
-				block1 := eth.BlockID{Number: 100, Hash: common.HexToHash("0x1")}
-				block2 := eth.BlockID{Number: 200, Hash: common.HexToHash("0x2")}
-				block3 := eth.BlockID{Number: 150, Hash: common.HexToHash("0x3")}
-
-				// Chain 1 has L1 at 60 (highest)
-				// Chain 2 has L1 at 45 (earliest - should be selected)
-				// Chain 3 has L1 at 50 (middle)
-				l1Block1 := eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}
-				l1Block2 := eth.BlockID{Number: 45, Hash: common.HexToHash("0xL1_2")}
-				l1Block3 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_3")}
-
-				mockDB1 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block1.Hash, Number: block1.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-				mockDB2 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block2.Hash, Number: block2.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-				mockDB3 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block3.Hash, Number: block3.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-
-				mockChain1 := &algoMockChain{id: chain1ID, optimisticL1: l1Block1}
-				mockChain2 := &algoMockChain{id: chain2ID, optimisticL1: l1Block2}
-				mockChain3 := &algoMockChain{id: chain3ID, optimisticL1: l1Block3}
-
-				interop := &Interop{
-					log: gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{
-						chain1ID: mockDB1,
-						chain2ID: mockDB2,
-						chain3ID: mockDB3,
-					},
-					chains: map[eth.ChainID]cc.ChainContainer{
-						chain1ID: mockChain1,
-						chain2ID: mockChain2,
-						chain3ID: mockChain3,
-					},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{
-					chain1ID: block1,
-					chain2ID: block2,
-					chain3ID: block3,
-				}
-			},
-			validate: func(t *testing.T, result Result) {
-				// The earliest L1 block (45) should be selected
-				expectedL1 := eth.BlockID{Number: 45, Hash: common.HexToHash("0xL1_2")}
-				require.True(t, result.IsValid())
-				require.Empty(t, result.InvalidHeads)
-				require.Equal(t, expectedL1, result.L1Inclusion)
-				require.Len(t, result.L2Heads, 3)
-			},
-		},
-		{
-			name: "L1Inclusion/ChainNotInChainsMap_Skipped",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				chain1ID := eth.ChainIDFromUInt64(10)
-				chain2ID := eth.ChainIDFromUInt64(8453) // Not in chains map
-
-				block1 := eth.BlockID{Number: 100, Hash: common.HexToHash("0x1")}
-				block2 := eth.BlockID{Number: 200, Hash: common.HexToHash("0x2")}
-
-				l1Block1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_1")}
-
-				mockDB1 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block1.Hash, Number: block1.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-				mockDB2 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block2.Hash, Number: block2.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-
-				mockChain1 := &algoMockChain{id: chain1ID, optimisticL1: l1Block1}
-
-				interop := &Interop{
-					log: gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{
-						chain1ID: mockDB1,
-						chain2ID: mockDB2,
-					},
-					chains: map[eth.ChainID]cc.ChainContainer{
-						chain1ID: mockChain1,
-						// chain2ID is NOT in the chains map
-					},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{
-					chain1ID: block1,
-					chain2ID: block2,
-				}
-			},
-			validate: func(t *testing.T, result Result) {
-				chain2ID := eth.ChainIDFromUInt64(8453)
-				expectedL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_1")}
-				require.True(t, result.IsValid())
-				require.Empty(t, result.InvalidHeads)
-				// chain2 should still be in L2Heads even though it's not in chains map
-				require.Contains(t, result.L2Heads, chain2ID)
-				// L1Inclusion should only consider chain1
-				require.Equal(t, expectedL1, result.L1Inclusion)
-			},
-		},
-		{
-			name: "L1Inclusion/OptimisticAtError_ReturnsError",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				chainID := eth.ChainIDFromUInt64(10)
-				blockHash := common.HexToHash("0x123")
-				expectedBlock := eth.BlockID{Number: 100, Hash: blockHash}
-
-				mockDB := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: blockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-
-				mockChain := &algoMockChain{
-					id:              chainID,
-					optimisticAtErr: errors.New("optimistic at error"),
-				}
-
-				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
-					chains:  map[eth.ChainID]cc.ChainContainer{chainID: mockChain},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
-			},
-			expectError: true,
-			errorMsg:    "failed to get L1 inclusion",
-			validate: func(t *testing.T, result Result) {
-				require.True(t, result.IsEmpty())
-			},
-		},
-		{
-			name: "L1Inclusion/NoChains_Error",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{},
-					chains:  map[eth.ChainID]cc.ChainContainer{},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{}
-			},
-			expectError: true,
-			errorMsg:    "no L1 inclusion found",
-			validate: func(t *testing.T, result Result) {
-				require.True(t, result.IsEmpty())
 			},
 		},
 		// Error cases

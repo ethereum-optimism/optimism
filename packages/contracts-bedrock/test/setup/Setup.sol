@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { console2 as console } from "forge-std/console2.sol";
-import { Vm, VmSafe } from "forge-std/Vm.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 
@@ -217,9 +217,12 @@ abstract contract Setup is FeatureFlags {
         console.log("Setup: L2 setup done!");
     }
 
-    /// @dev Skips tests when running in coverage mode.
-    function skipIfCoverage() public {
-        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+    /// @dev Skips tests that require production-like bytecode. This includes coverage mode
+    ///      (which adds instrumentation) and unoptimized Foundry profiles (which produce
+    ///      different CREATE2 addresses and gas costs). Use for gas measurement tests,
+    ///      bytecode verification tests, and any test sensitive to compiler output.
+    function skipIfUnoptimized() public {
+        if (Config.isUnoptimized()) {
             vm.skip(true);
         }
     }

@@ -3,7 +3,6 @@ package interop
 import (
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -28,6 +27,29 @@ var (
 	ErrMessageExpired = errors.New("initiating message has expired")
 )
 
+type blockPerChain = map[eth.ChainID]eth.BlockID
+
+// l1Inclusion returns the earliest L1 block such that all L2 blocks at the supplied timestamp were derived
+// from a source at or before that L1 block.
+func (i *Interop) l1Inclusion(ts uint64, blocksAtTimestamp blockPerChain) (eth.BlockID, error) {
+	l1Inclusion := eth.BlockID{}
+	for chainID := range blocksAtTimestamp {
+		chain, ok := i.chains[chainID]
+		if !ok {
+			continue
+		}
+		_, l1Block, err := chain.OptimisticAt(i.ctx, ts)
+		if err != nil {
+			i.log.Error("failed to get L1 inclusion for L2 block", "chainID", chainID, "timestamp", ts, "err", err)
+			return eth.BlockID{}, fmt.Errorf("chain %s: failed to get L1 inclusion: %w", chainID, err)
+		}
+		if l1Block.Number >= l1Inclusion.Number {
+			l1Inclusion = l1Block
+		}
+	}
+	return l1Inclusion, nil
+}
+
 // verifyInteropMessages validates all executing messages at the given timestamp.
 // Returns a Result indicating whether all messages are valid or which chains have invalid blocks.
 //
@@ -37,37 +59,18 @@ var (
 //   - Verify the initiating message exists in the source chain's logsDB
 //   - Verify the initiating message timestamp <= executing message timestamp
 //   - Verify the initiating message hasn't expired (within ExpiryTime)
-func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
+func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerChain) (Result, error) {
 	result := Result{
 		Timestamp:    ts,
-		L2Heads:      make(map[eth.ChainID]eth.BlockID),
-		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
+		L2Heads:      make(blockPerChain),
+		InvalidHeads: make(blockPerChain),
 	}
 
-	// Compute L1Inclusion: the earliest L1 block such that all L2 blocks at the
-	// supplied timestamp were derived
-	// from a source at or before that L1 block.
-	earliestL1Inclusion := eth.BlockID{
-		Number: math.MaxUint64,
+	if l1Inclusion, err := i.l1Inclusion(ts, blocksAtTimestamp); err != nil {
+		return Result{}, err
+	} else {
+		result.L1Inclusion = l1Inclusion
 	}
-	for chainID := range blocksAtTimestamp {
-		chain, ok := i.chains[chainID]
-		if !ok {
-			continue
-		}
-		_, l1Block, err := chain.OptimisticAt(i.ctx, ts)
-		if err != nil {
-			i.log.Error("failed to get L1 inclusion for L2 block", "chainID", chainID, "timestamp", ts, "err", err)
-			return Result{}, fmt.Errorf("chain %s: failed to get L1 inclusion: %w", chainID, err)
-		}
-		if l1Block.Number < earliestL1Inclusion.Number {
-			earliestL1Inclusion = l1Block
-		}
-	}
-	if earliestL1Inclusion.Number == math.MaxUint64 {
-		return Result{}, fmt.Errorf("no L1 inclusion found for timestamp %d", ts)
-	}
-	result.L1Inclusion = earliestL1Inclusion
 
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]

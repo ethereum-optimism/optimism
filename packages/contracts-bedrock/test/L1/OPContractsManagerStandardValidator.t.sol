@@ -5,8 +5,10 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
+import { LibString } from "@solady/utils/LibString.sol";
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
@@ -188,6 +190,55 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
                 abi.encode(standardValidator.optimismMintableERC20FactoryImpl())
             );
+
+            // When running fork tests with an unoptimized Foundry profile (e.g., liteci),
+            // implementation contracts deployed via CREATE2 get different addresses because
+            // unoptimized bytecode differs from production builds. Most proxies are re-pointed
+            // to new implementations during the OPCM upgrade, so their getProxyImplementation
+            // checks pass regardless of optimizer settings. However, DelayedWETH and ETHLockbox
+            // proxies are NOT re-pointed during the upgrade — they retain the mainnet
+            // implementations. With optimized builds the CREATE2 addresses match mainnet, but
+            // with unoptimized builds they diverge. Mock getProxyImplementation for these
+            // proxies so the validator sees the expected implementation addresses.
+            {
+                string memory _profile = Config.foundryProfile();
+                bool _isOptimizedProfile = LibString.eq(_profile, "default") || LibString.eq(_profile, "ci");
+                if (!_isOptimizedProfile) {
+                    IDelayedWETH _cannonWeth = DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.CANNON);
+                    if (address(_cannonWeth) != address(0)) {
+                        vm.mockCall(
+                            address(proxyAdmin),
+                            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_cannonWeth))),
+                            abi.encode(standardValidator.delayedWETHImpl())
+                        );
+                    }
+                    IDelayedWETH _permissionedWeth =
+                        DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.PERMISSIONED_CANNON);
+                    if (address(_permissionedWeth) != address(0)) {
+                        vm.mockCall(
+                            address(proxyAdmin),
+                            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_permissionedWeth))),
+                            abi.encode(standardValidator.delayedWETHImpl())
+                        );
+                    }
+                    IDelayedWETH _cannonKonaWeth = DisputeGames.getGameImplDelayedWeth(dgf, GameTypes.CANNON_KONA);
+                    if (address(_cannonKonaWeth) != address(0)) {
+                        vm.mockCall(
+                            address(proxyAdmin),
+                            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_cannonKonaWeth))),
+                            abi.encode(standardValidator.delayedWETHImpl())
+                        );
+                    }
+                    if (address(ethLockbox) != address(0)) {
+                        vm.mockCall(
+                            address(proxyAdmin),
+                            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(ethLockbox))),
+                            abi.encode(standardValidator.ethLockboxImpl())
+                        );
+                    }
+                }
+            }
+
             DisputeGames.mockGameImplChallenger(
                 disputeGameFactory, GameTypes.PERMISSIONED_CANNON, standardValidator.challenger()
             );

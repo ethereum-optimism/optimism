@@ -389,14 +389,22 @@ func (i *Interop) checkChainsReady(ts uint64) (map[eth.ChainID]eth.BlockID, erro
 		}(chain)
 	}
 
-	// Collect results
+	// Collect all results before returning so every goroutine completes before the
+	// next call spawns a new batch, preventing accumulation of in-flight RPC calls.
 	blocksAtTimestamp := make(map[eth.ChainID]eth.BlockID)
+	var firstErr error
 	for range i.chains {
 		r := <-results
 		if r.err != nil {
-			return nil, r.err
+			if firstErr == nil {
+				firstErr = r.err
+			}
+		} else {
+			blocksAtTimestamp[r.chainID] = r.blockID
 		}
-		blocksAtTimestamp[r.chainID] = r.blockID
+	}
+	if firstErr != nil {
+		return nil, firstErr
 	}
 
 	return blocksAtTimestamp, nil

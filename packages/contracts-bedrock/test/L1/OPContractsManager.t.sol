@@ -28,6 +28,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Types as LibTypes } from "src/libraries/Types.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -268,6 +269,56 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
+
+        // When running fork tests with an unoptimized Foundry profile (e.g., liteci),
+        // implementation contracts deployed via CREATE2 get different addresses because
+        // unoptimized bytecode differs from production builds. Most proxies are re-pointed
+        // to new implementations during the OPCM upgrade, so their getProxyImplementation
+        // checks pass regardless of optimizer settings. However, DelayedWETH and ETHLockbox
+        // proxies are NOT re-pointed during the upgrade — they retain the mainnet
+        // implementations. With optimized builds the CREATE2 addresses match mainnet, but
+        // with unoptimized builds they diverge. Mock getProxyImplementation for these
+        // proxies so the validator sees the expected implementation addresses.
+        {
+            string memory _profile = Config.foundryProfile();
+            bool _isOptimizedProfile = LibString.eq(_profile, "default") || LibString.eq(_profile, "ci");
+            if (!_isOptimizedProfile) {
+                IDelayedWETH _cannonWeth = DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON);
+                if (address(_cannonWeth) != address(0)) {
+                    vm.mockCall(
+                        address(proxyAdmin),
+                        abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_cannonWeth))),
+                        abi.encode(validator.delayedWETHImpl())
+                    );
+                }
+                IDelayedWETH _permissionedWeth =
+                    DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.PERMISSIONED_CANNON);
+                if (address(_permissionedWeth) != address(0)) {
+                    vm.mockCall(
+                        address(proxyAdmin),
+                        abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_permissionedWeth))),
+                        abi.encode(validator.delayedWETHImpl())
+                    );
+                }
+                IDelayedWETH _cannonKonaWeth =
+                    DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON_KONA);
+                if (address(_cannonKonaWeth) != address(0)) {
+                    vm.mockCall(
+                        address(proxyAdmin),
+                        abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_cannonKonaWeth))),
+                        abi.encode(validator.delayedWETHImpl())
+                    );
+                }
+                IETHLockbox _lockbox = optimismPortal2.ethLockbox();
+                if (address(_lockbox) != address(0)) {
+                    vm.mockCall(
+                        address(proxyAdmin),
+                        abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_lockbox))),
+                        abi.encode(validator.ethLockboxImpl())
+                    );
+                }
+            }
+        }
 
         // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
         // standard validator. This happens because an absolute prestate of zero means that the
@@ -1448,7 +1499,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_verifyOpcmCorrectness_succeeds() public {
-        skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
+        skipIfUnoptimized();
 
         // Set up environment variables with the actual OPCM addresses for tests that need them.
         // These values come from the StandardValidator that was deployed with the OPCM.
