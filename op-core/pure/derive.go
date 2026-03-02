@@ -19,8 +19,8 @@ import (
 // produces the same outputs. No network access, no caching, no side effects.
 //
 // l1Blocks must be contiguous and strictly ordered by number. They should start
-// at least ChannelTimeoutBedrock blocks before safeHead.L1Origin.Number to
-// ensure channels opened before the safe head can still be decoded.
+// at least ChannelTimeout blocks before safeHead.L1Origin.Number to ensure
+// channels opened before the safe head can still be decoded.
 //
 // Requires the Karst fork to be active at the safe head timestamp. Before Karst,
 // span batches may overlap the safe chain, which this implementation does not support.
@@ -50,21 +50,24 @@ func PureDerive(
 		return nil, nil
 	}
 
+	spec := rollup.NewChainSpec(cfg)
+
 	// L1 blocks must be contiguous and strictly ordered. Compute the base
 	// number so we can do O(1) lookups by index arithmetic.
 	firstL1Num := l1Blocks[0].Header.Number.Uint64()
 
-	// Require l1Blocks to start at least ChannelTimeoutBedrock before the safe
+	// Require l1Blocks to start at least ChannelTimeout before the safe
 	// head's L1 origin so that channels opened before the safe head are available.
+	channelTimeout := spec.ChannelTimeout(safeHead.Time)
 	requiredStart := safeHead.L1Origin.Number
-	if requiredStart > cfg.ChannelTimeoutBedrock {
-		requiredStart -= cfg.ChannelTimeoutBedrock
+	if requiredStart > channelTimeout {
+		requiredStart -= channelTimeout
 	} else {
 		requiredStart = 0
 	}
 	if firstL1Num > requiredStart {
 		return nil, fmt.Errorf("l1Blocks start at %d but must start at or before %d (safe head origin %d minus channel timeout %d)",
-			firstL1Num, requiredStart, safeHead.L1Origin.Number, cfg.ChannelTimeoutBedrock)
+			firstL1Num, requiredStart, safeHead.L1Origin.Number, channelTimeout)
 	}
 
 	cursor := newCursor(safeHead)
@@ -95,7 +98,7 @@ func PureDerive(
 			}
 		}
 
-		assembler.checkTimeout(l1Ref, cfg.ChannelTimeoutBedrock)
+		assembler.checkTimeout(l1Ref, spec.ChannelTimeout(l1Ref.Time))
 
 		for _, txData := range l1.BatcherData {
 			frames, err := derive.ParseFrames(txData)
@@ -115,7 +118,13 @@ func PureDerive(
 				batches := decodeBatches(lgr, ready.channel.Reader(), cfg, l1Origins, cursor, ready.openBlock)
 
 				for _, batch := range batches {
-					if !validateBatch(lgr, batch, cursor, l1Origins, cfg, l1Ref.Number) {
+					validity := validateBatch(lgr, batch, cursor, l1Origins, cfg, l1Ref.Number)
+					if validity == derive.BatchPast {
+						lgr.Debug("batch is past, skipping",
+							"timestamp", batch.Timestamp, "epoch", batch.EpochNum)
+						continue
+					}
+					if validity != derive.BatchAccept {
 						lgr.Warn("invalid batch, flushing channel",
 							"timestamp", batch.Timestamp, "epoch", batch.EpochNum, "l1_block", l1Ref.Number)
 						break
@@ -149,11 +158,17 @@ func PureDerive(
 			newOrigin := cursor.L1Origin
 			newSeqNum := cursor.SequenceNumber + 1
 
+			epochL1 := findL1(cursor.L1Origin.Number)
+			if epochL1 == nil {
+				return nil, fmt.Errorf("missing L1 block %d for empty batch epoch", cursor.L1Origin.Number)
+			}
+
 			// Advance epoch if the next L2 timestamp >= next L1 block's timestamp.
 			nextL1 := findL1(cursor.L1Origin.Number + 1)
 			if nextL1 != nil && nextTimestamp >= nextL1.Header.Time {
 				newOrigin = nextL1.BlockID()
 				newSeqNum = 0
+				epochL1 = nextL1
 			}
 
 			emptyBatch := &derive.SingularBatch{
@@ -162,10 +177,6 @@ func PureDerive(
 				Timestamp: nextTimestamp,
 			}
 
-			epochL1 := findL1(newOrigin.Number)
-			if epochL1 == nil {
-				return nil, fmt.Errorf("missing L1 block %d for empty batch epoch", newOrigin.Number)
-			}
 			block, err := buildAttributes(emptyBatch, epochL1, cursor, sysConfig, cfg, l1ChainConfig)
 			if err != nil {
 				return nil, fmt.Errorf("building empty batch attributes at L1 block %d: %w", l1Ref.Number, err)

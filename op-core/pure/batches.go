@@ -124,13 +124,22 @@ func decodeBatches(
 // require L2 state access:
 //   - Parent hash validation (deferred to post-execution via DerivedBlock.ExpectedParentHash)
 //
-// All other checks from checkSingularBatch are replicated here. With Karst active,
-// overlapping span batches are already rejected in decodeBatches.
-func validateBatch(lgr log.Logger, batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth.L1BlockRef, cfg *rollup.Config, l1InclusionNum uint64) bool {
+// Returns BatchAccept, BatchPast, or BatchDrop. With Karst active (implying
+// Holocene), past batches return BatchPast instead of BatchDrop.
+//
+// Overlapping span batches are already rejected in decodeBatches via
+// CheckSpanBatchPrefix.
+func validateBatch(lgr log.Logger, batch *derive.SingularBatch, cursor l2Cursor, l1Origins []eth.L1BlockRef, cfg *rollup.Config, l1InclusionNum uint64) derive.BatchValidity {
 	expectedTimestamp := cursor.Timestamp + cfg.BlockTime
-	if batch.Timestamp != expectedTimestamp {
-		lgr.Warn("batch has wrong timestamp", "expected", expectedTimestamp, "got", batch.Timestamp)
-		return false
+
+	// Holocene (implied by Karst): past batches are BatchPast, future batches are BatchDrop.
+	if batch.Timestamp > expectedTimestamp {
+		lgr.Warn("batch timestamp too new", "expected", expectedTimestamp, "got", batch.Timestamp)
+		return derive.BatchDrop
+	}
+	if batch.Timestamp < expectedTimestamp {
+		lgr.Debug("batch is past safe head", "expected", expectedTimestamp, "got", batch.Timestamp)
+		return derive.BatchPast
 	}
 
 	epochNum := uint64(batch.EpochNum)
@@ -138,17 +147,17 @@ func validateBatch(lgr log.Logger, batch *derive.SingularBatch, cursor l2Cursor,
 	// Sequence window: batch must be included within SeqWindowSize of its epoch.
 	if epochNum+cfg.SeqWindowSize < l1InclusionNum {
 		lgr.Warn("batch sequence window expired", "epoch", epochNum, "inclusion", l1InclusionNum, "window", cfg.SeqWindowSize)
-		return false
+		return derive.BatchDrop
 	}
 
 	// Epoch must be current or next (cannot skip epochs).
 	if epochNum < cursor.L1Origin.Number {
 		lgr.Warn("batch epoch too old", "epoch", epochNum, "cursor_origin", cursor.L1Origin.Number)
-		return false
+		return derive.BatchDrop
 	}
 	if epochNum > cursor.L1Origin.Number+1 {
 		lgr.Warn("batch epoch too new", "epoch", epochNum, "cursor_origin", cursor.L1Origin.Number)
-		return false
+		return derive.BatchDrop
 	}
 
 	// Find the batch's L1 origin and verify epoch hash.
@@ -161,17 +170,26 @@ func validateBatch(lgr log.Logger, batch *derive.SingularBatch, cursor l2Cursor,
 	}
 	if batchOrigin == nil {
 		lgr.Warn("batch epoch L1 origin not found", "epoch", epochNum)
-		return false
+		return derive.BatchDrop
 	}
 	if batch.EpochHash != batchOrigin.Hash {
 		lgr.Warn("batch epoch hash mismatch", "epoch", epochNum, "expected", batchOrigin.Hash, "got", batch.EpochHash)
-		return false
+		return derive.BatchDrop
 	}
 
 	// Batch timestamp must be >= L1 origin timestamp.
 	if batch.Timestamp < batchOrigin.Time {
 		lgr.Warn("batch timestamp before L1 origin", "batch_time", batch.Timestamp, "l1_time", batchOrigin.Time)
-		return false
+		return derive.BatchDrop
+	}
+
+	// Fork activation blocks must not contain user transactions.
+	if (cfg.IsJovianActivationBlock(batch.Timestamp) ||
+		cfg.IsKarstActivationBlock(batch.Timestamp) ||
+		cfg.IsInteropActivationBlock(batch.Timestamp)) &&
+		len(batch.Transactions) > 0 {
+		lgr.Warn("batch has transactions at fork activation block")
+		return derive.BatchDrop
 	}
 
 	// Sequencer time drift: L2 time must not exceed L1 time + MaxSequencerDrift.
@@ -186,7 +204,7 @@ func validateBatch(lgr log.Logger, batch *derive.SingularBatch, cursor l2Cursor,
 					if l1Origins[i].Number == epochNum+1 {
 						if batch.Timestamp >= l1Origins[i].Time {
 							lgr.Warn("empty batch exceeds drift but should have adopted next origin")
-							return false
+							return derive.BatchDrop
 						}
 						break
 					}
@@ -194,27 +212,26 @@ func validateBatch(lgr log.Logger, batch *derive.SingularBatch, cursor l2Cursor,
 			}
 		} else {
 			lgr.Warn("batch exceeds sequencer drift", "batch_time", batch.Timestamp, "max_drift", maxDrift)
-			return false
+			return derive.BatchDrop
 		}
-	}
-
-	// Fork activation blocks must not contain user transactions.
-	if cfg.IsKarstActivationBlock(batch.Timestamp) && len(batch.Transactions) > 0 {
-		lgr.Warn("batch has transactions at Karst activation block")
-		return false
 	}
 
 	// Transaction validation.
+	isIsthmus := cfg.IsIsthmus(batch.Timestamp)
 	for _, txBytes := range batch.Transactions {
 		if len(txBytes) == 0 {
 			lgr.Warn("batch contains empty transaction")
-			return false
+			return derive.BatchDrop
 		}
 		if txBytes[0] == types.DepositTxType {
 			lgr.Warn("batch contains deposit transaction")
-			return false
+			return derive.BatchDrop
+		}
+		if !isIsthmus && txBytes[0] == types.SetCodeTxType {
+			lgr.Warn("batch contains SetCode transaction before Isthmus")
+			return derive.BatchDrop
 		}
 	}
 
-	return true
+	return derive.BatchAccept
 }

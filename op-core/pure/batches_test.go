@@ -61,7 +61,7 @@ func TestValidateBatch_ValidSingular(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.True(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.Equal(t, derive.BatchValidity(derive.BatchAccept), validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_WrongTimestamp(t *testing.T) {
@@ -77,15 +77,15 @@ func TestValidateBatch_WrongTimestamp(t *testing.T) {
 	batch := &derive.SingularBatch{
 		EpochNum:  rollup.Epoch(l1Origin.Number),
 		EpochHash: l1Origin.Hash,
-		Timestamp: cursor.Timestamp + cfg.BlockTime + 1, // wrong
+		Timestamp: cursor.Timestamp + cfg.BlockTime + 1, // too new
 	}
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.Equal(t, derive.BatchValidity(derive.BatchDrop), validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
-func TestValidateBatch_SpanBatchNoOverlap(t *testing.T) {
+func TestValidateBatch_PastTimestamp(t *testing.T) {
 	cfg := testRollupConfig()
 	l1Origin := testL1Ref(5)
 
@@ -95,16 +95,15 @@ func TestValidateBatch_SpanBatchNoOverlap(t *testing.T) {
 		L1Origin:  l1Origin.ID(),
 	}
 
-	// Timestamp before cursor (overlap) -- this will fail the timestamp == cursor + blockTime check
 	batch := &derive.SingularBatch{
 		EpochNum:  rollup.Epoch(l1Origin.Number),
 		EpochHash: l1Origin.Hash,
-		Timestamp: cursor.Timestamp - 2,
+		Timestamp: cursor.Timestamp - 2, // in the past
 	}
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.Equal(t, derive.BatchValidity(derive.BatchPast), validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_EpochTooOld(t *testing.T) {
@@ -126,7 +125,7 @@ func TestValidateBatch_EpochTooOld(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{oldOrigin, testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.Equal(t, derive.BatchValidity(derive.BatchDrop), validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_EpochTooNew(t *testing.T) {
@@ -147,7 +146,7 @@ func TestValidateBatch_EpochTooNew(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.Equal(t, derive.BatchValidity(derive.BatchDrop), validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_SequenceWindowExpired(t *testing.T) {
@@ -169,7 +168,7 @@ func TestValidateBatch_SequenceWindowExpired(t *testing.T) {
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
 	// Inclusion at block 16: epochNum(5) + SeqWindowSize(10) = 15 < 16 → expired
-	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, 16))
+	require.Equal(t, derive.BatchValidity(derive.BatchDrop), validateBatch(testLogger, batch, cursor, l1Origins, cfg, 16))
 }
 
 func TestValidateBatch_EpochSkip(t *testing.T) {
@@ -191,7 +190,7 @@ func TestValidateBatch_EpochSkip(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6), testL1Ref(7)}
 
-	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.Equal(t, derive.BatchValidity(derive.BatchDrop), validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
 
 func TestValidateBatch_DepositTxRejected(t *testing.T) {
@@ -213,5 +212,5 @@ func TestValidateBatch_DepositTxRejected(t *testing.T) {
 
 	l1Origins := []eth.L1BlockRef{testL1Ref(4), l1Origin, testL1Ref(6)}
 
-	require.False(t, validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
+	require.Equal(t, derive.BatchValidity(derive.BatchDrop), validateBatch(testLogger, batch, cursor, l1Origins, cfg, l1Origin.Number))
 }
