@@ -55,6 +55,11 @@ type Interop struct {
 
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
 
+	// cycleVerifyFn handles same-timestamp cycle verification.
+	// It is called after verifyFn in progressInterop, and its results are merged.
+	// Set to verifyCycleMessages by default in New().
+	cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+
 	// pauseAtTimestamp is used for integration test control only.
 	// When non-zero, progressInterop will return early without processing
 	// if the next timestamp to process is >= this value.
@@ -105,6 +110,7 @@ func New(
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
 	i.verifyFn = i.verifyInteropMessages
+	i.cycleVerifyFn = i.verifyCycleMessages
 	return i
 }
 
@@ -297,9 +303,28 @@ func (i *Interop) progressInterop() (Result, error) {
 		return Result{}, err
 	}
 
-	// 3: validate interop messages
-	// and return the result and any errors
-	return i.verifyFn(ts, blocksAtTimestamp)
+	// 3: validate interop messages using verifyFn
+	result, err := i.verifyFn(ts, blocksAtTimestamp)
+	if err != nil {
+		return Result{}, err
+	}
+
+	// 4: run cycle verification and merge results
+	cycleResult, err := i.cycleVerifyFn(ts, blocksAtTimestamp)
+	if err != nil {
+		return Result{}, fmt.Errorf("cycle verification failed: %w", err)
+	}
+	// Merge invalid heads from cycle verification into result
+	if len(cycleResult.InvalidHeads) > 0 {
+		if result.InvalidHeads == nil {
+			result.InvalidHeads = make(map[eth.ChainID]eth.BlockID)
+		}
+		for chainID, invalidBlock := range cycleResult.InvalidHeads {
+			result.InvalidHeads[chainID] = invalidBlock
+		}
+	}
+
+	return result, nil
 }
 
 func (i *Interop) handleResult(result Result) error {

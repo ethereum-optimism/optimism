@@ -208,6 +208,72 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
+			name: "ValidBlocks/SameTimestampMessage",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				// Same-timestamp interop: executing message references an initiating message
+				// from the SAME timestamp.
+				sourceChainID := eth.ChainIDFromUInt64(10)
+				destChainID := eth.ChainIDFromUInt64(8453)
+
+				sourceBlockHash := common.HexToHash("0xSource")
+				destBlockHash := common.HexToHash("0xDest")
+
+				// Both blocks at the SAME timestamp
+				sharedTimestamp := uint64(1000)
+
+				sourceBlock := eth.BlockID{Number: 50, Hash: sourceBlockHash}
+				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+				execMsg := &suptypes.ExecutingMessage{
+					ChainID:   sourceChainID,
+					BlockNum:  50,
+					LogIdx:    0,
+					Timestamp: sharedTimestamp, // SAME as executing timestamp - should be VALID
+					Checksum:  suptypes.MessageChecksum{0x01},
+				}
+
+				sourceDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: sharedTimestamp},
+					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: sharedTimestamp},
+				}
+
+				destDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: sharedTimestamp},
+					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+						0: execMsg,
+					},
+				}
+
+				l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
+
+				interop := &Interop{
+					log: gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{
+						sourceChainID: sourceDB,
+						destChainID:   destDB,
+					},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						sourceChainID: newMockChainWithL1(sourceChainID, l1Block),
+						destChainID:   newMockChainWithL1(destChainID, l1Block),
+					},
+				}
+
+				return interop, sharedTimestamp, map[eth.ChainID]eth.BlockID{
+					sourceChainID: sourceBlock,
+					destChainID:   destBlock,
+				}
+			},
+			validate: func(t *testing.T, result Result) {
+				// Same-timestamp messages should now be VALID
+				require.True(t, result.IsValid(), "same-timestamp messages should be valid")
+				require.Empty(t, result.InvalidHeads, "no blocks should be invalid")
+			},
+		},
+		{
+			// Interop verification *never* expects to be given chain data for chains that are not part of the supernode,
+			// so this test is not helpful except to demonstrate the specified behavior: if chain data is available
+			// but is not part of the chains map for some reason, it should not be used at all, as it is unrelated to the
+			// superchain's interop verification.
 			name: "ValidBlocks/UnregisteredChainsSkipped",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
 				registeredChain := eth.ChainIDFromUInt64(10)
@@ -319,8 +385,11 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "InvalidBlocks/TimestampViolation",
+			name: "InvalidBlocks/FutureTimestamp",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				// Future timestamp: initiating message timestamp > executing timestamp.
+				// This is INVALID (you can't execute a message that hasn't been initiated yet).
+				// Note: Same-timestamp (==) is ALLOWED, only strictly greater (>) is invalid.
 				sourceChainID := eth.ChainIDFromUInt64(10)
 				destChainID := eth.ChainIDFromUInt64(8453)
 
@@ -331,7 +400,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
-					Timestamp: 1001, // Future timestamp - INVALID!
+					Timestamp: 1001, // FUTURE timestamp (> 1000) - INVALID!
 					Checksum:  suptypes.MessageChecksum{0x01},
 				}
 
@@ -362,7 +431,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 			validate: func(t *testing.T, result Result) {
 				destChainID := eth.ChainIDFromUInt64(8453)
-				require.False(t, result.IsValid())
+				require.False(t, result.IsValid(), "future timestamp messages should be invalid")
 				require.Contains(t, result.InvalidHeads, destChainID)
 			},
 		},

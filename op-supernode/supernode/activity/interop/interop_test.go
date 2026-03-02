@@ -137,6 +137,7 @@ func TestNew(t *testing.T) {
 				require.Len(t, interop.chains, 2)
 				require.Len(t, interop.logsDBs, 2)
 				require.NotNil(t, interop.verifyFn)
+				require.NotNil(t, interop.cycleVerifyFn)
 
 				for chainID := range h.Chains() {
 					require.Contains(t, interop.logsDBs, chainID)
@@ -529,6 +530,156 @@ func TestProgressInterop(t *testing.T) {
 			}
 			result, err := h.interop.progressInterop()
 			tc.assert(t, result, err)
+		})
+	}
+}
+
+// =============================================================================
+// TestProgressInteropWithCycleVerify
+// =============================================================================
+
+func TestProgressInteropWithCycleVerify(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		setup func(h *interopTestHarness) *interopTestHarness
+		run   func(t *testing.T, h *interopTestHarness)
+	}{
+		{
+			name: "default cycleVerifyFn returns valid result",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				// Set verifyFn to return a valid result
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{Timestamp: ts, L2Heads: blocks}, nil
+				}
+				// cycleVerifyFn is overridden with this stub implementation.
+
+				result, err := h.interop.progressInterop()
+				require.NoError(t, err)
+				require.False(t, result.IsEmpty())
+				require.True(t, result.IsValid())
+			},
+		},
+		{
+			name: "cycleVerifyFn called after verifyFn and results merged",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				}).WithChain(8453, func(m *mockChainContainer) {
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				verifyFnCalled := false
+				cycleVerifyFnCalled := false
+				chain10 := eth.ChainIDFromUInt64(10)
+				chain8453 := eth.ChainIDFromUInt64(8453)
+
+				// verifyFn returns valid result
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					verifyFnCalled = true
+					return Result{Timestamp: ts, L2Heads: blocks}, nil
+				}
+
+				// cycleVerifyFn marks chain 8453 as invalid
+				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					require.True(t, verifyFnCalled, "verifyFn should be called before cycleVerifyFn")
+					cycleVerifyFnCalled = true
+					return Result{
+						Timestamp: ts,
+						L2Heads:   blocks,
+						InvalidHeads: map[eth.ChainID]eth.BlockID{
+							chain8453: blocks[chain8453],
+						},
+					}, nil
+				}
+
+				result, err := h.interop.progressInterop()
+				require.NoError(t, err)
+				require.True(t, verifyFnCalled, "verifyFn should be called")
+				require.True(t, cycleVerifyFnCalled, "cycleVerifyFn should be called")
+				require.False(t, result.IsValid(), "result should be invalid due to cycleVerifyFn")
+				require.Contains(t, result.InvalidHeads, chain8453)
+				require.NotContains(t, result.InvalidHeads, chain10)
+			},
+		},
+		{
+			name: "cycleVerifyFn error propagated",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{Timestamp: ts, L2Heads: blocks}, nil
+				}
+				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{}, errors.New("cycle verification failed")
+				}
+
+				result, err := h.interop.progressInterop()
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "cycle verification")
+				require.True(t, result.IsEmpty())
+			},
+		},
+		{
+			name: "both verifyFn and cycleVerifyFn invalid heads are merged",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				}).WithChain(8453, func(m *mockChainContainer) {
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				chain10 := eth.ChainIDFromUInt64(10)
+				chain8453 := eth.ChainIDFromUInt64(8453)
+
+				// verifyFn marks chain 10 as invalid
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{
+						Timestamp: ts,
+						L2Heads:   blocks,
+						InvalidHeads: map[eth.ChainID]eth.BlockID{
+							chain10: blocks[chain10],
+						},
+					}, nil
+				}
+
+				// cycleVerifyFn marks chain 8453 as invalid
+				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{
+						Timestamp: ts,
+						L2Heads:   blocks,
+						InvalidHeads: map[eth.ChainID]eth.BlockID{
+							chain8453: blocks[chain8453],
+						},
+					}, nil
+				}
+
+				result, err := h.interop.progressInterop()
+				require.NoError(t, err)
+				require.False(t, result.IsValid())
+				// Both chains should be in InvalidHeads
+				require.Contains(t, result.InvalidHeads, chain10, "chain10 from verifyFn should be invalid")
+				require.Contains(t, result.InvalidHeads, chain8453, "chain8453 from cycleVerifyFn should be invalid")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newInteropTestHarness(t)
+			tc.setup(h)
+			tc.run(t, h)
 		})
 	}
 }
