@@ -1848,7 +1848,7 @@ jobs:
       - run:
           name: check nut locks
           command: |
-            just check-nut-locks
+            go run ./ops/scripts/check-nut-locks
 
   go-tests:
     parameters:
