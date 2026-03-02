@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 interface IOptimismMintableERC721Factory {
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
+    event Initialized(uint8 version);
+
     function BRIDGE() external view returns (address);
     function REMOTE_CHAIN_ID() external view returns (uint256);
     function bridge() external view returns (address);
