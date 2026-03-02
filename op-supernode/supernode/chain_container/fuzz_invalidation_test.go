@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -192,18 +193,18 @@ func FuzzDenyListConcurrent(f *testing.F) {
 
 					// Add
 					err := dl.Add(height, hash)
-					require.NoError(t, err, "worker %d: Add should not error", workerID)
+					assert.NoError(t, err, "worker %d: Add should not error", workerID)
 
 					// Read-after-write should always find it
 					found, err := dl.Contains(height, hash)
-					require.NoError(t, err, "worker %d: Contains should not error", workerID)
-					require.True(t, found, "worker %d: should find own hash at height %d", workerID, height)
+					assert.NoError(t, err, "worker %d: Contains should not error", workerID)
+					assert.True(t, found, "worker %d: should find own hash at height %d", workerID, height)
 
 					// Read from another worker's range (should not error)
 					otherWorker := (workerID + 1) % numWorkers
 					otherHeight := workers[otherWorker].heights[j%len(workers[otherWorker].heights)]
 					_, err = dl.Contains(otherHeight, common.Hash{})
-					require.NoError(t, err, "worker %d: cross-range Contains should not error", workerID)
+					assert.NoError(t, err, "worker %d: cross-range Contains should not error", workerID)
 				}
 			}(i)
 		}
