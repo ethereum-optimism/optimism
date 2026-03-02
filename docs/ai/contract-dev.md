@@ -20,7 +20,7 @@ Proxied contracts in the OP Stack can be re-initialized during upgrades (via `re
 - Operations that depend on prior state (e.g., "add 10 to balance" vs "set balance to 10")
 
 
-### Other Reasons an Initializer my be Unsafe to Re-Run
+### Other Reasons an Initializer may be Unsafe to Re-Run
 
 - Emitting events that trigger off-chain actions (e.g., indexers that process each event exactly once)
 - Overwriting a variable that other contracts or off-chain systems already depend on (e.g., resetting a registry address that live contracts are pointing to, or changing a config value that should be immutable after first init)
