@@ -196,7 +196,7 @@ RUN <<-EOF
     curl -fL -o "${DOWNLOAD_PATH}" "${FOUNDRY_URL}"
     ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
     EXPECTED_SHA="$(jq -r --arg arch "${FOUNDRY_PLATFORM}" '.checksums[$arch]' op-deployer/pkg/deployer/forge/version.json)"
-    [ "${ACTUAL_SHA}" == "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
+    [ "${ACTUAL_SHA}" = "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
     tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
     rm "${DOWNLOAD_PATH}"
 EOF
