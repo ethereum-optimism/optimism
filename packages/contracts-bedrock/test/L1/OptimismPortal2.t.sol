@@ -1246,6 +1246,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` uses rootClaimByChainId for super game types
     ///         via the stateless _isSuperGameType check in OptimismPortal2.
     function test_proveWithdrawalTransaction_superGameType_succeeds() external {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
         // Mock the game type to be SUPER_CANNON_KONA.
         vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
 
@@ -1281,6 +1283,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when a super game type's
     ///         rootClaimByChainId reverts with UnknownChainId.
     function test_proveWithdrawalTransaction_superGameTypeWrongChainId_reverts() external {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
         // Mock the game type to be SUPER_CANNON_KONA.
         vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
 
