@@ -12,12 +12,16 @@ Proxied contracts in the OP Stack can be re-initialized during upgrades (via `re
 
 **Example**: `ETHLockbox.initialize()` calls `_authorizePortal()` for each portal passed in. Currently safe because `_authorizePortal()` is idempotent — setting `authorizedPortals[portal] = true` twice has the same effect as once. But if someone later added a portal count that increments on each authorization, re-initialization would double-count portals.
 
-### What Makes an Initializer Non-Idempotent or Unsafe to Re-Run
+### What Makes an Initializer Non-Idempotent
 
 - Incrementing counters or nonces
 - Appending to arrays (creates duplicates on re-init)
 - External calls with lasting side-effects (e.g., minting tokens, sending ETH)
 - Operations that depend on prior state (e.g., "add 10 to balance" vs "set balance to 10")
+
+
+### Other Reasons an Initializer my be Unsafe to Re-Run
+
 - Emitting events that trigger off-chain actions (e.g., indexers that process each event exactly once)
 - Overwriting a variable that other contracts or off-chain systems already depend on (e.g., resetting a registry address that live contracts are pointing to, or changing a config value that should be immutable after first init)
 
