@@ -43,7 +43,7 @@ func (i *Interop) l1Inclusion(ts uint64, blocksAtTimestamp blockPerChain) (eth.B
 			i.log.Error("failed to get L1 inclusion for L2 block", "chainID", chainID, "timestamp", ts, "err", err)
 			return eth.BlockID{}, fmt.Errorf("chain %s: failed to get L1 inclusion: %w", chainID, err)
 		}
-		if l1Block.Number > l1Inclusion.Number {
+		if l1Block.Number >= l1Inclusion.Number {
 			l1Inclusion = l1Block
 		}
 	}
