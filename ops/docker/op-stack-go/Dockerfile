@@ -176,13 +176,26 @@ ARG OP_TEST_SEQUENCER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-test-sequencer && make op-test-sequencer  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_TEST_SEQUENCER_VERSION"
 
+# Compile contracts on amd64 (solc binaries require glibc/amd64).
+# Contract artifacts are platform-independent, so we build once and share.
+FROM --platform=linux/amd64 builder_foundry AS builder_foundry_amd64
+FROM --platform=linux/amd64 golang:1.24.10-alpine3.21 AS op-deployer-contracts
+RUN apk add --no-cache curl jq bash just make gcc musl-dev linux-headers git yq-go libc6-compat
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+WORKDIR /app
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . /app
+COPY --from=builder_foundry_amd64 /usr/local/bin/forge /usr/local/bin/forge
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+  just op-deployer/build-contracts && just op-deployer/copy-contract-artifacts
+
 FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
 ARG OP_DEPLOYER_VERSION=v0.0.0
-COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
-# solc binaries downloaded by forge (via svm) are glibc-linked; Alpine needs the compat layer.
-RUN apk add --no-cache libc6-compat
+# Copy pre-compiled contract artifacts (built on amd64 where solc works)
+COPY --from=op-deployer-contracts /app/op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  just GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" op-deployer/build
+  just GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" op-deployer/build-go
 
 FROM --platform=$BUILDPLATFORM builder AS op-dripper-builder
 ARG OP_DRIPPER_VERSION=v0.0.0
@@ -297,7 +310,8 @@ CMD ["op-test-sequencer"]
 
 FROM $TARGET_BASE_IMAGE AS op-deployer-target
 RUN apk add --no-cache ca-certificates
-COPY --from=op-deployer-builder /usr/local/bin/forge /app/op-deployer/bin/op-deployer /usr/local/bin/
+COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/
+COPY --from=op-deployer-builder /app/op-deployer/bin/op-deployer /usr/local/bin/
 ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 
