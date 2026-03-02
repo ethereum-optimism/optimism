@@ -178,18 +178,10 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
 ARG OP_DEPLOYER_VERSION=v0.0.0
-ARG REPO_URL=https://github.com/ethereum-optimism/optimism.git
 COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
 # solc binaries downloaded by forge (via svm) are glibc-linked; Alpine needs the compat layer.
 RUN apk add --no-cache libc6-compat
-# Fetch contract submodules needed for building contracts within Docker.
-# The Docker context excludes packages/contracts-bedrock/lib (git submodules) to keep it small.
-# We use a shallow, blobless fetch to get the submodule commit references, then init them.
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  git init && git remote add origin $REPO_URL && \
-  git fetch --depth 1 --filter=blob:none origin "$GIT_COMMIT" && \
-  git checkout FETCH_HEAD -- packages/contracts-bedrock/lib && \
-  git submodule update --init --recursive --depth 1 -j 8 packages/contracts-bedrock/lib && \
   just GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" op-deployer/build
 
 FROM --platform=$BUILDPLATFORM builder AS op-dripper-builder
