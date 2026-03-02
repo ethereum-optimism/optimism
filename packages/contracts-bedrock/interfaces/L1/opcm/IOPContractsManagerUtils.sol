@@ -7,7 +7,7 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { Claim, GameType } from "src/dispute/lib/Types.sol";
+import { Claim, GameType, Proposal } from "src/dispute/lib/Types.sol";
 
 interface IOPContractsManagerUtils {
     struct ProxyDeployArgs {
@@ -59,6 +59,8 @@ interface IOPContractsManagerUtils {
     error EmptyInitcode();
     error BytesArrayTooLong();
     error IdentityPrecompileCallFailed();
+    error OPContractsManagerV2_InvalidGameConfigs();
+    error OPContractsManagerV2_InvalidUpgradeInput();
 
     function implementations() external view returns (IOPContractsManagerContainer.Implementations memory);
     function blueprints() external view returns (IOPContractsManagerContainer.Blueprints memory);
@@ -148,6 +150,15 @@ interface IOPContractsManagerUtils {
         external
         view
         returns (bytes memory);
+
+    function assertValidSuperRootMigrationConfig(
+        DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _startingRespectedGameType,
+        Proposal memory _startingAnchorRoot,
+        IAnchorStateRegistry _asr
+    )
+        external
+        view;
 
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }

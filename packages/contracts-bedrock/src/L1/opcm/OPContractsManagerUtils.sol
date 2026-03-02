@@ -6,7 +6,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
@@ -450,6 +450,99 @@ contract OPContractsManagerUtils {
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
+        }
+    }
+
+    /// @notice Validates the config for a super root games migration.
+    /// @param _disputeGameConfigs The dispute game configs.
+    /// @param _startingRespectedGameType The starting respected game type.
+    /// @param _startingAnchorRoot The starting anchor root.
+    /// @param _asr The AnchorStateRegistry to validate against.
+    function assertValidSuperRootMigrationConfig(
+        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _startingRespectedGameType,
+        Proposal memory _startingAnchorRoot,
+        IAnchorStateRegistry _asr
+    )
+        external
+        view
+    {
+        // Read the original respected game type from the ASR (NOT from _cfg, which may be overridden).
+        GameType originalGameType = _asr.respectedGameType();
+        uint32 originalRaw = originalGameType.raw();
+
+        // Reject already-migrated chains (any SUPER_ type).
+        if (
+            originalRaw == GameTypes.SUPER_CANNON.raw() || originalRaw == GameTypes.SUPER_CANNON_KONA.raw()
+                || originalRaw == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                || originalRaw == GameTypes.SUPER_ASTERISC_KONA.raw()
+        ) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Reject non-production types.
+        if (originalRaw == GameTypes.ASTERISC.raw() || originalRaw == GameTypes.ASTERISC_KONA.raw()) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Determine the expected target game type based on the chain's current mode.
+        GameType expectedTarget;
+        bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+        bool isPermissioned = originalRaw == GameTypes.PERMISSIONED_CANNON.raw();
+
+        if (isPermissionless) {
+            expectedTarget = GameTypes.SUPER_CANNON_KONA;
+        } else if (isPermissioned) {
+            expectedTarget = GameTypes.SUPER_PERMISSIONED_CANNON;
+        } else {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Validate target game type matches.
+        if (_startingRespectedGameType.raw() != expectedTarget.raw()) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Validate that the override was actually provided (startingAnchorRoot must differ from current).
+        Proposal memory currentAnchorRoot = _asr.getStartingAnchorRoot();
+        if (
+            _startingAnchorRoot.root.raw() == currentAnchorRoot.root.raw()
+                && _startingAnchorRoot.l2SequenceNumber == currentAnchorRoot.l2SequenceNumber
+        ) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidUpgradeInput();
+        }
+
+        // Validate that startingRespectedGameType override was provided (must differ from original).
+        if (_startingRespectedGameType.raw() == originalGameType.raw()) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidUpgradeInput();
+        }
+
+        // Validate game configs based on mode.
+        if (isPermissionless) {
+            // Permissionless: 2 configs — [SUPER_CANNON_KONA, SUPER_PERMISSIONED_CANNON], both enabled.
+            if (_disputeGameConfigs.length != 2) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (_disputeGameConfigs[0].gameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (_disputeGameConfigs[1].gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (!_disputeGameConfigs[0].enabled || !_disputeGameConfigs[1].enabled) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+        } else {
+            // Permissioned: 1 config — [SUPER_PERMISSIONED_CANNON], must be enabled.
+            if (_disputeGameConfigs.length != 1) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (_disputeGameConfigs[0].gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (!_disputeGameConfigs[0].enabled) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
         }
     }
 }

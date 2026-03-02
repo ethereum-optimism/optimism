@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 // Libraries
-import { GameType } from "src/dispute/lib/Types.sol";
+import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -219,6 +219,28 @@ abstract contract OPContractsManagerUtilsCaller {
     function _getGameImpl(GameType _gameType) internal view returns (IDisputeGame) {
         return
             abi.decode(_staticcall(abi.encodeCall(IOPContractsManagerUtils.getGameImpl, (_gameType))), (IDisputeGame));
+    }
+
+    /// @notice Validates the config for a super root games migration.
+    /// @param _disputeGameConfigs The dispute game configs.
+    /// @param _startingRespectedGameType The starting respected game type.
+    /// @param _startingAnchorRoot The starting anchor root.
+    /// @param _asr The AnchorStateRegistry to validate against.
+    function _assertValidSuperRootMigrationConfig(
+        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _startingRespectedGameType,
+        Proposal memory _startingAnchorRoot,
+        IAnchorStateRegistry _asr
+    )
+        internal
+        view
+    {
+        _staticcall(
+            abi.encodeCall(
+                IOPContractsManagerUtils.assertValidSuperRootMigrationConfig,
+                (_disputeGameConfigs, _startingRespectedGameType, _startingAnchorRoot, _asr)
+            )
+        );
     }
 
     /// @notice Helper for creating game constructor arguments.
