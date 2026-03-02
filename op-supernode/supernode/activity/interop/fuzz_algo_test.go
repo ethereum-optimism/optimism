@@ -30,6 +30,13 @@ type fuzzMockLogsDB struct {
 	// First sealed block info
 	firstBlock    suptypes.BlockSeal
 	firstBlockErr error
+	// Sealed block tracking (for progressInterop integration)
+	latestSealed eth.BlockID
+	hasSealed    bool
+	sealedBlocks map[uint64]suptypes.BlockSeal
+	// Reset tracking
+	rewindCalls []eth.BlockID
+	clearCalls  int
 }
 
 type fuzzBlockData struct {
@@ -48,11 +55,19 @@ func newFuzzMockLogsDB() *fuzzMockLogsDB {
 	return &fuzzMockLogsDB{
 		blocks:          make(map[uint64]fuzzBlockData),
 		containsResults: make(map[suptypes.ContainsQuery]fuzzContainsResult),
+		sealedBlocks:    make(map[uint64]suptypes.BlockSeal),
 	}
 }
 
-func (m *fuzzMockLogsDB) LatestSealedBlock() (eth.BlockID, bool)                   { return eth.BlockID{}, false }
-func (m *fuzzMockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) { return suptypes.BlockSeal{}, nil }
+func (m *fuzzMockLogsDB) LatestSealedBlock() (eth.BlockID, bool) {
+	return m.latestSealed, m.hasSealed
+}
+func (m *fuzzMockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
+	if seal, ok := m.sealedBlocks[number]; ok {
+		return seal, nil
+	}
+	return suptypes.BlockSeal{}, nil
+}
 
 func (m *fuzzMockLogsDB) FirstSealedBlock() (suptypes.BlockSeal, error) {
 	if m.firstBlockErr != nil {
@@ -82,10 +97,23 @@ func (m *fuzzMockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, lo
 	return nil
 }
 func (m *fuzzMockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
+	m.latestSealed = block
+	m.hasSealed = true
+	m.sealedBlocks[block.Number] = suptypes.BlockSeal{
+		Hash:      block.Hash,
+		Number:    block.Number,
+		Timestamp: timestamp,
+	}
 	return nil
 }
-func (m *fuzzMockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
-func (m *fuzzMockLogsDB) Clear(inv reads.Invalidator) error                       { return nil }
+func (m *fuzzMockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
+	m.rewindCalls = append(m.rewindCalls, newHead)
+	return nil
+}
+func (m *fuzzMockLogsDB) Clear(inv reads.Invalidator) error {
+	m.clearCalls++
+	return nil
+}
 func (m *fuzzMockLogsDB) Close() error { return nil }
 
 var _ LogsDB = (*fuzzMockLogsDB)(nil)
@@ -101,16 +129,17 @@ var _ LogsDB = (*fuzzMockLogsDB)(nil)
 // P1: Valid cross-chain messages never produce InvalidHeads
 // P3: Result.IsValid() ↔ len(InvalidHeads) == 0
 func FuzzVerifyInteropMessagesValid(f *testing.F) {
-	f.Add(int64(1))
-	f.Add(int64(42))
-	f.Add(int64(12345))
-	f.Add(int64(0))
+	f.Add(int64(1), uint8(3), uint8(2), uint64(500000))
+	f.Add(int64(42), uint8(2), uint8(0), uint64(ExpiryTime+1))
+	f.Add(int64(12345), uint8(5), uint8(3), uint64(ExpiryTime))
+	f.Add(int64(0), uint8(4), uint8(1), uint64(2*ExpiryTime))
 
-	f.Fuzz(func(t *testing.T, seed int64) {
+	f.Fuzz(func(t *testing.T, seed int64, numChainsRaw uint8, numMsgsRaw uint8, execTSRaw uint64) {
 		rng := rand.New(rand.NewSource(seed))
 
-		numChains := 2 + rng.Intn(4) // 2-5 chains
-		execTimestamp := uint64(100000 + rng.Intn(900000))
+		numChains := 2 + int(numChainsRaw%4) // 2-5 chains
+		maxMsgsPerBlock := int(numMsgsRaw % 4) // 0-3 messages per block
+		execTimestamp := 100000 + (execTSRaw % 900000)
 
 		chainIDs := make([]eth.ChainID, numChains)
 		for i := range chainIDs {
@@ -128,6 +157,8 @@ func FuzzVerifyInteropMessagesValid(f *testing.F) {
 		}
 		chainBlocks := make(map[eth.ChainID]chainBlock)
 
+		// Pass 1: Create mock DBs and blocks for each chain
+		mockDBs := make(map[eth.ChainID]*fuzzMockLogsDB)
 		for _, chainID := range chainIDs {
 			blockHash := randomHash(rng)
 			blockNum := uint64(rng.Intn(10000))
@@ -139,18 +170,23 @@ func FuzzVerifyInteropMessagesValid(f *testing.F) {
 			}
 
 			blocksAtTimestamp[chainID] = eth.BlockID{Number: blockNum, Hash: blockHash}
+
+			mockDB := newFuzzMockLogsDB()
+			// Default Contains to error — only explicitly registered queries succeed
+			mockDB.defaultContainsErr = suptypes.ErrConflict
+			mockDBs[chainID] = mockDB
+			logsDBs[chainID] = mockDB
 		}
 
-		// For each chain, possibly add valid cross-chain messages
+		// Pass 2: Generate executing messages and register expected Contains queries
 		for _, chainID := range chainIDs {
 			cb := chainBlocks[chainID]
-			mockDB := newFuzzMockLogsDB()
+			mockDB := mockDBs[chainID]
 
 			execMsgs := make(map[uint32]*suptypes.ExecutingMessage)
-			numMsgs := rng.Intn(4) // 0-3 messages per block
 
-			for j := 0; j < numMsgs; j++ {
-				// Pick a random source chain (different from executing chain)
+			for j := 0; j < maxMsgsPerBlock; j++ {
+				// Pick a random source chain (may be same chain)
 				sourceIdx := rng.Intn(numChains)
 				sourceChain := chainIDs[sourceIdx]
 
@@ -173,16 +209,25 @@ func FuzzVerifyInteropMessagesValid(f *testing.F) {
 					Checksum:  suptypes.MessageChecksum(randomHash(rng)),
 				}
 				execMsgs[logIdx] = execMsg
+
+				// Register the exact query the production code should construct
+				// on the source chain's mock — only matching queries succeed
+				query := suptypes.ContainsQuery{
+					BlockNum:  execMsg.BlockNum,
+					LogIdx:    execMsg.LogIdx,
+					Timestamp: execMsg.Timestamp,
+					Checksum:  execMsg.Checksum,
+				}
+				mockDBs[sourceChain].containsResults[query] = fuzzContainsResult{
+					seal: suptypes.BlockSeal{Number: execMsg.BlockNum, Timestamp: execMsg.Timestamp},
+				}
 			}
 
 			mockDB.blocks[cb.number] = fuzzBlockData{
 				ref:      eth.BlockRef{Hash: cb.hash, Number: cb.number, Time: cb.timestamp},
+				logCount: uint32(len(execMsgs)),
 				execMsgs: execMsgs,
 			}
-
-			// Set up contains to succeed for all valid messages
-			mockDB.defaultContainsSeal = suptypes.BlockSeal{Number: 1, Timestamp: 1}
-			logsDBs[chainID] = mockDB
 		}
 
 		interop := &Interop{
@@ -370,11 +415,9 @@ func FuzzVerifyExpiryBoundary(f *testing.F) {
 		destBlockHash := randomHash(rng)
 		destBlockNum := uint64(100)
 
-		// Test three boundary conditions:
-		// 1. Exactly at expiry boundary (should be VALID)
-		// 2. One second past expiry (should be INVALID)
-		// 3. One second before expiry (should be VALID)
-
+		// Test boundary conditions around the expiry time.
+		// Skip cases where initTS + ExpiryTime would overflow uint64
+		// (unrealistic in practice — timestamps are Unix seconds).
 		type boundaryTest struct {
 			name        string
 			initTS      uint64
@@ -383,78 +426,52 @@ func FuzzVerifyExpiryBoundary(f *testing.F) {
 
 		var tests []boundaryTest
 
-		// Exactly at boundary: initTS + ExpiryTime == execTimestamp
-		// i.e., initTS = execTimestamp - ExpiryTime
-		// FINDING: uint64 overflow in algo.go:137 — when initTS + ExpiryTime overflows,
-		// the comparison `execMsg.Timestamp + ExpiryTime < executingTimestamp` produces
-		// incorrect results. We model the actual (buggy) overflow behavior here.
+		// Exactly at boundary: initTS + ExpiryTime == execTimestamp → valid (not <)
 		if execTimestamp >= ExpiryTime {
 			exactBoundaryTS := execTimestamp - ExpiryTime
-			// Check if initTS + ExpiryTime would overflow uint64
-			exactOverflows := exactBoundaryTS > math.MaxUint64-ExpiryTime
 			tests = append(tests, boundaryTest{
-				name:   "exact_boundary",
-				initTS: exactBoundaryTS,
-				// Without overflow: initTS + ExpiryTime == execTimestamp, not <, so valid
-				// With overflow: wrapped value < execTimestamp, so incorrectly invalid
-				expectValid: !exactOverflows,
+				name:        "exact_boundary",
+				initTS:      exactBoundaryTS,
+				expectValid: true,
 			})
 
-			// One past expiry: initTS + ExpiryTime < execTimestamp
+			// One past expiry: initTS + ExpiryTime < execTimestamp → expired
 			if exactBoundaryTS > 0 {
-				pastTS := exactBoundaryTS - 1
-				pastOverflows := pastTS > math.MaxUint64-ExpiryTime
 				tests = append(tests, boundaryTest{
-					name:   "one_past_expiry",
-					initTS: pastTS,
-					// Without overflow: initTS + ExpiryTime < execTimestamp, so expired
-					// With overflow: wrapped value < execTimestamp, still expired (but for wrong reason)
-					expectValid: false && !pastOverflows, // always false regardless
+					name:        "one_past_expiry",
+					initTS:      exactBoundaryTS - 1,
+					expectValid: false,
 				})
 			}
 		}
 
-		// One before expiry: should be valid
-		// FINDING: When initTS + ExpiryTime overflows uint64, the code incorrectly
-		// marks the message as expired. This happens when initTS > MaxUint64 - ExpiryTime.
-		// We account for this overflow behavior in the expected result.
-		if execTimestamp > ExpiryTime && execTimestamp-ExpiryTime+1 < execTimestamp {
+		// One before expiry: initTS + ExpiryTime > execTimestamp → valid
+		if execTimestamp > ExpiryTime {
 			initTS := execTimestamp - ExpiryTime + 1
-			// Check for uint64 overflow: initTS + ExpiryTime would wrap around
-			overflows := initTS > math.MaxUint64-ExpiryTime
-			tests = append(tests, boundaryTest{
-				name:        "one_before_expiry",
-				initTS:      initTS,
-				expectValid: !overflows, // If overflow, code incorrectly rejects it
-			})
+			if initTS <= math.MaxUint64-ExpiryTime {
+				tests = append(tests, boundaryTest{
+					name:        "one_before_expiry",
+					initTS:      initTS,
+					expectValid: true,
+				})
+			}
 		}
 
-		// Also test timestamp = execTimestamp (equal - should be INVALID due to >= check)
+		// Equal timestamp: should be INVALID (>= check in verifyExecutingMessage)
 		tests = append(tests, boundaryTest{
 			name:        "equal_timestamp",
 			initTS:      execTimestamp,
 			expectValid: false,
 		})
 
-		// Test timestamp = execTimestamp - 1 (should be valid if within expiry)
+		// One less than exec timestamp: valid if within expiry window
 		if execTimestamp > 0 {
 			ts := execTimestamp - 1
-			// Account for uint64 overflow in the addition
-			overflows := ts > math.MaxUint64-ExpiryTime
-			if overflows {
-				// With overflow, ts+ExpiryTime wraps around, so the < check
-				// sees a small value < execTimestamp => incorrectly expired
+			if ts <= math.MaxUint64-ExpiryTime {
 				tests = append(tests, boundaryTest{
 					name:        "one_less",
 					initTS:      ts,
-					expectValid: false, // overflow causes false rejection
-				})
-			} else {
-				withinExpiry := ts+ExpiryTime >= execTimestamp
-				tests = append(tests, boundaryTest{
-					name:        "one_less",
-					initTS:      ts,
-					expectValid: withinExpiry,
+					expectValid: ts+ExpiryTime >= execTimestamp,
 				})
 			}
 		}

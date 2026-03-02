@@ -42,35 +42,25 @@ func FuzzProgressInteropValid(f *testing.F) {
 
 		dataDir := t.TempDir()
 
-		// Create a custom Interop with mock logsDBs and real VerifiedDB
+		// Create a custom Interop with mock logsDBs, mock chains, and real VerifiedDB
 		verifiedDB, err := OpenVerifiedDB(dataDir)
 		require.NoError(t, err)
 		defer verifiedDB.Close()
 
 		logsDBs := make(map[eth.ChainID]LogsDB)
-		for _, chainID := range chainIDs {
+		chains := make(map[eth.ChainID]cc.ChainContainer)
+		for i, chainID := range chainIDs {
 			mockDB := newFuzzMockLogsDB()
 			mockDB.defaultContainsSeal = suptypes.BlockSeal{Number: 1, Timestamp: 1}
 			logsDBs[chainID] = mockDB
-		}
 
-		// Set up blocks for each chain at each timestamp
-		for ts := activationTS; ts < activationTS+uint64(numTimestamps); ts++ {
-			for _, chainID := range chainIDs {
-				blockHash := randomHash(rng)
-				blockNum := ts - activationTS + 100
-
-				mockDB := logsDBs[chainID].(*fuzzMockLogsDB)
-				mockDB.blocks[blockNum] = fuzzBlockData{
-					ref:      eth.BlockRef{Hash: blockHash, Number: blockNum, Time: ts},
-					execMsgs: nil, // No executing messages - all blocks are valid
-				}
-			}
+			chains[chainID] = newMockChainContainer(uint64(10 + i*10))
 		}
 
 		interop := &Interop{
 			log:                 gethlog.New(),
 			logsDBs:             logsDBs,
+			chains:              chains,
 			verifiedDB:          verifiedDB,
 			activationTimestamp: activationTS,
 			ctx:                 context.Background(),
@@ -88,21 +78,11 @@ func FuzzProgressInteropValid(f *testing.F) {
 			return result, nil
 		}
 
-		// Process timestamps sequentially and verify P28
+		// Process timestamps using progressInterop + handleResult
 		for i := 0; i < numTimestamps; i++ {
 			ts := activationTS + uint64(i)
 
-			// Build blocksAtTimestamp
-			blocksAtTimestamp := make(map[eth.ChainID]eth.BlockID)
-			for _, chainID := range chainIDs {
-				blockNum := ts - activationTS + 100
-				mockDB := logsDBs[chainID].(*fuzzMockLogsDB)
-				bd := mockDB.blocks[blockNum]
-				blocksAtTimestamp[chainID] = eth.BlockID{Number: blockNum, Hash: bd.ref.Hash}
-			}
-
-			// Call verifyFn and handleResult
-			result, err := interop.verifyFn(ts, blocksAtTimestamp)
+			result, err := interop.progressInterop()
 			require.NoError(t, err)
 
 			// P29: Valid results should be committable
@@ -283,6 +263,7 @@ func FuzzProgressInteropReset(f *testing.F) {
 		dataDir := t.TempDir()
 		verifiedDB, err := OpenVerifiedDB(dataDir)
 		require.NoError(t, err)
+		defer verifiedDB.Close()
 
 		// Set up mock chain and logsDB
 		mockDB := newFuzzMockLogsDB()
@@ -315,8 +296,15 @@ func FuzzProgressInteropReset(f *testing.F) {
 		rewindOffset := uint64(rng.Int63n(int64(numCommits)))
 		rewindTS := activationTS + rewindOffset
 
-		// Call resetVerifiedDB (the part of Reset that handles verifiedDB)
-		interop.resetVerifiedDB(rewindTS)
+		// Call Reset (exercises both resetLogsDB and resetVerifiedDB)
+		interop.Reset(chainID, rewindTS)
+
+		// P32: Verify logsDB was rewound
+		require.Equal(t, 1, len(mockDB.rewindCalls), "P32: logsDB should have been rewound once")
+		require.Equal(t, rewindTS-1, mockDB.rewindCalls[0].Number, "P32: logsDB should be rewound to block before rewind timestamp")
+
+		// P32: Verify currentL1 was reset to force re-evaluation
+		require.Equal(t, eth.BlockID{}, interop.CurrentL1(), "P32: currentL1 should be reset to empty after Reset")
 
 		// P32: Verify verifiedDB state after rewind
 		for i := uint64(0); i < numCommits; i++ {
@@ -345,8 +333,6 @@ func FuzzProgressInteropReset(f *testing.F) {
 			})
 			require.NoError(t, err, "P32: should be able to recommit at rewind point")
 		}
-
-		verifiedDB.Close()
 	})
 }
 
