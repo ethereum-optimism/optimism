@@ -193,6 +193,9 @@ func TestL1Inclusion(t *testing.T) {
 				}
 			},
 			// Genesis blocks included at L1 block number 0 must not cause an error.
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 0, Hash: common.HexToHash("0xGenesisL1")}, l1)
+			},
 		},
 	}
 
