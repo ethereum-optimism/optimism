@@ -278,11 +278,10 @@ mod tests {
     #[test]
     fn test_from_alloy_chain_provider_error() {
         // Transport errors are transient — retry makes sense.
-        let transport_err = AlloyChainProviderError::Transport(
-            alloy_transport::RpcError::Transport(alloy_transport::TransportErrorKind::Custom(
-                "timeout".into(),
-            )),
-        );
+        let transport_err =
+            AlloyChainProviderError::Transport(alloy_transport::RpcError::Transport(
+                alloy_transport::TransportErrorKind::Custom("timeout".into()),
+            ));
         let kind: PipelineErrorKind = transport_err.into();
         assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
 

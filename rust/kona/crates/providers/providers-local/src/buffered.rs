@@ -429,8 +429,7 @@ mod tests {
         );
 
         // Other errors remain Temporary or Critical as before.
-        let kind: PipelineErrorKind =
-            BufferedProviderError::L2BlockInfoConstruction(1).into();
+        let kind: PipelineErrorKind = BufferedProviderError::L2BlockInfoConstruction(1).into();
         assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
 
         let kind: PipelineErrorKind = BufferedProviderError::SystemConfigMissing.into();
