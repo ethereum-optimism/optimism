@@ -167,7 +167,7 @@ contract Predeploys_Uncategorized_Test is Predeploys_TestInit {
     ///         and the proxied accounts have the correct admin. Using custom gas token.
     function test_predeploys_customGasToken_succeeds() external {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
-        _test_predeploys(Fork.ISTHMUS, false);
+        _test_predeploys(Fork.ISTHMUS, true);
     }
 
     /// @notice Tests that the predeploy addresses are set correctly. They have code
@@ -189,16 +189,15 @@ contract Predeploys_UncategorizedInterop_Test is Predeploys_TestInit {
     }
 
     /// @notice Tests that the predeploy addresses are set correctly. They have code and the
-    ///         proxied accounts have the correct admin. Using interop with inbox.
-    function test_predeploysWithInbox_succeeds() external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
-        _test_predeploys(Fork.INTEROP, true);
+    ///         proxied accounts have the correct admin. Using interop.
+    function test_predeploys_succeeds() external {
+        _test_predeploys(Fork.INTEROP, false);
     }
 
     /// @notice Tests that the predeploy addresses are set correctly. They have code and the
-    ///         proxied accounts have the correct admin. Using interop without inbox.
-    function test_predeploysWithoutInbox_succeeds() external {
-        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
-        _test_predeploys(Fork.INTEROP, false);
+    ///         proxied accounts have the correct admin. Using interop with custom gas token.
+    function test_predeploys_customGasToken_succeeds() external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        _test_predeploys(Fork.INTEROP, true);
     }
 }
