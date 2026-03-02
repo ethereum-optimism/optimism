@@ -2,6 +2,7 @@
 
 use crate::BuilderError;
 use alloc::string::String;
+use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use kona_genesis::SystemConfigUpdateError;
 use kona_protocol::{DepositError, SpanBatchError};
@@ -351,7 +352,7 @@ pub enum ResetError {
     /// An L1 block referenced during derivation is no longer present on the chain,
     /// typically because an L1 reorg removed it. The pipeline must reset to recover.
     #[error("Block not found: {0}")]
-    BlockNotFound(String),
+    BlockNotFound(BlockId),
 }
 
 impl ResetError {
@@ -440,7 +441,7 @@ mod tests {
             )),
             ResetError::HoloceneActivation,
             ResetError::BlobsUnavailable(0),
-            ResetError::BlockNotFound("0xdeadbeef".to_string()),
+            ResetError::BlockNotFound(B256::default().into()),
         ];
         for error in reset_errors {
             let expected = PipelineErrorKind::Reset(error.clone());

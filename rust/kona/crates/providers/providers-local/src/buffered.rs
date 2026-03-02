@@ -5,6 +5,7 @@
 //! directly from this cached state. Chain updates are provided through the `add_block` and
 //! `handle_chain_event` methods.
 
+use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_derive::{L2ChainProvider, PipelineError, PipelineErrorKind, ResetError};
@@ -280,7 +281,7 @@ impl From<BufferedProviderError> for PipelineErrorKind {
                 )))
             }
             BufferedProviderError::BlockNotFound(number) => {
-                ResetError::BlockNotFound(format!("{number}")).reset()
+                ResetError::BlockNotFound(BlockId::Number(number.into())).reset()
             }
             BufferedProviderError::L2BlockInfoConstruction(number) => {
                 Self::Temporary(PipelineError::Provider(format!(

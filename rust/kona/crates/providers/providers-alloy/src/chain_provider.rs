@@ -132,11 +132,10 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                 // out of the chain — retrying will never succeed, so reset.
                 // A number-based lookup returning not-found means the next L1 block
                 // hasn't been produced yet — this is transient, so Temporary.
-                let msg = format!("{id}");
                 match id {
-                    BlockId::Hash(_) => ResetError::BlockNotFound(msg).reset(),
+                    BlockId::Hash(_) => ResetError::BlockNotFound(id).reset(),
                     BlockId::Number(_) => Self::Temporary(PipelineError::Provider(format!(
-                        "L1 Block not found: {msg}"
+                        "L1 Block not found: {id}"
                     ))),
                 }
             }
