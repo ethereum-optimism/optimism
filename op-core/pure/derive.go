@@ -115,7 +115,7 @@ func PureDerive(
 
 				lgr.Debug("channel ready", "channel", ready.id, "l1_block", l1Ref.Number)
 
-				batches := decodeBatches(lgr, ready.channel.Reader(), cfg, l1Origins, cursor, ready.openBlock)
+				batches := decodeBatches(lgr, ready.channel.Reader(), cfg, l1Origins, cursor, l1Ref)
 
 				for _, batch := range batches {
 					validity := validateBatch(lgr, batch, cursor, l1Origins, cfg, l1Ref.Number)
