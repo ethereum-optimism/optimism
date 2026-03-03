@@ -83,19 +83,9 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	cgt := buildCGTConfig(thisIntent)
 
-	// Build the dev feature bitmap from the intent's global deploy overrides.
 	var devFeatureBitmap common.Hash
 	if bitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
 		devFeatureBitmap = bitmap
-	}
-
-	// Enable interop features when multiple chains are configured.
-	if len(intent.Chains) > 1 {
-		// TODO(#19151): Replace this with the deployer.OptimismPortalInteropDevFlag constant when we fix import cycles.
-		interopFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-		for i := 0; i < 32; i++ {
-			devFeatureBitmap[i] = devFeatureBitmap[i] | interopFlag[i]
-		}
 	}
 
 	if err := script.Run(opcm.L2GenesisInput{
