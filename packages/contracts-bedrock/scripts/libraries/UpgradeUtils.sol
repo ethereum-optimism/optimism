@@ -59,6 +59,11 @@ library UpgradeUtils {
     ///      - 1 L2CM deployment
     ///      - 1 Upgrade Predeploys call
     function getTransactionCount() internal pure returns (uint256 txnCount_) {
+        if (IMPLEMENTATION_COUNT != 28) {
+            revert(
+                "UpgradeUtils: implementation count changed, ensure that the txnCount_ calculation is still correct."
+            );
+        }
         txnCount_ = IMPLEMENTATION_COUNT + 5;
     }
 
