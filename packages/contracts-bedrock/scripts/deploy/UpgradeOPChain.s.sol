@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
-import { OPContractsManager } from "src/L1/OPContractsManager.sol";
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
@@ -28,8 +29,8 @@ contract UpgradeOPChainInput is BaseDeployIO {
     ///         this is used when upgrading chains using OPCM v1.
     /// @param _sel The selector of the field to set.
     /// @param _value The value to set.
-    function set(bytes4 _sel, OPContractsManager.OpChainConfig[] memory _value) public {
-        if (SemverComp.gte(OPContractsManager(opcm()).version(), Constants.OPCM_V2_MIN_VERSION)) {
+    function set(bytes4 _sel, IOPContractsManager.OpChainConfig[] memory _value) public {
+        if (SemverComp.gte(IOPContractsManagerV2(opcm()).version(), Constants.OPCM_V2_MIN_VERSION)) {
             revert("UpgradeOPCMInput: cannot set OPCM v1 upgrade input when OPCM v2 is enabled");
         }
         require(_value.length > 0, "UpgradeOPCMInput: cannot set empty array");
@@ -45,7 +46,7 @@ contract UpgradeOPChainInput is BaseDeployIO {
     /// @param _sel The selector of the field to set.
     /// @param _value The value to set.
     function set(bytes4 _sel, OPContractsManagerV2.UpgradeInput memory _value) public {
-        if (!SemverComp.gte(OPContractsManager(opcm()).version(), Constants.OPCM_V2_MIN_VERSION)) {
+        if (!SemverComp.gte(IOPContractsManagerV2(opcm()).version(), Constants.OPCM_V2_MIN_VERSION)) {
             revert("UpgradeOPCMInput: cannot set OPCM v2 upgrade input when OPCM v1 is enabled");
         }
         require(address(_value.systemConfig) != address(0), "UpgradeOPCMInput: cannot set zero address");
@@ -76,7 +77,7 @@ contract UpgradeOPChain is Script {
         address opcm = _uoci.opcm();
 
         // First, we need to check what version of OPCM is being used.
-        bool isOPCMv2 = SemverComp.gte(OPContractsManager(opcm).version(), Constants.OPCM_V2_MIN_VERSION);
+        bool isOPCMv2 = SemverComp.gte(IOPContractsManagerV2(opcm).version(), Constants.OPCM_V2_MIN_VERSION);
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
@@ -115,7 +116,7 @@ contract UpgradeOPChain is Script {
             );
         } else {
             data = abi.encodeCall(
-                OPContractsManager.upgrade, abi.decode(_upgradeInput, (OPContractsManager.OpChainConfig[]))
+                IOPContractsManager.upgrade, abi.decode(_upgradeInput, (IOPContractsManager.OpChainConfig[]))
             );
         }
         (bool success, bytes memory returnData) = _prank.call(data);

@@ -8,7 +8,7 @@ import { Test } from "test/setup/Test.sol";
 import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPChain.s.sol";
 
 // Contracts
-import { OPContractsManager } from "src/L1/OPContractsManager.sol";
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
 import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPChain.s.sol";
 
@@ -61,7 +61,7 @@ contract UpgradeOPChainInput_Test is Test {
     }
 
     /// @notice This test verifies that the UpgradeOPChain script correctly sets the upgrade input with
-    /// the OPContractsManager.OpChainConfig[] type.
+    /// the IOPContractsManager.OpChainConfig[] type.
     function testFuzz_setOpChainConfigs_succeeds(
         address systemConfig1,
         address systemConfig2,
@@ -85,12 +85,12 @@ contract UpgradeOPChainInput_Test is Test {
         vm.assume(systemConfig2 != address(_mockOPCM));
 
         // Create sample OpChainConfig array
-        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](2);
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](2);
 
         // Setup mock addresses and contracts for first config
         vm.etch(systemConfig1, hex"01");
 
-        configs[0] = OPContractsManager.OpChainConfig({
+        configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig1),
             cannonPrestate: Claim.wrap(prestate1),
             cannonKonaPrestate: Claim.wrap(konaPrestate1)
@@ -99,7 +99,7 @@ contract UpgradeOPChainInput_Test is Test {
         // Setup mock addresses and contracts for second config
         vm.etch(systemConfig2, hex"01");
 
-        configs[1] = OPContractsManager.OpChainConfig({
+        configs[1] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig2),
             cannonPrestate: Claim.wrap(prestate2),
             cannonKonaPrestate: Claim.wrap(konaPrestate2)
@@ -111,8 +111,8 @@ contract UpgradeOPChainInput_Test is Test {
         assertEq(storedConfigs, abi.encode(configs));
 
         // Additional verification of stored claims if needed
-        OPContractsManager.OpChainConfig[] memory decodedConfigs =
-            abi.decode(storedConfigs, (OPContractsManager.OpChainConfig[]));
+        IOPContractsManager.OpChainConfig[] memory decodedConfigs =
+            abi.decode(storedConfigs, (IOPContractsManager.OpChainConfig[]));
         assertEq(Claim.unwrap(decodedConfigs[0].cannonPrestate), prestate1);
         assertEq(Claim.unwrap(decodedConfigs[1].cannonPrestate), prestate2);
         assertEq(Claim.unwrap(decodedConfigs[0].cannonKonaPrestate), konaPrestate1);
@@ -134,7 +134,7 @@ contract UpgradeOPChainInput_Test is Test {
     /// @notice This test verifies that the UpgradeOPChain script correctly reverts when setting the upgrade input with
     /// an empty array.
     function test_setOpChainConfigs_withEmptyArray_reverts() public {
-        OPContractsManager.OpChainConfig[] memory emptyConfigs = new OPContractsManager.OpChainConfig[](0);
+        IOPContractsManager.OpChainConfig[] memory emptyConfigs = new IOPContractsManager.OpChainConfig[](0);
 
         vm.expectRevert("UpgradeOPCMInput: cannot set empty array");
         input.set(input.upgradeInput.selector, emptyConfigs);
@@ -153,11 +153,11 @@ contract UpgradeOPChainInput_Test is Test {
         input.set(invalidSelector, testAddr);
 
         // Create a single config for testing invalid selector
-        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
         address mockSystemConfig = makeAddr("systemConfig");
         vm.etch(mockSystemConfig, hex"01");
 
-        configs[0] = OPContractsManager.OpChainConfig({
+        configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(mockSystemConfig),
             cannonPrestate: Claim.wrap(bytes32(uint256(1))),
             cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
@@ -309,8 +309,8 @@ contract UpgradeOPChainInput_TestV2 is Test {
         vm.assume(systemConfigProxy != address(0));
 
         // Try to set V1 input when V2 is enabled
-        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
-        configs[0] = OPContractsManager.OpChainConfig({
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
+        configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfigProxy),
             cannonPrestate: Claim.wrap(cannonPrestate),
             cannonKonaPrestate: Claim.wrap(cannonKonaPrestate)
@@ -330,7 +330,7 @@ contract MockOPCMV1 {
         return "6.0.0";
     }
 
-    function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) public {
+    function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) public {
         emit UpgradeCalled(
             address(_opChainConfigs[0].systemConfigProxy),
             Claim.unwrap(_opChainConfigs[0].cannonPrestate),
@@ -360,7 +360,7 @@ contract MockOPCMV2 {
 contract UpgradeOPChain_Test is Test {
     MockOPCMV1 mockOPCM;
     UpgradeOPChainInput uoci;
-    OPContractsManager.OpChainConfig config;
+    IOPContractsManager.OpChainConfig config;
     UpgradeOPChain upgradeOPChain;
     address prank;
 
@@ -389,12 +389,12 @@ contract UpgradeOPChain_Test is Test {
     {
         vm.assume(systemConfigProxy != address(0));
 
-        config = OPContractsManager.OpChainConfig({
+        config = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfigProxy),
             cannonPrestate: Claim.wrap(cannonPrestate),
             cannonKonaPrestate: Claim.wrap(cannonKonaPrestate)
         });
-        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
         configs[0] = config;
         uoci.set(uoci.upgradeInput.selector, configs);
 
@@ -412,16 +412,16 @@ contract UpgradeOPChain_Test is Test {
     /// call fails
     function test_upgrade_whenOPCMReverts_reverts() public {
         address systemConfigProxy = makeAddr("systemConfig");
-        config = OPContractsManager.OpChainConfig({
+        config = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfigProxy),
             cannonPrestate: Claim.wrap(bytes32(uint256(1))),
             cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
         });
-        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
         configs[0] = config;
         uoci.set(uoci.upgradeInput.selector, configs);
 
-        vm.mockCallRevert(prank, OPContractsManager.upgrade.selector, abi.encode("UpgradeOPChain: upgrade failed"));
+        vm.mockCallRevert(prank, IOPContractsManager.upgrade.selector, abi.encode("UpgradeOPChain: upgrade failed"));
 
         vm.expectRevert("UpgradeOPChain: upgrade failed");
         upgradeOPChain.run(uoci);
