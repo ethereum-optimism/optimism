@@ -30,7 +30,7 @@ contract GenerateNUTBundleTest is Test {
 
         // Verify artifact written correctly
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns =
-            NetworkUpgradeTxns.readArtifact(script.UPGRADE_ARTIFACT_PATH());
+            NetworkUpgradeTxns.readArtifact(script.upgradeBundlePath());
         assertEq(readTxns.length, output.txns.length, "Transaction count mismatch");
         for (uint256 i = 0; i < readTxns.length; i++) {
             assertEq(readTxns[i].intent, output.txns[i].intent, "Intent mismatch");
@@ -57,22 +57,23 @@ contract GenerateNUTBundleTest is Test {
         // Verify ConditionalDeployer deployment
         assertEq(
             output.txns[0].intent,
-            "karst: ConditionalDeployer Deployment",
+            "ConditionalDeployer Deployment",
             "First transaction should be ConditionalDeployer deployment"
         );
 
         // Verify ConditionalDeployer upgrade
         assertEq(
             output.txns[1].intent,
-            "karst: Upgrade ConditionalDeployer Implementation",
+            "Upgrade ConditionalDeployer Implementation",
             "Second transaction should be ConditionalDeployer upgrade"
         );
 
+        // Verify implementation deployments
         string[] memory implementationsToUpgrade = UpgradeUtils.getImplementationsNamesToUpgrade();
         for (uint256 i = 0; i < implementationsToUpgrade.length; i++) {
             assertEq(
                 output.txns[i + 2].intent,
-                string.concat("karst: Deploy ", implementationsToUpgrade[i], " Implementation"),
+                string.concat("Deploy ", implementationsToUpgrade[i], " Implementation"),
                 string.concat("Transaction should be ", implementationsToUpgrade[i], " deployment")
             );
         }
@@ -80,21 +81,21 @@ contract GenerateNUTBundleTest is Test {
         // Verify L2ProxyAdmin upgrade
         assertEq(
             output.txns[output.txns.length - 3].intent,
-            "karst: Upgrade L2ProxyAdmin Implementation",
+            "Upgrade L2ProxyAdmin Implementation",
             "Third to last transaction should be L2ProxyAdmin upgrade"
         );
 
         // Verify L2ContractsManager deployment
         assertEq(
             output.txns[output.txns.length - 2].intent,
-            "karst: Deploy L2ContractsManager Implementation",
+            "Deploy L2ContractsManager Implementation",
             "Second to last transaction should be L2ContractsManager implementation deployment"
         );
 
         // Verify upgrade execution
         assertEq(
             output.txns[output.txns.length - 1].intent,
-            "karst: L2ProxyAdmin Upgrade Predeploys",
+            "L2ProxyAdmin Upgrade Predeploys",
             "Last transaction should be L2ProxyAdmin upgrade predeploys"
         );
     }

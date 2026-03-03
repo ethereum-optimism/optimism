@@ -36,11 +36,11 @@ library UpgradeUtils {
     uint64 internal constant DEFAULT_UPGRADE_GAS = 50_000;
 
     /// @notice Gas limits for different types of upgrade transactions.
+    /// @param l2cmDeployment Gas for deploying L2ContractsManager
+    /// @param upgradeExecution Gas for L2ProxyAdmin.upgradePredeploys() call
     /// @param conditionalDeployerDeployment Gas for deploying ConditionalDeployer
     /// @param conditionalDeployerUpgrade Gas for upgrading ConditionalDeployer proxy
     /// @param proxyAdminUpgrade Gas for upgrading ProxyAdmin implementation
-    /// @param l2cmDeployment Gas for deploying L2ContractsManager
-    /// @param upgradeExecution Gas for L2ProxyAdmin.upgradePredeploys() call
     struct GasLimits {
         // Fixed
         uint64 l2cmDeployment;
@@ -54,7 +54,7 @@ library UpgradeUtils {
     /// @notice Returns the total number of transactions for the current upgrade.
     /// @dev Total count:
     ///      - 28 implementation deployments
-    ///      - [KARST]2 ConditionalDeployer (deployment + upgrade)
+    ///      - [KARST] 2 ConditionalDeployer (deployment + upgrade)
     ///      - [KARST] 1 ProxyAdmin upgrade
     ///      - 1 L2CM deployment
     ///      - 1 Upgrade Predeploys call
@@ -135,14 +135,12 @@ library UpgradeUtils {
     /// @notice Creates a deployment transaction via ConditionalDeployer.
     /// @dev The transaction calls ConditionalDeployer.deploy(salt, code) which performs
     ///      idempotent CREATE2 deployment via the DeterministicDeploymentProxy.
-    /// @param _upgradeName Human-readable upgrade name (e.g., "Karst").
     /// @param _name Human-readable name for the contract being deployed.
     /// @param _artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
     /// @param _salt CREATE2 salt for address computation.
     /// @param _gasLimit Gas limit for the deployment transaction.
     /// @return txn_ The constructed deployment transaction.
     function createDeploymentTxn(
-        string memory _upgradeName,
         string memory _name,
         string memory _artifactPath,
         bytes32 _salt,
@@ -152,13 +150,12 @@ library UpgradeUtils {
         view
         returns (NetworkUpgradeTxns.NetworkUpgradeTxn memory txn_)
     {
-        return createDeploymentTxnWithArgs(_upgradeName, _name, _artifactPath, "", _salt, _gasLimit);
+        return createDeploymentTxnWithArgs(_name, _artifactPath, "", _salt, _gasLimit);
     }
 
     /// @notice Creates a deployment transaction via ConditionalDeployer with constructor arguments.
     /// @dev The transaction calls ConditionalDeployer.deploy(salt, code) which performs
     ///      idempotent CREATE2 deployment via the DeterministicDeploymentProxy.
-    /// @param _upgradeName Human-readable upgrade name (e.g., "Karst").
     /// @param _name Human-readable name for the contract being deployed.
     /// @param _artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
     /// @param _args ABI-encoded constructor arguments.
@@ -166,7 +163,6 @@ library UpgradeUtils {
     /// @param _gasLimit Gas limit for the deployment transaction.
     /// @return txn_ The constructed deployment transaction.
     function createDeploymentTxnWithArgs(
-        string memory _upgradeName,
         string memory _name,
         string memory _artifactPath,
         bytes memory _args,
@@ -179,7 +175,7 @@ library UpgradeUtils {
     {
         bytes memory code = abi.encodePacked(vm.getCode(_artifactPath), _args);
         txn_ = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            intent: string.concat(_upgradeName, ": Deploy ", _name, " Implementation"),
+            intent: string.concat("Deploy ", _name, " Implementation"),
             from: Constants.DEPOSITOR_ACCOUNT,
             to: Predeploys.CONDITIONAL_DEPLOYER,
             gasLimit: _gasLimit,
@@ -191,14 +187,12 @@ library UpgradeUtils {
     /// @dev The transaction calls IProxy(proxy).upgradeTo(implementation).
     ///      For the ProxyAdmin upgrade, the sender must be address(0) to use the
     ///      zero-address upgrade path in the Proxy.sol implementation.
-    /// @param _upgradeName Human-readable upgrade name (e.g., "Karst").
     /// @param _name Human-readable name for the contract being upgraded.
     /// @param _proxy Address of the proxy contract.
     /// @param _implementation Address of the new implementation.
     /// @param _gasLimit Gas limit for the upgrade transaction.
     /// @return txn_ The constructed upgrade transaction.
     function createUpgradeTxn(
-        string memory _upgradeName,
         string memory _name,
         address _proxy,
         address _implementation,
@@ -209,7 +203,7 @@ library UpgradeUtils {
         returns (NetworkUpgradeTxns.NetworkUpgradeTxn memory txn_)
     {
         txn_ = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            intent: string.concat(_upgradeName, ": Upgrade ", _name, " Implementation"),
+            intent: string.concat("Upgrade ", _name, " Implementation"),
             from: address(0),
             to: _proxy,
             gasLimit: _gasLimit,

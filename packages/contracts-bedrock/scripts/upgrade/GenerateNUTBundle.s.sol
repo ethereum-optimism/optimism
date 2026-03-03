@@ -30,9 +30,6 @@ contract GenerateNUTBundle is Script {
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
 
-    /// @notice Path to the upgrade artifact.
-    string public constant UPGRADE_ARTIFACT_PATH = "deployments/nut-karst-upgrade.json";
-
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
     struct Output {
@@ -65,7 +62,10 @@ contract GenerateNUTBundle is Script {
     NetworkUpgradeTxns.NetworkUpgradeTxn[] internal txns;
 
     function setUp() public {
-        _resetScript();
+        // Clear previous txns: Transactions are pushed to a dynamic array, so we need
+        // to delete the array to avoid pushing duplicates.
+        delete txns;
+
         gasLimits = UpgradeUtils.gasLimits();
     }
 
@@ -118,7 +118,7 @@ contract GenerateNUTBundle is Script {
         // Write transactions to artifact with metadata
         NetworkUpgradeTxns.BundleMetadata memory metadata =
             NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
-        NetworkUpgradeTxns.writeArtifact(txns, metadata, UPGRADE_ARTIFACT_PATH);
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, upgradeBundlePath());
     }
 
     /// @notice Asserts the output is valid.
@@ -146,14 +146,6 @@ contract GenerateNUTBundle is Script {
         }
     }
 
-    /// @notice Resets the script state.
-    /// @dev This function is used to reset the script state before running the script.
-    function _resetScript() internal {
-        // Clear previous txns: Transactions are pushed to a dynamic array, so we need
-        // to delete the array to avoid pushing duplicates.
-        delete txns;
-    }
-
     /// @notice Asserts the implementation config is valid.
     /// @param _config The implementation config to assert.
     function _assertValidImplementationConfig(ImplementationConfig memory _config) internal pure {
@@ -174,8 +166,11 @@ contract GenerateNUTBundle is Script {
     ///      implementation deployment phase. The rest of the script follows a fixed structure and
     ///      should not be modified.
     function _preImplementationDeployments() internal {
-        // ConditionalDeployer deployment + upgrade
-        _generateConditionalDeployerTxns();
+        if (keccak256(abi.encodePacked(UPGRADE_NAME)) == keccak256(abi.encodePacked("karst"))) {
+            // TODO(#19369): Remove these steps once Karst upgrade is deployed in all chains.
+            // ConditionalDeployer deployment + upgrade
+            _generateConditionalDeployerTxns();
+        }
     }
 
     /// @notice Pre-L2CM deployment phase for fork-specific setup.
@@ -187,8 +182,11 @@ contract GenerateNUTBundle is Script {
     ///      the core deployment flow in _generateL2CMDeployment, _generateUpgradeExecution, or other
     ///      fixed phases.
     function _preL2CMDeployment() internal {
-        // L2ProxyAdmin upgrade
-        _generateL2ProxyAdminUpgrade(implementations.proxyAdminImpl);
+        if (keccak256(abi.encodePacked(UPGRADE_NAME)) == keccak256(abi.encodePacked("karst"))) {
+            // TODO(#19369): Remove these steps once Karst upgrade is deployed in all chains.
+            // L2ProxyAdmin upgrade
+            _generateL2ProxyAdminUpgrade(implementations.proxyAdminImpl);
+        }
     }
 
     // ========================================
@@ -196,6 +194,7 @@ contract GenerateNUTBundle is Script {
     // ========================================
 
     /// @notice Generates ConditionalDeployer deployment and upgrade transactions.
+    /// @dev TODO(#19369): Remove this function once Karst upgrade is deployed in all chains.
     function _generateConditionalDeployerTxns() internal {
         // 1. Deploy ConditionalDeployer implementation
         bytes memory conditionalDeployerCode =
@@ -203,7 +202,7 @@ contract GenerateNUTBundle is Script {
 
         txns.push(
             NetworkUpgradeTxns.NetworkUpgradeTxn({
-                intent: string.concat(UPGRADE_NAME, ": ConditionalDeployer Deployment"),
+                intent: "ConditionalDeployer Deployment",
                 from: Constants.DEPOSITOR_ACCOUNT,
                 to: Preinstalls.DeterministicDeploymentProxy,
                 gasLimit: gasLimits.conditionalDeployerDeployment,
@@ -215,7 +214,6 @@ contract GenerateNUTBundle is Script {
         address newConditionalDeployerImpl = UpgradeUtils.computeCreate2Address(conditionalDeployerCode, SALT);
         txns.push(
             UpgradeUtils.createUpgradeTxn(
-                UPGRADE_NAME,
                 "ConditionalDeployer",
                 Predeploys.CONDITIONAL_DEPLOYER,
                 newConditionalDeployerImpl,
@@ -227,10 +225,11 @@ contract GenerateNUTBundle is Script {
     /// @notice Generates L2ProxyAdmin upgrade transaction.
     /// @dev    It upgrades the L2ProxyAdmin to add the upgradePredeploys() function.
     /// @param _proxyAdminImpl Address of the new L2ProxyAdmin implementation.
+    /// @dev TODO(#19369): Remove this function once Karst upgrade is deployed in all chains.
     function _generateL2ProxyAdminUpgrade(address _proxyAdminImpl) internal {
         txns.push(
             UpgradeUtils.createUpgradeTxn(
-                UPGRADE_NAME, "L2ProxyAdmin", Predeploys.PROXY_ADMIN, _proxyAdminImpl, gasLimits.proxyAdminUpgrade
+                "L2ProxyAdmin", Predeploys.PROXY_ADMIN, _proxyAdminImpl, gasLimits.proxyAdminUpgrade
             )
         );
     }
@@ -254,9 +253,7 @@ contract GenerateNUTBundle is Script {
             _assertValidImplementationConfig(config);
 
             txns.push(
-                UpgradeUtils.createDeploymentTxn(
-                    UPGRADE_NAME, config.name, config.artifactPath, SALT, config.deploymentGasLimit
-                )
+                UpgradeUtils.createDeploymentTxn(config.name, config.artifactPath, SALT, config.deploymentGasLimit)
             );
         }
     }
@@ -271,7 +268,6 @@ contract GenerateNUTBundle is Script {
         // Deploy L2ContractsManager with encoded implementation addresses
         txns.push(
             UpgradeUtils.createDeploymentTxnWithArgs(
-                UPGRADE_NAME,
                 "L2ContractsManager",
                 "L2ContractsManager.sol:L2ContractsManager",
                 l2cmArgs,
@@ -297,7 +293,7 @@ contract GenerateNUTBundle is Script {
         // Create upgrade execution transaction
         txns.push(
             NetworkUpgradeTxns.NetworkUpgradeTxn({
-                intent: string.concat(UPGRADE_NAME, ": L2ProxyAdmin Upgrade Predeploys"),
+                intent: "L2ProxyAdmin Upgrade Predeploys",
                 from: Constants.DEPOSITOR_ACCOUNT,
                 to: Predeploys.PROXY_ADMIN,
                 gasLimit: gasLimits.upgradeExecution,
@@ -309,6 +305,11 @@ contract GenerateNUTBundle is Script {
     // ========================================
     // HELPERS
     // ========================================
+
+    /// @notice Returns the path to the upgrade bundle.
+    function upgradeBundlePath() public pure returns (string memory) {
+        return string.concat("snapshots/upgrades/", UPGRADE_NAME, "-upgrade-bundle.json");
+    }
 
     /// @notice Retrieves all expected implementation addresses for the upgrade.
     /// @dev All addresses are looked up from the implementationConfigs mapping, which contains
