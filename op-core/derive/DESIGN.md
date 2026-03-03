@@ -1,17 +1,20 @@
-# Pure Derivation Pipeline
+# Derivation Iterator
 
 ## Objective
 
-Implement a pure function that derives L2 payload attributes from L1 data,
-equivalent in behavior to the existing streaming pipeline in
-`op-node/rollup/derive`, but without I/O, caching, or state access.
+Derive L2 payload attributes from L1 data one block at a time, equivalent in
+behavior to the existing streaming pipeline in `op-node/rollup/derive`, but
+without I/O, caching, or state access beyond what the caller provides.
 
-```
-PureDerive(cfg, l1ChainConfig, logger, safeHead, sysConfig, l1Blocks) → []DerivedBlock
+```go
+d, _ := NewDeriver(cfg, l1ChainConfig, lgr, safeHead, sysConfig)
+d.AddL1Block(l1Blocks...)
+attrs, l1Ref, err := d.Next(safeHead)
 ```
 
-Given the same inputs, the function always produces the same outputs. The caller
-provides all L1 data upfront; the function never fetches anything.
+The `Deriver` iterator accepts L1 blocks incrementally and produces one
+`PayloadAttributes` at a time. The caller executes each block on the engine,
+then calls `Next` again with the updated safe head.
 
 ## Motivation
 
@@ -21,106 +24,114 @@ computation. This makes it difficult to test, reason about, and use in contexts
 where all data is already available (ZK provers, auditing tools, replay
 utilities).
 
-A pure function is deterministic, composable, and trivially testable.
+An earlier batch-mode `PureDerive` function took all L1 data upfront and
+returned all derived blocks at once. This didn't match how derivation works in
+practice: derive one block, execute on engine, verify, then derive the next. It
+also couldn't validate parent hashes (needs L2 block hashes from execution) and
+had no mechanism for L1 reorgs.
+
+The iterator solves both: incremental L1 ingestion, one-at-a-time derivation
+with full `CheckBatch` validation including parent hash checks, and explicit
+reorg handling via `Reset`.
 
 ## Scope
 
 **In scope:** Post-Karst derivation only. Karst implies Holocene, Granite,
 Fjord, and all prior forks. This simplifies the implementation:
 
-- No `BatchFuture` or `BatchUndecided` (Holocene semantics: future → drop,
-  undecided conditions don't arise with complete L1 data)
-- No span batch overlap handling (Karst rejects overlapping span batches as
-  `BatchPast`)
 - Single-channel assembly (Holocene rule: one active channel at a time)
 - Strict frame ordering (Holocene)
+- No span batch overlap handling (Karst rejects overlapping span batches as
+  `BatchPast`)
 
 **Out of scope:**
 - Pre-Karst derivation
-- Pipeline reset / reorg detection (caller responsibility)
 - L2 execution (we produce attributes, not executed blocks)
+
+## API
+
+```go
+var ErrNeedL1Data = errors.New("need more L1 data")
+var ErrReorg      = errors.New("L1 reorg detected")
+
+func NewDeriver(cfg, l1ChainConfig, lgr, safeHead, sysConfig) (*Deriver, error)
+
+// AddL1Block appends L1 blocks. Must be contiguous with previously added
+// blocks. Returns ErrReorg on parent hash mismatch.
+func (d *Deriver) AddL1Block(blocks ...L1Input) error
+
+// Next returns the next derived payload attributes and the L1 block they
+// were derived from. Returns ErrNeedL1Data when more L1 blocks are needed.
+func (d *Deriver) Next(safeHead eth.L2BlockRef) (*eth.PayloadAttributes, eth.L1BlockRef, error)
+
+// Reset clears all state back to the given safe head + system config.
+// Used after L1 reorgs. The caller must re-add L1 blocks from the new chain.
+func (d *Deriver) Reset(safeHead eth.L2BlockRef, sysConfig eth.SystemConfig)
+```
 
 ## Architecture
 
 ```
-L1Input[] ──► frame parsing ──► channel assembly ──► batch decoding ──► batch validation ──► attribute building ──► DerivedBlock[]
-                                       │
-                                 timeout check
-                                 (per L1 block)
+               AddL1Block
+                   │
+                   ▼
+L1Input[] ──► frame parsing ──► channel assembly ──► batch decoding ──► CheckBatch ──► attribute building ──► PayloadAttributes
+                                       │                                    │
+                                 timeout check                      parent hash check
+                                 (per L1 block)                     (via safe head)
+                                                                          │
+                                                              empty batch fallback
+                                                            (seq window expired)
 ```
 
 ### Components
 
 | File | Responsibility |
 |------|---------------|
-| `derive.go` | `PureDerive` entry point, main loop over L1 blocks |
+| `deriver.go` | `Deriver` iterator: `NewDeriver`, `AddL1Block`, `Next`, `Reset` |
 | `channels.go` | Push-based Holocene single-channel assembler |
-| `batches.go` | `decodeBatches` (channel → singular batches), `validateBatch` |
+| `batches.go` | `decodeBatches` (channel → singular batches via upstream decode) |
+| `empty_batch.go` | `makeEmptyBatch` (pure function for seq window expiry) |
 | `attributes.go` | `buildAttributes` (batch + L1 data → PayloadAttributes) |
-| `types.go` | `L1Input`, `DerivedBlock`, `l2Cursor` |
+| `types.go` | `L1Input`, `l2Cursor`, sentinel errors |
 
-### Main Loop (derive.go)
+### Next() Flow
 
-For each L1 block:
-1. Process system config update logs
-2. Check channel timeout (fork-aware via `spec.ChannelTimeout`)
-3. Parse frames from batcher transactions
-4. Assemble frames into channels
-5. When a channel completes: decode batches, validate each, build attributes
-6. After processing all channels: generate empty batches if the sequencing
-   window has expired
+1. Try consuming from `pendingBatches`:
+   - `CheckBatch` → `BatchAccept`: build attributes, advance cursor, return
+   - `CheckBatch` → `BatchPast`: skip, try next batch
+   - `CheckBatch` → `BatchDrop`: discard remaining channel batches
+   - `CheckBatch` → `BatchUndecided`: return `ErrNeedL1Data`
+2. Process more L1 blocks (`l1Pos < len(l1Blocks)`):
+   - Process config logs, check channel timeout
+   - Parse frames → assemble channel → if ready, decode into `pendingBatches`
+   - If got pending batches, go to step 1
+   - After each L1 block, check for empty batches (seq window expired)
+3. Return `ErrNeedL1Data`
 
 ### Empty Batch Generation
 
 When no batcher data covers a time range and the sequencing window expires
 (`currentL1.Number > cursor.L1Origin.Number + SeqWindowSize`), the pipeline
-generates empty batches to maintain L2 liveness. Epoch advancement follows the
-rule: advance to the next L1 origin when the L2 timestamp >= the next L1
+generates one empty batch to maintain L2 liveness. Epoch advancement follows
+the rule: advance to the next L1 origin when the L2 timestamp >= the next L1
 block's timestamp.
 
-## Behavioral Equivalence
+## Batch Validation
 
-The implementation must match `checkSingularBatch` in
-`op-node/rollup/derive/batches.go` for all checks that don't require L2 state.
+Batch validation is delegated entirely to upstream `derive.CheckBatch`, which
+dispatches to `checkSingularBatch`. Since `Next` receives a full
+`eth.L2BlockRef` with `Hash`, `checkSingularBatch` validates
+`batch.ParentHash != l2SafeHead.Hash` — solving the parent hash problem that
+the earlier batch-mode approach had to defer.
 
-### Upstream Check Mapping
+`CheckBatch` expects `l1Blocks[0]` to match `safeHead.L1Origin`. The deriver
+computes the starting index dynamically:
 
-| # | Upstream Check | Pure Implementation | Notes |
-|---|---------------|-------------------|-------|
-| 1 | `len(l1Blocks) == 0` → `BatchUndecided` | N/A | We always have all L1 data |
-| 2 | `timestamp > next` → `BatchFuture`/`BatchDrop` | `BatchDrop` | Holocene always active (implied by Karst) |
-| 3 | `timestamp < next` → `BatchDrop`/`BatchPast` | `BatchPast` | Holocene always active |
-| 4 | Parent hash mismatch → `BatchDrop` | Deferred | Stored in `DerivedBlock.ExpectedParentHash` for post-execution verification |
-| 5 | Sequence window expired → `BatchDrop` | `epochNum + SeqWindowSize < l1InclusionNum` → `BatchDrop` | Equivalent |
-| 6a | Epoch too old → `BatchDrop` | `epochNum < cursor.L1Origin.Number` → `BatchDrop` | Equivalent |
-| 6b | Epoch is next but no L1 data → `BatchUndecided` | N/A | We always have all L1 data |
-| 6c | Epoch too far ahead → `BatchDrop` | `epochNum > cursor.L1Origin.Number+1` → `BatchDrop` | Equivalent |
-| 7 | Epoch hash mismatch → `BatchDrop` | Look up origin, compare hash → `BatchDrop` | Equivalent |
-| 8 | Timestamp < L1 origin time → `BatchDrop` | `batch.Timestamp < batchOrigin.Time` → `BatchDrop` | Equivalent |
-| 9 | Fork activation block with txs → `BatchDrop` | Jovian, Karst, Interop checks → `BatchDrop` | Equivalent |
-| 10 | Sequencer drift exceeded → `BatchDrop` | Same logic with empty batch exception → `BatchDrop` | Equivalent |
-| 11a | Empty transaction → `BatchDrop` | `len(txBytes) == 0` → `BatchDrop` | Equivalent |
-| 11b | Deposit transaction → `BatchDrop` | `txBytes[0] == DepositTxType` → `BatchDrop` | Equivalent |
-| 11c | SetCode before Isthmus → `BatchDrop` | `!isIsthmus && txBytes[0] == SetCodeTxType` → `BatchDrop` | Equivalent |
-| 12 | All pass → `BatchAccept` | → `BatchAccept` | Equivalent |
-
-### Intentional Differences
-
-1. **Parent hash validation (check #4):** Deferred to post-execution. The pure
-   function has no L2 block hashes. The caller can verify
-   `DerivedBlock.ExpectedParentHash` against actual execution results.
-
-2. **No `BatchUndecided` or `BatchFuture`:** With Holocene active and all L1
-   data provided, these states cannot occur.
-
-3. **Span batch overlaps:** Under Karst, `CheckSpanBatchPrefix` rejects
-   overlapping span batches as `BatchPast` (upstream treats them as errors
-   pre-Karst). This is the one behavioral change vs pre-Karst upstream.
-
-4. **`BatchPast` handling:** In the main loop, `BatchPast` batches are skipped
-   (`continue`), not flushed. `BatchDrop` and other non-accept results cause a
-   `break` that flushes the remaining batches from the current channel. This
-   matches Holocene semantics where past batches are harmless leftovers.
+```go
+startIdx := safeHead.L1Origin.Number - d.firstL1Num
+l1BlocksForCheck := d.l1Origins[startIdx:]
+```
 
 ### Attribute Building Equivalence
 
@@ -138,22 +149,24 @@ all pre-Karst forks are already active. Future forks with NUTs must be added.
 
 ## Dependencies on Upstream
 
-The implementation reuses these upstream types and functions:
-- `derive.ParseFrames`, `derive.Channel`, `derive.Frame`
-- `derive.BatchReader`, `derive.GetSingularBatch`, `derive.DeriveSpanBatch`
-- `derive.CheckSpanBatchPrefix`
-- `derive.L1InfoDeposit`
-- `derive.ProcessSystemConfigUpdateLogEvent`
+The implementation reuses these upstream types and functions (aliased as
+`opderive` to avoid naming conflict with this package):
+- `opderive.ParseFrames`, `opderive.Channel`, `opderive.Frame`
+- `opderive.BatchReader`, `opderive.GetSingularBatch`, `opderive.DeriveSpanBatch`
+- `opderive.CheckBatch`, `opderive.CheckSpanBatchPrefix`
+- `opderive.L1InfoDeposit`
+- `opderive.ProcessSystemConfigUpdateLogEvent`
 - `rollup.Config`, `rollup.ChainSpec`
 - `eth.PayloadAttributes`, `eth.L1BlockRef`, `eth.L2BlockRef`, `eth.SystemConfig`
 
 ## Testing
 
 Unit tests cover each component in isolation:
-- `batches_test.go`: Batch decoding and all `validateBatch` rejection paths
 - `channels_test.go`: Channel assembly, timeout, frame ordering
 - `attributes_test.go`: Payload attribute construction
 - `types_test.go`: Cursor advancement, empty batch detection
-- `derive_test.go`: Integration tests for `PureDerive` (single batch, empty
-  epochs, multi-channel, channel timeout, invalid batch skip, pre-Karst
-  rejection, L1 range validation)
+- `batches_test.go`: Batch decoding from channel data
+- `empty_batch_test.go`: Empty batch generation (same epoch, epoch advance, missing L1)
+- `deriver_test.go`: Iterator integration tests (single batch, incremental L1,
+  empty batches, reorg detection, reorg reset, channel timeout, invalid batch
+  drop, parent hash check, pre-Karst rejection, multi-channel multi-epoch)
