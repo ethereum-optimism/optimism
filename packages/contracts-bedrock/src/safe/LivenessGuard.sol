@@ -30,8 +30,8 @@ contract LivenessGuard is ISemver, BaseGuard {
     event OwnerRecorded(address owner);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.1.1
+    string public constant version = "1.1.1";
 
     /// @notice The safe account for which this contract will be the guard.
     Safe internal immutable SAFE;

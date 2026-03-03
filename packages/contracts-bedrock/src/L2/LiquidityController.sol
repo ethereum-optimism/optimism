@@ -42,8 +42,8 @@ contract LiquidityController is ISemver, Initializable, OwnableUpgradeable {
     error LiquidityController_Unauthorized();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Mapping of addresses authorized to control liquidity operations
     mapping(address => bool) public minters;

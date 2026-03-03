@@ -30,8 +30,8 @@ contract L2ProxyAdmin is ProxyAdmin, ISemver {
     error L2ProxyAdmin__UpgradeFailed(bytes data);
 
     /// @notice The semantic version of the contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice The constructor for the L2ProxyAdmin contract.
     /// @param _owner Address of the initial owner of this contract.

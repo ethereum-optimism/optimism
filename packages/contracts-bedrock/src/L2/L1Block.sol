@@ -64,9 +64,9 @@ contract L1Block is ISemver {
     /// @notice The DA footprint gas scalar.
     uint16 public daFootprintGasScalar;
 
-    /// @custom:semver 1.8.0
+    /// @custom:semver 1.8.1
     function version() public pure virtual returns (string memory) {
-        return "1.8.0";
+        return "1.8.1";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.

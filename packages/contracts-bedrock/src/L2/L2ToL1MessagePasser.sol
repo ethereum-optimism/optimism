@@ -51,9 +51,9 @@ contract L2ToL1MessagePasser is ISemver {
     /// @param amount Amount of ETH that was burned.
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    /// @custom:semver 1.2.0
+    /// @custom:semver 1.2.1
     function version() public pure virtual returns (string memory) {
-        return "1.2.0";
+        return "1.2.1";
     }
 
     /// @notice Allows users to withdraw ETH by sending directly to this contract.
