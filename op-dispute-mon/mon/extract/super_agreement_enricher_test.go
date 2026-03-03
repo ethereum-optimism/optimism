@@ -31,7 +31,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
@@ -51,7 +51,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 					L1HeadNum:               200,
 					L2SequenceNumber:        0,
 					RootClaim:               mockRootClaim,
-					SuperNodeEndpointErrors: make(map[string]bool),
+					NodeEndpointErrors: make(map[string]bool),
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 				require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 					L1HeadNum:               200,
 					L2SequenceNumber:        0,
 					RootClaim:               mockRootClaim,
-					SuperNodeEndpointErrors: make(map[string]bool),
+					NodeEndpointErrors: make(map[string]bool),
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 				require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               100,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.ErrorIs(t, err, ErrAllSuperNodesUnavailable)
@@ -110,7 +110,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               100,
 			L2SequenceNumber:        0,
 			RootClaim:               common.Hash{},
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -167,7 +167,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               100,
 			L2SequenceNumber:        0,
 			RootClaim:               common.Hash{},
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -186,7 +186,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        100,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               100,
 			L2SequenceNumber:        42984924,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               100,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.Error(t, err)
@@ -248,7 +248,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               100,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -269,7 +269,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -291,7 +291,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -312,7 +312,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -336,7 +336,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        50,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -360,7 +360,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        50,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -384,7 +384,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        50,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -409,7 +409,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        50,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)

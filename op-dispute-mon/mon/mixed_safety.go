@@ -28,8 +28,8 @@ func (m *MixedSafetyMonitor) CheckMixedSafety(games []*types.EnrichedGameData) {
 			count++
 			m.logger.Debug("Mixed safety detected",
 				"game", game.Proxy,
-				"safeCount", game.RollupEndpointSafeCount,
-				"unsafeCount", game.RollupEndpointUnsafeCount)
+				"safeCount", game.NodeEndpointSafeCount,
+				"unsafeCount", game.NodeEndpointUnsafeCount)
 		}
 	}
 

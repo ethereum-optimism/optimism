@@ -11,42 +11,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckDifferentOutputRoots(t *testing.T) {
+func TestCheckDifferentRoots(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointDifferentOutputRoots: true,
+			NodeEndpointDifferentRoots: true,
 			L2SequenceNumber:                   100,
 			RootClaim:                          common.HexToHash("0xaaa"),
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointDifferentOutputRoots: false, // No disagreement
+			NodeEndpointDifferentRoots: false, // No disagreement
 			L2SequenceNumber:                   200,
 			RootClaim:                          common.HexToHash("0xbbb"),
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointDifferentOutputRoots: true,
+			NodeEndpointDifferentRoots: true,
 			L2SequenceNumber:                   300,
 			RootClaim:                          common.HexToHash("0xccc"),
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x44}},
-			RollupEndpointDifferentOutputRoots: false, // No disagreement
+			NodeEndpointDifferentRoots: false, // No disagreement
 			L2SequenceNumber:                   400,
 			RootClaim:                          common.HexToHash("0xddd"),
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
-	monitor := NewDifferentOutputRootMonitor(logger, metrics)
-	monitor.CheckDifferentOutputRoots(games)
+	monitor := NewDifferentRootMonitor(logger, metrics)
+	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 2, metrics.recordedCount)
 
 	// Debug log for first game with different output roots
 	levelFilter := testlog.NewLevelFilter(log.LevelDebug)
-	messageFilter := testlog.NewMessageFilter("Different output roots detected")
+	messageFilter := testlog.NewMessageFilter("Different roots detected")
 	logs := capturedLogs.FindLogs(levelFilter, messageFilter)
 	require.Len(t, logs, 2)
 
@@ -57,88 +57,88 @@ func TestCheckDifferentOutputRoots(t *testing.T) {
 
 	// Info log for summary
 	levelFilter = testlog.NewLevelFilter(log.LevelInfo)
-	messageFilter = testlog.NewMessageFilter("Different output roots summary")
+	messageFilter = testlog.NewMessageFilter("Different roots summary")
 	l = capturedLogs.FindLog(levelFilter, messageFilter)
 	require.NotNil(t, l)
-	require.Equal(t, int64(2), l.AttrValue("gamesWithDifferentOutputRoots"))
+	require.Equal(t, int64(2), l.AttrValue("gamesWithDifferentRoots"))
 	require.Equal(t, int64(4), l.AttrValue("totalGames"))
 }
 
-func TestCheckDifferentOutputRoots_NoDisagreements(t *testing.T) {
+func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointDifferentOutputRoots: false,
+			NodeEndpointDifferentRoots: false,
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointDifferentOutputRoots: false,
+			NodeEndpointDifferentRoots: false,
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
-	monitor := NewDifferentOutputRootMonitor(logger, metrics)
-	monitor.CheckDifferentOutputRoots(games)
+	monitor := NewDifferentRootMonitor(logger, metrics)
+	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 0, metrics.recordedCount)
 
 	// No info log should be present when count is 0
 	levelFilter := testlog.NewLevelFilter(log.LevelInfo)
-	messageFilter := testlog.NewMessageFilter("Different output roots summary")
+	messageFilter := testlog.NewMessageFilter("Different roots summary")
 	l := capturedLogs.FindLog(levelFilter, messageFilter)
 	require.Nil(t, l)
 }
 
-func TestCheckDifferentOutputRoots_EmptyGamesList(t *testing.T) {
+func TestCheckDifferentRoots_EmptyGamesList(t *testing.T) {
 	games := []*types.EnrichedGameData{}
 	metrics := &stubDifferentOutputRootMetrics{}
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
-	monitor := NewDifferentOutputRootMonitor(logger, metrics)
-	monitor.CheckDifferentOutputRoots(games)
+	monitor := NewDifferentRootMonitor(logger, metrics)
+	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 0, metrics.recordedCount)
 
 	// No log should be present when no games exist
 	levelFilter := testlog.NewLevelFilter(log.LevelInfo)
-	messageFilter := testlog.NewMessageFilter("Different output roots summary")
+	messageFilter := testlog.NewMessageFilter("Different roots summary")
 	l := capturedLogs.FindLog(levelFilter, messageFilter)
 	require.Nil(t, l)
 }
 
-func TestCheckDifferentOutputRoots_AllGamesHaveDisagreements(t *testing.T) {
+func TestCheckDifferentRoots_AllGamesHaveDisagreements(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointDifferentOutputRoots: true,
+			NodeEndpointDifferentRoots: true,
 			L2SequenceNumber:                   100,
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointDifferentOutputRoots: true,
+			NodeEndpointDifferentRoots: true,
 			L2SequenceNumber:                   200,
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointDifferentOutputRoots: true,
+			NodeEndpointDifferentRoots: true,
 			L2SequenceNumber:                   300,
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
-	monitor := NewDifferentOutputRootMonitor(logger, metrics)
-	monitor.CheckDifferentOutputRoots(games)
+	monitor := NewDifferentRootMonitor(logger, metrics)
+	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 3, metrics.recordedCount)
 
 	// Debug logs for all games
 	levelFilter := testlog.NewLevelFilter(log.LevelDebug)
-	messageFilter := testlog.NewMessageFilter("Different output roots detected")
+	messageFilter := testlog.NewMessageFilter("Different roots detected")
 	logs := capturedLogs.FindLogs(levelFilter, messageFilter)
 	require.Len(t, logs, 3)
 
 	// Info log for summary
 	levelFilter = testlog.NewLevelFilter(log.LevelInfo)
-	messageFilter = testlog.NewMessageFilter("Different output roots summary")
+	messageFilter = testlog.NewMessageFilter("Different roots summary")
 	l := capturedLogs.FindLog(levelFilter, messageFilter)
 	require.NotNil(t, l)
-	require.Equal(t, int64(3), l.AttrValue("gamesWithDifferentOutputRoots"))
+	require.Equal(t, int64(3), l.AttrValue("gamesWithDifferentRoots"))
 	require.Equal(t, int64(3), l.AttrValue("totalGames"))
 }
 
@@ -146,6 +146,6 @@ type stubDifferentOutputRootMetrics struct {
 	recordedCount int
 }
 
-func (s *stubDifferentOutputRootMetrics) RecordDifferentOutputRootGames(count int) {
+func (s *stubDifferentOutputRootMetrics) RecordDifferentRootGames(count int) {
 	s.recordedCount = count
 }

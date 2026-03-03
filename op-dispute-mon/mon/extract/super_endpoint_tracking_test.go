@@ -33,18 +33,18 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 
 		// Verify error tracking
-		require.Equal(t, 3, game.SuperNodeEndpointTotalCount, "Should track total endpoints")
-		require.Equal(t, 2, game.SuperNodeEndpointErrorCount, "Should track 2 errors")
-		require.Equal(t, 2, len(game.SuperNodeEndpointErrors), "Should track 2 unique endpoint errors")
-		require.True(t, game.SuperNodeEndpointErrors["client-0"], "Should track client-0 error")
-		require.True(t, game.SuperNodeEndpointErrors["client-1"], "Should track client-1 error")
+		require.Equal(t, 3, game.NodeEndpointTotalCount, "Should track total endpoints")
+		require.Equal(t, 2, game.NodeEndpointErrorCount, "Should track 2 errors")
+		require.Equal(t, 2, len(game.NodeEndpointErrors), "Should track 2 unique endpoint errors")
+		require.True(t, game.NodeEndpointErrors["client-0"], "Should track client-0 error")
+		require.True(t, game.NodeEndpointErrors["client-1"], "Should track client-1 error")
 	})
 
 	t.Run("TrackNotFoundCount", func(t *testing.T) {
@@ -61,15 +61,15 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 
-		require.Equal(t, 3, game.SuperNodeEndpointTotalCount)
-		require.Equal(t, 2, game.SuperNodeEndpointNotFoundCount, "Should track 2 not found responses")
-		require.Equal(t, 0, game.SuperNodeEndpointErrorCount, "Should have no errors")
+		require.Equal(t, 3, game.NodeEndpointTotalCount)
+		require.Equal(t, 2, game.NodeEndpointNotFoundCount, "Should track 2 not found responses")
+		require.Equal(t, 0, game.NodeEndpointErrorCount, "Should have no errors")
 	})
 
 	t.Run("TrackSafeUnsafeCounts", func(t *testing.T) {
@@ -92,17 +92,17 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 
 		// This should result in disagreement due to mixed safety
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 
-		require.Equal(t, 4, game.SuperNodeEndpointTotalCount)
-		require.Equal(t, 2, game.SuperNodeEndpointSafeCount, "Should track 2 safe assessments")
-		require.Equal(t, 2, game.SuperNodeEndpointUnsafeCount, "Should track 2 unsafe assessments")
-		require.True(t, game.HasMixedSuperSafety(), "Should detect mixed safety")
+		require.Equal(t, 4, game.NodeEndpointTotalCount)
+		require.Equal(t, 2, game.NodeEndpointSafeCount, "Should track 2 safe assessments")
+		require.Equal(t, 2, game.NodeEndpointUnsafeCount, "Should track 2 unsafe assessments")
+		require.True(t, game.HasMixedSafety(), "Should detect mixed safety")
 	})
 
 	t.Run("TrackDivergentSuperRoots", func(t *testing.T) {
@@ -122,13 +122,13 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 
-		require.True(t, game.SuperNodeEndpointDifferentSuperRoots, "Should flag divergent super roots")
+		require.True(t, game.NodeEndpointDifferentRoots, "Should flag divergent super roots")
 		require.False(t, game.AgreeWithClaim, "Should disagree when super roots diverge")
 	})
 
@@ -147,15 +147,15 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 
-		require.Equal(t, 3, game.SuperNodeEndpointTotalCount)
-		require.Equal(t, 1, game.SuperNodeEndpointNotFoundCount)
-		require.True(t, game.HasMixedSuperAvailability(), "Should detect mixed availability")
+		require.Equal(t, 3, game.NodeEndpointTotalCount)
+		require.Equal(t, 1, game.NodeEndpointNotFoundCount)
+		require.True(t, game.HasMixedAvailability(), "Should detect mixed availability")
 	})
 
 	t.Run("AllFieldsZeroWhenNoEndpoints", func(t *testing.T) {
@@ -169,18 +169,18 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			L1HeadNum:               200,
 			L2SequenceNumber:        0,
 			RootClaim:               mockRootClaim,
-			SuperNodeEndpointErrors: make(map[string]bool),
+			NodeEndpointErrors: make(map[string]bool),
 		}
 
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
 
 		// Verify all counts remain zero when no endpoints
-		require.Equal(t, 0, game.SuperNodeEndpointTotalCount)
-		require.Equal(t, 0, game.SuperNodeEndpointErrorCount)
-		require.Equal(t, 0, game.SuperNodeEndpointNotFoundCount)
-		require.Equal(t, 0, game.SuperNodeEndpointSafeCount)
-		require.Equal(t, 0, game.SuperNodeEndpointUnsafeCount)
-		require.False(t, game.SuperNodeEndpointDifferentSuperRoots)
+		require.Equal(t, 0, game.NodeEndpointTotalCount)
+		require.Equal(t, 0, game.NodeEndpointErrorCount)
+		require.Equal(t, 0, game.NodeEndpointNotFoundCount)
+		require.Equal(t, 0, game.NodeEndpointSafeCount)
+		require.Equal(t, 0, game.NodeEndpointUnsafeCount)
+		require.False(t, game.NodeEndpointDifferentRoots)
 	})
 }

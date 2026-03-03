@@ -13,9 +13,9 @@ import (
 
 func TestCheckNodeEndpointOutOfSync_NoOutOfSync(t *testing.T) {
 	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, RollupEndpointOutOfSyncCount: 0},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, RollupEndpointOutOfSyncCount: 0},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, RollupEndpointOutOfSyncCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointOutOfSyncCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointOutOfSyncCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, NodeEndpointOutOfSyncCount: 0},
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
@@ -31,11 +31,11 @@ func TestCheckNodeEndpointOutOfSync_SingleGameOutOfSync(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointOutOfSyncCount: 5,
+			NodeEndpointOutOfSyncCount: 5,
 		},
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointOutOfSyncCount: 0,
+			NodeEndpointOutOfSyncCount: 0,
 		},
 	}
 
@@ -52,15 +52,15 @@ func TestCheckNodeEndpointOutOfSync_MultipleGamesOutOfSync(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointOutOfSyncCount: 3,
+			NodeEndpointOutOfSyncCount: 3,
 		},
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointOutOfSyncCount: 7,
+			NodeEndpointOutOfSyncCount: 7,
 		},
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointOutOfSyncCount: 2,
+			NodeEndpointOutOfSyncCount: 2,
 		},
 	}
 
@@ -78,19 +78,19 @@ func TestCheckNodeEndpointOutOfSync_MixedGamesWithAndWithoutOutOfSync(t *testing
 	games := []*types.EnrichedGameData{
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointOutOfSyncCount: 0,
+			NodeEndpointOutOfSyncCount: 0,
 		},
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointOutOfSyncCount: 4,
+			NodeEndpointOutOfSyncCount: 4,
 		},
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointOutOfSyncCount: 0,
+			NodeEndpointOutOfSyncCount: 0,
 		},
 		{
 			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x44}},
-			RollupEndpointOutOfSyncCount: 6,
+			NodeEndpointOutOfSyncCount: 6,
 		},
 	}
 

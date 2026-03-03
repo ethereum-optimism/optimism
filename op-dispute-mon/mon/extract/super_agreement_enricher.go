@@ -54,7 +54,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		return fmt.Errorf("%w but required for game type %v", ErrSuperNodeRpcRequired, game.GameType)
 	}
 
-	game.SuperNodeEndpointTotalCount = len(e.clients)
+	game.NodeEndpointTotalCount = len(e.clients)
 
 	results := make([]superRootResult, len(e.clients))
 	var wg sync.WaitGroup
@@ -93,23 +93,23 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		if result.err != nil {
 			e.log.Error("Failed to fetch super root", "clientIndex", idx, "l2SequenceNumber", game.L2SequenceNumber, "err", result.err)
 			endpointID := fmt.Sprintf("client-%d", idx)
-			game.SuperNodeEndpointErrors[endpointID] = true
-			game.SuperNodeEndpointErrorCount++
+			game.NodeEndpointErrors[endpointID] = true
+			game.NodeEndpointErrorCount++
 			continue
 		}
 
 		validResults = append(validResults, result)
 
 		if result.notFound {
-			game.SuperNodeEndpointNotFoundCount++
+			game.NodeEndpointNotFoundCount++
 		} else {
 			foundResults = append(foundResults, result)
 			// Track safety counts only for found results where the super root matches the game's root claim
 			if result.superRoot == game.RootClaim {
 				if result.isSafe {
-					game.SuperNodeEndpointSafeCount++
+					game.NodeEndpointSafeCount++
 				} else {
-					game.SuperNodeEndpointUnsafeCount++
+					game.NodeEndpointUnsafeCount++
 				}
 			}
 		}
@@ -140,7 +140,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		for _, result := range foundResults[1:] {
 			if result.superRoot != firstResult.superRoot {
 				diverged = true
-				game.SuperNodeEndpointDifferentSuperRoots = true
+				game.NodeEndpointDifferentRoots = true
 				break
 			}
 		}

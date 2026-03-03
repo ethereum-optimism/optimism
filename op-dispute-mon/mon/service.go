@@ -241,12 +241,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	nodeEndpointOutOfSyncMonitor := NewNodeEndpointOutOfSyncMonitor(s.logger, s.metrics)
 	mixedAvailabilityMonitor := NewMixedAvailability(s.logger, s.metrics)
 	mixedSafetyMonitor := NewMixedSafetyMonitor(s.logger, s.metrics)
-	differentOutputRootMonitor := NewDifferentOutputRootMonitor(s.logger, s.metrics)
-	superNodeEndpointErrorsMonitor := NewSuperNodeEndpointErrorsMonitor(s.logger, s.metrics)
-	superNodeEndpointErrorCountMonitor := NewSuperNodeEndpointErrorCountMonitor(s.logger, s.metrics)
-	mixedSuperAvailabilityMonitor := NewMixedSuperAvailability(s.logger, s.metrics)
-	mixedSuperSafetyMonitor := NewMixedSuperSafetyMonitor(s.logger, s.metrics)
-	differentSuperRootMonitor := NewDifferentSuperRootMonitor(s.logger, s.metrics)
+	differentRootMonitor := NewDifferentRootMonitor(s.logger, s.metrics)
 	s.monitor = newGameMonitor(ctx, s.logger, s.cl, s.metrics, cfg.MonitorInterval, cfg.GameWindow, headBlockFetcher,
 		extractor.Extract,
 		forecast.Forecast,
@@ -261,12 +256,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
 		mixedAvailabilityMonitor.CheckMixedAvailability,
 		mixedSafetyMonitor.CheckMixedSafety,
-		differentOutputRootMonitor.CheckDifferentOutputRoots,
-		superNodeEndpointErrorsMonitor.CheckSuperNodeEndpointErrors,
-		superNodeEndpointErrorCountMonitor.CheckSuperNodeEndpointErrorCount,
-		mixedSuperAvailabilityMonitor.CheckMixedSuperAvailability,
-		mixedSuperSafetyMonitor.CheckMixedSuperSafety,
-		differentSuperRootMonitor.CheckDifferentSuperRoots)
+		differentRootMonitor.CheckDifferentRoots)
 }
 
 func (s *Service) Start(ctx context.Context) error {

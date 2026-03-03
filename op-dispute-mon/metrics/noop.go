@@ -64,14 +64,4 @@ func (*NoopMetricsImpl) RecordMixedAvailabilityGames(_ int) {}
 
 func (*NoopMetricsImpl) RecordMixedSafetyGames(_ int) {}
 
-func (*NoopMetricsImpl) RecordDifferentOutputRootGames(_ int) {}
-
-func (*NoopMetricsImpl) RecordSuperNodeEndpointErrors(_ int) {}
-
-func (*NoopMetricsImpl) RecordSuperNodeEndpointErrorCount(_ int) {}
-
-func (*NoopMetricsImpl) RecordMixedSuperAvailabilityGames(_ int) {}
-
-func (*NoopMetricsImpl) RecordMixedSuperSafetyGames(_ int) {}
-
-func (*NoopMetricsImpl) RecordDifferentSuperRootGames(_ int) {}
+func (*NoopMetricsImpl) RecordDifferentRootGames(_ int) {}

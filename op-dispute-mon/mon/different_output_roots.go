@@ -5,37 +5,37 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type DifferentOutputRootMetrics interface {
-	RecordDifferentOutputRootGames(count int)
+type DifferentRootMetrics interface {
+	RecordDifferentRootGames(count int)
 }
 
-type DifferentOutputRootMonitor struct {
+type DifferentRootMonitor struct {
 	logger  log.Logger
-	metrics DifferentOutputRootMetrics
+	metrics DifferentRootMetrics
 }
 
-func NewDifferentOutputRootMonitor(logger log.Logger, metrics DifferentOutputRootMetrics) *DifferentOutputRootMonitor {
-	return &DifferentOutputRootMonitor{
+func NewDifferentRootMonitor(logger log.Logger, metrics DifferentRootMetrics) *DifferentRootMonitor {
+	return &DifferentRootMonitor{
 		logger:  logger,
 		metrics: metrics,
 	}
 }
 
-func (m *DifferentOutputRootMonitor) CheckDifferentOutputRoots(games []*types.EnrichedGameData) {
+func (m *DifferentRootMonitor) CheckDifferentRoots(games []*types.EnrichedGameData) {
 	count := 0
 	for _, game := range games {
-		if game.RollupEndpointDifferentOutputRoots {
+		if game.NodeEndpointDifferentRoots {
 			count++
-			m.logger.Debug("Different output roots detected",
+			m.logger.Debug("Different roots detected",
 				"game", game.Proxy,
 				"l2SequenceNumber", game.L2SequenceNumber,
 				"rootClaim", game.RootClaim)
 		}
 	}
 
-	m.metrics.RecordDifferentOutputRootGames(count)
+	m.metrics.RecordDifferentRootGames(count)
 
 	if count > 0 {
-		m.logger.Info("Different output roots summary", "gamesWithDifferentOutputRoots", count, "totalGames", len(games))
+		m.logger.Info("Different roots summary", "gamesWithDifferentRoots", count, "totalGames", len(games))
 	}
 }
