@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Contracts
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";

@@ -72,7 +72,7 @@ func processFile(filePath string) (*common.Void, []error) {
 	}
 
 	if !isStrictPragma(pragma) {
-		return nil, []error{fmt.Errorf("non-strict pragma '%s' - contracts must use exact version (e.g., '0.8.15' not '^0.8.15')", pragma)}
+		return nil, []error{fmt.Errorf("non-strict pragma '%s' - contracts must use exact version (e.g., '0.8.25' not '^0.8.25')", pragma)}
 	}
 
 	return nil, nil
