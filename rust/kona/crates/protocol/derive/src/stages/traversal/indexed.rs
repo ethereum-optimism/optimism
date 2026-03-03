@@ -101,8 +101,7 @@ impl<F: ChainProvider> IndexedTraversal<F> {
             Ok(false) => { /* Ignore, no update applied */ }
             Err(err) => {
                 // Failure to update the system config is non-fatal: one or more receipts may be
-                // malformed or invalid. Log a warning and continue, matching op-node behaviour
-                // (l1_traversal.go:78-82: "failure to apply is just informational").
+                // malformed or invalid. Log a warning and continue.
                 warn!(target: "traversal", ?err, "Failed to update system config at block {} (non-fatal, continuing)", block_info.number);
                 kona_macros::set!(
                     gauge,
@@ -317,7 +316,8 @@ mod tests {
         let first = b256!("3333333333333333333333333333333333333333333333333333333333333333");
         let second = b256!("4444444444444444444444444444444444444444444444444444444444444444");
         let block1 = BlockInfo { hash: first, ..BlockInfo::default() };
-        let block2 = BlockInfo { number: 1, hash: second, parent_hash: first, ..BlockInfo::default() };
+        let block2 =
+            BlockInfo { number: 1, hash: second, parent_hash: first, ..BlockInfo::default() };
         let blocks = vec![block1, block2];
         let receipts = new_receipts();
         let mut traversal = new_test_managed(blocks, receipts);

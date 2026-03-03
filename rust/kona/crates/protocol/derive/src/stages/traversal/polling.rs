@@ -109,8 +109,7 @@ impl<F: ChainProvider + Send> OriginAdvancer for PollingTraversal<F> {
             Ok(false) => { /* Ignore, no update applied */ }
             Err(err) => {
                 // Failure to update the system config is non-fatal: one or more receipts may be
-                // malformed or invalid. Log a warning and continue, matching op-node behaviour
-                // (l1_traversal.go:78-82: "failure to apply is just informational").
+                // malformed or invalid. Log a warning and continue.
                 warn!(target: "l1_traversal", ?err, "Failed to update system config at block {} (non-fatal, continuing)", next_l1_origin.number);
                 kona_macros::set!(
                     gauge,
@@ -177,9 +176,14 @@ impl<F: ChainProvider + Send> SignalReceiver for PollingTraversal<F> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::{errors::PipelineErrorKind, test_utils::TraversalTestHelper};
+    use crate::{
+        errors::PipelineErrorKind,
+        test_utils::{TestChainProvider, TraversalTestHelper},
+    };
     use alloc::vec;
-    use alloy_primitives::{address, b256};
+    use alloy_consensus::Receipt;
+    use alloy_primitives::{Bytes, Log, LogData, address, b256};
+    use kona_genesis::CONFIG_UPDATE_TOPIC;
 
     #[test]
     fn test_l1_traversal_batcher_address() {
@@ -287,16 +291,47 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn test_l1_traversal_system_config_update_fails() {
+        // Build a 3-node chain: genesis (hash=0x0) → block1 → block2.
+        // block2 has a receipt with a log from L1_SYS_CONFIG_ADDR that has only
+        // 1 topic instead of the required >= 3, triggering a syscfg update error.
+        // The fix under test makes this error non-fatal: advance_origin warns and
+        // continues (matching op-node's l1_traversal.go:78-82 behaviour).
         let first = b256!("3333333333333333333333333333333333333333333333333333333333333333");
         let second = b256!("4444444444444444444444444444444444444444444444444444444444444444");
-        let block1 = BlockInfo { hash: first, ..BlockInfo::default() };
-        let block2 = BlockInfo { hash: second, ..BlockInfo::default() };
-        let blocks = vec![block1, block2];
-        let receipts = TraversalTestHelper::new_receipts();
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
+        // block1: child of genesis (parent_hash = 0x0 = genesis.hash)
+        let block1 = BlockInfo { number: 1, hash: first, ..BlockInfo::default() };
+        // block2: child of block1, with a receipt that triggers syscfg update failure
+        let block2 =
+            BlockInfo { number: 2, hash: second, parent_hash: first, ..BlockInfo::default() };
+
+        let mut provider = TestChainProvider::default();
+        let rollup_config = RollupConfig {
+            l1_system_config_address: TraversalTestHelper::L1_SYS_CONFIG_ADDR,
+            ..RollupConfig::default()
+        };
+        provider.insert_block(1, block1);
+        provider.insert_block(2, block2);
+        // block1 gets an empty receipt (no syscfg updates).
+        provider.insert_receipts(first, vec![Receipt::default()]);
+        // block2 gets a malformed log from L1_SYS_CONFIG_ADDR (only 1 topic instead of 3).
+        // update_with_receipts returns Err(InvalidTopicLen(1)) → non-fatal with the fix.
+        let bad_log = Log {
+            address: TraversalTestHelper::L1_SYS_CONFIG_ADDR,
+            data: LogData::new_unchecked(vec![CONFIG_UPDATE_TOPIC], Bytes::default()),
+        };
+        let bad_receipt = Receipt {
+            status: alloy_consensus::Eip658Value::Eip658(true),
+            logs: vec![bad_log],
+            ..Receipt::default()
+        };
+        provider.insert_receipts(second, vec![bad_receipt]);
+
+        let mut traversal = PollingTraversal::new(provider, Arc::new(rollup_config));
+
+        // First advance_origin: genesis → block1 (empty receipt, no syscfg update)
         assert!(traversal.advance_origin().await.is_ok());
-        // A system config update error is now non-fatal (matches op-node behaviour):
-        // advance_origin returns Ok(()) and the pipeline continues.
+        // Second advance_origin: block1 → block2 (bad receipt triggers syscfg update
+        // error, but it is now non-fatal: warn + continue = Ok(())).
         assert!(
             traversal.advance_origin().await.is_ok(),
             "system config update failure should be non-fatal (warn + continue)"
