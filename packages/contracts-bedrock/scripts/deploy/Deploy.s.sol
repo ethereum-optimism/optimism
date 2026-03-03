@@ -24,7 +24,6 @@ import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
