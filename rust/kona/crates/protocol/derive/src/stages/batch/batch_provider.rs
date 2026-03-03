@@ -308,9 +308,8 @@ mod test {
         assert!(bv.l1_blocks.len() == 1);
     }
 
-    // BQ-12 fix: On Holocene activation, BatchProvider.attempt_update() must copy BOTH l1_blocks
-    // AND origin from the old BatchQueue to the new BatchValidator, matching Go's
-    // BatchMux.TransformHolocene() which copies both bs.l1Blocks and bs.origin (batch_mux.go:67-68).
+    // On Holocene activation, BatchProvider.attempt_update() must copy BOTH l1_blocks
+    // AND origin from the old BatchQueue to the new BatchValidator.
     //
     // Without copying origin, BatchValidator.origin starts as None. The first
     // update_origins() call always enters the `self.origin != self.prev.origin()` branch
