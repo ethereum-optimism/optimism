@@ -108,13 +108,15 @@ impl<F: ChainProvider + Send> OriginAdvancer for PollingTraversal<F> {
             }
             Ok(false) => { /* Ignore, no update applied */ }
             Err(err) => {
-                error!(target: "l1_traversal", ?err, "Failed to update system config at block {}", next_l1_origin.number);
+                // Failure to update the system config is non-fatal: one or more receipts may be
+                // malformed or invalid. Log a warning and continue, matching op-node behaviour
+                // (l1_traversal.go:78-82: "failure to apply is just informational").
+                warn!(target: "l1_traversal", ?err, "Failed to update system config at block {} (non-fatal, continuing)", next_l1_origin.number);
                 kona_macros::set!(
                     gauge,
                     crate::Metrics::PIPELINE_SYS_CONFIG_UPDATE_ERROR,
                     next_l1_origin.number as f64
                 );
-                return Err(PipelineError::SystemConfigUpdate(err).crit());
             }
         }
 
@@ -293,10 +295,12 @@ pub(crate) mod tests {
         let receipts = TraversalTestHelper::new_receipts();
         let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
         assert!(traversal.advance_origin().await.is_ok());
-        // Only the second block should fail since the second receipt
-        // contains invalid logs that will error for a system config update.
-        let err = traversal.advance_origin().await.unwrap_err();
-        matches!(err, PipelineErrorKind::Critical(PipelineError::SystemConfigUpdate(_)));
+        // A system config update error is now non-fatal (matches op-node behaviour):
+        // advance_origin returns Ok(()) and the pipeline continues.
+        assert!(
+            traversal.advance_origin().await.is_ok(),
+            "system config update failure should be non-fatal (warn + continue)"
+        );
     }
 
     #[tokio::test]
