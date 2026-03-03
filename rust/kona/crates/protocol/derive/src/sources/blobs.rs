@@ -4,7 +4,7 @@ use crate::{
     BlobData, BlobProvider, BlobProviderError, ChainProvider, DataAvailabilityProvider,
     PipelineError, PipelineErrorKind, PipelineResult,
 };
-use alloc::{boxed::Box, string::ToString, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 use alloy_consensus::{
     Transaction, TxEip4844Variant, TxEnvelope, TxType, transaction::SignerRecoverable,
 };
@@ -116,10 +116,11 @@ where
             return Ok(());
         }
 
-        let info =
-            self.chain_provider.block_info_and_transactions_by_hash(block_ref.hash).await.map_err(
-                |e| -> PipelineErrorKind { BlobProviderError::Backend(e.to_string()).into() },
-            )?;
+        let info = self
+            .chain_provider
+            .block_info_and_transactions_by_hash(block_ref.hash)
+            .await
+            .map_err(Into::into)?;
 
         let (mut data, blob_hashes) = self.extract_blob_data(info.1, batcher_address);
 
@@ -403,6 +404,87 @@ pub(crate) mod tests {
         assert!(
             matches!(err, PipelineErrorKind::Reset(_)),
             "expected Reset for missed beacon slot, got {err:?}"
+        );
+    }
+
+    /// A minimal [`ChainProvider`] that always returns a "block not found" error which maps to
+    /// [`PipelineErrorKind::Reset`].  Used to verify that [`BlobSource::load_blobs`] preserves
+    /// the `Reset` kind when the underlying chain provider signals that a block is missing (e.g.
+    /// after an L1 reorg removes the block whose hash was referenced).
+    #[derive(Debug, Clone, Default)]
+    struct BlockNotFoundChainProvider;
+
+    /// Error type for [`BlockNotFoundChainProvider`] that converts to
+    /// [`PipelineErrorKind::Reset`], matching what `AlloyChainProvider` emits for 404 responses.
+    #[derive(Debug)]
+    struct BlockNotFoundError;
+
+    impl core::fmt::Display for BlockNotFoundError {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            write!(f, "block not found")
+        }
+    }
+
+    impl From<BlockNotFoundError> for PipelineErrorKind {
+        fn from(_: BlockNotFoundError) -> Self {
+            use crate::ResetError;
+            ResetError::BlockNotFound(alloy_primitives::B256::default().into()).reset()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ChainProvider for BlockNotFoundChainProvider {
+        type Error = BlockNotFoundError;
+
+        async fn header_by_hash(
+            &mut self,
+            _: alloy_primitives::B256,
+        ) -> Result<alloy_consensus::Header, Self::Error> {
+            Err(BlockNotFoundError)
+        }
+
+        async fn block_info_by_number(
+            &mut self,
+            _: u64,
+        ) -> Result<kona_protocol::BlockInfo, Self::Error> {
+            Err(BlockNotFoundError)
+        }
+
+        async fn receipts_by_hash(
+            &mut self,
+            _: alloy_primitives::B256,
+        ) -> Result<alloc::vec::Vec<alloy_consensus::Receipt>, Self::Error> {
+            Err(BlockNotFoundError)
+        }
+
+        async fn block_info_and_transactions_by_hash(
+            &mut self,
+            _: alloy_primitives::B256,
+        ) -> Result<(kona_protocol::BlockInfo, alloc::vec::Vec<TxEnvelope>), Self::Error> {
+            Err(BlockNotFoundError)
+        }
+    }
+
+    /// Regression test: when `block_info_and_transactions_by_hash` returns an error that maps to
+    /// `PipelineErrorKind::Reset` (e.g. because an L1 reorg removed the block), `load_blobs`
+    /// must propagate the `Reset` kind unchanged.
+    ///
+    /// Before the fix, `BlobSource` wrapped every chain-provider error as
+    /// `BlobProviderError::Backend(e.to_string()).into()`, which unconditionally produces
+    /// `PipelineErrorKind::Temporary`.  The fix uses `.map_err(Into::into)` so the `Reset` kind
+    /// set by the underlying provider is preserved, allowing the pipeline to recover via reset
+    /// rather than spinning in a retry loop.
+    #[tokio::test]
+    async fn test_load_blobs_block_not_found_triggers_reset() {
+        let chain_provider = BlockNotFoundChainProvider;
+        let blob_fetcher = crate::test_utils::TestBlobProvider::default();
+        let mut source = BlobSource::new(chain_provider, blob_fetcher, Address::ZERO);
+
+        let err = source.load_blobs(&BlockInfo::default(), Address::ZERO).await.unwrap_err();
+        assert!(
+            matches!(err, PipelineErrorKind::Reset(_)),
+            "expected Reset when block_info_and_transactions_by_hash returns BlockNotFound, \
+             got {err:?}"
         );
     }
 }
