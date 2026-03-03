@@ -353,6 +353,9 @@ pub enum ResetError {
     /// typically because an L1 reorg removed it. The pipeline must reset to recover.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
+    /// The blob provider returned fewer blobs than expected (under-fill).
+    #[error("Blob provider under-fill: expected blob at index {0} but only {1} blobs returned")]
+    BlobsUnderFill(usize, usize),
 }
 
 impl ResetError {
@@ -442,6 +445,7 @@ mod tests {
             ResetError::HoloceneActivation,
             ResetError::BlobsUnavailable(0),
             ResetError::BlockNotFound(B256::default().into()),
+            ResetError::BlobsUnderFill(0, 0),
         ];
         for error in reset_errors {
             let expected = PipelineErrorKind::Reset(error.clone());

@@ -33,6 +33,9 @@ pub enum BlobProviderError {
     /// Blob decoding error.
     #[error("Blob decoding error: {0}")]
     BlobDecoding(#[from] BlobDecodingError),
+    /// The blob provider returned fewer blobs than requested (under-fill).
+    #[error("Not enough blobs: expected blob at index {0} but provider returned only {1} blobs")]
+    NotEnoughBlobs(usize, usize),
     /// The beacon node returned a 404 for the requested slot, indicating the slot was missed or
     /// orphaned. Blobs for missed/orphaned slots will never become available, so the pipeline
     /// must reset to move past the L1 block that referenced them.
@@ -54,6 +57,9 @@ impl From<BlobProviderError> for PipelineErrorKind {
             BlobProviderError::SidecarLengthMismatch(_, _) |
             BlobProviderError::SlotDerivation |
             BlobProviderError::BlobDecoding(_) => PipelineError::Provider(val.to_string()).crit(),
+            BlobProviderError::NotEnoughBlobs(index, count) => {
+                ResetError::BlobsUnderFill(index, count).reset()
+            }
             BlobProviderError::BlobNotFound { slot, .. } => {
                 ResetError::BlobsUnavailable(slot).reset()
             }
@@ -97,5 +103,8 @@ mod tests {
             matches!(err, PipelineErrorKind::Reset(_)),
             "BlobNotFound must map to Reset so the pipeline moves past the missed slot"
         );
+
+        let err: PipelineErrorKind = BlobProviderError::NotEnoughBlobs(2, 1).into();
+        assert!(matches!(err, PipelineErrorKind::Reset(_)));
     }
 }
