@@ -357,6 +357,8 @@ contract GenerateNUTBundle is Script {
     /// @notice Builds the implementation configuration mapping for all contracts to be deployed.
     /// @dev IMPORTANT: Only modify this function if you need to add or modify a deployment implementation
     /// configuration.
+    /// @dev An array of strings is used to add contracts that are not predeploys (StorageSetter) or have
+    /// feature-specific variants (e.g. CGT).
     function _buildImplementationDeploymentConfigs() internal {
         implementationConfigs["StorageSetter"] = ImplementationConfig({
             name: "StorageSetter",
