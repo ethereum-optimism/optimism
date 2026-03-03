@@ -353,6 +353,15 @@ pub enum ResetError {
     /// typically because an L1 reorg removed it. The pipeline must reset to recover.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
+    /// The blob provider returned more blobs than were requested (over-fill). The first argument
+    /// is the number of blob placeholders filled; the second is the total number of blobs
+    /// returned. This matches op-node's `fillBlobPointers` check at blob_data_source.go:162-163
+    /// which returns `fmt.Errorf("got too many blobs")` wrapped as `NewResetError`. Can occur
+    /// with buggy blob providers or in rare L1 reorg scenarios.
+    #[error(
+        "Blob provider over-fill: filled {0} blob placeholders but provider returned {1} blobs"
+    )]
+    BlobsOverFill(usize, usize),
 }
 
 impl ResetError {
@@ -442,6 +451,7 @@ mod tests {
             ResetError::HoloceneActivation,
             ResetError::BlobsUnavailable(0),
             ResetError::BlockNotFound(B256::default().into()),
+            ResetError::BlobsOverFill(0, 0),
         ];
         for error in reset_errors {
             let expected = PipelineErrorKind::Reset(error.clone());
