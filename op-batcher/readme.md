@@ -132,10 +132,12 @@ transaction to the DA layer than what can be recovered from the transaction's da
 To prevent a significant DA backlog, the batcher can instruct the block builder (via op-geth's miner RPC API) to impose
 thresholds on the total DA requirements of a single block, and/or the maximum DA requirement of any single
 transaction. In the happy case, the batcher instructs the block builder to impose a block-level DA limit of
-OP_BATCHER_THROTTLE_ALWAYS_BLOCK_SIZE, and imposes no additional limit on the DA requirements of a single
-transaction. But in the case of a DA backlog (as defined by OP_BATCHER_THROTTLE_THRESHOLD), the batcher instructs the
-block builder to instead impose a (tighter) block level limit of OP_BATCHER_THROTTLE_BLOCK_SIZE, and a single
-transaction limit of OP_BATCHER_THROTTLE_TRANSACTION_SIZE.
+`OP_BATCHER_THROTTLE_BLOCK_SIZE_UPPER_LIMIT`, and imposes no additional limit on the DA requirements of a single
+transaction. But in the case of a DA backlog (when `unsafe_da_bytes` exceeds
+`OP_BATCHER_THROTTLE_UNSAFE_DA_BYTES_LOWER_THRESHOLD`), the batcher instructs the block builder to instead impose a
+(tighter) block level limit down to `OP_BATCHER_THROTTLE_BLOCK_SIZE_LOWER_LIMIT`, and a single transaction limit down
+to `OP_BATCHER_THROTTLE_TX_SIZE_LOWER_LIMIT`. The throttling intensity increases further as `unsafe_da_bytes` rises
+toward `OP_BATCHER_THROTTLE_UNSAFE_DA_BYTES_UPPER_THRESHOLD`.
 
 ### Enhanced DA Throttling Mechanisms
 
