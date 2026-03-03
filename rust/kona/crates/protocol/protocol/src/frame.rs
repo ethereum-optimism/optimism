@@ -326,4 +326,80 @@ mod test {
             assert_eq!(frames[i], frame);
         });
     }
+
+    // Spec conformance test for FQ-D01 (kona-node-vs-op-node).
+    //
+    // Rule FQ-05: The `is_last` byte must be exactly 0 (false) or 1 (true). Any other value
+    // must cause the frame — and the entire batcher transaction — to be rejected.
+    //
+    // Reference: `op-node/rollup/derive/frame.go` lines 99-107. Go's `UnmarshalBinary` uses an
+    // explicit three-branch switch: 0 → false, 1 → true, default → return error. Any other value
+    // causes the whole `ParseFrames` call to fail and the batcher transaction to be dropped.
+    //
+    // Bug: `Frame::decode` at frame.rs:211 uses `encoded[22 + data_len] == 1`.
+    // A byte value of 2, 3, or 0xFF evaluates to `false` and is silently accepted as
+    // `is_last = false`. No subsequent check in `parse_frames` or `load_frames` detects
+    // the invalid byte.
+    //
+    // This test documents the conformance gap: it asserts the correct (Go-compatible)
+    // behaviour (decode should return an error). The test FAILS on the current code,
+    // confirming the bug.
+    #[test]
+    fn test_spec_frame_queue_invalid_is_last_byte() {
+        // Build a valid frame with data of 10 bytes, but manually set is_last = 2 (invalid).
+        // Layout: [channel_id(16)] [frame_number(2)] [data_len(4)] [data(10)] [is_last(1)]
+        // Total: 16 + 2 + 4 + 10 + 1 = 33 bytes.
+        let mut encoded = Vec::new();
+        // channel_id: 16 bytes
+        encoded.extend_from_slice(&[0xAA; 16]);
+        // frame_number: 0 as uint16 big-endian
+        encoded.extend_from_slice(&0u16.to_be_bytes());
+        // data_len: 10 as uint32 big-endian
+        encoded.extend_from_slice(&10u32.to_be_bytes());
+        // data: 10 bytes
+        encoded.extend_from_slice(&[0xBB; 10]);
+        // is_last: 2 — invalid (must be 0 or 1)
+        encoded.push(2u8);
+
+        // The Go reference rejects this with an error.
+        // The correct behaviour is for decode() to return an error.
+        let result = Frame::decode(&encoded);
+        assert!(
+            result.is_err(),
+            "Frame::decode should reject is_last byte value 2, but accepted it as is_last=false \
+             (BUG: kona-node-vs-op-node FQ-D01)"
+        );
+    }
+
+    // Spec conformance test for FQ-D01 — full parse_frames path.
+    //
+    // When a frame with an invalid is_last byte is embedded in a batcher transaction payload
+    // (preceded by the DerivationVersion0 byte), the entire `parse_frames` call must fail.
+    // Go's `ParseFrames` propagates the `UnmarshalBinary` error upward, dropping the full
+    // batcher transaction. Kona silently accepts the frame.
+    //
+    // This test documents the correct behaviour. It FAILS on the current code.
+    #[test]
+    fn test_spec_frame_queue_invalid_is_last_byte_in_parse_frames() {
+        // Build a raw transaction payload: [DerivationVersion0] [frame with is_last=0xFF]
+        let mut payload = Vec::new();
+        payload.push(DERIVATION_VERSION_0);
+        // channel_id
+        payload.extend_from_slice(&[0xCC; 16]);
+        // frame_number = 0
+        payload.extend_from_slice(&0u16.to_be_bytes());
+        // data_len = 5
+        payload.extend_from_slice(&5u32.to_be_bytes());
+        // data
+        payload.extend_from_slice(&[0xDD; 5]);
+        // is_last = 0xFF (invalid)
+        payload.push(0xFFu8);
+
+        let result = Frame::parse_frames(&payload);
+        assert!(
+            result.is_err(),
+            "parse_frames should reject a frame with is_last=0xFF, but accepted it \
+             (BUG: kona-node-vs-op-node FQ-D01)"
+        );
+    }
 }

@@ -545,4 +545,80 @@ pub(crate) mod tests {
         assert.holocene_active(true);
         assert.next_frames().await;
     }
+
+    // Spec conformance test for FQ-17 (kona-node-vs-op-node).
+    //
+    // Rule FQ-17: Holocene pruning is applied once after ALL frames from a single batcher
+    // transaction are appended to the queue, not on each individual frame or interleaved with
+    // dequeuing.
+    //
+    // Reference: `frame_queue.go:83-95`. Go's `loadNextFrames` appends all frames from
+    // `ParseFrames(data)` first (`fq.frames = append(fq.frames, frames...)`), then calls
+    // `fq.prune()` exactly once on the entire accumulated queue.
+    //
+    // This test submits a single batcher transaction with multiple frames from two channels
+    // and verifies that pruning acts on the entire batch at once, producing the correct
+    // output regardless of the order in which individual frames are dequeued.
+    #[tokio::test]
+    async fn test_spec_frame_queue_holocene_prune_applied_after_full_batch_append() {
+        // Frames: channel 0xAA is open (no is_last), then channel 0xBB starts (frame 0).
+        // Under Holocene, channel 0xAA must be evicted because a new channel 0xBB starts
+        // before 0xAA was closed. Pruning must happen in one pass over the full batch.
+        let frames = [
+            crate::frame!(0xAA, 0, vec![0xCC; 10], false),
+            crate::frame!(0xAA, 1, vec![0xCC; 10], false),
+            crate::frame!(0xBB, 0, vec![0xCC; 10], false),
+            crate::frame!(0xBB, 1, vec![0xCC; 10], true),
+        ];
+        let cfg = RollupConfig {
+            hardforks: HardForkConfig { holocene_time: Some(0), ..Default::default() },
+            ..Default::default()
+        };
+        // Expected: frames for 0xAA are evicted by 0xBB's first frame; 0xBB is kept.
+        let expected = &frames[2..];
+        let assert = crate::test_utils::FrameQueueBuilder::new()
+            .with_rollup_config(&cfg)
+            .with_origin(BlockInfo::default())
+            .with_expected_frames(expected)
+            .with_frames(&frames)
+            .build();
+        assert.holocene_active(true);
+        assert.next_frames().await;
+    }
+
+    // Spec conformance test for FQ-18 (kona-node-vs-op-node).
+    //
+    // Rule FQ-18: When all frames parsed from a data payload are dropped (e.g. due to a parse
+    // error), the stage must return `NotEnoughData` (not EOF) so the pipeline immediately
+    // fetches another data payload rather than signalling the end of available data.
+    //
+    // Reference: `frame_queue.go:61-63`. After `loadNextFrames` returns with no error but
+    // produces zero frames (parse error path → early return with `nil`), `NextFrame` checks
+    // `len(fq.frames) == 0` and returns `NotEnoughData` (not EOF).
+    //
+    // This test verifies:
+    //   1. A batcher transaction with only the version byte (no frames) causes `load_frames`
+    //      to add zero frames to the queue and return `Ok(())`.
+    //   2. `next_frame` then returns `PipelineError::NotEnoughData.temp()` (not EOF).
+    #[tokio::test]
+    async fn test_spec_frame_queue_empty_parse_returns_not_enough_data() {
+        // Payload: version byte only — no frames. parse_frames returns NoFramesDecoded.
+        // load_frames silently swallows the error and returns Ok(()). Queue stays empty.
+        // next_frame must return NotEnoughData, not EOF.
+        let empty_payload = alloy_primitives::Bytes::from(vec![
+            kona_protocol::DERIVATION_VERSION_0,
+            // No frame bytes follow.
+        ]);
+        let mut mock = TestFrameQueueProvider::new(vec![Ok(empty_payload)]);
+        mock.set_origin(BlockInfo::default());
+        let mut fq = FrameQueue::new(mock, Default::default());
+
+        let err = fq.next_frame().await.unwrap_err();
+        assert_eq!(
+            err,
+            crate::PipelineError::NotEnoughData.temp(),
+            "When parse produces zero frames, next_frame must return NotEnoughData, not EOF \
+             (FQ-18, kona-node-vs-op-node)"
+        );
+    }
 }
