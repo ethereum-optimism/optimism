@@ -31,7 +31,7 @@ contract DeploySaferSafes_Test is Test {
         assertGt(address(output.saferSafesSingleton).code.length, 0, "SaferSafes has no code");
 
         // Verify the version is correct.
-        assertEq(output.saferSafesSingleton.version(), "1.10.1", "SaferSafes version mismatch");
+        assertEq(output.saferSafesSingleton.version(), "1.10.2", "SaferSafes version mismatch");
     }
 
     /// @notice Tests that the deployment is deterministic and reuses addresses.
@@ -127,7 +127,7 @@ contract DeploySaferSafes_Test is Test {
         assertTrue(bytes(version).length > 0, "Version should not be empty");
 
         // Verify the version matches the expected format.
-        assertEq(version, "1.10.1", "Version should be 1.10.1");
+        assertEq(version, "1.10.2", "Version should be 1.10.1");
     }
 }
 
