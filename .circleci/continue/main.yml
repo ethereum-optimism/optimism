@@ -1714,6 +1714,8 @@ jobs:
       - run-contracts-check:
           command: snapshots-check-no-build
       - run-contracts-check:
+          command: nut-bundle-check-no-build
+      - run-contracts-check:
           command: interfaces-check-no-build
       - run-contracts-check:
           command: reinitializer-check-no-build
