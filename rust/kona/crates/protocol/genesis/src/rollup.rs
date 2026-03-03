@@ -477,7 +477,7 @@ impl OpHardforks for RollupConfig {
                 .hardforks
                 .karst_time
                 .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Interop)),
+                .unwrap_or(ForkCondition::Never),
             OpHardfork::Interop => self
                 .hardforks
                 .interop_time
