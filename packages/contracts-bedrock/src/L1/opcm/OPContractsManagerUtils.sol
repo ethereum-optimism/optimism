@@ -51,7 +51,7 @@ contract OPContractsManagerUtils {
     /// @param _contract The address of the contract with extra version tags.
     error OPContractsManagerUtils_ExtraTagInProd(address _contract);
 
-    /// @notice Thrown when a contract is mid-initialization during an upgrade.
+    /// @notice Thrown when a contract has `_initializing` as true during an upgrade.
     error OPContractsManagerUtils_InitializingDuringUpgrade();
 
     /// @notice Thrown when a config load fails.
@@ -330,7 +330,7 @@ contract OPContractsManagerUtils {
         // Upgrade to StorageSetter.
         _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
 
-        // Otherwise, we need to reset the initialized slot and call the initializer.
+        // We need to reset the initialized slot and call the initializer.
         // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
         bytes32 current = IStorageSetter(_target).getBytes32(_slot);
         uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
