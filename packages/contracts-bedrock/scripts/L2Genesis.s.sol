@@ -283,7 +283,9 @@ contract L2Genesis is Script {
 
     function setInteropPredeployProxies() internal { }
 
-    /// @notice This predeploy is following the safety invariant #?.
+    /// @notice This predeploy is following the safety invariant #2.
+    ///         Follows invariant #2 since the constructor transfers ownership to the input owner,
+    ///         and therefore requires setting the storage manually here.
     function setL2ProxyAdmin(Input memory _input) internal {
         // Note the L2ProxyAdmin implementation itself is behind a proxy that owns itself.
         address impl = _setImplementationCode(Predeploys.PROXY_ADMIN);
