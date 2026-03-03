@@ -200,6 +200,13 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		// Pass in the chain container as a SuperAuthority
 		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
 		if c.pause.Load() {
+			// Check for stop/cancellation even while paused, so teardown doesn't hang.
+			// Without this, a stuck pause (e.g. from RewindEngine exiting before Resume)
+			// causes this loop to spin forever, blocking wg.Wait() in Supernode.Stop().
+			if c.stop.Load() || ctx.Err() != nil {
+				c.log.Info("chain container stop requested while paused, stopping restart loop")
+				break
+			}
 			c.log.Info("chain container paused")
 			time.Sleep(1 * time.Second)
 			continue
@@ -490,6 +497,10 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	if err != nil {
 		return err
 	}
+	// Always resume the container on return, even if we exit early due to context cancellation
+	// or an error mid-rewind. Without this, a cancelled ctx leaves pause=true permanently,
+	// causing the Start() loop to spin forever and block Supernode.Stop()'s wg.Wait().
+	defer c.Resume(context.Background()) //nolint:errcheck
 	c.log.Info("chain_container/RewindEngine: paused container")
 
 	// stop the vn
