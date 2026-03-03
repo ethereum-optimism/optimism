@@ -51,7 +51,6 @@ contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
     }
 
     /// @notice Helper function that runs an OPCM V2 deploy, asserts that the deploy was successful,
@@ -471,8 +470,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade function succeeds when executed normally.
     function test_upgrade_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
         // Run the upgrade test and checks
         runCurrentUpgradeV2(chainPAO);
     }
@@ -691,8 +688,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade flow can update the Cannon and Permissioned prestate.
     function test_upgrade_updatePrestate_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
         // Run baseline upgrade and capture the current prestates.
         runCurrentUpgradeV2(chainPAO);
         assertEq(
@@ -736,8 +731,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         even when the SuperchainConfig has the system globally paused. This is critical
     ///         because upgrades may be needed during incident response when the system is paused.
     function test_upgrade_whenPaused_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
         // First, pause the system globally using the guardian.
         address guardian = superchainConfig.guardian();
         vm.prank(guardian);

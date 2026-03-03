@@ -108,27 +108,18 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         harness = new VerifyOPCM_Harness();
         harness.setUp();
 
-        // If OPCM V2 is enabled, set up the test environment for OPCM V2.
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
-            opcm = IOPContractsManager(address(opcmV2));
-        }
+        // OPCMv1 removed. Always use v2.
+        opcm = IOPContractsManager(address(opcmV2));
 
         // Always set up the environment variables for the test.
         setupEnvVars();
 
-        // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
+        // Set the OPCM address.
         vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
     }
 
     /// @notice Sets up the environment variables for the VerifyOPCM test.
     function setupEnvVars() public {
-        // If OPCM V2 is not enabled, set the environment variables for the old OPCM.
-        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-            vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
-        }
-
         // Grab a reference to the validator.
         IOPContractsManagerStandardValidator validator =
             IOPContractsManagerStandardValidator(opcm.opcmStandardValidator());
@@ -457,7 +448,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfUnoptimized();
 
         // Only run for OPCM V2
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -471,7 +461,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfUnoptimized();
 
         // Only run for OPCM V2
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -492,7 +481,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfUnoptimized();
 
         // Only run for OPCM V2
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -626,18 +614,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         assertFalse(result, "OPCM with invalid immutable variables should fail verification");
     }
 
-    /// @notice Tests that the script fails when OPCM immutable variables are invalid.
-    /// We test this by setting expected addresses and mocking OPCM methods to return different addresses.
-    function test_verifyOpcmImmutableVariables_mismatch_fails() public {
-        skipIfUnoptimized();
-
-        // If OPCM V2 is enabled because we do not use environment variables for OPCM V2.
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
-        // Test that mocking each individual getter causes verification to fail
-        _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
-        _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
-    }
+    // OPCMv1 removed: test_verifyOpcmImmutableVariables_mismatch_fails was v1-only and has been deleted.
 
     /// @notice Tests that the ABI getter validation succeeds when all getters are accounted for.
     function test_validateAllGettersAccounted_succeeds() public {

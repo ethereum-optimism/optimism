@@ -26,6 +26,8 @@ library DevFeatures {
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
 
     /// @notice The feature that enables the OPContractsManagerV2 contract.
+    /// @custom:legacy
+    /// This feature is no longer used, but is kept here for legacy reasons.
     bytes32 public constant OPCM_V2 = bytes32(0x0000000000000000000000000000000000000000000000000000000000010000);
 
     /// @notice The feature that enables L2CM.

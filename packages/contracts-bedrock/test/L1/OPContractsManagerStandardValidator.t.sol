@@ -13,7 +13,6 @@ import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -169,11 +168,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         // Load the PreimageOracle once, we'll need it later.
         preimageOracle = IPreimageOracle(artifacts.mustGetAddress("PreimageOracle"));
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            standardValidator = opcmV2.opcmStandardValidator();
-        } else {
-            standardValidator = opcm.opcmStandardValidator();
-        }
+        standardValidator = opcmV2.opcmStandardValidator();
 
         // Values are slightly different for fork tests vs local tests. Most we can get from
         // reasonable sources, challenger we need to get from live system because there's no other
@@ -276,68 +271,57 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             // Load the FaultDisputeGame once, we'll need it later.
             fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         } else {
-            if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-                // Deploy a permissionless FaultDisputeGame.
-                IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON, cannonPrestate);
-                fdgImpl = output.faultDisputeGame;
+            // Get the ProxyAdmin owner.
+            address owner = proxyAdmin.owner();
 
-                // Deploy cannon-kona
-                addGameType(GameTypes.CANNON_KONA, cannonKonaPrestate);
-            } else {
-                // Get the ProxyAdmin owner.
-                address owner = proxyAdmin.owner();
+            // Prepare the upgrade input.
+            IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+                new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                gameType: GameTypes.CANNON,
+                gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+            });
+            disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: cannonPrestate,
+                        proposer: proposer,
+                        challenger: challenger
+                    })
+                )
+            });
+            disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                gameType: GameTypes.CANNON_KONA,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+                )
+            });
 
-                // Prepare the upgrade input.
-                IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-                    new IOPContractsManagerUtils.DisputeGameConfig[](3);
-                disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-                    enabled: true,
-                    initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
-                    gameType: GameTypes.CANNON,
-                    gameArgs: abi.encode(
-                        IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate })
-                    )
-                });
-                disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-                    enabled: true,
-                    initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
-                    gameType: GameTypes.PERMISSIONED_CANNON,
-                    gameArgs: abi.encode(
-                        IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                            absolutePrestate: cannonPrestate,
-                            proposer: proposer,
-                            challenger: challenger
+            // Call upgrade to all games to be enabled.
+            prankDelegateCall(owner);
+            (bool success,) = address(opcmV2).delegatecall(
+                abi.encodeCall(
+                    IOPContractsManagerV2.upgrade,
+                    (
+                        IOPContractsManagerV2.UpgradeInput({
+                            systemConfig: systemConfig,
+                            disputeGameConfigs: disputeGameConfigs,
+                            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
                         })
                     )
-                });
-                disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-                    enabled: true,
-                    initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
-                    gameType: GameTypes.CANNON_KONA,
-                    gameArgs: abi.encode(
-                        IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
-                    )
-                });
+                )
+            );
+            assertTrue(success, "upgrade failed");
 
-                // Call upgrade to all games to be enabled.
-                prankDelegateCall(owner);
-                (bool success,) = address(opcmV2).delegatecall(
-                    abi.encodeCall(
-                        IOPContractsManagerV2.upgrade,
-                        (
-                            IOPContractsManagerV2.UpgradeInput({
-                                systemConfig: systemConfig,
-                                disputeGameConfigs: disputeGameConfigs,
-                                extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                            })
-                        )
-                    )
-                );
-                assertTrue(success, "upgrade failed");
-
-                // Grab the FaultDisputeGame implementation.
-                fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-            }
+            // Grab the FaultDisputeGame implementation.
+            fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         }
     }
 
@@ -1337,18 +1321,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     function test_validate_delayedWETHInvalidVersion_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            assertEq("PDDG-DWETH-10,PLDG-DWETH-10,CKDG-DWETH-10", _validate(true));
-        } else {
-            // One last mess here, during local tests delayedWeth refers to the contract attached to
-            // the FaultDisputeGame, but during fork tests it refers to the one attached to the
-            // PermissionedDisputeGame. We'll just branch based on the test type.
-            if (isForkTest()) {
-                assertEq("PDDG-DWETH-10", _validate(true));
-            } else {
-                assertEq("PLDG-DWETH-10,CKDG-DWETH-10", _validate(true));
-            }
-        }
+        assertEq("PDDG-DWETH-10,PLDG-DWETH-10,CKDG-DWETH-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1360,15 +1333,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
             abi.encode(address(0xbad))
         );
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            assertEq("PDDG-DWETH-20,PLDG-DWETH-20,CKDG-DWETH-20", _validate(true));
-        } else {
-            if (isForkTest()) {
-                assertEq("PDDG-DWETH-20", _validate(true));
-            } else {
-                assertEq("PLDG-DWETH-20,CKDG-DWETH-20", _validate(true));
-            }
-        }
+        assertEq("PDDG-DWETH-20,PLDG-DWETH-20,CKDG-DWETH-20", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1378,15 +1343,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad))
         );
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            assertEq("PDDG-DWETH-30,PLDG-DWETH-30,CKDG-DWETH-30", _validate(true));
-        } else {
-            if (isForkTest()) {
-                assertEq("PDDG-DWETH-30", _validate(true));
-            } else {
-                assertEq("PLDG-DWETH-30,CKDG-DWETH-30", _validate(true));
-            }
-        }
+        assertEq("PDDG-DWETH-30,PLDG-DWETH-30,CKDG-DWETH-30", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1394,15 +1351,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     function test_validate_delayedWETHInvalidDelay_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            assertEq("PDDG-DWETH-40,PLDG-DWETH-40,CKDG-DWETH-40", _validate(true));
-        } else {
-            if (isForkTest()) {
-                assertEq("PDDG-DWETH-40", _validate(true));
-            } else {
-                assertEq("PLDG-DWETH-40,CKDG-DWETH-40", _validate(true));
-            }
-        }
+        assertEq("PDDG-DWETH-40,PLDG-DWETH-40,CKDG-DWETH-40", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1410,15 +1359,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     function test_validate_delayedWETHInvalidSystemConfig_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(address(0xbad)));
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            assertEq("PDDG-DWETH-50,PLDG-DWETH-50,CKDG-DWETH-50", _validate(true));
-        } else {
-            if (isForkTest()) {
-                assertEq("PDDG-DWETH-50", _validate(true));
-            } else {
-                assertEq("PLDG-DWETH-50,CKDG-DWETH-50", _validate(true));
-            }
-        }
+        assertEq("PDDG-DWETH-50,PLDG-DWETH-50,CKDG-DWETH-50", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1428,15 +1369,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            assertEq("PDDG-DWETH-60,PLDG-DWETH-60,CKDG-DWETH-60", _validate(true));
-        } else {
-            if (isForkTest()) {
-                assertEq("PDDG-DWETH-60", _validate(true));
-            } else {
-                assertEq("PLDG-DWETH-60,CKDG-DWETH-60", _validate(true));
-            }
-        }
+        assertEq("PDDG-DWETH-60,PLDG-DWETH-60,CKDG-DWETH-60", _validate(true));
     }
 }
 

@@ -12,9 +12,6 @@ import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
-// Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
-
 /// @title ReadImplementationAddressesTest
 /// @notice Tests that ReadImplementationAddresses correctly reads implementation addresses
 ///         from the deployed contracts. Uses CommonTest to get real deployed contracts.
@@ -26,9 +23,9 @@ contract ReadImplementationAddressesTest is CommonTest {
         script = new ReadImplementationAddresses();
     }
 
-    /// @notice Returns the OPCM instance, handling V1 vs V2 feature flag.
+    /// @notice Returns the OPCM instance (always v2).
     function _opcm() internal view returns (IOPContractsManager) {
-        return isDevFeatureEnabled(DevFeatures.OPCM_V2) ? IOPContractsManager(address(opcmV2)) : opcm;
+        return IOPContractsManager(address(opcmV2));
     }
 
     /// @notice Builds the input struct from the deployed contracts.
@@ -70,26 +67,15 @@ contract ReadImplementationAddressesTest is CommonTest {
             output.opcmStandardValidator, address(opcm_.opcmStandardValidator()), "OPCM StandardValidator should match"
         );
 
-        // Assert V1 vs V2 specific fields
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            // V2: deployer/upgrader/gameTypeAdder are zero, migrator comes from opcmMigrator()
-            assertEq(output.opcmDeployer, address(0), "OPCM Deployer should be zero in V2");
-            assertEq(output.opcmUpgrader, address(0), "OPCM Upgrader should be zero in V2");
-            assertEq(output.opcmGameTypeAdder, address(0), "OPCM GameTypeAdder should be zero in V2");
-            assertEq(
-                output.opcmInteropMigrator,
-                address(IOPContractsManagerV2(address(opcm_)).opcmMigrator()),
-                "OPCM InteropMigrator should match"
-            );
-        } else {
-            // V1: all component addresses come from opcm getters
-            assertEq(output.opcmDeployer, address(opcm_.opcmDeployer()), "OPCM Deployer should match");
-            assertEq(output.opcmUpgrader, address(opcm_.opcmUpgrader()), "OPCM Upgrader should match");
-            assertEq(output.opcmGameTypeAdder, address(opcm_.opcmGameTypeAdder()), "OPCM GameTypeAdder should match");
-            assertEq(
-                output.opcmInteropMigrator, address(opcm_.opcmInteropMigrator()), "OPCM InteropMigrator should match"
-            );
-        }
+        // V2: deployer/upgrader/gameTypeAdder are zero, migrator comes from opcmMigrator()
+        assertEq(output.opcmDeployer, address(0), "OPCM Deployer should be zero in V2");
+        assertEq(output.opcmUpgrader, address(0), "OPCM Upgrader should be zero in V2");
+        assertEq(output.opcmGameTypeAdder, address(0), "OPCM GameTypeAdder should be zero in V2");
+        assertEq(
+            output.opcmInteropMigrator,
+            address(IOPContractsManagerV2(address(opcm_)).opcmMigrator()),
+            "OPCM InteropMigrator should match"
+        );
     }
 
     /// @notice Tests that ReadImplementationAddresses.runWithBytes succeeds.
