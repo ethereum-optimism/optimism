@@ -8,15 +8,17 @@ import { OptimismMintableERC721 } from "src/L2/OptimismMintableERC721.sol";
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
+/// @notice Legacy mapping storage layout for OptimismMintableERC721Factory.
+contract OptimismMintableERC721FactoryLegacyMapping {
+    /// @notice Tracks addresses created by this factory.
+    mapping(address => bool) public isOptimismMintableERC721;
+}
+
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000017
 /// @title OptimismMintableERC721Factory
 /// @notice Factory contract for creating OptimismMintableERC721 contracts.
-contract OptimismMintableERC721Factory is ISemver, Initializable {
-    /// @custom:spacer OptimismMintableERC721Factory's initializer slot spacing
-    /// @notice Spacer to avoid packing into the initializer slot
-    bytes30 private spacer_0_2_30;
-
+contract OptimismMintableERC721Factory is ISemver, OptimismMintableERC721FactoryLegacyMapping, Initializable {
     /// @notice Address of the ERC721 bridge on this network.
     /// @custom:network-specific
     address public bridge;
@@ -25,13 +27,10 @@ contract OptimismMintableERC721Factory is ISemver, Initializable {
     /// @custom:network-specific
     uint256 public remoteChainID;
 
-    /// @notice Tracks addresses created by this factory.
-    mapping(address => bool) public isOptimismMintableERC721;
-
     /// @notice Reserve extra slots in the storage layout for future upgrades.
-    ///         A gap size of 47 was chosen here, so that the first slot used in a child contract
+    ///         A gap size of 48 was chosen here, so that the first slot used in a child contract
     ///         would be a multiple of 50.
-    uint256[47] private __gap;
+    uint256[48] private __gap;
 
     /// @notice Emitted whenever a new OptimismMintableERC721 contract is created.
     /// @param localToken  Address of the token on the this domain.
