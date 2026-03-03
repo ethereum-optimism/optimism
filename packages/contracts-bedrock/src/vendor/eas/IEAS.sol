@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.0;
 
 import { ISchemaRegistry } from "src/vendor/eas/ISchemaRegistry.sol";
 import { Attestation, Signature } from "src/vendor/eas/Common.sol";

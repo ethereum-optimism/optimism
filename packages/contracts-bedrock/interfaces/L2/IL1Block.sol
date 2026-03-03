@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.0;
 
 interface IL1Block {
     function DEPOSITOR_ACCOUNT() external pure returns (address addr_);

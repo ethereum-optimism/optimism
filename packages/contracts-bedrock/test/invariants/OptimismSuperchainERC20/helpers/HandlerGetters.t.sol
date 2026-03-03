@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3
-pragma solidity 0.8.25;
+pragma solidity ^0.8.24;
 
 import { ProtocolHandler } from "../handlers/Protocol.t.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";

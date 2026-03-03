@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.0;
 
 /// @title IAccessManager
 /// @notice Interface for the AccessManager contract that manages permissions for dispute game proposers and challengers.

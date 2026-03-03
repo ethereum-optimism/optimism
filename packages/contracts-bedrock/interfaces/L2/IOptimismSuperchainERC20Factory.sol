@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.0;
 
 import { IOptimismERC20Factory } from "interfaces/L2/IOptimismERC20Factory.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";

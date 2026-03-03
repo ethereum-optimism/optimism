@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.0;
 
 import { ITimelockGuard, IEnum, ISafe } from "interfaces/safe/ITimelockGuard.sol";
 import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";

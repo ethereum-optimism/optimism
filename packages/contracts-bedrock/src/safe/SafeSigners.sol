@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.0;
 
 library SafeSigners {
     /// @notice Splits signature bytes into `uint8 v, bytes32 r, bytes32 s`.

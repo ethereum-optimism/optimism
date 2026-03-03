@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.0;
 
 /// @title IStaticERC1967Proxy
 /// @notice IStaticERC1967Proxy is a static version of the ERC1967 proxy interface.

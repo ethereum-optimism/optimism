@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.0;
 
 // Contracts
 import { Faucet } from "src/periphery/faucet/Faucet.sol";

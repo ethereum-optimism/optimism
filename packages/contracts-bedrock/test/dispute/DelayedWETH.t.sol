@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";

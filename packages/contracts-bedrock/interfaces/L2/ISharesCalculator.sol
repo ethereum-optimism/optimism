@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.0;
     
 /// @title ISharesCalculator
 /// @notice Interface for a contract that calculates the recipients and amounts for fee distribution.
