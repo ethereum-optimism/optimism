@@ -328,18 +328,10 @@ contract DeployImplementations is Script {
         // forgefmt: disable-end
         vm.stopBroadcast();
 
-        // Check if OPCM V2 should be deployed
-        bool deployV2 = DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2);
-
-        if (deployV2) {
-            IOPContractsManagerV2 opcmV2 = createOPCMContractV2(_input, _output, blueprints);
-            vm.label(address(opcmV2), "OPContractsManagerV2");
-            _output.opcmV2 = opcmV2;
-        } else {
-            IOPContractsManager opcm = createOPCMContract(_input, _output, blueprints);
-            vm.label(address(opcm), "OPContractsManager");
-            _output.opcm = opcm;
-        }
+        // OPCMv1 has been removed. Always deploy v2.
+        IOPContractsManagerV2 opcmV2 = createOPCMContractV2(_input, _output, blueprints);
+        vm.label(address(opcmV2), "OPContractsManagerV2");
+        _output.opcmV2 = opcmV2;
     }
 
     // --- Core Contracts ---
@@ -965,11 +957,9 @@ contract DeployImplementations is Script {
         // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
 
-        // Check which OPCM version was deployed
-        bool deployedV2 = DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2);
-
+        // OPCMv1 removed. Always v2.
         address[] memory addrs1 = Solarray.addresses(
-            deployedV2 ? address(_output.opcmV2) : address(_output.opcm),
+            address(_output.opcmV2),
             address(_output.optimismPortalImpl),
             address(_output.delayedWETHImpl),
             address(_output.preimageOracleSingleton),
@@ -1000,26 +990,9 @@ contract DeployImplementations is Script {
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
-        // Validate OPCM V2 flag
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2)) {
-            require(
-                address(_output.opcmV2) != address(0),
-                "DeployImplementations: OPCM V2 flag enabled but OPCM V2 not deployed"
-            );
-            require(
-                address(_output.opcm) == address(0),
-                "DeployImplementations: OPCM V2 flag enabled but OPCM V1 was deployed"
-            );
-        } else {
-            require(
-                address(_output.opcm) != address(0),
-                "DeployImplementations: OPCM V2 flag disabled but OPCM V1 not deployed"
-            );
-            require(
-                address(_output.opcmV2) == address(0),
-                "DeployImplementations: OPCM V2 flag disabled but OPCM V2 was deployed"
-            );
-        }
+        // OPCMv1 removed. Always validate v2 deployment.
+        require(address(_output.opcmV2) != address(0), "DeployImplementations: OPCM V2 not deployed");
+        require(address(_output.opcm) == address(0), "DeployImplementations: OPCM V1 should not be deployed");
 
         if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             require(
@@ -1047,18 +1020,7 @@ contract DeployImplementations is Script {
         ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
 
-        // Only check OPCM V1 if it was deployed
-        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2)) {
-            Types.ContractSet memory proxies;
-            proxies.SuperchainConfig = address(_input.superchainConfigProxy);
-            proxies.ProtocolVersions = address(_input.protocolVersionsProxy);
-            ChainAssertions.checkOPContractsManager({
-                _impls: impls,
-                _proxies: proxies,
-                _opcm: IOPContractsManager(address(_output.opcm)),
-                _mips: IMIPS64(address(_output.mipsSingleton))
-            });
-        }
+        // OPCMv1 removed. V1 assertion check removed.
 
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);
         ChainAssertions.checkOptimismPortal2({

@@ -177,12 +177,8 @@ contract Deploy is Deployer {
 
         deployImplementations({ _isInterop: cfg.useInterop() });
 
-        // Deploy Current OPChain Contracts
-        if (!DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
-            deployOpChain();
-        } else {
-            deployOpChainV2();
-        }
+        // OPCMv1 removed. Always deploy via v2.
+        deployOpChainV2();
 
         // Set the respected game type according to the deploy config
         vm.startPrank(ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")).guardian());
@@ -302,11 +298,8 @@ contract Deploy is Deployer {
         // Save the implementation addresses which are needed outside of this function or script.
         // When called in a fork test, this will overwrite the existing implementations.
         artifacts.save("MipsSingleton", address(dio.mipsSingleton));
-        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
-            artifacts.save("OPContractsManagerV2", address(dio.opcmV2));
-        } else {
-            artifacts.save("OPContractsManager", address(dio.opcm));
-        }
+        // OPCMv1 removed. Always save v2.
+        artifacts.save("OPContractsManagerV2", address(dio.opcmV2));
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
         artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameImpl));
@@ -337,18 +330,7 @@ contract Deploy is Deployer {
             _mips: IMIPS64(address(dio.mipsSingleton)),
             _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
-        IOPContractsManager _opcm;
-        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
-            _opcm = IOPContractsManager(address(dio.opcmV2));
-        } else {
-            _opcm = IOPContractsManager(address(dio.opcm));
-        }
-        ChainAssertions.checkOPContractsManager({
-            _impls: impls,
-            _proxies: _proxies(),
-            _opcm: _opcm,
-            _mips: IMIPS64(address(dio.mipsSingleton))
-        });
+        // OPCMv1 removed. V1 checkOPContractsManager assertion removed (v2 has different interface).
         ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
