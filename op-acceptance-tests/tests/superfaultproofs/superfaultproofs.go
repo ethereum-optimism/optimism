@@ -2,6 +2,8 @@ package superfaultproofs
 
 import (
 	"context"
+	"encoding/json"
+	"math"
 	"math/big"
 	"math/rand"
 	"os"
@@ -144,25 +146,41 @@ func awaitSafeHeadsStalled(t devtest.T, nodes ...*dsl.L2CLNode) {
 	}, 2*time.Minute, 2*time.Second, "safe heads did not stall in time")
 }
 
-// awaitOptimisticPattern polls the supernode until every chain in mustHave has
-// optimistic data and every chain in mustMiss does not.
-func awaitOptimisticPattern(t devtest.T, sn *dsl.Supernode, timestamp uint64, mustHave, mustMiss []eth.ChainID) eth.SuperRootAtTimestampResponse {
-	var resp eth.SuperRootAtTimestampResponse
+// l1BlockWhere finds an L1 block where the specified chains either do or do not have safe blocks.
+func l1BlockWhere(t devtest.T, l1El *dsl.L1ELNode, sn *dsl.Supernode, timestamp uint64, hasSafe, notSafe []eth.ChainID) eth.BlockID {
+	t.Logf("Finding L1 block where %v have safe blocks and %v do not", hasSafe, notSafe)
+	var l1Block eth.BlockID
 	t.Require().Eventually(func() bool {
-		resp = sn.SuperRootAtTimestamp(timestamp)
-		for _, id := range mustHave {
-			if _, has := resp.OptimisticAtTimestamp[id]; !has {
+		resp := sn.SuperRootAtTimestamp(timestamp)
+		respJsonBytes, err := json.Marshal(resp)
+		t.Require().NoError(err)
+		respJson := string(respJsonBytes)
+		t.Logf("SuperRootAtTimestamp response: %s", respJson)
+		candidate := uint64(math.MaxUint64)
+		for _, id := range notSafe {
+			if optimistic, has := resp.OptimisticAtTimestamp[id]; has && optimistic.RequiredL1.Number <= candidate {
+				candidate = optimistic.RequiredL1.Number - 1 // We need this chain to not have a safe block, so L1 head must be the block before it.
+			}
+		}
+		// If we didn't have any notSafe chains, we can use the current L1 block.
+		if candidate == math.MaxUint64 {
+			candidate = resp.CurrentL1.Number
+		}
+		// Now verify that all the required chains have a safe block at the candidate L1 block.
+		for _, id := range hasSafe {
+			if optimistic, has := resp.OptimisticAtTimestamp[id]; !has {
+				t.Logf("Did not find safe block for chain %v in %v", id, respJson)
+				return false
+			} else if optimistic.RequiredL1.Number > candidate {
+				t.Logf("Required L1 block for chain %v is %v, but candidate is %v in %v", id, optimistic.RequiredL1.Number, candidate, respJson)
 				return false
 			}
 		}
-		for _, id := range mustMiss {
-			if _, has := resp.OptimisticAtTimestamp[id]; has {
-				return false
-			}
-		}
+
+		l1Block = l1El.BlockRefByNumber(candidate).ID()
 		return true
-	}, 2*time.Minute, 2*time.Second, "timed out waiting for optimistic pattern")
-	return resp
+	}, 2*time.Minute, 2*time.Second, "timed out waiting for l1 block")
+	return l1Block
 }
 
 // runKonaInteropProgram runs the kona interop fault proof program and checks the result.
@@ -591,15 +609,11 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	// -- Stage 2: Capture L1 heads at different batch-availability points --
 
 	// L1 head where neither chain has batch data at endTimestamp.
-	respBefore := awaitOptimisticPattern(t, sys.SuperRoots, endTimestamp,
-		nil, []eth.ChainID{chains[0].ID, chains[1].ID})
-	l1HeadBefore := respBefore.CurrentL1
+	l1HeadBefore := l1BlockWhere(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
 
 	// L1 head where only the first chain has batch data.
 	chains[0].Batcher.Start()
-	respAfterFirst := awaitOptimisticPattern(t, sys.SuperRoots, endTimestamp,
-		[]eth.ChainID{chains[0].ID}, []eth.ChainID{chains[1].ID})
-	l1HeadAfterFirst := respAfterFirst.CurrentL1
+	l1HeadAfterFirst := l1BlockWhere(t, sys.L1EL, sys.SuperRoots, endTimestamp, []eth.ChainID{chains[0].ID}, []eth.ChainID{chains[1].ID})
 	chains[0].Batcher.Stop()
 
 	// L1 head where both chains have batch data (fully validated).
