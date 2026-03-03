@@ -385,6 +385,71 @@ pub(crate) mod tests {
         );
     }
 
+    /// DS-10 regression test: `BlobSource::extract_blob_data` uses
+    /// `recover_signer().unwrap_or_default()` at line 72.  When signature recovery fails
+    /// (returns `None`), `unwrap_or_default()` silently substitutes `Address::ZERO` as the
+    /// recovered sender.  A blob transaction with an unrecoverable signature is therefore
+    /// accepted as a valid batch transaction whenever `batcher_address == Address::ZERO`.
+    ///
+    /// Contrast with `CalldataSource` which correctly uses `recover_signer().ok()?`
+    /// (returns `None` on any recovery failure, skipping the transaction).
+    ///
+    /// Reference: `optimism/op-node/rollup/derive/data_source.go:107–113`
+    /// (`l1Signer.Sender(tx)` returns false on any error — transactions with bad signatures are
+    /// always rejected).
+    #[test]
+    fn test_spec_data_sources_blob_source_signer_recovery_asymmetry() {
+        use alloy_consensus::{Signed, TxEip1559};
+        use alloy_primitives::{Signature, TxKind, U256};
+
+        // Batch inbox address (stored as `self.batcher_address` in BlobSource — confusingly named)
+        let batch_inbox = Address::ZERO; // We will set batcher_address field to ZERO too
+
+        // Build an EIP-1559 tx targeting the batch inbox with a zero/invalid signature.
+        // With an all-zero signature, `recover_signer()` returns `None` (secp256k1 recovery fails
+        // because r=0 is not a valid x-coordinate on the curve).
+        let zero_sig = Signature::new(U256::ZERO, U256::ZERO, false);
+        let tx = TxEnvelope::Eip1559(Signed::new_unchecked(
+            TxEip1559 { to: TxKind::Call(batch_inbox), ..Default::default() },
+            zero_sig,
+            Default::default(),
+        ));
+
+        // Confirm that `recover_signer()` returns an error for this invalid signature.
+        // `recover_signer()` returns `Result<Address, RecoveryError>`.
+        // With r=0 the secp256k1 library cannot recover a valid public key and should Err.
+        // (If this assertion fails, the library changed its behaviour for zero-r signatures.)
+        assert!(
+            tx.recover_signer().is_err(),
+            "Expected Err from recover_signer() for a zero/invalid signature"
+        );
+
+        // Build a BlobSource with `self.batcher_address = Address::ZERO` (used as the batch inbox
+        // address in the `to` check at line 69).
+        let source = default_test_blob_source(); // batcher_address = Address::ZERO
+
+        // Call extract_blob_data with batcher_address = Address::ZERO.
+        // unwrap_or_default() returns Address::ZERO when recovery fails.
+        // Because the batcher_address parameter is also ZERO, the condition
+        //   `unwrap_or_default() != batcher_address`  =>  `ZERO != ZERO`  =>  false
+        // so the transaction is NOT filtered out.
+        let (data, _hashes) = source.extract_blob_data(vec![tx.clone()], Address::ZERO);
+
+        // BUG: the transaction with an unrecoverable signature was accepted.
+        // A correct implementation (like calldata.rs) should produce an empty data vec.
+        assert_eq!(
+            data.len(),
+            1,
+            "DS-10: BlobSource accepted a blob tx with an unrecoverable signature \
+             when batcher_address == Address::ZERO (unwrap_or_default bug)"
+        );
+
+        // Verify the fix would be straightforward: if we call ok()? instead, the tx is skipped.
+        // The calldata source already does this correctly (calldata.rs:59).
+        // This test documents the discrepancy and will pass (confirming the bug) until the fix
+        // changes `unwrap_or_default()` to `ok()?`, at which point `data.len()` will be 0.
+    }
+
     /// Regression test: `BlobProviderError::BlobNotFound` from the blob fetcher must surface
     /// through `next()` as `PipelineErrorKind::Reset`, triggering a pipeline reset.
     /// Without this, a missed beacon slot causes an infinite retry loop and safe head stall.
