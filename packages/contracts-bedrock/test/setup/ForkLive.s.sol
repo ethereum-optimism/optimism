@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.25;
 
 import { console2 as console } from "forge-std/console2.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Interfaces
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";

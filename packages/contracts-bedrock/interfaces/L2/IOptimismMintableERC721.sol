@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.25;
 
 /// @title IOptimismMintableERC721
 /// @notice Interface for contracts that are compatible with the OptimismMintableERC721 standard.

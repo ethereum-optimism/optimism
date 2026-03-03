@@ -31,15 +31,7 @@ var (
 
 // Files that are grandfathered in (already have non-strict pragma)
 // These should be fixed over time, but we don't want to block CI on them
-var excludedFiles = []string{
-	"src/integration/EventLogger.sol",
-	"src/integration/GameHelper.sol",
-	"src/libraries/TransientContext.sol",
-	"src/periphery/AssetReceiver.sol",
-	"src/periphery/Transactor.sol",
-	"src/periphery/monitoring/DisputeMonitorHelper.sol",
-	"src/universal/SafeSend.sol",
-}
+var excludedFiles = []string{}
 
 func main() {
 	if _, err := common.ProcessFilesGlob(

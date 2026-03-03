@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Testing
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";

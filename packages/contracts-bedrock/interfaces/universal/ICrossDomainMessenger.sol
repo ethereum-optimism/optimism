@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.25;
 
 interface ICrossDomainMessenger {
     event FailedRelayedMessage(bytes32 indexed msgHash);

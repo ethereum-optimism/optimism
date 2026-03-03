@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.25;
 
 /// @title DummyCaller
 /// @notice Generic delegatecall forwarder. Reads target from storage slot 0,

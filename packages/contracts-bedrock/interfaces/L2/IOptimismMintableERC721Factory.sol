@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.25;
 
 interface IOptimismMintableERC721Factory {
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);

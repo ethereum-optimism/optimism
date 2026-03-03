@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.25;
 
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.25;
 
 import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";

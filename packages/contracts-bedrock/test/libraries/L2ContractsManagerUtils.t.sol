@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Libraries
 import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { FeeSplitter_TestInit } from "test/L2/FeeSplitter.t.sol";
 import { LegacyFeeSplitter } from "test/mocks/LegacyFeeSplitter.sol";

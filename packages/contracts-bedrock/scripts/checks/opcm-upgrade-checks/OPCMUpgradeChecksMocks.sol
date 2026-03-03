@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.25;
 
 IUpgradeable constant UPGRADE_CONTRACT = IUpgradeable(address(111));
 uint8 constant NOT_FOUND = 0;
