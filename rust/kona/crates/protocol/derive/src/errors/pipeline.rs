@@ -356,6 +356,15 @@ pub enum ResetError {
     /// The blob provider returned fewer blobs than expected (under-fill).
     #[error("Blob provider under-fill: {0}")]
     BlobsUnderFill(BlobProviderError),
+    /// The blob provider returned more blobs than were requested (over-fill). The first argument
+    /// is the number of blob placeholders filled; the second is the total number of blobs
+    /// returned. This matches op-node's `fillBlobPointers` check at blob_data_source.go:162-163
+    /// which returns `fmt.Errorf("got too many blobs")` wrapped as `NewResetError`. Can occur
+    /// with buggy blob providers or in rare L1 reorg scenarios.
+    #[error(
+        "Blob provider over-fill: filled {0} blob placeholders but provider returned {1} blobs"
+    )]
+    BlobsOverFill(usize, usize),
 }
 
 impl ResetError {
@@ -449,6 +458,7 @@ mod tests {
                 expected: 0,
                 actual: 0,
             }),
+            ResetError::BlobsOverFill(0, 0),
         ];
         for error in reset_errors {
             let expected = PipelineErrorKind::Reset(error.clone());
