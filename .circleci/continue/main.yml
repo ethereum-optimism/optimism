@@ -905,7 +905,8 @@ jobs:
             - "packages/contracts-bedrock/artifacts"
             - "packages/contracts-bedrock/forge-artifacts"
             - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   check-kontrol-build:
     docker:
@@ -929,7 +930,8 @@ jobs:
           name: Build Kontrol summary files
           command: just forge-build ./test/kontrol/proofs
           working_directory: packages/contracts-bedrock
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   docker-build:
     environment:
@@ -1256,7 +1258,8 @@ jobs:
           name: Lint forge test names
           command: just lint-forge-tests-check-no-build
           working_directory: packages/contracts-bedrock
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   contracts-bedrock-heavy-fuzz-nightly:
     circleci_ip_ranges: true
@@ -1305,7 +1308,8 @@ jobs:
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   # AI Contracts Test Maintenance System
   # Runbook: https://github.com/ethereum-optimism/optimism/blob/develop/ops/ai-eng/contracts-test-maintenance/docs/runbook.md
@@ -1338,7 +1342,8 @@ jobs:
           channel: C050F1GUHDG
           event: always
           template: AI_PR_SLACK_TEMPLATE
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   contracts-bedrock-coverage:
     circleci_ip_ranges: true
@@ -1429,7 +1434,8 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   contracts-bedrock-tests-upgrade:
     circleci_ip_ranges: true
@@ -1613,7 +1619,8 @@ jobs:
           name: Run checks
           command: just check-fast
           working_directory: packages/contracts-bedrock
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   todo-issues:
     parameters:
@@ -2616,7 +2623,8 @@ jobs:
                 }
               }'
           working_directory: ./packages/contracts-bedrock
-      - notify-failures-on-develop
+      - notify-failures-on-develop:
+          mentions: "@security-oncall"
 
   publish-contract-artifacts:
     docker:
