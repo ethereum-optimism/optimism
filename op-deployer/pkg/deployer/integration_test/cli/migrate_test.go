@@ -158,7 +158,7 @@ func TestCLIMigrateV2(t *testing.T) {
 
 	impls, err := bootstrap.Implementations(ctx, cfg)
 	require.NoError(t, err, "Failed to deploy implementations")
-	require.NotEqual(t, common.Address{}, impls.Opcm, "OPCM address should be set")
+	require.NotEqual(t, common.Address{}, impls.OpcmV2, "OPCM address should be set")
 
 	// Set up a test chain
 	l1ChainID := uint64(11155111) // Sepolia chain ID
@@ -222,7 +222,7 @@ func TestCLIMigrateV2(t *testing.T) {
 	// Set implementations deployment addresses
 	if st.ImplementationsDeployment == nil {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmImpl:                         impls.Opcm,
+			OpcmImpl:                         impls.OpcmV2,
 			OpcmContainerImpl:                impls.OpcmContainer,
 			OpcmUtilsImpl:                    impls.OpcmUtils,
 			OpcmMigratorImpl:                 impls.OpcmMigrator,
@@ -286,7 +286,7 @@ func TestCLIMigrateV2(t *testing.T) {
 		"--l1-proxy-admin-owner-address", superchainProxyAdminOwner.Hex(),
 		"--l1-rpc-url", l1RPC,
 		"--private-key", pkHex,
-		"--opcm-impl-address", impls.Opcm.Hex(),
+		"--opcm-impl-address", impls.OpcmV2.Hex(),
 		"--system-config-proxy-address", systemConfigProxy.Hex(),
 		"--dispute-game-enabled",
 		"--dispute-game-type", "0", // GameTypeCannon (0), not SuperCannon (4)

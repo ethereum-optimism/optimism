@@ -126,7 +126,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainRoles = nil
-		intent.OPCMAddress = &impls.Opcm
+		intent.OPCMAddress = &impls.OpcmV2
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -778,7 +778,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 	)
 	require.NoError(t, err)
 
-	// Now test the OPCM upgrade using the deployed impls.Opcm
+	// Now test the OPCM upgrade using the deployed impls.OpcmV2
 	t.Run("opcm upgrade test", func(t *testing.T) {
 		// Create script host for the upgrade
 		rpcClient, err := rpc.Dial(implementationsConfig.L1RPCUrl)
@@ -794,7 +794,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		)
 		require.NoError(t, err)
 
-		opcmAddress := impls.Opcm
+		opcmAddress := impls.OpcmV2
 
 		// Only run the superchain config upgrade if the live superchain config is behind the freshly deployed
 		// implementation. Running the script when versions match will revert and panic the test harness.
@@ -821,13 +821,13 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 		// Run the OPCM upgrade
 		t.Run("upgrade opcm", func(t *testing.T) {
-			require.NotEqual(t, common.Address{}, impls.Opcm, "Opcm address should not be zero")
-			t.Logf("Using Opcm at address: %s", impls.Opcm.Hex())
+			require.NotEqual(t, common.Address{}, impls.OpcmV2, "Opcm address should not be zero")
+			t.Logf("Using Opcm at address: %s", impls.OpcmV2.Hex())
 			t.Logf("Using OpcmUtils at address: %s", impls.OpcmUtils.Hex())
 			t.Logf("Using OpcmContainer at address: %s", impls.OpcmContainer.Hex())
 
 			// Verify OPCM has code deployed
-			opcmCode, err := versionClient.CodeAt(ctx, impls.Opcm, nil)
+			opcmCode, err := versionClient.CodeAt(ctx, impls.OpcmV2, nil)
 			require.NoError(t, err)
 			require.NotEmpty(t, opcmCode, "OPCM should have code deployed")
 			t.Logf("OPCM code size: %d bytes", len(opcmCode))
@@ -848,7 +848,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			t.Run("upgrade superchain", func(t *testing.T) {
 				superchainUpgradeConfig := embedded.UpgradeSuperchainConfigInput{
 					Prank:             superchainProxyAdminOwner,
-					Opcm:              impls.Opcm,
+					Opcm:              impls.OpcmV2,
 					SuperchainConfig:  implementationsConfig.SuperchainConfigProxy,
 					ExtraInstructions: []embedded.ExtraInstruction{},
 				}
@@ -871,7 +871,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 				upgradeConfig := embedded.UpgradeOPChainInput{
 					Prank: superchainProxyAdminOwner,
-					Opcm:  impls.Opcm,
+					Opcm:  impls.OpcmV2,
 					UpgradeInputV2: &embedded.UpgradeInputV2{
 						SystemConfig: deployer.DefaultSystemConfigProxySepolia,
 						DisputeGameConfigs: []embedded.DisputeGameConfig{

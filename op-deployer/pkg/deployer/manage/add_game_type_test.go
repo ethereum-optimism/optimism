@@ -96,7 +96,7 @@ func TestAddGameType(t *testing.T) {
 		VM:                      impls.MipsSingleton,
 		Permissionless:          true,
 		L1ProxyAdminOwner:       superchainProxyAdminOwner,
-		OPCMImpl:                impls.Opcm,
+		OPCMImpl:                impls.OpcmV2,
 		CacheDir:                testCacheDir,
 	}
 
