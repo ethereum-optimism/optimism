@@ -198,6 +198,10 @@ func (c *Intent) validateStandardValues() error {
 		}
 	}
 
+	if c.UseInterop {
+		return fmt.Errorf("%w: useInterop must be disabled for standard chains", ErrNonStandardValue)
+	}
+
 	challenger, _ := standard.ChallengerAddressFor(c.L1ChainID)
 	l1ProxyAdminOwner, _ := standard.L1ProxyAdminOwner(c.L1ChainID)
 	l2ProxyAdminOwner, _ := standard.L2ProxyAdminOwner(c.L1ChainID)

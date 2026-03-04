@@ -117,6 +117,13 @@ func TestValidateStandardValues(t *testing.T) {
 			},
 			ErrRevenueShareZeroAddress,
 		},
+		{
+			"UseInterop",
+			func(intent *Intent) {
+				intent.UseInterop = true
+			},
+			ErrNonStandardValue,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
