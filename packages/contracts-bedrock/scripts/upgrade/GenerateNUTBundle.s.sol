@@ -21,7 +21,6 @@ import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 ///      using the L2ContractsManager (L2CM) system.
 contract GenerateNUTBundle is Script {
     /// @notice CREATE2 salt for deterministic deployments.
-    /// TODO: Define standard format for salts.
     bytes32 internal constant SALT = bytes32(uint256(keccak256("optimism.network-upgrade")));
 
     /// @notice Name of the upgrade.
