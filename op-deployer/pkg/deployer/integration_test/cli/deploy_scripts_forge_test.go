@@ -293,7 +293,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			// PrivateKey not required for read-only operations
 		}
 		output, err := opcm.ReadSuperchainDeploymentViaForge(forgeEnv, opcm.ReadSuperchainDeploymentInput{
-			OpcmAddress:           common.Address{}, // OPCM v2 flow - use SuperchainConfigProxy
 			SuperchainConfigProxy: superchainOutput.SuperchainConfigProxy,
 		})
 		require.NoError(t, err)
@@ -303,10 +302,5 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.Equal(t, superchainOutput.SuperchainProxyAdmin, output.SuperchainProxyAdmin)
 		require.NotEqual(t, common.Address{}, output.Guardian)
 		require.NotEqual(t, common.Address{}, output.SuperchainProxyAdminOwner)
-
-		// For OPCM v2, ProtocolVersions fields should be zero
-		require.Equal(t, common.Address{}, output.ProtocolVersionsProxy)
-		require.Equal(t, common.Address{}, output.ProtocolVersionsImpl)
-		require.Equal(t, common.Address{}, output.ProtocolVersionsOwner)
 	})
 }

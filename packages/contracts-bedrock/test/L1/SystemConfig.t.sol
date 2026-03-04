@@ -11,7 +11,6 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -989,9 +988,7 @@ contract SystemConfig_IsCustomGasToken_Test is SystemConfig_TestInit {
 contract SystemConfig_LastUsedOPCM_Test is SystemConfig_TestInit {
     /// @notice Tests that `lastUsedOPCM` returns the correct OPCM V2 address and that
     ///         `lastUsedOPCMVersion` matches the OPCM V2 version.
-    function test_lastUsedOPCM_opcmV2_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
+    function test_lastUsedOPCM_opcmV2_succeeds() external view {
         // Verify that the lastUsedOPCM address matches the deployed OPCM V2 address
         assertEq(systemConfig.lastUsedOPCM(), address(opcmV2));
 

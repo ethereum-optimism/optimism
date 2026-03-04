@@ -273,13 +273,11 @@ func MigrateInterop(
 ) (*InteropDeployment, error) {
 	l2ChainIDs := maps.Keys(l2Deployments)
 	sort.Strings(l2ChainIDs)
-	chainConfigs := make([]manage.OPChainConfig, len(l2Deployments))
-	for i, l2ChainID := range l2ChainIDs {
+
+	var chainSystemConfigs []common.Address
+	for _, l2ChainID := range l2ChainIDs {
 		l2Deployment := l2Deployments[l2ChainID]
-		chainConfigs[i] = manage.OPChainConfig{
-			SystemConfigProxy: l2Deployment.SystemConfigProxy,
-			CannonPrestate:    l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
-		}
+		chainSystemConfigs = append(chainSystemConfigs, l2Deployment.SystemConfigProxy)
 	}
 
 	// For now get the fault game parameters from the first chain
@@ -289,22 +287,21 @@ func MigrateInterop(
 	imi := manage.InteropMigrationInput{
 		Prank: superCfg.ProxyAdminOwner,
 		Opcm:  superDeployment.Opcm,
-		MigrateInputV1: &manage.MigrateInputV1{
-			UsePermissionlessGame: true,
+		MigrateInputV2: &manage.MigrateInputV2{
+			ChainSystemConfigs: chainSystemConfigs,
+			DisputeGameConfigs: []manage.DisputeGameConfig{
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(0),
+					GameType: 4, // Super Cannon
+					GameArgs: l2Cfgs[l2ChainID].DisputeAbsolutePrestate[:],
+				},
+			},
 			StartingAnchorRoot: manage.Proposal{
 				Root:             startingAnchorRoot,
 				L2SequenceNumber: big.NewInt(int64(l1GenesisTimestamp)),
 			},
-			GameParameters: manage.GameParameters{
-				Proposer:         l2Cfgs[l2ChainID].Proposer,
-				Challenger:       l2Cfgs[l2ChainID].Challenger,
-				MaxGameDepth:     l2Cfgs[l2ChainID].DisputeMaxGameDepth,
-				SplitDepth:       l2Cfgs[l2ChainID].DisputeSplitDepth,
-				InitBond:         big.NewInt(0),
-				ClockExtension:   l2Cfgs[l2ChainID].DisputeClockExtension,
-				MaxClockDuration: l2Cfgs[l2ChainID].DisputeMaxClockDuration,
-			},
-			OpChainConfigs: chainConfigs,
+			StartingRespectedGameType: 4, // Super Cannon
 		},
 	}
 	output, err := manage.Migrate(l1Host, imi)

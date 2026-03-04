@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
 
-var OPCM_ARTIFACT_PATH = "forge-artifacts/OPContractsManager.sol/OPContractsManagerUpgrader.json"
+var OPCM_ARTIFACT_PATH = "forge-artifacts/OPContractsManagerUtils.sol/OPContractsManagerUtils.json"
 
 type InternalUpgradeFunctionType struct {
 	name     string
@@ -26,8 +26,8 @@ const (
 )
 
 func main() {
-	// Assert that the OPCM_BASE's upgradeToAndCall function has a call from IProxyAdmin.upgradeAndCall.
-	res, err := assertOPCMBaseInternalUpgradeFunctionCallUpgrade("contract IProxyAdmin", "OPContractsManagerBase")
+	// Assert that OPContractsManagerUtils.upgrade() calls IProxyAdmin.upgradeAndCall.
+	res, err := assertOPCMUpgradeFunctionCallsProxyAdmin("contract IProxyAdmin", "OPContractsManagerUtils")
 	if !res {
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
@@ -36,7 +36,7 @@ func main() {
 	// Process.
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
-		[]string{"forge-artifacts/OPContractsManager.sol/*.json", "forge-artifacts/OPContractsManagerV2.sol/*.json", "forge-artifacts/OPContractsManagerUtils.sol/*.json", "forge-artifacts/opcm/**/*.json"},
+		[]string{"forge-artifacts/OPContractsManagerV2.sol/*.json", "forge-artifacts/OPContractsManagerUtils.sol/*.json", "forge-artifacts/OptimismPortalInterop.sol/*.json", "forge-artifacts/opcm/**/*.json"},
 		processFile,
 	); err != nil {
 		fmt.Printf("error: %v\n", err)
@@ -44,36 +44,36 @@ func main() {
 	}
 }
 
-func assertOPCMBaseInternalUpgradeFunctionCallUpgrade(upgraderContractTypeName string, upgradeContractsName string) (bool, error) {
-	// First, get the OPCM's artifact.
+func assertOPCMUpgradeFunctionCallsProxyAdmin(upgraderContractTypeName string, upgradeContractsName string) (bool, error) {
+	// First, get the OPCM Utils artifact.
 	opcmArtifact, err := common.ReadForgeArtifact(OPCM_ARTIFACT_PATH)
 	if err != nil {
 		return false, fmt.Errorf("error: %w", err)
 	}
 
-	// Then get the OPCM Base's upgradeToAndCall internal functions AST.
-	opcmBaseUpgradeToAndCallAst := solc.AstNode{}
+	// Find OPContractsManagerUtils.upgrade() external function with 6 parameters.
+	upgradeAst := solc.AstNode{}
 	for _, node := range opcmArtifact.Ast.Nodes {
 		if node.NodeType == "ContractDefinition" && node.Name == upgradeContractsName {
 			for _, node := range node.Nodes {
-				if node.NodeType == "FunctionDefinition" && node.Name == "upgradeToAndCall" && node.Visibility == "internal" && len(node.Parameters.Parameters) == 4 {
-					opcmBaseUpgradeToAndCallAst = node
+				if node.NodeType == "FunctionDefinition" && node.Name == "upgrade" && node.Visibility == "external" && len(node.Parameters.Parameters) == 6 {
+					upgradeAst = node
 					break
 				}
 			}
 		}
 	}
-	if opcmBaseUpgradeToAndCallAst.NodeType == "" {
-		return false, fmt.Errorf("%v's upgradeToAndCall internal function not found", upgradeContractsName)
+	if upgradeAst.NodeType == "" {
+		return false, fmt.Errorf("%v's upgrade external function not found", upgradeContractsName)
 	}
 
-	// Next, ensure that a call to IProxyAdmin.upgradeAndCall is found in the OPCM's upgradeToAndCall function.
-	found := upgradesContract(opcmBaseUpgradeToAndCallAst.Body.Statements, "upgradeAndCall", upgraderContractTypeName, InternalUpgradeFunctionType{})
+	// Ensure that a call to IProxyAdmin.upgradeAndCall is found in the upgrade function.
+	found := upgradesContract(upgradeAst.Body.Statements, "upgradeAndCall", upgraderContractTypeName, InternalUpgradeFunctionType{})
 	if found == UPGRADE_EXTERNAL_CALL {
 		return true, nil
 	}
 
-	return false, fmt.Errorf("%v's upgradeToAndCall internal function does not have a call from IProxyAdmin.upgradeAndCall", upgradeContractsName)
+	return false, fmt.Errorf("%v's upgrade function does not call IProxyAdmin.upgradeAndCall", upgradeContractsName)
 }
 
 func processFile(artifactPath string) (*common.Void, []error) {
@@ -101,46 +101,14 @@ func processFile(artifactPath string) (*common.Void, []error) {
 		return nil, []error{fmt.Errorf("expected 0 or 1 upgrade function, found %v", numOfUpgradeFunctions)}
 	}
 
-	// Get OPCM's AST.
-	opcmAst, err := common.ReadForgeArtifact(OPCM_ARTIFACT_PATH)
-	if err != nil {
-		return nil, []error{err}
-	}
-
 	// Check that there is a call to contract.upgrade.
 	contractName := strings.Split(filepath.Base(artifactPath), ".")[0]
-	typeName := "contract I" + contractName
 
-	var callType CallType
-	if contractName == "SuperchainConfig" {
-		// Get the AST of OPCM's upgradeSuperchainConfig function.
-		opcmUpgradeSuperchainConfigAst, err := getOpcmUpgradeFunctionAst(opcmAst, "upgradeSuperchainConfig")
-		if err != nil {
-			return nil, []error{err}
-		}
-
-		callType = upgradesContract(opcmUpgradeSuperchainConfigAst.Body.Statements, "upgrade", typeName, InternalUpgradeFunctionType{
-			name:     "upgradeToAndCall",
-			typeName: "function (contract IProxyAdmin,address,address,bytes memory)",
-		})
-	} else {
-		// Get the AST of OPCM's upgrade function.
-		opcmUpgradeAst, err := getOpcmUpgradeFunctionAst(opcmAst, "_doChainUpgrade")
-		if err != nil {
-			return nil, []error{err}
-		}
-
-		callType = upgradesContract(opcmUpgradeAst.Body.Statements, "upgrade", typeName, InternalUpgradeFunctionType{
-			name:     "upgradeToAndCall",
-			typeName: "function (contract IProxyAdmin,address,address,bytes memory)",
-		})
-	}
-
-	if callType == NOT_FOUND {
-		return nil, []error{fmt.Errorf("OPCM upgrade function does not call %v.upgrade", contractName)}
-	}
-
-	return nil, nil
+	// In OPCMv2, per-contract upgrade() functions are no longer called by OPCM.
+	// Instead, OPCM uses a generic _upgrade() helper via OPContractsManagerUtils.
+	// If an L1 contract with upgrade() reaches this point, it means it wasn't
+	// excluded and we should verify it's handled by the OPCM upgrade flow.
+	return nil, []error{fmt.Errorf("L1 contract %v has an upgrade() function but is not handled by OPCM upgrade checks - add it to the exclusion list or verify it is called in the OPCM upgrade flow", contractName)}
 }
 
 // We want to ensure that:
@@ -306,31 +274,6 @@ func identifyValidInternalUpgradeCall(expression *solc.Expression, internalFunct
 	return false
 }
 
-// Get the AST of OPCM's upgrade function.
-// Returns an error if zero or more than one external upgrade function is found.
-func getOpcmUpgradeFunctionAst(opcmArtifact *solc.ForgeArtifact, upgradeFunctionName string) (*solc.AstNode, error) {
-	opcmUpgradeFunctions := []solc.AstNode{}
-	for _, astNode := range opcmArtifact.Ast.Nodes {
-		if astNode.NodeType == "ContractDefinition" && astNode.Name == "OPContractsManagerUpgrader" {
-			for _, node := range astNode.Nodes {
-				if node.NodeType == "FunctionDefinition" &&
-					node.Name == upgradeFunctionName {
-					opcmUpgradeFunctions = append(opcmUpgradeFunctions, node)
-				}
-			}
-		}
-	}
-
-	if len(opcmUpgradeFunctions) == 0 {
-		return nil, fmt.Errorf("no external %s function found in OPContractsManagerUpgrader", upgradeFunctionName)
-	}
-
-	if len(opcmUpgradeFunctions) > 1 {
-		return nil, fmt.Errorf("multiple external %s functions found in OPContractsManagerUpgrader, expected 1", upgradeFunctionName)
-	}
-
-	return &opcmUpgradeFunctions[0], nil
-}
 
 // Get the number of upgrade functions from the input artifact.
 func getNumberOfUpgradeFunctions(artifact *solc.ForgeArtifact) int {

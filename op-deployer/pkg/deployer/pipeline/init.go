@@ -44,11 +44,8 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			superchainConfigAddr = *intent.SuperchainConfigProxy
 		}
 
-		// The ReadSuperchainDeployment script (packages/contracts-bedrock/scripts/deploy/ReadSuperchainDeployment.s.sol)
-		// uses the OPCM's semver version (>= 7.0.0 indicates v2) to determine how to populate the superchain state:
-		// - OPCMv1 (< 7.0.0): Queries the OPCM contract to get SuperchainConfig and ProtocolVersions
-		// - OPCMv2 (>= 7.0.0): Uses the provided SuperchainConfigProxy address; ProtocolVersions is deprecated
-		superDeployment, superRoles, err := PopulateSuperchainState(env, opcmAddr, superchainConfigAddr)
+		// The ReadSuperchainDeployment script reads superchain state from the given SuperchainConfigProxy address.
+		superDeployment, superRoles, err := PopulateSuperchainState(env, superchainConfigAddr)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
 		}
@@ -137,11 +134,8 @@ func immutableErr(field string, was, is any) error {
 	return fmt.Errorf("%s is immutable: was %v, is %v", field, was, is)
 }
 
-// TODO(#18612): Remove OPCMAddress field when OPCMv1 gets deprecated
-// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
-func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
+func PopulateSuperchainState(env *Env, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
 	input := opcm.ReadSuperchainDeploymentInput{
-		OpcmAddress:           opcmAddr,
 		SuperchainConfigProxy: superchainConfigProxy,
 	}
 
@@ -174,13 +168,10 @@ func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfig
 		SuperchainProxyAdminImpl: out.SuperchainProxyAdmin,
 		SuperchainConfigProxy:    out.SuperchainConfigProxy,
 		SuperchainConfigImpl:     out.SuperchainConfigImpl,
-		ProtocolVersionsProxy:    out.ProtocolVersionsProxy,
-		ProtocolVersionsImpl:     out.ProtocolVersionsImpl,
 	}
 	roles := &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: out.SuperchainProxyAdminOwner,
 		SuperchainGuardian:        out.Guardian,
-		ProtocolVersionsOwner:     out.ProtocolVersionsOwner,
 	}
 	return deployment, roles, nil
 }

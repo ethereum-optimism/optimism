@@ -9,18 +9,10 @@ import (
 )
 
 type ReadSuperchainDeploymentInput struct {
-	OpcmAddress           common.Address // TODO(#18612): Remove OpcmAddress field when OPCMv1 gets deprecated
 	SuperchainConfigProxy common.Address
 }
 
 type ReadSuperchainDeploymentOutput struct {
-	// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
-	ProtocolVersionsImpl       common.Address `abi:"protocolVersionsImpl"`
-	ProtocolVersionsProxy      common.Address `abi:"protocolVersionsProxy"`
-	ProtocolVersionsOwner      common.Address `abi:"protocolVersionsOwner"`
-	RecommendedProtocolVersion common.Hash    `abi:"recommendedProtocolVersion"`
-	RequiredProtocolVersion    common.Hash    `abi:"requiredProtocolVersion"`
-
 	SuperchainConfigImpl      common.Address `abi:"superchainConfigImpl"`
 	SuperchainConfigProxy     common.Address `abi:"superchainConfigProxy"`
 	SuperchainProxyAdmin      common.Address `abi:"superchainProxyAdmin"`

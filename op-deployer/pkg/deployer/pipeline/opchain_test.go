@@ -26,9 +26,7 @@ import (
 )
 
 func Test_makeDCI_OpcmAddress(t *testing.T) {
-	opcmV1Addr := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	opcmV2Addr := common.HexToAddress("0x2222222222222222222222222222222222222222")
-	opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+	opcmAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
 	chainID := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000300")
 	salt := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
 	superchainConfig := common.HexToAddress("0x3333333333333333333333333333333333333333")
@@ -56,7 +54,7 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			SuperchainConfigProxy: superchainConfig,
 		},
 		ImplementationsDeployment: &addresses.ImplementationsContracts{
-			OpcmImpl: opcmV1Addr,
+			OpcmImpl: opcmAddr,
 		},
 	}
 
@@ -71,63 +69,17 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
-			name:           "default_uses_opcm_v1",
+			name:           "uses_opcm_impl",
 			intent:         baseIntent,
 			thisIntent:     baseChainIntent,
 			chainID:        chainID,
 			st:             baseState,
-			expectedOpcm:   opcmV1Addr,
+			expectedOpcm:   opcmAddr,
 			shouldThrowErr: false,
 			expectedErrMsg: "",
 		},
 		{
-			name: "opcm_v2_flag_enabled_with_v2_impl_uses_v2",
-			intent: &state.Intent{
-				GlobalDeployOverrides: map[string]any{
-					"devFeatureBitmap": opcmV2Flag,
-				},
-			},
-			thisIntent: baseChainIntent,
-			chainID:    chainID,
-			st: &state.State{
-				Create2Salt: salt,
-				SuperchainDeployment: &addresses.SuperchainContracts{
-					SuperchainConfigProxy: superchainConfig,
-				},
-				ImplementationsDeployment: &addresses.ImplementationsContracts{
-					OpcmImpl:   opcmV1Addr,
-					OpcmV2Impl: opcmV2Addr,
-				},
-			},
-			expectedOpcm:   opcmV2Addr,
-			shouldThrowErr: false,
-			expectedErrMsg: "",
-		},
-		{
-			name: "opcm_v2_flag_enabled_but_v2_impl_zero_reverts",
-			intent: &state.Intent{
-				GlobalDeployOverrides: map[string]any{
-					"devFeatureBitmap": opcmV2Flag,
-				},
-			},
-			thisIntent: baseChainIntent,
-			chainID:    chainID,
-			st: &state.State{
-				Create2Salt: salt,
-				SuperchainDeployment: &addresses.SuperchainContracts{
-					SuperchainConfigProxy: superchainConfig,
-				},
-				ImplementationsDeployment: &addresses.ImplementationsContracts{
-					OpcmImpl:   opcmV1Addr,
-					OpcmV2Impl: common.Address{}, // zero address
-				},
-			},
-			expectedOpcm:   common.Address{},
-			shouldThrowErr: true,
-			expectedErrMsg: "OPCM implementation is not deployed",
-		},
-		{
-			name:       "opcm_v2_flag_disabled_but_opcm_impl_zero_reverts",
+			name:       "opcm_impl_zero_reverts",
 			intent:     baseIntent,
 			thisIntent: baseChainIntent,
 			chainID:    chainID,
@@ -137,57 +89,12 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 					SuperchainConfigProxy: superchainConfig,
 				},
 				ImplementationsDeployment: &addresses.ImplementationsContracts{
-					OpcmImpl:   common.Address{}, // zero address
-					OpcmV2Impl: opcmV2Addr,
+					OpcmImpl: common.Address{}, // zero address
 				},
 			},
 			expectedOpcm:   common.Address{},
 			shouldThrowErr: true,
 			expectedErrMsg: "OPCM implementation is not deployed",
-		},
-		{
-			name: "opcm_v2_flag_not_enabled_uses_v1_even_if_v2_impl_set",
-			intent: &state.Intent{
-				GlobalDeployOverrides: map[string]any{
-					"devFeatureBitmap": common.Hash{}, // flag not set
-				},
-			},
-			thisIntent: baseChainIntent,
-			chainID:    chainID,
-			st: &state.State{
-				Create2Salt: salt,
-				SuperchainDeployment: &addresses.SuperchainContracts{
-					SuperchainConfigProxy: superchainConfig,
-				},
-				ImplementationsDeployment: &addresses.ImplementationsContracts{
-					OpcmImpl:   opcmV1Addr,
-					OpcmV2Impl: opcmV2Addr,
-				},
-			},
-			expectedOpcm:   opcmV1Addr,
-			shouldThrowErr: false,
-			expectedErrMsg: "",
-		},
-		{
-			name: "no_dev_feature_bitmap_uses_v1",
-			intent: &state.Intent{
-				GlobalDeployOverrides: make(map[string]any), // no devFeatureBitmap key
-			},
-			thisIntent: baseChainIntent,
-			chainID:    chainID,
-			st: &state.State{
-				Create2Salt: salt,
-				SuperchainDeployment: &addresses.SuperchainContracts{
-					SuperchainConfigProxy: superchainConfig,
-				},
-				ImplementationsDeployment: &addresses.ImplementationsContracts{
-					OpcmImpl:   opcmV1Addr,
-					OpcmV2Impl: opcmV2Addr,
-				},
-			},
-			expectedOpcm:   opcmV1Addr,
-			shouldThrowErr: false,
-			expectedErrMsg: "",
 		},
 	}
 

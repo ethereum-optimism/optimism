@@ -28,15 +28,9 @@ type SuperchainContracts struct {
 //   - these contracts are not upgradable, but can be replaced by new contract releases/deployments
 type ImplementationsContracts struct {
 	OpcmImpl                         common.Address
-	OpcmContractsContainerImpl       common.Address
-	OpcmGameTypeAdderImpl            common.Address
-	OpcmDeployerImpl                 common.Address
-	OpcmUpgraderImpl                 common.Address
-	OpcmInteropMigratorImpl          common.Address
 	OpcmStandardValidatorImpl        common.Address
 	OpcmUtilsImpl                    common.Address
 	OpcmMigratorImpl                 common.Address
-	OpcmV2Impl                       common.Address
 	OpcmContainerImpl                common.Address
 	DelayedWethImpl                  common.Address
 	OptimismPortalImpl               common.Address

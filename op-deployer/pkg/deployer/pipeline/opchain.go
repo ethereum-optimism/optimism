@@ -105,10 +105,6 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
 	st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
 	st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
-	st.ImplementationsDeployment.OpcmDeployerImpl = impls.OpcmDeployer
-	st.ImplementationsDeployment.OpcmGameTypeAdderImpl = impls.OpcmGameTypeAdder
-	st.ImplementationsDeployment.OpcmUpgraderImpl = impls.OpcmUpgrader
-	st.ImplementationsDeployment.OpcmInteropMigratorImpl = impls.OpcmInteropMigrator
 	st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
 
 	return nil
@@ -131,15 +127,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	// Select which OPCM to use based on dev feature flag
 	opcmAddr := st.ImplementationsDeployment.OpcmImpl
-	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
-		// TODO(#19151): Replace this with the OPCMV2DevFlag constant when we fix import cycles.
-		opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
-		if isDevFeatureEnabled(devFeatureBitmap, opcmV2Flag) {
-			opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
-		}
-	}
 	if opcmAddr == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}
@@ -223,3 +211,4 @@ func isDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
 	return featuresIsNonZero && bitmapContainsFeatures
 }
+

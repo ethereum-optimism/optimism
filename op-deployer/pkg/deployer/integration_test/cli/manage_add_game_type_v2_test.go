@@ -120,12 +120,12 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	runner := NewCLITestRunnerWithNetwork(t, WithL1RPC(l1Rpc.RPCUrl()))
 	workDir := runner.GetWorkDir()
 
-	// We deploy superchain, OPCM V2, and a fresh OP chain.
+	// We deploy superchain, OPCM, and a fresh OP chain.
 	deployed := deployDependencies(t, runner)
 
 	l1ProxyAdminOwner := deployed.proxyAdminOwner
 	systemConfigProxy := deployed.systemConfigProxy
-	opcmV2 := deployed.opcmV2
+	opcm := deployed.opcm
 
 	// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 	testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
@@ -136,7 +136,7 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 
 	testConfig := embedded.UpgradeOPChainInput{
 		Prank: l1ProxyAdminOwner,
-		Opcm:  opcmV2,
+		Opcm:  opcm,
 		UpgradeInputV2: &embedded.UpgradeInputV2{
 			SystemConfig: systemConfigProxy,
 			DisputeGameConfigs: []embedded.DisputeGameConfig{
@@ -219,7 +219,7 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	expectedSelector := common.FromHex("8a847e2e")
 	actualSelector := calldata[:4]
 	require.Equal(t, hex.EncodeToString(expectedSelector), hex.EncodeToString(actualSelector),
-		"calldata should contain opcmV2.upgrade function selector 0x8a847e2e, got: %s", hex.EncodeToString(actualSelector))
+		"calldata should contain opcm.upgrade function selector 0x8a847e2e, got: %s", hex.EncodeToString(actualSelector))
 
 	// Verify the calldata contains the correct upgrade input
 	// We construct the expected calldata from testConfig
@@ -243,12 +243,12 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 
 // deployedChain holds the addresses returned from deploying a fresh OP chain
 type deployedChain struct {
-	opcmV2            common.Address
+	opcm            common.Address
 	systemConfigProxy common.Address
 	proxyAdminOwner   common.Address
 }
 
-// deployDependencies deploys superchain, OPCM V2, and a fresh OP chain using ApplyPipeline.
+// deployDependencies deploys superchain, OPCM, and a fresh OP chain using ApplyPipeline.
 // Returns addresses needed for testing the add-game-type-v2 command.
 func deployDependencies(t *testing.T, runner *CLITestRunner) deployedChain {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -271,10 +271,7 @@ func deployDependencies(t *testing.T, runner *CLITestRunner) deployedChain {
 
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
 
-	// Ensure we are using OPCM V2
-	intent.GlobalDeployOverrides = map[string]any{
-		"devFeatureBitmap": deployer.OPCMV2DevFlag,
-	}
+	intent.GlobalDeployOverrides = map[string]any{}
 
 	// Deploy using ApplyPipeline with live target
 	err = deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
@@ -289,19 +286,19 @@ func deployDependencies(t *testing.T, runner *CLITestRunner) deployedChain {
 	})
 	require.NoError(t, err, "Failed to deploy OP chain")
 
-	// Verify OPCM V2 was deployed
-	require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OPCM V2 address should be set")
+	// Verify OPCM was deployed
+	require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmImpl, "OPCM address should be set")
 
 	// Get the chain state
 	require.Len(t, st.Chains, 1, "Expected one chain to be deployed")
 	chainState := st.Chains[0]
 
-	t.Logf("Deployed OPCM V2 at address: %s", st.ImplementationsDeployment.OpcmV2Impl.Hex())
+	t.Logf("Deployed OPCM at address: %s", st.ImplementationsDeployment.OpcmImpl.Hex())
 	t.Logf("Deployed SystemConfigProxy at address: %s", chainState.SystemConfigProxy.Hex())
 	t.Logf("ProxyAdminOwner: %s", intent.Chains[0].Roles.L1ProxyAdminOwner.Hex())
 
 	return deployedChain{
-		opcmV2:            st.ImplementationsDeployment.OpcmV2Impl,
+		opcm:            st.ImplementationsDeployment.OpcmImpl,
 		systemConfigProxy: chainState.SystemConfigProxy,
 		proxyAdminOwner:   intent.Chains[0].Roles.L1ProxyAdminOwner,
 	}

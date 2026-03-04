@@ -54,9 +54,6 @@ library Constants {
     ///         contracts to be deployed. Used for both initial deployments and migrations.
     bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
 
-    /// @notice The minimum OPCM version considered to support OPCM v2.
-    string internal constant OPCM_V2_MIN_VERSION = "7.0.0";
-
     /// @notice Returns the default values for the ResourceConfig. These are the recommended values
     ///         for a production network.
     function DEFAULT_RESOURCE_CONFIG() internal pure returns (IResourceMetering.ResourceConfig memory) {

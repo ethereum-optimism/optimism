@@ -15,7 +15,6 @@ import { Claim, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -51,7 +50,6 @@ contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
     }
 
     /// @notice Helper function that runs an OPCM V2 deploy, asserts that the deploy was successful,
@@ -471,8 +469,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade function succeeds when executed normally.
     function test_upgrade_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
         // Run the upgrade test and checks
         runCurrentUpgradeV2(chainPAO);
     }
@@ -691,8 +687,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade flow can update the Cannon and Permissioned prestate.
     function test_upgrade_updatePrestate_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
         // Run baseline upgrade and capture the current prestates.
         runCurrentUpgradeV2(chainPAO);
         assertEq(
@@ -736,8 +730,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         even when the SuperchainConfig has the system globally paused. This is critical
     ///         because upgrades may be needed during incident response when the system is paused.
     function test_upgrade_whenPaused_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
         // First, pause the system globally using the guardian.
         address guardian = superchainConfig.guardian();
         vm.prank(guardian);
@@ -885,11 +877,7 @@ contract OPContractsManagerV2_IsPermittedUpgradeSequence_Test is OPContractsMana
         address oldOPCM = makeAddr("oldOPCM");
 
         // Mock the current OPCM version to be 7.0.0 (below threshold).
-        vm.mockCall(
-            address(opcmV2),
-            abi.encodeCall(IOPContractsManagerV2.version, ()),
-            abi.encode(Constants.OPCM_V2_MIN_VERSION)
-        );
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("7.0.0"));
 
         // Mock lastUsedOPCM to return the old OPCM address.
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM));
