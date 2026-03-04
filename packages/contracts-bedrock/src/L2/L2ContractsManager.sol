@@ -275,7 +275,7 @@ contract L2ContractsManager is ISemver {
                 IOptimismMintableERC721Factory.initialize,
                 (_config.mintableERC721Factory.bridge, _config.mintableERC721Factory.remoteChainID)
             ),
-            INITIALIZABLE_SLOT_OZ_V4,
+            bytes32(uint256(1)), // Initializable storage is at slot 1 due to mapping at slot 0
             0
         );
 
@@ -388,9 +388,6 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             _config.isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL
-        );
-        L2ContractsManagerUtils.upgradeTo(
-            Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
         // TODO(#18838): Add dev flagging for CrossL2Inbox and L2ToL2CrossDomainMessenger once DevFeatures is

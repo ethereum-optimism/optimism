@@ -19,6 +19,7 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -283,6 +284,16 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             "MintableERC20Factory config mismatch"
         );
         assertEq(
+            _state1.config.mintableERC721Factory.bridge,
+            _state2.config.mintableERC721Factory.bridge,
+            "MintableERC721Factory bridge mismatch"
+        );
+        assertEq(
+            _state1.config.mintableERC721Factory.remoteChainID,
+            _state2.config.mintableERC721Factory.remoteChainID,
+            "MintableERC721Factory remoteChainID mismatch"
+        );
+        assertEq(
             _state1.config.sequencerFeeVault.recipient,
             _state2.config.sequencerFeeVault.recipient,
             "SequencerFeeVault recipient mismatch"
@@ -372,6 +383,18 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             address(IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).bridge()),
             address(preUpgradeConfig.mintableERC20Factory.bridge),
             "OptimismMintableERC20Factory.bridge not preserved"
+        );
+
+        // OptimismMintableERC721Factory
+        assertEq(
+            address(IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).bridge()),
+            address(preUpgradeConfig.mintableERC721Factory.bridge),
+            "OptimismMintableERC721Factory.bridge not preserved"
+        );
+        assertEq(
+            IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).remoteChainID(),
+            preUpgradeConfig.mintableERC721Factory.remoteChainID,
+            "OptimismMintableERC721Factory.remoteChainID not preserved"
         );
 
         // SequencerFeeVault
