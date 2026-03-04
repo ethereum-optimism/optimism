@@ -23,6 +23,9 @@ var (
 
 	// L2CMDevFlag enables L2CM.
 	L2CMDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
+
+	// ZKProofSystemDevFlag enables the ZK dispute game system (ZKDisputeGame + ZKFaultProofSystem).
+	ZKProofSystemDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
