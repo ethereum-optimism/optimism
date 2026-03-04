@@ -572,10 +572,10 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	// -- Stage 1: Freeze batch submission ----------------------------------
 	chains[0].Batcher.Stop()
 	chains[1].Batcher.Stop()
-	defer func() {
+	t.Cleanup(func() {
 		chains[0].Batcher.Start()
 		chains[1].Batcher.Start()
-	}()
+	})
 	awaitSafeHeadsStalled(t, sys.L2CLA, sys.L2CLB)
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)

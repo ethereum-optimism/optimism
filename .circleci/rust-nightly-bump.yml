@@ -6,7 +6,7 @@ version: 2.1
 jobs:
   bump-nightly:
     docker:
-      - image: cimg/base:2024.01
+      - image: cimg/base:2026.03
     steps:
       - checkout
 

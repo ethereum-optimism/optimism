@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use kona_derive::{BlobProvider, BlobProviderError};
 use kona_protocol::BlockInfo;
 use std::{boxed::Box, string::ToString, vec::Vec};
+use tracing::warn;
 
 /// A boxed blob.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,11 +88,22 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
     ) -> Result<Vec<BoxedBlob>, BlobProviderError> {
         kona_macros::inc!(gauge, Metrics::BLOB_FETCHES);
 
-        let result = self
-            .beacon_client
-            .filtered_beacon_blobs(slot, blob_hashes)
-            .await
-            .map_err(|e| BlobProviderError::Backend(e.to_string()));
+        let result =
+            self.beacon_client.filtered_beacon_blobs(slot, blob_hashes).await.map_err(|e| {
+                // The beacon node returned 404 for this slot. The slot was missed or
+                // orphaned; its blobs will never be available. Map to BlobNotFound so
+                // the pipeline issues a reset rather than retrying indefinitely.
+                let Some(missing_slot) = B::slot_not_found(&e) else {
+                    return BlobProviderError::Backend(e.to_string());
+                };
+                warn!(
+                    target: "blob_provider",
+                    slot = missing_slot,
+                    "Beacon slot not found (404); slot may be missed or orphaned. \
+                     Triggering pipeline reset."
+                );
+                BlobProviderError::BlobNotFound { slot: missing_slot, reason: e.to_string() }
+            });
 
         #[cfg(feature = "metrics")]
         if result.is_err() {

@@ -109,6 +109,8 @@ func (p *presetL2Network) AddL2Batcher(v stack.L2Batcher) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 batcher %s must be on chain %s", id, p.chainID)
 	p.require().True(p.batchers.SetIfMissing(id, v), "l2 batcher %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL2BatcherID(id).ComponentID, v)
 }
 
 func (p *presetL2Network) Conductor(m stack.ConductorMatcher) stack.Conductor {
@@ -120,6 +122,8 @@ func (p *presetL2Network) Conductor(m stack.ConductorMatcher) stack.Conductor {
 func (p *presetL2Network) AddConductor(v stack.Conductor) {
 	id := v.ID()
 	p.require().True(p.conductors.SetIfMissing(id, v), "conductor %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertConductorID(id).ComponentID, v)
 }
 
 func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer {
@@ -132,6 +136,8 @@ func (p *presetL2Network) AddL2Proposer(v stack.L2Proposer) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 proposer %s must be on chain %s", id, p.chainID)
 	p.require().True(p.proposers.SetIfMissing(id, v), "l2 proposer %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL2ProposerID(id).ComponentID, v)
 }
 
 func (p *presetL2Network) L2Challenger(m stack.L2ChallengerMatcher) stack.L2Challenger {
@@ -142,8 +148,9 @@ func (p *presetL2Network) L2Challenger(m stack.L2ChallengerMatcher) stack.L2Chal
 
 func (p *presetL2Network) AddL2Challenger(v stack.L2Challenger) {
 	id := v.ID()
-
 	p.require().True(p.challengers.SetIfMissing(id, v), "l2 challenger %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL2ChallengerID(id).ComponentID, v)
 }
 
 func (p *presetL2Network) L2CLNode(m stack.L2CLMatcher) stack.L2CLNode {
@@ -156,6 +163,8 @@ func (p *presetL2Network) AddL2CLNode(v stack.L2CLNode) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 CL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.cls.SetIfMissing(id, v), "l2 CL node %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL2CLNodeID(id).ComponentID, v)
 }
 
 func (p *presetL2Network) L2ELNode(m stack.L2ELMatcher) stack.L2ELNode {
@@ -168,6 +177,8 @@ func (p *presetL2Network) AddL2ELNode(v stack.L2ELNode) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 EL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.els.SetIfMissing(id, v), "l2 EL node %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL2ELNodeID(id).ComponentID, v)
 }
 
 func (p *presetL2Network) L2BatcherIDs() []stack.L2BatcherID {
@@ -225,11 +236,15 @@ func (p *presetL2Network) OPRBuilderNodes() []stack.OPRBuilderNode {
 func (p *presetL2Network) AddRollupBoostNode(v stack.RollupBoostNode) {
 	id := v.ID()
 	p.require().True(p.rollupBoostNodes.SetIfMissing(id, v), "rollup boost node %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertRollupBoostNodeID(id).ComponentID, v)
 }
 
 func (p *presetL2Network) AddOPRBuilderNode(v stack.OPRBuilderNode) {
 	id := v.ID()
 	p.require().True(p.oprBuilderNodes.SetIfMissing(id, v), "OPR builder node %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertOPRBuilderNodeID(id).ComponentID, v)
 }
 
 func (p *presetL2Network) OPRBuilderNode(m stack.OPRBuilderNodeMatcher) stack.OPRBuilderNode {

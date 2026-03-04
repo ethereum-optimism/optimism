@@ -108,9 +108,10 @@ contract VerifyOPCM is Script {
     uint256 constant MAX_INIT_CODE_SIZE = 23500;
 
     /// @notice Represents a contract name and its corresponding address.
-    /// @param field Name of the field the address was extracted from.
-    /// @param name  Name of the contract.
-    /// @param addr  Address of the contract.
+    /// @param field     Name of the field the address was extracted from.
+    /// @param name      Name of the contract.
+    /// @param addr      Address of the contract.
+    /// @param blueprint Whether the contract is a blueprint deployment.
     struct OpcmContractRef {
         string field;
         string name;

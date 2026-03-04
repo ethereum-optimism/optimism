@@ -69,6 +69,7 @@ jobs:
           - kona-client
           - kona-host
           - op-reth
+          - cannon-builder
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
@@ -116,6 +117,7 @@ jobs:
           - kona-client
           - kona-host
           - op-reth
+          - cannon-builder
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
@@ -168,6 +170,7 @@ jobs:
           - image_name: kona-node
           - image_name: kona-host
           - image_name: op-reth
+          - image_name: cannon-builder
     runs-on: ${{ matrix.runner }}
     env:
       IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}

@@ -732,3 +732,25 @@ contract SemgrepTest__sol_style_event_param_fmt {
     // ruleid: sol-style-event-param-fmt
     event SomethingWithMint(uint256 _mint);
 }
+
+contract SemgrepTest__sol_safety_use_deployutils_getcode {
+    function test() {
+        // ok: sol-safety-use-deployutils-getcode
+        DeployUtils.getCode("ProxyAdmin");
+
+        // ok: sol-safety-use-deployutils-getcode
+        DeployUtils.getCode("AddressManager");
+
+        // ok: sol-safety-use-deployutils-getcode
+        DeployUtils.getCode("FeeSplitter.sol:FeeSplitter");
+
+        // ruleid: sol-safety-use-deployutils-getcode
+        vm.getCode("ProxyAdmin");
+
+        // ruleid: sol-safety-use-deployutils-getcode
+        vm.getCode("FeeSplitter.sol:FeeSplitter");
+
+        // ruleid: sol-safety-use-deployutils-getcode
+        vm.getCode(string.concat(cname, ".sol:", cname));
+    }
+}

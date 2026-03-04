@@ -11,6 +11,7 @@ import (
 // A network hosts configuration resources and tracks participating nodes.
 type Network interface {
 	Common
+	ComponentRegistry
 
 	ChainID() eth.ChainID
 

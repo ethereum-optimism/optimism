@@ -147,9 +147,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.8
+    /// @custom:semver 7.0.9
     function version() public pure returns (string memory) {
-        return "7.0.8";
+        return "7.0.9";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -765,6 +765,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // ETHLockbox contract.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             // If we haven't already enabled the ETHLockbox, enable it.
+            // NOTE: setFeature will revert if the system is currently paused because toggling the
+            // lockbox changes the pause identifier. This means a guardian pause will block upgrades
+            // that enable interop. This is acceptable for now since interop is a dev feature and is
+            // not yet production-ready.
             if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
                 _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
             }

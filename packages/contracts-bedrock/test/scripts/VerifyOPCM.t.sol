@@ -157,8 +157,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script succeeds when no changes are introduced.
     function test_run_succeeds() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Run the script.
         harness.run(address(opcm), true);
@@ -185,8 +184,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     }
 
     function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Anything but zero!
         _devFeatureBitmap = bytes32(bound(uint256(_devFeatureBitmap), 1, type(uint256).max));
@@ -211,8 +209,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     ///         variables of implementation contracts. Fuzzing is too slow here, randomness is good
     ///         enough.
     function test_run_implementationDifferentInsideImmutable_succeeds() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Skip security value checks since this test deliberately corrupts immutable values.
         harness.setSkipSecurityValueChecks(true);
@@ -283,8 +280,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     ///         implementation contracts that are not inside immutable references. Fuzzing is too
     ///         slow here, randomness is good enough.
     function test_run_implementationDifferentOutsideImmutable_reverts() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Skip security value checks since corrupted bytecode may break contract queries.
         harness.setSkipSecurityValueChecks(true);
@@ -349,8 +345,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     ///         blueprints. Unlike immutables, any difference anywhere in the blueprint should
     ///         cause the script to revert. Fuzzing is too slow here, randomness is good enough.
     function test_run_blueprintAnyDifference_reverts() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Grab the list of blueprints.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "blueprints", true);
@@ -392,8 +387,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script verifies all component contracts have the same contractsContainer address.
     function test_verifyContractsContainerConsistency_succeeds() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -404,8 +398,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script reverts when contracts have different contractsContainer addresses.
     function test_verifyContractsContainerConsistency_mismatch_reverts() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -423,8 +416,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that each OPCM component can be individually tested for container mismatch.
     function test_verifyContractsContainerConsistency_eachComponent_reverts() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -462,8 +454,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script verifies all component contracts with opcmUtils() have the same address.
     function test_verifyOpcmUtilsConsistency_succeeds() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Only run for OPCM V2
         skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
@@ -477,8 +468,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script reverts when contracts have different opcmUtils addresses.
     function test_verifyOpcmUtilsConsistency_mismatch_reverts() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Only run for OPCM V2
         skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
@@ -499,8 +489,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that each OPCM component with opcmUtils() can be individually tested for mismatch.
     function test_verifyOpcmUtilsConsistency_eachComponent_reverts() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Only run for OPCM V2
         skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
@@ -618,8 +607,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that immutable variables are correctly verified in the OPCM contract.
     function test_verifyOpcmImmutableVariables_succeeds() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Test that the immutable variables are correctly verified.
         // Environment variables are set in setUp() to match the actual OPCM addresses.
@@ -641,8 +629,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// @notice Tests that the script fails when OPCM immutable variables are invalid.
     /// We test this by setting expected addresses and mocking OPCM methods to return different addresses.
     function test_verifyOpcmImmutableVariables_mismatch_fails() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // If OPCM V2 is enabled because we do not use environment variables for OPCM V2.
         skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
@@ -735,7 +722,7 @@ contract VerifyOPCM_verifyAnchorStateRegistryDelays_Test is VerifyOPCM_TestInit 
 contract VerifyOPCM_verifyPreimageOracle_Test is VerifyOPCM_TestInit {
     /// @notice Tests that PreimageOracle verification succeeds when bytecode matches.
     function test_verifyPreimageOracle_matchingBytecode_succeeds() public {
-        skipIfCoverage();
+        skipIfUnoptimized();
         IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
         bool result = harness.verifyPreimageOracle(mipsImpl);
         assertTrue(result, "PreimageOracle verification should succeed");
@@ -743,7 +730,7 @@ contract VerifyOPCM_verifyPreimageOracle_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that PreimageOracle verification fails when bytecode doesn't match.
     function test_verifyPreimageOracle_corruptedBytecode_fails() public {
-        skipIfCoverage();
+        skipIfUnoptimized();
         IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
         address oracleAddr = address(mipsImpl.oracle());
 

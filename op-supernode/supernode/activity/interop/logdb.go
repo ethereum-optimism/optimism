@@ -199,18 +199,28 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 
 // processBlockLogs processes the receipts for a block and stores the logs in the database.
 // If isFirstBlock is true, this is the first block being added to the logsDB (at activation timestamp),
-// and we treat it as genesis by using an empty parent block. This allows the logsDB to start at any
-// block number, not just genesis.
+// and we first seal a "virtual parent" block so that logs have a sealed block to reference.
+// This allows the logsDB to start at any block number, not just genesis.
 func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts gethTypes.Receipts, isFirstBlock bool) error {
 	blockNum := blockInfo.NumberU64()
 	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockNum}
 	parentHash := blockInfo.ParentHash()
 
-	// For the first block in the logsDB (activation block), use empty parent to treat it as genesis.
-	// This allows OpenBlock to work correctly even when we start at a non-genesis block.
 	parentBlock := eth.BlockID{Hash: parentHash, Number: blockNum - 1}
 	sealParentHash := parentHash
-	if blockNum == 0 || isFirstBlock {
+
+	// For the first block in the logsDB (activation block), we need to first seal
+	// a virtual parent block so that logs have a sealed block to reference.
+	// When the DB is empty, SealBlock allows any block to be added without parent validation.
+	if isFirstBlock && blockNum > 0 {
+		// Seal the parent as a "virtual genesis" - this works because DB is empty
+		if err := db.SealBlock(common.Hash{}, parentBlock, blockInfo.Time()); err != nil {
+			return fmt.Errorf("failed to seal virtual parent for first block: %w", err)
+		}
+		// parentBlock stays as-is (references the now-sealed parent)
+		// sealParentHash stays as parentHash
+	} else if blockNum == 0 {
+		// Actual genesis block - no parent, no logs allowed
 		parentBlock = eth.BlockID{}
 		sealParentHash = common.Hash{}
 	}
@@ -230,7 +240,6 @@ func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts 
 		}
 	}
 
-	// Seal the block - use empty parent hash for first block
 	if err := db.SealBlock(sealParentHash, blockID, blockInfo.Time()); err != nil {
 		return fmt.Errorf("failed to seal block: %w", err)
 	}

@@ -9,6 +9,7 @@ import (
 // System represents a collection of L1 and L2 chains, any superchains or clusters, and any peripherals.
 type System interface {
 	Common
+	ComponentRegistry
 
 	Superchain(m SuperchainMatcher) Superchain
 	Cluster(m ClusterMatcher) Cluster

@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
-
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
@@ -188,6 +187,17 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
                 abi.encode(standardValidator.optimismMintableERC20FactoryImpl())
             );
+
+            // Mock getProxyImplementation for DelayedWETH and ETHLockbox proxies when running
+            // with an unoptimized Foundry profile. See Setup.mockUnoptimizedProxyImplementations.
+            mockUnoptimizedProxyImplementations(
+                dgf,
+                proxyAdmin,
+                address(ethLockbox),
+                standardValidator.delayedWETHImpl(),
+                standardValidator.ethLockboxImpl()
+            );
+
             DisputeGames.mockGameImplChallenger(
                 disputeGameFactory, GameTypes.PERMISSIONED_CANNON, standardValidator.challenger()
             );
