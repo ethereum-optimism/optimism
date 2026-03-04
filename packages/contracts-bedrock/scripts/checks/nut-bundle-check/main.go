@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -106,9 +107,10 @@ func validateBundleStructure(bundle *UpgradeBundle) error {
 		return fmt.Errorf("metadata.version is empty")
 	}
 
-	// Validate version format (should be semver-like)
-	if !strings.Contains(bundle.Metadata.Version, ".") {
-		return fmt.Errorf("metadata.version has invalid format: %s", bundle.Metadata.Version)
+	// Validate version format (must be valid semver: X.Y.Z with optional pre-release/build metadata)
+	semverPattern := regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z\-\.]+)?(\+[0-9A-Za-z\-\.]+)?$`)
+	if !semverPattern.MatchString(bundle.Metadata.Version) {
+		return fmt.Errorf("metadata.version has invalid semver format: %s (expected format: X.Y.Z[-prerelease][+build])", bundle.Metadata.Version)
 	}
 
 	// Check transactions array exists
@@ -171,7 +173,7 @@ func validateAddresses(txns []NetworkUpgradeTxn) error {
 			return fmt.Errorf("transaction %d (%s): invalid 'to' address format: %s", i, txn.Intent, txn.To)
 		}
 
-		// Check that 'to' is not zero address
+		// All the deployments are done via ConditionalDeployer predeploy, so 'to' cannot be zero address.
 		if strings.EqualFold(txn.To, ZERO_ADDRESS) {
 			return fmt.Errorf("transaction %d (%s): 'to' address is zero address", i, txn.Intent)
 		}
