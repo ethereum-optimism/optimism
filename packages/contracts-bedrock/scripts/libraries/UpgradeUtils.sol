@@ -7,6 +7,7 @@ import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -178,7 +179,7 @@ library UpgradeUtils {
         view
         returns (NetworkUpgradeTxns.NetworkUpgradeTxn memory txn_)
     {
-        bytes memory code = abi.encodePacked(vm.getCode(_artifactPath), _args);
+        bytes memory code = abi.encodePacked(DeployUtils.getCode(_artifactPath), _args);
         txn_ = NetworkUpgradeTxns.NetworkUpgradeTxn({
             intent: string.concat("Deploy ", _name, " Implementation"),
             from: Constants.DEPOSITOR_ACCOUNT,

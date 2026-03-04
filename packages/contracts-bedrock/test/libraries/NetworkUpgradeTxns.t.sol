@@ -11,6 +11,7 @@ import { Test } from "test/setup/Test.sol";
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title NetworkUpgradeTxns_TestInit
 /// @notice Reusable test initialization for `NetworkUpgradeTxns` tests.
@@ -143,7 +144,7 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
             from: L1_BLOCK_DEPLOYER,
             to: address(0),
             gasLimit: 375_000,
-            data: vm.getCode("L1Block.sol:L1Block")
+            data: DeployUtils.getCode("L1Block.sol:L1Block")
         });
 
         txns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
@@ -190,7 +191,7 @@ contract NetworkUpgradeTxns_Uncategorized_Test is NetworkUpgradeTxns_TestInit {
             from: L1_BLOCK_DEPLOYER,
             to: address(0),
             gasLimit: 375_000,
-            data: vm.getCode("L1Block.sol:L1Block")
+            data: DeployUtils.getCode("L1Block.sol:L1Block")
         });
 
         // 2. Deploy GasPriceOracle
@@ -200,7 +201,7 @@ contract NetworkUpgradeTxns_Uncategorized_Test is NetworkUpgradeTxns_TestInit {
             from: GAS_PRICE_ORACLE_DEPLOYER,
             to: address(0),
             gasLimit: 1_000_000,
-            data: vm.getCode("GasPriceOracle.sol:GasPriceOracle")
+            data: DeployUtils.getCode("GasPriceOracle.sol:GasPriceOracle")
         });
 
         // 3. Update L1Block proxy
