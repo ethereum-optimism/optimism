@@ -535,6 +535,13 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 			return derive.NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
 		}
 	}
+	// Verify the FCU response status is acceptable. In CL-sync mode, only VALID is acceptable.
+	// If the EL returns SYNCING (e.g. after an EL restart where in-memory state was lost),
+	// trigger a reset to re-discover the EL's actual chain state via FindL2Heads. Done before
+	// recording lastForkchoice so a rejected FCU doesn't short-circuit the next retry.
+	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
+		return derive.NewResetError(fmt.Errorf("forkchoice update returned unexpected status %s, need reset to re-sync with engine", fcRes.PayloadStatus.Status))
+	}
 	e.lastForkchoice = fc
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		e.requestForkchoiceUpdate(ctx)

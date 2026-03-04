@@ -694,3 +694,100 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 		})
 	}
 }
+
+// TestTryUpdateEngine_SyncingInCLModeTriggersReset tests that when the EL returns SYNCING
+// during a forkchoice update in CL-sync mode (e.g. after an EL restart), the engine controller
+// triggers a reset to re-discover the EL's actual chain state.
+func TestTryUpdateEngine_SyncingInCLModeTriggersReset(t *testing.T) {
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: 1000,
+		},
+		BlockTime: 2,
+	}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
+
+	// Set up valid internal state so initializeUnknowns succeeds
+	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	safeRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 80}
+	finalRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}
+
+	ec.unsafeHead = unsafeRef
+	ec.SetLocalSafeHead(safeRef)
+	ec.SetFinalizedHead(finalRef)
+
+	// Mock initializeUnknowns calls
+	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, safeRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, finalRef, nil)
+
+	// Mock ForkchoiceUpdate to return SYNCING (simulating EL restart)
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      unsafeRef.Hash,
+			SafeBlockHash:      safeRef.Hash,
+			FinalizedBlockHash: finalRef.Hash,
+		},
+		nil,
+		&eth.ForkchoiceUpdatedResult{
+			PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing},
+		},
+		nil,
+	)
+
+	// Call tryUpdateEngineInternal - should return a reset error
+	err := ec.tryUpdateEngineInternal(context.Background())
+	require.Error(t, err)
+	require.True(t, errors.Is(err, derive.ErrReset), "expected reset error, got: %v", err)
+	require.Contains(t, err.Error(), "unexpected status")
+}
+
+// TestTryUpdateEngine_SyncingInELSyncModeIsAccepted tests that SYNCING is accepted
+// in EL-sync mode (existing behavior preserved).
+func TestTryUpdateEngine_SyncingInELSyncModeIsAccepted(t *testing.T) {
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: 1000,
+		},
+		BlockTime: 2,
+	}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.ELSync}, false, &testutils.MockL1Source{}, emitter, nil)
+
+	// Set up valid internal state
+	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	safeRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 80}
+	finalRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}
+
+	ec.unsafeHead = unsafeRef
+	ec.SetLocalSafeHead(safeRef)
+	ec.SetFinalizedHead(finalRef)
+
+	// Mock initializeUnknowns calls
+	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, safeRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, finalRef, nil)
+
+	// Mock ForkchoiceUpdate to return SYNCING
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      unsafeRef.Hash,
+			SafeBlockHash:      safeRef.Hash,
+			FinalizedBlockHash: finalRef.Hash,
+		},
+		nil,
+		&eth.ForkchoiceUpdatedResult{
+			PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing},
+		},
+		nil,
+	)
+
+	// Call tryUpdateEngineInternal - should succeed in EL-sync mode
+	err := ec.tryUpdateEngineInternal(context.Background())
+	require.NoError(t, err)
+}
