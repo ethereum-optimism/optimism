@@ -3,9 +3,10 @@ package deployer
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"math/big"
 	"os"
+
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type DeploymentTarget string
