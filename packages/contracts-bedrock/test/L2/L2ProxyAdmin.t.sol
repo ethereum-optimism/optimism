@@ -127,18 +127,11 @@ contract L2ProxyAdmin_UpgradePredeploys_Test is L2ProxyAdmin_TestInit {
 // Backwards-compatibility: rerun all ProxyAdmin tests against L2ProxyAdmin
 // by overriding _createAdmin to deploy L2ProxyAdmin instead.
 
-/// @notice Deploys a new L2ProxyAdmin contract with the given owner address and returns it as IProxyAdmin.
-/// @param _owner The address to set as the owner of the deployed L2ProxyAdmin.
-/// @return The newly deployed L2ProxyAdmin as the IProxyAdmin interface.
-function _createL2ProxyAdmin(address _owner) returns (IProxyAdmin) {
-    return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
-}
-
 /// @title L2ProxyAdmin_SetProxyType_Test
 /// @notice Tests the `setProxyType` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_SetProxyType_Test is ProxyAdmin_SetProxyType_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -146,7 +139,7 @@ contract L2ProxyAdmin_SetProxyType_Test is ProxyAdmin_SetProxyType_Test {
 /// @notice Tests the `setImplementationName` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_SetImplementationName_Test is ProxyAdmin_SetImplementationName_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -154,7 +147,7 @@ contract L2ProxyAdmin_SetImplementationName_Test is ProxyAdmin_SetImplementation
 /// @notice Tests the `setAddressManager` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_SetAddressManager_Test is ProxyAdmin_SetAddressManager_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -162,7 +155,7 @@ contract L2ProxyAdmin_SetAddressManager_Test is ProxyAdmin_SetAddressManager_Tes
 /// @notice Tests the `isUpgrading` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_IsUpgrading_Test is ProxyAdmin_IsUpgrading_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -170,7 +163,7 @@ contract L2ProxyAdmin_IsUpgrading_Test is ProxyAdmin_IsUpgrading_Test {
 /// @notice Tests the `getProxyImplementation` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_GetProxyImplementation_Test is ProxyAdmin_GetProxyImplementation_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -178,7 +171,7 @@ contract L2ProxyAdmin_GetProxyImplementation_Test is ProxyAdmin_GetProxyImplemen
 /// @notice Tests the `getProxyAdmin` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_GetProxyAdmin_Test is ProxyAdmin_GetProxyAdmin_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -186,7 +179,7 @@ contract L2ProxyAdmin_GetProxyAdmin_Test is ProxyAdmin_GetProxyAdmin_Test {
 /// @notice Tests the `changeProxyAdmin` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_ChangeProxyAdmin_Test is ProxyAdmin_ChangeProxyAdmin_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -194,7 +187,7 @@ contract L2ProxyAdmin_ChangeProxyAdmin_Test is ProxyAdmin_ChangeProxyAdmin_Test 
 /// @notice Tests the `upgrade` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_Upgrade_Test is ProxyAdmin_Upgrade_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -202,7 +195,7 @@ contract L2ProxyAdmin_Upgrade_Test is ProxyAdmin_Upgrade_Test {
 /// @notice Tests the `upgradeAndCall` function of the `L2ProxyAdmin` contract for backwards compatibility.
 contract L2ProxyAdmin_UpgradeAndCall_Test is ProxyAdmin_UpgradeAndCall_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
 
@@ -210,6 +203,6 @@ contract L2ProxyAdmin_UpgradeAndCall_Test is ProxyAdmin_UpgradeAndCall_Test {
 /// @notice General backwards-compatibility tests for the `L2ProxyAdmin` contract.
 contract L2ProxyAdmin_Uncategorized_Test is ProxyAdmin_Uncategorized_Test {
     function _createAdmin(address _owner) internal override returns (IProxyAdmin) {
-        return _createL2ProxyAdmin(_owner);
+        return IProxyAdmin(address(new L2ProxyAdmin(_owner)));
     }
 }
