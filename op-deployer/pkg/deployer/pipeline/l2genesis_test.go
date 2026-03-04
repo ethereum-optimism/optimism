@@ -14,6 +14,67 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBuildDevFeatureBitmap(t *testing.T) {
+	interopBit := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+	otherBit := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
+
+	tests := []struct {
+		name       string
+		useInterop bool
+		bitmap     common.Hash
+		wantBit    bool
+	}{
+		{
+			name:       "UseInterop=true, interop bit set: interop enabled",
+			useInterop: true,
+			bitmap:     interopBit,
+			wantBit:    true,
+		},
+		{
+			name:       "UseInterop=true, interop bit not set: interop not enabled",
+			useInterop: true,
+			bitmap:     common.Hash{},
+			wantBit:    false,
+		},
+		{
+			name:       "UseInterop=false, interop bit set: interop not enabled",
+			useInterop: false,
+			bitmap:     interopBit,
+			wantBit:    false,
+		},
+		{
+			name:       "UseInterop=false, interop bit not set: no-op",
+			useInterop: false,
+			bitmap:     common.Hash{},
+			wantBit:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			intent := &state.Intent{
+				L1ContractsLocator:    &artifacts.Locator{},
+				UseInterop:            tt.useInterop,
+				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.bitmap},
+			}
+			result := buildDevFeatureBitmap(intent)
+			require.Equal(t, tt.wantBit, result[31]&0x01 != 0)
+		})
+	}
+
+	t.Run("UseInterop=false clears only interop bit, other bits preserved", func(t *testing.T) {
+		combined := common.Hash{}
+		combined[31] = interopBit[31] | otherBit[28] // interop + L2CM bits
+		intent := &state.Intent{
+			L1ContractsLocator:    &artifacts.Locator{},
+			UseInterop:            false,
+			GlobalDeployOverrides: map[string]any{"devFeatureBitmap": combined},
+		}
+		result := buildDevFeatureBitmap(intent)
+		require.Equal(t, byte(0), result[31]&0x01, "interop bit must be cleared")
+		require.Equal(t, otherBit[28], result[28], "other bits must be preserved")
+	})
+}
+
 func TestCalculateL2GenesisOverrides(t *testing.T) {
 	testCases := []struct {
 		name              string

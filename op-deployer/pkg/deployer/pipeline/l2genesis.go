@@ -83,10 +83,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	cgt := buildCGTConfig(thisIntent)
 
-	var devFeatureBitmap common.Hash
-	if bitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
-		devFeatureBitmap = bitmap
-	}
+	devFeatureBitmap := buildDevFeatureBitmap(intent)
 
 	if err := script.Run(opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
@@ -199,6 +196,20 @@ func shouldGenerateL2Genesis(thisChainState *state.ChainState) bool {
 func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	n := wd.ToUint8()
 	return big.NewInt(int64(n))
+}
+
+// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and clears the interop bit if UseInterop=false.
+// This ensures that interop feature is explicitly enabled by both the intent and boolean flag.
+// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
+func buildDevFeatureBitmap(intent *state.Intent) common.Hash {
+	var devFeatureBitmap common.Hash
+	if bitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
+		devFeatureBitmap = bitmap
+	}
+	if !intent.UseInterop {
+		devFeatureBitmap[31] &= ^byte(0x01)
+	}
+	return devFeatureBitmap
 }
 
 func defaultOverrides() l2GenesisOverrides {
