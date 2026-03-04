@@ -148,6 +148,63 @@ func TestInteropMigration(t *testing.T) {
 	require.Equal(t, l1ProxyAdminOwner, *dump[0].To, "Transaction should be sent to prank address")
 }
 
+func TestMigrateCLIV1Flags(t *testing.T) {
+	app := cli.NewApp()
+	flagSet := flag.NewFlagSet("test-migrate-v1", flag.ContinueOnError)
+
+	// Set V1-specific flags
+	flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
+	flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
+	flagSet.Bool(PermissionlessFlag.Name, true, "doc")
+	flagSet.String(ProposerFlag.Name, "0x1111111111111111111111111111111111111111", "doc")
+	flagSet.String(ChallengerFlag.Name, "0x2222222222222222222222222222222222222222", "doc")
+	flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
+	flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
+	flagSet.Uint64(DisputeMaxGameDepthFlag.Name, 73, "doc")
+	flagSet.Uint64(DisputeSplitDepthFlag.Name, 30, "doc")
+	flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
+	flagSet.Uint64(DisputeClockExtensionFlag.Name, 10800, "doc")
+	flagSet.Uint64(DisputeMaxClockDurationFlag.Name, 302400, "doc")
+	flagSet.String(DisputeAbsolutePrestateCannonFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
+	flagSet.String(DisputeAbsolutePrestateCannonKonaFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000fed", "doc")
+
+	ctx := cli.NewContext(app, flagSet, nil)
+
+	// Parse V1 flags
+	opcmAddr := common.HexToAddress(ctx.String(OPCMImplFlag.Name))
+	systemConfigProxy := common.HexToAddress(ctx.String(SystemConfigProxyFlag.Name))
+	permissionless := ctx.Bool(PermissionlessFlag.Name)
+	proposer := common.HexToAddress(ctx.String(ProposerFlag.Name))
+	challenger := common.HexToAddress(ctx.String(ChallengerFlag.Name))
+	startingAnchorRoot := common.HexToHash(ctx.String(StartingAnchorRootFlag.Name))
+	startingAnchorL2SeqNum := ctx.Uint64(StartingAnchorL2SequenceNumberFlag.Name)
+	maxGameDepth := ctx.Uint64(DisputeMaxGameDepthFlag.Name)
+	splitDepth := ctx.Uint64(DisputeSplitDepthFlag.Name)
+	initBondStr := ctx.String(InitialBondFlag.Name)
+	initBond, ok := new(big.Int).SetString(initBondStr, 10)
+	require.True(t, ok)
+	clockExtension := ctx.Uint64(DisputeClockExtensionFlag.Name)
+	maxClockDuration := ctx.Uint64(DisputeMaxClockDurationFlag.Name)
+	cannonPrestate := common.HexToHash(ctx.String(DisputeAbsolutePrestateCannonFlag.Name))
+	cannonKonaPrestate := common.HexToHash(ctx.String(DisputeAbsolutePrestateCannonKonaFlag.Name))
+
+	// Verify values
+	require.Equal(t, common.HexToAddress("0xaf334f4537e87f5155d135392ff6d52f1866465e"), opcmAddr)
+	require.Equal(t, common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"), systemConfigProxy)
+	require.True(t, permissionless)
+	require.Equal(t, common.HexToAddress("0x1111111111111111111111111111111111111111"), proposer)
+	require.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), challenger)
+	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc"), startingAnchorRoot)
+	require.Equal(t, uint64(1), startingAnchorL2SeqNum)
+	require.Equal(t, uint64(73), maxGameDepth)
+	require.Equal(t, uint64(30), splitDepth)
+	require.Equal(t, big.NewInt(1000000000000000000), initBond)
+	require.Equal(t, uint64(10800), clockExtension)
+	require.Equal(t, uint64(302400), maxClockDuration)
+	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000def"), cannonPrestate)
+	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000fed"), cannonKonaPrestate)
+}
+
 func TestMigrateCLIV2Flags(t *testing.T) {
 	app := cli.NewApp()
 	flagSet := flag.NewFlagSet("test-migrate-v2", flag.ContinueOnError)

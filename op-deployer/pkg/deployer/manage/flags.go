@@ -19,6 +19,16 @@ var (
 		Usage:   "Address of the OPCM implementation contract. Not compatible with the --workdir flag.",
 		EnvVars: deployer.PrefixEnvVar("OPCM_IMPL_ADDRESS"),
 	}
+	ProposerFlag = &cli.StringFlag{
+		Name:    "proposer-address",
+		Usage:   "Address of the proposer contract.",
+		EnvVars: deployer.PrefixEnvVar("PROPOSER_ADDRESS"),
+	}
+	ChallengerFlag = &cli.StringFlag{
+		Name:    "challenger-address",
+		Usage:   "Address of the challenger contract.",
+		EnvVars: deployer.PrefixEnvVar("CHALLENGER_ADDRESS"),
+	}
 	SystemConfigProxyFlag = &cli.StringFlag{
 		Name:    "system-config-proxy-address",
 		Usage:   "Address of the SystemConfig proxy contract. Not compatible with the --workdir flag.",
@@ -45,6 +55,18 @@ var (
 		Name:    "dispute-absolute-prestate",
 		Usage:   "The absolute prestate hash for the dispute game. Defaults to the standard value.",
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
+		Value:   standard.DisputeAbsolutePrestate.Hex(),
+	}
+	DisputeAbsolutePrestateCannonFlag = &cli.StringFlag{
+		Name:    "dispute-absolute-prestate-cannon",
+		Usage:   "The absolute prestate hash for the CANNON dispute game. Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE_CANNON"),
+		Value:   standard.DisputeAbsolutePrestate.Hex(),
+	}
+	DisputeAbsolutePrestateCannonKonaFlag = &cli.StringFlag{
+		Name:    "dispute-absolute-prestate-cannon-kona",
+		Usage:   "The absolute prestate hash for the CANNON_KONA dispute game. Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE_CANNON_KONA"),
 		Value:   standard.DisputeAbsolutePrestate.Hex(),
 	}
 	DisputeMaxGameDepthFlag = &cli.Uint64Flag{
@@ -169,7 +191,7 @@ var Commands = cli.Commands{
 	},
 	&cli.Command{
 		Name:  "migrate",
-		Usage: "migrates the chain to use superproofs",
+		Usage: "migrates the chain to use superproofs. It supports both OPCM v1 and v2.",
 		Flags: append([]cli.Flag{
 			deployer.CacheDirFlag,
 			deployer.L1RPCURLFlag,
@@ -177,10 +199,23 @@ var Commands = cli.Commands{
 			deployer.ArtifactsLocatorFlag,
 			L1ProxyAdminOwnerFlag,
 			OPCMImplFlag,
+			PermissionlessFlag,
 			StartingAnchorRootFlag,
 			StartingAnchorL2SequenceNumberFlag,
+			ProposerFlag,
+			ChallengerFlag,
+			DisputeMaxGameDepthFlag,
+			DisputeSplitDepthFlag,
 			InitialBondFlag,
+			DisputeClockExtensionFlag,
+			DisputeMaxClockDurationFlag,
+			//
+			// The following flags represent one item in The EncodedChainConfigs array
+			//
 			SystemConfigProxyFlag,
+			DisputeAbsolutePrestateCannonFlag,
+			DisputeAbsolutePrestateCannonKonaFlag,
+			// OPCM v2 flags
 			MigrateStartingRespectedGameTypeFlag,
 			MigrateDisputeGameEnabledFlag,
 			DisputeGameTypeFlag,
