@@ -932,3 +932,74 @@ func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksI
 
 	return opt
 }
+
+// SingleChainWithNativeFlashblocksIDs defines a system like the minimal system,
+// but with native flashblocks enabled on the L2 EL node (no external builder or rollup-boost).
+type SingleChainWithNativeFlashblocksIDs struct {
+	DefaultMinimalSystemIDs
+
+	// FlashblocksWSURL is populated after start with the WebSocket URL
+	// of the native flashblocks broadcast endpoint on op-reth.
+	FlashblocksWSURL string
+}
+
+// DefaultSingleChainSystemWithNativeFlashblocks creates a single-chain system
+// with native flashblocks production on the L2 EL node.
+// The L2 CL points directly at the L2 EL (no rollup-boost proxy needed).
+func DefaultSingleChainSystemWithNativeFlashblocks(dest *SingleChainWithNativeFlashblocksIDs) stack.Option[*Orchestrator] {
+	ids := SingleChainWithNativeFlashblocksIDs{
+		DefaultMinimalSystemIDs: NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID),
+	}
+	return singleChainSystemWithNativeFlashblocksOpts(&ids, dest)
+}
+
+func singleChainSystemWithNativeFlashblocksOpts(ids *SingleChainWithNativeFlashblocksIDs, dest *SingleChainWithNativeFlashblocksIDs) stack.CombinedOption[*Orchestrator] {
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up (native flashblocks)")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	// L2 EL with native flashblocks enabled (200ms interval).
+	opt.Add(WithL2ELNode(ids.L2EL, L2ELWithNativeFlashblocks(200)))
+	// L2 CL points directly at L2 EL — no rollup-boost in between.
+	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
+
+	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
+	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
+
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+		ids.L2EL,
+	}))
+
+	opt.Add(WithL2MetricsDashboard())
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = *ids
+		// Extract the flashblocks WS URL from the OpReth instance.
+		cid := stack.ConvertL2ELNodeID(ids.L2EL).ComponentID
+		component, ok := orch.registry.Get(cid)
+		if ok {
+			if reth, ok := component.(*OpReth); ok {
+				dest.FlashblocksWSURL = reth.FlashblocksWSURL()
+			}
+		}
+	}))
+
+	return opt
+}

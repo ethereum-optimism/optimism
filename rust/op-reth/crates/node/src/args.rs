@@ -72,7 +72,7 @@ pub struct RollupArgs {
     /// Enable native flashblock production during payload building.
     ///
     /// When enabled, the payload builder emits flashblocks on a timer and
-    /// broadcasts them to the FlashBlockService via in-process channel.
+    /// broadcasts them to the `FlashBlockService` via in-process channel.
     #[arg(long, default_value_t = false)]
     pub flashblocks_enabled: bool,
 
@@ -81,7 +81,7 @@ pub struct RollupArgs {
     #[arg(long, default_value_t = 200)]
     pub flashblocks_interval_ms: u64,
 
-    /// Address for the flashblocks WebSocket broadcast endpoint.
+    /// Address for the flashblocks `WebSocket` broadcast endpoint.
     /// External subscribers (op-conductor, RPC providers) connect here.
     /// Only used when `flashblocks_enabled` is true.
     #[arg(long, requires = "flashblocks_enabled")]

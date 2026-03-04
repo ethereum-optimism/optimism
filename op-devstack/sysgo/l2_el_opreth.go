@@ -34,6 +34,11 @@ type OpReth struct {
 	authProxy *tcpproxy.Proxy
 	userProxy *tcpproxy.Proxy
 
+	// Native flashblocks support.
+	flashblocksEnabled bool
+	flashblocksProxy   *tcpproxy.Proxy
+	flashblocksWSURL   string
+
 	execPath string
 	args     []string
 	// Each entry is of the form "key=value".
@@ -111,6 +116,20 @@ func (n *OpReth) Start() {
 
 	userRPCChan := make(chan string, 1)
 	defer close(userRPCChan)
+
+	// Flashblocks WS port discovery (only when native flashblocks are enabled).
+	var flashblocksWSChan chan string
+	if n.flashblocksEnabled {
+		flashblocksWSChan = make(chan string, 1)
+		defer close(flashblocksWSChan)
+		n.flashblocksProxy = tcpproxy.New(n.p.Logger())
+		n.p.Require().NoError(n.flashblocksProxy.Start())
+		n.p.Cleanup(func() {
+			n.flashblocksProxy.Close()
+		})
+		n.flashblocksWSURL = "ws://" + n.flashblocksProxy.Addr()
+	}
+
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
 		if msg == "RPC WS server started" {
@@ -122,6 +141,13 @@ func (n *OpReth) Start() {
 			select {
 			case authRPCChan <- "ws://" + e.FieldValue("url").(string):
 			default:
+			}
+		} else if msg == "flashblock WS server listening" {
+			if flashblocksWSChan != nil {
+				select {
+				case flashblocksWSChan <- "ws://" + e.FieldValue("addr").(string):
+				default:
+				}
 			}
 		} else if metricsUrl, found := strings.CutPrefix(msg, "Starting metrics endpoint at "); found {
 			// expected format: "Starting metrics endpoint at 127.0.0.1:9091"
@@ -160,6 +186,13 @@ func (n *OpReth) Start() {
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
+
+	if n.flashblocksEnabled {
+		var flashblocksWSAddr string
+		n.p.Require().NoError(tasks.Await(n.p.Ctx(), flashblocksWSChan, &flashblocksWSAddr), "need flashblocks WS")
+		n.flashblocksProxy.SetUpstream(ProxyAddr(n.p.Require(), flashblocksWSAddr))
+		n.p.Logger().Info("op-reth flashblocks WS ready", "url", n.flashblocksWSURL)
+	}
 }
 
 // Stop stops the op-reth node.
@@ -182,6 +215,12 @@ func (n *OpReth) EngineRPC() string {
 
 func (n *OpReth) JWTPath() string {
 	return n.jwtPath
+}
+
+// FlashblocksWSURL returns the WebSocket URL for the native flashblocks broadcast endpoint.
+// Empty if native flashblocks are not enabled.
+func (n *OpReth) FlashblocksWSURL() string {
+	return n.flashblocksWSURL
 }
 
 func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestrator] {
@@ -309,12 +348,22 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			)
 		}
 
+		if cfg.FlashblocksEnabled {
+			args = append(args,
+				"--flashblocks-enabled",
+				fmt.Sprintf("--flashblocks-interval-ms=%d", cfg.FlashblocksIntervalMs),
+				"--flashblocks-listen-addr=127.0.0.1:0",
+				"--flashblock-consensus",
+			)
+		}
+
 		l2EL := &OpReth{
 			id:                 id,
 			jwtPath:            jwtPath,
 			jwtSecret:          jwtSecret,
 			authRPC:            "",
 			userRPC:            "",
+			flashblocksEnabled: cfg.FlashblocksEnabled,
 			execPath:           execPath,
 			args:               args,
 			env:                []string{},

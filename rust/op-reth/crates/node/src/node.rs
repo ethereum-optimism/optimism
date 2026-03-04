@@ -124,7 +124,7 @@ pub struct OpNode {
     pub gas_limit_config: OpGasLimitConfig,
     /// Shared flashblock channel — created if native flashblocks are enabled.
     /// The sender side is cloned to each payload build; the receiver is consumed
-    /// once when building the FlashBlockService.
+    /// once when building the `FlashBlockService`.
     flashblock_channel: Option<FlashblockChannel>,
 }
 
@@ -141,11 +141,7 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
     pub fn new(args: RollupArgs) -> Self {
-        let flashblock_channel = if args.flashblocks_enabled {
-            Some(FlashblockChannel::new(64))
-        } else {
-            None
-        };
+        let flashblock_channel = args.flashblocks_enabled.then(|| FlashblockChannel::new(64));
         Self {
             args,
             da_config: OpDAConfig::default(),
@@ -721,7 +717,7 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     flashblock_channel: Option<FlashblockChannel>,
     /// Enable flashblock consensus client to drive chain forward.
     flashblock_consensus: bool,
-    /// Address for the flashblocks WebSocket broadcast endpoint.
+    /// Address for the flashblocks `WebSocket` broadcast endpoint.
     flashblocks_listen_addr: Option<std::net::SocketAddr>,
 }
 
@@ -842,8 +838,8 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
         self
     }
 
-    /// With an address for the flashblocks WebSocket broadcast endpoint.
-    pub fn with_flashblocks_listen_addr(
+    /// With an address for the flashblocks `WebSocket` broadcast endpoint.
+    pub const fn with_flashblocks_listen_addr(
         mut self,
         addr: Option<std::net::SocketAddr>,
     ) -> Self {

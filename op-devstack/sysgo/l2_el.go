@@ -23,6 +23,10 @@ type L2ELConfig struct {
 	StaticPeers   []string
 	TrustedPeers  []string
 	ProofHistory  bool
+
+	// Native flashblocks: op-reth produces flashblocks in-process.
+	FlashblocksEnabled    bool
+	FlashblocksIntervalMs int
 }
 
 func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
@@ -34,6 +38,16 @@ func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
 func L2ELWithProofHistory(enable bool) L2ELOption {
 	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
 		cfg.ProofHistory = enable
+	})
+}
+
+// L2ELWithNativeFlashblocks enables native flashblock production in op-reth.
+// The payload builder emits flashblocks on the given interval and serves them
+// over a WebSocket endpoint on the EL node directly (no external builder needed).
+func L2ELWithNativeFlashblocks(intervalMs int) L2ELOption {
+	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+		cfg.FlashblocksEnabled = true
+		cfg.FlashblocksIntervalMs = intervalMs
 	})
 }
 

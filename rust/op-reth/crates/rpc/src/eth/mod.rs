@@ -104,7 +104,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     }
 
     /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
-    pub fn builder() -> OpEthApiBuilder<Rpc> {
+    pub const fn builder() -> OpEthApiBuilder<Rpc> {
         OpEthApiBuilder::new()
     }
 
@@ -453,7 +453,7 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// When enabled, flashblock sequences are submitted to the engine API via
     /// `newPayload` and `forkchoiceUpdated` calls, advancing the canonical chain state.
     flashblock_consensus: bool,
-    /// Address for the flashblocks WebSocket broadcast endpoint.
+    /// Address for the flashblocks `WebSocket` broadcast endpoint.
     flashblocks_listen_addr: Option<std::net::SocketAddr>,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
@@ -475,7 +475,7 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
 
 impl<NetworkT> OpEthApiBuilder<NetworkT> {
     /// Creates a [`OpEthApiBuilder`] instance from core components.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             sequencer_url: None,
             sequencer_headers: Vec::new(),
@@ -517,8 +517,8 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
         self
     }
 
-    /// With an address for the flashblocks WebSocket broadcast endpoint.
-    pub fn with_flashblocks_listen_addr(
+    /// With an address for the flashblocks `WebSocket` broadcast endpoint.
+    pub const fn with_flashblocks_listen_addr(
         mut self,
         addr: Option<std::net::SocketAddr>,
     ) -> Self {
