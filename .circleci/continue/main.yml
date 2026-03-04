@@ -2974,6 +2974,7 @@ workflows:
                 - OPCM_V2
                 - OPCM_V2,CUSTOM_GAS_TOKEN
                 - OPCM_V2,OPTIMISM_PORTAL_INTEROP
+                - OPCM_V2,ZK_PROOF_SYSTEM
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
