@@ -166,6 +166,10 @@ func (f *FakePoS) Start() error {
 				if isCancun {
 					attrs.BeaconRoot = &parentBeaconBlockRoot
 				}
+				if f.config.IsAmsterdam(nextHeight, newBlockTime) {
+					slotNum := (newBlockTime - genesisHeader.Time) / f.blockTime
+					attrs.SlotNumber = &slotNum
+				}
 				fcState := engine.ForkchoiceStateV1{
 					HeadBlockHash:      head.Hash(),
 					SafeBlockHash:      safe.Hash(),

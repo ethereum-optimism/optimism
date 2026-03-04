@@ -262,7 +262,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
 
-		l1Config.WithL1ForkAtGenesis(forks.Prague) // activate pectra on L1
+		l1Config.WithL1ForkAtGenesis(forks.Amsterdam) // activate amsterdam on L1
 
 		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 		p.Require().NoError(err, "need funder addr")

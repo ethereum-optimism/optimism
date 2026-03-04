@@ -172,6 +172,24 @@ func (f *ForkedAccountsTrie) UpdateAccount(address common.Address, account *type
 	return nil
 }
 
+func (f *ForkedAccountsTrie) UpdateAccountBatch(addresses []common.Address, accounts []*types.StateAccount, codeLens []int) error {
+	for i, addr := range addresses {
+		if err := f.UpdateAccount(addr, accounts[i], codeLens[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f *ForkedAccountsTrie) UpdateStorageBatch(addr common.Address, keys [][]byte, values [][]byte) error {
+	for i, key := range keys {
+		if err := f.UpdateStorage(addr, key, values[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *ForkedAccountsTrie) UpdateStorage(addr common.Address, key, value []byte) error {
 	diffAcc, ok := f.diff.Account[addr]
 	if !ok {

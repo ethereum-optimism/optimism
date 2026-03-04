@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,22 @@ func (c *CheatCodesPrecompile) ProjectRoot() string {
 }
 
 func (c *CheatCodesPrecompile) getArtifact(input string) (*foundry.Artifact, error) {
+	// Handle full artifact paths like "forge-artifacts/ProxyAdmin.sol/ProxyAdmin.json"
+	// which may be passed by Solidity's DeployUtils.getCode for deterministic profile resolution.
+	if strings.Contains(input, "/") {
+		// Strip any leading "forge-artifacts/" prefix since the ArtifactsFS is already rooted there
+		p := input
+		p = strings.TrimPrefix(p, "forge-artifacts/")
+		// Expected format: "ContractName.sol/ContractName.json"
+		// Split into directory (name) and file (contract.json)
+		dir, file := path.Split(p)
+		dir = strings.TrimSuffix(dir, "/")
+		contract := strings.TrimSuffix(file, ".json")
+		if dir != "" && contract != "" {
+			return c.h.af.ReadArtifact(dir, contract)
+		}
+	}
+
 	// fetching by relative file path, or using a contract version, is not supported
 	parts := strings.SplitN(input, ":", 2)
 	name := parts[0] + ".sol"

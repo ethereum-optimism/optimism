@@ -305,7 +305,7 @@ func Process(logger log.Logger, config *params.ChainConfig,
 	chainCtx *remoteChainCtx, outW io.Writer) (*core.ProcessResult, error) {
 	var (
 		receipts    types.Receipts
-		usedGas     = new(uint64)
+		usedGas     = uint64(0)
 		header      = block.CreateGethHeader()
 		blockHash   = block.Hash
 		blockNumber = new(big.Int).SetUint64(uint64(block.Number))
@@ -344,7 +344,8 @@ func Process(logger log.Logger, config *params.ChainConfig,
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 
-		receipt, err := core.ApplyTransactionWithEVM(msg, gp, statedb, blockNumber, blockHash, blockTime, tx, usedGas, vmenv)
+		var receipt *types.Receipt
+		receipt, usedGas, err = core.ApplyTransactionWithEVM(msg, gp, statedb, blockNumber, blockHash, blockTime, tx, usedGas, vmenv)
 		if err != nil {
 			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -366,6 +367,6 @@ func Process(logger log.Logger, config *params.ChainConfig,
 		Receipts: receipts,
 		Requests: nil,
 		Logs:     allLogs,
-		GasUsed:  *usedGas,
+		GasUsed:  usedGas,
 	}, nil
 }

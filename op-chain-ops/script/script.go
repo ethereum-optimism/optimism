@@ -288,7 +288,7 @@ func NewHost(
 		GasPrice:     big.NewInt(0),
 		BlobHashes:   executionContext.BlobHashes,
 		BlobFeeCap:   big.NewInt(0),
-		AccessEvents: state.NewAccessEvents(h.baseState.PointCache()),
+		AccessEvents: state.NewAccessEvents(),
 	}
 
 	// Hook up the Host to capture the EVM environment changes

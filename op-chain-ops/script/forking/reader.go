@@ -39,6 +39,7 @@ func (f *forkStateReader) CodeSize(addr common.Address, codeHash common.Hash) (i
 	return f.trie.ContractCodeSize(addr, codeHash)
 }
 
-func (f *forkStateReader) Copy() state.Reader {
-	return f
+func (f *forkStateReader) Has(addr common.Address, codeHash common.Hash) bool {
+	code, err := f.trie.ContractCode(addr, codeHash)
+	return err == nil && code != nil
 }
