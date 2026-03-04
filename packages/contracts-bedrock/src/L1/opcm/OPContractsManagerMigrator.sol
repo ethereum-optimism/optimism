@@ -192,15 +192,15 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 proxyDeployArgs.proxyAdmin,
                 address(anchorStateRegistry),
                 impls.anchorStateRegistryImpl,
-                abi.encodeCall(
-                    IAnchorStateRegistry.initialize,
-                    (
-                        _input.chainSystemConfigs[0],
-                        disputeGameFactory,
-                        _input.startingAnchorRoot,
-                        _input.startingRespectedGameType,
-                        false
-                    )
+                // nosemgrep: sol-style-use-abi-encodecall
+                // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+                abi.encodeWithSignature(
+                    "initialize(address,address,(bytes32,uint256),uint32,bool)",
+                    _input.chainSystemConfigs[0],
+                    disputeGameFactory,
+                    _input.startingAnchorRoot,
+                    _input.startingRespectedGameType,
+                    false
                 )
             );
 

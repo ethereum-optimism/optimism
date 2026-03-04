@@ -32,6 +32,13 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
         ISystemConfig _systemConfig,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
+        GameType _startingRespectedGameType
+    )
+        external;
+    function initialize(
+        ISystemConfig _systemConfig,
+        IDisputeGameFactory _disputeGameFactory,
+        Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType,
         bool _clearAnchorGame
     )

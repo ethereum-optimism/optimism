@@ -924,15 +924,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.anchorStateRegistry),
             impls.anchorStateRegistryImpl,
-            abi.encodeCall(
-                IAnchorStateRegistry.initialize,
-                (
-                    _cts.systemConfig,
-                    _cts.disputeGameFactory,
-                    _cfg.startingAnchorRoot,
-                    _cfg.startingRespectedGameType,
-                    !_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-                )
+            // nosemgrep: sol-style-use-abi-encodecall
+            // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+            abi.encodeWithSignature(
+                "initialize(address,address,(bytes32,uint256),uint32,bool)",
+                _cts.systemConfig,
+                _cts.disputeGameFactory,
+                _cfg.startingAnchorRoot,
+                _cfg.startingRespectedGameType,
+                !_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
             )
         );
 

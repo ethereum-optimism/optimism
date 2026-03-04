@@ -24,8 +24,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.9.0
-    string public constant version = "3.9.0";
+    /// @custom:semver 3.10.0
+    string public constant version = "3.10.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -82,6 +82,24 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     }
 
     /// @notice Initializes the contract.
+    /// TODO(placeholder): Remove this 4-param overload when we no longer have an OPCM V1 dependency.
+    /// @param _systemConfig The address of the SystemConfig contract.
+    /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
+    /// @param _startingAnchorRoot The starting anchor root.
+    /// @param _startingRespectedGameType The starting respected game type.
+    function initialize(
+        ISystemConfig _systemConfig,
+        IDisputeGameFactory _disputeGameFactory,
+        Proposal memory _startingAnchorRoot,
+        GameType _startingRespectedGameType
+    )
+        external
+        reinitializer(initVersion())
+    {
+        _initialize(_systemConfig, _disputeGameFactory, _startingAnchorRoot, _startingRespectedGameType, false);
+    }
+
+    /// @notice Initializes the contract.
     /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
@@ -98,6 +116,21 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     )
         external
         reinitializer(initVersion())
+    {
+        _initialize(
+            _systemConfig, _disputeGameFactory, _startingAnchorRoot, _startingRespectedGameType, _clearAnchorGame
+        );
+    }
+
+    /// @notice Shared initialization logic.
+    function _initialize(
+        ISystemConfig _systemConfig,
+        IDisputeGameFactory _disputeGameFactory,
+        Proposal memory _startingAnchorRoot,
+        GameType _startingRespectedGameType,
+        bool _clearAnchorGame
+    )
+        internal
     {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();

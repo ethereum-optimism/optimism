@@ -116,15 +116,14 @@ contract SetDisputeGameImpl_Test is Test {
         vm.prank(address(1));
         anchorStateRegistryProxy.upgradeToAndCall(
             address(anchorStateRegistryImpl),
-            abi.encodeCall(
-                anchorStateRegistryImpl.initialize,
-                (
-                    ISystemConfig(address(systemConfigProxy)),
-                    factory,
-                    Proposal({ root: Hash.wrap(0), l2SequenceNumber: 0 }),
-                    GameType.wrap(100),
-                    false
-                )
+            // nosemgrep: sol-style-use-abi-encodecall
+            abi.encodeWithSignature(
+                "initialize(address,address,(bytes32,uint256),uint32,bool)",
+                ISystemConfig(address(systemConfigProxy)),
+                factory,
+                Proposal({ root: Hash.wrap(0), l2SequenceNumber: 0 }),
+                GameType.wrap(100),
+                false
             )
         );
         anchorStateRegistry = IAnchorStateRegistry(address(anchorStateRegistryProxy));

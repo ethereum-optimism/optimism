@@ -789,9 +789,23 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             upgradeTo(proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
         }
 
-        // Upgrade the AnchorStateRegistry contract. No upgrade/initializer needed, just updating
-        // the implementation to latest.
-        upgradeTo(proxyAdmin, address(optimismPortal.anchorStateRegistry()), _impls.anchorStateRegistryImpl);
+        // Upgrade the AnchorStateRegistry contract and re-initialize to bump the initialized
+        // version. Uses the 4-param initialize() to preserve existing anchor state.
+        IAnchorStateRegistry asr = optimismPortal.anchorStateRegistry();
+        upgradeToAndCall(
+            proxyAdmin,
+            address(asr),
+            _impls.anchorStateRegistryImpl,
+            // nosemgrep: sol-style-use-abi-encodecall
+            // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+            abi.encodeWithSignature(
+                "initialize(address,address,(bytes32,uint256),uint32)",
+                _opChainConfig.systemConfigProxy,
+                asr.disputeGameFactory(),
+                asr.getStartingAnchorRoot(),
+                asr.respectedGameType()
+            )
+        );
 
         // Upgrade the OptimismMintableERC20Factory contract.
         upgradeTo(
@@ -1461,15 +1475,15 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         returns (bytes memory)
     {
         Proposal memory startingAnchorRoot = abi.decode(_input.startingAnchorRoot, (Proposal));
-        return abi.encodeCall(
-            IAnchorStateRegistry.initialize,
-            (
-                _output.systemConfigProxy,
-                _output.disputeGameFactoryProxy,
-                startingAnchorRoot,
-                GameTypes.PERMISSIONED_CANNON,
-                false
-            )
+        // nosemgrep: sol-style-use-abi-encodecall
+        // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+        return abi.encodeWithSignature(
+            "initialize(address,address,(bytes32,uint256),uint32,bool)",
+            _output.systemConfigProxy,
+            _output.disputeGameFactoryProxy,
+            startingAnchorRoot,
+            GameTypes.PERMISSIONED_CANNON,
+            false
         );
     }
 
@@ -1647,9 +1661,15 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             proxyAdmin,
             address(newAnchorStateRegistry),
             getImplementations().anchorStateRegistryImpl,
-            abi.encodeCall(
-                IAnchorStateRegistry.initialize,
-                (portals[0].systemConfig(), newDisputeGameFactory, _input.startingAnchorRoot, newGameType, false)
+            // nosemgrep: sol-style-use-abi-encodecall
+            // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+            abi.encodeWithSignature(
+                "initialize(address,address,(bytes32,uint256),uint32,bool)",
+                portals[0].systemConfig(),
+                newDisputeGameFactory,
+                _input.startingAnchorRoot,
+                newGameType,
+                false
             )
         );
 
@@ -1918,9 +1938,9 @@ contract OPContractsManager is ISemver {
     /// @dev This needs to stay at 6.x.x because the next release will ship OPCMv2. Since we are
     ///      not actually planning to release a 7.x.x of OPCMv1, it needs to stay at 6.x.x to avoid
     ///      errors in the versioning rules of OPCMv2.
-    /// @custom:semver 6.0.4
+    /// @custom:semver 6.0.5
     function version() public pure virtual returns (string memory) {
-        return "6.0.4";
+        return "6.0.5";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

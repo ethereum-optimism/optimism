@@ -328,15 +328,14 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "AnchorStateRegistryImpl",
                 target: EIP1967Helper.getImplementation(address(anchorStateRegistry)),
-                initCalldata: abi.encodeCall(
-                    anchorStateRegistry.initialize,
-                    (
-                        ISystemConfig(address(0)),
-                        IDisputeGameFactory(address(0)),
-                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
-                        false
-                    )
+                // nosemgrep: sol-style-use-abi-encodecall
+                initCalldata: abi.encodeWithSignature(
+                    "initialize(address,address,(bytes32,uint256),uint32,bool)",
+                    ISystemConfig(address(0)),
+                    IDisputeGameFactory(address(0)),
+                    Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+                    GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                    false
                 )
             })
         );
@@ -345,15 +344,14 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "AnchorStateRegistryProxy",
                 target: address(anchorStateRegistry),
-                initCalldata: abi.encodeCall(
-                    anchorStateRegistry.initialize,
-                    (
-                        ISystemConfig(address(0)),
-                        IDisputeGameFactory(address(0)),
-                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
-                        false
-                    )
+                // nosemgrep: sol-style-use-abi-encodecall
+                initCalldata: abi.encodeWithSignature(
+                    "initialize(address,address,(bytes32,uint256),uint32,bool)",
+                    ISystemConfig(address(0)),
+                    IDisputeGameFactory(address(0)),
+                    Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+                    GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                    false
                 )
             })
         );
