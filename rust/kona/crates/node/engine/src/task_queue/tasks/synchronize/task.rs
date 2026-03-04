@@ -65,9 +65,18 @@ impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
                 Ok(())
             }
             PayloadStatusEnum::Syncing => {
-                // If we're not building a new payload, we're driving EL sync.
-                debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
-                Ok(())
+                if state.el_sync_finished {
+                    // EL was previously synced but is now returning SYNCING,
+                    // indicating state divergence (e.g. after EL restart where
+                    // in-memory state was lost). Trigger a reset to re-discover
+                    // the EL's actual chain state.
+                    warn!(target: "engine", "EL returned SYNCING after sync was previously completed, triggering reset");
+                    Err(SynchronizeTaskError::InvalidForkchoiceState)
+                } else {
+                    // EL sync still in progress, SYNCING is expected.
+                    debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
+                    Ok(())
+                }
             }
             s => {
                 // Other codes are not expected.
