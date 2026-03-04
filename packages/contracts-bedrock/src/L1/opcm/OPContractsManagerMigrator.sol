@@ -188,12 +188,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             );
 
             // Initialize the new AnchorStateRegistry.
+            // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+            // nosemgrep: sol-style-use-abi-encodecall
             _upgrade(
                 proxyDeployArgs.proxyAdmin,
                 address(anchorStateRegistry),
                 impls.anchorStateRegistryImpl,
-                // nosemgrep: sol-style-use-abi-encodecall
-                // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
                 abi.encodeWithSignature(
                     "initialize(address,address,(bytes32,uint256),uint32,bool)",
                     _input.chainSystemConfigs[0],

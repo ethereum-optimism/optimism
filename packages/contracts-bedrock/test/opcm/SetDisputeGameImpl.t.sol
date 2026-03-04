@@ -114,9 +114,9 @@ contract SetDisputeGameImpl_Test is Test {
 
         Proxy anchorStateRegistryProxy = new Proxy(address(1));
         vm.prank(address(1));
+        // nosemgrep: sol-style-use-abi-encodecall
         anchorStateRegistryProxy.upgradeToAndCall(
             address(anchorStateRegistryImpl),
-            // nosemgrep: sol-style-use-abi-encodecall
             abi.encodeWithSignature(
                 "initialize(address,address,(bytes32,uint256),uint32,bool)",
                 ISystemConfig(address(systemConfigProxy)),

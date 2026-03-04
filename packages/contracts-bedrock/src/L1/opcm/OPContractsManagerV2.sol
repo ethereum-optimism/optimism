@@ -920,12 +920,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Update the AnchorStateRegistry.
+        // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+        // nosemgrep: sol-style-use-abi-encodecall
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.anchorStateRegistry),
             impls.anchorStateRegistryImpl,
-            // nosemgrep: sol-style-use-abi-encodecall
-            // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
             abi.encodeWithSignature(
                 "initialize(address,address,(bytes32,uint256),uint32,bool)",
                 _cts.systemConfig,

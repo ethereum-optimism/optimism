@@ -792,12 +792,12 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         // Upgrade the AnchorStateRegistry contract and re-initialize to bump the initialized
         // version. Uses the 4-param initialize() to preserve existing anchor state.
         IAnchorStateRegistry asr = optimismPortal.anchorStateRegistry();
+        // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+        // nosemgrep: sol-style-use-abi-encodecall
         upgradeToAndCall(
             proxyAdmin,
             address(asr),
             _impls.anchorStateRegistryImpl,
-            // nosemgrep: sol-style-use-abi-encodecall
-            // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
             abi.encodeWithSignature(
                 "initialize(address,address,(bytes32,uint256),uint32)",
                 _opChainConfig.systemConfigProxy,
@@ -1475,8 +1475,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         returns (bytes memory)
     {
         Proposal memory startingAnchorRoot = abi.decode(_input.startingAnchorRoot, (Proposal));
-        // nosemgrep: sol-style-use-abi-encodecall
         // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+        // nosemgrep: sol-style-use-abi-encodecall
         return abi.encodeWithSignature(
             "initialize(address,address,(bytes32,uint256),uint32,bool)",
             _output.systemConfigProxy,
@@ -1657,12 +1657,12 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
         // We can use portals[0].systemConfig() as they are members of the same superchain cluster (shared lockbox)
         // Initialize the new AnchorStateRegistry.
+        // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
+        // nosemgrep: sol-style-use-abi-encodecall
         upgradeToAndCall(
             proxyAdmin,
             address(newAnchorStateRegistry),
             getImplementations().anchorStateRegistryImpl,
-            // nosemgrep: sol-style-use-abi-encodecall
-            // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
             abi.encodeWithSignature(
                 "initialize(address,address,(bytes32,uint256),uint32,bool)",
                 portals[0].systemConfig(),
