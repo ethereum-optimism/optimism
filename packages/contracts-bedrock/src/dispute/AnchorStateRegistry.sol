@@ -82,7 +82,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     }
 
     /// @notice Initializes the contract.
-    /// TODO(placeholder): Remove this 4-param overload when we no longer have an OPCM V1 dependency.
+    /// Remove this 4-param overload when we no longer have an OPCM V1 dependency.
     /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
