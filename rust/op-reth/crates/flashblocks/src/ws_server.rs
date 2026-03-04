@@ -44,7 +44,8 @@ pub async fn serve(addr: SocketAddr, flashblock_tx: broadcast::Sender<Arc<FlashB
     }
 }
 
-async fn handle_client(
+/// Handles a single `WebSocket` client connection, forwarding flashblocks and responding to pings.
+pub async fn handle_client(
     stream: tokio::net::TcpStream,
     mut rx: broadcast::Receiver<Arc<FlashBlock>>,
     peer: SocketAddr,
