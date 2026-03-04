@@ -46,6 +46,11 @@ func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint
 	return api.s.atTimestamp(ctx, uint64(timestamp))
 }
 
+// SyncStatus returns all the per-node SyncStatus responses and computes the current localsafe/safe/finalized timestamps.
+func (api *superrootAPI) SyncStatus(ctx context.Context) (eth.SuperRootSyncStatusResponse, error) {
+	return api.s.syncStatus(ctx)
+}
+
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
 	var (
 		optimistic            = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
@@ -172,4 +177,80 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 	}
 	return response, nil
+}
+
+func (s *Superroot) syncStatus(ctx context.Context) (eth.SuperRootSyncStatusResponse, error) {
+	var (
+		statuses              map[eth.ChainID]eth.SyncStatus
+		currentL1             eth.L1BlockRef
+		minLocalSafeTimestamp uint64
+		minSafeTimestamp      uint64
+		minFinalizedTimestamp uint64
+		safeInitialized       bool
+		localSafeInitialized  bool
+		finalizedInitialized  bool
+	)
+	statuses = make(map[eth.ChainID]eth.SyncStatus, len(s.chains))
+
+	// Get current chain sync statuses to aggregate global L1 and timestamp views.
+	for chainID, chain := range s.chains {
+		status, err := chain.SyncStatus(ctx)
+		if err != nil {
+			s.log.Warn("failed to get sync status", "chain_id", chainID.String(), "err", err)
+			return eth.SuperRootSyncStatusResponse{}, err
+		}
+		if status == nil { // defensive
+			status = &eth.SyncStatus{}
+		}
+		statuses[chainID] = *status
+
+		// sanity check: each individual op-node CurrentL1 matches each other since they're all virtual nodes running under the supernode
+		if (currentL1 != eth.L1BlockRef{}) && currentL1 != status.CurrentL1 {
+			panic(fmt.Sprintf("currentL1 desync between chains: expected %v got %v for chain %s", currentL1, status.CurrentL1, chainID.String()))
+		}
+		currentL1 = status.CurrentL1
+
+		if !localSafeInitialized {
+			minLocalSafeTimestamp = status.LocalSafeL2.Time
+			localSafeInitialized = true
+		} else if minLocalSafeTimestamp == 0 || status.LocalSafeL2.Time == 0 {
+			minLocalSafeTimestamp = 0
+		} else if status.LocalSafeL2.Time < minLocalSafeTimestamp {
+			minLocalSafeTimestamp = status.LocalSafeL2.Time
+		}
+
+		if !safeInitialized {
+			minSafeTimestamp = status.SafeL2.Time
+			safeInitialized = true
+		} else if minSafeTimestamp == 0 || status.SafeL2.Time == 0 {
+			minSafeTimestamp = 0
+		} else if status.SafeL2.Time < minSafeTimestamp {
+			minSafeTimestamp = status.SafeL2.Time
+		}
+
+		if !finalizedInitialized {
+			minFinalizedTimestamp = status.FinalizedL2.Time
+			finalizedInitialized = true
+		} else if minFinalizedTimestamp == 0 || status.FinalizedL2.Time == 0 {
+			minFinalizedTimestamp = 0
+		} else if status.FinalizedL2.Time < minFinalizedTimestamp {
+			minFinalizedTimestamp = status.FinalizedL2.Time
+		}
+	}
+
+	chainIDs := make([]eth.ChainID, 0, len(statuses))
+	for chainID := range statuses {
+		chainIDs = append(chainIDs, chainID)
+	}
+	slices.SortFunc(chainIDs, func(a, b eth.ChainID) int { return a.Cmp(b) })
+
+	out := eth.SuperRootSyncStatusResponse{
+		Chains:             statuses,
+		ChainIDs:           chainIDs,
+		CurrentL1:          currentL1.ID(),
+		SafeTimestamp:      minSafeTimestamp,
+		LocalSafeTimestamp: minLocalSafeTimestamp,
+		FinalizedTimestamp: minFinalizedTimestamp,
+	}
+	return out, nil
 }

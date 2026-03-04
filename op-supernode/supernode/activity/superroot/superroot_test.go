@@ -370,5 +370,142 @@ func TestSuperroot_AtTimestamp_VerifierL1HigherThanDerivationDoesNotIncrease(t *
 	require.Equal(t, uint64(2000), out.CurrentL1.Number)
 }
 
+func TestSuperroot_SyncStatus_Succeeds(t *testing.T) {
+	t.Parallel()
+	chainA := eth.ChainIDFromUInt64(10)
+	chainB := eth.ChainIDFromUInt64(420)
+
+	chains := map[eth.ChainID]cc.ChainContainer{
+		chainA: &mockCC{
+			verL2:  eth.BlockID{Number: 90},
+			verL1:  eth.BlockID{Number: 1000},
+			optL2:  eth.BlockID{Number: 90},
+			optL1:  eth.BlockID{Number: 1000},
+			output: eth.Bytes32{0xaa},
+			status: &eth.SyncStatus{
+				CurrentL1:     eth.L1BlockRef{Number: 2000},
+				UnsafeL2:      eth.L2BlockRef{Number: 120, Time: 220},
+				CrossUnsafeL2: eth.L2BlockRef{Number: 118, Time: 205},
+				SafeL2:        eth.L2BlockRef{Number: 110, Time: 170},
+				LocalSafeL2:   eth.L2BlockRef{Number: 111, Time: 180},
+				FinalizedL2:   eth.L2BlockRef{Number: 100, Time: 140},
+			},
+		},
+		chainB: &mockCC{
+			verL2:  eth.BlockID{Number: 100},
+			verL1:  eth.BlockID{Number: 1100},
+			optL2:  eth.BlockID{Number: 100},
+			optL1:  eth.BlockID{Number: 1100},
+			output: eth.Bytes32{0xbb},
+			status: &eth.SyncStatus{
+				CurrentL1:     eth.L1BlockRef{Number: 2000},
+				UnsafeL2:      eth.L2BlockRef{Number: 130, Time: 230},
+				CrossUnsafeL2: eth.L2BlockRef{Number: 128, Time: 215},
+				SafeL2:        eth.L2BlockRef{Number: 112, Time: 175},
+				LocalSafeL2:   eth.L2BlockRef{Number: 113, Time: 190},
+				FinalizedL2:   eth.L2BlockRef{Number: 101, Time: 150},
+			},
+		},
+	}
+
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	out, err := api.SyncStatus(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, out.Chains, 2)
+	require.Contains(t, out.Chains, chainA)
+	require.Contains(t, out.Chains, chainB)
+	require.Equal(t, []eth.ChainID{chainA, chainB}, out.ChainIDs)
+	require.Equal(t, uint64(2000), out.CurrentL1.Number)
+	require.Equal(t, out.Chains[chainA].CurrentL1.ID(), out.CurrentL1)
+	require.Equal(t, out.Chains[chainB].CurrentL1.ID(), out.CurrentL1)
+	require.Equal(t, uint64(170), out.SafeTimestamp)
+	require.Equal(t, uint64(180), out.LocalSafeTimestamp)
+	require.Equal(t, uint64(140), out.FinalizedTimestamp)
+
+	// Ensure per-chain head ordering can be strictly unsafe > safe > finalized.
+	statusA := out.Chains[chainA]
+	require.Greater(t, statusA.UnsafeL2.Number, statusA.SafeL2.Number)
+	require.Greater(t, statusA.SafeL2.Number, statusA.FinalizedL2.Number)
+	require.Greater(t, statusA.LocalSafeL2.Number, statusA.SafeL2.Number)
+}
+
+func TestSuperroot_SyncStatus_PanicsOnCurrentL1Mismatch(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			status: &eth.SyncStatus{
+				CurrentL1: eth.L1BlockRef{Number: 100, Hash: common.Hash{0x11}},
+			},
+		},
+		eth.ChainIDFromUInt64(11): &mockCC{
+			status: &eth.SyncStatus{
+				CurrentL1: eth.L1BlockRef{Number: 101, Hash: common.Hash{0x22}},
+			},
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	require.Panics(t, func() {
+		_, _ = api.SyncStatus(context.Background())
+	})
+}
+
+func TestSuperroot_SyncStatus_ErrorOnCurrentL1(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			syncStatusErr: assertErr(),
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	_, err := api.SyncStatus(context.Background())
+	require.Error(t, err)
+}
+
+func TestSuperroot_SyncStatus_IgnoresUnsafeOutputRootErrors(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			// SyncStatus should not require output-root lookups.
+			verifiedErr: fmt.Errorf("not available: %w", ethereum.NotFound),
+			outputErr:   assertErr(),
+			status: &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 100},
+				UnsafeL2:    eth.L2BlockRef{Number: 10, Time: 20},
+				LocalSafeL2: eth.L2BlockRef{Number: 9, Time: 18},
+				FinalizedL2: eth.L2BlockRef{Number: 8, Time: 16},
+			},
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	out, err := api.SyncStatus(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []eth.ChainID{eth.ChainIDFromUInt64(10)}, out.ChainIDs)
+	require.Equal(t, eth.BlockID{Number: 100}, out.CurrentL1)
+	require.Equal(t, out.Chains[eth.ChainIDFromUInt64(10)].CurrentL1.ID(), out.CurrentL1)
+	require.Equal(t, uint64(0), out.SafeTimestamp)
+	require.Equal(t, uint64(18), out.LocalSafeTimestamp)
+}
+
+func TestSuperroot_SyncStatus_EmptyChains(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+
+	out, err := api.SyncStatus(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out.Chains, 0)
+	require.Len(t, out.ChainIDs, 0)
+	require.Equal(t, eth.BlockID{}, out.CurrentL1)
+	require.Equal(t, uint64(0), out.SafeTimestamp)
+	require.Equal(t, uint64(0), out.LocalSafeTimestamp)
+	require.Equal(t, uint64(0), out.FinalizedTimestamp)
+}
+
 // assertErr returns a generic error instance used to signal mock failures.
 func assertErr() error { return fmt.Errorf("mock error") }
