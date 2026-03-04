@@ -38,67 +38,67 @@ func TestEnrichedGameData_NodeEndpointErrorCountInitialization(t *testing.T) {
 
 func TestEnrichedGameData_HasMixedAvailability(t *testing.T) {
 	tests := []struct {
-		name                        string
+		name                      string
 		nodeEndpointTotalCount    int
 		nodeEndpointErrorCount    int
 		nodeEndpointNotFoundCount int
-		expected                    bool
+		expected                  bool
 	}{
 		{
-			name:                        "no endpoints attempted",
+			name:                      "no endpoints attempted",
 			nodeEndpointTotalCount:    0,
 			nodeEndpointErrorCount:    0,
 			nodeEndpointNotFoundCount: 0,
-			expected:                    false,
+			expected:                  false,
 		},
 		{
-			name:                        "all endpoints successful",
+			name:                      "all endpoints successful",
 			nodeEndpointTotalCount:    3,
 			nodeEndpointErrorCount:    0,
 			nodeEndpointNotFoundCount: 0,
-			expected:                    false,
+			expected:                  false,
 		},
 		{
-			name:                        "all endpoints had errors",
+			name:                      "all endpoints had errors",
 			nodeEndpointTotalCount:    3,
 			nodeEndpointErrorCount:    3,
 			nodeEndpointNotFoundCount: 0,
-			expected:                    false,
+			expected:                  false,
 		},
 		{
-			name:                        "all endpoints returned not found",
+			name:                      "all endpoints returned not found",
 			nodeEndpointTotalCount:    3,
 			nodeEndpointErrorCount:    0,
 			nodeEndpointNotFoundCount: 3,
-			expected:                    false,
+			expected:                  false,
 		},
 		{
-			name:                        "mixed availability - some not found, some successful",
+			name:                      "mixed availability - some not found, some successful",
 			nodeEndpointTotalCount:    3,
 			nodeEndpointErrorCount:    0,
 			nodeEndpointNotFoundCount: 1,
-			expected:                    true,
+			expected:                  true,
 		},
 		{
-			name:                        "mixed availability with errors - some not found, some successful, some errors",
+			name:                      "mixed availability with errors - some not found, some successful, some errors",
 			nodeEndpointTotalCount:    5,
 			nodeEndpointErrorCount:    1,
 			nodeEndpointNotFoundCount: 2,
-			expected:                    true,
+			expected:                  true,
 		},
 		{
-			name:                        "mixed availability - majority not found",
+			name:                      "mixed availability - majority not found",
 			nodeEndpointTotalCount:    4,
 			nodeEndpointErrorCount:    0,
 			nodeEndpointNotFoundCount: 3,
-			expected:                    true,
+			expected:                  true,
 		},
 		{
-			name:                        "no successful endpoints - only errors and not found",
+			name:                      "no successful endpoints - only errors and not found",
 			nodeEndpointTotalCount:    4,
 			nodeEndpointErrorCount:    2,
 			nodeEndpointNotFoundCount: 2,
-			expected:                    false,
+			expected:                  false,
 		},
 	}
 
@@ -117,52 +117,52 @@ func TestEnrichedGameData_HasMixedAvailability(t *testing.T) {
 
 func TestEnrichedGameData_HasMixedSafety(t *testing.T) {
 	tests := []struct {
-		name                      string
+		name                    string
 		nodeEndpointSafeCount   int
 		nodeEndpointUnsafeCount int
-		expected                  bool
+		expected                bool
 	}{
 		{
-			name:                      "no safety assessments",
+			name:                    "no safety assessments",
 			nodeEndpointSafeCount:   0,
 			nodeEndpointUnsafeCount: 0,
-			expected:                  false,
+			expected:                false,
 		},
 		{
-			name:                      "all endpoints report safe",
+			name:                    "all endpoints report safe",
 			nodeEndpointSafeCount:   3,
 			nodeEndpointUnsafeCount: 0,
-			expected:                  false,
+			expected:                false,
 		},
 		{
-			name:                      "all endpoints report unsafe",
+			name:                    "all endpoints report unsafe",
 			nodeEndpointSafeCount:   0,
 			nodeEndpointUnsafeCount: 3,
-			expected:                  false,
+			expected:                false,
 		},
 		{
-			name:                      "mixed safety - some safe, some unsafe",
+			name:                    "mixed safety - some safe, some unsafe",
 			nodeEndpointSafeCount:   2,
 			nodeEndpointUnsafeCount: 1,
-			expected:                  true,
+			expected:                true,
 		},
 		{
-			name:                      "mixed safety - minority safe",
+			name:                    "mixed safety - minority safe",
 			nodeEndpointSafeCount:   1,
 			nodeEndpointUnsafeCount: 4,
-			expected:                  true,
+			expected:                true,
 		},
 		{
-			name:                      "mixed safety - majority safe",
+			name:                    "mixed safety - majority safe",
 			nodeEndpointSafeCount:   4,
 			nodeEndpointUnsafeCount: 1,
-			expected:                  true,
+			expected:                true,
 		},
 		{
-			name:                      "mixed safety - equal split",
+			name:                    "mixed safety - equal split",
 			nodeEndpointSafeCount:   2,
 			nodeEndpointUnsafeCount: 2,
-			expected:                  true,
+			expected:                true,
 		},
 	}
 

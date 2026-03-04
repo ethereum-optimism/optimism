@@ -28,9 +28,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -48,9 +48,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
-					L1HeadNum:               200,
-					L2SequenceNumber:        0,
-					RootClaim:               mockRootClaim,
+					L1HeadNum:          200,
+					L2SequenceNumber:   0,
+					RootClaim:          mockRootClaim,
 					NodeEndpointErrors: make(map[string]bool),
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -70,9 +70,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
-					L1HeadNum:               200,
-					L2SequenceNumber:        0,
-					RootClaim:               mockRootClaim,
+					L1HeadNum:          200,
+					L2SequenceNumber:   0,
+					RootClaim:          mockRootClaim,
 					NodeEndpointErrors: make(map[string]bool),
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -89,9 +89,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               100,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -107,9 +107,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               100,
-			L2SequenceNumber:        0,
-			RootClaim:               common.Hash{},
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          common.Hash{},
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -126,9 +126,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -145,9 +145,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -164,9 +164,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               100,
-			L2SequenceNumber:        0,
-			RootClaim:               common.Hash{},
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          common.Hash{},
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -183,9 +183,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        100,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   100,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -202,9 +202,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               100,
-			L2SequenceNumber:        42984924,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          100,
+			L2SequenceNumber:   42984924,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -223,9 +223,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               100,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -245,9 +245,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               100,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -266,9 +266,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -288,9 +288,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -309,9 +309,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -333,9 +333,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        50,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   50,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -357,9 +357,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        50,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   50,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -381,9 +381,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        50,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   50,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -406,9 +406,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        50,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   50,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
@@ -481,9 +481,9 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999, // Super root game type
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 
@@ -509,9 +509,9 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 
@@ -540,9 +540,9 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 
@@ -570,9 +570,9 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 
@@ -595,9 +595,9 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 
@@ -617,9 +617,9 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:               200,
-			L2SequenceNumber:        0,
-			RootClaim:               mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
 			NodeEndpointErrors: make(map[string]bool),
 		}
 

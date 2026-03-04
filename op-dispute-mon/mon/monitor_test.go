@@ -221,15 +221,15 @@ func TestMonitor_NodeEndpointErrorCountMonitorIntegration(t *testing.T) {
 		// Create games with endpoint error counts
 		games := []*monTypes.EnrichedGameData{
 			{
-				GameMetadata:             types.GameMetadata{Proxy: common.Address{0x11}},
+				GameMetadata:           types.GameMetadata{Proxy: common.Address{0x11}},
 				NodeEndpointErrorCount: 5, // First game has 5 errors
 			},
 			{
-				GameMetadata:             types.GameMetadata{Proxy: common.Address{0x22}},
+				GameMetadata:           types.GameMetadata{Proxy: common.Address{0x22}},
 				NodeEndpointErrorCount: 3, // Second game has 3 errors
 			},
 			{
-				GameMetadata:             types.GameMetadata{Proxy: common.Address{0x33}},
+				GameMetadata:           types.GameMetadata{Proxy: common.Address{0x33}},
 				NodeEndpointErrorCount: 0, // Third game has no errors
 			},
 		}
@@ -275,25 +275,25 @@ func TestMonitor_MixedAvailabilityMonitorIntegration(t *testing.T) {
 		// Create games with mixed availability scenarios
 		games := []*monTypes.EnrichedGameData{
 			{
-				GameMetadata:                types.GameMetadata{Proxy: common.Address{0x11}},
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x11}},
 				NodeEndpointTotalCount:    3,
 				NodeEndpointNotFoundCount: 1, // Mixed availability: some found, some not found
 				NodeEndpointErrorCount:    0,
 			},
 			{
-				GameMetadata:                types.GameMetadata{Proxy: common.Address{0x22}},
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x22}},
 				NodeEndpointTotalCount:    2,
 				NodeEndpointNotFoundCount: 2, // All endpoints not found - not mixed availability
 				NodeEndpointErrorCount:    0,
 			},
 			{
-				GameMetadata:                types.GameMetadata{Proxy: common.Address{0x33}},
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x33}},
 				NodeEndpointTotalCount:    4,
 				NodeEndpointNotFoundCount: 2, // Mixed availability: some found, some not found
 				NodeEndpointErrorCount:    0,
 			},
 			{
-				GameMetadata:                types.GameMetadata{Proxy: common.Address{0x44}},
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x44}},
 				NodeEndpointTotalCount:    3,
 				NodeEndpointNotFoundCount: 0, // All endpoints found - not mixed availability
 				NodeEndpointErrorCount:    0,
@@ -341,27 +341,27 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 		// Create games with mixed safety scenarios
 		games := []*monTypes.EnrichedGameData{
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x11}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x11}},
 				NodeEndpointSafeCount:   2, // Mixed safety: some safe, some unsafe
 				NodeEndpointUnsafeCount: 1,
 			},
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x22}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x22}},
 				NodeEndpointSafeCount:   3, // All endpoints safe - not mixed safety
 				NodeEndpointUnsafeCount: 0,
 			},
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x33}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x33}},
 				NodeEndpointSafeCount:   1, // Mixed safety: some safe, some unsafe
 				NodeEndpointUnsafeCount: 4,
 			},
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x44}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x44}},
 				NodeEndpointSafeCount:   0, // All endpoints unsafe - not mixed safety
 				NodeEndpointUnsafeCount: 2,
 			},
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x55}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x55}},
 				NodeEndpointSafeCount:   0, // No safety checks performed - not mixed safety
 				NodeEndpointUnsafeCount: 0,
 			},
@@ -395,17 +395,17 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 		// Create games without mixed safety
 		games := []*monTypes.EnrichedGameData{
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x11}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x11}},
 				NodeEndpointSafeCount:   5, // All safe
 				NodeEndpointUnsafeCount: 0,
 			},
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x22}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x22}},
 				NodeEndpointSafeCount:   0, // All unsafe
 				NodeEndpointUnsafeCount: 3,
 			},
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x33}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x33}},
 				NodeEndpointSafeCount:   0, // No checks performed
 				NodeEndpointUnsafeCount: 0,
 			},
@@ -438,7 +438,7 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 		// Create a game with minimal mixed safety (1 safe, 1 unsafe)
 		games := []*monTypes.EnrichedGameData{
 			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x11}},
+				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x11}},
 				NodeEndpointSafeCount:   1, // Minimal mixed safety
 				NodeEndpointUnsafeCount: 1,
 			},
@@ -484,19 +484,19 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 		// Create games with different output root scenarios
 		games := []*monTypes.EnrichedGameData{
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x11}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x11}},
 				NodeEndpointDifferentRoots: true, // Has different output roots
 			},
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x22}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x22}},
 				NodeEndpointDifferentRoots: false, // No disagreement
 			},
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x33}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x33}},
 				NodeEndpointDifferentRoots: true, // Has different output roots
 			},
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x44}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x44}},
 				NodeEndpointDifferentRoots: false, // No disagreement
 			},
 		}
@@ -529,15 +529,15 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 		// Create games without different output roots
 		games := []*monTypes.EnrichedGameData{
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x11}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x11}},
 				NodeEndpointDifferentRoots: false, // No disagreement
 			},
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x22}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x22}},
 				NodeEndpointDifferentRoots: false, // No disagreement
 			},
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x33}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x33}},
 				NodeEndpointDifferentRoots: false, // No disagreement
 			},
 		}
@@ -569,15 +569,15 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 		// Create games where all have different output roots
 		games := []*monTypes.EnrichedGameData{
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x11}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x11}},
 				NodeEndpointDifferentRoots: true,
 			},
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x22}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x22}},
 				NodeEndpointDifferentRoots: true,
 			},
 			{
-				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x33}},
+				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x33}},
 				NodeEndpointDifferentRoots: true,
 			},
 		}

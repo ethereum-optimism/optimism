@@ -14,28 +14,28 @@ import (
 func TestCheckDifferentRoots(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: true,
-			L2SequenceNumber:                   100,
-			RootClaim:                          common.HexToHash("0xaaa"),
+			L2SequenceNumber:           100,
+			RootClaim:                  common.HexToHash("0xaaa"),
 		},
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x22}},
 			NodeEndpointDifferentRoots: false, // No disagreement
-			L2SequenceNumber:                   200,
-			RootClaim:                          common.HexToHash("0xbbb"),
+			L2SequenceNumber:           200,
+			RootClaim:                  common.HexToHash("0xbbb"),
 		},
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x33}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x33}},
 			NodeEndpointDifferentRoots: true,
-			L2SequenceNumber:                   300,
-			RootClaim:                          common.HexToHash("0xccc"),
+			L2SequenceNumber:           300,
+			RootClaim:                  common.HexToHash("0xccc"),
 		},
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x44}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x44}},
 			NodeEndpointDifferentRoots: false, // No disagreement
-			L2SequenceNumber:                   400,
-			RootClaim:                          common.HexToHash("0xddd"),
+			L2SequenceNumber:           400,
+			RootClaim:                  common.HexToHash("0xddd"),
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
@@ -67,11 +67,11 @@ func TestCheckDifferentRoots(t *testing.T) {
 func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: false,
 		},
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x22}},
 			NodeEndpointDifferentRoots: false,
 		},
 	}
@@ -106,19 +106,19 @@ func TestCheckDifferentRoots_EmptyGamesList(t *testing.T) {
 func TestCheckDifferentRoots_AllGamesHaveDisagreements(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: true,
-			L2SequenceNumber:                   100,
+			L2SequenceNumber:           100,
 		},
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x22}},
 			NodeEndpointDifferentRoots: true,
-			L2SequenceNumber:                   200,
+			L2SequenceNumber:           200,
 		},
 		{
-			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x33}},
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x33}},
 			NodeEndpointDifferentRoots: true,
-			L2SequenceNumber:                   300,
+			L2SequenceNumber:           300,
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
