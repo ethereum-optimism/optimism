@@ -24,7 +24,7 @@ type presetSystem struct {
 	// Unified component registry for generic access
 	registry *stack.Registry
 
-	supernodes locks.RWMap[stack.SupernodeID, stack.Supernode]
+	supernodes locks.RWMap[stack.ComponentID, stack.Supernode]
 }
 
 var _ stack.ExtensibleSystem = (*presetSystem)(nil)

@@ -53,12 +53,34 @@ func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
 	}
 }
 
+func isL2ELFaucetKind(kind stack.ComponentKind) bool {
+	switch kind {
+	case stack.KindL2ELNode, stack.KindRollupBoostNode, stack.KindOPRBuilderNode:
+		return true
+	default:
+		return false
+	}
+}
+
 func WithFaucets(l1ELs []stack.ComponentID, l2ELs []stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
+
+		require.NotEmpty(l2ELs, "need at least one L2 EL for faucet service")
+		for i, l1ELID := range l1ELs {
+			require.Equalf(stack.KindL1ELNode, l1ELID.Kind(), "l1ELs[%d] must be kind %s", i, stack.KindL1ELNode)
+			require.Truef(l1ELID.HasChainID(), "l1ELs[%d] must be chain-scoped", i)
+		}
+		for i, l2ELID := range l2ELs {
+			require.Truef(isL2ELFaucetKind(l2ELID.Kind()),
+				"l2ELs[%d] must be one of %s, %s, %s",
+				i, stack.KindL2ELNode, stack.KindRollupBoostNode, stack.KindOPRBuilderNode)
+			require.Truef(l2ELID.HasChainID(), "l2ELs[%d] must be chain-scoped", i)
+		}
+
 		faucetID := stack.NewFaucetID("dev-faucet", l2ELs[0].ChainID())
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), faucetID))
-
-		require := p.Require()
+		require = p.Require()
 
 		require.Nil(orch.faucet, "can only support a single faucet-service in sysgo")
 

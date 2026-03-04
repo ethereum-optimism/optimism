@@ -697,17 +697,17 @@ func defaultSingleChainSupernodeSuperProofsSystem(dest *DefaultSingleChainSupern
 	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 
 	// Run super roots migration using supernode as super root source
-	opt.Add(WithSuperRootsFromSupernode(ids.L1.ChainID(), ids.L1EL, []stack.L2CLNodeID{ids.L2ACL}, ids.Supernode, ids.L2A.ChainID()))
+	opt.Add(WithSuperRootsFromSupernode(ids.L1.ChainID(), ids.L1EL, []stack.ComponentID{ids.L2ACL}, ids.Supernode, ids.L2A.ChainID()))
 
 	// Start challenger after migration; use supernode RPCs as super-roots source.
-	opt.Add(WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.L2ELNodeID{
+	opt.Add(WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.ComponentID{
 		ids.L2AEL,
 	}))
 
 	// Start proposer after migration; use supernode RPCs as proposal source.
 	opt.Add(WithSupernodeProposer(ids.L2AProposer, ids.L1EL, &ids.Supernode))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL}))
 
 	opt.Add(WithL2MetricsDashboard())
 

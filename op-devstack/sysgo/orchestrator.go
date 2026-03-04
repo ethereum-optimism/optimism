@@ -41,8 +41,8 @@ type Orchestrator struct {
 	// Unified component registry - replaces the 15 separate locks.RWMap fields
 	registry *stack.Registry
 
-	// supernodes is stored separately because SupernodeID cannot be converted to ComponentID
-	supernodes locks.RWMap[stack.SupernodeID, *SuperNode]
+	// supernodes are stored separately from the registry and hydrated explicitly.
+	supernodes locks.RWMap[stack.ComponentID, *SuperNode]
 
 	// service name => prometheus endpoints to scrape
 	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsTarget]
@@ -138,7 +138,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 		})
 	}
 
-	o.supernodes.Range(rangeHydrateFn[stack.SupernodeID, *SuperNode](sys))
+	o.supernodes.Range(rangeHydrateFn[stack.ComponentID, *SuperNode](sys))
 
 	if o.syncTester != nil {
 		o.syncTester.hydrate(sys)
