@@ -72,9 +72,10 @@ type simpleVirtualNode struct {
 	initOverload     *rollupNode.InitializationOverrides // Shared resources which are overridden by the supernode
 	innerNodeFactory innerNodeFactory                    // Factory function to create inner node (overloadable for testing)
 
-	mu     sync.Mutex         // Protects state transitions
-	state  VNState            // Current lifecycle state
-	cancel context.CancelFunc // Cancels the running context
+	mu         sync.Mutex         // Protects state transitions
+	state      VNState            // Current lifecycle state
+	cancel     context.CancelFunc // Cancels the running context
+	preStopped bool               // Stop() was called before Start() ran; Start() exits immediately
 }
 
 func generateVirtualNodeID() string {
@@ -96,12 +97,19 @@ func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rol
 }
 
 func (v *simpleVirtualNode) Start(ctx context.Context) error {
-	// Accquire lock while setting up inner node
+	// Acquire lock while setting up inner node
 	v.mu.Lock()
 	if v.state != VNStateNotStarted {
 		v.mu.Unlock()
 		v.log.Debug("virtual node not in a valid state to start", "state", v.state)
 		return ErrVirtualNodeCantStart
+	}
+	// Stop() was called before Start() had a chance to run.  Exit immediately so the
+	// chain-container restart loop can observe c.stop and break cleanly.
+	if v.preStopped {
+		v.state = VNStateStopped
+		v.mu.Unlock()
+		return nil
 	}
 	if v.cfg == nil {
 		v.mu.Unlock()
@@ -134,27 +142,39 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	// Don't hold the lock while running or waiting for inner node to stop
 
 	// Run inner node in goroutine
-	// and await any signal to exit (Stop(), parent ctx, or inner error)
-	var innerErr error = nil
+	// and await any signal to exit (Stop(), parent ctx, or inner error).
+	// Use a buffered channel so the goroutine never blocks on send, and so
+	// the main goroutine can collect the error without a data race.
+	// Use n (captured above) rather than v.inner to avoid racing with the
+	// v.inner = nil write that happens after <-runCtx.Done().
+	innerErrCh := make(chan error, 1)
 	go func() {
-		innerErr = v.inner.Start(runCtx)
+		innerErrCh <- n.Start(runCtx)
 	}()
 	<-runCtx.Done()
 
-	// Clean up with lock to end of function
+	// Update state and capture inner under the lock, then release before blocking.
+	// Holding the mutex across inner.Stop() (up to 30 s) would freeze concurrent
+	// readers such as SyncStatus, SafeHeadAtL1, and L1AtSafeHead.
 	v.mu.Lock()
-	defer v.mu.Unlock()
 	v.state = VNStateStopped
 	v.cancel = nil
+	inner := v.inner
+	v.inner = nil // nil out now so readers see VNStateNotRunning immediately
+	v.mu.Unlock()
 
-	// Stop the inner node if it's still running
-	if v.inner != nil {
+	// Stop the inner node outside the lock
+	if inner != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if err := v.inner.Stop(stopCtx); err != nil {
+		if err := inner.Stop(stopCtx); err != nil {
 			v.log.Error("error stopping inner node", "err", err)
 		}
 	}
+
+	// Collect the inner goroutine's return value. inner.Stop() guarantees that
+	// n.Start() has returned, so this receive completes without blocking.
+	innerErr := <-innerErrCh
 
 	// Return inner error if that's what caused the cancellation, otherwise context error
 	if cancelErr != nil {
@@ -177,8 +197,12 @@ func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	// Always mark as pre-stopped. If Start() hasn't run yet it will see this flag
+	// and exit immediately, closing the race window in the chain-container restart loop.
+	v.preStopped = true
+
 	if v.state != VNStateRunning {
-		return nil // Already stopped or not started
+		return nil // Already stopped, never started, or pre-stopped
 	}
 
 	// Cancel the run context to trigger shutdown

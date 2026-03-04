@@ -298,6 +298,64 @@ func TestVirtualNode_Lifecycle(t *testing.T) {
 		require.NoError(t, vn.Stop(ctx))
 	})
 
+	// TestVirtualNode_StopBeforeStart verifies the preStopped race fix:
+	// if Stop() is called before Start() has a chance to run, Start() must
+	// return immediately rather than hanging on <-runCtx.Done() forever.
+	t.Run("Stop before Start causes Start to return immediately", func(t *testing.T) {
+		mock := newMockInnerNode()
+		mock.startFunc = func(ctx context.Context) {
+			<-ctx.Done()
+		}
+
+		vn := NewVirtualNode(cfg, log, initOverload, appVersion)
+		vn.innerNodeFactory = createMockFactory(mock)
+
+		// Call Stop() while still in NotStarted state
+		require.NoError(t, vn.Stop(context.Background()))
+		require.Equal(t, VNStateNotStarted, vn.State(), "state should still be NotStarted before Start is called")
+
+		startDone := make(chan error, 1)
+		go func() { startDone <- vn.Start(context.Background()) }()
+
+		select {
+		case err := <-startDone:
+			require.NoError(t, err, "Start should return nil when preStopped")
+			require.Equal(t, VNStateStopped, vn.State())
+			require.False(t, mock.started, "inner node should never have been started")
+		case <-time.After(2 * time.Second):
+			t.Fatal("Start hung after Stop-before-Start — preStopped fix not working")
+		}
+	})
+
+	// TestVirtualNode_StopRacesWithStart stress-tests the preStopped fix by
+	// concurrently calling Stop() and Start() many times and verifying Start()
+	// always returns within a reasonable deadline (no permanent hang).
+	t.Run("Stop racing with Start never hangs", func(t *testing.T) {
+		const iterations = 50
+		for i := 0; i < iterations; i++ {
+			mock := newMockInnerNode()
+			mock.startFunc = func(ctx context.Context) {
+				<-ctx.Done()
+			}
+
+			vn := NewVirtualNode(cfg, log, initOverload, appVersion)
+			vn.innerNodeFactory = createMockFactory(mock)
+
+			startDone := make(chan error, 1)
+			go func() { startDone <- vn.Start(context.Background()) }()
+
+			// Stop immediately — may race before or after Start acquires the lock
+			_ = vn.Stop(context.Background())
+
+			select {
+			case <-startDone:
+				// Good — Start returned
+			case <-time.After(2 * time.Second):
+				t.Fatalf("iteration %d: Start hung — Stop-vs-Start race not handled", i)
+			}
+		}
+	})
+
 }
 
 // TestVirtualNode_InnerNodeIntegration tests interaction with inner node
@@ -326,7 +384,15 @@ func TestVirtualNode_InnerNodeIntegration(t *testing.T) {
 		}()
 
 		require.Eventually(t, func() bool {
-			return vn.State() == VNStateRunning && mock.started
+			if vn.State() != VNStateRunning {
+				return false
+			}
+			select {
+			case <-mock.startCh:
+				return true
+			default:
+				return false
+			}
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
