@@ -153,18 +153,31 @@ func FuzzProcessBlockLogs(f *testing.F) {
 		require.Equal(t, totalLogs, db.addLogCount,
 			"AddLog should be called once per log")
 
-		// Verify SealBlock was called exactly once
-		require.Equal(t, 1, db.sealBlockCount,
-			"SealBlock should be called exactly once")
+		// Verify SealBlock call count:
+		// - First block with blockNum > 0: 2 calls (virtual parent seal + actual block seal)
+		// - Otherwise: 1 call (actual block seal only)
+		expectedSealCalls := 1
+		if (isFirstBlock || blockNum == 0) && blockNum > 0 {
+			expectedSealCalls = 2
+		}
+		require.Equal(t, expectedSealCalls, db.sealBlockCount,
+			"SealBlock should be called the expected number of times")
 
 		// P11: First block handling
-		if isFirstBlock || blockNum == 0 {
-			// First block should use empty parent
+		if blockNum == 0 {
+			// Genesis block: single SealBlock with empty parent
 			require.Equal(t, common.Hash{}, db.lastSealParentHash,
-				"P11: first block should use empty parent hash for SealBlock")
+				"P11: genesis block should use empty parent hash for SealBlock")
+		} else if isFirstBlock {
+			// First block (non-genesis): two SealBlock calls
+			// 1st: virtual parent seal with empty hash
+			// 2nd: actual block seal with real parentHash
+			require.Equal(t, parentHash, db.lastSealParentHash,
+				"P11: first block (non-genesis) last SealBlock should use real parent hash")
 			if totalLogs > 0 {
-				require.Equal(t, eth.BlockID{}, db.firstAddLogParent,
-					"P11: first block should use empty parent block for AddLog")
+				// AddLog uses the parent block constructed after virtual parent seal
+				require.Equal(t, eth.BlockID{Hash: parentHash, Number: blockNum - 1}, db.firstAddLogParent,
+					"P11: first block AddLog should use parent block")
 			}
 		} else {
 			// Non-first block should use real parent

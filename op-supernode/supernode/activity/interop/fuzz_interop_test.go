@@ -77,6 +77,13 @@ func FuzzProgressInteropValid(f *testing.F) {
 			}
 			return result, nil
 		}
+		// Override cycleVerifyFn to always return valid (no cycles)
+		interop.cycleVerifyFn = func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
+			return Result{
+				Timestamp: ts,
+				L2Heads:   blocksAtTimestamp,
+			}, nil
+		}
 
 		// Process timestamps using progressInterop + handleResult
 		for i := 0; i < numTimestamps; i++ {
@@ -218,7 +225,7 @@ func FuzzProgressInteropInvalid(f *testing.F) {
 		// P31: After invalidation, should be able to commit at the same timestamp
 		validResult := VerifiedResult{
 			Timestamp: activationTS,
-			L1Head:    eth.BlockID{Hash: randomHash(rng), Number: 100},
+			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 100},
 			L2Heads:   make(map[eth.ChainID]eth.BlockID),
 		}
 		for _, chainID := range chainIDs {
@@ -286,7 +293,7 @@ func FuzzProgressInteropReset(f *testing.F) {
 			ts := activationTS + i
 			err = verifiedDB.Commit(VerifiedResult{
 				Timestamp: ts,
-				L1Head:    eth.BlockID{Hash: randomHash(rng), Number: ts},
+				L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: ts},
 				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 100 + i}},
 			})
 			require.NoError(t, err)
@@ -297,7 +304,13 @@ func FuzzProgressInteropReset(f *testing.F) {
 		rewindTS := activationTS + rewindOffset
 
 		// Call Reset (exercises both resetLogsDB and resetVerifiedDB)
-		interop.Reset(chainID, rewindTS)
+		// invalidatedBlock.Number must equal rewindTS so that targetBlock.Number = rewindTS - 1
+		invalidatedBlock := eth.BlockRef{
+			Number:     rewindTS,
+			Hash:       randomHash(rng),
+			ParentHash: randomHash(rng),
+		}
+		interop.Reset(chainID, rewindTS, invalidatedBlock)
 
 		// P32: Verify logsDB was rewound
 		require.Equal(t, 1, len(mockDB.rewindCalls), "P32: logsDB should have been rewound once")
@@ -307,32 +320,31 @@ func FuzzProgressInteropReset(f *testing.F) {
 		require.Equal(t, eth.BlockID{}, interop.CurrentL1(), "P32: currentL1 should be reset to empty after Reset")
 
 		// P32: Verify verifiedDB state after rewind
+		// RewindAfter(rewindTS) keeps entries at rewindTS and below, deletes those strictly after
 		for i := uint64(0); i < numCommits; i++ {
 			ts := activationTS + i
 			has, err := verifiedDB.Has(ts)
 			require.NoError(t, err)
 
-			if ts < rewindTS {
-				require.True(t, has, "P32: timestamp %d before rewind point %d should still exist", ts, rewindTS)
+			if ts <= rewindTS {
+				require.True(t, has, "P32: timestamp %d at/before rewind point %d should still exist", ts, rewindTS)
 			} else {
-				require.False(t, has, "P32: timestamp %d at/after rewind point %d should be deleted", ts, rewindTS)
+				require.False(t, has, "P32: timestamp %d after rewind point %d should be deleted", ts, rewindTS)
 			}
 		}
 
-		// P32: Verify we can resume committing from the rewind point
-		if rewindTS > activationTS {
-			lastTS, initialized := verifiedDB.LastTimestamp()
-			require.True(t, initialized)
-			require.Equal(t, rewindTS-1, lastTS, "P32: lastTimestamp should be rewindTS-1")
+		// P32: Verify we can resume committing after the rewind point
+		lastTS, initialized := verifiedDB.LastTimestamp()
+		require.True(t, initialized)
+		require.Equal(t, rewindTS, lastTS, "P32: lastTimestamp should be rewindTS")
 
-			// Should be able to recommit at rewindTS
-			err = verifiedDB.Commit(VerifiedResult{
-				Timestamp: rewindTS,
-				L1Head:    eth.BlockID{Hash: randomHash(rng), Number: rewindTS},
-				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 200}},
-			})
-			require.NoError(t, err, "P32: should be able to recommit at rewind point")
-		}
+		// Should be able to commit at rewindTS+1 (next sequential)
+		err = verifiedDB.Commit(VerifiedResult{
+			Timestamp:   rewindTS + 1,
+			L1Inclusion: eth.BlockID{Hash: randomHash(rng), Number: rewindTS + 1},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 200}},
+		})
+		require.NoError(t, err, "P32: should be able to commit at rewindTS+1")
 	})
 }
 
@@ -367,7 +379,7 @@ func FuzzHandleResultEmpty(f *testing.F) {
 		activationTS := uint64(1000)
 		err = verifiedDB.Commit(VerifiedResult{
 			Timestamp: activationTS,
-			L1Head:    eth.BlockID{Hash: randomHash(rng), Number: 1},
+			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 1},
 			L2Heads:   map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Hash: randomHash(rng), Number: 1}},
 		})
 		require.NoError(t, err)

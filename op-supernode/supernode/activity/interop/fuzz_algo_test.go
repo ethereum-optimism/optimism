@@ -457,12 +457,14 @@ func FuzzVerifyExpiryBoundary(f *testing.F) {
 			}
 		}
 
-		// Equal timestamp: should be INVALID (>= check in verifyExecutingMessage)
-		tests = append(tests, boundaryTest{
-			name:        "equal_timestamp",
-			initTS:      execTimestamp,
-			expectValid: false,
-		})
+		// Equal timestamp: valid unless initTS + ExpiryTime overflows uint64
+		if execTimestamp <= math.MaxUint64-ExpiryTime {
+			tests = append(tests, boundaryTest{
+				name:        "equal_timestamp",
+				initTS:      execTimestamp,
+				expectValid: true,
+			})
+		}
 
 		// One less than exec timestamp: valid if within expiry window
 		if execTimestamp > 0 {
@@ -764,7 +766,7 @@ func FuzzResultProperties(f *testing.F) {
 
 		result := Result{
 			Timestamp: uint64(rng.Intn(1000000)),
-			L1Head: eth.BlockID{
+			L1Inclusion: eth.BlockID{
 				Hash:   randomHash(rng),
 				Number: uint64(rng.Intn(1000)),
 			},
@@ -775,7 +777,7 @@ func FuzzResultProperties(f *testing.F) {
 		// Optionally make it empty
 		makeEmpty := rng.Intn(10) == 0
 		if makeEmpty {
-			result.L1Head = eth.BlockID{}
+			result.L1Inclusion = eth.BlockID{}
 			numL2Heads = 0
 			numInvalidHeads = 0
 		}
@@ -794,13 +796,13 @@ func FuzzResultProperties(f *testing.F) {
 		require.Equal(t, len(result.InvalidHeads) == 0, result.IsValid(), "P34: IsValid should match InvalidHeads emptiness")
 
 		// P36: IsEmpty detection
-		isActuallyEmpty := result.L1Head == (eth.BlockID{}) && len(result.L2Heads) == 0 && len(result.InvalidHeads) == 0
+		isActuallyEmpty := result.L1Inclusion == (eth.BlockID{}) && len(result.L2Heads) == 0 && len(result.InvalidHeads) == 0
 		require.Equal(t, isActuallyEmpty, result.IsEmpty(), "P36: IsEmpty should match actual emptiness")
 
 		// P35: ToVerifiedResult strips InvalidHeads
 		verified := result.ToVerifiedResult()
 		require.Equal(t, result.Timestamp, verified.Timestamp, "P35: timestamp preserved")
-		require.Equal(t, result.L1Head, verified.L1Head, "P35: L1Head preserved")
+		require.Equal(t, result.L1Inclusion, verified.L1Inclusion, "P35: L1Inclusion preserved")
 		require.Equal(t, len(result.L2Heads), len(verified.L2Heads), "P35: L2Heads preserved")
 		for chainID, blockID := range result.L2Heads {
 			require.Equal(t, blockID, verified.L2Heads[chainID], "P35: L2Head for chain %s preserved", chainID)
