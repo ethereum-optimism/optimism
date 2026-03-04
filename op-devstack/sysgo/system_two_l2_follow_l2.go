@@ -43,8 +43,9 @@ func DefaultTwoL2SupernodeFollowL2System(dest *DefaultTwoL2SupernodeFollowL2Syst
 	// Chain A follower
 	opt.Add(WithL2ELNode(ids.L2AFollowerEL))
 	opt.Add(WithOpNodeFollowL2(ids.L2AFollowerCL, ids.L1CL, ids.L1EL, ids.L2AFollowerEL, ids.L2ACL))
-	// The chain source is a supernode proxy CL, which does not implement opp2p_* RPCs.
+	// TODO(#19379): The chain source is a supernode proxy CL, which does not implement opp2p_* RPCs.
 	// Skip CL P2P wiring and rely on follow-source + EL P2P for data availability.
+	// opt.Add(WithL2CLP2PConnection(ids.L2ACL, ids.L2AFollowerCL))
 	opt.Add(WithL2ELP2PConnection(ids.L2AEL, ids.L2AFollowerEL, false))
 
 	// Chain B follower
