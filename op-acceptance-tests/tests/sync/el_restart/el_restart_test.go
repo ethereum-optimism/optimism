@@ -57,8 +57,9 @@ func TestELRestartRecovery(gt *testing.T) {
 	t.Logf("Starting verifier EL (op-reth)")
 	sys.L2ELB.Start()
 
-	// Re-establish EL P2P peering so the verifier EL can sync blocks from the sequencer EL.
-	sys.L2ELB.PeerWith(sys.L2EL)
+	// No EL P2P re-peering needed: the verifier CL was never stopped, so it still
+	// receives blocks from the sequencer CL via CL P2P gossip and pushes them to
+	// the verifier EL via the Engine API.
 
 	// 5. Wait for the verifier to recover and catch up.
 	//    Without the fix, the verifier would stall permanently here.
