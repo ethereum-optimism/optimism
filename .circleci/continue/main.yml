@@ -2035,6 +2035,7 @@ jobs:
             echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+            echo "export OP_RETH_EXEC_PATH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
       # Restore cached Go modules
       - restore_cache:
           keys:
