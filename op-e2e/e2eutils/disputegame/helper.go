@@ -93,8 +93,6 @@ func WithSuper(super eth.Super) GameOpt {
 	})
 }
 
-
-
 // WithOutputRoot allows specifying a custom output root.
 func WithOutputRoot(outputRoot common.Hash) GameOpt {
 	return gameOptFn(func(c *GameCfg) {
@@ -192,8 +190,6 @@ func NewGameCfg(opts ...GameOpt) *GameCfg {
 	}
 	return cfg
 }
-
-
 
 func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputCannonGameHelper {
 	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, cannonGameType, opts...)
@@ -320,8 +316,6 @@ func (h *FactoryHelper) GetL1Head(ctx context.Context, game contracts.FaultDispu
 	l1Head := eth.HeaderBlockID(l1Header)
 	return l1Head
 }
-
-
 
 func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputAlphabetGameHelper {
 	cfg := NewGameCfg(opts...)
