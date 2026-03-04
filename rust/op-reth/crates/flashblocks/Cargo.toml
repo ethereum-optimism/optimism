@@ -54,8 +54,6 @@ ringbuffer.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
-test-case.workspace = true
 alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-signer-local.workspace = true

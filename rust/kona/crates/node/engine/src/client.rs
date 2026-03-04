@@ -38,7 +38,6 @@ use parking_lot::Mutex;
 #[cfg(feature = "rollup-boost")]
 use rollup_boost::{
     EngineApiServer, Flashblocks, FlashblocksWebsocketConfig, Probes, RollupBoostServer,
-    RpcClientError,
 };
 #[cfg(feature = "rollup-boost")]
 use rollup_boost_types::payload::PayloadSource;
@@ -49,7 +48,7 @@ use std::{
 };
 #[cfg(feature = "rollup-boost")]
 use std::{
-    net::{AddrParseError, IpAddr, SocketAddr},
+    net::{IpAddr, SocketAddr},
     str::FromStr,
 };
 use thiserror::Error;
@@ -229,8 +228,9 @@ impl EngineClientBuilder {
                 Some(flashblocks) => {
                     let inbound_url = flashblocks.flashblocks_builder_url;
                     let outbound_addr = SocketAddr::new(
-                        IpAddr::from_str(&flashblocks.flashblocks_host)
-                            .map_err(|e| EngineClientBuilderError::IpAddrParseError(e.to_string()))?,
+                        IpAddr::from_str(&flashblocks.flashblocks_host).map_err(|e| {
+                            EngineClientBuilderError::IpAddrParseError(e.to_string())
+                        })?,
                         flashblocks.flashblocks_port,
                     );
 
@@ -372,8 +372,7 @@ where
     ) -> TransportResult<PayloadStatus> {
         #[cfg(feature = "rollup-boost")]
         {
-            let call =
-                self.rollup_boost.new_payload_v3(payload, vec![], parent_beacon_block_root);
+            let call = self.rollup_boost.new_payload_v3(payload, vec![], parent_beacon_block_root);
             return record_call_time(call, Metrics::NEW_PAYLOAD_METHOD)
                 .await
                 .map_err(|err| RollupBoostServerError::from(err).into());
@@ -482,11 +481,10 @@ where
         }
         #[cfg(not(feature = "rollup-boost"))]
         {
-            let call =
-                <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v3(
-                    &self.engine,
-                    payload_id,
-                );
+            let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v3(
+                &self.engine,
+                payload_id,
+            );
             record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
         }
     }
@@ -504,11 +502,10 @@ where
         }
         #[cfg(not(feature = "rollup-boost"))]
         {
-            let call =
-                <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v4(
-                    &self.engine,
-                    payload_id,
-                );
+            let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v4(
+                &self.engine,
+                payload_id,
+            );
             record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
         }
     }

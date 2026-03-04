@@ -577,54 +577,53 @@ where
             None
         };
 
-        let flashblocks =
-            if let Some(flashblock_rx) = flashblock_channel.and_then(|ch| ch.take_receiver()) {
-                info!(target: "reth:cli", "Launching native flashblocks service");
+        let flashblocks = if let Some(flashblock_rx) =
+            flashblock_channel.and_then(|ch| ch.take_receiver())
+        {
+            info!(target: "reth:cli", "Launching native flashblocks service");
 
-                let (tx, pending_rx) = watch::channel(None);
-                let stream = FlashblockChannelStream::new(flashblock_rx);
-                let service = FlashBlockService::new(
-                    stream,
-                    ctx.components.evm_config().clone(),
-                    ctx.components.provider().clone(),
-                    ctx.components.task_executor().clone(),
-                    flashblock_consensus,
+            let (tx, pending_rx) = watch::channel(None);
+            let stream = FlashblockChannelStream::new(flashblock_rx);
+            let service = FlashBlockService::new(
+                stream,
+                ctx.components.evm_config().clone(),
+                ctx.components.provider().clone(),
+                ctx.components.task_executor().clone(),
+                flashblock_consensus,
+            );
+
+            let flashblocks_sequence = service.block_sequence_broadcaster().clone();
+            let received_flashblocks = service.flashblocks_broadcaster().clone();
+            let in_progress_rx = service.subscribe_in_progress();
+            ctx.components.task_executor().spawn_task(Box::pin(service.run(tx)));
+
+            if flashblock_consensus {
+                info!(target: "reth::cli", "Launching FlashBlockConsensusClient");
+                let flashblock_client = FlashBlockConsensusClient::new(
+                    ctx.engine_handle.clone(),
+                    flashblocks_sequence.subscribe(),
+                )?;
+                ctx.components.task_executor().spawn_task(Box::pin(flashblock_client.run()));
+            }
+
+            if let Some(addr) = flashblocks_listen_addr {
+                info!(target: "reth::cli", %addr, "Launching flashblocks WebSocket broadcast server");
+                let ws_tx = received_flashblocks.clone();
+                ctx.components.task_executor().spawn_critical_task(
+                    "flashblock-ws-server",
+                    Box::pin(reth_optimism_flashblocks::ws_server::serve(addr, ws_tx)),
                 );
+            }
 
-                let flashblocks_sequence = service.block_sequence_broadcaster().clone();
-                let received_flashblocks = service.flashblocks_broadcaster().clone();
-                let in_progress_rx = service.subscribe_in_progress();
-                ctx.components.task_executor().spawn_task(Box::pin(service.run(tx)));
-
-                if flashblock_consensus {
-                    info!(target: "reth::cli", "Launching FlashBlockConsensusClient");
-                    let flashblock_client = FlashBlockConsensusClient::new(
-                        ctx.engine_handle.clone(),
-                        flashblocks_sequence.subscribe(),
-                    )?;
-                    ctx.components
-                        .task_executor()
-                        .spawn_task(Box::pin(flashblock_client.run()));
-                }
-
-                if let Some(addr) = flashblocks_listen_addr {
-                    info!(target: "reth::cli", %addr, "Launching flashblocks WebSocket broadcast server");
-                    let ws_tx = received_flashblocks.clone();
-                    ctx.components.task_executor().spawn_critical_task(
-                        "flashblock-ws-server",
-                        Box::pin(reth_optimism_flashblocks::ws_server::serve(addr, ws_tx)),
-                    );
-                }
-
-                Some(FlashblocksListeners::new(
-                    pending_rx,
-                    flashblocks_sequence,
-                    in_progress_rx,
-                    received_flashblocks,
-                ))
-            } else {
-                None
-            };
+            Some(FlashblocksListeners::new(
+                pending_rx,
+                flashblocks_sequence,
+                in_progress_rx,
+                received_flashblocks,
+            ))
+        } else {
+            None
+        };
 
         let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
 

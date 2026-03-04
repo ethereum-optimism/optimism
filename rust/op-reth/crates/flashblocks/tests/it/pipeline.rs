@@ -1,12 +1,12 @@
 //! End-to-end pipeline integration tests for native flashblock production.
 //!
 //! These tests prove the complete data path works:
-//!   Emitter → mpsc channel → FlashblockChannelStream → broadcast → WS server → external client
+//!   Emitter → mpsc channel → `FlashblockChannelStream` → broadcast → WS server → external client
 //!
 //! Unlike the service.rs tests (which mock coordination logic), these tests exercise
 //! the actual transport layers with real bytes on real sockets.
 
-use alloy_primitives::{Bytes, B256, U256};
+use alloy_primitives::{B256, Bytes, U256};
 use alloy_rpc_types_engine::PayloadId;
 use futures_util::StreamExt;
 use op_alloy_rpc_types_engine::{
@@ -211,7 +211,7 @@ async fn test_slow_consumer_doesnt_block_others() {
         let fb = OpFlashblockPayload {
             payload_id: PayloadId::new([1u8; 8]),
             index: i,
-            base: if i == 0 { Some(OpFlashblockPayloadBase::default()) } else { None },
+            base: (i == 0).then(OpFlashblockPayloadBase::default),
             diff: OpFlashblockPayloadDelta {
                 state_root: B256::ZERO,
                 receipts_root: B256::ZERO,
@@ -251,7 +251,7 @@ async fn test_slow_consumer_doesnt_block_others() {
     assert!(!received.is_empty(), "fast client should receive flashblocks");
     // And they should be in order (no reordering)
     for window in received.windows(2) {
-        assert!(window[0] < window[1], "flashblocks should arrive in order: {:?}", received);
+        assert!(window[0] < window[1], "flashblocks should arrive in order: {received:?}");
     }
 }
 

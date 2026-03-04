@@ -9,6 +9,7 @@ use alloy_evm::Evm as AlloyEvm;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
+use op_alloy_rpc_types_engine::OpFlashblockPayload;
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
@@ -40,7 +41,6 @@ use reth_revm::{
 use reth_storage_api::{StateProvider, StateProviderFactory, errors::ProviderError};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::context::{Block, BlockEnv};
-use op_alloy_rpc_types_engine::OpFlashblockPayload;
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 use tokio::sync::mpsc::Sender;
 use tracing::{debug, trace, warn};
@@ -783,12 +783,11 @@ where
         let block_number = self.parent().number() + 1;
 
         // Hoist DA footprint gas scalar above the loop — this value doesn't change per-tx
-        let da_footprint_gas_scalar = self
-            .chain_spec
-            .is_jovian_active_at_timestamp(self.attributes().timestamp())
-            .then_some(
-                L1BlockInfo::fetch_da_footprint_gas_scalar(builder.evm_mut().db_mut())
-                    .expect("DA footprint should always be available from the database post jovian"),
+        let da_footprint_gas_scalar =
+            self.chain_spec.is_jovian_active_at_timestamp(self.attributes().timestamp()).then_some(
+                L1BlockInfo::fetch_da_footprint_gas_scalar(builder.evm_mut().db_mut()).expect(
+                    "DA footprint should always be available from the database post jovian",
+                ),
             );
 
         while let Some(tx) = best_txs.next(()) {

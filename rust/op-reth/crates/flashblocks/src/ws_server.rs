@@ -2,7 +2,7 @@
 //!
 //! Broadcasts flashblocks to external subscribers (op-conductor, RPC providers)
 //! over a plain `WebSocket` connection. Messages are JSON-encoded
-//! [`FlashBlock`](crate::FlashBlock) payloads — matching the wire format that
+//! [`FlashBlock`] payloads — matching the wire format that
 //! rollup-boost historically served.
 
 use crate::FlashBlock;
@@ -116,11 +116,7 @@ mod tests {
         OpFlashblockPayload {
             payload_id: alloy_rpc_types_engine::PayloadId::new([1u8; 8]),
             index,
-            base: if index == 0 {
-                Some(OpFlashblockPayloadBase::default())
-            } else {
-                None
-            },
+            base: (index == 0).then(OpFlashblockPayloadBase::default),
             diff: OpFlashblockPayloadDelta {
                 state_root: B256::ZERO,
                 receipts_root: B256::ZERO,

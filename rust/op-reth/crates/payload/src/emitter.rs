@@ -44,11 +44,7 @@ pub struct FlashblockEmitter {
 
 impl FlashblockEmitter {
     /// Creates a new emitter for a single payload build.
-    pub fn new(
-        tx: Sender<OpFlashblockPayload>,
-        interval: Duration,
-        payload_id: PayloadId,
-    ) -> Self {
+    pub fn new(tx: Sender<OpFlashblockPayload>, interval: Duration, payload_id: PayloadId) -> Self {
         Self {
             tx,
             interval,

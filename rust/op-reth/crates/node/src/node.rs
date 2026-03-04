@@ -36,6 +36,7 @@ use reth_node_builder::{
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder};
+use reth_optimism_flashblocks::FlashblockChannel;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpAttributes, OpBuiltPayload, OpPayloadPrimitives,
@@ -65,7 +66,6 @@ use reth_transaction_pool::{
 };
 use reth_trie_common::KeccakKeyHasher;
 use serde::de::DeserializeOwned;
-use reth_optimism_flashblocks::FlashblockChannel;
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 /// Marker trait for Optimism node types with standard engine, chain spec, and primitives.
@@ -1106,7 +1106,8 @@ pub struct OpPayloadBuilder<Txs = ()> {
     /// This is used to configure gas limit related constraints for the payload builder.
     pub gas_limit_config: OpGasLimitConfig,
     /// Flashblock channel sender for native flashblock production.
-    pub flashblock_tx: Option<tokio::sync::mpsc::Sender<op_alloy_rpc_types_engine::OpFlashblockPayload>>,
+    pub flashblock_tx:
+        Option<tokio::sync::mpsc::Sender<op_alloy_rpc_types_engine::OpFlashblockPayload>>,
     /// Flashblock emission interval.
     pub flashblock_interval: Option<Duration>,
 }
