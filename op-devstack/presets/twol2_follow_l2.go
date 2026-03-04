@@ -13,7 +13,9 @@ import (
 type TwoL2SupernodeFollowL2 struct {
 	TwoL2SupernodeInterop
 
+	L2AFollowEL *dsl.L2ELNode
 	L2AFollowCL *dsl.L2CLNode
+	L2BFollowEL *dsl.L2ELNode
 	L2BFollowCL *dsl.L2CLNode
 }
 
@@ -34,20 +36,30 @@ func NewTwoL2SupernodeFollowL2(t devtest.T, delaySeconds uint64) *TwoL2Supernode
 	l2a := base.system.L2Network(match.L2ChainA)
 	l2b := base.system.L2Network(match.L2ChainB)
 
+	followerELAID := stack.NewL2ELNodeID("follower", l2a.ID().ChainID())
 	followerCLAID := stack.NewL2CLNodeID("follower", l2a.ID().ChainID())
+	followerELBID := stack.NewL2ELNodeID("follower", l2b.ID().ChainID())
 	followerCLBID := stack.NewL2CLNodeID("follower", l2b.ID().ChainID())
 
+	followerELA := l2a.L2ELNode(match.MatchElemFn[stack.L2ELNodeID, stack.L2ELNode](func(elem stack.L2ELNode) bool {
+		return elem.ID() == followerELAID
+	}))
 	followerCLA := l2a.L2CLNode(match.MatchElemFn[stack.L2CLNodeID, stack.L2CLNode](func(elem stack.L2CLNode) bool {
 		return elem.ID() == followerCLAID
 	}))
 
+	followerELB := l2b.L2ELNode(match.MatchElemFn[stack.L2ELNodeID, stack.L2ELNode](func(elem stack.L2ELNode) bool {
+		return elem.ID() == followerELBID
+	}))
 	followerCLB := l2b.L2CLNode(match.MatchElemFn[stack.L2CLNodeID, stack.L2CLNode](func(elem stack.L2CLNode) bool {
 		return elem.ID() == followerCLBID
 	}))
 
 	return &TwoL2SupernodeFollowL2{
 		TwoL2SupernodeInterop: *base,
+		L2AFollowEL:           dsl.NewL2ELNode(followerELA, base.ControlPlane),
 		L2AFollowCL:           dsl.NewL2CLNode(followerCLA, base.ControlPlane),
+		L2BFollowEL:           dsl.NewL2ELNode(followerELB, base.ControlPlane),
 		L2BFollowCL:           dsl.NewL2CLNode(followerCLB, base.ControlPlane),
 	}
 }
