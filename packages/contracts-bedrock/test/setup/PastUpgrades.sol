@@ -17,7 +17,7 @@ import { Claim, GameTypes } from "src/dispute/lib/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
-
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -147,8 +147,50 @@ library PastUpgrades {
 
             console.log("PastUpgrades: Running upgrade with OPCM %s (v%s)", opcm.addr, opcm.opcmVersion);
 
-            executeV2Upgrade(opcm.addr, _delegateCaller, _systemConfig, _superchainConfig, _disputeGameFactory);
+            if (opcm.semver.major == 6) {
+                executeV1Upgrade(opcm.addr, _delegateCaller, _systemConfig, _superchainConfig);
+            } else {
+                executeV2Upgrade(opcm.addr, _delegateCaller, _systemConfig, _superchainConfig, _disputeGameFactory);
+            }
         }
+    }
+
+    /// @notice Executes a single V1 OPCM upgrade.
+    /// @param _opcm The V1 OPCM contract address.
+    /// @param _delegateCaller The address to use as the delegate caller.
+    /// @param _systemConfig The SystemConfig proxy address.
+    /// @param _superchainConfig The SuperchainConfig proxy address.
+    function executeV1Upgrade(
+        address _opcm,
+        address _delegateCaller,
+        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig
+    )
+        internal
+    {
+        // Get the superchain PAO
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(_superchainConfig)));
+        address superchainPAO = superchainProxyAdmin.owner();
+
+        // Upgrade the SuperchainConfig first
+        vm.prank(superchainPAO, true);
+        (bool scSuccess,) =
+            _opcm.delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (_superchainConfig)));
+        // Acceptable to fail if already up to date
+        scSuccess;
+
+        // Build the OpChainConfig for the chain being upgraded
+        IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](1);
+        opChainConfigs[0] = IOPContractsManager.OpChainConfig({
+            systemConfigProxy: _systemConfig,
+            cannonPrestate: Claim.wrap(DUMMY_CANNON_PRESTATE),
+            cannonKonaPrestate: Claim.wrap(DUMMY_CANNON_KONA_PRESTATE)
+        });
+
+        // Execute the OPCMv1 chain upgrade
+        vm.prank(_delegateCaller, true);
+        (bool upgradeSuccess,) = _opcm.delegatecall(abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+        require(upgradeSuccess, "PastUpgrades: OPCMv1 upgrade failed");
     }
 
     /// @notice Executes a single V2 OPCM upgrade.

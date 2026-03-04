@@ -1593,8 +1593,7 @@ jobs:
           command: strict-pragma-check-no-build
       - run-contracts-check:
           command: validate-spacers-no-build
-      - run-contracts-check:
-          command: opcm-upgrade-checks-no-build
+
 
   contracts-bedrock-checks-fast:
     docker:

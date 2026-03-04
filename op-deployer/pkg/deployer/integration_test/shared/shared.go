@@ -209,7 +209,7 @@ func getLastUsedOPCMVersion(caller ContractCaller, systemConfigProxy common.Addr
 func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, systemConfigProxy common.Address, opcm opcmregistry.ResolvedOPCM) bool {
 	t.Helper()
 
-	upgradeConfig := buildOPCMUpgradeConfig(t, prank, opcm.Address, systemConfigProxy, opcm.OPCMVersion)
+	upgradeConfig := buildOPCMUpgradeConfig(t, prank, opcm.Address, systemConfigProxy)
 	if upgradeConfig == nil {
 		return false
 	}
@@ -227,7 +227,7 @@ func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, system
 }
 
 // buildOPCMUpgradeConfig builds the upgrade config for the given OPCM.
-func buildOPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address, _ opcmregistry.Semver) *embedded.UpgradeOPChainInput {
+func buildOPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address) *embedded.UpgradeOPChainInput {
 	t.Helper()
 
 	cfg := buildV2OPCMUpgradeConfig(t, prank, opcmAddr, systemConfigProxy)
