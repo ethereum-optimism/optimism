@@ -41,9 +41,7 @@ op-alloy-rpc-types-engine = { workspace = true, features = ["k256"] }
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 serde_json.workspace = true
-url.workspace = true
 futures-util.workspace = true
-brotli = { workspace = true, features = ["std"] }
 
 # debug
 tracing.workspace = true
@@ -56,6 +54,7 @@ ringbuffer.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 test-case.workspace = true
 alloy-consensus.workspace = true
 alloy-network.workspace = true

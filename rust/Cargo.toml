@@ -243,7 +243,7 @@ kona-hardforks = { path = "kona/crates/protocol/hardforks", version = "0.4.5", d
 # Node
 kona-rpc = { path = "kona/crates/node/rpc", version = "0.3.2", default-features = false }
 kona-peers = { path = "kona/crates/node/peers", version = "0.1.2", default-features = false }
-kona-engine = { path = "kona/crates/node/engine", version = "0.1.2", default-features = false }
+kona-engine = { path = "kona/crates/node/engine", version = "0.1.2", default-features = false, features = ["rollup-boost"] }
 kona-sources = { path = "kona/crates/node/sources", version = "0.1.2", default-features = false }
 kona-node-service = { path = "kona/crates/node/service", version = "0.1.3", default-features = false }
 kona-disc = { path = "kona/crates/node/disc", version = "0.1.2", default-features = false }

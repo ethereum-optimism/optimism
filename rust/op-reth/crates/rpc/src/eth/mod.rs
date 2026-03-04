@@ -21,7 +21,6 @@ use futures::StreamExt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
-use reqwest::Url;
 use reth_chainspec::{EthereumHardforks, Hardforks};
 use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
@@ -29,7 +28,8 @@ use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_flashblocks::{
     FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
     FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
-    FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
+    FlashblockChannel, FlashblockChannelStream, FlashblocksListeners, PendingBlockRx,
+    PendingFlashBlock,
 };
 use reth_primitives_traits::NodePrimitives;
 use reth_rpc::eth::core::EthApiInner;
@@ -104,7 +104,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     }
 
     /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
-    pub const fn builder() -> OpEthApiBuilder<Rpc> {
+    pub fn builder() -> OpEthApiBuilder<Rpc> {
         OpEthApiBuilder::new()
     }
 
@@ -446,16 +446,15 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     sequencer_headers: Vec<String>,
     /// Minimum suggested priority fee (tip)
     min_suggested_priority_fee: u64,
-    /// A URL pointing to a secure websocket connection (wss) that streams out [flashblocks].
-    ///
-    /// [flashblocks]: reth_optimism_flashblocks
-    flashblocks_url: Option<Url>,
+    /// Shared flashblock channel for native flashblock production.
+    flashblock_channel: Option<FlashblockChannel>,
     /// Enable flashblock consensus client to drive the chain forward.
     ///
     /// When enabled, flashblock sequences are submitted to the engine API via
     /// `newPayload` and `forkchoiceUpdated` calls, advancing the canonical chain state.
-    /// Requires `flashblocks_url` to be set.
     flashblock_consensus: bool,
+    /// Address for the flashblocks WebSocket broadcast endpoint.
+    flashblocks_listen_addr: Option<std::net::SocketAddr>,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
 }
@@ -466,8 +465,9 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
             sequencer_url: None,
             sequencer_headers: Vec::new(),
             min_suggested_priority_fee: 1_000_000,
-            flashblocks_url: None,
+            flashblock_channel: None,
             flashblock_consensus: false,
+            flashblocks_listen_addr: None,
             _nt: PhantomData,
         }
     }
@@ -475,13 +475,14 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
 
 impl<NetworkT> OpEthApiBuilder<NetworkT> {
     /// Creates a [`OpEthApiBuilder`] instance from core components.
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             sequencer_url: None,
             sequencer_headers: Vec::new(),
             min_suggested_priority_fee: 1_000_000,
-            flashblocks_url: None,
+            flashblock_channel: None,
             flashblock_consensus: false,
+            flashblocks_listen_addr: None,
             _nt: PhantomData,
         }
     }
@@ -504,15 +505,24 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
         self
     }
 
-    /// With a subscription to flashblocks secure websocket connection.
-    pub fn with_flashblocks(mut self, flashblocks_url: Option<Url>) -> Self {
-        self.flashblocks_url = flashblocks_url;
+    /// With a shared flashblock channel for native flashblock production.
+    pub fn with_flashblocks(mut self, flashblock_channel: Option<FlashblockChannel>) -> Self {
+        self.flashblock_channel = flashblock_channel;
         self
     }
 
     /// With flashblock consensus client enabled to drive chain forward
     pub const fn with_flashblock_consensus(mut self, flashblock_consensus: bool) -> Self {
         self.flashblock_consensus = flashblock_consensus;
+        self
+    }
+
+    /// With an address for the flashblocks WebSocket broadcast endpoint.
+    pub fn with_flashblocks_listen_addr(
+        mut self,
+        addr: Option<std::net::SocketAddr>,
+    ) -> Self {
+        self.flashblocks_listen_addr = addr;
         self
     }
 }
@@ -548,8 +558,9 @@ where
             sequencer_url,
             sequencer_headers,
             min_suggested_priority_fee,
-            flashblocks_url,
+            flashblock_channel,
             flashblock_consensus,
+            flashblocks_listen_addr,
             ..
         } = self;
         let rpc_converter =
@@ -566,43 +577,54 @@ where
             None
         };
 
-        let flashblocks = if let Some(ws_url) = flashblocks_url {
-            info!(target: "reth:cli", %ws_url, "Launching flashblocks service");
+        let flashblocks =
+            if let Some(flashblock_rx) = flashblock_channel.and_then(|ch| ch.take_receiver()) {
+                info!(target: "reth:cli", "Launching native flashblocks service");
 
-            let (tx, pending_rx) = watch::channel(None);
-            let stream = WsFlashBlockStream::new(ws_url);
-            let service = FlashBlockService::new(
-                stream,
-                ctx.components.evm_config().clone(),
-                ctx.components.provider().clone(),
-                ctx.components.task_executor().clone(),
-                // enable state root calculation if flashblock_consensus is enabled.
-                flashblock_consensus,
-            );
+                let (tx, pending_rx) = watch::channel(None);
+                let stream = FlashblockChannelStream::new(flashblock_rx);
+                let service = FlashBlockService::new(
+                    stream,
+                    ctx.components.evm_config().clone(),
+                    ctx.components.provider().clone(),
+                    ctx.components.task_executor().clone(),
+                    flashblock_consensus,
+                );
 
-            let flashblocks_sequence = service.block_sequence_broadcaster().clone();
-            let received_flashblocks = service.flashblocks_broadcaster().clone();
-            let in_progress_rx = service.subscribe_in_progress();
-            ctx.components.task_executor().spawn_task(Box::pin(service.run(tx)));
+                let flashblocks_sequence = service.block_sequence_broadcaster().clone();
+                let received_flashblocks = service.flashblocks_broadcaster().clone();
+                let in_progress_rx = service.subscribe_in_progress();
+                ctx.components.task_executor().spawn_task(Box::pin(service.run(tx)));
 
-            if flashblock_consensus {
-                info!(target: "reth::cli", "Launching FlashBlockConsensusClient");
-                let flashblock_client = FlashBlockConsensusClient::new(
-                    ctx.engine_handle.clone(),
-                    flashblocks_sequence.subscribe(),
-                )?;
-                ctx.components.task_executor().spawn_task(Box::pin(flashblock_client.run()));
-            }
+                if flashblock_consensus {
+                    info!(target: "reth::cli", "Launching FlashBlockConsensusClient");
+                    let flashblock_client = FlashBlockConsensusClient::new(
+                        ctx.engine_handle.clone(),
+                        flashblocks_sequence.subscribe(),
+                    )?;
+                    ctx.components
+                        .task_executor()
+                        .spawn_task(Box::pin(flashblock_client.run()));
+                }
 
-            Some(FlashblocksListeners::new(
-                pending_rx,
-                flashblocks_sequence,
-                in_progress_rx,
-                received_flashblocks,
-            ))
-        } else {
-            None
-        };
+                if let Some(addr) = flashblocks_listen_addr {
+                    info!(target: "reth::cli", %addr, "Launching flashblocks WebSocket broadcast server");
+                    let ws_tx = received_flashblocks.clone();
+                    ctx.components.task_executor().spawn_critical_task(
+                        "flashblock-ws-server",
+                        Box::pin(reth_optimism_flashblocks::ws_server::serve(addr, ws_tx)),
+                    );
+                }
+
+                Some(FlashblocksListeners::new(
+                    pending_rx,
+                    flashblocks_sequence,
+                    in_progress_rx,
+                    received_flashblocks,
+                ))
+            } else {
+                None
+            };
 
         let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
 

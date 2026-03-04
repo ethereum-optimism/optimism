@@ -4,6 +4,7 @@ use crate::{
     error::OpPayloadBuilderError, payload::OpBuiltPayload,
 };
 use alloy_consensus::{BlockHeader, Transaction, Typed2718};
+use alloy_eips::Encodable2718;
 use alloy_evm::Evm as AlloyEvm;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
@@ -39,7 +40,9 @@ use reth_revm::{
 use reth_storage_api::{StateProvider, StateProviderFactory, errors::ProviderError};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::context::{Block, BlockEnv};
-use std::{marker::PhantomData, sync::Arc};
+use op_alloy_rpc_types_engine::OpFlashblockPayload;
+use std::{marker::PhantomData, sync::Arc, time::Duration};
+use tokio::sync::mpsc::Sender;
 use tracing::{debug, trace, warn};
 
 /// Optimism's payload builder
@@ -64,6 +67,11 @@ pub struct OpPayloadBuilder<
     /// The type responsible for yielding the best transactions for the payload if mempool
     /// transactions are allowed.
     pub best_transactions: Txs,
+    /// Optional sender for native flashblock emission.
+    /// Long-lived channel that persists across payload builds.
+    pub flashblock_tx: Option<Sender<OpFlashblockPayload>>,
+    /// Flashblock emission interval. Defaults to 200ms if `flashblock_tx` is set.
+    pub flashblock_interval: Option<Duration>,
     /// Marker for the payload attributes type.
     _pd: PhantomData<Attrs>,
 }
@@ -83,6 +91,8 @@ where
             config: self.config.clone(),
             best_transactions: self.best_transactions.clone(),
             compute_pending_block: self.compute_pending_block,
+            flashblock_tx: self.flashblock_tx.clone(),
+            flashblock_interval: self.flashblock_interval,
             _pd: PhantomData,
         }
     }
@@ -110,6 +120,8 @@ impl<Pool, Client, Evm, Attrs> OpPayloadBuilder<Pool, Client, Evm, (), Attrs> {
             evm_config,
             config,
             best_transactions: (),
+            flashblock_tx: None,
+            flashblock_interval: None,
             _pd: PhantomData,
         }
     }
@@ -122,13 +134,36 @@ impl<Pool, Client, Evm, Txs, Attrs> OpPayloadBuilder<Pool, Client, Evm, Txs, Att
         self
     }
 
+    /// Configures native flashblock emission with the given channel sender and interval.
+    ///
+    /// The sender should be the transmit half of a long-lived `tokio::sync::mpsc` channel
+    /// that persists for the node's entire lifetime. Each payload build clones the sender.
+    pub fn with_flashblock_sender(
+        mut self,
+        tx: Sender<OpFlashblockPayload>,
+        interval: Duration,
+    ) -> Self {
+        self.flashblock_tx = Some(tx);
+        self.flashblock_interval = Some(interval);
+        self
+    }
+
     /// Configures the type responsible for yielding the transactions that should be included in the
     /// payload.
     pub fn with_transactions<T>(
         self,
         best_transactions: T,
     ) -> OpPayloadBuilder<Pool, Client, Evm, T, Attrs> {
-        let Self { pool, client, compute_pending_block, evm_config, config, .. } = self;
+        let Self {
+            pool,
+            client,
+            compute_pending_block,
+            evm_config,
+            config,
+            flashblock_tx,
+            flashblock_interval,
+            ..
+        } = self;
         OpPayloadBuilder {
             pool,
             client,
@@ -136,6 +171,8 @@ impl<Pool, Client, Evm, Txs, Attrs> OpPayloadBuilder<Pool, Client, Evm, Txs, Att
             evm_config,
             best_transactions,
             config,
+            flashblock_tx,
+            flashblock_interval,
             _pd: PhantomData,
         }
     }
@@ -181,6 +218,14 @@ where
     {
         let BuildArguments { mut cached_reads, config, cancel, best_payload } = args;
 
+        let flashblock_emitter = self.flashblock_tx.as_ref().map(|tx| {
+            crate::emitter::FlashblockEmitter::new(
+                tx.clone(),
+                self.flashblock_interval.unwrap_or(Duration::from_millis(200)),
+                config.attributes.payload_id(),
+            )
+        });
+
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
             builder_config: self.config.clone(),
@@ -196,10 +241,10 @@ where
         let state = StateProviderDatabase::new(&state_provider);
 
         if ctx.attributes().no_tx_pool() {
-            builder.build(state, &state_provider, ctx)
+            builder.build(state, &state_provider, ctx, flashblock_emitter)
         } else {
             // sequencer mode we can reuse cachedreads from previous runs
-            builder.build(cached_reads.as_db_mut(state), &state_provider, ctx)
+            builder.build(cached_reads.as_db_mut(state), &state_provider, ctx, flashblock_emitter)
         }
         .map(|out| out.with_cached_reads(cached_reads))
     }
@@ -321,6 +366,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         db: impl Database<Error = ProviderError>,
         state_provider: impl StateProvider,
         ctx: OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
+        mut flashblock_emitter: Option<crate::emitter::FlashblockEmitter>,
     ) -> Result<BuildOutcomeKind<OpBuiltPayload<N>>, PayloadBuilderError>
     where
         Evm: ConfigureEvm<
@@ -352,12 +398,42 @@ impl<Txs> OpBuilder<'_, Txs> {
         })?;
 
         // 2. execute sequencer transactions
-        let mut info = ctx.execute_sequencer_transactions(&mut builder)?;
+        let mut info =
+            ctx.execute_sequencer_transactions(&mut builder, flashblock_emitter.as_mut())?;
 
-        // 3. if mem pool transactions are requested we execute them
+        // 3. emit base flashblock (index 0) after sequencer/deposit txs
+        if let Some(emitter) = flashblock_emitter.as_mut() {
+            let block_env = builder.evm_mut().block();
+            let base = op_alloy_rpc_types_engine::OpFlashblockPayloadBase {
+                parent_beacon_block_root: ctx
+                    .attributes()
+                    .parent_beacon_block_root()
+                    .unwrap_or_default(),
+                parent_hash: ctx.parent().hash(),
+                fee_recipient: ctx.attributes().suggested_fee_recipient(),
+                prev_randao: block_env.prevrandao().unwrap_or_default(),
+                block_number: ctx.parent().number() + 1,
+                gas_limit: block_env.gas_limit(),
+                timestamp: ctx.attributes().timestamp(),
+                extra_data: alloy_primitives::Bytes::default(),
+                base_fee_per_gas: U256::from(block_env.basefee()),
+            };
+            emitter.set_base(base);
+            emitter.emit_snapshot(info.cumulative_gas_used, ctx.parent().number() + 1);
+        }
+
+        // 4. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool() {
             let best_txs = best(ctx.best_transaction_attributes(builder.evm_mut().block()));
-            if ctx.execute_best_transactions(&mut info, &mut builder, best_txs)?.is_some() {
+            if ctx
+                .execute_best_transactions(
+                    &mut info,
+                    &mut builder,
+                    best_txs,
+                    flashblock_emitter.as_mut(),
+                )?
+                .is_some()
+            {
                 return Ok(BuildOutcomeKind::Cancelled);
             }
 
@@ -366,6 +442,11 @@ impl<Txs> OpBuilder<'_, Txs> {
                 // can skip building the block
                 return Ok(BuildOutcomeKind::Aborted { fees: info.total_fees });
             }
+        }
+
+        // 5. emit final flashblock with any remaining txs
+        if let Some(emitter) = flashblock_emitter.as_mut() {
+            emitter.emit_snapshot(info.cumulative_gas_used, ctx.parent().number() + 1);
         }
 
         let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =
@@ -424,7 +505,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let mut builder = ctx.block_builder(&mut db)?;
 
         builder.apply_pre_execution_changes()?;
-        ctx.execute_sequencer_transactions(&mut builder)?;
+        ctx.execute_sequencer_transactions(&mut builder, None)?;
         builder.into_executor().apply_post_execution_changes()?;
 
         if ctx.chain_spec.is_isthmus_active_at_timestamp(ctx.attributes().timestamp()) {
@@ -618,9 +699,13 @@ where
     }
 
     /// Executes all sequencer transactions that are included in the payload attributes.
+    ///
+    /// If a flashblock emitter is provided, executed transactions are recorded for
+    /// inclusion in the next flashblock delta.
     pub fn execute_sequencer_transactions(
         &self,
         builder: &mut impl BlockBuilder<Primitives = Evm::Primitives>,
+        mut flashblock_emitter: Option<&mut crate::emitter::FlashblockEmitter>,
     ) -> Result<ExecutionInfo, PayloadBuilderError> {
         let mut info = ExecutionInfo::new();
 
@@ -657,12 +742,20 @@ where
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
             info.cumulative_gas_used += gas_used;
+
+            // Record the raw-encoded tx for the flashblock delta
+            if let Some(ref mut emitter) = flashblock_emitter {
+                emitter.add_tx(alloy_primitives::Bytes::from(sequencer_tx.encoded_2718()));
+            }
         }
 
         Ok(info)
     }
 
     /// Executes the given best transactions and updates the execution info.
+    ///
+    /// If a flashblock emitter is provided, executed transactions are recorded
+    /// and flashblock snapshots are emitted when the timer elapses.
     ///
     /// Returns `Ok(Some(())` if the job was cancelled.
     pub fn execute_best_transactions<Builder>(
@@ -672,6 +765,7 @@ where
         mut best_txs: impl PayloadTransactions<
             Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>> + OpPooledTx,
         >,
+        mut flashblock_emitter: Option<&mut crate::emitter::FlashblockEmitter>,
     ) -> Result<Option<()>, PayloadBuilderError>
     where
         Builder: BlockBuilder<Primitives = Evm::Primitives>,
@@ -686,20 +780,21 @@ where
         let block_da_limit = self.builder_config.da_config.max_da_block_size();
         let tx_da_limit = self.builder_config.da_config.max_da_tx_size();
         let base_fee = builder.evm_mut().block().basefee();
+        let block_number = self.parent().number() + 1;
+
+        // Hoist DA footprint gas scalar above the loop — this value doesn't change per-tx
+        let da_footprint_gas_scalar = self
+            .chain_spec
+            .is_jovian_active_at_timestamp(self.attributes().timestamp())
+            .then_some(
+                L1BlockInfo::fetch_da_footprint_gas_scalar(builder.evm_mut().db_mut())
+                    .expect("DA footprint should always be available from the database post jovian"),
+            );
 
         while let Some(tx) = best_txs.next(()) {
             let interop = tx.interop_deadline();
             let tx_da_size = tx.estimated_da_size();
             let tx = tx.into_consensus();
-
-            let da_footprint_gas_scalar = self
-                .chain_spec
-                .is_jovian_active_at_timestamp(self.attributes().timestamp())
-                .then_some(
-                    L1BlockInfo::fetch_da_footprint_gas_scalar(builder.evm_mut().db_mut()).expect(
-                        "DA footprint should always be available from the database post jovian",
-                    ),
-                );
 
             if info.is_tx_over_limits(
                 tx_da_size,
@@ -762,6 +857,14 @@ where
             // receipt
             info.cumulative_gas_used += gas_used;
             info.cumulative_da_bytes_used += tx_da_size;
+
+            // Record the raw-encoded tx and emit flashblock if timer elapsed
+            if let Some(ref mut emitter) = flashblock_emitter {
+                emitter.add_tx(alloy_primitives::Bytes::from(tx.encoded_2718()));
+                if emitter.should_emit() {
+                    emitter.emit_snapshot(info.cumulative_gas_used, block_number);
+                }
+            }
 
             // update and add to total fees
             let miner_fee = tx

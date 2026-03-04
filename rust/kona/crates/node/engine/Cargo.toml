@@ -53,11 +53,11 @@ jsonrpsee-types.workspace = true
 # metrics
 metrics = { workspace = true, optional = true }
 
-# rollup boost
-rollup-boost.workspace = true
-rollup-boost-types.workspace = true
-http.workspace = true
-parking_lot.workspace = true
+# rollup boost (optional)
+rollup-boost = { workspace = true, optional = true }
+rollup-boost-types = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
 
 [dev-dependencies]
 kona-registry.workspace = true
@@ -68,7 +68,9 @@ metrics-exporter-prometheus.workspace = true
 rstest.workspace = true
 
 [features]
+default = ["rollup-boost"]
 metrics = [ "dep:metrics" ]
+rollup-boost = ["dep:rollup-boost", "dep:rollup-boost-types", "dep:http", "dep:parking_lot"]
 test-utils = [
 	"kona-protocol/test-utils"
 ]

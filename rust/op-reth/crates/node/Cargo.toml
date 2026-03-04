@@ -36,6 +36,7 @@ reth-db-api = { workspace = true, features = ["op"] }
 
 # op-reth
 reth-optimism-payload-builder.workspace = true
+reth-optimism-flashblocks.workspace = true
 reth-optimism-evm = { workspace = true, features = ["std", "rpc"] }
 reth-optimism-rpc.workspace = true
 reth-optimism-storage.workspace = true
@@ -76,7 +77,6 @@ tokio.workspace = true
 clap.workspace = true
 serde.workspace = true
 eyre.workspace = true
-url.workspace = true
 humantime.workspace = true
 futures-util.workspace = true
 tracing.workspace = true

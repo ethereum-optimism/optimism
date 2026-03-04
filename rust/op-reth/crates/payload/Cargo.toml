@@ -52,3 +52,4 @@ thiserror.workspace = true
 sha2.workspace = true
 serde.workspace = true
 either.workspace = true
+tokio = { workspace = true, features = ["sync"] }

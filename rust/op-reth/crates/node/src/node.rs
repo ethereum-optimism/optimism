@@ -65,8 +65,8 @@ use reth_transaction_pool::{
 };
 use reth_trie_common::KeccakKeyHasher;
 use serde::de::DeserializeOwned;
-use std::{marker::PhantomData, sync::Arc};
-use url::Url;
+use reth_optimism_flashblocks::FlashblockChannel;
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 /// Marker trait for Optimism node types with standard engine, chain spec, and primitives.
 pub trait OpNodeTypes:
@@ -122,6 +122,10 @@ pub struct OpNode {
     /// Used to control the gas limit of the blocks produced by the OP builder.(configured by the
     /// batcher via the `miner_` api)
     pub gas_limit_config: OpGasLimitConfig,
+    /// Shared flashblock channel — created if native flashblocks are enabled.
+    /// The sender side is cloned to each payload build; the receiver is consumed
+    /// once when building the FlashBlockService.
+    flashblock_channel: Option<FlashblockChannel>,
 }
 
 /// A [`ComponentsBuilder`] with its generic arguments set to a stack of Optimism specific builders.
@@ -137,10 +141,16 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
     pub fn new(args: RollupArgs) -> Self {
+        let flashblock_channel = if args.flashblocks_enabled {
+            Some(FlashblockChannel::new(64))
+        } else {
+            None
+        };
         Self {
             args,
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
+            flashblock_channel,
         }
     }
 
@@ -174,11 +184,18 @@ impl OpNode {
                         self.args.supervisor_safety_level,
                     ),
             )
-            .payload(BasicPayloadServiceBuilder::new(
-                OpPayloadBuilder::new(compute_pending_block)
+            .payload(BasicPayloadServiceBuilder::new({
+                let mut builder = OpPayloadBuilder::new(compute_pending_block)
                     .with_da_config(self.da_config.clone())
-                    .with_gas_limit_config(self.gas_limit_config.clone()),
-            ))
+                    .with_gas_limit_config(self.gas_limit_config.clone());
+                if let Some(ref channel) = self.flashblock_channel {
+                    builder = builder.with_flashblock_sender(
+                        channel.sender(),
+                        Duration::from_millis(self.args.flashblocks_interval_ms),
+                    );
+                }
+                builder
+            }))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
     }
@@ -193,8 +210,9 @@ impl OpNode {
             .with_enable_tx_conditional(self.args.enable_tx_conditional)
             .with_min_suggested_priority_fee(self.args.min_suggested_priority_fee)
             .with_historical_rpc(self.args.historical_rpc.clone())
-            .with_flashblocks(self.args.flashblocks_url.clone())
+            .with_flashblocks(self.flashblock_channel.clone())
             .with_flashblock_consensus(self.args.flashblock_consensus)
+            .with_flashblocks_listen_addr(self.args.flashblocks_listen_addr)
     }
 
     /// Instantiates the [`ProviderFactoryBuilder`] for an opstack node.
@@ -699,10 +717,12 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     rpc_middleware: RpcMiddleware,
     /// Optional tokio runtime to use for the RPC server.
     tokio_runtime: Option<tokio::runtime::Handle>,
-    /// A URL pointing to a secure websocket service that streams out flashblocks.
-    flashblocks_url: Option<Url>,
+    /// Shared flashblock channel for native flashblock production.
+    flashblock_channel: Option<FlashblockChannel>,
     /// Enable flashblock consensus client to drive chain forward.
     flashblock_consensus: bool,
+    /// Address for the flashblocks WebSocket broadcast endpoint.
+    flashblocks_listen_addr: Option<std::net::SocketAddr>,
 }
 
 impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
@@ -718,8 +738,9 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             _nt: PhantomData,
             rpc_middleware: Identity::new(),
             tokio_runtime: None,
-            flashblocks_url: None,
+            flashblock_channel: None,
             flashblock_consensus: false,
+            flashblocks_listen_addr: None,
         }
     }
 }
@@ -787,8 +808,9 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             min_suggested_priority_fee,
             tokio_runtime,
             _nt,
-            flashblocks_url,
+            flashblock_channel,
             flashblock_consensus,
+            flashblocks_listen_addr,
             ..
         } = self;
         OpAddOnsBuilder {
@@ -802,20 +824,30 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             _nt,
             rpc_middleware,
             tokio_runtime,
-            flashblocks_url,
+            flashblock_channel,
             flashblock_consensus,
+            flashblocks_listen_addr,
         }
     }
 
-    /// With a URL pointing to a flashblocks secure websocket subscription.
-    pub fn with_flashblocks(mut self, flashblocks_url: Option<Url>) -> Self {
-        self.flashblocks_url = flashblocks_url;
+    /// With a shared flashblock channel for native flashblock production.
+    pub fn with_flashblocks(mut self, flashblock_channel: Option<FlashblockChannel>) -> Self {
+        self.flashblock_channel = flashblock_channel;
         self
     }
 
     /// With a flashblock consensus client to drive chain forward.
     pub const fn with_flashblock_consensus(mut self, flashblock_consensus: bool) -> Self {
         self.flashblock_consensus = flashblock_consensus;
+        self
+    }
+
+    /// With an address for the flashblocks WebSocket broadcast endpoint.
+    pub fn with_flashblocks_listen_addr(
+        mut self,
+        addr: Option<std::net::SocketAddr>,
+    ) -> Self {
+        self.flashblocks_listen_addr = addr;
         self
     }
 }
@@ -842,8 +874,9 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             historical_rpc,
             rpc_middleware,
             tokio_runtime,
-            flashblocks_url,
+            flashblock_channel,
             flashblock_consensus,
+            flashblocks_listen_addr,
             ..
         } = self;
 
@@ -853,8 +886,9 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                     .with_sequencer(sequencer_url.clone())
                     .with_sequencer_headers(sequencer_headers.clone())
                     .with_min_suggested_priority_fee(min_suggested_priority_fee)
-                    .with_flashblocks(flashblocks_url)
-                    .with_flashblock_consensus(flashblock_consensus),
+                    .with_flashblocks(flashblock_channel)
+                    .with_flashblock_consensus(flashblock_consensus)
+                    .with_flashblocks_listen_addr(flashblocks_listen_addr),
                 PVB::default(),
                 EB::default(),
                 EVB::default(),
@@ -1075,6 +1109,10 @@ pub struct OpPayloadBuilder<Txs = ()> {
     /// Gas limit configuration for the OP builder.
     /// This is used to configure gas limit related constraints for the payload builder.
     pub gas_limit_config: OpGasLimitConfig,
+    /// Flashblock channel sender for native flashblock production.
+    pub flashblock_tx: Option<tokio::sync::mpsc::Sender<op_alloy_rpc_types_engine::OpFlashblockPayload>>,
+    /// Flashblock emission interval.
+    pub flashblock_interval: Option<Duration>,
 }
 
 impl OpPayloadBuilder {
@@ -1086,6 +1124,8 @@ impl OpPayloadBuilder {
             best_transactions: (),
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
+            flashblock_tx: None,
+            flashblock_interval: None,
         }
     }
 
@@ -1100,14 +1140,39 @@ impl OpPayloadBuilder {
         self.gas_limit_config = gas_limit_config;
         self
     }
+
+    /// Configure the flashblock sender for native flashblock production.
+    pub fn with_flashblock_sender(
+        mut self,
+        tx: tokio::sync::mpsc::Sender<op_alloy_rpc_types_engine::OpFlashblockPayload>,
+        interval: Duration,
+    ) -> Self {
+        self.flashblock_tx = Some(tx);
+        self.flashblock_interval = Some(interval);
+        self
+    }
 }
 
 impl<Txs> OpPayloadBuilder<Txs> {
     /// Configures the type responsible for yielding the transactions that should be included in the
     /// payload.
     pub fn with_transactions<T>(self, best_transactions: T) -> OpPayloadBuilder<T> {
-        let Self { compute_pending_block, da_config, gas_limit_config, .. } = self;
-        OpPayloadBuilder { compute_pending_block, best_transactions, da_config, gas_limit_config }
+        let Self {
+            compute_pending_block,
+            da_config,
+            gas_limit_config,
+            flashblock_tx,
+            flashblock_interval,
+            ..
+        } = self;
+        OpPayloadBuilder {
+            compute_pending_block,
+            best_transactions,
+            da_config,
+            gas_limit_config,
+            flashblock_tx,
+            flashblock_interval,
+        }
     }
 }
 
@@ -1144,17 +1209,21 @@ where
         pool: Pool,
         evm_config: Evm,
     ) -> eyre::Result<Self::PayloadBuilder> {
-        let payload_builder = reth_optimism_payload_builder::OpPayloadBuilder::with_builder_config(
-            pool,
-            ctx.provider().clone(),
-            evm_config,
-            OpBuilderConfig {
-                da_config: self.da_config.clone(),
-                gas_limit_config: self.gas_limit_config.clone(),
-            },
-        )
-        .with_transactions(self.best_transactions.clone())
-        .set_compute_pending_block(self.compute_pending_block);
+        let mut payload_builder =
+            reth_optimism_payload_builder::OpPayloadBuilder::with_builder_config(
+                pool,
+                ctx.provider().clone(),
+                evm_config,
+                OpBuilderConfig {
+                    da_config: self.da_config.clone(),
+                    gas_limit_config: self.gas_limit_config.clone(),
+                },
+            )
+            .with_transactions(self.best_transactions.clone())
+            .set_compute_pending_block(self.compute_pending_block);
+        if let (Some(tx), Some(interval)) = (self.flashblock_tx, self.flashblock_interval) {
+            payload_builder = payload_builder.with_flashblock_sender(tx, interval);
+        }
         Ok(payload_builder)
     }
 }

@@ -11408,7 +11408,6 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-rpc-types-engine",
  "alloy-signer-local",
- "brotli",
  "derive_more",
  "eyre",
  "futures-util",
@@ -11439,7 +11438,6 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.28.0",
  "tracing",
- "url",
 ]
 
 [[package]]
@@ -11487,6 +11485,7 @@ dependencies = [
  "reth-optimism-consensus",
  "reth-optimism-evm",
  "reth-optimism-exex",
+ "reth-optimism-flashblocks",
  "reth-optimism-forks",
  "reth-optimism-node",
  "reth-optimism-payload-builder",
@@ -11516,7 +11515,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
- "url",
 ]
 
 [[package]]
@@ -11555,6 +11553,7 @@ dependencies = [
  "serde",
  "sha2",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
 ]
 

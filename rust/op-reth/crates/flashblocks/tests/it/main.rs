@@ -4,4 +4,3 @@
 
 mod harness;
 mod service;
-mod stream;

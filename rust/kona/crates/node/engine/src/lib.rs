@@ -55,7 +55,9 @@ pub use client::{
     HyperAuthClient, OpEngineClient,
 };
 
+#[cfg(feature = "rollup-boost")]
 mod rollup_boost;
+#[cfg(feature = "rollup-boost")]
 pub use rollup_boost::{
     FlashblocksClientArgs, FlashblocksWebsocketConfig, RollupBoostServer, RollupBoostServerArgs,
     RollupBoostServerError,

@@ -5,8 +5,7 @@
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
 use reth_optimism_txpool::supervisor::DEFAULT_SUPERVISOR_URL;
-use std::{path::PathBuf, time::Duration};
-use url::Url;
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
@@ -70,19 +69,30 @@ pub struct RollupArgs {
     #[arg(long, default_value_t = 1_000_000)]
     pub min_suggested_priority_fee: u64,
 
-    /// A URL pointing to a secure websocket subscription that streams out flashblocks.
+    /// Enable native flashblock production during payload building.
     ///
-    /// If given, the flashblocks are received to build pending block. All request with "pending"
-    /// block tag will use the pending state based on flashblocks.
-    #[arg(long, alias = "websocket-url")]
-    pub flashblocks_url: Option<Url>,
+    /// When enabled, the payload builder emits flashblocks on a timer and
+    /// broadcasts them to the FlashBlockService via in-process channel.
+    #[arg(long, default_value_t = false)]
+    pub flashblocks_enabled: bool,
+
+    /// Flashblock emission interval in milliseconds.
+    /// Only used when `flashblocks_enabled` is true.
+    #[arg(long, default_value_t = 200)]
+    pub flashblocks_interval_ms: u64,
+
+    /// Address for the flashblocks WebSocket broadcast endpoint.
+    /// External subscribers (op-conductor, RPC providers) connect here.
+    /// Only used when `flashblocks_enabled` is true.
+    #[arg(long, requires = "flashblocks_enabled")]
+    pub flashblocks_listen_addr: Option<SocketAddr>,
 
     /// Enable flashblock consensus client to drive the chain forward
     ///
     /// When enabled, the flashblock consensus client will process flashblock sequences and submit
     /// them to the engine API to advance the chain.
-    /// Requires `flashblocks_url` to be set.
-    #[arg(long, default_value_t = false, requires = "flashblocks_url")]
+    /// Requires `flashblocks_enabled` to be set.
+    #[arg(long, default_value_t = false, requires = "flashblocks_enabled")]
     pub flashblock_consensus: bool,
 
     /// If true, initialize external-proofs exex to save and serve trie nodes to provide proofs
@@ -159,7 +169,9 @@ impl Default for RollupArgs {
             sequencer_headers: Vec::new(),
             historical_rpc: None,
             min_suggested_priority_fee: 1_000_000,
-            flashblocks_url: None,
+            flashblocks_enabled: false,
+            flashblocks_interval_ms: 200,
+            flashblocks_listen_addr: None,
             flashblock_consensus: false,
             proofs_history: false,
             proofs_history_storage_path: None,
