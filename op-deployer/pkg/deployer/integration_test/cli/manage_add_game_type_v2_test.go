@@ -243,7 +243,7 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 
 // deployedChain holds the addresses returned from deploying a fresh OP chain
 type deployedChain struct {
-	opcm            common.Address
+	opcm              common.Address
 	systemConfigProxy common.Address
 	proxyAdminOwner   common.Address
 }
@@ -298,7 +298,7 @@ func deployDependencies(t *testing.T, runner *CLITestRunner) deployedChain {
 	t.Logf("ProxyAdminOwner: %s", intent.Chains[0].Roles.L1ProxyAdminOwner.Hex())
 
 	return deployedChain{
-		opcm:            st.ImplementationsDeployment.OpcmImpl,
+		opcm:              st.ImplementationsDeployment.OpcmImpl,
 		systemConfigProxy: chainState.SystemConfigProxy,
 		proxyAdminOwner:   intent.Chains[0].Roles.L1ProxyAdminOwner,
 	}

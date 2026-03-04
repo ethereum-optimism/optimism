@@ -11,4 +11,3 @@ func TestEnsureDefaultCacheDir(t *testing.T) {
 	cacheDir := flags.DefaultCacheDir()
 	require.NotNil(t, cacheDir)
 }
-

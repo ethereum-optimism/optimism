@@ -37,8 +37,8 @@ type ScriptInput struct {
 
 // InteropMigrationInput represents the struct that is read from the config file.
 type InteropMigrationInput struct {
-	Prank          common.Address `json:"prank"`
-	Opcm           common.Address `json:"opcm"`
+	Prank          common.Address  `json:"prank"`
+	Opcm           common.Address  `json:"opcm"`
 	MigrateInputV2 *MigrateInputV2 `json:"migrateInputV2,omitempty"`
 }
 

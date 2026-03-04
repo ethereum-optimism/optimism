@@ -211,4 +211,3 @@ func isDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
 	return featuresIsNonZero && bitmapContainsFeatures
 }
-
