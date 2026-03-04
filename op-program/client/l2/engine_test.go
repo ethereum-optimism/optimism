@@ -273,7 +273,7 @@ func (s *stubEngineBackend) StateAt(root common.Hash) (*state.StateDB, error) {
 	panic("unsupported")
 }
 
-func (s *stubEngineBackend) InsertBlockWithoutSetHead(block *types.Block, makeWitness bool) (*stateless.Witness, error) {
+func (s *stubEngineBackend) InsertBlockWithoutSetHead(_ context.Context, block *types.Block, makeWitness bool) (*stateless.Witness, error) {
 	panic("unsupported")
 }
 

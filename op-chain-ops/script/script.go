@@ -285,10 +285,9 @@ func NewHost(
 	// The transaction context (after embedding inside of the EVM environment) may be mutated later.
 	txContext := vm.TxContext{
 		Origin:       executionContext.Origin,
-		GasPrice:     big.NewInt(0),
+		GasPrice:     new(uint256.Int),
 		BlobHashes:   executionContext.BlobHashes,
-		BlobFeeCap:   big.NewInt(0),
-		AccessEvents: state.NewAccessEvents(h.baseState.PointCache()),
+		AccessEvents: state.NewAccessEvents(),
 	}
 
 	// Hook up the Host to capture the EVM environment changes
