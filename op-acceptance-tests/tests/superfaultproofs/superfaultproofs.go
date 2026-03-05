@@ -2,7 +2,6 @@ package superfaultproofs
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"math/big"
 	"math/rand"
@@ -26,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -124,38 +124,13 @@ func latestRequiredL1(resp eth.SuperRootAtTimestampResponse) eth.BlockID {
 	return latest
 }
 
-// awaitSafeHeadsStalled waits until every node's safe head has stopped advancing
-// for at least 10 seconds.
-func awaitSafeHeadsStalled(t devtest.T, nodes ...*dsl.L2CLNode) {
-	var last []eth.BlockID
-	var stableSince time.Time
-	t.Require().Eventually(func() bool {
-		cur := make([]eth.BlockID, len(nodes))
-		for i, n := range nodes {
-			cur[i] = n.SyncStatus().SafeL2.ID()
-		}
-		if slices.Equal(cur, last) {
-			if stableSince.IsZero() {
-				stableSince = time.Now()
-			}
-			return time.Since(stableSince) >= 10*time.Second
-		}
-		last = cur
-		stableSince = time.Time{}
-		return false
-	}, 2*time.Minute, 2*time.Second, "safe heads did not stall in time")
-}
-
 // l1BlockWhere finds an L1 block where the specified chains either do or do not have safe blocks.
 func l1BlockWhere(t devtest.T, l1El *dsl.L1ELNode, sn *dsl.Supernode, timestamp uint64, hasSafe, notSafe []eth.ChainID) eth.BlockID {
 	t.Logf("Finding L1 block where %v have safe blocks and %v do not", hasSafe, notSafe)
 	var l1Block eth.BlockID
 	t.Require().Eventually(func() bool {
 		resp := sn.SuperRootAtTimestamp(timestamp)
-		respJsonBytes, err := json.Marshal(resp)
-		t.Require().NoError(err)
-		respJson := string(respJsonBytes)
-		t.Logf("SuperRootAtTimestamp response: %s", respJson)
+
 		candidate := uint64(math.MaxUint64)
 		for _, id := range notSafe {
 			if optimistic, has := resp.OptimisticAtTimestamp[id]; has && optimistic.RequiredL1.Number <= candidate {
@@ -166,13 +141,12 @@ func l1BlockWhere(t devtest.T, l1El *dsl.L1ELNode, sn *dsl.Supernode, timestamp 
 		if candidate == math.MaxUint64 {
 			candidate = resp.CurrentL1.Number
 		}
+
 		// Now verify that all the required chains have a safe block at the candidate L1 block.
 		for _, id := range hasSafe {
 			if optimistic, has := resp.OptimisticAtTimestamp[id]; !has {
-				t.Logf("Did not find safe block for chain %v in %v", id, respJson)
 				return false
 			} else if optimistic.RequiredL1.Number > candidate {
-				t.Logf("Required L1 block for chain %v is %v, but candidate is %v in %v", id, optimistic.RequiredL1.Number, candidate, respJson)
 				return false
 			}
 		}
@@ -503,7 +477,7 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 	//     that timestamp maps to a block at or below every chain's safe head.
 	chains[0].Batcher.Stop()
 	defer chains[0].Batcher.Start()
-	awaitSafeHeadsStalled(t, chains[0].CLNode)
+	chains[0].CLNode.Stalled(types.LocalSafe)
 
 	stalledStatus, err := chains[0].Rollup.SyncStatus(t.Ctx())
 	t.Require().NoError(err)
@@ -520,7 +494,7 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	chains[1].Batcher.Stop()
 	defer chains[1].Batcher.Start()
-	awaitSafeHeadsStalled(t, chains[1].CLNode)
+	chains[1].CLNode.Stalled(types.LocalSafe)
 
 	endTimestamp := chains[0].Cfg.TimestampForBlock(stalledSafeHead + 1)
 	agreedTimestamp := endTimestamp - 1
@@ -588,13 +562,13 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 
 	// -- Stage 1: Freeze batch submission ----------------------------------
+	chains[1].Batcher.Stop() // Stop chain 1 first and wait for chains[0] to have at least that local safe head.
+	t.Cleanup(chains[1].Batcher.Start)
+	// Wait for safe heads to stall (local safe will continue on chains[0] but interop validation can't progress because chains[1] local safe has stalled)
+	chains[1].CLNode.Stalled(types.CrossSafe)
 	chains[0].Batcher.Stop()
-	chains[1].Batcher.Stop()
-	t.Cleanup(func() {
-		chains[0].Batcher.Start()
-		chains[1].Batcher.Start()
-	})
-	awaitSafeHeadsStalled(t, sys.L2CLA, sys.L2CLB)
+	t.Cleanup(chains[0].Batcher.Start)
+	chains[0].CLNode.Stalled(types.LocalSafe) // Wait for chains[0] local safe head to stall
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
 	startTimestamp := endTimestamp - 1

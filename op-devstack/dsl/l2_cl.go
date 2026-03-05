@@ -168,6 +168,25 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 	}
 }
 
+// awaitSafeHeadsStalled waits until every node's safe head has stopped advancing
+// for at least 10 seconds.
+func (cl *L2CLNode) Stalled(lvl types.SafetyLevel) {
+	var last eth.BlockID
+	var stableSince time.Time
+	cl.require.Eventuallyf(func() bool {
+		cur := cl.HeadBlockRef(lvl).ID()
+		if cur == last {
+			if stableSince.IsZero() {
+				stableSince = time.Now()
+			}
+			return time.Since(stableSince) >= 10*time.Second
+		}
+		last = cur
+		stableSince = time.Time{}
+		return false
+	}, 2*time.Minute, 2*time.Second, "expected %v head to stall", lvl)
+}
+
 // ReachedFn returns a lambda that checks the L2CL chain head with given safety level reaches the target block number
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
