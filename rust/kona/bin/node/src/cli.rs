@@ -61,21 +61,19 @@ impl Cli {
             Commands::Info(ref info) => info.init_logs(&self.global)?,
         }
 
-        // Initialize unified metrics
-        init_unified_metrics(&self.global.metrics)?;
-
-        // Allow subcommands to initialize cli metrics.
-        match self.subcommand {
-            Commands::Node(ref node) => node.init_cli_metrics(&self.global.metrics)?,
-            _ => {
-                tracing::debug!(target: "cli", "No CLI metrics initialized for subcommand: {:?}", self.subcommand)
-            }
-        }
-
         // Run the subcommand.
+        // Async commands (node, net) init metrics inside the tokio runtime.
+        // Sync utility commands (registry, bootstore, info) don't need metrics.
         match self.subcommand {
-            Commands::Node(node) => Self::run_until_ctrl_c(node.run(&self.global)),
-            Commands::Net(net) => Self::run_until_ctrl_c(net.run(&self.global)),
+            Commands::Node(node) => Self::run_until_ctrl_c(async move {
+                init_unified_metrics(&self.global.metrics).await?;
+                node.init_cli_metrics(&self.global.metrics)?;
+                node.run(&self.global).await
+            }),
+            Commands::Net(net) => Self::run_until_ctrl_c(async move {
+                init_unified_metrics(&self.global.metrics).await?;
+                net.run(&self.global).await
+            }),
             Commands::Registry(registry) => registry.run(&self.global),
             Commands::Bootstore(bootstore) => bootstore.run(&self.global),
             Commands::Info(info) => info.run(&self.global),

@@ -27,13 +27,12 @@ pub struct Cli {
 impl Cli {
     /// Runs the CLI.
     pub fn run(self) -> Result<()> {
-        self.metrics.init_metrics()?;
-        // Register build metrics
-        VersionInfo::from_build().register_version_metrics();
-
         self.init_logs(&self.global)?;
 
         Self::run_until_ctrl_c(async move {
+            self.metrics.init_metrics().await?;
+            VersionInfo::from_build().register_version_metrics();
+
             let config = self.supervisor.init_config().await?;
             let mut service = Service::new(config);
 

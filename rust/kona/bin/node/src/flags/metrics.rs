@@ -6,11 +6,10 @@ use crate::metrics::VersionInfo;
 use kona_cli::MetricsArgs;
 
 /// Initializes metrics for a Kona application, including Prometheus and node-specific metrics.
-/// Initialize the tracing stack and Prometheus metrics recorder.
 ///
-/// This function should be called at the beginning of the program.
-pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
-    args.init_metrics()?;
+/// Must be called from within a tokio runtime.
+pub async fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
+    args.init_metrics().await?;
     if args.enabled {
         kona_gossip::Metrics::init();
         kona_disc::Metrics::init();

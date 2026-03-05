@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod error;
-pub use error::{CliError, CliResult};
+pub use error::{CliError, CliResult, PrometheusError};
 
 mod flags;
 pub use flags::{GlobalArgs, LogArgs, MetricsArgs, OverrideArgs};

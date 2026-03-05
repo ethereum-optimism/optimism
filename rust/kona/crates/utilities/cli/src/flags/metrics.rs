@@ -3,7 +3,7 @@
 
 use crate::{CliResult, init_prometheus_server};
 use clap::Parser;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 
 /// Configuration for Prometheus metrics.
 #[derive(Debug, Clone, Parser)]
@@ -18,7 +18,7 @@ pub struct MetricsArgs {
     )]
     pub enabled: bool,
 
-    /// The port to serve Prometheus metrics on.
+    /// The port to serve Prometheus metrics on. Use 0 to let the OS assign a port.
     #[arg(long = "metrics.port", global = true, default_value = "9090", env = "KONA_METRICS_PORT")]
     pub port: u16,
 
@@ -39,15 +39,26 @@ impl Default for MetricsArgs {
 }
 
 impl MetricsArgs {
-    /// Initialize the tracing stack and Prometheus metrics recorder.
+    /// Initialize the Prometheus metrics recorder and start the metrics server.
     ///
-    /// This function should be called at the beginning of the program.
-    pub fn init_metrics(&self) -> CliResult<()> {
-        if self.enabled {
-            init_prometheus_server(self.addr, self.port)?;
-        }
+    /// Must be called from within a tokio runtime.
+    pub async fn init_metrics(&self) -> CliResult<()> {
+        self.init_metrics_with_addr().await.map(drop)
+    }
 
-        Ok(())
+    /// Initialize the Prometheus metrics recorder and start the metrics server.
+    ///
+    /// Returns the actual address the server is bound to. This is useful when
+    /// the port is set to 0, allowing the OS to assign an available port.
+    ///
+    /// Must be called from within a tokio runtime.
+    pub async fn init_metrics_with_addr(&self) -> CliResult<Option<SocketAddr>> {
+        if self.enabled {
+            let addr = SocketAddr::from((self.addr, self.port));
+            Ok(Some(init_prometheus_server(addr).await?))
+        } else {
+            Ok(None)
+        }
     }
 }
 
