@@ -30,8 +30,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_OnlyDelegatecall();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
