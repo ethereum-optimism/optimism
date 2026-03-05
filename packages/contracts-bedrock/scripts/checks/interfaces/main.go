@@ -30,6 +30,9 @@ var excludeContracts = []string{
 	// Misc stuff that can be ignored
 	"IOPContractsManagerLegacyUpgrade",
 
+	// Constructor inheritance differences
+	"IL2ProxyAdmin",
+
 	// TODO: Interfaces that need to be fixed
 	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
 	"KontrolCheatsBase", "IResolvedDelegateProxy",

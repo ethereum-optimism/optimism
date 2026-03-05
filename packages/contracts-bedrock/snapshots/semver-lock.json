@@ -108,8 +108,8 @@
     "sourceCodeHash": "0xc05bfcfadfd09a56cfea68e7c1853faa36d114d9a54cd307348be143e442c35a"
   },
   "src/L2/L2ProxyAdmin.sol:L2ProxyAdmin": {
-    "initCodeHash": "0x85b054c8105191d272014459858020a90fcf7db401ef0fb028999f967461d25a",
-    "sourceCodeHash": "0x0d402be0c35dcdd3f6642c2949932705dd09c8e2d08a06c328ccbf8ed6c65808"
+    "initCodeHash": "0x18107f86dcabd2b72764a3c4bc58d6dd653b2d1ccca2a8df7f61327f495eec8a",
+    "sourceCodeHash": "0x2a52ab5b0bc836b2d215380ce1fd4751cc29e50a416282f4d4ba7a007be03a91"
   },
   "src/L2/L2StandardBridge.sol:L2StandardBridge": {
     "initCodeHash": "0xba5b288a396b34488ba7be68473305529c7da7c43e5f1cfc48d6a4aecd014103",

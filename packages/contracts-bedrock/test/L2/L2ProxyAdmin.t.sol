@@ -42,11 +42,11 @@ abstract contract L2ProxyAdmin_TestInit is CommonTest {
 /// @notice Tests the `constructor` function of the `L2ProxyAdmin` contract.
 contract L2ProxyAdmin_Constructor_Test is L2ProxyAdmin_TestInit {
     /// @notice Tests that the `constructor` function succeeds.
-    function test_constructor_succeeds(address _owner) public {
+    function test_constructor_succeeds() public {
         // Deploy the L2ProxyAdmin contract
-        l2ProxyAdmin = IL2ProxyAdmin(address(new L2ProxyAdmin(_owner)));
-        // It sets the owner to the correct address
-        assertEq(l2ProxyAdmin.owner(), _owner);
+        l2ProxyAdmin = IL2ProxyAdmin(address(new L2ProxyAdmin()));
+        // It sets the owner to address(0)
+        assertEq(l2ProxyAdmin.owner(), address(0));
     }
 }
 

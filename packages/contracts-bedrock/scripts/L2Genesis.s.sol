@@ -288,15 +288,13 @@ contract L2Genesis is Script {
     ///         and therefore requires setting the storage manually here.
     function setL2ProxyAdmin(Input memory _input) internal {
         // Note the L2ProxyAdmin implementation itself is behind a proxy that owns itself.
-        address impl = _setImplementationCode(Predeploys.PROXY_ADMIN);
+        _setImplementationCode(Predeploys.PROXY_ADMIN);
 
         bytes32 _ownerSlot = bytes32(0);
 
         // TODO(#19182): Remove this once the L2ProxyAdmin is initializable.
         // there is no initialize() function, so we just set the storage manually.
         vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
-        // update the proxy to not be uninitialized (although not standard initialize pattern)
-        vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }
 
     /// @notice This predeploy is following the safety invariant #1.
