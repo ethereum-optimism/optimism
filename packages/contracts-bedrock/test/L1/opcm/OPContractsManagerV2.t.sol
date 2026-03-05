@@ -826,8 +826,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.CANNON_KONA)),
             abi.encode(true)
         );
-        /// This is a hack because fork live has an outdated suprchain registry reference that it pulls the addresses
-        /// from
+        /// This is a hack because fork live has an outdated suprchain registry reference that it
+        /// pulls the addresses from
         IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
