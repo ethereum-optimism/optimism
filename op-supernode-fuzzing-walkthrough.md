@@ -1,4 +1,4 @@
-# OP-Supernode Fuzzing Campaign: Setup & Code Walkthrough
+# OP-Supernode Fuzzing Campaign: Code Walkthrough
 
 ## Table of Contents
 
@@ -53,6 +53,8 @@ The old `op-supervisor` used an event-driven safety-level promotion system (cros
                             |             |             |
                             |      processBlockLogs()  verifyInteropMessages()
                             |             |             |
+                            |             |        cycleVerifyFn()
+                            |             |             |
                             +------+------+-----+------+
                                    |            |
                               handleResult()    |
@@ -71,12 +73,12 @@ The old `op-supervisor` used an event-driven safety-level promotion system (cros
 
 | Component | File | Responsibility |
 |-----------|------|---------------|
-| **Verification Algorithm** | `algo.go` | Validates cross-chain executing messages against source chain LogsDBs |
+| **Verification Algorithm** | `algo.go` | Validates cross-chain executing messages against source chain LogsDBs. Also computes L1 inclusion via `l1Inclusion()`. |
 | **VerifiedDB** | `verified_db.go` | Persistent store of verified interop results, keyed by timestamp (bbolt) |
 | **LogsDB Operations** | `logdb.go` | Loads block logs from chains into per-chain LogsDB instances |
 | **DenyList** | `invalidation.go` | Persistent store of invalidated block hashes per height (bbolt) |
 | **Engine Rewind** | `rewind.go` | Rolls back the execution engine to a prior block via synthetic payload trick |
-| **Interop Loop** | `interop.go` | Orchestrates the full verification loop: load, verify, commit/invalidate |
+| **Interop Loop** | `interop.go` | Orchestrates the full verification loop: load, verify (including cycle detection), commit/invalidate |
 
 ---
 
@@ -99,11 +101,12 @@ op-supernode/
     activity/
       interop/
         algo.go                    # Source: verification algorithm
+        cycle.go                   # Source: cycle detection for same-timestamp messages
         types.go                   # Source: Result, VerifiedResult types
         logdb.go                   # Source: log database operations
         interop.go                 # Source: main interop loop
         verified_db.go             # Source: verified timestamp database
-        fuzz_algo_test.go          # 7 fuzz tests for algo.go
+        fuzz_algo_test.go          # 7 fuzz tests for algo.go + types.go
         fuzz_verified_db_test.go   # 3 fuzz tests for verified_db.go
         fuzz_logdb_test.go         # 2 fuzz tests for logdb.go
         fuzz_interop_test.go       # 4 fuzz tests for interop.go
@@ -122,7 +125,7 @@ The fuzz tests use two layers of mocking:
 
 1. **Fuzz-specific mocks** (e.g., `fuzzMockLogsDB` in `fuzz_algo_test.go`) -- lightweight, configurable per-block behavior via maps, no-op mutating methods. Designed for high-speed fuzzing.
 
-2. **Shared test mocks** (e.g., `mockChainContainer` in `interop_test.go`) -- full interface implementations reused from the existing unit test suite. These are heavier but already verified correct.
+2. **Shared test mocks** (e.g., `mockChainContainer` in `interop_test.go`) -- full interface implementations reused from the existing unit test suite.
 
 ### Running the Fuzz Tests
 
@@ -151,40 +154,50 @@ go test -run=FuzzDenyListConcurrent/09a7245f6c9e1d7a \
 **Constants**:
 - `ExpiryTime = 604800` (7 days in seconds) -- messages older than this are invalid
 
+**Key function: `l1Inclusion`**
+
+```
+Input:  timestamp, map[chainID -> blockID]
+Output: eth.BlockID (the highest L1 block across all chains at this timestamp)
+```
+
+For each chain, calls `OptimisticAt(ctx, ts)` to get the L1 inclusion block. Returns the highest L1 block number across all chains.
+
 **Key function: `verifyInteropMessages`**
 
 ```
 Input:  timestamp, map[chainID -> blockID]
-Output: Result { L2Heads, InvalidHeads, Timestamp }
+Output: Result { Timestamp, L1Inclusion, L2Heads, InvalidHeads }
 ```
 
-For each chain at the given timestamp:
-1. Look up the chain's LogsDB (skip chains not in `logsDBs`)
-2. Call `OpenBlock(blockNumber)` to get the block reference and executing messages
-3. If block was skipped (`ErrSkipped`): fall back to `FirstSealedBlock()` and check hash match
-4. For each executing message in the block, call `verifyExecutingMessage`:
-   - **Unknown chain**: source chain not in `logsDBs` -> `ErrUnknownChain`
-   - **Timestamp violation**: `initTimestamp >= execTimestamp` -> `ErrTimestampViolation`
-   - **Expired**: `initTimestamp + ExpiryTime < execTimestamp` -> `ErrMessageExpired`
-   - **Not found**: source LogsDB doesn't contain the message -> error from `Contains`
-5. On first invalid message, mark the chain's block in `InvalidHeads`
+1. Call `l1Inclusion()` to compute and set `result.L1Inclusion`
+2. For each chain at the given timestamp:
+   a. Look up the chain's LogsDB (skip chains not in `logsDBs`)
+   b. Call `OpenBlock(blockNumber)` to get the block reference and executing messages
+   c. If block was skipped (`ErrSkipped`): fall back to `FirstSealedBlock()` and check hash match
+   d. For each executing message in the block, call `verifyExecutingMessage`:
+      - **Unknown chain**: source chain not in `logsDBs` -> `ErrUnknownChain`
+      - **Timestamp violation**: `initTimestamp > execTimestamp` (strictly greater) -> `ErrTimestampViolation`
+      - **Expired**: `initTimestamp + ExpiryTime < execTimestamp` -> `ErrMessageExpired`
+      - **Not found**: source LogsDB doesn't contain the message -> error from `Contains`
+   e. On first invalid message, mark the chain's block in `InvalidHeads`
 
 **What to watch for**:
 - Map iteration is non-deterministic in Go. The order in which executing messages are checked varies between runs.
-- `L1Head` is never set -- it stays as the zero value.
 - Self-chain references (chain referencing its own messages) are not checked.
 - The expiry check `execMsg.Timestamp + ExpiryTime` can overflow uint64 near `math.MaxUint64`.
 
 ### 3.2 VerifiedDB (`verified_db.go`)
 
-**Purpose**: Persistent store of verified interop results. Each entry is keyed by a uint64 timestamp and stores a JSON-encoded `VerifiedResult` (containing L1Head and per-chain L2 block IDs).
+**Purpose**: Persistent store of verified interop results. Each entry is keyed by a uint64 timestamp and stores a JSON-encoded `VerifiedResult` (containing `L1Inclusion` and per-chain L2 block IDs).
 
 **Storage**: bbolt (embedded key-value store). Keys are big-endian uint64 for lexicographic ordering.
 
 **Invariants enforced**:
-- **Sequential commits**: After the first commit at any timestamp T, the next must be T+1. No gaps, no repeats.
+- **Sequential commits**: The first commit can be at any timestamp. After that, each subsequent commit must be at `lastTimestamp + 1`. No gaps, no repeats.
 - **Error types**: `ErrAlreadyCommitted` for `ts <= lastTimestamp`, `ErrNonSequential` for `ts > lastTimestamp + 1`.
 - **Rewind**: `Rewind(ts)` deletes all entries at and after `ts`. After rewind, `LastTimestamp()` returns `ts-1` (or uninitialized if all deleted).
+- **RewindAfter**: `RewindAfter(ts)` calls `Rewind(ts + 1)`, keeping entries at `ts` but deleting everything strictly after.
 
 **State tracking**: In-memory `lastTimestamp` and `initialized` flag, updated on every `Commit` and `Rewind`. These are recomputed from bbolt on `Open`.
 
@@ -196,8 +209,10 @@ For each chain at the given timestamp:
 
 **`loadLogs(timestamp)`**: Iterates all chains. For each:
 1. `verifyCanAddTimestamp` -- checks if the chain's LogsDB is ready for this timestamp
-2. Fetches the block and its receipts from the chain container
-3. `processBlockLogs` -- iterates receipts/logs, calls `AddLog` + `SealBlock`
+2. Fetches the block via `LocalSafeBlockAtTimestamp` and its receipts from the chain container
+3. If DB has blocks and `latestBlock.Number >= block.Number`, skip loading (no hash check)
+4. Verify chain continuity: block's parent hash must match last sealed block hash
+5. `processBlockLogs` -- iterates receipts/logs, calls `AddLog` + `SealBlock`
 
 **`verifyCanAddTimestamp`**: Gap detection logic:
 - Empty DB at activation timestamp: OK (genesis case)
@@ -205,11 +220,12 @@ For each chain at the given timestamp:
 - DB has blocks: compute `gap = queryTS - latestSealTimestamp`. If gap > blockTime, error.
 
 **`processBlockLogs`**: For each receipt's logs:
+- If `isFirstBlock && blockNum > 0`: seal a virtual parent block first (allows logsDB to start at any block number)
+- If `blockNum == 0`: use empty parent hash/block ID (actual genesis)
 - Compute log hash via `LogToLogHash`
 - Attempt to decode as executing message via `DecodeExecutingMessageLog` (errors silently discarded)
 - Call `AddLog(logHash, parentBlock, logIdx, execMsg)`
-- After all logs: `SealBlock(parentHash, blockID, timestamp)`
-- First block (or block 0): uses empty parent hash/block ID
+- After all logs: `SealBlock(sealParentHash, blockID, timestamp)`
 
 ### 3.4 DenyList / Block Invalidation (`invalidation.go`)
 
@@ -243,18 +259,18 @@ Height 101 -> [hash4_32bytes]
 
 **`RewindToTimestamp` 5-step process**:
 ```
-Step 0: Convert timestamp -> block number -> block ref
+Step 0: Convert timestamp -> block number -> block ref (via blockAtTimestamp)
 Step 1: Insert synthetic payload (modified FeeRecipient = MaxAddress)
 Step 2: computeRewindTargets -- clamp safe/finalized to not move forward
         Error if target < finalized (ErrRewindOverFinalizedHead)
 Step 3: FCU to synthetic block (triggers reorg)
 Step 4: FCU to real target block
-Step 5: Verify final state matches expectations
+Step 5: Verify final state matches expectations (verifyRewindState)
 ```
 
 **`computeRewindTargets`**: Returns `(newSafe, newFinalized)`:
-- `newSafe = min(currentSafe, target)`
-- `newFinalized = min(currentFinalized, target)`
+- `newSafe = min(currentSafe, target)` (via `earliest()` helper)
+- `newFinalized = min(currentFinalized, target)` (via `earliest()` helper)
 - Returns error if `target.Number < currentFinalized.Number`
 
 ### 3.6 Interop Main Loop (`interop.go`)
@@ -264,26 +280,28 @@ Step 5: Verify final state matches expectations
 **`Start` loop**: Repeatedly calls `progressAndRecord()`. On error or "not ready", backs off with exponential delay.
 
 **`progressAndRecord` flow**:
-1. `collectCurrentL1()` -- get current L1 head from each chain
+1. `collectCurrentL1()` -- get minimum L1 head across all chains
 2. `progressInterop()` -- determine next timestamp, load logs, verify
 3. `handleResult()` -- dispatch based on result validity
+4. Update `currentL1`: if progress was made, use `result.L1Inclusion`; otherwise use the collected minimum L1
 
 **`progressInterop` flow**:
 1. Determine next timestamp: `lastTimestamp + 1` (or `activationTimestamp` if uninitialized)
 2. Check pause (integration test hook)
-3. `checkChainsReady(ts)` -- parallel queries to each chain's `BlockAtTimestamp(ctx, ts, eth.Safe)`. If any returns `ethereum.NotFound`, return empty result (chain not ready yet).
+3. `checkChainsReady(ts)` -- parallel queries to each chain's `LocalSafeBlockAtTimestamp(ctx, ts)`. If any returns `ethereum.NotFound`, return empty result (chain not ready yet).
 4. `loadLogs(ts)` -- ingest block logs from all chains
 5. `verifyFn(ts, blocksAtTimestamp)` -- run the verification algorithm
+6. `cycleVerifyFn(ts, blocksAtTimestamp)` -- run cycle detection, merge any invalid heads into result
 
 **`handleResult` dispatch**:
 - **Empty result** (`IsEmpty()`): no-op, return nil
 - **Invalid result** (`!IsValid()`): call `invalidateBlock` for each entry in `InvalidHeads`
 - **Valid result**: call `commitVerifiedResult` -> `VerifiedDB.Commit()`
 
-**`Reset(chainID, timestamp)`**: Called when a chain needs to rewind:
+**`Reset(chainID, timestamp, invalidatedBlock)`**: Called when a chain container resets due to an invalidated block:
 1. Acquire write lock
-2. `resetLogsDB` -- either `Clear()` or `Rewind()` the chain's LogsDB
-3. `resetVerifiedDB` -- `Rewind(timestamp)` on the verified timestamp database
+2. `resetLogsDB(chainID, db, invalidatedBlock)` -- compute target as parent of invalidated block, then either `Clear()` or `Rewind()` the chain's LogsDB
+3. `resetVerifiedDB(timestamp)` -- calls `verifiedDB.RewindAfter(timestamp)` (keeps entries at `timestamp`, deletes after)
 4. Clear `currentL1` to zero
 
 ---
@@ -304,15 +322,13 @@ Step 5: Verify final state matches expectations
 - 2-5 chains with random block hashes/numbers
 - Each chain gets 0-3 executing messages
 - Each message's `initTimestamp` is within `[execTimestamp - ExpiryTime, execTimestamp - 1]` (always valid range)
-- Source chain's `Contains` always returns success
+- Source chain's `Contains` is registered per-query to succeed; default returns `ErrConflict`
 
 **Property assertions**:
 - `result.IsValid()` must be true
 - `result.InvalidHeads` must be empty
 - All chains must appear in `result.L2Heads`
 - Block hashes must match what was provided
-
-**What we're trying to catch**: Any edge case where valid inputs are incorrectly rejected. This could happen due to off-by-one errors in timestamp comparisons, map iteration bugs, or hash comparison failures.
 
 #### FuzzVerifyInteropMessagesFails (P2)
 
@@ -322,7 +338,7 @@ Step 5: Verify final state matches expectations
 | Type | Failure | How Triggered |
 |------|---------|---------------|
 | 0 | Unknown source chain | `execMsg.ChainID` points to chain not in `logsDBs` |
-| 1 | Timestamp violation | `initTimestamp >= execTimestamp` |
+| 1 | Timestamp violation | `initTimestamp > execTimestamp` (strictly greater) |
 | 2 | Expired message | `initTimestamp + ExpiryTime + 1 + random < execTimestamp` |
 | 3 | Message not found | `sourceDB.Contains` returns `ErrConflict` |
 | 4 | Block hash mismatch | `OpenBlock` returns different hash than expected |
@@ -330,8 +346,6 @@ Step 5: Verify final state matches expectations
 **Property assertions**:
 - `result.IsValid()` must be false
 - Chain must appear in both `result.InvalidHeads` and `result.L2Heads`
-
-**What we're trying to catch**: Any invalidation path that silently passes instead of correctly flagging the chain.
 
 #### FuzzVerifyExpiryBoundary (P4)
 
@@ -341,12 +355,10 @@ Step 5: Verify final state matches expectations
 1. **Exact boundary**: `initTS + ExpiryTime == execTimestamp` -- should be valid (expiry check is `<`, not `<=`)
 2. **One past expiry**: `initTS + ExpiryTime < execTimestamp` -- should be invalid
 3. **One before expiry**: `initTS + ExpiryTime > execTimestamp` -- should be valid
-4. **Equal timestamp**: `initTS == execTimestamp` -- invalid (timestamp violation: `>=` check)
+4. **Equal timestamp**: `initTS == execTimestamp` -- valid (timestamp check is `>`, not `>=`)
 5. **One less**: `initTS = execTimestamp - 1` -- valid if within expiry window
 
-**Overflow modeling**: Seeds include `math.MaxUint64 - ExpiryTime` and `math.MaxUint64`. The test explicitly computes whether `initTS + ExpiryTime` would overflow uint64 and expects the code to (incorrectly) reject these as expired -- documenting the overflow bug as a finding.
-
-**What we're trying to catch**: Off-by-one errors in `>=` vs `>` comparisons, and uint64 overflow causing false rejections of valid messages.
+**Overflow handling**: Seeds include `math.MaxUint64 - ExpiryTime` and `math.MaxUint64`. The test skips cases where `initTS + ExpiryTime` would overflow uint64, since these are unrealistic Unix timestamps.
 
 #### FuzzVerifyFirstBlockSkipped (P5)
 
@@ -359,19 +371,13 @@ Step 5: Verify final state matches expectations
 - Chain appears in `InvalidHeads` only when hashes don't match
 - `result.IsValid()` corresponds to hash match
 
-**What we're trying to catch**: Incorrect handling of the skip path -- e.g., silently accepting mismatched hashes or failing to populate `L2Heads` on the skip path.
-
 #### FuzzVerifyMultipleInvalidMessages (P6)
 
 **What it tests**: When a block contains multiple invalid executing messages, it is still correctly marked as invalid regardless of which message is checked first.
 
-**Why this matters**: Go map iteration order is non-deterministic. `verifyInteropMessages` iterates `execMsgs` (a map), so different runs may check messages in different orders. The code breaks on the first invalid message found -- but the block should always end up in `InvalidHeads`.
+**Why this matters**: Go map iteration order is non-deterministic. `verifyInteropMessages` iterates `execMsgs` (a map), so different runs may check messages in different orders. The code sets `blockValid = false` and breaks on the first invalid message found -- but the block should always end up in `InvalidHeads`.
 
-**Input generation**: 1-20 invalid messages per block, all configured to fail `Contains`.
-
-**Property assertions**: Block is always marked invalid.
-
-**What we're trying to catch**: Map iteration non-determinism causing some messages to be skipped, leading to a false "valid" result.
+**Input generation**: 1-20 invalid messages per block, all configured to fail `Contains` with `ErrConflict`.
 
 #### FuzzVerifyMissingChains (P7)
 
@@ -384,8 +390,6 @@ Step 5: Verify final state matches expectations
 - Unregistered chains do NOT appear in `L2Heads`
 - No errors returned
 
-**What we're trying to catch**: Panics or errors from accessing a nil LogsDB, or unregistered chains leaking into the result.
-
 #### FuzzResultProperties (P34, P35, P36)
 
 **What it tests**: The `Result` type's methods: `IsValid()`, `IsEmpty()`, `ToVerifiedResult()`.
@@ -394,8 +398,8 @@ Step 5: Verify final state matches expectations
 
 **Property assertions**:
 - P34: `IsValid()` iff `len(InvalidHeads) == 0`
-- P35: `ToVerifiedResult()` preserves `Timestamp`, `L1Head`, all `L2Heads`; strips `InvalidHeads`
-- P36: `IsEmpty()` when both maps empty AND `L1Head` is zero
+- P35: `ToVerifiedResult()` preserves `Timestamp`, `L1Inclusion`, all `L2Heads`; strips `InvalidHeads`
+- P36: `IsEmpty()` when both maps empty AND `L1Inclusion` is zero
 
 ### 4.2 VerifiedDB Fuzz Tests (`fuzz_verified_db_test.go`)
 
@@ -416,13 +420,11 @@ Step 5: Verify final state matches expectations
 
 **Property assertions**:
 - P15: Sequential commits always succeed
-- P16: After `Rewind(ts)`, `LastTimestamp()` returns `ts - 1`
+- P16: After `Rewind(ts)`, `LastTimestamp()` returns `ts - 1` (or uninitialized if all deleted)
 - P17: After `Rewind(ts)`, `Get(t)` errors for all `t >= ts`
 - P18: After `Rewind(ts)`, `Commit(ts)` succeeds (re-commit from rewind point)
 - P19: Error types are correctly distinguished
-- P20: JSON round-trip preserves `Timestamp`, `L1Head`, and all `L2Heads`
-
-**What we're trying to catch**: bbolt transaction bugs, off-by-one in key encoding, JSON serialization losing data, rewind not deleting all expected entries.
+- P20: JSON round-trip preserves `Timestamp`, `L1Inclusion`, and all `L2Heads`
 
 #### FuzzVerifiedDBFirstCommit (P15, P18)
 
@@ -435,8 +437,6 @@ Step 5: Verify final state matches expectations
 4. Full rewind to `firstTS` -- deletes everything
 5. First commit at new random timestamp -- succeeds again
 
-**What we're trying to catch**: The VerifiedDB incorrectly requiring the first commit to be at a specific timestamp, or failing to reset the sequential counter after a full rewind.
-
 #### FuzzVerifiedDBPersistence (P20)
 
 **What it tests**: Data survives close/reopen of the bbolt database.
@@ -445,8 +445,6 @@ Step 5: Verify final state matches expectations
 1. Phase 1: Write 2-9 commits, close DB
 2. Phase 2: Reopen DB, verify all data persists
 3. Verify sequential commits continue correctly after reopen
-
-**What we're trying to catch**: In-memory state (`lastTimestamp`, `initialized`) not being correctly recomputed from bbolt on open. Data corruption during close/reopen.
 
 ### 4.3 LogsDB Fuzz Tests (`fuzz_logdb_test.go`)
 
@@ -464,8 +462,6 @@ Step 5: Verify final state matches expectations
 - P9: When `sealTimestamp <= queryTS`: error iff `gap > blockTime`
 - P13: Non-aligned gaps (0 < gap < blockTime) produce warning but no error
 
-**What we're trying to catch**: Off-by-one in gap calculation, `blockTime == 0` division/panic, incorrect handling of `sealTimestamp > queryTS` (already past this timestamp).
-
 #### FuzzProcessBlockLogs (P11, P12)
 
 **What it tests**: `processBlockLogs` correctly iterates receipts/logs and calls `AddLog`/`SealBlock` with correct parameters.
@@ -475,13 +471,11 @@ Step 5: Verify final state matches expectations
 **Input generation**: Random number of receipts (0-20), each with random number of logs (0-4). Boolean `isFirstBlock` flag.
 
 **Property assertions**:
-- P11: First block (or block 0) uses empty parent hash for `SealBlock` and empty parent block for `AddLog`
-- Non-first block uses real parent hash/block
+- P11: First block with `blockNum > 0`: 2 `SealBlock` calls (virtual parent seal + actual block seal); final `SealBlock` uses real parent hash
+- P11: Genesis block (`blockNum == 0`): 1 `SealBlock` call with empty parent hash
+- Non-first block: 1 `SealBlock` call with real parent hash
 - `AddLog` called exactly once per log
-- `SealBlock` called exactly once per block
 - Log indices are sequential: `0, 1, 2, ...`
-
-**What we're trying to catch**: Log index off-by-one, wrong parent hash passed to `SealBlock`, incorrect first-block detection (block 0 is always treated as first).
 
 ### 4.4 DenyList Fuzz Tests (`fuzz_invalidation_test.go`)
 
@@ -501,14 +495,6 @@ Step 5: Verify final state matches expectations
 
 **In-memory oracle**: `map[uint64]map[common.Hash]bool` tracks all adds.
 
-**Property assertions**:
-- P21: `Contains(h, hash)` returns true iff `Add(h, hash)` was called
-- P22: Duplicate `Add` does not increase hash count (idempotent)
-- P23: Hashes at different heights are isolated (no cross-height leakage)
-- P24: Concatenated 32-byte storage handles boundary alignment (no partial hash reads)
-
-**What we're trying to catch**: Hashes bleeding across height boundaries due to concatenation bugs, non-idempotent adds duplicating entries, linear scan boundary errors.
-
 #### FuzzDenyListConcurrent (Thread Safety)
 
 **What it tests**: Thread safety of the DenyList under concurrent Add/Contains operations from multiple goroutines.
@@ -520,8 +506,6 @@ Step 5: Verify final state matches expectations
 2. Spawn goroutines, each doing Add + immediate read-after-write verify
 3. Workers also do cross-range Contains (should never error)
 4. After `WaitGroup.Wait()`: verify all writes from all workers are visible
-
-**What we're trying to catch**: Data races, deadlocks, or lost writes under concurrent access. The `sync.RWMutex` + bbolt combination should handle this, but concurrent bbolt transactions can expose surprising behavior.
 
 ### 4.5 Engine Rewind Fuzz Tests (`fuzz_rewind_test.go`)
 
@@ -548,8 +532,6 @@ Step 5: Verify final state matches expectations
 - `NewPayload` called exactly once with `FeeRecipient = common.MaxAddress` (synthetic)
 - `ForkchoiceUpdate` called exactly twice (synthetic + target)
 
-**What we're trying to catch**: Rewind succeeding past finalized (safety violation), incorrect FCU parameters, missing synthetic payload step, wrong number of FCU calls.
-
 #### FuzzComputeRewindTargets (P25, P27)
 
 **What it tests**: The `computeRewindTargets` function in isolation -- just the clamping logic.
@@ -558,12 +540,10 @@ Step 5: Verify final state matches expectations
 
 **Property assertions**:
 - P25: `targetNum < finalizedNum` returns `ErrRewindOverFinalizedHead`
-- Safe is `min(currentSafe, target)`
-- Finalized is `min(currentFinalized, target)`
+- Safe is `min(currentSafe, target)` (via `earliest()`)
+- Finalized is `min(currentFinalized, target)` (via `earliest()`)
 - `finalized.Number <= safe.Number` always holds
 - P27: Finalized never moves forward
-
-**What we're trying to catch**: Off-by-one in the `<` vs `<=` comparison, clamping going the wrong direction.
 
 ### 4.6 Interop E2E Fuzz Tests (`fuzz_interop_test.go`)
 
@@ -576,19 +556,12 @@ Step 5: Verify final state matches expectations
 **Setup**:
 - 2-4 chains, 2-6 timestamps
 - Real VerifiedDB (bbolt in temp dir) + fuzzMockLogsDB instances
-- `verifyFn` overridden to always return valid results (bypasses algo.go)
+- Both `verifyFn` and `cycleVerifyFn` overridden to always return valid results (bypass algo.go and cycle.go)
 
-**Flow**: Process timestamps one at a time:
-1. Build `blocksAtTimestamp` from mock LogsDB
-2. Call `verifyFn` (returns valid)
-3. Call `handleResult` (commits to VerifiedDB)
-4. Verify timestamp committed and `LastTimestamp` updated
-
-**Property assertions**:
-- P28: All timestamps committed in strict sequential order
-- P29: Valid results are actually committed (checkable via `verifiedDB.Has()`)
-
-**What we're trying to catch**: `handleResult` silently dropping valid results, VerifiedDB rejecting sequential commits, timestamp gaps or duplicates.
+**Flow**: Process timestamps one at a time via `progressInterop()` + `handleResult()`:
+1. `progressInterop` determines next timestamp, calls overridden verify functions
+2. `handleResult` commits the valid result to VerifiedDB
+3. Verify timestamp committed and `LastTimestamp` updated
 
 #### FuzzProgressInteropInvalid (P29, P31)
 
@@ -601,30 +574,30 @@ Step 5: Verify final state matches expectations
 
 **Flow**:
 1. Build a `Result` with `InvalidHeads` for selected chains
-2. Verify `result.IsValid() == false`
-3. Call `handleResult`
-4. Check `invalidateBlockCalls` on each mock chain container
+2. Call `handleResult`
+3. Verify `invalidateBlockCalls` on each mock chain container
 
 **Property assertions**:
 - P29: `invalidateBlock` called exactly once for each invalid chain
 - Valid chains have zero `invalidateBlock` calls
 - P31: After invalidation, can still commit at the same timestamp (the timestamp was not consumed)
 
-**What we're trying to catch**: `handleResult` calling `invalidateBlock` on wrong chains, calling it multiple times, or accidentally committing invalid results.
-
 #### FuzzProgressInteropReset (P32)
 
-**What it tests**: `resetVerifiedDB` correctly removes entries at and after the rewind timestamp.
+**What it tests**: `Reset` correctly rewinds both the logsDB and verifiedDB.
 
-**Setup**: Commit 2-20 timestamps to real VerifiedDB, then rewind to a random point.
+**Setup**: Commit 2-20 timestamps to real VerifiedDB, then call `Reset` at a random point.
+
+**Key detail**: `Reset(chainID, rewindTS, invalidatedBlock)` is called, which internally:
+- Calls `resetLogsDB` -- rewinding or clearing the logsDB to the parent of `invalidatedBlock`
+- Calls `resetVerifiedDB(rewindTS)` -- uses `RewindAfter(rewindTS)` which keeps entries at `rewindTS` and deletes after
 
 **Property assertions**:
-- P32: Timestamps before rewind point still exist
-- Timestamps at/after rewind point are deleted
-- Can recommit at the rewind point (sequential counter reset correctly)
-- `LastTimestamp()` returns `rewindTS - 1` after rewind
-
-**What we're trying to catch**: Off-by-one in rewind boundary (does "rewind to X" delete X or not?), `LastTimestamp` not being updated, inability to recommit after rewind.
+- P32: logsDB was rewound once to `rewindTS - 1`
+- P32: `currentL1` was reset to empty
+- Timestamps at or before `rewindTS` still exist; timestamps after are deleted
+- `LastTimestamp()` returns `rewindTS` after reset
+- Can recommit at `rewindTS + 1` (sequential counter reset correctly)
 
 #### FuzzHandleResultEmpty (P30)
 
@@ -635,8 +608,6 @@ Step 5: Verify final state matches expectations
 **Property assertions**:
 - P30: `LastTimestamp` is unchanged after handling an empty result
 - No errors returned
-
-**What we're trying to catch**: `handleResult` accidentally committing an empty result or modifying the VerifiedDB state.
 
 ---
 
@@ -652,10 +623,10 @@ Step 5: Verify final state matches expectations
 | P6 | Multiple invalid msgs in block still marks invalid | Algorithm | `FuzzVerifyMultipleInvalidMessages` |
 | P7 | Missing chains silently excluded | Algorithm | `FuzzVerifyMissingChains` |
 | P9 | Gap > blockTime always detected | LogsDB | `FuzzVerifyCanAddTimestamp` |
-| P11 | First block uses empty parent hash | LogsDB | `FuzzProcessBlockLogs` |
+| P11 | First block uses virtual parent seal or empty parent | LogsDB | `FuzzProcessBlockLogs` |
 | P12 | After error, DB consistent (no partial writes) | LogsDB | `FuzzProcessBlockLogs` |
 | P13 | Non-aligned gaps warn but don't error | LogsDB | `FuzzVerifyCanAddTimestamp` |
-| P15 | Commit succeeds iff sequential | VerifiedDB | `FuzzVerifiedDBCommitRewind`, `FuzzVerifiedDBFirstCommit` |
+| P15 | Commit succeeds iff sequential (first commit at any TS) | VerifiedDB | `FuzzVerifiedDBCommitRewind`, `FuzzVerifiedDBFirstCommit` |
 | P16 | After Rewind(ts), LastTimestamp = ts - 1 | VerifiedDB | `FuzzVerifiedDBCommitRewind` |
 | P17 | After Rewind(ts), Get(t >= ts) errors | VerifiedDB | `FuzzVerifiedDBCommitRewind` |
 | P18 | After Rewind, re-commit succeeds | VerifiedDB | `FuzzVerifiedDBCommitRewind`, `FuzzVerifiedDBFirstCommit` |
@@ -677,43 +648,33 @@ Step 5: Verify final state matches expectations
 | P35 | `ToVerifiedResult` strips InvalidHeads | Types | `FuzzResultProperties` |
 | P36 | Empty results correctly detected | Types | `FuzzResultProperties` |
 
-**Properties P8, P10, P14, P33** from the original plan were not implemented as separate fuzz tests (they required full integration with chain containers and LogsDB loading paths that are better tested via E2E tests).
-
 ---
 
 ## 6. Potential Findings Identified During Analysis
 
-These were identified during the code analysis phase of the fuzzing campaign:
-
-### Finding 1: `L1Head` is Never Set in `verifyInteropMessages`
-
-**File**: `algo.go`, `verifyInteropMessages` function
-
-The `Result` struct's `L1Head` field is never populated. It stays as the zero value (`eth.BlockID{}`). When `handleResult` calls `ToVerifiedResult()`, the zero `L1Head` is committed to the VerifiedDB. Downstream consumers relying on `L1Head` for L1 derivation context will get incorrect data.
-
-### Finding 2: Self-Chain References Not Checked
+### Finding 1: Self-Chain References Not Checked
 
 **File**: `algo.go`, `verifyExecutingMessage` function
 
 There is no check for `execMsg.ChainID == executingChain`. A message on chain A can reference an initiating message on chain A itself. Whether this is intended behavior or a missing validation depends on the spec, but it's worth flagging.
 
-### Finding 3: Block Skip Hash Not Verified
+### Finding 2: Block Skip Hash Not Verified
 
 **File**: `logdb.go`, `loadLogs` function
 
 When `latestBlock.Number >= block.Number` (block already in DB), the code silently skips without verifying that the hash matches. This means a reorg could cause the DB to contain stale data.
 
-### Finding 4: Silent Error in `DecodeExecutingMessageLog`
+### Finding 3: Silent Error in `DecodeExecutingMessageLog`
 
-**File**: `logdb.go`, `processBlockLogs` function, line ~224
+**File**: `logdb.go`, `processBlockLogs` function
 
 When `DecodeExecutingMessageLog` returns an error, the log is still processed (with `execMsg = nil`). The error is silently discarded. Malformed executing messages become regular logs instead of causing verification failures.
 
-### Finding 5: uint64 Overflow in Expiry Check
+### Finding 4: uint64 Overflow in Expiry Check
 
 **File**: `algo.go`, `verifyExecutingMessage` function
 
-The expression `execMsg.Timestamp + ExpiryTime` can overflow when `execMsg.Timestamp` is near `math.MaxUint64`. This causes the comparison `execMsg.Timestamp + ExpiryTime < executingTimestamp` to produce incorrect results, potentially rejecting valid messages. The `FuzzVerifyExpiryBoundary` test explicitly documents this behavior.
+The expression `execMsg.Timestamp + ExpiryTime` can overflow when `execMsg.Timestamp` is near `math.MaxUint64`. This causes the comparison `execMsg.Timestamp + ExpiryTime < executingTimestamp` to produce incorrect results, potentially rejecting valid messages. The `FuzzVerifyExpiryBoundary` test skips these unrealistic overflow scenarios rather than asserting on the incorrect behavior.
 
 ---
 
