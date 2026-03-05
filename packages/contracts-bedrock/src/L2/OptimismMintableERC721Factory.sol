@@ -28,9 +28,9 @@ contract OptimismMintableERC721Factory is ISemver, OptimismMintableERC721Factory
     uint256 public remoteChainID;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
-    ///         A gap size of 48 was chosen here, so that the first slot used in a child contract
+    ///         A gap size of 46 was chosen here, so that the first slot used in a child contract
     ///         would be a multiple of 50.
-    uint256[48] private __gap;
+    uint256[46] private __gap;
 
     /// @notice Emitted whenever a new OptimismMintableERC721 contract is created.
     /// @param localToken  Address of the token on the this domain.
