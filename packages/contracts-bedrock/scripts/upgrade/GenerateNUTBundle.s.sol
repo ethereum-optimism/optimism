@@ -308,7 +308,7 @@ contract GenerateNUTBundle is Script {
 
     /// @notice Returns the path to the upgrade bundle.
     function upgradeBundlePath() public pure returns (string memory) {
-        return string.concat("snapshots/upgrades/", UPGRADE_NAME, "-upgrade-bundle.json");
+        return string.concat("snapshots/upgrades/current-upgrade-bundle.json");
     }
 
     /// @notice Retrieves all expected implementation addresses for the upgrade.

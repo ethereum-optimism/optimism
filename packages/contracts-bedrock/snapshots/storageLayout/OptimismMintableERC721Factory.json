@@ -35,10 +35,10 @@
     "type": "uint256"
   },
   {
-    "bytes": "1536",
+    "bytes": "1472",
     "label": "__gap",
     "offset": 0,
     "slot": "3",
-    "type": "uint256[48]"
+    "type": "uint256[46]"
   }
 ]

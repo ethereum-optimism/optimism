@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	UPGRADE_NAME         = "karst"
 	DEPOSITOR_ACCOUNT    = "0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001"
 	PROXY_ADMIN          = "0x4200000000000000000000000000000000000018"
 	CONDITIONAL_DEPLOYER = "0x420000000000000000000000000000000000002C"
@@ -44,10 +43,8 @@ func main() {
 }
 
 func run() error {
-	fmt.Printf("Validating NUT bundle for upgrade: %s\n", UPGRADE_NAME)
-
 	// Construct bundle path dynamically
-	bundlePath := fmt.Sprintf("snapshots/upgrades/%s-upgrade-bundle.json", UPGRADE_NAME)
+	bundlePath := "snapshots/upgrades/current-upgrade-bundle.json"
 	fmt.Printf("Bundle path: %s\n", bundlePath)
 
 	if _, err := os.Stat(bundlePath); os.IsNotExist(err) {
