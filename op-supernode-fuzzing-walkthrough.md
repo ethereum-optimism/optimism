@@ -127,6 +127,97 @@ The fuzz tests use two layers of mocking:
 
 2. **Shared test mocks** (e.g., `mockChainContainer` in `interop_test.go`) -- full interface implementations reused from the existing unit test suite.
 
+### Component Reuse Analysis
+
+The fuzzing campaign deliberately balances reuse of existing unit test infrastructure with purpose-built fuzz mocks. This section catalogs every component, whether it was reused or newly created, and how it is structured.
+
+#### Reused from Existing Unit Tests
+
+| Component | Defined In | Reused In (Fuzz) | Role |
+|-----------|-----------|-------------------|------|
+| `mockChainContainer` | `interop_test.go:1190-1301` | `fuzz_interop_test.go` | Full `ChainContainer` interface impl with `invalidateBlockCalls` tracking, `currentL1` state, `blockAtTimestamp` config, mutex for thread safety |
+| `testBlockInfo` | `algo_test.go:853-880` | `fuzz_logdb_test.go` | Minimal `eth.BlockInfo` impl: hash, parentHash, number, timestamp -- used to construct block headers in `FuzzProcessBlockLogs` |
+| `mockL2` | `engine_controller_test.go:51-165` | `fuzz_rewind_test.go` | `l2Provider` interface impl with pre/post-FCU label states (`refsByLabel`, `refsByLabelAfterFCU`), payload map, call counters (`newPayloadCalls`, `fcuCalls`), and `lastFCUState` tracking |
+| `newMockChainContainer()` | `interop_test.go:1218-1220` | `fuzz_interop_test.go` | Factory helper that creates preconfigured `mockChainContainer` instances |
+| `randomHash()` | `verified_db_test.go` | `fuzz_verified_db_test.go` (duplicate) | Generates random `common.Hash` from `*rand.Rand` -- duplicated rather than imported since both files are in the same package |
+
+**Why these mocks work for fuzzing**: All three reused mocks (`mockChainContainer`, `testBlockInfo`, `mockL2`) are stateless or map-configured structs. They carry no implicit ordering assumptions, making them safe to drive with arbitrary fuzz inputs. Their interface compliance is enforced with `var _ InterfaceName = (*MockType)(nil)` assertions.
+
+#### Newly Created for Fuzzing
+
+**1. `fuzzMockLogsDB`** (`fuzz_algo_test.go:22-119`)
+
+Purpose: High-speed, per-block configurable `LogsDB` mock designed for the verification algorithm fuzz tests.
+
+```
+fuzzMockLogsDB
+├── blocks          map[uint64]fuzzBlockData       # per-block OpenBlock responses
+├── containsResults map[ContainsQuery]fuzzContainsResult  # exact query → result
+├── defaultContainsSeal / defaultContainsErr        # fallback for unregistered queries
+├── sealedBlocks    map[...]                        # tracks sealed block state
+└── rewindCalls     []uint64                        # records rewind targets
+```
+
+Key design decisions:
+- **Map-based dispatch**: `OpenBlock(blockNum)` and `Contains(query)` look up responses from maps, allowing each fuzz iteration to configure arbitrarily many blocks/queries without modifying the mock
+- **No-op mutating methods**: `AddLog`, `SealBlock`, `Rewind`, `Clear`, `Close` are no-ops -- the algorithm tests only exercise read paths
+- **Default fallback**: `Contains` returns `defaultContainsErr` (typically `ErrConflict`) for unregistered queries, simulating "message not found" as the common failure mode
+
+Used in: `FuzzVerifyInteropMessagesValid`, `FuzzVerifyInteropMessagesFails`, `FuzzVerifyExpiryBoundary`, `FuzzVerifyFirstBlockSkipped`, `FuzzVerifyMultipleInvalidMessages`, `FuzzVerifyMissingChains`
+
+**2. `trackingMockLogsDB`** (`fuzz_logdb_test.go:201-236`)
+
+Purpose: Call-tracking mock for verifying `processBlockLogs` invokes `AddLog` and `SealBlock` with correct parameters.
+
+```
+trackingMockLogsDB
+├── addLogCalls        int          # total AddLog invocations
+├── sealBlockCalls     int          # total SealBlock invocations
+├── sealBlockParents   []common.Hash  # parent hash per SealBlock call
+├── firstAddLogParent  eth.BlockID    # parent block from first AddLog
+└── logIndices         []uint32       # log index sequence across all AddLog calls
+```
+
+Key design decisions:
+- **Tracking-only**: All methods except `AddLog` and `SealBlock` are no-ops -- the test only cares about call counts and parameter correctness
+- **Sequential index recording**: `logIndices` captures the log index argument from each `AddLog` call, allowing the test to assert `[0, 1, 2, ...]` ordering
+
+Used in: `FuzzProcessBlockLogs`
+
+#### Production Components Used Without Mocking
+
+| Component | Created Via | Used In (Fuzz) | Why Real |
+|-----------|-----------|-----------------|----------|
+| `VerifiedDB` | `OpenVerifiedDB(t.TempDir())` | `fuzz_verified_db_test.go`, `fuzz_interop_test.go` | The entire point is to fuzz the real bbolt persistence layer -- commit ordering, rewind correctness, JSON round-trip |
+| `DenyList` | `OpenDenyList(t.TempDir())` | `fuzz_invalidation_test.go` | Tests real 32-byte hash concatenation storage, idempotent adds, and concurrent access under real locking |
+
+Both use `t.TempDir()` for isolated bbolt databases per fuzz iteration. This makes them slower (~3-20 execs/sec vs ~1K-3K for pure in-memory tests) but tests the actual persistence and concurrency behavior.
+
+#### Structural Comparison: fuzzMockLogsDB vs mockLogsDB
+
+The existing `mockLogsDB` (in `logdb_test.go:559-638`) was not reused for fuzzing. Here's why:
+
+| Aspect | `mockLogsDB` (unit tests) | `fuzzMockLogsDB` (fuzz tests) |
+|--------|---------------------------|-------------------------------|
+| Block behavior | Single return value for all blocks | Map-based per-block configuration |
+| Contains responses | One default error | Per-query exact matching + default fallback |
+| State tracking | `sealBlockCalls` array only | Sealed blocks map + rewind calls |
+| Configurability | Boolean flags (`hasBlocks`, `sealErr`) | Rich maps (`blocks`, `containsResults`) |
+| Speed | Already fast | Equally fast, but supports more scenarios |
+
+The unit test mock is oriented around testing specific error paths with boolean toggles. The fuzz mock needs to support arbitrary combinations of valid/invalid blocks and messages generated by the fuzzer, requiring the map-based design.
+
+#### Component Usage Matrix
+
+| Fuzz Test File | Fuzz-Created Mocks | Reused Mocks | Real Components |
+|---|---|---|---|
+| `fuzz_algo_test.go` | `fuzzMockLogsDB` | -- | -- |
+| `fuzz_verified_db_test.go` | -- | -- | `VerifiedDB` + bbolt |
+| `fuzz_logdb_test.go` | `trackingMockLogsDB` | `testBlockInfo` | -- |
+| `fuzz_interop_test.go` | `fuzzMockLogsDB` | `mockChainContainer` | `VerifiedDB` + bbolt |
+| `fuzz_invalidation_test.go` | -- | -- | `DenyList` + bbolt |
+| `fuzz_rewind_test.go` | -- | `mockL2` | -- |
+
 ### Running the Fuzz Tests
 
 ```bash
