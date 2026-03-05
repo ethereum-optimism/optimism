@@ -170,7 +170,7 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 
 // awaitSafeHeadsStalled waits until every node's safe head has stopped advancing
 // for at least 10 seconds.
-func (cl *L2CLNode) Stalled(lvl types.SafetyLevel) {
+func (cl *L2CLNode) WaitForStall(lvl types.SafetyLevel) {
 	var last eth.BlockID
 	var stableSince time.Time
 	cl.require.Eventuallyf(func() bool {

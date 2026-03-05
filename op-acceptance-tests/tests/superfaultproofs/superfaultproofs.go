@@ -477,7 +477,7 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 	//     that timestamp maps to a block at or below every chain's safe head.
 	chains[0].Batcher.Stop()
 	defer chains[0].Batcher.Start()
-	chains[0].CLNode.Stalled(types.LocalSafe)
+	chains[0].CLNode.WaitForStall(types.LocalSafe)
 
 	stalledStatus, err := chains[0].Rollup.SyncStatus(t.Ctx())
 	t.Require().NoError(err)
@@ -494,7 +494,7 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	chains[1].Batcher.Stop()
 	defer chains[1].Batcher.Start()
-	chains[1].CLNode.Stalled(types.LocalSafe)
+	chains[1].CLNode.WaitForStall(types.LocalSafe)
 
 	endTimestamp := chains[0].Cfg.TimestampForBlock(stalledSafeHead + 1)
 	agreedTimestamp := endTimestamp - 1
@@ -565,10 +565,10 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].Batcher.Stop() // Stop chain 1 first and wait for chains[0] to have at least that local safe head.
 	t.Cleanup(chains[1].Batcher.Start)
 	// Wait for safe heads to stall (local safe will continue on chains[0] but interop validation can't progress because chains[1] local safe has stalled)
-	chains[1].CLNode.Stalled(types.CrossSafe)
+	chains[1].CLNode.WaitForStall(types.CrossSafe)
 	chains[0].Batcher.Stop()
 	t.Cleanup(chains[0].Batcher.Start)
-	chains[0].CLNode.Stalled(types.LocalSafe) // Wait for chains[0] local safe head to stall
+	chains[0].CLNode.WaitForStall(types.LocalSafe) // Wait for chains[0] local safe head to stall
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
 	startTimestamp := endTimestamp - 1
