@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -112,9 +114,35 @@ func websocketListenFor(ctx context.Context, logger log.Logger, wsURL string, he
 				return nil
 			}
 
+			// Check for close errors first - these are normal termination
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
 				logger.Info("WebSocket connection closed by peer", "total_messages", messageCount)
 				return nil
+			}
+
+			// Check if this is an unexpected close error (any close error not handled above)
+			var closeErr *websocket.CloseError
+			if errors.As(err, &closeErr) {
+				logger.Info("WebSocket connection closed unexpectedly", "code", closeErr.Code, "text", closeErr.Text, "total_messages", messageCount)
+				return nil
+			}
+
+			// Check for EOF errors - connection was closed
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				logger.Info("WebSocket connection closed (EOF)", "total_messages", messageCount)
+				return nil
+			}
+
+			// Check for use of closed network connection
+			if errors.Is(err, net.ErrClosed) {
+				logger.Info("WebSocket connection closed (network)", "total_messages", messageCount)
+				return nil
+			}
+
+			// Timeout errors are recoverable - keep reading
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				continue
 			}
 
 			logger.Error("Error reading WebSocket message", "error", err, "message_count", messageCount)

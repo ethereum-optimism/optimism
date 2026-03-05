@@ -46,7 +46,7 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	defer span.End()
 
 	// Drive a couple blocks on the test sequencer so the faucet L2 funding tx has a chance to land before we rely on it.
-	driveViaTestSequencer(t, sys, 2)
+	DriveViaTestSequencer(t, sys, 2)
 
 	alice := sys.FunderL2.NewFundedEOA(eth.ThreeHundredthsEther)
 	bob := sys.Wallet.NewEOA(sys.L2EL)

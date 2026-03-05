@@ -32,6 +32,7 @@ type Orchestrator struct {
 	batcherOptions          []BatcherOption
 	proposerOptions         []ProposerOption
 	l2CLOptions             L2CLOptionBundle
+	oprbuilderNodeOptions   OPRBuilderNodeOptionBundle
 	l2ELOptions             L2ELOptionBundle
 	l2ChallengerOpts        l2ChallengerOpts
 	SyncTesterELOptions     SyncTesterELOptionBundle

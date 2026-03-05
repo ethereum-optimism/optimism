@@ -92,6 +92,9 @@ type OPRBuilderNodeConfig struct {
 
 	Full bool
 
+	RulesEnabled    bool
+	RulesConfigPath string
+
 	// ExtraArgs are appended to the generated CLI allowing callers to override defaults
 	// if the binary respects "last flag wins".
 	ExtraArgs []string
@@ -126,6 +129,8 @@ func DefaultOPRbuilderNodeConfig() *OPRBuilderNodeConfig {
 		DataDir:           "",
 		ExtraArgs:         nil,
 		Env:               nil,
+		RulesEnabled:      false,
+		RulesConfigPath:   "",
 	}
 }
 
@@ -235,6 +240,11 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.P) (args []string, env []s
 		args = append(args, "--datadir="+cfg.DataDir)
 	}
 
+	if cfg.RulesEnabled {
+		args = append(args, "--rules.enabled")
+		args = append(args, "--rules.config-path="+cfg.RulesConfigPath)
+	}
+
 	args = append(args, cfg.ExtraArgs...)
 
 	return args, env
@@ -242,6 +252,12 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.P) (args []string, env []s
 
 type OPRBuilderNodeOption interface {
 	Apply(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig)
+}
+
+func WithGlobalOPRBuilderNodeOption(opt OPRBuilderNodeOption) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.oprbuilderNodeOptions = append(o.oprbuilderNodeOptions, opt)
+	})
 }
 
 type OPRBuilderNodeOptionFn func(p devtest.P, id stack.OPRBuilderNodeID, cfg *OPRBuilderNodeConfig)
@@ -481,7 +497,8 @@ func WithOPRBuilderNode(id stack.OPRBuilderNodeID, opts ...OPRBuilderNodeOption)
 		cfg := DefaultOPRbuilderNodeConfig()
 		cfg.AuthRPCJWTPath, _ = orch.writeDefaultJWT()
 		cfg.Chain = chainConfigPath
-		OPRBuilderNodeOptionBundle(opts).Apply(orch.P(), id, cfg)
+		orch.oprbuilderNodeOptions.Apply(p, id, cfg)              // apply global options
+		OPRBuilderNodeOptionBundle(opts).Apply(orch.P(), id, cfg) // apply specific options
 
 		rb := &OPRBuilderNode{
 			id:        id,
