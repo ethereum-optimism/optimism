@@ -105,8 +105,6 @@ contract OptimismMintableERC721Factory_CreateOptimismMintableERC721_Test is Opti
 contract OptimismMintableERC721Factory_Version_Test is OptimismMintableERC721Factory_TestInit {
     /// @notice Tests that version returns a valid semver.
     function test_version_succeeds() external view {
-        SemverComp.parse(
-            l2OptimismMintableERC721Factory.version()
-        );
+        SemverComp.parse(l2OptimismMintableERC721Factory.version());
     }
 }
