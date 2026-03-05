@@ -53,6 +53,10 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__ZK_DISPUTE_GAME is enabled");
             devFeatureBitmap |= DevFeatures.ZK_DISPUTE_GAME;
         }
+        if (Config.devFeatureCannonKona()) {
+            console.log("Setup: DEV_FEATURE__CANNON_KONA is enabled");
+            devFeatureBitmap |= DevFeatures.CANNON_KONA;
+        }
     }
 
     /// @notice Returns the string name of a feature.
@@ -67,6 +71,8 @@ abstract contract FeatureFlags {
             return "DEV_FEATURE__L2CM";
         } else if (_feature == DevFeatures.ZK_DISPUTE_GAME) {
             return "DEV_FEATURE__ZK_DISPUTE_GAME";
+        } else if (_feature == DevFeatures.CANNON_KONA) {
+            return "DEV_FEATURE__CANNON_KONA";
         } else if (_feature == Features.CUSTOM_GAS_TOKEN) {
             return "SYS_FEATURE__CUSTOM_GAS_TOKEN";
         } else if (_feature == Features.ETH_LOCKBOX) {
