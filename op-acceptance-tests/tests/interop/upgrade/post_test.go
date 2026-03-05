@@ -23,7 +23,11 @@ import (
 func TestPostInbox(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithSimpleInterop(),
+		presets.WithSuggestedInteropActivationOffset(60),
+		presets.WithInteropNotAtGenesis(),
+	)
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
 		require := t.Require()
 		activationBlock := net.AwaitActivation(t, forks.Interop)
@@ -43,7 +47,11 @@ func TestPostInbox(gt *testing.T) {
 func TestPostInteropUpgradeComprehensive(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithSimpleInterop(),
+		presets.WithSuggestedInteropActivationOffset(60),
+		presets.WithInteropNotAtGenesis(),
+	)
 	require := t.Require()
 	logger := t.Logger()
 

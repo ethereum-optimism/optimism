@@ -5,13 +5,21 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
 func TestSmoke(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := presets.NewMinimal(t,
+		presets.WithProofs(),
+		stack.MakeCommon(sysgo.WithDeployerOptions(sysgo.WithJovianAtGenesis)),
+		presets.WithSafeDBEnabled(),
+		presets.WithCompatibleTypes(compat.SysGo),
+	)
 	require := t.Require()
 	dgf := sys.DisputeGameFactory()
 

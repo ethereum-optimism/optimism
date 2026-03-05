@@ -3,6 +3,7 @@ package sync_tester_e2e
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -15,7 +16,7 @@ func TestSyncTesterE2E(gt *testing.T) {
 	// This test uses DefaultSimpleSystemWithSyncTester which includes:
 	// - Minimal setup with L1EL, L1CL, L2EL, L2CL (sequencer)
 	// - Additional L2CL2 (verifier) that connects to SyncTester instead of L2EL
-	sys := presets.NewSimpleWithSyncTester(t)
+	sys := presets.NewSimpleWithSyncTester(t, presets.WithCompatibleTypes(compat.SysGo))
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()

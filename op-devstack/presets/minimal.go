@@ -64,9 +64,9 @@ func WithMinimal() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}))
 }
 
-func NewMinimal(t devtest.T) *Minimal {
+func NewMinimal(t devtest.T, opts ...stack.CommonOption) *Minimal {
 	system := shim.NewSystem(t)
-	orch := Orchestrator()
+	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMinimal()}, opts...)...)
 	orch.Hydrate(system)
 
 	return minimalFromSystem(t, system, orch)

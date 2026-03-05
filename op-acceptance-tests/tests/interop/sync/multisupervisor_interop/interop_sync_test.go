@@ -5,10 +5,14 @@ package sync
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -18,7 +22,11 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewMultiSupervisorInterop(t)
+	sys := presets.NewMultiSupervisorInterop(t, presets.WithMultiSupervisorInterop(),
+		presets.WithLogFilter(logfilter.DefaultMute(
+			stack.KindSelector(stack.SupervisorKind).And(logfilter.Level(log.LevelInfo)).Show(),
+			logfilter.Level(log.LevelError).Show(),
+		)))
 	logger := sys.Log.With("Test", "TestL2CLAheadOfSupervisor")
 	require := sys.T.Require()
 
@@ -138,7 +146,11 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewMultiSupervisorInterop(t)
+	sys := presets.NewMultiSupervisorInterop(t, presets.WithMultiSupervisorInterop(),
+		presets.WithLogFilter(logfilter.DefaultMute(
+			stack.KindSelector(stack.SupervisorKind).And(logfilter.Level(log.LevelInfo)).Show(),
+			logfilter.Level(log.LevelError).Show(),
+		)))
 	logger := sys.Log.With("Test", "TestUnsafeChainKnownToL2CL")
 	require := sys.T.Require()
 
@@ -209,7 +221,11 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewMultiSupervisorInterop(t)
+	sys := presets.NewMultiSupervisorInterop(t, presets.WithMultiSupervisorInterop(),
+		presets.WithLogFilter(logfilter.DefaultMute(
+			stack.KindSelector(stack.SupervisorKind).And(logfilter.Level(log.LevelInfo)).Show(),
+			logfilter.Level(log.LevelError).Show(),
+		)))
 	logger := sys.Log.With("Test", "TestUnsafeChainUnknownToL2CL")
 
 	logger.Info("Make sure sequencer and verifier unsafe head advances")
@@ -250,7 +266,11 @@ func TestL2CLSyncP2P(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewMultiSupervisorInterop(t)
+	sys := presets.NewMultiSupervisorInterop(t, presets.WithMultiSupervisorInterop(),
+		presets.WithLogFilter(logfilter.DefaultMute(
+			stack.KindSelector(stack.SupervisorKind).And(logfilter.Level(log.LevelInfo)).Show(),
+			logfilter.Level(log.LevelError).Show(),
+		)))
 	logger := sys.Log.With("Test", "TestL2CLSyncP2P")
 
 	logger.Info("Make sure sequencer and verifier unsafe head advances")

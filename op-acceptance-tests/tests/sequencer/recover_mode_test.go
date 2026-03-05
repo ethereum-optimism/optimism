@@ -1,9 +1,11 @@
 package sequencer
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/stretchr/testify/require"
@@ -22,7 +24,10 @@ import (
 // protects against a regeression in that behavior.
 func TestRecoverModeWhenChainHealthy(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimal(t)
+	sys := presets.NewMinimal(t,
+		presets.WithCompatibleTypes(compat.SysGo),
+		presets.WithLogLevel(slog.LevelDebug),
+	)
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 

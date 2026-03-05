@@ -3,9 +3,15 @@ package sync_tester_hfs
 import (
 	"testing"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -13,7 +19,17 @@ import (
 func TestSyncTesterHardforks(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewSimpleWithSyncTester(t)
+	sys := presets.NewSimpleWithSyncTester(t,
+		presets.WithCompatibleTypes(compat.SysGo),
+		presets.WithHardforkSequentialActivation(forks.Bedrock, forks.Jovian, 6),
+		presets.WithNoDiscovery(),
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+			// For supporting pre-delta batches
+			cfg.BatchType = derive.SingularBatchType
+			// For supporting pre-Fjord batches
+			cfg.CompressionAlgo = derive.Zlib
+		})),
+	)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()

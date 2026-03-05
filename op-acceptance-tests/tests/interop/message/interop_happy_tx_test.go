@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
-	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -51,10 +50,6 @@ func TestInteropHappyTx(gt *testing.T) {
 			500),
 	)
 
-	orch := presets.Orchestrator()
-	// Do not print the chain on persistent devnets
-	if orch.Type() != compat.Persistent {
-		sys.L2ChainA.PrintChain()
-		sys.L2ChainB.PrintChain()
-	}
+	sys.L2ChainA.PrintChain()
+	sys.L2ChainB.PrintChain()
 }

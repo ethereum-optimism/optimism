@@ -3,6 +3,7 @@ package presets
 import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -29,9 +30,11 @@ func WithTwoL2SupernodeFollowL2(delaySeconds uint64) stack.CommonOption {
 
 // NewTwoL2SupernodeFollowL2 creates a TwoL2SupernodeFollowL2 preset for acceptance tests.
 // Use delaySeconds=0 for interop at genesis, or a positive value to test the transition.
-// The delaySeconds must match what was passed to WithTwoL2SupernodeFollowL2 in TestMain.
-func NewTwoL2SupernodeFollowL2(t devtest.T, delaySeconds uint64) *TwoL2SupernodeFollowL2 {
-	base := NewTwoL2SupernodeInterop(t, delaySeconds)
+func NewTwoL2SupernodeFollowL2(t devtest.T, delaySeconds uint64, opts ...stack.CommonOption) *TwoL2SupernodeFollowL2 {
+	system := shim.NewSystem(t)
+	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithTwoL2SupernodeFollowL2(delaySeconds)}, opts...)...)
+	orch.Hydrate(system)
+	base := twoL2SupernodeInteropFromSystem(t, system, orch, delaySeconds)
 
 	l2a := base.system.L2Network(match.L2ChainA)
 	l2b := base.system.L2Network(match.L2ChainB)

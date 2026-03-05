@@ -5,11 +5,14 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -23,7 +26,20 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 	gt.Skip("Skipping test until we fix nonce too high error: tx: 177 state: 176")
 
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	sys := presets.NewSingleChainMultiNodeWithTestSeq(t,
+		presets.WithExecutionLayerSyncOnVerifiers(),
+		presets.WithCompatibleTypes(compat.SysGo),
+		presets.WithNoDiscovery(),
+		presets.WithTimeTravel(),
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+			cfg.Stopped = true
+			cfg.MaxL1TxSize = 40_000
+			cfg.TestUseMaxTxSizeForBlobs = true
+			cfg.PollInterval = 1000 * time.Millisecond
+			cfg.MaxChannelDuration = 50
+			cfg.MaxPendingTransactions = 7
+		})),
+	)
 	l := t.Logger()
 	ts_L2 := sys.TestSequencer.Escape().ControlAPI(sys.L2EL.ChainID())
 

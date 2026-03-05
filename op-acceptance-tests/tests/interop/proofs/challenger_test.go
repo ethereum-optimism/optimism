@@ -11,12 +11,17 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 func TestChallengerPlaysGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithSuperInteropSupernode(),
+		stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
+	)
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
@@ -38,7 +43,10 @@ func TestChallengerPlaysGame(gt *testing.T) {
 
 func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithSuperInteropSupernode(),
+		stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
+	)
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
@@ -61,7 +69,10 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 
 func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithSuperInteropSupernode(),
+		stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
+	)
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),

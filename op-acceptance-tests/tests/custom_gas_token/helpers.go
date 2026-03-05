@@ -3,16 +3,30 @@ package custom_gas_token
 
 import (
 	"context"
+	"math/big"
 	"time"
-
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	gethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
+
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
+
+// newSystem creates a CGT-enabled minimal system for tests in this package.
+func newSystem(t devtest.T) *presets.Minimal {
+	liq := new(big.Int).Mul(big.NewInt(1_000_000), big.NewInt(1e18)) // 1M tokens * 18 decimals
+	return presets.NewMinimal(t,
+		stack.MakeCommon(sysgo.WithDeployerOptions(
+			sysgo.WithCustomGasToken("Custom Gas Token", "CGT", liq, gethcommon.Address{}),
+		)),
+	)
+}
 
 var (
 	// L2 predeploy: L1Block (address is stable across OP Stack chains)

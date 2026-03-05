@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -15,9 +16,17 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+func newSystem(t devtest.T) *presets.SingleChainTwoVerifiers {
+	return presets.NewSingleChainTwoVerifiersWithoutCheck(t,
+		presets.WithReqRespSyncDisabled(),
+		presets.WithNoDiscovery(),
+		presets.WithCompatibleTypes(compat.SysGo),
+	)
+}
+
 func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
+	sys := newSystem(t)
 	logger := t.Logger()
 
 	// Takes about 2 minutes for L1 finalization
@@ -59,7 +68,7 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 
 func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
+	sys := newSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
@@ -130,7 +139,7 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 
 func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
+	sys := newSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 

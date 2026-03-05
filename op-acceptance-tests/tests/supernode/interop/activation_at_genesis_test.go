@@ -9,13 +9,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+func newSystem(gt *testing.T, t devtest.T) *presets.TwoL2SupernodeInterop {
+	gt.Setenv("DEVSTACK_L2CL_KIND", "supernode")
+	return presets.NewTwoL2SupernodeInterop(t, 0, presets.WithTimeTravel())
+}
+
 // TestSupernodeInteropActivationAtGenesis tests behavior when interop is activated
 // at genesis time (timestamp 0 offset). This verifies the first few timestamps are
 // processed correctly with interop verification from the very beginning.
 // Also verifies that VerifiedAt (via superroot_atTimestamp) works correctly.
 func TestSupernodeInteropActivationAtGenesis(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	sys := newSystem(gt, t)
 
 	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime

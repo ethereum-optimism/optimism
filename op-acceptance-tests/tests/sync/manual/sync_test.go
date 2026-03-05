@@ -3,18 +3,32 @@ package manual
 import (
 	"testing"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 )
 
+func newSystem(t devtest.T) *presets.SingleChainMultiNode {
+	return presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t,
+		presets.WithCompatibleTypes(compat.SysGo),
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+			// For stopping derivation, not to advance safe heads
+			cfg.Stopped = true
+		})),
+	)
+}
+
 func TestVerifierManualSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
 	// Disable ELP2P and Batcher
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := newSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 

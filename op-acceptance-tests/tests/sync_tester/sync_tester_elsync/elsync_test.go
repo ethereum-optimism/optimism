@@ -3,6 +3,7 @@ package sync_tester_elsync
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -12,7 +13,11 @@ import (
 
 func TestSyncTesterELSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleWithSyncTester(t)
+	sys := presets.NewSimpleWithSyncTester(t,
+		presets.WithExecutionLayerSyncOnVerifiers(),
+		presets.WithELSyncActive(),
+		presets.WithCompatibleTypes(compat.SysGo),
+	)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()

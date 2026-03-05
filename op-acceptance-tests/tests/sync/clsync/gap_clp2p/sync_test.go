@@ -3,16 +3,30 @@ package gap_clp2p
 import (
 	"testing"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+func newSystem(t devtest.T) *presets.SingleChainMultiNode {
+	return presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t,
+		presets.WithCompatibleTypes(compat.SysGo),
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+			// For stopping derivation, not to advance safe heads
+			cfg.Stopped = true
+		})),
+	)
+}
+
 // TestSyncAfterInitialELSync tests that blocks received out of order would be processed in order when running in CL sync mode. Note that this is not going to happen when running in EL sync mode, which relies on healthy ELP2P, something that is disabled in this test.
 func TestSyncAfterInitialELSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := newSystem(t)
 	require := t.Require()
 
 	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)

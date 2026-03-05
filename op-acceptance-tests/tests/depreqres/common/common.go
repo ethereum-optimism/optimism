@@ -7,14 +7,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
+func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...stack.CommonOption) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
 
@@ -55,9 +56,9 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
 }
 
-func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
+func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...stack.CommonOption) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
 

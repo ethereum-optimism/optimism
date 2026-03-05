@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -13,7 +14,11 @@ import (
 func TestFollowSource_LocalSafeDivergesThenConverges(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	require := t.Require()
-	sys := presets.NewTwoL2SupernodeFollowL2(t, 0)
+	sys := presets.NewTwoL2SupernodeFollowL2(t, 0,
+		presets.WithReqRespSyncDisabled(),
+		presets.WithNoDiscovery(),
+		presets.WithCompatibleTypes(compat.SysGo),
+	)
 
 	type chainPair struct {
 		name     string
