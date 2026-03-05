@@ -821,6 +821,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests upgrading the respected game type to CANNON_KONA via the override key.
     function test_upgrade_respectedGameTypeCannonToKona_succeeds() public {
+        /// This is a hack because fork live has an outdated suprchain registry reference that it pulls the addresses
+        /// from
+        IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
@@ -828,6 +831,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             })
         );
         runCurrentUpgradeV2(chainPAO);
+        assertEq(
+            anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.CANNON_KONA.raw(),
+            "respected game type should remain CANNON_KONA"
+        );
     }
 
     /// @notice Tests that overriding to CANNON_KONA is a no-op when already CANNON_KONA.
@@ -852,7 +860,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     }
 
     function test_upgrade_respectedGameTypeUnchangedWithoutOverride_succeeds() public {
-        /// This is a hack because fork live has an outdated suprchain registry reference that it pulls the addresses from
+        /// This is a hack because fork live has an outdated suprchain registry reference that it pulls the addresses
+        /// from
         IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
         GameType before = anchorStateRegistry.respectedGameType();
         runCurrentUpgradeV2(chainPAO);
