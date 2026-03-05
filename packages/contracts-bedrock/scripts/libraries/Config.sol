@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Vm, VmSafe } from "forge-std/Vm.sol";
+import {Vm, VmSafe} from "forge-std/Vm.sol";
 
 /// @notice Enum representing different ways of outputting genesis allocs.
 /// @custom:value NONE    No output, used in internal tests.
@@ -291,9 +291,9 @@ library Config {
         return vm.envOr("DEV_FEATURE__L2CM", false);
     }
 
-    /// @notice Returns true if the development feature zk_proof_system is enabled.
+    /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.
     function devFeatureZkProofSystem() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__ZK_PROOF_SYSTEM", false);
+        return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
     }
 
     /// @notice Returns true if the system feature custom_gas_token is enabled.

@@ -32,7 +32,7 @@ library DevFeatures {
     bytes32 public constant L2CM = bytes32(0x0000000000000000000000000000000000000000000000000000000000100000);
 
     /// @notice The feature that enables the ZK dispute game system (ZKDisputeGame + ZKFaultProofSystem).
-    bytes32 public constant ZK_PROOF_SYSTEM =
+    bytes32 public constant ZK_DISPUTE_GAME =
         bytes32(0x0000000000000000000000000000000000000000000000000000000001000000);
 
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check

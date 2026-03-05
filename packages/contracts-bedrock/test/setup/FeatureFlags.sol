@@ -2,16 +2,16 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { console2 as console } from "forge-std/console2.sol";
-import { Vm } from "forge-std/Vm.sol";
+import {console2 as console} from "forge-std/console2.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 // Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Features } from "src/libraries/Features.sol";
-import { Config } from "scripts/libraries/Config.sol";
+import {DevFeatures} from "src/libraries/DevFeatures.sol";
+import {Features} from "src/libraries/Features.sol";
+import {Config} from "scripts/libraries/Config.sol";
 
 // Interfaces
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import {ISystemConfig} from "interfaces/L1/ISystemConfig.sol";
 
 /// @notice FeatureFlags manages the feature bitmap by either direct user input or via environment
 ///         variables.
@@ -50,8 +50,8 @@ abstract contract FeatureFlags {
             devFeatureBitmap |= DevFeatures.L2CM;
         }
         if (Config.devFeatureZkProofSystem()) {
-            console.log("Setup: DEV_FEATURE__ZK_PROOF_SYSTEM is enabled");
-            devFeatureBitmap |= DevFeatures.ZK_PROOF_SYSTEM;
+            console.log("Setup: DEV_FEATURE__ZK_DISPUTE_GAME is enabled");
+            devFeatureBitmap |= DevFeatures.ZK_DISPUTE_GAME;
         }
     }
 
@@ -65,8 +65,8 @@ abstract contract FeatureFlags {
             return "DEV_FEATURE__OPCM_V2";
         } else if (_feature == DevFeatures.L2CM) {
             return "DEV_FEATURE__L2CM";
-        } else if (_feature == DevFeatures.ZK_PROOF_SYSTEM) {
-            return "DEV_FEATURE__ZK_PROOF_SYSTEM";
+        } else if (_feature == DevFeatures.ZK_DISPUTE_GAME) {
+            return "DEV_FEATURE__ZK_DISPUTE_GAME";
         } else if (_feature == Features.CUSTOM_GAS_TOKEN) {
             return "SYS_FEATURE__CUSTOM_GAS_TOKEN";
         } else if (_feature == Features.ETH_LOCKBOX) {
