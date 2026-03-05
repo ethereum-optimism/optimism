@@ -2,16 +2,16 @@
 pragma solidity 0.8.15;
 
 // Testing
-import {console2 as console} from "forge-std/console2.sol";
-import {Vm} from "forge-std/Vm.sol";
+import { console2 as console } from "forge-std/console2.sol";
+import { Vm } from "forge-std/Vm.sol";
 
 // Libraries
-import {DevFeatures} from "src/libraries/DevFeatures.sol";
-import {Features} from "src/libraries/Features.sol";
-import {Config} from "scripts/libraries/Config.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
-import {ISystemConfig} from "interfaces/L1/ISystemConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @notice FeatureFlags manages the feature bitmap by either direct user input or via environment
 ///         variables.
@@ -49,7 +49,7 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__L2CM is enabled");
             devFeatureBitmap |= DevFeatures.L2CM;
         }
-        if (Config.devFeatureZkProofSystem()) {
+        if (Config.devFeatureZkDisputeGame()) {
             console.log("Setup: DEV_FEATURE__ZK_DISPUTE_GAME is enabled");
             devFeatureBitmap |= DevFeatures.ZK_DISPUTE_GAME;
         }
