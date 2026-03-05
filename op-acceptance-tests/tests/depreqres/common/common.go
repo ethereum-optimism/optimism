@@ -30,7 +30,19 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 	sys.L2CL.DisconnectPeer(sys.L2CLB)
 
 	ssA_before := sys.L2CL.SyncStatus()
+
+	// Drain any in-flight gossip messages before recording the L2CLB baseline.
+	// DisconnectPeer closes the libp2p connection but a buffered gossip payload can
+	// still arrive and be processed via AddUnsafePayload (SyncModeReqResp=true routes
+	// CL gossip through the CLSync path even in ELSync mode). Polling until the head
+	// is stable ensures the snapshot reflects a quiesced state.
 	ssB_before := sys.L2CLB.SyncStatus()
+	require.Eventually(func() bool {
+		next := sys.L2CLB.SyncStatus()
+		stable := next.UnsafeL2.Number == ssB_before.UnsafeL2.Number
+		ssB_before = next
+		return stable
+	}, 5*time.Second, 200*time.Millisecond, "L2CLB head should stabilize after disconnect")
 
 	l.Info("L2CL status before delay", "unsafeL2", ssA_before.UnsafeL2.ID(), "safeL2", ssA_before.SafeL2.ID())
 	l.Info("L2CLB status before delay", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
@@ -73,7 +85,16 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sle
 	sys.L2CL.DisconnectPeer(sys.L2CLB)
 
 	ssA_before := sys.L2CL.SyncStatus()
+
+	// Drain any in-flight gossip messages before recording the L2CLB baseline.
+	// See UnsafeChainNotStalling_Disconnect for full explanation.
 	ssB_before := sys.L2CLB.SyncStatus()
+	require.Eventually(func() bool {
+		next := sys.L2CLB.SyncStatus()
+		stable := next.UnsafeL2.Number == ssB_before.UnsafeL2.Number
+		ssB_before = next
+		return stable
+	}, 5*time.Second, 200*time.Millisecond, "L2CLB head should stabilize after disconnect")
 
 	l.Info("L2CL status before delay", "unsafeL2", ssA_before.UnsafeL2.ID(), "safeL2", ssA_before.SafeL2.ID())
 	l.Info("L2CLB status before delay", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
