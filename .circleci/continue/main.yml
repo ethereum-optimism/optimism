@@ -3305,7 +3305,6 @@ workflows:
       # IN-MEMORY (all, go test single box) - experiment comparing go test vs op-acceptor
       - op-acceptance-tests-gotest:
           name: memory-all-gotest
-          no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3318,7 +3317,6 @@ workflows:
       # IN-MEMORY (all, go test 5 parallel boxes) - experiment comparing parallelism
       - op-acceptance-tests-gotest-parallel:
           name: memory-all-gotest-parallel
-          no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
