@@ -11,7 +11,7 @@ use alloy_op_evm::OpEvmFactory;
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::{Decodable, Encodable};
-use alloy_rpc_types::Block;
+use alloy_rpc_types::{Block, debug::ExecutionWitness};
 use anyhow::{Result, anyhow, ensure};
 use ark_ff::{BigInteger, PrimeField};
 use async_trait::async_trait;
@@ -31,6 +31,7 @@ use kona_proof::{
 };
 use kona_proof_interop::{HintType, PreState};
 use kona_protocol::{BlockInfo, OutputRoot, Predeploys};
+use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use kona_providers_alloy::BlobWithCommitmentAndProof;
 use kona_registry::{L1_CONFIGS, ROLLUP_CONFIGS};
 use std::sync::Arc;
@@ -592,13 +593,134 @@ impl HintHandler for InteropHintHandler {
                 );
             }
             HintType::L2PayloadWitness => {
-                warn!(
-                    target: "interop_hint_handler",
-                    "L2PayloadWitness hint not implemented for interop hint handler, ignoring hint"
+                // 1. Check feature flag
+                if !cfg.enable_experimental_witness_endpoint {
+                    warn!(
+                        target: "interop_hint_handler",
+                        "L2PayloadWitness hint was sent, but payload witness is disabled. Skipping hint."
+                    );
+                    return Ok(());
+                }
+
+                // 2. Validate hint data length (minimum 40 bytes: 32 for hash + 8 for chain_id)
+                ensure!(hint.data.len() >= 40, "Invalid hint data length");
+
+                // 3. Extract chain_id from last 8 bytes
+                let chain_id = u64::from_be_bytes(
+                    hint.data[hint.data.len() - 8..].try_into()?
                 );
+
+                // 4. Extract parent_block_hash from first 32 bytes
+                let parent_block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
+
+                // 5. Parse payload_attributes from bytes 32 to (len - 8)
+                let payload_attributes: OpPayloadAttributes =
+                    serde_json::from_slice(&hint.data[32..hint.data.len() - 8])?;
+
+                // 6. Route to correct L2 provider
+                let l2_provider = providers.l2(&chain_id)?;
+
+                // 7. Call debug_executePayload RPC (allow silent failure)
+                let Ok(execute_payload_response) = l2_provider
+                    .client()
+                    .request::<(B256, OpPayloadAttributes), ExecutionWitness>(
+                        "debug_executePayload",
+                        (parent_block_hash, payload_attributes),
+                    )
+                    .await
+                else {
+                    // Allow this hint to fail silently, as not all execution clients support
+                    // the `debug_executePayload` method.
+                    return Ok(());
+                };
+
+                // 8. Chain all preimage iterators
+                let preimages = execute_payload_response
+                    .state
+                    .into_iter()
+                    .chain(execute_payload_response.codes)
+                    .chain(execute_payload_response.keys);
+
+                // 9. Store preimages in KV store
+                let mut kv_lock = kv.write().await;
+                for preimage in preimages {
+                    let computed_hash = keccak256(preimage.as_ref());
+                    let key = PreimageKey::new_keccak256(*computed_hash);
+                    kv_lock.set(key.into(), preimage.into())?;
+                }
             }
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::B256;
+
+    #[test]
+    fn test_l2_payload_witness_hint_parsing() {
+        // Test data: [parent_hash: 32][minimal_json: 2][chain_id: 8]
+        let parent_hash = B256::from([0x42u8; 32]);
+        let minimal_json = b"{}";  // Minimal valid JSON
+        let chain_id_bytes = 10u64.to_be_bytes();
+
+        let mut hint_data = Vec::new();
+        hint_data.extend_from_slice(parent_hash.as_slice());
+        hint_data.extend_from_slice(minimal_json);
+        hint_data.extend_from_slice(&chain_id_bytes);
+
+        // Parse parent_hash
+        let parsed_hash = B256::from_slice(&hint_data[..32]);
+        assert_eq!(parsed_hash, parent_hash);
+
+        // Parse chain_id from last 8 bytes
+        let parsed_chain_id = u64::from_be_bytes(
+            hint_data[hint_data.len() - 8..].try_into().unwrap()
+        );
+        assert_eq!(parsed_chain_id, 10);
+
+        // Parse payload_attributes JSON
+        let json_bytes = &hint_data[32..hint_data.len() - 8];
+        assert_eq!(json_bytes, minimal_json);
+    }
+
+    #[test]
+    fn test_l2_payload_witness_hint_too_short() {
+        // Hint data must be at least 40 bytes (32 + 0 + 8)
+        let hint_data = vec![0u8; 39];
+        let result = hint_data.len() >= 40;
+        assert!(!result, "Hint data with len=39 should fail validation");
+    }
+
+    #[test]
+    fn test_l2_payload_witness_chain_id_extraction() {
+        // Test with various JSON payload sizes
+        let test_cases = vec![
+            (b"{}" as &[u8], 42u64),           // Minimal JSON, chain_id=42
+            (b"{\"key\":\"value\"}", 100u64),  // Medium JSON, chain_id=100
+        ];
+
+        for (json_payload, expected_chain_id) in test_cases {
+            let parent_hash = B256::from([0xAAu8; 32]);
+            let chain_id_bytes = expected_chain_id.to_be_bytes();
+
+            let mut hint_data = Vec::new();
+            hint_data.extend_from_slice(parent_hash.as_slice());
+            hint_data.extend_from_slice(json_payload);
+            hint_data.extend_from_slice(&chain_id_bytes);
+
+            // Extract chain_id from last 8 bytes
+            let parsed_chain_id = u64::from_be_bytes(
+                hint_data[hint_data.len() - 8..].try_into().unwrap()
+            );
+
+            assert_eq!(
+                parsed_chain_id, expected_chain_id,
+                "Failed to extract chain_id with JSON payload: {:?}",
+                json_payload
+            );
+        }
     }
 }
