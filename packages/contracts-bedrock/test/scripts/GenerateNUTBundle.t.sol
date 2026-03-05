@@ -105,9 +105,6 @@ contract GenerateNUTBundleTest is Test {
         GenerateNUTBundle.Output memory output1 = script.run();
         GenerateNUTBundle.Output memory output2 = script.run();
 
-        // Verify same number of transactions
-        assertEq(output1.txns.length, output2.txns.length, "Should produce same number of transactions");
-
         _compareTransactions(output1, output2);
     }
 
