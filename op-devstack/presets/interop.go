@@ -108,6 +108,11 @@ func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
 	}
 }
 
+func (s *SingleChainInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
+	supernode := s.system.Supernode(match.Assume(s.T, match.FirstSupernode))
+	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, supernode, s.challengerConfig)
+}
+
 func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	ttSys, ok := s.system.(stack.TimeTravelSystem)
 	s.T.Require().True(ok, "attempting to advance time on incompatible system")
@@ -168,6 +173,18 @@ func WithIsthmusSuperSupernode() stack.CommonOption {
 
 func WithIsthmusSuper() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultIsthmusSuperProofsSystem(&sysgo.DefaultInteropSystemIDs{}))
+}
+
+// WithSingleChainIsthmusSuperSupernode specifies a single-chain super root system
+// (for proofs) that sources super-roots via op-supernode, without interop at genesis.
+func WithSingleChainIsthmusSuperSupernode() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSingleChainSupernodeIsthmusSuperProofsSystem(&sysgo.DefaultSingleChainSupernodeProofsSystemIDs{}))
+}
+
+// WithSingleChainSuperInteropSupernode specifies a single-chain super root system
+// (for proofs) that sources super-roots via op-supernode, with interop at genesis.
+func WithSingleChainSuperInteropSupernode() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSingleChainSupernodeInteropProofsSystem(&sysgo.DefaultSingleChainSupernodeProofsSystemIDs{}))
 }
 
 // WithUnscheduledInterop adds a test-gate to not run the test if the interop upgrade is scheduled.

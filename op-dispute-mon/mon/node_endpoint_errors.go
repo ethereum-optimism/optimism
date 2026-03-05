@@ -26,8 +26,8 @@ func (m *NodeEndpointErrorsMonitor) CheckNodeEndpointErrors(games []*types.Enric
 	uniqueEndpointErrors := make(map[string]bool)
 
 	for _, game := range games {
-		if len(game.RollupEndpointErrors) != 0 {
-			for endpointID := range game.RollupEndpointErrors {
+		if len(game.NodeEndpointErrors) != 0 {
+			for endpointID := range game.NodeEndpointErrors {
 				uniqueEndpointErrors[endpointID] = true
 			}
 		}

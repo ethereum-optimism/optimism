@@ -241,6 +241,12 @@ func (s *Service) initRPCServer(cfg *Config) error {
 		Authenticated: false,
 	})
 
+	server.AddAPI(rpc.API{
+		Namespace:     "admin",
+		Service:       &PublicAdminFrontend{backend: s.backend},
+		Authenticated: false,
+	})
+
 	s.rpcServer = server
 	return nil
 }

@@ -25,7 +25,7 @@ func (m *NodeEndpointOutOfSyncMonitor) CheckNodeEndpointOutOfSync(games []*types
 	totalOutOfSync := 0
 
 	for _, game := range games {
-		totalOutOfSync += game.RollupEndpointOutOfSyncCount
+		totalOutOfSync += game.NodeEndpointOutOfSyncCount
 	}
 
 	m.metrics.RecordNodeEndpointOutOfSyncCount(totalOutOfSync)

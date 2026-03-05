@@ -68,7 +68,7 @@ The system is integrated into CircleCI via the `ai-contracts-test-workflow` work
 ai-contracts-test:
   resource_class: medium
   docker:
-    - image: cimg/base:2024.01
+    - image: cimg/base:2026.03
   steps:
     - utils/checkout-with-mise
     - run: just ai-contracts-test

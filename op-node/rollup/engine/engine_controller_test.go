@@ -7,6 +7,7 @@ import (
 	mrand "math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -396,6 +397,101 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 }
 
 // SuperAuthority tests are in super_authority_deny_test.go
+
+// TestFollowSource_DivergentLocalSafeAndCrossSafe verifies that FollowSource correctly handles
+// the case where external cross-safe and local-safe values diverge. After the fix:
+//   - Consolidation/reorg checks use eLocalSafeRef (not eSafeBlockRef)
+//   - PromoteSafe injects the external cross-safe head
+//   - promoteFinalized succeeds because cross-safe is set before finalized is promoted
+func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(9999))
+
+	// Create block refs for a simple chain: block1 → block2 → block3 → block4 → block5
+	l1Origin := testutils.RandomBlockRef(rng)
+
+	block1 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 1,
+		ParentHash: testutils.RandomHash(rng), Time: l1Origin.Time + 1,
+		L1Origin: l1Origin.ID(), SequenceNumber: 1,
+	}
+	block2 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 2,
+		ParentHash: block1.Hash, Time: l1Origin.Time + 2,
+		L1Origin: l1Origin.ID(), SequenceNumber: 2,
+	}
+	block3 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 3,
+		ParentHash: block2.Hash, Time: l1Origin.Time + 3,
+		L1Origin: l1Origin.ID(), SequenceNumber: 3,
+	}
+	block4 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 4,
+		ParentHash: block3.Hash, Time: l1Origin.Time + 4,
+		L1Origin: l1Origin.ID(), SequenceNumber: 4,
+	}
+	block5 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 5,
+		ParentHash: block4.Hash, Time: l1Origin.Time + 5,
+		L1Origin: l1Origin.ID(), SequenceNumber: 5,
+	}
+
+	interopTime := uint64(0)
+	cfg := &rollup.Config{InteropTime: &interopTime}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+
+	// FollowSourceEnabled=true with no superAuthority:
+	//   SafeL2Head() returns deprecatedSafeHead (cross-safe)
+	//   FinalizedHead() returns deprecatedFinalizedHead
+	// This lets us observe cross-safe independently from local-safe.
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, false, &testutils.MockL1Source{}, emitter, nil)
+
+	// Initial state: unsafe=block5, localSafe=block2, crossSafe=block2, finalized=block1
+	ec.unsafeHead = block5
+	ec.SetLocalSafeHead(block2)
+	ec.SetSafeHead(block2)      // deprecatedSafeHead = block2
+	ec.SetFinalizedHead(block1) // deprecatedFinalizedHead = block1
+	ec.needFCUCall = false      // reset after setup
+
+	// Mock expectations:
+	// Allow any events from the emitter (LocalSafeUpdateEvent, SafeDerivedEvent, etc.)
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+
+	// Consolidation lookup: after fix, uses eLocalSafeRef.Number (5)
+	mockEngine.ExpectL2BlockRefByNumber(5, block5, nil)
+
+	// FCU from PromoteSafe's tryUpdateEngine: safe=block4, finalized still block1
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      block5.Hash,
+			SafeBlockHash:      block4.Hash,
+			FinalizedBlockHash: block1.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+	// FCU from promoteFinalized's tryUpdateEngine: finalized now block3
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      block5.Hash,
+			SafeBlockHash:      block4.Hash,
+			FinalizedBlockHash: block3.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+
+	// Call FollowSource with divergent cross-safe (block4) and local-safe (block5)
+	ec.FollowSource(block4, block5, block3)
+
+	// Assert the final head state
+	require.Equal(t, block5, ec.localSafeHead, "localSafeHead should be updated to block5")
+	require.Equal(t, block4, ec.deprecatedSafeHead, "deprecatedSafeHead (cross-safe) should be updated to block4")
+	require.Equal(t, block3, ec.deprecatedFinalizedHead, "deprecatedFinalizedHead (cross-finalized) should be updated to block3")
+
+	// Assert the invariant: cross-safe <= local-safe
+	require.LessOrEqual(t, ec.deprecatedSafeHead.Number, ec.localSafeHead.Number,
+		"invariant: cross-safe (deprecatedSafeHead) must not exceed local-safe")
+}
 
 // TestEngineController_FinalizedHead tests FinalizedHead behavior with various configurations
 func TestEngineController_FinalizedHead(t *testing.T) {

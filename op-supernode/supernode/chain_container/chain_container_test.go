@@ -660,8 +660,9 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		// Verify RewindToTimestamp was called multiple times (retry attempts)
 		require.Greater(t, mockEngine.rewindToTimestampCalled, 1, "RewindToTimestamp should be retried at least once")
 
-		// Container should still be paused since rewind failed
-		require.True(t, c.pause.Load(), "Container should remain paused after failed rewind")
+		// Container should be resumed even after a failed rewind, so the Start() loop
+		// can detect the stop flag and exit cleanly instead of spinning forever.
+		require.False(t, c.pause.Load(), "Container should be resumed (not stuck paused) after failed rewind")
 	})
 
 	t.Run("does not retry critical errors", func(t *testing.T) {

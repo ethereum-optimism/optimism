@@ -18,6 +18,11 @@ type presetNetwork struct {
 	chainCfg *params.ChainConfig
 	chainID  eth.ChainID
 
+	// Unified component registry for generic access
+	registry *stack.Registry
+
+	// Legacy typed maps - kept for backward compatibility during migration
+	// These will be removed once all callers migrate to generic access
 	faucets     locks.RWMap[stack.FaucetID, stack.Faucet]
 	syncTesters locks.RWMap[stack.SyncTesterID, stack.SyncTester]
 }
@@ -30,7 +35,29 @@ func newNetwork(cfg NetworkConfig) presetNetwork {
 		commonImpl: newCommon(cfg.CommonConfig),
 		chainCfg:   cfg.ChainConfig,
 		chainID:    eth.ChainIDFromBig(cfg.ChainConfig.ChainID),
+		registry:   stack.NewRegistry(),
 	}
+}
+
+// --- ComponentRegistry interface implementation ---
+
+func (p *presetNetwork) Component(id stack.ComponentID) (any, bool) {
+	return p.registry.Get(id)
+}
+
+func (p *presetNetwork) Components(kind stack.ComponentKind) []any {
+	ids := p.registry.IDsByKind(kind)
+	result := make([]any, 0, len(ids))
+	for _, id := range ids {
+		if comp, ok := p.registry.Get(id); ok {
+			result = append(result, comp)
+		}
+	}
+	return result
+}
+
+func (p *presetNetwork) ComponentIDs(kind stack.ComponentKind) []stack.ComponentID {
+	return p.registry.IDsByKind(kind)
 }
 
 func (p *presetNetwork) ChainID() eth.ChainID {
@@ -59,6 +86,8 @@ func (p *presetNetwork) AddFaucet(v stack.Faucet) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "faucet %s must be on chain %s", id, p.chainID)
 	p.require().True(p.faucets.SetIfMissing(id, v), "faucet %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertFaucetID(id).ComponentID, v)
 }
 
 func (p *presetNetwork) SyncTesterIDs() []stack.SyncTesterID {
@@ -79,4 +108,6 @@ func (p *presetNetwork) AddSyncTester(v stack.SyncTester) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "sync tester %s must be on chain %s", id, p.chainID)
 	p.require().True(p.syncTesters.SetIfMissing(id, v), "sync tester %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertSyncTesterID(id).ComponentID, v)
 }

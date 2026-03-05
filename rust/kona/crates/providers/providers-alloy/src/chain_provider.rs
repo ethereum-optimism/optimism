@@ -9,7 +9,7 @@ use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind};
 use alloy_transport_http::reqwest;
 use async_trait::async_trait;
-use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind};
+use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_protocol::BlockInfo;
 use lru::LruCache;
 use std::{boxed::Box, num::NonZeroUsize, vec::Vec};
@@ -128,7 +128,16 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                 Self::Temporary(PipelineError::Provider(format!("Transport error: {e}")))
             }
             AlloyChainProviderError::BlockNotFound(id) => {
-                Self::Temporary(PipelineError::Provider(format!("L1 Block not found: {id}")))
+                // A hash-based lookup returning not-found means the block was reorged
+                // out of the chain — retrying will never succeed, so reset.
+                // A number-based lookup returning not-found means the next L1 block
+                // hasn't been produced yet — this is transient, so Temporary.
+                match id {
+                    BlockId::Hash(_) => ResetError::BlockNotFound(id).reset(),
+                    BlockId::Number(_) => Self::Temporary(PipelineError::Provider(format!(
+                        "L1 Block not found: {id}"
+                    ))),
+                }
             }
             AlloyChainProviderError::ReceiptsConversion(_) => {
                 Self::Temporary(PipelineError::Provider(
@@ -268,5 +277,43 @@ impl ChainProvider for AlloyChainProvider {
         kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "block_info_and_tx");
 
         Ok((block_info, block.body.transactions))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_alloy_chain_provider_error() {
+        // Transport errors are transient — retry makes sense.
+        let transport_err =
+            AlloyChainProviderError::Transport(alloy_transport::RpcError::Transport(
+                alloy_transport::TransportErrorKind::Custom("timeout".into()),
+            ));
+        let kind: PipelineErrorKind = transport_err.into();
+        assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
+
+        // ReceiptsConversion is a transient decode failure.
+        let kind: PipelineErrorKind =
+            AlloyChainProviderError::ReceiptsConversion(Default::default()).into();
+        assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
+
+        // Hash-based BlockNotFound: the block was reorged out. Retrying will never succeed
+        // — the pipeline must reset. Without this, the safe head stalls on L1 reorgs.
+        let kind: PipelineErrorKind =
+            AlloyChainProviderError::BlockNotFound(B256::default().into()).into();
+        assert!(
+            matches!(kind, PipelineErrorKind::Reset(_)),
+            "hash-based BlockNotFound must map to Reset (block reorged out)"
+        );
+
+        // Number-based BlockNotFound: the next L1 block hasn't been mined yet. This is
+        // transient — the pipeline must wait, not reset.
+        let kind: PipelineErrorKind = AlloyChainProviderError::BlockNotFound(0u64.into()).into();
+        assert!(
+            matches!(kind, PipelineErrorKind::Temporary(_)),
+            "number-based BlockNotFound must stay Temporary (block not yet produced)"
+        );
     }
 }

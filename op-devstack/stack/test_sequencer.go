@@ -14,6 +14,11 @@ var _ GenericID = (*TestSequencerID)(nil)
 
 const TestSequencerKind Kind = "TestSequencer"
 
+// NewTestSequencerID creates a new TestSequencerID with the given key.
+func NewTestSequencerID(key string) TestSequencerID {
+	return TestSequencerID(key)
+}
+
 func (id TestSequencerID) String() string {
 	return genericID(id).string(TestSequencerKind)
 }

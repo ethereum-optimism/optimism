@@ -78,29 +78,30 @@ type EnrichedGameData struct {
 	// that use the same DelayedWETH contract.
 	ETHCollateral *big.Int
 
-	// RollupEndpointErrors stores endpoint IDs that returned errors other than "not found" for this game.
-	RollupEndpointErrors map[string]bool
+	// NodeEndpointErrors stores endpoint IDs that returned errors other than "not found" for this game.
+	NodeEndpointErrors map[string]bool
 
-	// RollupEndpointErrorCount tracks the total number of errors for this game across all endpoints.
-	RollupEndpointErrorCount int
+	// NodeEndpointErrorCount tracks the total number of errors for this game across all endpoints.
+	NodeEndpointErrorCount int
 
-	// RollupEndpointNotFoundCount tracks the number of endpoints that returned "not found" for this game.
-	RollupEndpointNotFoundCount int
+	// NodeEndpointNotFoundCount tracks the number of endpoints that returned "not found" for this game.
+	NodeEndpointNotFoundCount int
 
-	// RollupEndpointOutOfSyncCount tracks the number of endpoints that were out of sync for this game.
-	RollupEndpointOutOfSyncCount int
+	// NodeEndpointOutOfSyncCount tracks the number of endpoints that were out of sync for this game.
+	NodeEndpointOutOfSyncCount int
 
-	// RollupEndpointTotalCount tracks the total number of rollup endpoints attempted for this game.
-	RollupEndpointTotalCount int
+	// NodeEndpointTotalCount tracks the total number of endpoints attempted for this game.
+	NodeEndpointTotalCount int
 
-	// RollupEndpointSafeCount tracks the number of rollup endpoints that reported the root as safe.
-	RollupEndpointSafeCount int
+	// NodeEndpointSafeCount tracks the number of endpoints that reported the root as safe.
+	NodeEndpointSafeCount int
 
-	// RollupEndpointUnsafeCount tracks the number of rollup endpoints that reported the root as unsafe.
-	RollupEndpointUnsafeCount int
+	// NodeEndpointUnsafeCount tracks the number of endpoints that reported the root as unsafe.
+	NodeEndpointUnsafeCount int
 
-	// RollupEndpointDifferentOutputRoots tracks whether rollup endpoints returned different output roots for this game.
-	RollupEndpointDifferentOutputRoots bool
+	// NodeEndpointDifferentRoots tracks whether endpoints returned different roots for this game.
+	// For output root games, this means different output roots. For super root games, different super roots.
+	NodeEndpointDifferentRoots bool
 }
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
@@ -108,21 +109,21 @@ func (g EnrichedGameData) UsesOutputRoots() bool {
 	return slices.Contains(outputRootGameTypes, types.GameType(g.GameType))
 }
 
-// HasMixedAvailability returns true if some rollup endpoints returned "not found" while others succeeded
-// for this game. This indicates inconsistent block availability across the rollup node network.
+// HasMixedAvailability returns true if some endpoints returned "not found" while others succeeded
+// for this game. This indicates inconsistent block availability across the node network.
 func (g EnrichedGameData) HasMixedAvailability() bool {
-	if g.RollupEndpointTotalCount == 0 {
+	if g.NodeEndpointTotalCount == 0 {
 		return false
 	}
 
-	successfulEndpoints := g.RollupEndpointTotalCount - g.RollupEndpointErrorCount - g.RollupEndpointNotFoundCount
-	return g.RollupEndpointNotFoundCount > 0 && successfulEndpoints > 0
+	successfulEndpoints := g.NodeEndpointTotalCount - g.NodeEndpointErrorCount - g.NodeEndpointNotFoundCount
+	return g.NodeEndpointNotFoundCount > 0 && successfulEndpoints > 0
 }
 
-// HasMixedSafety returns true if some rollup endpoints reported the root as safe and others as unsafe
-// for this game. This indicates inconsistent safety assessment across the rollup node network.
+// HasMixedSafety returns true if some endpoints reported the root as safe and others as unsafe
+// for this game. This indicates inconsistent safety assessment across the node network.
 func (g EnrichedGameData) HasMixedSafety() bool {
-	return g.RollupEndpointSafeCount > 0 && g.RollupEndpointUnsafeCount > 0
+	return g.NodeEndpointSafeCount > 0 && g.NodeEndpointUnsafeCount > 0
 }
 
 // BidirectionalTree is a tree of claims represented as a flat list of claims.

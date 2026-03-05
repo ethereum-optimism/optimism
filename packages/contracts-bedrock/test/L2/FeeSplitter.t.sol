@@ -11,6 +11,7 @@ import { RevertingRecipient } from "test/mocks/RevertingRecipient.sol";
 import { ReentrantMockFeeVault } from "test/mocks/ReentrantMockFeeVault.sol";
 
 // Libraries
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 
@@ -127,7 +128,7 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
 
     /// @notice Test that the implementation contract disables initializers in the constructor
     function test_feeSplitterImplementation_constructorDisablesInitializers_succeeds() public {
-        bytes memory creationCode = vm.getCode("FeeSplitter.sol:FeeSplitter");
+        bytes memory creationCode = DeployUtils.getCode("FeeSplitter");
         address implementation;
 
         // Expect the Initialized event to be emitted
