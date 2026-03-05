@@ -2669,11 +2669,12 @@ contract OptimismPortal2_Params_Test is CommonTest {
         // Replace the gas burn vm.assume with a direct bound on _prevBaseFee.
         // For m > 0: p*m/100 < T ↔ p ≤ (100*T - 1)/m  (proved in FuzzProof.lean, GasBurnEquivalence).
         // For m = 0: gas burn is always 0 < T, so no cap needed.
-        uint256 gasBurnDenom = maxPercentIncrease * uint256(_gasLimit);
-        uint256 gasBurnCap = gasBurnDenom == 0
-            ? 3 gwei
-            : (uint256(MAX_GAS_LIMIT) * 4 / 5 * 100 - 1) / gasBurnDenom;
-        _prevBaseFee = uint128(bound(_prevBaseFee, 0, gasBurnCap < 3 gwei ? gasBurnCap : 3 gwei));
+        // Scoped block to avoid stack-too-deep in the lite (non-via-IR) build profile.
+        {
+            uint256 gasBurnDenom = maxPercentIncrease * uint256(_gasLimit);
+            uint256 gasBurnCap = gasBurnDenom == 0 ? 3 gwei : (uint256(MAX_GAS_LIMIT) * 4 / 5 * 100 - 1) / gasBurnDenom;
+            _prevBaseFee = uint128(bound(_prevBaseFee, 0, gasBurnCap < 3 gwei ? gasBurnCap : 3 gwei));
+        }
 
         // Pick a pseudorandom block number
         vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max) + uint256(_blockDiff));
