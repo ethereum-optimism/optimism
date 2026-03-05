@@ -79,6 +79,7 @@ contract L2Genesis is Script {
         address chainFeesRecipient;
         address l1FeesDepositor;
         bool useCustomGasToken;
+        bool useInterop;
         string gasPayingTokenName;
         string gasPayingTokenSymbol;
         uint256 nativeAssetLiquidityAmount;
@@ -228,7 +229,11 @@ contract L2Genesis is Script {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (Predeploys.isSupportedPredeploy(addr, _input.fork, _input.useCustomGasToken, _input.devFeatureBitmap)) {
+            if (
+                Predeploys.isSupportedPredeploy(
+                    addr, _input.fork, _input.useCustomGasToken, _input.useInterop, _input.devFeatureBitmap
+                )
+            ) {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -264,10 +269,7 @@ contract L2Genesis is Script {
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         setFeeSplitter(_input); // 2B: FeeSplitter
-        if (
-            _input.fork >= uint256(Fork.INTEROP)
-                && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-        ) {
+        if (_input.fork >= uint256(Fork.INTEROP) && _input.useInterop) {
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
         }

@@ -34,6 +34,7 @@ type L2GenesisInput struct {
 	ChainFeesRecipient                       common.Address
 	L1FeesDepositor                          common.Address
 	UseCustomGasToken                        bool
+	UseInterop                               bool
 	GasPayingTokenName                       string
 	GasPayingTokenSymbol                     string
 	NativeAssetLiquidityAmount               *big.Int

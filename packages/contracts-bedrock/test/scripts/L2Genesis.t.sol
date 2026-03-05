@@ -74,7 +74,7 @@ abstract contract L2Genesis_TestInit is Test {
             // If it's not a supported predeploy, skip next checks.
             if (
                 !Predeploys.isSupportedPredeploy(
-                    addr, uint256(LATEST_FORK), input.useCustomGasToken, input.devFeatureBitmap
+                    addr, uint256(LATEST_FORK), input.useCustomGasToken, input.useInterop, input.devFeatureBitmap
                 )
             ) {
                 continue;
@@ -261,11 +261,12 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             chainFeesRecipient: address(0x000000000000000000000000000000000000000b),
             l1FeesDepositor: address(0x000000000000000000000000000000000000000C),
             useCustomGasToken: false,
+            useInterop: false,
             gasPayingTokenName: "",
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
-            devFeatureBitmap: bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            devFeatureBitmap: bytes32(0)
         });
     }
 
@@ -381,6 +382,33 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
 
         vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredOperatorFeeVault.selector);
         genesis.run(input);
+    }
+
+    /// @notice Helper function to configure input for interop enabled tests.
+    function _setInputInteropEnabled() internal {
+        input.useInterop = true;
+        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
+    /// @notice Asserts that the interop predeploys are present in genesis.
+    function testInterop() internal view {
+        assertGt(Predeploys.CROSS_L2_INBOX.code.length, 0, "CrossL2Inbox must have code");
+        assertGt(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.code.length, 0, "L2ToL2CrossDomainMessenger must have code");
+    }
+
+    /// @notice Tests that the run function succeeds when interop is enabled.
+    function test_run_withInterop_succeeds() external {
+        _setInputInteropEnabled();
+        genesis.run(input);
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaultsWithRevenueShare();
+        testGovernance();
+        testFactories();
+        testForks();
+        testFeeSplitter();
+        testInterop();
     }
 
     /// @notice Helper function to configure input for CGT enabled tests.

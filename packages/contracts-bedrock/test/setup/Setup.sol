@@ -358,6 +358,7 @@ abstract contract Setup is FeatureFlags {
                 enableGovernance: deploy.cfg().enableGovernance(),
                 fundDevAccounts: deploy.cfg().fundDevAccounts(),
                 useRevenueShare: deploy.cfg().useRevenueShare(),
+                useInterop: deploy.cfg().useInterop(),
                 chainFeesRecipient: deploy.cfg().chainFeesRecipient(),
                 l1FeesDepositor: deploy.cfg().l1FeesDepositor(),
                 useCustomGasToken: deploy.cfg().useCustomGasToken(),

@@ -175,11 +175,20 @@ library Predeploys {
         return _addr == GOVERNANCE_TOKEN || _addr == WETH;
     }
 
-    /// @notice Returns true if the address is a defined predeploy that is embedded into new OP-Stack chains.
+    /// @notice Returns true if the address is a supported predeploy on this chain.
+    /// @param _addr             The address of the predeploy to check.
+    /// @param _fork             The fork number for which support is being checked.
+    /// @param _isCustomGasToken Whether the chain uses a custom gas token. Enables CGT-specific predeploys
+    ///                          (LiquidityController, NativeAssetLiquidity).
+    /// @param _useInterop       Whether interop is enabled as a system configuration on this chain.
+    /// @param _devFeatureBitmap Per-chain dev feature bitmap stored in L2DevFeatureFlags. Controls conditional
+    ///                          predeploys still behind dev flags.
+    /// @return                  True if the predeploy is supported on this fork with the given feature flags.
     function isSupportedPredeploy(
         address _addr,
         uint256 _fork,
         bool _isCustomGasToken,
+        bool _useInterop,
         bytes32 _devFeatureBitmap
     )
         internal
@@ -187,7 +196,8 @@ library Predeploys {
         returns (bool)
     {
         bool _useL2CM = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.L2CM);
-        bool _useInterop = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        bool _isInteropDevFeatureEnabled =
+            DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         return _addr == LEGACY_MESSAGE_PASSER || _addr == DEPLOYER_WHITELIST || _addr == WETH
             || _addr == L2_CROSS_DOMAIN_MESSENGER || _addr == GAS_PRICE_ORACLE || _addr == L2_STANDARD_BRIDGE
@@ -196,9 +206,11 @@ library Predeploys {
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
             || _addr == GOVERNANCE_TOKEN || _addr == FEE_SPLITTER
-            || (_fork >= uint256(Fork.INTEROP) && _useInterop && _addr == CROSS_L2_INBOX)
-            || (_fork >= uint256(Fork.INTEROP) && _useInterop && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER)
-            || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
+            || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == CROSS_L2_INBOX)
+            || (
+                _fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop
+                    && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER
+            ) || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
             || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY) || (_useL2CM && _addr == CONDITIONAL_DEPLOYER)
             || (_useL2CM && _addr == L2_DEV_FEATURE_FLAGS);
     }
