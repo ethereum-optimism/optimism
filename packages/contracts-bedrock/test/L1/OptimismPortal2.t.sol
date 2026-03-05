@@ -2663,46 +2663,51 @@ contract OptimismPortal2_Params_Test is CommonTest {
         vm.assume(_minimumBaseFee < _maximumBaseFee);
 
         // Base fee can increase quickly and mean that we can't buy the amount of gas we want.
-        // Compute the maximum possible increase in base fee.
-        uint256 maxPercentIncrease = uint256(_elasticityMultiplier - 1) * 100 / uint256(_baseFeeMaxChangeDenominator);
-
         // Replace the gas burn vm.assume with a direct bound on _prevBaseFee.
         // For m > 0: p*m/100 < T ↔ p ≤ (100*T - 1)/m  (proved in FuzzProof.lean, GasBurnEquivalence).
         // For m = 0: gas burn is always 0 < T, so no cap needed.
-        // Scoped block to avoid stack-too-deep in the lite (non-via-IR) build profile.
+        // Scoped to free stack slots for the assertions below (lite profile, no via-IR).
         {
+            uint256 maxPercentIncrease =
+                uint256(_elasticityMultiplier - 1) * 100 / uint256(_baseFeeMaxChangeDenominator);
             uint256 gasBurnDenom = maxPercentIncrease * uint256(_gasLimit);
-            uint256 gasBurnCap = gasBurnDenom == 0 ? 3 gwei : (uint256(MAX_GAS_LIMIT) * 4 / 5 * 100 - 1) / gasBurnDenom;
+            uint256 gasBurnCap = gasBurnDenom == 0
+                ? 3 gwei
+                : (uint256(MAX_GAS_LIMIT) * 4 / 5 * 100 - 1) / gasBurnDenom;
             _prevBaseFee = uint128(bound(_prevBaseFee, 0, gasBurnCap < 3 gwei ? gasBurnCap : 3 gwei));
         }
 
         // Pick a pseudorandom block number
         vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max) + uint256(_blockDiff));
 
-        // Create a resource config to mock the call to the system config with
-        IResourceMetering.ResourceConfig memory rcfg = IResourceMetering.ResourceConfig({
-            maxResourceLimit: _maxResourceLimit,
-            elasticityMultiplier: _elasticityMultiplier,
-            baseFeeMaxChangeDenominator: _baseFeeMaxChangeDenominator,
-            minimumBaseFee: _minimumBaseFee,
-            systemTxMaxGas: _systemTxMaxGas,
-            maximumBaseFee: _maximumBaseFee
-        });
-        vm.mockCall(address(systemConfig), abi.encodeCall(systemConfig.resourceConfig, ()), abi.encode(rcfg));
+        // Create a resource config to mock the call to the system config with.
+        // Scoped to free stack slots before the params() destructuring below.
+        {
+            IResourceMetering.ResourceConfig memory rcfg = IResourceMetering.ResourceConfig({
+                maxResourceLimit: _maxResourceLimit,
+                elasticityMultiplier: _elasticityMultiplier,
+                baseFeeMaxChangeDenominator: _baseFeeMaxChangeDenominator,
+                minimumBaseFee: _minimumBaseFee,
+                systemTxMaxGas: _systemTxMaxGas,
+                maximumBaseFee: _maximumBaseFee
+            });
+            vm.mockCall(address(systemConfig), abi.encodeCall(systemConfig.resourceConfig, ()), abi.encode(rcfg));
+        }
 
-        // Set the resource params
-        uint256 _prevBlockNum = block.number - _blockDiff;
-        vm.store(
-            address(optimismPortal2),
-            bytes32(uint256(1)),
-            bytes32((_prevBlockNum << 192) | (uint256(_prevBoughtGas) << 128) | _prevBaseFee)
-        );
-
-        // Ensure that the storage setting is correct
-        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal2.params();
-        assertEq(prevBaseFee, _prevBaseFee);
-        assertEq(prevBoughtGas, _prevBoughtGas);
-        assertEq(prevBlockNum, _prevBlockNum);
+        // Set the resource params and verify storage is correct.
+        // Scoped to keep _prevBlockNum and the params() tuple off the outer stack.
+        {
+            uint256 _prevBlockNum = block.number - _blockDiff;
+            vm.store(
+                address(optimismPortal2),
+                bytes32(uint256(1)),
+                bytes32((_prevBlockNum << 192) | (uint256(_prevBoughtGas) << 128) | _prevBaseFee)
+            );
+            (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal2.params();
+            assertEq(prevBaseFee, _prevBaseFee);
+            assertEq(prevBoughtGas, _prevBoughtGas);
+            assertEq(prevBlockNum, _prevBlockNum);
+        }
 
         // Do a deposit, should not revert
         optimismPortal2.depositTransaction{ gas: MAX_GAS_LIMIT }({
