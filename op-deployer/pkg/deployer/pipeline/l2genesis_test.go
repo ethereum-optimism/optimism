@@ -15,38 +15,38 @@ import (
 )
 
 func TestBuildDevFeatureBitmap(t *testing.T) {
+	// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
 	interopBit := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-	otherBit := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
 
 	tests := []struct {
 		name       string
 		useInterop bool
 		bitmap     common.Hash
-		wantBit    bool
+		wantError  bool
 	}{
 		{
 			name:       "UseInterop=true, interop bit set: interop enabled",
 			useInterop: true,
 			bitmap:     interopBit,
-			wantBit:    true,
+			wantError:  false,
 		},
 		{
 			name:       "UseInterop=true, interop bit not set: interop not enabled",
 			useInterop: true,
 			bitmap:     common.Hash{},
-			wantBit:    false,
+			wantError:  true,
 		},
 		{
 			name:       "UseInterop=false, interop bit set: interop not enabled",
 			useInterop: false,
 			bitmap:     interopBit,
-			wantBit:    false,
+			wantError:  true,
 		},
 		{
 			name:       "UseInterop=false, interop bit not set: no-op",
 			useInterop: false,
 			bitmap:     common.Hash{},
-			wantBit:    false,
+			wantError:  false,
 		},
 	}
 	for _, tt := range tests {
@@ -56,23 +56,15 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 				UseInterop:            tt.useInterop,
 				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.bitmap},
 			}
-			result := buildDevFeatureBitmap(intent)
-			require.Equal(t, tt.wantBit, result[31]&0x01 != 0)
+			result, err := buildDevFeatureBitmap(intent)
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.bitmap, result)
+			}
 		})
 	}
-
-	t.Run("UseInterop=false clears only interop bit, other bits preserved", func(t *testing.T) {
-		combined := common.Hash{}
-		combined[31] = interopBit[31] | otherBit[28] // interop + L2CM bits
-		intent := &state.Intent{
-			L1ContractsLocator:    &artifacts.Locator{},
-			UseInterop:            false,
-			GlobalDeployOverrides: map[string]any{"devFeatureBitmap": combined},
-		}
-		result := buildDevFeatureBitmap(intent)
-		require.Equal(t, byte(0), result[31]&0x01, "interop bit must be cleared")
-		require.Equal(t, otherBit[28], result[28], "other bits must be preserved")
-	})
 }
 
 func TestCalculateL2GenesisOverrides(t *testing.T) {

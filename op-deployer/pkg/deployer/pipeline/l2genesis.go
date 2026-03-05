@@ -83,7 +83,11 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	cgt := buildCGTConfig(thisIntent)
 
-	devFeatureBitmap := buildDevFeatureBitmap(intent)
+	devFeatureBitmap, err := buildDevFeatureBitmap(intent)
+
+	if err != nil {
+		return err
+	}
 
 	if err := script.Run(opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
@@ -198,18 +202,23 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	return big.NewInt(int64(n))
 }
 
-// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and clears the interop bit if UseInterop=false.
-// This ensures that interop feature is explicitly enabled by both the intent and boolean flag.
-// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
-func buildDevFeatureBitmap(intent *state.Intent) common.Hash {
+// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and returns an error if the interop feature
+// bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
+func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 	var devFeatureBitmap common.Hash
 	if bitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
 		devFeatureBitmap = bitmap
 	}
-	if !intent.UseInterop {
-		devFeatureBitmap[31] &= ^byte(0x01)
+
+	// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
+	interopFeatureFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+	interopBitEnabled := isDevFeatureEnabled(devFeatureBitmap, interopFeatureFlag)
+
+	if intent.UseInterop != interopBitEnabled {
+		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
 	}
-	return devFeatureBitmap
+
+	return devFeatureBitmap, nil
 }
 
 func defaultOverrides() l2GenesisOverrides {
