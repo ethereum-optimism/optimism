@@ -2671,9 +2671,7 @@ contract OptimismPortal2_Params_Test is CommonTest {
             uint256 maxPercentIncrease =
                 uint256(_elasticityMultiplier - 1) * 100 / uint256(_baseFeeMaxChangeDenominator);
             uint256 gasBurnDenom = maxPercentIncrease * uint256(_gasLimit);
-            uint256 gasBurnCap = gasBurnDenom == 0
-                ? 3 gwei
-                : (uint256(MAX_GAS_LIMIT) * 4 / 5 * 100 - 1) / gasBurnDenom;
+            uint256 gasBurnCap = gasBurnDenom == 0 ? 3 gwei : (uint256(MAX_GAS_LIMIT) * 4 / 5 * 100 - 1) / gasBurnDenom;
             _prevBaseFee = uint128(bound(_prevBaseFee, 0, gasBurnCap < 3 gwei ? gasBurnCap : 3 gwei));
         }
 
