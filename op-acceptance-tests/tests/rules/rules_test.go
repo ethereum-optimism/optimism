@@ -458,7 +458,7 @@ func TestMultipleSendersWithMixedPriorities(gt *testing.T) {
 
 		blockGroups := make(map[uint64][]txResult)
 		for _, r := range results {
-			blockNum := r.receipt.BlockNumber.Uint64()
+			blockNum := bigs.Uint64Strict(r.receipt.BlockNumber)
 			blockGroups[blockNum] = append(blockGroups[blockNum], r)
 		}
 
@@ -643,7 +643,7 @@ func TestSingleSenderRandomNonceOrderWithRandomScores(gt *testing.T) {
 		// the same block.
 		blockCounts := make(map[uint64]int)
 		for _, r := range results {
-			blockCounts[r.receipt.BlockNumber.Uint64()]++
+			blockCounts[bigs.Uint64Strict(r.receipt.BlockNumber)]++
 		}
 		maxPerBlock := 0
 		for _, c := range blockCounts {
@@ -668,9 +668,13 @@ func TestSingleSenderRandomNonceOrderWithRandomScores(gt *testing.T) {
 					next.nonce, next.tipGwei, next.weight, next.receipt.TransactionIndex,
 					cur.receipt.BlockNumber)
 			} else {
-				require.Less(t, cur.receipt.BlockNumber.Uint64(), next.receipt.BlockNumber.Uint64(),
+				require.Less(
+					t,
+					bigs.Uint64Strict(cur.receipt.BlockNumber),
+					bigs.Uint64Strict(next.receipt.BlockNumber),
 					"nonce %d must be in an earlier block than nonce %d (got blocks %d and %d)",
-					cur.nonce, next.nonce, cur.receipt.BlockNumber, next.receipt.BlockNumber)
+					cur.nonce, next.nonce, cur.receipt.BlockNumber, next.receipt.BlockNumber,
+				)
 			}
 		}
 
