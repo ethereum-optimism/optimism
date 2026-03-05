@@ -818,6 +818,66 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // Verify the system is still paused after the upgrade.
         assertTrue(superchainConfig.paused(address(0)), "System should still be paused after upgrade");
     }
+
+    /// @notice Tests upgrading the respected game type to CANNON_KONA via the override key.
+    function test_upgrade_respectedGameTypeCannonToKona_succeeds() public {
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(GameTypes.CANNON_KONA)
+            })
+        );
+        runCurrentUpgradeV2(chainPAO);
+    }
+
+    /// @notice Tests that overriding to CANNON_KONA is a no-op when already CANNON_KONA.
+    function test_upgrade_respectedGameTypeAlreadyKona_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.CANNON_KONA)
+        );
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(GameTypes.CANNON_KONA)
+            })
+        );
+        runCurrentUpgradeV2(chainPAO);
+        assertEq(
+            anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.CANNON_KONA.raw(),
+            "respected game type should remain CANNON_KONA"
+        );
+    }
+
+    /// @notice Tests that without an override the respected game type stays unchanged.
+    function test_upgrade_respectedGameTypeUnchangedWithoutOverride_succeeds() public {
+        GameType before = anchorStateRegistry.respectedGameType();
+        runCurrentUpgradeV2(chainPAO);
+        assertEq(
+            anchorStateRegistry.respectedGameType().raw(),
+            before.raw(),
+            "respected game type should be unchanged without override"
+        );
+    }
+
+    /// @notice Tests that overriding to a disabled game type reverts during upgrade.
+    function test_upgrade_respectedGameTypeOverrideToDisabled_reverts() public {
+        v2UpgradeInput.disputeGameConfigs[2].enabled = false;
+        v2UpgradeInput.disputeGameConfigs[2].initBond = 0;
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(GameTypes.CANNON_KONA)
+            })
+        );
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
 }
 
 /// @title OPContractsManagerV2_IsPermittedUpgradeSequence_Test
@@ -1063,7 +1123,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     IOPContractsManagerV2.FullConfig deployConfig;
 
     /// @notice Sets up the test.
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         // Set up default deploy config.
@@ -1257,6 +1317,40 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
             deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice PERMISSIONED_CANNON as respected game type succeeds during deploy.
+    function test_deploy_permissionedCannonRespectedGameType_succeeds() public {
+        deployConfig.startingRespectedGameType = GameTypes.PERMISSIONED_CANNON;
+        // We expect PLDG-10 and CKDG-10 validator errors because CANNON and CANNON_KONA are
+        // disabled during initial deployment (no implementations registered).
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), "PLDG-10,CKDG-10");
+        assertEq(
+            cts.anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.PERMISSIONED_CANNON.raw(),
+            "respected game type should be PERMISSIONED_CANNON"
+        );
+    }
+
+    /// @notice CANNON_KONA as respected game type reverts because its dispute game is not enabled
+    ///         during initial deployment.
+    function test_deploy_cannonKonaRespectedGameType_reverts() public {
+        deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice An invalid game type reverts.
+    function test_deploy_invalidRespectedGameType_reverts() public {
+        deployConfig.startingRespectedGameType = GameType.wrap(255);
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
         );
     }
 }
