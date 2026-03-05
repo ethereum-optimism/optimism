@@ -57,9 +57,10 @@ type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log gethl
 type VNState int
 
 const (
-	VNStateNotStarted VNState = iota
+	VNStateNotStarted  VNState = iota
 	VNStateRunning
 	VNStateStopped
+	VNStatePreStopped // Stop() called before Start() ran; Start() exits immediately
 )
 
 type simpleVirtualNode struct {
@@ -72,10 +73,9 @@ type simpleVirtualNode struct {
 	initOverload     *rollupNode.InitializationOverrides // Shared resources which are overridden by the supernode
 	innerNodeFactory innerNodeFactory                    // Factory function to create inner node (overloadable for testing)
 
-	mu         sync.Mutex         // Protects state transitions
-	state      VNState            // Current lifecycle state
-	cancel     context.CancelFunc // Cancels the running context
-	preStopped bool               // Stop() was called before Start() ran; Start() exits immediately
+	mu     sync.Mutex         // Protects state transitions
+	state  VNState            // Current lifecycle state
+	cancel context.CancelFunc // Cancels the running context
 }
 
 func generateVirtualNodeID() string {
@@ -99,17 +99,17 @@ func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rol
 func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	// Acquire lock while setting up inner node
 	v.mu.Lock()
+	// Stop() was called before Start() had a chance to run.  Exit immediately so the
+	// chain-container restart loop can observe c.stop and break cleanly.
+	if v.state == VNStatePreStopped {
+		v.state = VNStateStopped
+		v.mu.Unlock()
+		return nil
+	}
 	if v.state != VNStateNotStarted {
 		v.mu.Unlock()
 		v.log.Debug("virtual node not in a valid state to start", "state", v.state)
 		return ErrVirtualNodeCantStart
-	}
-	// Stop() was called before Start() had a chance to run.  Exit immediately so the
-	// chain-container restart loop can observe c.stop and break cleanly.
-	if v.preStopped {
-		v.state = VNStateStopped
-		v.mu.Unlock()
-		return nil
 	}
 	if v.cfg == nil {
 		v.mu.Unlock()
@@ -197,12 +197,15 @@ func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	// Always mark as pre-stopped. If Start() hasn't run yet it will see this flag
-	// and exit immediately, closing the race window in the chain-container restart loop.
-	v.preStopped = true
+	// If not yet started, transition to PreStopped so Start() exits immediately,
+	// closing the race window in the chain-container restart loop.
+	if v.state == VNStateNotStarted {
+		v.state = VNStatePreStopped
+		return nil
+	}
 
 	if v.state != VNStateRunning {
-		return nil // Already stopped, never started, or pre-stopped
+		return nil // Already stopped or pre-stopped
 	}
 
 	// Cancel the run context to trigger shutdown

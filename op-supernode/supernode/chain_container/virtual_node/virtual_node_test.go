@@ -312,7 +312,7 @@ func TestVirtualNode_Lifecycle(t *testing.T) {
 
 		// Call Stop() while still in NotStarted state
 		require.NoError(t, vn.Stop(context.Background()))
-		require.Equal(t, VNStateNotStarted, vn.State(), "state should still be NotStarted before Start is called")
+		require.Equal(t, VNStatePreStopped, vn.State(), "state should be PreStopped after Stop() before Start()")
 
 		startDone := make(chan error, 1)
 		go func() { startDone <- vn.Start(context.Background()) }()

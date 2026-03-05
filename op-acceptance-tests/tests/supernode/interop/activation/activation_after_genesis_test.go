@@ -13,7 +13,6 @@ import (
 // AFTER genesis. This verifies that VerifiedAt (via superroot_atTimestamp) returns
 // verified data for timestamps both before and after the activation boundary.
 func TestSupernodeInteropActivationAfterGenesis(gt *testing.T) {
-	gt.Skip("this test is unstable")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, InteropActivationDelay)
 
