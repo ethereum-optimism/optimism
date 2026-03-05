@@ -115,6 +115,39 @@ func DoMain(m TestingM, opts ...stack.CommonOption) {
 	os.Exit(code)
 }
 
+// NewTestOrchestrator creates a new orchestrator scoped to a single test.
+// The orchestrator is cleaned up when the test ends via t.Cleanup.
+// This allows tests to own their own system without a package-level TestMain.
+//
+// opts should include a topology option (e.g. WithMinimal(), WithSimpleInterop())
+// plus any additional configuration options.
+func NewTestOrchestrator(t devtest.T, opts ...stack.CommonOption) stack.Orchestrator {
+	ctx, span := t.Tracer().Start(t.Ctx(), "initializing test orchestrator")
+	defer span.End()
+
+	p := devtest.NewPFromT(t)
+
+	backend := backendKindSysGo
+	if override, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR"); ok {
+		backend = backendKind(override)
+	}
+
+	opt := stack.Combine(opts...)
+	var orch stack.Orchestrator
+	switch backend {
+	case backendKindSysGo:
+		orch = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
+	case backendKindSysExt:
+		orch = sysext.NewOrchestrator(p, stack.SystemHook(opt))
+	default:
+		t.Require().Failf("unknown orchestrator backend %q; set DEVSTACK_ORCHESTRATOR to 'sysgo' or 'sysext'", string(backend))
+	}
+
+	t.Logger().InfoContext(ctx, "initialized test orchestrator", "backend", backend)
+	stack.ApplyOptionLifecycle(opt, orch)
+	return orch
+}
+
 func initOrchestrator(ctx context.Context, p devtest.P, opt stack.CommonOption) {
 	ctx, span := p.Tracer().Start(ctx, "initializing orchestrator")
 	defer span.End()

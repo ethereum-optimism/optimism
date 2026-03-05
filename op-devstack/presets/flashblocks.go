@@ -45,9 +45,9 @@ func WithSingleChainSystemWithFlashblocks() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultSingleChainSystemWithFlashblocks(&sysgo.SingleChainSystemWithFlashblocksIDs{}))
 }
 
-func NewSingleChainWithFlashblocks(t devtest.T) *SingleChainWithFlashblocks {
+func NewSingleChainWithFlashblocks(t devtest.T, opts ...stack.CommonOption) *SingleChainWithFlashblocks {
 	system := shim.NewSystem(t)
-	orch := Orchestrator()
+	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSingleChainSystemWithFlashblocks()}, opts...)...)
 	orch.Hydrate(system)
 	l1Net := system.L1Network(match.FirstL1Network)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))

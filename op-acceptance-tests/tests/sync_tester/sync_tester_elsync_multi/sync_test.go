@@ -3,15 +3,27 @@ package multi
 import (
 	"testing"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestMultiELSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleWithSyncTester(t)
+	sys := presets.NewSimpleWithSyncTester(t,
+		presets.WithExecutionLayerSyncOnVerifiers(),
+		presets.WithELSyncActive(),
+		presets.WithCompatibleTypes(compat.SysGo),
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
+			// For stopping derivation, not to advance safe heads
+			cfg.Stopped = true
+		})),
+	)
 	require := t.Require()
 
 	// Stop L2CL2 to control SyncTesterL2EL manually

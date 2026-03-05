@@ -15,7 +15,7 @@ import (
 func TestUnscheduledInterop(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t, presets.WithSimpleInterop(), presets.WithUnscheduledInterop())
 	t.Logger().Info("Checking that chain A and B can sync, even though interop is not scheduled")
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.Finalized, 5, 100),

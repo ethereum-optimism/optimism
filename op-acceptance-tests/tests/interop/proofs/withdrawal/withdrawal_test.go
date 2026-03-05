@@ -11,7 +11,7 @@ import (
 
 func TestSuperRootWithdrawal(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t, presets.WithSuperInterop(), presets.WithTimeTravel())
 	sys.L1Network.WaitForOnline()
 
 	initialL1Balance := eth.HalfEther

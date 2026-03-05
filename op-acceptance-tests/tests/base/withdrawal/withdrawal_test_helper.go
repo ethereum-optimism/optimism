@@ -10,8 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func InitWithGameType(m *testing.M, gameType gameTypes.GameType) {
-	presets.DoMain(m,
+func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewMinimal(t,
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithMinimal(),
 		presets.WithTimeTravel(),
@@ -23,11 +24,6 @@ func InitWithGameType(m *testing.M, gameType gameTypes.GameType) {
 		presets.WithAddedGameType(gameType),
 		presets.WithRespectedGameType(gameType),
 	)
-}
-
-func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
 	require := sys.T.Require()
 
 	bridge := sys.StandardBridge()

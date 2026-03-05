@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -14,6 +15,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+func newSystem(t devtest.T) *presets.SingleChainMultiNodeWithTestSeq {
+	return presets.NewSingleChainMultiNodeWithTestSeq(t,
+		presets.WithCompatibleTypes(compat.SysGo),
+		presets.WithNoDiscovery(),
+	)
+}
+
 // TestUnsafeGapFillAfterSafeReorg demonstrates the sequence:
 //  1. Verifier CLP2P is disconnected and Verifier CL is stopped.
 //  2. Safe reorg occurs because L1 reorged.
@@ -21,7 +29,7 @@ import (
 //  4. CLP2P is restored, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	sys := newSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
@@ -153,7 +161,7 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 //  4. Verifier then backfills and closes the unsafe gap once reconnected via CLP2P.
 func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	sys := newSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
@@ -277,7 +285,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 //  4. CLP2P is restored Verifier, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	sys := newSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()

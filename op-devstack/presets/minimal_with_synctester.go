@@ -20,9 +20,9 @@ func WithMinimalWithSyncTester(fcu eth.FCUState) stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultMinimalSystemWithSyncTester(&sysgo.DefaultMinimalSystemWithSyncTesterIDs{}, fcu))
 }
 
-func NewMinimalWithSyncTester(t devtest.T) *MinimalWithSyncTester {
+func NewMinimalWithSyncTester(t devtest.T, fcu eth.FCUState, opts ...stack.CommonOption) *MinimalWithSyncTester {
 	system := shim.NewSystem(t)
-	orch := Orchestrator()
+	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMinimalWithSyncTester(fcu)}, opts...)...)
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))

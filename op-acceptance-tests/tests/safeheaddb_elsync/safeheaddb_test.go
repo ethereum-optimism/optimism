@@ -3,6 +3,7 @@ package safeheaddb_elsync
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -11,7 +12,11 @@ import (
 
 func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := presets.NewSingleChainMultiNode(t,
+		presets.WithExecutionLayerSyncOnVerifiers(),
+		presets.WithSafeDBEnabled(),
+		presets.WithCompatibleTypes(compat.SysGo),
+	)
 
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
@@ -40,7 +45,11 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 
 func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := presets.NewSingleChainMultiNode(t,
+		presets.WithExecutionLayerSyncOnVerifiers(),
+		presets.WithSafeDBEnabled(),
+		presets.WithCompatibleTypes(compat.SysGo),
+	)
 
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),

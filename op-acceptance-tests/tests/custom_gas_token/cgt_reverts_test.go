@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"math/big"
@@ -19,7 +18,7 @@ import (
 // L2CrossDomainMessenger reverts under CGT (non-payable path).
 func TestCGT_MessengerRejectsValue(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newSystem(t)
 	ensureCGTOrSkip(t, sys)
 
 	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)
@@ -41,7 +40,7 @@ func TestCGT_MessengerRejectsValue(gt *testing.T) {
 // ETH-specific withdraw path on L2StandardBridge reverts under CGT.
 func TestCGT_L2StandardBridge_LegacyWithdrawReverts(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newSystem(t)
 	ensureCGTOrSkip(t, sys)
 
 	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)

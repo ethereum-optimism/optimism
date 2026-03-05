@@ -5,11 +5,16 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
 func TestProposer(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithIsthmusSuperSupernode(),
+		stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
+	)
 
 	dgf := sys.DisputeGameFactory()
 

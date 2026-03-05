@@ -47,11 +47,14 @@ type SingleChainInterop struct {
 	challengerConfig *challengerConfig.Config
 }
 
-func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
+func NewSingleChainInterop(t devtest.T, opts ...stack.CommonOption) *SingleChainInterop {
 	system := shim.NewSystem(t)
-	orch := Orchestrator()
+	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSingleChainInterop()}, opts...)...)
 	orch.Hydrate(system)
+	return singleChainInteropFromSystem(t, system, orch)
+}
 
+func singleChainInteropFromSystem(t devtest.T, system stack.ExtensibleSystem, orch stack.Orchestrator) *SingleChainInterop {
 	// At this point, either an op-supervisor (legacy) or op-supernode (replacement) is acceptable.
 	// The proof DSL depends only on super-roots and can be backed by either source.
 	t.Gate().True(len(system.Supervisors()) > 0 || len(system.Supernodes()) > 0, "expected at least one supervisor or supernode")
@@ -205,10 +208,16 @@ func WithUnscheduledInterop() stack.CommonOption {
 	)
 }
 
-func NewSimpleInterop(t devtest.T) *SimpleInterop {
-	singleChain := NewSingleChainInterop(t)
-	orch := Orchestrator()
-	l2B := singleChain.system.L2Network(match.Assume(t, match.L2ChainB))
+func NewSimpleInterop(t devtest.T, opts ...stack.CommonOption) *SimpleInterop {
+	system := shim.NewSystem(t)
+	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSimpleInterop()}, opts...)...)
+	orch.Hydrate(system)
+	return simpleInteropFromSystem(t, system, orch)
+}
+
+func simpleInteropFromSystem(t devtest.T, system stack.ExtensibleSystem, orch stack.Orchestrator) *SimpleInterop {
+	singleChain := singleChainInteropFromSystem(t, system, orch)
+	l2B := system.L2Network(match.Assume(t, match.L2ChainB))
 	out := &SimpleInterop{
 		SingleChainInterop: *singleChain,
 		L2ChainB:           dsl.NewL2Network(l2B, orch.ControlPlane()),
@@ -292,15 +301,17 @@ func WithMultiSupervisorInterop() stack.CommonOption {
 // Primary supervisor manages sequencer L2CLs for chain A, B.
 // Secondary supervisor manages verifier L2CLs for chain A, B.
 // Each L2CLs per chain is connected via P2P.
-func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
-	simpleInterop := NewSimpleInterop(t)
-	orch := Orchestrator()
+func NewMultiSupervisorInterop(t devtest.T, opts ...stack.CommonOption) *MultiSupervisorInterop {
+	system := shim.NewSystem(t)
+	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMultiSupervisorInterop()}, opts...)...)
+	orch.Hydrate(system)
+	simpleInterop := simpleInteropFromSystem(t, system, orch)
 
-	l2A := simpleInterop.system.L2Network(match.Assume(t, match.L2ChainA))
-	l2B := simpleInterop.system.L2Network(match.Assume(t, match.L2ChainB))
+	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
+	l2B := system.L2Network(match.Assume(t, match.L2ChainB))
 	out := &MultiSupervisorInterop{
 		SimpleInterop:       *simpleInterop,
-		SupervisorSecondary: dsl.NewSupervisor(simpleInterop.system.Supervisor(match.Assume(t, match.SecondSupervisor)), orch.ControlPlane()),
+		SupervisorSecondary: dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.SecondSupervisor)), orch.ControlPlane()),
 		L2ELA2:              dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL)), orch.ControlPlane()),
 		L2CLA2:              dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
 		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL)), orch.ControlPlane()),
@@ -321,9 +332,9 @@ func WithMinimalInteropNoSupervisor() stack.CommonOption {
 }
 
 // NewMinimalInteropNoSupervisor creates a MinimalInteropNoSupervisor preset for acceptance tests.
-func NewMinimalInteropNoSupervisor(t devtest.T) *MinimalInteropNoSupervisor {
+func NewMinimalInteropNoSupervisor(t devtest.T, opts ...stack.CommonOption) *MinimalInteropNoSupervisor {
 	system := shim.NewSystem(t)
-	orch := Orchestrator()
+	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMinimalInteropNoSupervisor()}, opts...)...)
 	orch.Hydrate(system)
 
 	l1Net := system.L1Network(match.FirstL1Network)

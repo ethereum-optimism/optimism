@@ -6,9 +6,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -21,7 +25,19 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithSimpleInterop(),
+		// Short enough that we can run the test,
+		// long enough that the batcher can still submit something before we make things expire.
+		presets.WithSequencingWindow(10, 30),
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
+			// Span-batches during recovery don't appear to align well with the starting-point.
+			// It can be off by ~6 L2 blocks, possibly due to off-by-one
+			// in L1 block sync considerations in batcher stop or start.
+			// So we end up having to encode block by block, so the full batch data does not get dropped.
+			cfg.BatchType = derive.SingularBatchType
+		})),
+	)
 	require := t.Require()
 
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
