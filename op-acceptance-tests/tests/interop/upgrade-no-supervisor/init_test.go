@@ -9,5 +9,6 @@ import (
 func TestMain(m *testing.M) {
 	presets.DoMain(m,
 		presets.WithMinimalInteropNoSupervisor(),
+		presets.WithRethL2EL(),
 	)
 }

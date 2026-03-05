@@ -13,5 +13,6 @@ func TestMain(m *testing.M) {
 		presets.WithSingleChainSuperInteropSupernode(),
 		presets.WithL2NetworkCount(1),
 		stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
+		presets.WithRethL2EL(),
 	)
 }

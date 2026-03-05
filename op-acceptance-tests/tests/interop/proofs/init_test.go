@@ -12,5 +12,6 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m,
 		presets.WithSuperInteropSupernode(),
 		stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
+		presets.WithRethL2EL(),
 	)
 }

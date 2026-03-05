@@ -10,5 +10,6 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m,
 		presets.WithSimpleInterop(),
 		presets.WithSuggestedInteropActivationOffset(60),
-		presets.WithInteropNotAtGenesis())
+		presets.WithInteropNotAtGenesis(),
+		presets.WithRethL2EL())
 }

@@ -91,16 +91,31 @@ func (l L2ELOptionBundle) Apply(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfi
 	}
 }
 
+// WithL2ELKind sets the kind of L2 EL node to use for all L2 EL nodes in this orchestrator.
+// Valid values: "op-reth", "op-geth" (default).
+// This overrides the DEVSTACK_L2EL_KIND environment variable.
+func WithL2ELKind(kind string) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.l2ELKind = kind
+	})
+}
+
 // WithL2ELNode adds the default type of L2 CL node.
-// The default can be configured with DEVSTACK_L2EL_KIND.
+// The default can be configured with DEVSTACK_L2EL_KIND env var or WithL2ELKind option.
 // Tests that depend on specific types can use options like WithKonaNode and WithOpNode directly.
 func WithL2ELNode(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestrator] {
-	switch os.Getenv("DEVSTACK_L2EL_KIND") {
-	case "op-reth":
-		return WithOpReth(id, opts...)
-	default:
-		return WithOpGeth(id, opts...)
-	}
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		kind := orch.l2ELKind
+		if kind == "" {
+			kind = os.Getenv("DEVSTACK_L2EL_KIND")
+		}
+		switch kind {
+		case "op-reth":
+			WithOpReth(id, opts...).AfterDeploy(orch)
+		default:
+			WithOpGeth(id, opts...).AfterDeploy(orch)
+		}
+	})
 }
 
 func WithExtL2Node(id stack.L2ELNodeID, elRPCEndpoint string) stack.Option[*Orchestrator] {

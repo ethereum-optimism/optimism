@@ -15,5 +15,6 @@ func TestMain(m *testing.M) {
 		presets.WithLogFilter(logfilter.DefaultMute(
 			stack.KindSelector(stack.SupervisorKind).And(logfilter.Level(log.LevelInfo)).Show(),
 			logfilter.Level(log.LevelError).Show(),
-		)))
+		)),
+		presets.WithRethL2EL())
 }

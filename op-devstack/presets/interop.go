@@ -271,6 +271,12 @@ func WithL2NetworkCount(count int) stack.CommonOption {
 	})
 }
 
+// WithRethL2EL forces all L2 EL nodes in this test suite to use op-reth instead of op-geth.
+// Requires OP_RETH_EXEC_PATH environment variable to be set.
+func WithRethL2EL() stack.CommonOption {
+	return stack.MakeCommon(sysgo.WithL2ELKind("op-reth"))
+}
+
 type MultiSupervisorInterop struct {
 	SimpleInterop
 

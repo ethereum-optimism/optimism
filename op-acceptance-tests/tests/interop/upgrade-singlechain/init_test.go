@@ -12,5 +12,6 @@ func TestMain(m *testing.M) {
 		presets.WithSuggestedInteropActivationOffset(30),
 		presets.WithInteropNotAtGenesis(),
 		presets.WithL2NetworkCount(1), // Specifically testing dependency set of 1 upgrade
+		presets.WithRethL2EL(),
 	)
 }

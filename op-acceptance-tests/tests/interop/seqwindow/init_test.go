@@ -22,5 +22,6 @@ func TestMain(m *testing.M) {
 			// in L1 block sync considerations in batcher stop or start.
 			// So we end up having to encode block by block, so the full batch data does not get dropped.
 			cfg.BatchType = derive.SingularBatchType
-		})))
+		})),
+		presets.WithRethL2EL())
 }
