@@ -258,7 +258,7 @@ contract Proxy_Implementation_Test is Proxy_TestInit {
         assertEq(success, false);
 
         bytes memory err = abi.encodeWithSignature("Error(string)", "Proxy: implementation not initialized"); // nosemgrep:
-            // sol-style-use-abi-encodecall
+        // sol-style-use-abi-encodecall
 
         assertEq(returndata, err);
     }

@@ -212,7 +212,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new IOPContractsManagerUtils.ExtraInstruction[](1);
         instructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: Constants.PERMIT_ALL_CONTRACTS_INSTRUCTION
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+            data: Constants.PERMIT_ALL_CONTRACTS_INSTRUCTION
         });
 
         // Load the chain contracts.
@@ -418,7 +419,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Set up the deploy args once, keeps the code cleaner.
         IOPContractsManagerUtils.ProxyDeployArgs memory proxyDeployArgs = IOPContractsManagerUtils.ProxyDeployArgs({
-            proxyAdmin: proxyAdmin, addressManager: addressManager, l2ChainId: _l2ChainId, saltMixer: _saltMixer
+            proxyAdmin: proxyAdmin,
+            addressManager: addressManager,
+            l2ChainId: _l2ChainId,
+            saltMixer: _saltMixer
         });
 
         // Now also load the portal, which contains the last few contract references. We do this
@@ -907,8 +911,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // NOTE: If the game is disabled, we'll set the implementation to address(0) and the
             // arguments to bytes(""), disabling the game.
             _cts.disputeGameFactory.setImplementation(_cfg.disputeGameConfigs[i].gameType, gameImpl, gameArgs);
-            _cts.disputeGameFactory
-                .setInitBond(_cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond);
+            _cts.disputeGameFactory.setInitBond(
+                _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
+            );
         }
 
         // If the custom gas token feature was requested, enable it in the SystemConfig.

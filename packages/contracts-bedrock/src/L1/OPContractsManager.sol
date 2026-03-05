@@ -557,7 +557,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                         anchorStateRegistry: address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))),
                         weth: address(outputs[i].delayedWETH),
                         l2ChainId: gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw() ? l2ChainId : 0, // must
-                            // be zero for SUPER gam types
+                        // be zero for SUPER gam types
                         proposer: getProposer(
                             dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType
                         ),
@@ -1917,9 +1917,9 @@ contract OPContractsManager is ISemver {
     /// @dev This needs to stay at 6.x.x because the next release will ship OPCMv2. Since we are
     ///      not actually planning to release a 7.x.x of OPCMv1, it needs to stay at 6.x.x to avoid
     ///      errors in the versioning rules of OPCMv2.
-    /// @custom:semver 6.0.3
+    /// @custom:semver 6.0.4
     function version() public pure virtual returns (string memory) {
-        return "6.0.3";
+        return "6.0.4";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
