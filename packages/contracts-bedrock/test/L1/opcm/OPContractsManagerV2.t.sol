@@ -851,8 +851,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that without an override the respected game type stays unchanged.
     function test_upgrade_respectedGameTypeUnchangedWithoutOverride_succeeds() public {
+        /// This is a hack because fork live has an outdated suprchain registry reference that it pulls the addresses from
+        IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
         GameType before = anchorStateRegistry.respectedGameType();
         runCurrentUpgradeV2(chainPAO);
         assertEq(
