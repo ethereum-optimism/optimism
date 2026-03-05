@@ -185,9 +185,9 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	}
 
 	l.wg.Add(3)
-	go l.receiptsLoop(l.wg, receiptsCh)                                           // ranges over receiptsCh channel
-	go l.publishingLoop(l.killCtx, l.wg, receiptsCh, publishSignal)               // ranges over publishSignal, spawns routines which send on receiptsCh. Closes receiptsCh when done.
-	go l.blockLoadingLoop(l.shutdownCtx, l.wg, unsafeBytesUpdated, publishSignal) // sends on unsafeBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done
+	go l.receiptsLoop(l.wg, receiptsCh)                            // ranges over receiptsCh channel
+	go l.publishingLoop(l.killCtx, l.wg, receiptsCh)               // ranges over publishSignal, spawns routines which send on receiptsCh. Closes receiptsCh when done.
+	go l.blockLoadingLoop(l.shutdownCtx, l.wg, unsafeBytesUpdated) // sends on unsafeBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done
 
 	l.Log.Info("Batch Submitter started")
 	return nil
@@ -268,13 +268,13 @@ func (l *BatchSubmitter) Flush(ctx context.Context) error {
 	}
 
 	l.Log.Info("Flushing Batch Submitter")
-	l.tryPublishSignal(l.publishSignal, pubInfo{forcePublish: true})
+	l.tryPublishSignal(pubInfo{forcePublish: true})
 	return nil
 }
 
 // loadBlocksIntoState loads the blocks between start and end (inclusive).
 // If there is a reorg, it will return an error.
-func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan pubInfo, unsafeBytesUpdated chan int64) error {
+func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, unsafeBytesUpdated chan int64) error {
 	if end < start {
 		return fmt.Errorf("start number is > end number %d,%d", start, end)
 	}
@@ -302,7 +302,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
 			l.sendToThrottlingLoop(unsafeBytesUpdated)
-			l.tryPublishSignal(publishSignal, pubInfo{ignoreMaxChannelDuration: i < end})
+			l.tryPublishSignal(pubInfo{ignoreMaxChannelDuration: i < end})
 		}
 
 	}
@@ -437,9 +437,9 @@ func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
 
 // trySignal tries to send the provided value on the provided channel.
 // It is not blocking, no signal will be sent if the channel is full.
-func (l *BatchSubmitter) tryPublishSignal(c chan pubInfo, value pubInfo) {
+func (l *BatchSubmitter) tryPublishSignal(value pubInfo) {
 	select {
-	case c <- value:
+	case l.publishSignal <- value:
 	default:
 		l.Log.Warn("publishSignal channel is full, skipping signal")
 	}
@@ -486,7 +486,7 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 // -  waits for a signal that blocks have been loaded
 // -  drives the creation of channels and frames
 // -  sends transactions to the DA layer
-func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup, receiptsCh chan txmgr.TxReceipt[txRef], publishSignal chan pubInfo) {
+func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup, receiptsCh chan txmgr.TxReceipt[txRef]) {
 	defer close(receiptsCh)
 	defer wg.Done()
 
@@ -523,11 +523,11 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 // -  polls the sequencer,
 // -  prunes the channel manager state (i.e. safe blocks)
 // -  loads unsafe blocks from the sequencer
-func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, unsafeBytesUpdated chan int64, publishSignal chan pubInfo) {
+func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, unsafeBytesUpdated chan int64) {
 	ticker := time.NewTicker(l.Config.PollInterval)
 	defer ticker.Stop()
 	defer close(unsafeBytesUpdated)
-	defer close(publishSignal)
+	defer close(l.publishSignal)
 	defer wg.Done()
 	for {
 		select {
@@ -542,7 +542,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 
 			if blocksToLoad != nil {
 				// Get fresh unsafe blocks
-				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal, unsafeBytesUpdated)
+				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, unsafeBytesUpdated)
 				switch {
 				case errors.Is(err, ErrReorg):
 					l.Log.Warn("error loading blocks, clearing state and waiting for node sync", "err", err)
@@ -555,7 +555,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 					l.sendToThrottlingLoop(unsafeBytesUpdated) // we have increased the unsafe data. Signal the throttling loop to check if it should throttle.
 				}
 			}
-			l.tryPublishSignal(publishSignal, pubInfo{}) // always signal the publishing loop to ensure we periodically publish even if we aren't loading blocks
+			l.tryPublishSignal(pubInfo{}) // always signal the publishing loop to ensure we periodically publish even if we aren't loading blocks
 		case <-ctx.Done():
 			l.Log.Info("blockLoadingLoop returning")
 			return
