@@ -2158,11 +2158,12 @@ jobs:
           no_output_timeout: 120m
           command: |
             mkdir -p logs results
+            PARALLEL=$(nproc 2>/dev/null || echo 12)
             PACKAGES=$(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
             gotestsum \
               --jsonfile logs/raw_go_events.log \
               --junitfile results/results.xml \
-              -- -v -count=1 -timeout 110m -p 1 $PACKAGES
+              -- -v -count=1 -timeout 110m -p "$PARALLEL" $PACKAGES
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
@@ -2219,6 +2220,7 @@ jobs:
           no_output_timeout: 60m
           command: |
             mkdir -p logs results
+            PARALLEL=$(nproc 2>/dev/null || echo 12)
             PACKAGES=$(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
             SPLIT_PACKAGES=$(echo "$PACKAGES" | circleci tests split --split-by=timings)
             echo "Node $CIRCLE_NODE_INDEX/$CIRCLE_NODE_TOTAL running $(echo "$SPLIT_PACKAGES" | wc -w) packages:"
@@ -2226,7 +2228,7 @@ jobs:
             gotestsum \
               --jsonfile logs/raw_go_events.log \
               --junitfile results/results.xml \
-              -- -v -count=1 -timeout 50m -p 1 $SPLIT_PACKAGES
+              -- -v -count=1 -timeout 50m -p "$PARALLEL" $SPLIT_PACKAGES
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
