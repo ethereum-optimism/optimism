@@ -29,7 +29,7 @@ metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 metrics-process.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["net", "time"] }
+tokio = { workspace = true, features = ["net", "sync", "time"] }
 hyper = { workspace = true, features = ["server", "http1"] }
 hyper-util = { workspace = true, features = ["tokio"] }
 http-body-util.workspace = true

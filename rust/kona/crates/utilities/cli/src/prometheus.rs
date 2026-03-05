@@ -29,6 +29,7 @@ use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_process::Collector;
 use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
+use tokio::sync::Semaphore;
 use tracing::{error, info};
 
 /// Start a Prometheus metrics server on the given address.
@@ -71,7 +72,17 @@ pub async fn init_prometheus_server(addr: SocketAddr) -> Result<SocketAddr, Prom
 }
 
 async fn serve_metrics(listener: TcpListener, handle: Arc<PrometheusHandle>) {
+    let semaphore = Arc::new(Semaphore::new(100));
+
     loop {
+        let permit = match Arc::clone(&semaphore).acquire_owned().await {
+            Ok(permit) => permit,
+            Err(_) => {
+                error!(target: "prometheus", "metrics connection semaphore closed");
+                return;
+            }
+        };
+
         let (stream, _) = match listener.accept().await {
             Ok(conn) => conn,
             Err(e) => {
@@ -82,6 +93,8 @@ async fn serve_metrics(listener: TcpListener, handle: Arc<PrometheusHandle>) {
 
         let handle = Arc::clone(&handle);
         tokio::spawn(async move {
+            let _permit = permit;
+
             let service = service_fn(move |_req| {
                 let metrics = handle.render();
                 async move {
