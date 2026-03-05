@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
-	"os"
 	"sort"
 	"sync"
 	"testing"
@@ -690,7 +689,7 @@ func TestSingleSenderRandomNonceOrderWithRandomScores(gt *testing.T) {
 }
 
 func skipIfRulesNotEnabled(t devtest.T) {
-	if os.Getenv("OP_RBUILDER_RULES_TEST") != "1" {
+	if !rulesEnabled() {
 		t.Skip("Skipping rule ordering test")
 	}
 }
