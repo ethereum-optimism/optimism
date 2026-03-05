@@ -1972,7 +1972,7 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/failed/*.log" || true
+            cat "$LOG_DIR"/failed/*.log || true
           when: on_fail
       - run:
           name: Print results (all)
@@ -2078,7 +2078,7 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/failed/*.log" || true
+            cat "$LOG_DIR"/failed/*.log || true
           when: on_fail
       - run:
           name: Print results (all)
