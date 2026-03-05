@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -332,16 +333,22 @@ func TestSameSenderNonceOrdering(gt *testing.T) {
 			"tx0 (nonce N) must have lower index than tx1 (nonce N+1) despite tx1 having higher boost")
 	} else {
 		// If in different blocks, tx0's block must be <= tx1's block
-		require.LessOrEqual(t, receipt0.BlockNumber.Uint64(), receipt1.BlockNumber.Uint64(),
-			"tx0 must be in same or earlier block than tx1")
+		require.LessOrEqual(t,
+			bigs.Uint64Strict(receipt0.BlockNumber),
+			bigs.Uint64Strict(receipt1.BlockNumber),
+			"tx0 must be in same or earlier block than tx1",
+		)
 	}
 
 	if receipt1.BlockNumber.Cmp(receipt2.BlockNumber) == 0 {
 		require.Less(t, receipt1.TransactionIndex, receipt2.TransactionIndex,
 			"tx1 (nonce N+1) must have lower index than tx2 (nonce N+2)")
 	} else {
-		require.LessOrEqual(t, receipt1.BlockNumber.Uint64(), receipt2.BlockNumber.Uint64(),
-			"tx1 must be in same or earlier block than tx2")
+		require.LessOrEqual(t,
+			bigs.Uint64Strict(receipt1.BlockNumber),
+			bigs.Uint64Strict(receipt2.BlockNumber),
+			"tx1 must be in same or earlier block than tx2",
+		)
 	}
 
 	logger.Info("Nonce ordering verified - boost rules do not break same-sender ordering")
