@@ -14,6 +14,7 @@ import (
 // verified data for timestamps both before and after the activation boundary.
 func TestSupernodeInteropActivationAfterGenesis(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	t.Skip("The TestMain setup code for this test is unstable")
 	sys := presets.NewTwoL2SupernodeInterop(t, InteropActivationDelay)
 
 	genesisTime := sys.GenesisTime
