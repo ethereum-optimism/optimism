@@ -46,7 +46,7 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 	c.EL.Reached(eth.Unsafe, target, 60)
 
 	// L1 head where chain has no batch data at endTimestamp.
-	l1HeadBefore := l1BlockWhere(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{c.ID})
+	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{c.ID})
 
 	// Resume batching so the chain's data at endTimestamp becomes available.
 	c.Batcher.Start()

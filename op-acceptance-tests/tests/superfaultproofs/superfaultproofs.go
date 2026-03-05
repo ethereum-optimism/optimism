@@ -124,8 +124,8 @@ func latestRequiredL1(resp eth.SuperRootAtTimestampResponse) eth.BlockID {
 	return latest
 }
 
-// l1BlockWhere finds an L1 block where the specified chains either do or do not have safe blocks.
-func l1BlockWhere(t devtest.T, l1El *dsl.L1ELNode, sn *dsl.Supernode, timestamp uint64, hasSafe, notSafe []eth.ChainID) eth.BlockID {
+// l1BlockWithLocalSafeBlocks finds an L1 block where the specified chains either do or do not have safe blocks.
+func l1BlockWithLocalSafeBlocks(t devtest.T, l1El *dsl.L1ELNode, sn *dsl.Supernode, timestamp uint64, hasSafe, notSafe []eth.ChainID) eth.BlockID {
 	t.Logf("Finding L1 block where %v have safe blocks and %v do not", hasSafe, notSafe)
 	var l1Block eth.BlockID
 	t.Require().Eventually(func() bool {
@@ -583,11 +583,11 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	// -- Stage 2: Capture L1 heads at different batch-availability points --
 
 	// L1 head where neither chain has batch data at endTimestamp.
-	l1HeadBefore := l1BlockWhere(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
+	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
 
 	// L1 head where only the first chain has batch data.
 	chains[0].Batcher.Start()
-	l1HeadAfterFirst := l1BlockWhere(t, sys.L1EL, sys.SuperRoots, endTimestamp, []eth.ChainID{chains[0].ID}, []eth.ChainID{chains[1].ID})
+	l1HeadAfterFirst := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, []eth.ChainID{chains[0].ID}, []eth.ChainID{chains[1].ID})
 	chains[0].Batcher.Stop()
 
 	// L1 head where both chains have batch data (fully validated).
