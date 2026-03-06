@@ -2,9 +2,9 @@
 
 use crate::{
     BlobData, BlobProvider, BlobProviderError, ChainProvider, DataAvailabilityProvider,
-    PipelineError, PipelineResult,
+    PipelineError, PipelineErrorKind, PipelineResult,
 };
-use alloc::{boxed::Box, string::ToString, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 use alloy_consensus::{
     Transaction, TxEip4844Variant, TxEnvelope, TxType, transaction::SignerRecoverable,
 };
@@ -111,7 +111,7 @@ where
         &mut self,
         block_ref: &BlockInfo,
         batcher_address: Address,
-    ) -> Result<(), BlobProviderError> {
+    ) -> Result<(), PipelineErrorKind> {
         if self.open {
             return Ok(());
         }
@@ -120,7 +120,7 @@ where
             .chain_provider
             .block_info_and_transactions_by_hash(block_ref.hash)
             .await
-            .map_err(|e| BlobProviderError::Backend(e.to_string()))?;
+            .map_err(Into::into)?;
 
         let (mut data, blob_hashes) = self.extract_blob_data(info.1, batcher_address);
 
@@ -131,26 +131,45 @@ where
             return Ok(());
         }
 
-        let blobs =
-            self.blob_fetcher.get_and_validate_blobs(block_ref, &blob_hashes).await.map_err(
-                |e| {
-                    warn!(target: "blob_source", "Failed to fetch blobs: {e}");
-                    BlobProviderError::Backend(e.to_string())
-                },
-            )?;
+        // Convert via Into<PipelineErrorKind> which routes:
+        //   BlobNotFound  -> PipelineErrorKind::Reset   (missed/orphaned slot)
+        //   Backend       -> PipelineErrorKind::Temporary (transient, retry)
+        //   others        -> PipelineErrorKind::Critical
+        let blobs = self
+            .blob_fetcher
+            .get_and_validate_blobs(block_ref, &blob_hashes)
+            .await
+            .map_err(Into::<PipelineErrorKind>::into)
+            .inspect_err(|kind| match kind {
+                PipelineErrorKind::Reset(_) => {
+                    warn!(
+                        target: "blob_source",
+                        block_hash = %block_ref.hash,
+                        block_number = block_ref.number,
+                        timestamp = block_ref.timestamp,
+                        "Blobs permanently unavailable (missed/orphaned beacon slot); \
+                         triggering pipeline reset"
+                    );
+                }
+                _ => {
+                    warn!(
+                        target: "blob_source",
+                        block_hash = %block_ref.hash,
+                        block_number = block_ref.number,
+                        timestamp = block_ref.timestamp,
+                        "Failed to fetch blobs: {kind}"
+                    );
+                }
+            })?;
 
         // Fill the blob pointers.
         let mut blob_index = 0;
         for blob in &mut data {
-            match blob.fill(&blobs, blob_index) {
-                Ok(should_increment) => {
-                    if should_increment {
-                        blob_index += 1;
-                    }
-                }
-                Err(e) => {
-                    return Err(e.into());
-                }
+            let should_increment = blob
+                .fill(&blobs, blob_index)
+                .map_err(|e| -> PipelineErrorKind { BlobProviderError::from(e).into() })?;
+            if should_increment {
+                blob_index += 1;
             }
         }
 
@@ -242,7 +261,7 @@ pub(crate) mod tests {
         let mut source = default_test_blob_source();
         assert!(matches!(
             source.load_blobs(&BlockInfo::default(), Address::ZERO).await,
-            Err(BlobProviderError::Backend(_))
+            Err(PipelineErrorKind::Temporary(_))
         ));
     }
 
@@ -270,7 +289,7 @@ pub(crate) mod tests {
         source.chain_provider.insert_block_with_transactions(1, block_info, txs);
         assert!(matches!(
             source.load_blobs(&BlockInfo::default(), batcher_address).await,
-            Err(BlobProviderError::Backend(_))
+            Err(PipelineErrorKind::Critical(_))
         ));
     }
 
@@ -345,5 +364,127 @@ pub(crate) mod tests {
         let mut source = default_test_blob_source();
         let err = source.next(&BlockInfo::default(), Address::ZERO).await.unwrap_err();
         assert!(matches!(err, PipelineErrorKind::Temporary(PipelineError::Provider(_))));
+    }
+
+    /// Regression test: a beacon node 404 (missed/orphaned slot) must propagate through
+    /// `load_blobs` as `PipelineErrorKind::Reset`, not as a temporary retryable error.
+    #[tokio::test]
+    async fn test_load_blobs_not_found_triggers_reset() {
+        let mut source = default_test_blob_source();
+        let block_info = BlockInfo::default();
+        let batcher_address =
+            alloy_primitives::address!("A83C816D4f9b2783761a22BA6FADB0eB0606D7B2");
+        source.batcher_address =
+            alloy_primitives::address!("11E9CA82A3a762b4B5bd264d4173a242e7a77064");
+        source.chain_provider.insert_block_with_transactions(1, block_info, valid_blob_txs());
+        source.blob_fetcher.should_return_not_found = true;
+
+        let err = source.load_blobs(&BlockInfo::default(), batcher_address).await.unwrap_err();
+        assert!(
+            matches!(err, PipelineErrorKind::Reset(_)),
+            "expected Reset for missed beacon slot, got {err:?}"
+        );
+    }
+
+    /// Regression test: `BlobProviderError::BlobNotFound` from the blob fetcher must surface
+    /// through `next()` as `PipelineErrorKind::Reset`, triggering a pipeline reset.
+    /// Without this, a missed beacon slot causes an infinite retry loop and safe head stall.
+    #[tokio::test]
+    async fn test_missed_beacon_slot_triggers_pipeline_reset() {
+        let mut source = default_test_blob_source();
+        let block_info = BlockInfo::default();
+        let batcher_address =
+            alloy_primitives::address!("A83C816D4f9b2783761a22BA6FADB0eB0606D7B2");
+        source.batcher_address =
+            alloy_primitives::address!("11E9CA82A3a762b4B5bd264d4173a242e7a77064");
+        source.chain_provider.insert_block_with_transactions(1, block_info, valid_blob_txs());
+        source.blob_fetcher.should_return_not_found = true;
+
+        let err = source.next(&BlockInfo::default(), batcher_address).await.unwrap_err();
+        assert!(
+            matches!(err, PipelineErrorKind::Reset(_)),
+            "expected Reset for missed beacon slot, got {err:?}"
+        );
+    }
+
+    /// A minimal [`ChainProvider`] that always returns a "block not found" error which maps to
+    /// [`PipelineErrorKind::Reset`].  Used to verify that [`BlobSource::load_blobs`] preserves
+    /// the `Reset` kind when the underlying chain provider signals that a block is missing (e.g.
+    /// after an L1 reorg removes the block whose hash was referenced).
+    #[derive(Debug, Clone, Default)]
+    struct BlockNotFoundChainProvider;
+
+    /// Error type for [`BlockNotFoundChainProvider`] that converts to
+    /// [`PipelineErrorKind::Reset`], matching what `AlloyChainProvider` emits for 404 responses.
+    #[derive(Debug)]
+    struct BlockNotFoundError;
+
+    impl core::fmt::Display for BlockNotFoundError {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            write!(f, "block not found")
+        }
+    }
+
+    impl From<BlockNotFoundError> for PipelineErrorKind {
+        fn from(_: BlockNotFoundError) -> Self {
+            use crate::ResetError;
+            ResetError::BlockNotFound(alloy_primitives::B256::default().into()).reset()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ChainProvider for BlockNotFoundChainProvider {
+        type Error = BlockNotFoundError;
+
+        async fn header_by_hash(
+            &mut self,
+            _: alloy_primitives::B256,
+        ) -> Result<alloy_consensus::Header, Self::Error> {
+            Err(BlockNotFoundError)
+        }
+
+        async fn block_info_by_number(
+            &mut self,
+            _: u64,
+        ) -> Result<kona_protocol::BlockInfo, Self::Error> {
+            Err(BlockNotFoundError)
+        }
+
+        async fn receipts_by_hash(
+            &mut self,
+            _: alloy_primitives::B256,
+        ) -> Result<alloc::vec::Vec<alloy_consensus::Receipt>, Self::Error> {
+            Err(BlockNotFoundError)
+        }
+
+        async fn block_info_and_transactions_by_hash(
+            &mut self,
+            _: alloy_primitives::B256,
+        ) -> Result<(kona_protocol::BlockInfo, alloc::vec::Vec<TxEnvelope>), Self::Error> {
+            Err(BlockNotFoundError)
+        }
+    }
+
+    /// Regression test: when `block_info_and_transactions_by_hash` returns an error that maps to
+    /// `PipelineErrorKind::Reset` (e.g. because an L1 reorg removed the block), `load_blobs`
+    /// must propagate the `Reset` kind unchanged.
+    ///
+    /// Before the fix, `BlobSource` wrapped every chain-provider error as
+    /// `BlobProviderError::Backend(e.to_string()).into()`, which unconditionally produces
+    /// `PipelineErrorKind::Temporary`.  The fix uses `.map_err(Into::into)` so the `Reset` kind
+    /// set by the underlying provider is preserved, allowing the pipeline to recover via reset
+    /// rather than spinning in a retry loop.
+    #[tokio::test]
+    async fn test_load_blobs_block_not_found_triggers_reset() {
+        let chain_provider = BlockNotFoundChainProvider;
+        let blob_fetcher = crate::test_utils::TestBlobProvider::default();
+        let mut source = BlobSource::new(chain_provider, blob_fetcher, Address::ZERO);
+
+        let err = source.load_blobs(&BlockInfo::default(), Address::ZERO).await.unwrap_err();
+        assert!(
+            matches!(err, PipelineErrorKind::Reset(_)),
+            "expected Reset when block_info_and_transactions_by_hash returns BlockNotFound, \
+             got {err:?}"
+        );
     }
 }

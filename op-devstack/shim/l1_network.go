@@ -46,6 +46,8 @@ func (p *presetL1Network) AddL1ELNode(v stack.L1ELNode) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l1 EL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.els.SetIfMissing(id, v), "l1 EL node %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL1ELNodeID(id).ComponentID, v)
 }
 
 func (p *presetL1Network) L1CLNode(m stack.L1CLMatcher) stack.L1CLNode {
@@ -58,6 +60,8 @@ func (p *presetL1Network) AddL1CLNode(v stack.L1CLNode) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l1 CL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.cls.SetIfMissing(id, v), "l1 CL node %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL1CLNodeID(id).ComponentID, v)
 }
 
 func (p *presetL1Network) L1ELNodeIDs() []stack.L1ELNodeID {

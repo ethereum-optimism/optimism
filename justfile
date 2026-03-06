@@ -4,6 +4,10 @@ build-rust-release:
   cd op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
   cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 
+# Checks that locked NUT bundles have not been modified.
+check-nut-locks:
+  go run ./ops/scripts/check-nut-locks
+
 # Checks that TODO comments have corresponding issues.
 todo-checker:
   ./ops/scripts/todo-checker.sh

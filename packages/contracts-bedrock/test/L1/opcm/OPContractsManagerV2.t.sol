@@ -26,6 +26,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
@@ -279,6 +280,17 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 )
             })
         );
+        // TODO: Once ZKDisputeGame.sol is implemented, enable this game and provide a real
+        // ZKDisputeGameConfig encoded as gameArgs. Example:
+        //   IOPContractsManagerUtils.ZKDisputeGameConfig memory zkCfg = IOPContractsManagerUtils.ZKDisputeGameConfig({
+        //       absolutePrestate: Claim.wrap(bytes32(0)),
+        //       verifier: makeAddr("sp1PlonkVerifierAdapter"),
+        //       maxChallengeDuration: Duration.wrap(12 hours),
+        //       maxProveDuration: Duration.wrap(3 days),
+        //       challengerBond: 1 ether
+        //   });
+        //   gameArgs: abi.encode(zkCfg), enabled: true, initBond: 0.08 ether
+        // Waiting on PR: ZKDisputeGame contract implementation.
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -1066,6 +1078,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
                 gameArgs: bytes("")
             })
         );
+        // TODO: Once ZKDisputeGame.sol is implemented, update this to use a real ZKDisputeGameConfig.
+        // Waiting on PR: ZKDisputeGame contract implementation.
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -1544,6 +1558,23 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector
         );
     }
+
+    /// @notice Tests that the migration function reverts when the OPTIMISM_PORTAL_INTEROP dev
+    ///         feature is not enabled.
+    function test_migrate_interopNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Mock the container's isDevFeatureEnabled to return false for OPTIMISM_PORTAL_INTEROP,
+        // simulating a container that was deployed without the interop dev feature.
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
+            abi.encode(false)
+        );
+
+        // Execute the migration, expect revert.
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
+    }
 }
 
 /// @title OPContractsManagerV2_FeatBatchUpgrade_Test
@@ -1553,7 +1584,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
     ///         This enforces the OPCMV2 invariant that approximately 15 upgrade operations should be
     ///         executable in one transaction.
     function test_batchUpgrade_multipleChains_succeeds() public {
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         uint256 numberOfChains = 15;
 

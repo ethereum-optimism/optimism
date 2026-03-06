@@ -21,6 +21,10 @@ type presetSystem struct {
 	// timeTravelClock is the clock used to control time. nil if time travel is not enabled
 	timeTravelClock stack.TimeTravelClock
 
+	// Unified component registry for generic access
+	registry *stack.Registry
+
+	// Legacy typed maps - kept for backward compatibility during migration
 	superchains locks.RWMap[stack.SuperchainID, stack.Superchain]
 	clusters    locks.RWMap[stack.ClusterID, stack.Cluster]
 
@@ -44,7 +48,29 @@ var _ stack.ExtensibleSystem = (*presetSystem)(nil)
 func NewSystem(t devtest.T) stack.ExtensibleSystem {
 	return &presetSystem{
 		commonImpl: newCommon(NewCommonConfig(t)),
+		registry:   stack.NewRegistry(),
 	}
+}
+
+// --- ComponentRegistry interface implementation ---
+
+func (p *presetSystem) Component(id stack.ComponentID) (any, bool) {
+	return p.registry.Get(id)
+}
+
+func (p *presetSystem) Components(kind stack.ComponentKind) []any {
+	ids := p.registry.IDsByKind(kind)
+	result := make([]any, 0, len(ids))
+	for _, id := range ids {
+		if comp, ok := p.registry.Get(id); ok {
+			result = append(result, comp)
+		}
+	}
+	return result
+}
+
+func (p *presetSystem) ComponentIDs(kind stack.ComponentKind) []stack.ComponentID {
+	return p.registry.IDsByKind(kind)
 }
 
 func (p *presetSystem) Superchain(m stack.SuperchainMatcher) stack.Superchain {
@@ -55,6 +81,8 @@ func (p *presetSystem) Superchain(m stack.SuperchainMatcher) stack.Superchain {
 
 func (p *presetSystem) AddSuperchain(v stack.Superchain) {
 	p.require().True(p.superchains.SetIfMissing(v.ID(), v), "superchain %s must not already exist", v.ID())
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertSuperchainID(v.ID()).ComponentID, v)
 }
 
 func (p *presetSystem) Cluster(m stack.ClusterMatcher) stack.Cluster {
@@ -65,6 +93,8 @@ func (p *presetSystem) Cluster(m stack.ClusterMatcher) stack.Cluster {
 
 func (p *presetSystem) AddCluster(v stack.Cluster) {
 	p.require().True(p.clusters.SetIfMissing(v.ID(), v), "cluster %s must not already exist", v.ID())
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertClusterID(v.ID()).ComponentID, v)
 }
 
 func (p *presetSystem) Network(id eth.ChainID) stack.Network {
@@ -88,6 +118,8 @@ func (p *presetSystem) AddL1Network(v stack.L1Network) {
 	id := v.ID()
 	p.require().True(p.networks.SetIfMissing(id.ChainID(), v), "chain with id %s must not already exist", id.ChainID())
 	p.require().True(p.l1Networks.SetIfMissing(id, v), "L1 chain %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL1NetworkID(id).ComponentID, v)
 }
 
 func (p *presetSystem) L2Network(m stack.L2NetworkMatcher) stack.L2Network {
@@ -100,6 +132,8 @@ func (p *presetSystem) AddL2Network(v stack.L2Network) {
 	id := v.ID()
 	p.require().True(p.networks.SetIfMissing(id.ChainID(), v), "chain with id %s must not already exist", id.ChainID())
 	p.require().True(p.l2Networks.SetIfMissing(id, v), "L2 chain %s must not already exist", id)
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertL2NetworkID(id).ComponentID, v)
 }
 
 func (p *presetSystem) Supervisor(m stack.SupervisorMatcher) stack.Supervisor {
@@ -110,6 +144,8 @@ func (p *presetSystem) Supervisor(m stack.SupervisorMatcher) stack.Supervisor {
 
 func (p *presetSystem) AddSupervisor(v stack.Supervisor) {
 	p.require().True(p.supervisors.SetIfMissing(v.ID(), v), "supervisor %s must not already exist", v.ID())
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertSupervisorID(v.ID()).ComponentID, v)
 }
 
 func (p *presetSystem) Supernode(m stack.SupernodeMatcher) stack.Supernode {
@@ -130,10 +166,14 @@ func (p *presetSystem) TestSequencer(m stack.TestSequencerMatcher) stack.TestSeq
 
 func (p *presetSystem) AddTestSequencer(v stack.TestSequencer) {
 	p.require().True(p.sequencers.SetIfMissing(v.ID(), v), "sequencer %s must not already exist", v.ID())
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertTestSequencerID(v.ID()).ComponentID, v)
 }
 
 func (p *presetSystem) AddSyncTester(v stack.SyncTester) {
 	p.require().True(p.syncTesters.SetIfMissing(v.ID(), v), "sync tester %s must not already exist", v.ID())
+	// Also register in unified registry
+	p.registry.Register(stack.ConvertSyncTesterID(v.ID()).ComponentID, v)
 }
 
 func (p *presetSystem) SuperchainIDs() []stack.SuperchainID {

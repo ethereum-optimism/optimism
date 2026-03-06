@@ -1,6 +1,6 @@
 //! Error types for sources.
 
-use crate::{PipelineError, PipelineErrorKind};
+use crate::{PipelineError, PipelineErrorKind, ResetError};
 use alloc::string::{String, ToString};
 use thiserror::Error;
 
@@ -33,6 +33,16 @@ pub enum BlobProviderError {
     /// Blob decoding error.
     #[error("Blob decoding error: {0}")]
     BlobDecoding(#[from] BlobDecodingError),
+    /// The beacon node returned a 404 for the requested slot, indicating the slot was missed or
+    /// orphaned. Blobs for missed/orphaned slots will never become available, so the pipeline
+    /// must reset to move past the L1 block that referenced them.
+    #[error("Blob not found at slot {slot}: {reason}")]
+    BlobNotFound {
+        /// The beacon slot that returned 404.
+        slot: u64,
+        /// The underlying error message from the beacon client.
+        reason: String,
+    },
     /// Error pertaining to the backend transport.
     #[error("{0}")]
     Backend(String),
@@ -44,6 +54,9 @@ impl From<BlobProviderError> for PipelineErrorKind {
             BlobProviderError::SidecarLengthMismatch(_, _) |
             BlobProviderError::SlotDerivation |
             BlobProviderError::BlobDecoding(_) => PipelineError::Provider(val.to_string()).crit(),
+            BlobProviderError::BlobNotFound { slot, .. } => {
+                ResetError::BlobsUnavailable(slot).reset()
+            }
             BlobProviderError::Backend(_) => PipelineError::Provider(val.to_string()).temp(),
         }
     }
@@ -71,5 +84,18 @@ mod tests {
         let err: PipelineErrorKind =
             BlobProviderError::BlobDecoding(BlobDecodingError::InvalidFieldElement).into();
         assert!(matches!(err, PipelineErrorKind::Critical(_)));
+
+        let err: PipelineErrorKind = BlobProviderError::Backend("transport error".into()).into();
+        assert!(matches!(err, PipelineErrorKind::Temporary(_)));
+
+        // A 404 from the beacon node (missed/orphaned slot) must trigger a pipeline reset,
+        // not a temporary retry. Without this, the safe head stalls indefinitely.
+        let err: PipelineErrorKind =
+            BlobProviderError::BlobNotFound { slot: 13779552, reason: "slot not found".into() }
+                .into();
+        assert!(
+            matches!(err, PipelineErrorKind::Reset(_)),
+            "BlobNotFound must map to Reset so the pipeline moves past the missed slot"
+        );
     }
 }

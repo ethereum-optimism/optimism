@@ -12,8 +12,11 @@ use kona_protocol::BlockInfo;
 pub struct TestBlobProvider {
     /// Maps block hashes to blob data.
     pub blobs: HashMap<B256, Blob>,
-    /// whether the blob provider should return an error.
+    /// Whether the blob provider should return a generic backend error.
     pub should_error: bool,
+    /// When `true`, `get_and_validate_blobs` returns `BlobProviderError::BlobNotFound`,
+    /// simulating a missed/orphaned beacon slot (HTTP 404 from the beacon node).
+    pub should_return_not_found: bool,
 }
 
 impl TestBlobProvider {
@@ -39,6 +42,12 @@ impl BlobProvider for TestBlobProvider {
     ) -> Result<Vec<Box<Blob>>, Self::Error> {
         if self.should_error {
             return Err(BlobProviderError::SlotDerivation);
+        }
+        if self.should_return_not_found {
+            return Err(BlobProviderError::BlobNotFound {
+                slot: 0,
+                reason: "mock: slot not found".into(),
+            });
         }
         let mut blobs = Vec::new();
         for blob_hash in blob_hashes {

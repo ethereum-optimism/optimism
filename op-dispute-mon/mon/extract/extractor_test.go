@@ -381,7 +381,7 @@ func TestExtractor_EnrichGameInitializesRollupEndpointErrorCount(t *testing.T) {
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
 	require.Len(t, enriched, 1)
-	require.Equal(t, 0, enriched[0].RollupEndpointErrorCount, "RollupEndpointErrorCount should be initialized to 0")
+	require.Equal(t, 0, enriched[0].NodeEndpointErrorCount, "NodeEndpointErrorCount should be initialized to 0")
 }
 
 func TestExtractor_EnrichGameInitializesRollupEndpointOutOfSyncCount(t *testing.T) {
@@ -392,7 +392,7 @@ func TestExtractor_EnrichGameInitializesRollupEndpointOutOfSyncCount(t *testing.
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
 	require.Len(t, enriched, 1)
-	require.Equal(t, 0, enriched[0].RollupEndpointOutOfSyncCount, "RollupEndpointOutOfSyncCount should be initialized to 0")
+	require.Equal(t, 0, enriched[0].NodeEndpointOutOfSyncCount, "NodeEndpointOutOfSyncCount should be initialized to 0")
 }
 
 type mockEnricher struct {

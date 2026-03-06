@@ -16,7 +16,7 @@ func TestReadNUTBundle(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	bundle, err := ReadNUTBundle("Test", f)
+	bundle, err := readNUTBundle("Test", f)
 	require.NoError(t, err)
 
 	require.Equal(t, forks.Name("Test"), bundle.ForkName)
@@ -45,10 +45,10 @@ func TestNUTBundleToDepositTransactions(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	bundle, err := ReadNUTBundle("Test", f)
+	bundle, err := readNUTBundle("Test", f)
 	require.NoError(t, err)
 
-	txs, err := bundle.ToDepositTransactions()
+	txs, err := bundle.toDepositTransactions()
 	require.NoError(t, err)
 	require.Len(t, txs, 2)
 
@@ -75,7 +75,7 @@ func TestNUTBundleToDepositTransactions(t *testing.T) {
 }
 
 func TestReadNUTBundleInvalidJSON(t *testing.T) {
-	_, err := ReadNUTBundle("Test", bytes.NewReader([]byte(`{invalid`)))
+	_, err := readNUTBundle("Test", bytes.NewReader([]byte(`{invalid`)))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to parse NUT bundle")
 }
@@ -91,12 +91,40 @@ func TestNUTBundleMissingIntent(t *testing.T) {
 		}]
 	}`)
 
-	bundle, err := ReadNUTBundle("Test", bytes.NewReader(jsonData))
+	bundle, err := readNUTBundle("Test", bytes.NewReader(jsonData))
 	require.NoError(t, err)
 
-	_, err = bundle.ToDepositTransactions()
+	_, err = bundle.toDepositTransactions()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing intent")
+}
+
+func TestNUTBundleTotalGas(t *testing.T) {
+	f, err := os.Open("testdata/test-nut.json")
+	require.NoError(t, err)
+	defer f.Close()
+
+	bundle, err := readNUTBundle("Test", f)
+	require.NoError(t, err)
+
+	txs, err := bundle.toDepositTransactions()
+	require.NoError(t, err)
+	require.Len(t, txs, 2)
+	require.Equal(t, uint64(1_000_000+5_000_000), bundle.totalGas())
+
+	// Verify gas matches sum of individual deposit tx gas limits
+	var sumGas uint64
+	for _, tx := range txs {
+		_, dep := toDepositTxn(t, tx)
+		sumGas += dep.Gas()
+	}
+	require.Equal(t, bundle.totalGas(), sumGas)
+}
+
+func TestUpgradeTransactionsUnknownFork(t *testing.T) {
+	_, _, err := UpgradeTransactions("UnknownFork")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no NUT bundle for fork")
 }
 
 // TestNUTBundleNullTo verifies that "to": null in JSON produces a contract creation (deploy) transaction.
@@ -114,11 +142,11 @@ func TestNUTBundleNullTo(t *testing.T) {
 		}]
 	}`)
 
-	bundle, err := ReadNUTBundle("Test", bytes.NewReader(jsonData))
+	bundle, err := readNUTBundle("Test", bytes.NewReader(jsonData))
 	require.NoError(t, err)
 	require.Nil(t, bundle.Transactions[0].To)
 
-	txs, err := bundle.ToDepositTransactions()
+	txs, err := bundle.toDepositTransactions()
 	require.NoError(t, err)
 
 	_, dep := toDepositTxn(t, txs[0])

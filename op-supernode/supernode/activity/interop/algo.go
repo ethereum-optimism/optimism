@@ -3,7 +3,6 @@ package interop
 import (
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -20,36 +19,20 @@ var (
 	ErrUnknownChain = errors.New("unknown chain")
 
 	// ErrTimestampViolation is returned when an executing message references
-	// an initiating message with a timestamp >= the executing message's timestamp.
-	ErrTimestampViolation = errors.New("initiating message timestamp must be less than executing message timestamp")
+	// an initiating message with a timestamp > the executing message's timestamp.
+	ErrTimestampViolation = errors.New("initiating message timestamp must not be greater than executing message timestamp")
 
 	// ErrMessageExpired is returned when an executing message references
 	// an initiating message that has expired (older than ExpiryTime).
 	ErrMessageExpired = errors.New("initiating message has expired")
 )
 
-// verifyInteropMessages validates all executing messages at the given timestamp.
-// Returns a Result indicating whether all messages are valid or which chains have invalid blocks.
-//
-// For each chain:
-// 1. Open the block from the logsDB and verify it matches blocksAtTimestamp
-// 2. For each executing message in the block:
-//   - Verify the initiating message exists in the source chain's logsDB
-//   - Verify the initiating message timestamp < executing message timestamp
-//   - Verify the initiating message hasn't expired (within ExpiryTime)
-func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error) {
-	result := Result{
-		Timestamp:    ts,
-		L2Heads:      make(map[eth.ChainID]eth.BlockID),
-		InvalidHeads: make(map[eth.ChainID]eth.BlockID),
-	}
+type blockPerChain = map[eth.ChainID]eth.BlockID
 
-	// Compute L1Inclusion: the earliest L1 block such that all L2 blocks at the
-	// supplied timestamp were derived
-	// from a source at or before that L1 block.
-	earliestL1Inclusion := eth.BlockID{
-		Number: math.MaxUint64,
-	}
+// l1Inclusion returns the earliest L1 block such that all L2 blocks at the supplied timestamp were derived
+// from a source at or before that L1 block.
+func (i *Interop) l1Inclusion(ts uint64, blocksAtTimestamp blockPerChain) (eth.BlockID, error) {
+	l1Inclusion := eth.BlockID{}
 	for chainID := range blocksAtTimestamp {
 		chain, ok := i.chains[chainID]
 		if !ok {
@@ -58,16 +41,36 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		_, l1Block, err := chain.OptimisticAt(i.ctx, ts)
 		if err != nil {
 			i.log.Error("failed to get L1 inclusion for L2 block", "chainID", chainID, "timestamp", ts, "err", err)
-			return Result{}, fmt.Errorf("chain %s: failed to get L1 inclusion: %w", chainID, err)
+			return eth.BlockID{}, fmt.Errorf("chain %s: failed to get L1 inclusion: %w", chainID, err)
 		}
-		if l1Block.Number < earliestL1Inclusion.Number {
-			earliestL1Inclusion = l1Block
+		if l1Block.Number >= l1Inclusion.Number {
+			l1Inclusion = l1Block
 		}
 	}
-	if earliestL1Inclusion.Number == math.MaxUint64 {
-		return Result{}, fmt.Errorf("no L1 inclusion found for timestamp %d", ts)
+	return l1Inclusion, nil
+}
+
+// verifyInteropMessages validates all executing messages at the given timestamp.
+// Returns a Result indicating whether all messages are valid or which chains have invalid blocks.
+//
+// For each chain:
+// 1. Open the block from the logsDB and verify it matches blocksAtTimestamp
+// 2. For each executing message in the block:
+//   - Verify the initiating message exists in the source chain's logsDB
+//   - Verify the initiating message timestamp <= executing message timestamp
+//   - Verify the initiating message hasn't expired (within ExpiryTime)
+func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerChain) (Result, error) {
+	result := Result{
+		Timestamp:    ts,
+		L2Heads:      make(blockPerChain),
+		InvalidHeads: make(blockPerChain),
 	}
-	result.L1Inclusion = earliestL1Inclusion
+
+	if l1Inclusion, err := i.l1Inclusion(ts, blocksAtTimestamp); err != nil {
+		return Result{}, err
+	} else {
+		result.L1Inclusion = l1Inclusion
+	}
 
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		db, ok := i.logsDBs[chainID]
@@ -120,7 +123,8 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 		// Verify each executing message
 		blockValid := true
 		for logIdx, execMsg := range execMsgs {
-			if err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg); err != nil {
+			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg)
+			if err != nil {
 				i.log.Warn("invalid executing message",
 					"chain", chainID,
 					"block", expectedBlock.Number,
@@ -143,9 +147,9 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp map[eth.Cha
 }
 
 // verifyExecutingMessage verifies a single executing message by checking:
-// 1. The initiating message exists in the source chain's database
-// 2. The initiating message's timestamp is less than the executing block's timestamp
-// 3. The initiating message hasn't expired (timestamp + ExpiryTime >= executing timestamp)
+//  1. The initiating message exists in the source chain's database
+//  2. The initiating message's timestamp is not greater than the executing block's timestamp
+//  3. The initiating message hasn't expired (timestamp + ExpiryTime >= executing timestamp)
 func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	// Get the source chain's logsDB
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
@@ -153,9 +157,9 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 		return fmt.Errorf("source chain %s not found: %w", execMsg.ChainID, ErrUnknownChain)
 	}
 
-	// Verify timestamp ordering: initiating message timestamp must be < executing block timestamp
-	if execMsg.Timestamp >= executingTimestamp {
-		return fmt.Errorf("initiating timestamp %d >= executing timestamp %d: %w",
+	// Verify timestamp ordering: initiating message timestamp must be <= executing block timestamp.
+	if execMsg.Timestamp > executingTimestamp {
+		return fmt.Errorf("initiating timestamp %d > executing timestamp %d: %w",
 			execMsg.Timestamp, executingTimestamp, ErrTimestampViolation)
 	}
 

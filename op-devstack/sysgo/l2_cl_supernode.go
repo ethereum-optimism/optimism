@@ -197,6 +197,11 @@ type SupernodeConfig struct {
 	// InteropActivationTimestamp enables the interop activity at the given timestamp.
 	// Set to nil to disable interop (default). Non-nil (including 0) enables interop.
 	InteropActivationTimestamp *uint64
+
+	// UseGenesisInterop, when true, sets InteropActivationTimestamp to the genesis
+	// timestamp of the first configured chain at deploy time. Takes effect inside
+	// withSharedSupernodeCLsImpl after deployment, when the genesis time is known.
+	UseGenesisInterop bool
 }
 
 // SupernodeOption is a functional option for configuring the supernode.
@@ -210,34 +215,24 @@ func WithSupernodeInterop(activationTimestamp uint64) SupernodeOption {
 	}
 }
 
+// WithSupernodeInteropAtGenesis enables interop at the genesis timestamp of the first
+// configured chain. The timestamp is resolved after deployment, when genesis is known.
+func WithSupernodeInteropAtGenesis() SupernodeOption {
+	return func(cfg *SupernodeConfig) {
+		cfg.UseGenesisInterop = true
+	}
+}
+
 // WithSharedSupernodeCLsInterop starts one supernode for N L2 chains with interop enabled at genesis.
 // The interop activation timestamp is computed from the first chain's genesis time.
 func WithSharedSupernodeCLsInterop(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		// Get genesis timestamp from first chain
-		if len(cls) == 0 {
-			orch.P().Require().Fail("no chains provided")
-			return
-		}
-		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(cls[0].CLID.ChainID())).ComponentID)
-		if !ok {
-			orch.P().Require().Fail("l2 network not found")
-			return
-		}
-		l2Net := l2NetComponent.(*L2Network)
-		genesisTime := l2Net.rollupCfg.Genesis.L2Time
-		orch.P().Logger().Info("enabling supernode interop at genesis", "activation_timestamp", genesisTime)
-
-		// Call the main implementation with interop enabled
-		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, WithSupernodeInterop(genesisTime))
-	})
+	return WithSharedSupernodeCLs(supernodeID, cls, l1CLID, l1ELID, WithSupernodeInteropAtGenesis())
 }
 
 // WithSharedSupernodeCLsInteropDelayed starts one supernode for N L2 chains with interop enabled
 // at a specified offset from genesis. This allows testing the transition from non-interop to interop mode.
 func WithSharedSupernodeCLsInteropDelayed(supernodeID stack.SupernodeID, cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, delaySeconds uint64) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		// Get genesis timestamp from first chain
 		if len(cls) == 0 {
 			orch.P().Require().Fail("no chains provided")
 			return
@@ -255,8 +250,6 @@ func WithSharedSupernodeCLsInteropDelayed(supernodeID stack.SupernodeID, cls []L
 			"activation_timestamp", activationTime,
 			"delay_seconds", delaySeconds,
 		)
-
-		// Call the main implementation with interop enabled at delayed timestamp
 		withSharedSupernodeCLsImpl(orch, supernodeID, cls, l1CLID, l1ELID, WithSupernodeInterop(activationTime))
 	})
 }
@@ -277,6 +270,17 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, supernodeID stack.SupernodeI
 	snOpts := &SupernodeConfig{}
 	for _, opt := range opts {
 		opt(snOpts)
+	}
+
+	// Resolve UseGenesisInterop: read the activation timestamp from the first chain's genesis.
+	if snOpts.UseGenesisInterop && snOpts.InteropActivationTimestamp == nil {
+		p.Require().NotEmpty(cls, "no chains provided for genesis interop resolution")
+		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(cls[0].CLID.ChainID())).ComponentID)
+		l2Net := l2NetComponent.(*L2Network)
+		p.Require().True(ok, "l2 network not found for genesis interop resolution")
+		genesisTime := l2Net.rollupCfg.Genesis.L2Time
+		p.Logger().Info("enabling supernode interop at genesis", "activation_timestamp", genesisTime)
+		snOpts.InteropActivationTimestamp = &genesisTime
 	}
 
 	l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)

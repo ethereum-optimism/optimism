@@ -284,10 +284,10 @@ func TestProcessBlockLogs(t *testing.T) {
 		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, false)
 
 		require.NoError(t, err)
-		require.NotNil(t, db.sealBlockCall)
-		require.Equal(t, common.Hash{0x01}, db.sealBlockCall.parentHash)
-		require.Equal(t, uint64(100), db.sealBlockCall.block.Number)
-		require.Equal(t, uint64(1000), db.sealBlockCall.timestamp)
+		require.Len(t, db.sealBlockCalls, 1)
+		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[0].parentHash)
+		require.Equal(t, uint64(100), db.sealBlockCalls[0].block.Number)
+		require.Equal(t, uint64(1000), db.sealBlockCalls[0].timestamp)
 		require.Equal(t, 0, db.addLogCalls)
 	})
 
@@ -321,7 +321,7 @@ func TestProcessBlockLogs(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, 3, db.addLogCalls)
-		require.NotNil(t, db.sealBlockCall)
+		require.Len(t, db.sealBlockCalls, 1)
 	})
 
 	t.Run("genesis block handled correctly", func(t *testing.T) {
@@ -339,11 +339,11 @@ func TestProcessBlockLogs(t *testing.T) {
 		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
 
 		require.NoError(t, err)
-		require.NotNil(t, db.sealBlockCall)
-		require.Equal(t, uint64(0), db.sealBlockCall.block.Number)
+		require.Len(t, db.sealBlockCalls, 1)
+		require.Equal(t, uint64(0), db.sealBlockCalls[0].block.Number)
 	})
 
-	t.Run("first block at non-zero number uses empty parent", func(t *testing.T) {
+	t.Run("first block at non-zero number seals virtual parent first", func(t *testing.T) {
 		t.Parallel()
 
 		interop := &Interop{log: gethlog.New()}
@@ -355,14 +355,95 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		// isFirstBlock=true should use empty parent for both AddLog and SealBlock
-		// This allows the logsDB to treat this block as its genesis
+		// isFirstBlock=true should first seal a "virtual parent" block,
+		// then seal the actual block. This allows logs to reference a sealed parent.
 		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
 
 		require.NoError(t, err)
-		require.NotNil(t, db.sealBlockCall)
-		// Both AddLog and SealBlock should use empty parent for first block
-		require.Equal(t, common.Hash{}, db.sealBlockCall.parentHash)
+		require.Len(t, db.sealBlockCalls, 2)
+
+		// First call: seal the virtual parent (block 9) with empty parent hash
+		require.Equal(t, common.Hash{}, db.sealBlockCalls[0].parentHash)
+		require.Equal(t, uint64(9), db.sealBlockCalls[0].block.Number)
+		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[0].block.Hash)
+
+		// Second call: seal the actual block (block 10) with real parent hash
+		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[1].parentHash)
+		require.Equal(t, uint64(10), db.sealBlockCalls[1].block.Number)
+		require.Equal(t, common.Hash{0x02}, db.sealBlockCalls[1].block.Hash)
+	})
+
+	t.Run("first block with logs succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		interop := &Interop{log: gethlog.New()}
+		db := &mockLogsDB{}
+		blockInfo := &testBlockInfo{
+			hash:       common.Hash{0x02},
+			parentHash: common.Hash{0x01},
+			number:     100,
+			timestamp:  1000,
+		}
+
+		receipts := types.Receipts{
+			&types.Receipt{
+				Logs: []*types.Log{
+					{Address: common.Address{0xAA}, Data: []byte{0x01}},
+				},
+			},
+		}
+
+		// This is the key test: first block with logs should work because
+		// we seal the virtual parent first, allowing AddLog to reference it
+		err := interop.processBlockLogs(db, blockInfo, receipts, true)
+
+		require.NoError(t, err)
+		require.Len(t, db.sealBlockCalls, 2) // virtual parent + actual block
+		require.Equal(t, 1, db.addLogCalls)
+	})
+
+	t.Run("integration: first block with logs against real DB", func(t *testing.T) {
+		t.Parallel()
+
+		dataDir := t.TempDir()
+		chainID := eth.ChainIDFromUInt64(10)
+
+		db, err := openLogsDB(gethlog.New(), chainID, dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		interop := &Interop{log: gethlog.New()}
+		blockInfo := &testBlockInfo{
+			hash:       common.Hash{0x02},
+			parentHash: common.Hash{0x01},
+			number:     100,
+			timestamp:  1000,
+		}
+		receipts := types.Receipts{
+			&types.Receipt{
+				Logs: []*types.Log{
+					{Address: common.Address{0xAA}, Data: []byte{0x01}},
+					{Address: common.Address{0xBB}, Data: []byte{0x02}},
+				},
+			},
+		}
+
+		// This is the key integration test: first block with logs must work
+		// against the real logs.DB, not just the mock.
+		err = interop.processBlockLogs(db, blockInfo, receipts, true)
+		require.NoError(t, err)
+
+		// Verify data is correctly in the DB
+		latestBlock, ok := db.LatestSealedBlock()
+		require.True(t, ok)
+		require.Equal(t, uint64(100), latestBlock.Number)
+		require.Equal(t, common.Hash{0x02}, latestBlock.Hash)
+
+		// Verify we can open the block and see the logs
+		ref, logCount, _, err := db.OpenBlock(100)
+		require.NoError(t, err)
+		require.Equal(t, uint32(2), logCount)
+		require.Equal(t, common.Hash{0x01}, ref.ParentHash)
 	})
 
 	t.Run("AddLog error propagated", func(t *testing.T) {
@@ -476,14 +557,14 @@ func TestLoadLogs_ParentHashMismatch(t *testing.T) {
 // =============================================================================
 
 type mockLogsDB struct {
-	latestBlock   eth.BlockID
-	hasBlocks     bool
-	seal          suptypes.BlockSeal
-	findSealErr   error
-	addLogErr     error
-	sealBlockErr  error
-	addLogCalls   int
-	sealBlockCall *sealBlockCall
+	latestBlock    eth.BlockID
+	hasBlocks      bool
+	seal           suptypes.BlockSeal
+	findSealErr    error
+	addLogErr      error
+	sealBlockErr   error
+	addLogCalls    int
+	sealBlockCalls []*sealBlockCall // Track all SealBlock calls
 
 	firstSealedBlock    suptypes.BlockSeal
 	firstSealedBlockErr error
@@ -541,11 +622,11 @@ func (m *mockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx
 }
 
 func (m *mockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
-	m.sealBlockCall = &sealBlockCall{
+	m.sealBlockCalls = append(m.sealBlockCalls, &sealBlockCall{
 		parentHash: parentHash,
 		block:      block,
 		timestamp:  timestamp,
-	}
+	})
 	return m.sealBlockErr
 }
 

@@ -76,6 +76,28 @@ If the PR changes the Foundry dependency versions, i.e the `forge`, `cast`, and 
 >
 > For more information on the Foundry version upgrade process, please see the [Foundry version upgrade policy](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/foundry-upgrades.md).
 
+### Non-Idempotent Initializers
+
+When reviewing changes to `initialize()` or `reinitializer` functions, check whether the function is **idempotent** — calling it multiple times with the same arguments should produce the same end state as calling it once. Proxied contracts can be re-initialized during upgrades, so non-idempotent initializers risk corrupting state.
+
+**When to flag:**
+- An `initialize()` function increments counters, appends to arrays, or performs any operation where repeating it changes the outcome
+- An `initialize()` function makes external calls with lasting side-effects (minting, transferring, authorizing in ways that aren't simple overwrites)
+- An `initialize()` function overwrites a variable that other contracts or off-chain systems may already depend on
+- A change to an existing `initialize()` function introduces non-idempotent or unsafe-to-rerun behavior that wasn't there before
+
+Non-idempotent or unsafe-to-rerun behavior in initializers is **disallowed** unless explicitly acknowledged with a `@notice` comment explaining why it's safe. If you detect non-idempotent behavior without such a comment, you MUST leave a blocking comment:
+
+> **Non-Idempotent Initializer — Acknowledgment Required**
+>
+> This `initialize()` function contains operations that are not idempotent (not safe to call multiple times with the same arguments). Since proxied contracts can be re-initialized during upgrades, this is disallowed unless explicitly acknowledged.
+>
+> Please either:
+> 1. Make the operation idempotent, or
+> 2. Add a `@notice` comment on the function explaining why the non-idempotent behavior is safe given how callers use it
+>
+> See `docs/ai/contract-dev.md` for detailed guidance.
+
 ### Storage Layout Mutation Warnings
 
 If a PR modifies files in `packages/contracts-bedrock/snapshots/storageLayout/`, you MUST analyze the diff to determine if storage slots are being **mutated** (as opposed to purely added or deleted along with the contract).

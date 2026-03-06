@@ -499,7 +499,7 @@ contract L2Genesis is Script {
     function setEAS() internal {
         string memory cname = Predeploys.getName(Predeploys.EAS);
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.EAS);
-        bytes memory code = vm.getCode(string.concat(cname, ".sol:", cname));
+        bytes memory code = DeployUtils.getCode(cname);
 
         address eas;
         assembly {

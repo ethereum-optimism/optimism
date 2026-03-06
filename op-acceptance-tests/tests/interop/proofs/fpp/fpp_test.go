@@ -22,6 +22,8 @@ func TestFPP(gt *testing.T) {
 
 func TestNextSuperRootNotFound(gt *testing.T) {
 	t := devtest.SerialT(gt)
+	// TODO(#19180): Unskip this once supernode is updated.
+	t.Skip("Supernode does not yet return optimistic blocks until blocks are fully validated")
 	sys := presets.NewSimpleInterop(t)
 	blockTime := sys.L2ChainA.Escape().RollupConfig().BlockTime
 

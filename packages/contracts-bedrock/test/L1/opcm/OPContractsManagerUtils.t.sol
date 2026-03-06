@@ -21,6 +21,10 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 
 /// @title ImplV1_Harness
 /// @notice Implementation contract with version 1.0.0 for testing upgrades.
@@ -733,6 +737,89 @@ contract OPContractsManagerUtils_IsMatchingInstruction_Test is OPContractsManage
         bytes memory _data = bytes.concat("not:", _instruction.data);
 
         assertFalse(utils.isMatchingInstruction(_instruction, _instruction.key, _data));
+    }
+}
+
+/// @title OPContractsManagerUtils_MakeGameArgs_Test
+/// @notice Tests the makeGameArgs function for each supported game type.
+contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_TestInit {
+    IAnchorStateRegistry internal anchorStateRegistry;
+    IDelayedWETH internal delayedWETH;
+    uint256 internal constant L2_CHAIN_ID = 10;
+
+    function setUp() public override {
+        super.setUp();
+        anchorStateRegistry = IAnchorStateRegistry(makeAddr("anchorStateRegistry"));
+        delayedWETH = IDelayedWETH(payable(makeAddr("delayedWETH")));
+    }
+
+    // TODO: Add makeGameArgs tests for CANNON and PERMISSIONED_CANNON game types once
+    // a shared test helper exists for building FaultDisputeGameConfig/PermissionedDisputeGameConfig.
+
+    /// @notice Tests that makeGameArgs for ZK_DISPUTE_GAME encodes the CWIA bytes in the correct
+    ///         order: absolutePrestate | verifier | maxChallengeDuration | maxProveDuration |
+    ///         challengerBond | anchorStateRegistry | delayedWETH | l2ChainId.
+    /// @dev TODO: Once ZKDisputeGame.sol is implemented, add an integration test that feeds these
+    ///      bytes to the actual clone and verifies each CWIA getter returns the expected value.
+    ///      Waiting on PR: ZKDisputeGame contract implementation.
+    function test_makeGameArgs_zkDisputeGame_succeeds() public {
+        Claim absolutePrestate = Claim.wrap(keccak256("absolutePrestate"));
+        address verifier = makeAddr("sp1PlonkVerifierAdapter");
+        Duration maxChallengeDuration = Duration.wrap(uint64(12 hours));
+        Duration maxProveDuration = Duration.wrap(uint64(3 days));
+        uint256 challengerBond = 1 ether;
+
+        IOPContractsManagerUtils.ZKDisputeGameConfig memory zkCfg = IOPContractsManagerUtils.ZKDisputeGameConfig({
+            absolutePrestate: absolutePrestate,
+            verifier: verifier,
+            maxChallengeDuration: maxChallengeDuration,
+            maxProveDuration: maxProveDuration,
+            challengerBond: challengerBond
+        });
+
+        IOPContractsManagerUtils.DisputeGameConfig memory gcfg = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: abi.encode(zkCfg)
+        });
+
+        bytes memory result = utils.makeGameArgs(L2_CHAIN_ID, anchorStateRegistry, delayedWETH, gcfg);
+
+        bytes memory expected = abi.encodePacked(
+            absolutePrestate,
+            verifier,
+            maxChallengeDuration,
+            maxProveDuration,
+            challengerBond,
+            address(anchorStateRegistry),
+            address(delayedWETH),
+            L2_CHAIN_ID
+        );
+
+        assertEq(result, expected, "ZK game args encoding mismatch");
+    }
+
+    /// @notice Tests that makeGameArgs for ZK_DISPUTE_GAME reverts when gameArgs cannot be decoded.
+    function test_makeGameArgs_zkDisputeGame_invalidGameArgs_reverts() public {
+        IOPContractsManagerUtils.DisputeGameConfig memory gcfg = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: bytes("invalid")
+        });
+
+        vm.expectRevert();
+        utils.makeGameArgs(L2_CHAIN_ID, anchorStateRegistry, delayedWETH, gcfg);
+    }
+
+    /// @notice Tests that getGameImpl returns the zkDisputeGameImpl for ZK_DISPUTE_GAME.
+    /// @dev TODO: Once ZKDisputeGame.sol is implemented, set a real address in the container
+    ///      instead of address(0) and verify it is a valid IDisputeGame.
+    ///      Waiting on PR: ZKDisputeGame contract implementation.
+    function test_getGameImpl_zkDisputeGame_returnsImpl() public view {
+        IDisputeGame impl = utils.getGameImpl(GameTypes.ZK_DISPUTE_GAME);
+        assertEq(address(impl), implementations.zkDisputeGameImpl);
     }
 }
 

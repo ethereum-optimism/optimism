@@ -6,7 +6,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
@@ -28,15 +28,6 @@ contract OPContractsManagerUtils {
         IAddressManager addressManager;
         uint256 l2ChainId;
         string saltMixer;
-    }
-
-    /// @notice Configuration struct for the ZKDisputeGame.
-    struct ZKDisputeGameConfig {
-        Claim absolutePrestate;
-        address verifier;
-        Duration maxChallengeDuration;
-        Duration maxProveDuration;
-        uint256 challengerBond;
     }
 
     /// @notice Struct that represents an additional instruction for an upgrade. Each upgrade has
@@ -429,8 +420,18 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.challenger
             );
         } else if (_gcfg.gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
-            // OptimisticZkGame uses implementation without per-instance args when registered with empty gameArgs.
-            return "";
+            IOPContractsManagerUtils.ZKDisputeGameConfig memory cfg =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+            return abi.encodePacked(
+                cfg.absolutePrestate,
+                cfg.verifier,
+                cfg.maxChallengeDuration,
+                cfg.maxProveDuration,
+                cfg.challengerBond,
+                address(_anchorStateRegistry),
+                address(_delayedWETH),
+                _l2ChainId
+            );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }

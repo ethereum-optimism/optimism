@@ -28,7 +28,6 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Types as LibTypes } from "src/libraries/Types.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
-
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
@@ -268,6 +267,16 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
+
+        // Mock getProxyImplementation for DelayedWETH and ETHLockbox proxies when running
+        // with an unoptimized Foundry profile. See Setup.mockUnoptimizedProxyImplementations.
+        mockUnoptimizedProxyImplementations(
+            disputeGameFactory,
+            proxyAdmin,
+            address(optimismPortal2.ethLockbox()),
+            validator.delayedWETHImpl(),
+            validator.ethLockboxImpl()
+        );
 
         // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
         // standard validator. This happens because an absolute prestate of zero means that the
@@ -1448,7 +1457,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_verifyOpcmCorrectness_succeeds() public {
-        skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
+        skipIfUnoptimized();
 
         // Set up environment variables with the actual OPCM addresses for tests that need them.
         // These values come from the StandardValidator that was deployed with the OPCM.

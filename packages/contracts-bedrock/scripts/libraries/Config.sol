@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Vm, VmSafe } from "forge-std/Vm.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 /// @notice Enum representing different ways of outputting genesis allocs.
 /// @custom:value NONE    No output, used in internal tests.
@@ -266,6 +267,17 @@ library Config {
         return vm.envOr("FOUNDRY_PROFILE", string("default"));
     }
 
+    /// @notice Returns true when the compiler output is not production-like. This includes
+    ///         coverage mode (which adds instrumentation) and unoptimized Foundry profiles
+    ///         (which produce different bytecode, CREATE2 addresses, and gas costs).
+    function isUnoptimized() internal view returns (bool) {
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            return true;
+        }
+        string memory profile = foundryProfile();
+        return !LibString.eq(profile, "default") && !LibString.eq(profile, "ci");
+    }
+
     /// @notice Returns the path to the superchain ops allocs.
     function superchainOpsAllocsPath() internal view returns (string memory) {
         return vm.envOr("SUPERCHAIN_OPS_ALLOCS_PATH", string(""));
@@ -289,6 +301,11 @@ library Config {
     /// @notice Returns true if the development feature l2cm is enabled.
     function devFeatureL2CM() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__L2CM", false);
+    }
+
+    /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.
+    function devFeatureZkDisputeGame() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
     }
 
     /// @notice Returns true if the system feature custom_gas_token is enabled.
