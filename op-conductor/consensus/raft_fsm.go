@@ -87,6 +87,7 @@ func (t *unsafeHeadTracker) Snapshot() (raft.FSMSnapshot, error) {
 	}
 
 	return &snapshot{
+		log:        t.log,
 		unsafeHead: t.unsafeHead,
 	}, nil
 }
