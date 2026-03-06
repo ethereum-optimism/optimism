@@ -29,7 +29,8 @@ const fn default_interop_message_expiry_window() -> u64 {
 }
 
 /// The max sequencer drift needs to be changes for some chains, e.g. those that build only on
-/// finalized L1 blocks, where L1 finality delays can exceed the standard [`FJORD_MAX_SEQUENCER_DRIFT`].
+/// finalized L1 blocks, where L1 finality delays can exceed the standard
+/// [`FJORD_MAX_SEQUENCER_DRIFT`].
 #[cfg(all(feature = "serde", feature = "rollup_config_override"))]
 const fn default_fjord_max_sequencer_drift() -> u64 {
     FJORD_MAX_SEQUENCER_DRIFT
