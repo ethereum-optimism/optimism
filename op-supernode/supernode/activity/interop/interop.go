@@ -198,7 +198,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		return false, err
 	}
 
-	verifiedAdvanced := !result.IsEmpty()
+	verifiedAdvanced := !result.IsEmpty() && result.IsValid()
 	return verifiedAdvanced, nil
 }
 
