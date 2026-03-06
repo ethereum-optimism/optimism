@@ -86,7 +86,14 @@ contract MockL2ToL2CrossDomainMessenger {
     /// @notice recipient will not be used since in normal execution it's the same
     /// address on a different chain, but here we have to compute it to mock
     /// cross-chain messaging
-    function sendMessage(uint256 chainId, address, /*recipient*/ bytes calldata data) external {
+    function sendMessage(
+        uint256 chainId,
+        address,
+        /*recipient*/
+        bytes calldata data
+    )
+        external
+    {
         address crossChainRecipient = superTokenAddresses[chainId][superTokenInitDeploySalts[msg.sender]];
         if (crossChainRecipient == msg.sender) {
             require(false, "MockL2ToL2CrossDomainMessenger: same chain");
