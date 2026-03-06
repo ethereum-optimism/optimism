@@ -153,7 +153,7 @@ func TestFixtureKeys(t *testing.T) {
 	fixturePath := filepath.Join(t.TempDir(), "test.json")
 	fixture := rpcReplayFixture{
 		Entries: map[string]rpcReplayEntry{
-			"eth_chainId:abc123":    {Method: "eth_chainId"},
+			"eth_chainId:abc123":     {Method: "eth_chainId"},
 			"eth_blockNumber:def456": {Method: "eth_blockNumber"},
 		},
 	}

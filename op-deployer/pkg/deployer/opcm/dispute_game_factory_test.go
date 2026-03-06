@@ -6,21 +6,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
-	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSetDisputeGameImpl(t *testing.T) {

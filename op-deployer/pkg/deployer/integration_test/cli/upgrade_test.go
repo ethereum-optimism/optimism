@@ -10,6 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/opcmregistry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -17,8 +20,6 @@ import (
 	v6_0_0 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v6_0_0"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/require"
 )
 
 // TestCLIUpgrade tests the upgrade CLI command for each standard opcm release
