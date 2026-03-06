@@ -6,8 +6,8 @@
 /op-node/rollup/derive @ethereum-optimism/consensus # exclusive
 /rust/kona/crates/protocol @ethereum-optimism/consensus # exclusive
 
-/op-deployer    @ethereum-optimism/platforms-team @ethereum-optimism/monorepo-reviewers
-/op-validator   @ethereum-optimism/platforms-team @ethereum-optimism/monorepo-reviewers
+/op-deployer    @ethereum-optimism/core-team @ethereum-optimism/monorepo-reviewers
+/op-validator   @ethereum-optimism/core-team @ethereum-optimism/monorepo-reviewers
 
 /op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/monorepo-reviewers
 
