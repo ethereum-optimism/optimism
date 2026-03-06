@@ -355,21 +355,21 @@ func NewPFromT(t T) P {
 	return &testP{t: t}
 }
 
-func (p *testP) Error(args ...any)                { p.t.Error(args...) }
-func (p *testP) Errorf(fmt string, args ...any)   { p.t.Errorf(fmt, args...) }
-func (p *testP) Fail()                            { p.t.Fail() }
-func (p *testP) FailNow()                         { p.t.FailNow() }
-func (p *testP) SkipNow()                         { p.t.SkipNow() }
-func (p *testP) Log(args ...any)                  { p.t.Log(args...) }
-func (p *testP) Logf(fmt string, args ...any)     { p.t.Logf(fmt, args...) }
-func (p *testP) Helper()                          { p.t.Helper() }
-func (p *testP) Name() string                     { return p.t.Name() }
-func (p *testP) Logger() log.Logger               { return p.t.Logger() }
-func (p *testP) Tracer() trace.Tracer             { return p.t.Tracer() }
-func (p *testP) Ctx() context.Context             { return p.t.Ctx() }
-func (p *testP) Require() *testreq.Assertions     { return p.t.Require() }
-func (p *testP) TempDir() string                  { return p.t.TempDir() }
-func (p *testP) Cleanup(fn func())                { p.t.Cleanup(fn) }
-func (p *testP) WithCtx(ctx context.Context) P    { return &testP{t: p.t.WithCtx(ctx)} }
-func (p *testP) Close()                           {} // T manages its own lifecycle via t.Cleanup
-func (p *testP) _PackageOnly()                    { panic("do not use - marker method only") }
+func (p *testP) Error(args ...any)              { p.t.Error(args...) }
+func (p *testP) Errorf(fmt string, args ...any) { p.t.Errorf(fmt, args...) }
+func (p *testP) Fail()                          { p.t.Fail() }
+func (p *testP) FailNow()                       { p.t.FailNow() }
+func (p *testP) SkipNow()                       { p.t.SkipNow() }
+func (p *testP) Log(args ...any)                { p.t.Log(args...) }
+func (p *testP) Logf(fmt string, args ...any)   { p.t.Logf(fmt, args...) }
+func (p *testP) Helper()                        { p.t.Helper() }
+func (p *testP) Name() string                   { return p.t.Name() }
+func (p *testP) Logger() log.Logger             { return p.t.Logger() }
+func (p *testP) Tracer() trace.Tracer           { return p.t.Tracer() }
+func (p *testP) Ctx() context.Context           { return p.t.Ctx() }
+func (p *testP) Require() *testreq.Assertions   { return p.t.Require() }
+func (p *testP) TempDir() string                { return p.t.TempDir() }
+func (p *testP) Cleanup(fn func())              { p.t.Cleanup(fn) }
+func (p *testP) WithCtx(ctx context.Context) P  { return &testP{t: p.t.WithCtx(ctx)} }
+func (p *testP) Close()                         {} // T manages its own lifecycle via t.Cleanup
+func (p *testP) _PackageOnly()                  { panic("do not use - marker method only") }
