@@ -117,6 +117,34 @@ commands:
             fi
             curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
+  install-sccache:
+    description: "Install sccache for distributed Rust compilation caching"
+    steps:
+      - run:
+          name: Install sccache
+          command: |
+            if command -v sccache >/dev/null 2>&1; then
+              echo "sccache already installed"
+              sccache --version
+              exit 0
+            fi
+            SCCACHE_VERSION="v0.10.0"
+            curl -fsSL "https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+              | sudo tar xz --strip-components=1 -C /usr/local/bin "sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache"
+            sccache --version
+
+  sccache-finalize:
+    description: "Show sccache stats and flush cache to GCS"
+    steps:
+      - run:
+          name: sccache stats and flush
+          command: |
+            if command -v sccache >/dev/null 2>&1; then
+              sccache --show-stats
+              sccache --stop-server 2>/dev/null || true
+            fi
+          when: always
+
   rust-install-toolchain:
     description: "Install Rust toolchain via rustup"
     parameters:
@@ -153,7 +181,7 @@ commands:
             fi
 
   rust-setup-env:
-    description: "Fix rust mise environment variables"
+    description: "Fix rust mise environment variables and configure sccache"
     steps:
       - run:
           name: Fix mise environment variables
@@ -162,6 +190,17 @@ commands:
             echo "export RUSTUP_HOME=${MISE_RUSTUP_HOME}" >> "$BASH_ENV"
             echo "source ${MISE_CARGO_HOME}/env" >> "$BASH_ENV"
             echo "export CARGO_INCREMENTAL=0" >> "$BASH_ENV"
+      - run:
+          name: Configure sccache
+          command: |
+            if command -v sccache >/dev/null 2>&1; then
+              echo 'export RUSTC_WRAPPER=sccache' >> "$BASH_ENV"
+              echo 'export SCCACHE_GCS_BUCKET=op-rust-sccache' >> "$BASH_ENV"
+              echo 'export SCCACHE_GCS_KEY_PREFIX_VERSION=v1' >> "$BASH_ENV"
+              echo 'export SCCACHE_GCS_KEY_PREFIX=circleci/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${SCCACHE_GCS_KEY_PREFIX_VERSION}' >> "$BASH_ENV"
+              echo 'export SCCACHE_GCS_RW_MODE=READ_WRITE' >> "$BASH_ENV"
+              echo 'export SCCACHE_IGNORE_SERVER_IO_ERROR=1' >> "$BASH_ENV"
+            fi
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
@@ -179,6 +218,11 @@ commands:
         default: true
     description: "Prepare the Rust environment for the build."
     steps:
+      - install-sccache
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /tmp/sccache_gcp_cred_config.json
+          oidc_token_file_path: /tmp/sccache_oidc_token.json
       - rust-setup-env
       - when:
           condition: << parameters.needs_clang >>
@@ -335,6 +379,7 @@ commands:
 
             cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES
           no_output_timeout: 30m
+      - sccache-finalize
       - when:
           condition: << parameters.save_cache >>
           steps:
@@ -850,6 +895,13 @@ jobs:
           checkout-method: blobless
       - install-zstd
       - rust-prepare
+      - run:
+          name: Disable sccache for coverage
+          command: |
+            echo 'unset RUSTC_WRAPPER' >> "$BASH_ENV"
+            if command -v sccache >/dev/null 2>&1; then
+              sccache --stop-server 2>/dev/null || true
+            fi
       - install-cargo-binstall
       - run:
           name: Install cargo-llvm-cov
@@ -949,6 +1001,13 @@ jobs:
           directory: rust
           prefix: kona-coverage
           version: "1"
+      - run:
+          name: Disable sccache for coverage
+          command: |
+            echo 'unset RUSTC_WRAPPER' >> "$BASH_ENV"
+            if command -v sccache >/dev/null 2>&1; then
+              sccache --stop-server 2>/dev/null || true
+            fi
       - rust-install-toolchain:
           components: llvm-tools-preview
       - install-cargo-binstall
@@ -1138,6 +1197,7 @@ workflows:
           directory: rust
           context: &rust-ci-context
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs
 
       - rust-ci-clippy:
           name: rust-clippy
@@ -1356,4 +1416,4 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
-
+            - sccache-gcs
