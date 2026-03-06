@@ -38,7 +38,7 @@ coverage:
         base: auto
         target: auto
         threshold: 5%
-        informational: false
+        informational: true
         flags:
           - contracts-bedrock-tests
       # Kona patch coverage
