@@ -5,13 +5,13 @@ use alloy_chains::Chain;
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_primitives::Address;
 
+#[cfg(feature = "rollup_config_override")]
+use crate::FJORD_MAX_SEQUENCER_DRIFT;
 use crate::{
     AddressList, AltDAConfig, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig,
     Roles, RollupConfig, SuperchainLevel, base_fee_params, base_fee_params_canyon,
     params::base_fee_config, rollup::DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
 };
-#[cfg(feature = "rollup_config_override")]
-use crate::FJORD_MAX_SEQUENCER_DRIFT;
 
 /// L1 chain configuration from the `alloy-genesis` crate.
 pub type L1ChainConfig = alloy_genesis::ChainConfig;
