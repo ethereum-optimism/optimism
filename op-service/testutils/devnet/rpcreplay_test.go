@@ -35,7 +35,7 @@ func newFakeUpstream(t *testing.T) (string, func()) {
 					"result":  json.RawMessage(fakeResult(req.Method)),
 				})
 			}
-			json.NewEncoder(w).Encode(resps)
+			_ = json.NewEncoder(w).Encode(resps)
 			return
 		}
 
@@ -46,13 +46,13 @@ func newFakeUpstream(t *testing.T) (string, func()) {
 			"id":      json.RawMessage(req.ID),
 			"result":  json.RawMessage(fakeResult(req.Method)),
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	srv := &http.Server{Handler: mux}
-	go srv.Serve(ln)
+	go func() { _ = srv.Serve(ln) }()
 
 	url := "http://" + ln.Addr().String()
 	return url, func() { srv.Close() }
@@ -103,6 +103,7 @@ func TestRPCReplayProxy_RecordAndReplay(t *testing.T) {
 	resp, err := http.Post(replayer.Endpoint(), "application/json",
 		bytes.NewReader([]byte(`{"jsonrpc":"2.0","id":1,"method":"eth_unknownMethod","params":[]}`)))
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	require.NoError(t, replayer.Stop())
@@ -123,6 +124,7 @@ func TestRPCReplayProxy_BatchRequests(t *testing.T) {
 	resp, err := http.Post(recorder.Endpoint(), "application/json", bytes.NewReader([]byte(batchReq)))
 	require.NoError(t, err)
 	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	require.Contains(t, string(body), "0xaa36a7")
 
 	require.NoError(t, recorder.Stop())
@@ -134,6 +136,7 @@ func TestRPCReplayProxy_BatchRequests(t *testing.T) {
 	resp2, err := http.Post(replayer.Endpoint(), "application/json", bytes.NewReader([]byte(batchReq)))
 	require.NoError(t, err)
 	body2, _ := io.ReadAll(resp2.Body)
+	resp2.Body.Close()
 	require.Contains(t, string(body2), "0xaa36a7")
 	require.Contains(t, string(body2), "0x7a1200")
 
