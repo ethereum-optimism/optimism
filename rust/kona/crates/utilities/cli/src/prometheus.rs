@@ -3,7 +3,7 @@
 //! # Design
 //!
 //! We manually serve metrics via `hyper` rather than using the built-in HTTP listener from
-//! `metrics-exporter-prometheus`. This is because [`PrometheusBuilder::with_http_listener`]
+//! `metrics-exporter-prometheus`. This is because `PrometheusBuilder::with_http_listener`
 //! doesn't expose the actual bound address—it only accepts a [`SocketAddr`] and returns
 //! `Result<(), BuildError>`. When port 0 is used (letting the OS assign an available port),
 //! there's no way to discover what port was actually assigned.
@@ -28,8 +28,7 @@ use hyper_util::rt::TokioIo;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_process::Collector;
 use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
-use tokio::net::TcpListener;
-use tokio::sync::Semaphore;
+use tokio::{net::TcpListener, sync::Semaphore};
 use tracing::{error, info};
 
 /// Start a Prometheus metrics server on the given address.
@@ -106,9 +105,8 @@ async fn serve_metrics(listener: TcpListener, handle: Arc<PrometheusHandle>) {
                 }
             });
 
-            if let Err(e) = http1::Builder::new()
-                .serve_connection(TokioIo::new(stream), service)
-                .await
+            if let Err(e) =
+                http1::Builder::new().serve_connection(TokioIo::new(stream), service).await
             {
                 error!(target: "prometheus", "error serving metrics: {}", e);
             }
