@@ -13,7 +13,7 @@ import (
 func WithOPRBuilderRules(ruleContent string, refreshInterval uint64) stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalOPRBuilderNodeOption(sysgo.OPRBuilderNodeOptionFn(
-			func(p devtest.P, id stack.OPRBuilderNodeID, cfg *sysgo.OPRBuilderNodeConfig) {
+			func(p devtest.P, id stack.ComponentID, cfg *sysgo.OPRBuilderNodeConfig) {
 				cfg.RulesEnabled = true
 				// Create a fixed directory for rules config
 				rulesDir := filepath.Join(os.TempDir(), "rules")
