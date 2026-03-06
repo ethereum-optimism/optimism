@@ -498,7 +498,7 @@ contract Deploy is Deployer {
 
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](4);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -530,6 +530,12 @@ contract Deploy is Deployer {
                     absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
                 })
             )
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: bytes("")
         });
 
         return IOPContractsManagerV2.FullConfig({

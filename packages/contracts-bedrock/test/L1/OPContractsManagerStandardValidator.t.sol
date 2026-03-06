@@ -238,7 +238,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
                 // Prepare the upgrade input.
                 IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-                    new IOPContractsManagerUtils.DisputeGameConfig[](3);
+                    new IOPContractsManagerUtils.DisputeGameConfig[](4);
                 disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
@@ -266,6 +266,12 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                     gameArgs: abi.encode(
                         IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
                     )
+                });
+                disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.ZK_DISPUTE_GAME,
+                    gameArgs: bytes("")
                 });
 
                 // Call upgrade to all games to be enabled.

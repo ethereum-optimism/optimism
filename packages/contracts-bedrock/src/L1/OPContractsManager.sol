@@ -433,6 +433,8 @@ abstract contract OPContractsManagerBase {
             return getImplementations().superFaultDisputeGameImpl;
         } else if (_gameType.raw() == GameTypes.CANNON.raw() || _gameType.raw() == GameTypes.CANNON_KONA.raw()) {
             return getImplementations().faultDisputeGameImpl;
+        } else if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            return getImplementations().zkDisputeGameImpl;
         } else {
             revert OPContractsManager_InvalidGameType();
         }
@@ -1876,6 +1878,7 @@ contract OPContractsManager is ISemver {
         address permissionedDisputeGameImpl;
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
+        address zkDisputeGameImpl;
     }
 
     /// @notice The input required to identify a chain for upgrading, along with new prestate hashes

@@ -163,9 +163,10 @@ contract DeployOPChain is Script {
             "DeployOPChain: only PERMISSIONED_CANNON game type is supported for initial deployment"
         );
 
-        // Build dispute game configs - OPCMV2 requires exactly 3 configs: CANNON, PERMISSIONED_CANNON, CANNON_KONA
+        // Build dispute game configs - OPCMV2 requires exactly 4 configs: CANNON, PERMISSIONED_CANNON, CANNON_KONA,
+        // ZK_DISPUTE_GAME
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](4);
 
         // Config 0: CANNON
         // Must be disabled for the initial deployment since no prestate exists for permissionless games.
@@ -197,6 +198,15 @@ contract DeployOPChain is Script {
             enabled: false,
             initBond: 0,
             gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+
+        // Config 3: ZK_DISPUTE_GAME
+        // Must be disabled for the initial deployment.
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: bytes("")
         });
 

@@ -30,6 +30,15 @@ contract OPContractsManagerUtils {
         string saltMixer;
     }
 
+    /// @notice Configuration struct for the ZKDisputeGame.
+    struct ZKDisputeGameConfig {
+        Claim absolutePrestate;
+        address verifier;
+        Duration maxChallengeDuration;
+        Duration maxProveDuration;
+        uint256 challengerBond;
+    }
+
     /// @notice Struct that represents an additional instruction for an upgrade. Each upgrade has
     ///         its own set of extra upgrade instructions that may or may not be required. We use
     ///         this struct to keep the upgrade interface the same each time.
@@ -366,6 +375,8 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            return IDisputeGame(impls.zkDisputeGameImpl);
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
@@ -417,6 +428,9 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
             );
+        } else if (_gcfg.gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            // OptimisticZkGame uses implementation without per-instance args when registered with empty gameArgs.
+            return "";
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }

@@ -184,7 +184,8 @@ contract DeployImplementations is Script {
             faultDisputeGameImpl: address(_output.faultDisputeGameImpl),
             permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
             superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
-            superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl)
+            superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl),
+            zkDisputeGameImpl: address(0)
         });
 
         // Deploy OPCM V1 components
@@ -247,6 +248,7 @@ contract DeployImplementations is Script {
             permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
             superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
             superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl),
+            zkDisputeGameImpl: address(0),
             storageSetterImpl: address(_output.storageSetterImpl)
         });
 

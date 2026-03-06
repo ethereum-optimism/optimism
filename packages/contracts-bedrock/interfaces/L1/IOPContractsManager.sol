@@ -214,6 +214,7 @@ interface IOPContractsManager {
         address permissionedDisputeGameImpl;
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
+        address zkDisputeGameImpl;
     }
 
     /// @notice The input required to identify a chain for upgrading.

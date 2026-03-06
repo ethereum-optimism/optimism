@@ -230,7 +230,7 @@ library PastUpgrades {
 
         // Build dispute game configs with dummy prestates
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](4);
 
         // CANNON (game type 0)
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -266,7 +266,15 @@ library PastUpgrades {
             )
         });
 
-        // Sort by game type (already sorted: 0, 1, 8)
+        // ZK_DISPUTE_GAME (game type 10)
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: bytes("")
+        });
+
+        // Sort by game type (already sorted: 0, 1, 8, 10)
         _sortDisputeGameConfigs(disputeGameConfigs);
 
         // Execute the V2 upgrade
