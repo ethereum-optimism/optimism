@@ -25,11 +25,111 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestInitLiveStrategy_OPCMReuseLogic tests init logic paths that do NOT require a forked
+// script host (no PopulateSuperchainState call). These use a mockL1Client so they run
+// without SEPOLIA_RPC_URL.
+func TestInitLiveStrategy_OPCMReuseLogic(t *testing.T) {
+	t.Parallel()
+
+	lgr := testlog.Logger(t, slog.LevelInfo)
+	ctx := context.Background()
+	mock := newSepoliaMockL1Client()
+	l1ChainID := uint64(11155111)
+
+	t.Run("untagged L1 locator", func(t *testing.T) {
+		st := &state.State{
+			Version: 1,
+		}
+		require.NoError(t, InitLiveStrategy(
+			ctx,
+			&Env{
+				L1Client: mock,
+				Logger:   lgr,
+			},
+			&state.Intent{
+				L1ChainID:          l1ChainID,
+				L1ContractsLocator: artifacts.MustNewLocatorFromURL("file:///not-a-path"),
+				L2ContractsLocator: artifacts.MustNewLocatorFromURL("file:///not-a-path"),
+			},
+			st,
+		))
+
+		// Defining a file locator will always deploy a new superchain and OPCM
+		require.Nil(t, st.SuperchainDeployment)
+		require.Nil(t, st.ImplementationsDeployment)
+	})
+
+	t.Run("tagged L1 locator with standard intent types and modified roles", func(t *testing.T) {
+		runTest := func(configType state.IntentType) {
+			intent := &state.Intent{
+				ConfigType:         configType,
+				L1ChainID:          l1ChainID,
+				L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
+				L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+				SuperchainRoles: &addresses.SuperchainRoles{
+					SuperchainGuardian: common.Address{0: 99},
+				},
+			}
+			st := &state.State{
+				Version: 1,
+			}
+			require.NoError(t, InitLiveStrategy(
+				ctx,
+				&Env{
+					L1Client: mock,
+					Logger:   lgr,
+				},
+				intent,
+				st,
+			))
+
+			// Modified roles will cause a new superchain and OPCM to be deployed
+			require.Nil(t, st.SuperchainDeployment)
+			require.Nil(t, st.ImplementationsDeployment)
+		}
+
+		runTest(state.IntentTypeStandard)
+		runTest(state.IntentTypeStandardOverrides)
+	})
+
+	t.Run("tagged locator with custom intent type", func(t *testing.T) {
+		intent := &state.Intent{
+			ConfigType:         state.IntentTypeCustom,
+			L1ChainID:          l1ChainID,
+			L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
+			L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+			SuperchainRoles: &addresses.SuperchainRoles{
+				SuperchainGuardian: common.Address{0: 99},
+			},
+		}
+		st := &state.State{
+			Version: 1,
+		}
+		require.NoError(t, InitLiveStrategy(
+			ctx,
+			&Env{
+				L1Client: mock,
+				Logger:   lgr,
+			},
+			intent,
+			st,
+		))
+
+		// Custom intent types always deploy a new superchain and OPCM
+		require.Nil(t, st.SuperchainDeployment)
+		require.Nil(t, st.ImplementationsDeployment)
+	})
+}
+
+// TestInitLiveStrategy_OPCMReuseLogicSepolia tests the "embedded L1 locator" path which
+// calls PopulateSuperchainState via a forked script host and therefore requires SEPOLIA_RPC_URL.
 func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+	if rpcURL == "" {
+		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
+	}
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -46,28 +146,6 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	client := ethclient.NewClient(rpcClient)
 
 	l1ChainID := uint64(11155111)
-	t.Run("untagged L1 locator", func(t *testing.T) {
-		st := &state.State{
-			Version: 1,
-		}
-		require.NoError(t, InitLiveStrategy(
-			ctx,
-			&Env{
-				L1Client: client,
-				Logger:   lgr,
-			},
-			&state.Intent{
-				L1ChainID:          l1ChainID,
-				L1ContractsLocator: artifacts.MustNewLocatorFromURL("file:///not-a-path"),
-				L2ContractsLocator: artifacts.MustNewLocatorFromURL("file:///not-a-path"),
-			},
-			st,
-		))
-
-		// Defining a file locator will always deploy a new superchain and OPCM
-		require.Nil(t, st.SuperchainDeployment)
-		require.Nil(t, st.ImplementationsDeployment)
-	})
 
 	t.Run("embedded L1 locator with standard intent types and standard roles", func(t *testing.T) {
 		runTest := func(configType state.IntentType) {
@@ -135,67 +213,6 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 		runTest(state.IntentTypeStandard)
 		runTest(state.IntentTypeStandardOverrides)
 	})
-
-	t.Run("tagged L1 locator with standard intent types and modified roles", func(t *testing.T) {
-		runTest := func(configType state.IntentType) {
-			intent := &state.Intent{
-				ConfigType:         configType,
-				L1ChainID:          l1ChainID,
-				L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
-				L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
-				SuperchainRoles: &addresses.SuperchainRoles{
-					SuperchainGuardian: common.Address{0: 99},
-				},
-			}
-			st := &state.State{
-				Version: 1,
-			}
-			require.NoError(t, InitLiveStrategy(
-				ctx,
-				&Env{
-					L1Client: client,
-					Logger:   lgr,
-				},
-				intent,
-				st,
-			))
-
-			// Modified roles will cause a new superchain and OPCM to be deployed
-			require.Nil(t, st.SuperchainDeployment)
-			require.Nil(t, st.ImplementationsDeployment)
-		}
-
-		runTest(state.IntentTypeStandard)
-		runTest(state.IntentTypeStandardOverrides)
-	})
-
-	t.Run("tagged locator with custom intent type", func(t *testing.T) {
-		intent := &state.Intent{
-			ConfigType:         state.IntentTypeCustom,
-			L1ChainID:          l1ChainID,
-			L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
-			L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
-			SuperchainRoles: &addresses.SuperchainRoles{
-				SuperchainGuardian: common.Address{0: 99},
-			},
-		}
-		st := &state.State{
-			Version: 1,
-		}
-		require.NoError(t, InitLiveStrategy(
-			ctx,
-			&Env{
-				L1Client: client,
-				Logger:   lgr,
-			},
-			intent,
-			st,
-		))
-
-		// Custom intent types always deploy a new superchain and OPCM
-		require.Nil(t, st.SuperchainDeployment)
-		require.Nil(t, st.ImplementationsDeployment)
-	})
 }
 
 // TestPopulateSuperchainState validates that the ReadSuperchainDeployment script successfully returns data about the
@@ -206,7 +223,9 @@ func TestPopulateSuperchainState(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+	if rpcURL == "" {
+		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
+	}
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -324,7 +343,9 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+	if rpcURL == "" {
+		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
+	}
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -433,7 +454,9 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+	if rpcURL == "" {
+		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
+	}
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -510,25 +533,13 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 
 // Validates that providing both
 // SuperchainConfigProxy and SuperchainRoles with opcmV2Enabled returns an error.
+// This test uses a mock L1Client because the error occurs before any RPC calls.
 func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
-	require.NoError(t, err)
-	client := ethclient.NewClient(rpcClient)
+	ctx := context.Background()
+	mock := newSepoliaMockL1Client()
 
 	l1ChainID := uint64(11155111)
 	superchain, err := standard.SuperchainFor(l1ChainID)
@@ -557,7 +568,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client: client,
+			L1Client: mock,
 			Logger:   lgr,
 		},
 		intent,
@@ -573,7 +584,9 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+	if rpcURL == "" {
+		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
+	}
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -643,25 +656,13 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 
 // Validates that providing both
 // OPCMAddress and SuperchainRoles with opcmV2Enabled=false returns an error.
+// This test uses a mock L1Client because the error occurs before any RPC calls.
 func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
-	require.NoError(t, err)
-	client := ethclient.NewClient(rpcClient)
+	ctx := context.Background()
+	mock := newSepoliaMockL1Client()
 
 	l1ChainID := uint64(11155111)
 	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
@@ -686,7 +687,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client: client,
+			L1Client: mock,
 			Logger:   lgr,
 		},
 		intent,
@@ -702,7 +703,9 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+	if rpcURL == "" {
+		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
+	}
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -775,7 +778,9 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+	if rpcURL == "" {
+		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
+	}
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
