@@ -44,9 +44,9 @@ hardfork!(
         /// Holocene: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#holocene>
         Holocene,
         /// Isthmus: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/isthmus/overview.md>
-        #[default]
         Isthmus,
         /// Jovian: <https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/jovian>
+        #[default]
         Jovian,
         /// Karst: <https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst>
         Karst,

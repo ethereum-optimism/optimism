@@ -2,7 +2,7 @@
 //!
 //! Karst network upgrade transactions are defined in the [OP Stack Specs][specs].
 //!
-//! [specs]: https://specs.optimism.io/protocol/karst/derivation.html#network-upgrade-automation-transactions
+//! [specs]: https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst
 
 use alloy_primitives::Bytes;
 
