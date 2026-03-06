@@ -18,7 +18,6 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 import "src/dispute/lib/Types.sol";
