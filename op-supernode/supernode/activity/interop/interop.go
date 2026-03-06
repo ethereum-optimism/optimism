@@ -197,18 +197,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		i.log.Error("failed to handle result", "err", err)
 		return false, err
 	}
-	// if the result is invalid, exit without updating the current L1s
-	if !result.IsEmpty() && !result.IsValid() {
-		i.log.Warn("result is invalid, skipping current L1 update", "results", result)
-		return false, nil
-	}
 
-	// Once interop is complete and recorded, update the current L1s
-	// the current L1s being considered by the Activity right now depend on what progress was made:
-	// - if interop failed to run, the current L1s are not updated
-	// - if interop ran but did not advance the verified timestamp, the CurrentL1 values collected are used directly
-	// - if interop ran and advanced the verified timestamp, the L1Inclusion is the L1 inclusion at the verified timestamp
-	// this is because the individual chains may advance their CurrentL1, and if progress is being made, we might not be done using the collected L1s.
 	verifiedAdvanced := !result.IsEmpty()
 	return verifiedAdvanced, nil
 }
