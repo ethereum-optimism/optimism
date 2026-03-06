@@ -4,7 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"math/big"
-	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -25,23 +26,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// initTestRecordingPath returns the path to the RPC recording for a given test name.
+func initTestRecordingPath(name string) string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), "testdata", "rpc-recordings", name+".json.gz")
+}
+
 func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("opcm-reuse-logic"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 	client := ethclient.NewClient(rpcClient)
 
@@ -205,17 +205,10 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 func TestPopulateSuperchainState(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("populate-superchain-state"))
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
@@ -323,17 +316,10 @@ func TestPopulateSuperchainState(t *testing.T) {
 func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("populate-superchain-state-opcmv2"))
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
@@ -432,20 +418,13 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("opcmv2-with-superchain-config-proxy"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 	client := ethclient.NewClient(rpcClient)
 
@@ -513,20 +492,13 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("opcmv2-with-roles-reverts"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 	client := ethclient.NewClient(rpcClient)
 
@@ -572,20 +544,13 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("opcmv1-with-superchain-config-proxy"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 	client := ethclient.NewClient(rpcClient)
 
@@ -646,20 +611,13 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("opcmv1-with-roles-reverts"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 	client := ethclient.NewClient(rpcClient)
 
@@ -701,20 +659,13 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("flow-selection-opcmv1"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 	client := ethclient.NewClient(rpcClient)
 
@@ -774,20 +725,13 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	t.Parallel()
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, initTestRecordingPath("flow-selection-opcmv2"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 	client := ethclient.NewClient(rpcClient)
 

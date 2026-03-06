@@ -2,7 +2,9 @@ package opcm
 
 import (
 	"context"
-	"os"
+	"log/slog"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -16,21 +18,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
+func opcmRecordingPath(name string) string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), "testdata", "rpc-recordings", name+".json.gz")
+}
+
 func TestSetDisputeGameImpl(t *testing.T) {
 	t.Parallel()
 
 	_, artifacts := testutil.LocalArtifacts(t)
 
-	l1RPCUrl := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, l1RPCUrl, "SEPOLIA_RPC_URL must be set")
+	lgr := testlog.Logger(t, slog.LevelInfo)
+	endpoint := devnet.SepoliaRPCEndpoint(t, lgr, opcmRecordingPath("set-dispute-game-impl"))
 
-	l1RPC, err := rpc.Dial(l1RPCUrl)
+	l1RPC, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
 
 	// OP Sepolia DGF owner

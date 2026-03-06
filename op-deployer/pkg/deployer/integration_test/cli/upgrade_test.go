@@ -3,9 +3,11 @@ package cli
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -19,6 +21,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+// rpcRecordingPath returns the path to the RPC recording file for a given
+// Sepolia fork block. Recordings are stored in the testdata/rpc-recordings
+// directory adjacent to the integration test package.
+func rpcRecordingPath(block uint64) string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), "..", "testdata", "rpc-recordings",
+		fmt.Sprintf("sepolia-block-%d.json.gz", block))
+}
 
 // TestCLIUpgrade tests the upgrade CLI command for each standard opcm release
 // - forks sepolia at a block before op-sepolia was upgraded
@@ -70,7 +81,8 @@ func TestCLIUpgrade(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.contractTag, func(t *testing.T) {
-			forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlock(lgr, tc.forkBlock)
+			recordingFile := rpcRecordingPath(tc.forkBlock)
+			forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlockWithReplay(lgr, tc.forkBlock, recordingFile)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, stopL1())

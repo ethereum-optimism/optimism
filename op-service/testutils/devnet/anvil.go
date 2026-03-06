@@ -67,6 +67,18 @@ func WithForkBlockNumber(block uint64) AnvilOption {
 	}
 }
 
+func WithLoadState(path string) AnvilOption {
+	return func(a *Anvil) {
+		a.args["--load-state"] = path
+	}
+}
+
+func WithDumpState(path string) AnvilOption {
+	return func(a *Anvil) {
+		a.args["--dump-state"] = path
+	}
+}
+
 func NewAnvil(logger log.Logger, opts ...AnvilOption) (*Anvil, error) {
 	if _, err := exec.LookPath("anvil"); err != nil {
 		return nil, fmt.Errorf("anvil not found in PATH: %w", err)
