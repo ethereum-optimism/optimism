@@ -2,12 +2,13 @@ package opcm
 
 import (
 	"context"
-	"os"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
@@ -27,10 +28,15 @@ func TestSetDisputeGameImpl(t *testing.T) {
 
 	_, artifacts := testutil.LocalArtifacts(t)
 
-	l1RPCUrl := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, l1RPCUrl, "SEPOLIA_RPC_URL must be set")
+	lgr := testlog.Logger(t, slog.LevelInfo)
+	fixturePath := devnet.RPCReplayFixturePath("dispute_game_factory")
+	proxy, cleanup, err := devnet.RPCReplayOrRecord(lgr, fixturePath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, cleanup())
+	})
 
-	l1RPC, err := rpc.Dial(l1RPCUrl)
+	l1RPC, err := rpc.Dial(proxy.Endpoint())
 	require.NoError(t, err)
 
 	// OP Sepolia DGF owner

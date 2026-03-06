@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -70,7 +71,8 @@ func TestCLIUpgrade(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.contractTag, func(t *testing.T) {
-			forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlock(lgr, tc.forkBlock)
+			fixturePath := devnet.RPCReplayFixturePath(fmt.Sprintf("upgrade_%s_block_%d", tc.contractTag, tc.forkBlock))
+			forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlockWithReplay(lgr, tc.forkBlock, fixturePath)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, stopL1())
