@@ -20,12 +20,12 @@ const (
 
 // ControlPlane is the interface for the orchestrators to control components of the system.
 type ControlPlane interface {
-	SupervisorState(id SupervisorID, action ControlAction)
-	L2CLNodeState(id L2CLNodeID, action ControlAction)
-	L2ELNodeState(id L2ELNodeID, action ControlAction)
-	FakePoSState(id L1CLNodeID, action ControlAction)
-	RollupBoostNodeState(id RollupBoostNodeID, action ControlAction)
-	OPRBuilderNodeState(id OPRBuilderNodeID, action ControlAction)
+	SupervisorState(id ComponentID, action ControlAction)
+	L2CLNodeState(id ComponentID, action ControlAction)
+	L2ELNodeState(id ComponentID, action ControlAction)
+	FakePoSState(id ComponentID, action ControlAction)
+	RollupBoostNodeState(id ComponentID, action ControlAction)
+	OPRBuilderNodeState(id ComponentID, action ControlAction)
 }
 
 // Orchestrator is the base interface for all system orchestrators.

@@ -94,7 +94,7 @@ func testSystem(ids DefaultInteropSystemIDs, system stack.System) {
 		require.Equal("", netB.Label("nickname"))
 		netB.SetLabel("nickname", "Network B")
 		require.Equal("Network B", netB.Label("nickname"))
-		v := system.L2Network(match.WithLabel[stack.L2NetworkID, stack.L2Network](
+		v := system.L2Network(match.WithLabel[stack.L2Network](
 			"nickname", "Network B"))
 		require.Equal(ids.L2B, v.ID())
 	})
@@ -112,8 +112,8 @@ func testSystem(ids DefaultInteropSystemIDs, system stack.System) {
 
 	t.Run("sync", func(t devtest.T) {
 		require := t.Require()
-		seqA := system.L2Network(ids.L2A).L2CLNode(ids.L2ACL)
-		seqB := system.L2Network(ids.L2B).L2CLNode(ids.L2BCL)
+		seqA := system.L2Network(stack.ByID[stack.L2Network](ids.L2A)).L2CLNode(stack.ByID[stack.L2CLNode](ids.L2ACL))
+		seqB := system.L2Network(stack.ByID[stack.L2Network](ids.L2B)).L2CLNode(stack.ByID[stack.L2CLNode](ids.L2BCL))
 		blocks := uint64(5)
 		// wait for this many blocks, with some margin for delays
 		for i := uint64(0); i < blocks*2+10; i++ {

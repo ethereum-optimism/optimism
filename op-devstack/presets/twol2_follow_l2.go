@@ -41,17 +41,17 @@ func NewTwoL2SupernodeFollowL2(t devtest.T, delaySeconds uint64) *TwoL2Supernode
 	followerELBID := stack.NewL2ELNodeID("follower", l2b.ID().ChainID())
 	followerCLBID := stack.NewL2CLNodeID("follower", l2b.ID().ChainID())
 
-	followerELA := l2a.L2ELNode(match.MatchElemFn[stack.L2ELNodeID, stack.L2ELNode](func(elem stack.L2ELNode) bool {
+	followerELA := l2a.L2ELNode(match.MatchElemFn[stack.L2ELNode](func(elem stack.L2ELNode) bool {
 		return elem.ID() == followerELAID
 	}))
-	followerCLA := l2a.L2CLNode(match.MatchElemFn[stack.L2CLNodeID, stack.L2CLNode](func(elem stack.L2CLNode) bool {
+	followerCLA := l2a.L2CLNode(match.MatchElemFn[stack.L2CLNode](func(elem stack.L2CLNode) bool {
 		return elem.ID() == followerCLAID
 	}))
 
-	followerELB := l2b.L2ELNode(match.MatchElemFn[stack.L2ELNodeID, stack.L2ELNode](func(elem stack.L2ELNode) bool {
+	followerELB := l2b.L2ELNode(match.MatchElemFn[stack.L2ELNode](func(elem stack.L2ELNode) bool {
 		return elem.ID() == followerELBID
 	}))
-	followerCLB := l2b.L2CLNode(match.MatchElemFn[stack.L2CLNodeID, stack.L2CLNode](func(elem stack.L2CLNode) bool {
+	followerCLB := l2b.L2CLNode(match.MatchElemFn[stack.L2CLNode](func(elem stack.L2CLNode) bool {
 		return elem.ID() == followerCLBID
 	}))
 

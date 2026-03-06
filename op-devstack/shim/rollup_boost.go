@@ -13,7 +13,7 @@ import (
 type RollupBoostNodeConfig struct {
 	ELNodeConfig
 	RollupCfg         *rollup.Config
-	ID                stack.RollupBoostNodeID
+	ID                stack.ComponentID
 	FlashblocksClient *opclient.WSClient
 }
 
@@ -21,7 +21,7 @@ type RollupBoostNode struct {
 	rpcELNode
 	engineClient *sources.EngineClient
 
-	id stack.RollupBoostNodeID
+	id stack.ComponentID
 
 	flashblocksClient *opclient.WSClient
 }
@@ -43,7 +43,7 @@ func NewRollupBoostNode(cfg RollupBoostNodeConfig) *RollupBoostNode {
 	}
 }
 
-func (r *RollupBoostNode) ID() stack.RollupBoostNodeID {
+func (r *RollupBoostNode) ID() stack.ComponentID {
 	return r.id
 }
 

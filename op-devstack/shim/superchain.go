@@ -6,13 +6,13 @@ import (
 
 type SuperchainConfig struct {
 	CommonConfig
-	ID         stack.SuperchainID
+	ID         stack.ComponentID
 	Deployment stack.SuperchainDeployment
 }
 
 type presetSuperchain struct {
 	commonImpl
-	id         stack.SuperchainID
+	id         stack.ComponentID
 	deployment stack.SuperchainDeployment
 }
 
@@ -27,7 +27,7 @@ func NewSuperchain(cfg SuperchainConfig) stack.Superchain {
 	}
 }
 
-func (p *presetSuperchain) ID() stack.SuperchainID {
+func (p *presetSuperchain) ID() stack.ComponentID {
 	return p.id
 }
 

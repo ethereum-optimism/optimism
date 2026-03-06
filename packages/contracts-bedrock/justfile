@@ -94,6 +94,7 @@ test-dev *ARGS: build-go-ffi
 
 # Calculates and prints the pinned block number for the current ETH_RPC_URL.
 # Uses the most recent Sunday at 00:00 UTC as the target timestamp.
+# Retries up to 3 times with a 5-second delay to handle transient RPC failures.
 print-pinned-block-number:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -103,7 +104,19 @@ print-pinned-block-number:
   h=$(date -u +%H); m=$(date -u +%M); s=$(date -u +%S)
   secs_since_midnight=$(( 10#$h * 3600 + 10#$m * 60 + 10#$s ))
   sunday_midnight=$(( now - secs_since_midnight - dow * 86400 ))
-  cast find-block "$sunday_midnight" --rpc-url $ETH_RPC_URL
+  delay=5
+  for attempt in 1 2 3; do
+    if cast find-block "$sunday_midnight" --rpc-url $ETH_RPC_URL; then
+      exit 0
+    fi
+    if [ "$attempt" -lt 3 ]; then
+      echo "Attempt $attempt failed, retrying in ${delay}s..." >&2
+      sleep "$delay"
+      delay=$(( delay * 2 ))
+    fi
+  done
+  echo "All attempts to fetch pinned block number failed" >&2
+  exit 1
 
 # Prepares the environment for upgrade path variant of contract tests and coverage.
 # Env Vars:

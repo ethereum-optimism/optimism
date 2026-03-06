@@ -25,7 +25,7 @@ import (
 type OpReth struct {
 	mu sync.Mutex
 
-	id        stack.L2ELNodeID
+	id        stack.ComponentID
 	jwtPath   string
 	jwtSecret [32]byte
 	authRPC   string
@@ -62,7 +62,7 @@ func (n *OpReth) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(engineCl.Close)
 
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
+	l2Net := system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(n.id.ChainID())))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
@@ -184,14 +184,13 @@ func (n *OpReth) JWTPath() string {
 	return n.jwtPath
 }
 
-func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestrator] {
+func WithOpReth(id stack.ComponentID, opts ...L2ELOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
 		require := p.Require()
 
-		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(id.ChainID())).ComponentID)
+		l2Net, ok := orch.GetL2Network(stack.NewL2NetworkID(id.ChainID()))
 		require.True(ok, "L2 network required")
-		l2Net := l2NetComponent.(*L2Network)
 
 		cfg := DefaultL2ELConfig()
 		orch.l2ELOptions.Apply(p, id, cfg)       // apply global options
@@ -203,9 +202,8 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 
 		supervisorRPC := ""
 		if useInterop && cfg.SupervisorID != nil {
-			supComponent, ok := orch.registry.Get(stack.ConvertSupervisorID(*cfg.SupervisorID).ComponentID)
+			sup, ok := orch.GetSupervisor(*cfg.SupervisorID)
 			require.True(ok, "supervisor is required for interop")
-			sup := supComponent.(Supervisor)
 			supervisorRPC = sup.UserRPC()
 		}
 
@@ -326,7 +324,7 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		l2EL.Start()
 		p.Cleanup(l2EL.Stop)
 		p.Logger().Info("op-reth is ready", "userRPC", l2EL.userRPC, "authRPC", l2EL.authRPC)
-		cid := stack.ConvertL2ELNodeID(id).ComponentID
+		cid := id
 		require.False(orch.registry.Has(cid), "must be unique L2 EL node")
 		orch.registry.Register(cid, l2EL)
 	})

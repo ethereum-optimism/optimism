@@ -10,7 +10,7 @@ import (
 func WithExecutionLayerSyncOnVerifiers() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
-			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+			func(_ devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 				cfg.VerifierSyncMode = sync.ELSync
 			})))
 }
@@ -18,7 +18,7 @@ func WithExecutionLayerSyncOnVerifiers() stack.CommonOption {
 func WithConsensusLayerSync() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
-			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+			func(_ devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 				cfg.SequencerSyncMode = sync.CLSync
 				cfg.VerifierSyncMode = sync.CLSync
 			})))
@@ -27,7 +27,7 @@ func WithConsensusLayerSync() stack.CommonOption {
 func WithSafeDBEnabled() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
-			func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+			func(p devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 				cfg.SafeDBPath = p.TempDir()
 			})))
 }
@@ -35,7 +35,7 @@ func WithSafeDBEnabled() stack.CommonOption {
 func WithReqRespSyncDisabled() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
-			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+			func(_ devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 				cfg.EnableReqRespSync = false
 				cfg.UseReqRespSync = false
 			})))
@@ -44,7 +44,7 @@ func WithReqRespSyncDisabled() stack.CommonOption {
 func WithSyncModeReqRespSync() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
-			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+			func(_ devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 				cfg.UseReqRespSync = true
 			})))
 }
@@ -52,7 +52,7 @@ func WithSyncModeReqRespSync() stack.CommonOption {
 func WithNoDiscovery() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
-			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+			func(_ devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 				cfg.NoDiscovery = true
 			})))
 }

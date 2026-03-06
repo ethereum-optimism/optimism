@@ -45,7 +45,7 @@ func (el *L2ELNode) Escape() stack.L2ELNode {
 	return el.inner
 }
 
-func (el *L2ELNode) ID() stack.L2ELNodeID {
+func (el *L2ELNode) ID() stack.ComponentID {
 	return el.inner.ID()
 }
 

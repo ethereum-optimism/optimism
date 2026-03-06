@@ -10,10 +10,10 @@ import (
 type DefaultTwoL2SupernodeFollowL2SystemIDs struct {
 	DefaultTwoL2SystemIDs
 
-	L2AFollowerCL stack.L2CLNodeID
-	L2AFollowerEL stack.L2ELNodeID
-	L2BFollowerCL stack.L2CLNodeID
-	L2BFollowerEL stack.L2ELNodeID
+	L2AFollowerCL stack.ComponentID
+	L2AFollowerEL stack.ComponentID
+	L2BFollowerCL stack.ComponentID
+	L2BFollowerEL stack.ComponentID
 }
 
 func NewDefaultTwoL2SupernodeFollowL2SystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultTwoL2SupernodeFollowL2SystemIDs {

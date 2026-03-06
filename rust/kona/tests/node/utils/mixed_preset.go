@@ -204,12 +204,8 @@ func (m *MixedOpKonaPreset) L2CLKonaNodes() []dsl.L2CLNode {
 	return append(m.L2CLKonaValidatorNodes, m.L2CLKonaSequencerNodes...)
 }
 
-func L2NodeMatcher[
-	I interface {
-		comparable
-		Key() string
-	}, E stack.Identifiable[I]](value ...string) stack.Matcher[I, E] {
-	return match.MatchElemFn[I, E](func(elem E) bool {
+func L2NodeMatcher[E stack.Identifiable](value ...string) stack.Matcher[E] {
+	return match.MatchElemFn[E](func(elem E) bool {
 		for _, v := range value {
 			if !strings.Contains(elem.ID().Key(), v) {
 				return false
@@ -258,16 +254,16 @@ func NewMixedOpKona(t devtest.T) *MixedOpKonaPreset {
 
 	t.Gate().GreaterOrEqual(len(l2Net.L2CLNodes()), 2, "expected at least two L2CL nodes")
 
-	opSequencerCLNodes := L2NodeMatcher[stack.L2CLNodeID, stack.L2CLNode](string(OpNode), string(Sequencer)).Match(l2Net.L2CLNodes())
-	konaSequencerCLNodes := L2NodeMatcher[stack.L2CLNodeID, stack.L2CLNode](string(KonaNode), string(Sequencer)).Match(l2Net.L2CLNodes())
+	opSequencerCLNodes := L2NodeMatcher[stack.L2CLNode](string(OpNode), string(Sequencer)).Match(l2Net.L2CLNodes())
+	konaSequencerCLNodes := L2NodeMatcher[stack.L2CLNode](string(KonaNode), string(Sequencer)).Match(l2Net.L2CLNodes())
 
-	opCLNodes := L2NodeMatcher[stack.L2CLNodeID, stack.L2CLNode](string(OpNode), string(Validator)).Match(l2Net.L2CLNodes())
-	konaCLNodes := L2NodeMatcher[stack.L2CLNodeID, stack.L2CLNode](string(KonaNode), string(Validator)).Match(l2Net.L2CLNodes())
+	opCLNodes := L2NodeMatcher[stack.L2CLNode](string(OpNode), string(Validator)).Match(l2Net.L2CLNodes())
+	konaCLNodes := L2NodeMatcher[stack.L2CLNode](string(KonaNode), string(Validator)).Match(l2Net.L2CLNodes())
 
-	opSequencerELNodes := L2NodeMatcher[stack.L2ELNodeID, stack.L2ELNode](string(OpNode), string(Sequencer)).Match(l2Net.L2ELNodes())
-	konaSequencerELNodes := L2NodeMatcher[stack.L2ELNodeID, stack.L2ELNode](string(KonaNode), string(Sequencer)).Match(l2Net.L2ELNodes())
-	opELNodes := L2NodeMatcher[stack.L2ELNodeID, stack.L2ELNode](string(OpNode), string(Validator)).Match(l2Net.L2ELNodes())
-	konaELNodes := L2NodeMatcher[stack.L2ELNodeID, stack.L2ELNode](string(KonaNode), string(Validator)).Match(l2Net.L2ELNodes())
+	opSequencerELNodes := L2NodeMatcher[stack.L2ELNode](string(OpNode), string(Sequencer)).Match(l2Net.L2ELNodes())
+	konaSequencerELNodes := L2NodeMatcher[stack.L2ELNode](string(KonaNode), string(Sequencer)).Match(l2Net.L2ELNodes())
+	opELNodes := L2NodeMatcher[stack.L2ELNode](string(OpNode), string(Validator)).Match(l2Net.L2ELNodes())
+	konaELNodes := L2NodeMatcher[stack.L2ELNode](string(KonaNode), string(Validator)).Match(l2Net.L2ELNodes())
 
 	out := &MixedOpKonaPreset{
 		Log:          t.Logger(),
@@ -297,95 +293,95 @@ func NewMixedOpKona(t devtest.T) *MixedOpKonaPreset {
 }
 
 type DefaultMixedOpKonaSystemIDs struct {
-	L1   stack.L1NetworkID
-	L1EL stack.L1ELNodeID
-	L1CL stack.L1CLNodeID
+	L1   stack.ComponentID
+	L1EL stack.ComponentID
+	L1CL stack.ComponentID
 
-	L2 stack.L2NetworkID
+	L2 stack.ComponentID
 
-	L2ELOpGethSequencerNodes []stack.L2ELNodeID
-	L2ELOpRethSequencerNodes []stack.L2ELNodeID
+	L2ELOpGethSequencerNodes []stack.ComponentID
+	L2ELOpRethSequencerNodes []stack.ComponentID
 
-	L2CLOpGethSequencerNodes []stack.L2CLNodeID
-	L2CLOpRethSequencerNodes []stack.L2CLNodeID
+	L2CLOpGethSequencerNodes []stack.ComponentID
+	L2CLOpRethSequencerNodes []stack.ComponentID
 
-	L2ELKonaGethSequencerNodes []stack.L2ELNodeID
-	L2ELKonaRethSequencerNodes []stack.L2ELNodeID
+	L2ELKonaGethSequencerNodes []stack.ComponentID
+	L2ELKonaRethSequencerNodes []stack.ComponentID
 
-	L2CLKonaGethSequencerNodes []stack.L2CLNodeID
-	L2CLKonaRethSequencerNodes []stack.L2CLNodeID
+	L2CLKonaGethSequencerNodes []stack.ComponentID
+	L2CLKonaRethSequencerNodes []stack.ComponentID
 
-	L2CLOpGethNodes []stack.L2CLNodeID
-	L2ELOpGethNodes []stack.L2ELNodeID
+	L2CLOpGethNodes []stack.ComponentID
+	L2ELOpGethNodes []stack.ComponentID
 
-	L2CLOpRethNodes []stack.L2CLNodeID
-	L2ELOpRethNodes []stack.L2ELNodeID
+	L2CLOpRethNodes []stack.ComponentID
+	L2ELOpRethNodes []stack.ComponentID
 
-	L2CLKonaGethNodes []stack.L2CLNodeID
-	L2ELKonaGethNodes []stack.L2ELNodeID
+	L2CLKonaGethNodes []stack.ComponentID
+	L2ELKonaGethNodes []stack.ComponentID
 
-	L2CLKonaRethNodes []stack.L2CLNodeID
-	L2ELKonaRethNodes []stack.L2ELNodeID
+	L2CLKonaRethNodes []stack.ComponentID
+	L2ELKonaRethNodes []stack.ComponentID
 
-	L2Batcher  stack.L2BatcherID
-	L2Proposer stack.L2ProposerID
+	L2Batcher  stack.ComponentID
+	L2Proposer stack.ComponentID
 }
 
-func (ids *DefaultMixedOpKonaSystemIDs) L2CLSequencerNodes() []stack.L2CLNodeID {
+func (ids *DefaultMixedOpKonaSystemIDs) L2CLSequencerNodes() []stack.ComponentID {
 	list := append(ids.L2CLOpGethSequencerNodes, ids.L2CLOpRethSequencerNodes...)
 	list = append(list, ids.L2CLKonaGethSequencerNodes...)
 	list = append(list, ids.L2CLKonaRethSequencerNodes...)
 	return list
 }
 
-func (ids *DefaultMixedOpKonaSystemIDs) L2ELSequencerNodes() []stack.L2ELNodeID {
+func (ids *DefaultMixedOpKonaSystemIDs) L2ELSequencerNodes() []stack.ComponentID {
 	list := append(ids.L2ELOpGethSequencerNodes, ids.L2ELOpRethSequencerNodes...)
 	list = append(list, ids.L2ELKonaGethSequencerNodes...)
 	list = append(list, ids.L2ELKonaRethSequencerNodes...)
 	return list
 }
 
-func (ids *DefaultMixedOpKonaSystemIDs) L2CLValidatorNodes() []stack.L2CLNodeID {
+func (ids *DefaultMixedOpKonaSystemIDs) L2CLValidatorNodes() []stack.ComponentID {
 	list := append(ids.L2CLOpGethNodes, ids.L2CLOpRethNodes...)
 	list = append(list, ids.L2CLKonaGethNodes...)
 	list = append(list, ids.L2CLKonaRethNodes...)
 	return list
 }
-func (ids *DefaultMixedOpKonaSystemIDs) L2ELValidatorNodes() []stack.L2ELNodeID {
+func (ids *DefaultMixedOpKonaSystemIDs) L2ELValidatorNodes() []stack.ComponentID {
 	list := append(ids.L2ELOpGethNodes, ids.L2ELOpRethNodes...)
 	list = append(list, ids.L2ELKonaGethNodes...)
 	list = append(list, ids.L2ELKonaRethNodes...)
 	return list
 }
 
-func (ids *DefaultMixedOpKonaSystemIDs) L2CLNodes() []stack.L2CLNodeID {
+func (ids *DefaultMixedOpKonaSystemIDs) L2CLNodes() []stack.ComponentID {
 	return append(ids.L2CLSequencerNodes(), ids.L2CLValidatorNodes()...)
 }
 
-func (ids *DefaultMixedOpKonaSystemIDs) L2ELNodes() []stack.L2ELNodeID {
+func (ids *DefaultMixedOpKonaSystemIDs) L2ELNodes() []stack.ComponentID {
 	return append(ids.L2ELSequencerNodes(), ids.L2ELValidatorNodes()...)
 }
 
 func NewDefaultMixedOpKonaSystemIDs(l1ID, l2ID eth.ChainID, l2NodeConfig L2NodeConfig) DefaultMixedOpKonaSystemIDs {
-	rethOpCLNodes := make([]stack.L2CLNodeID, l2NodeConfig.OpNodesWithReth)
-	rethOpELNodes := make([]stack.L2ELNodeID, l2NodeConfig.OpNodesWithReth)
-	rethKonaCLNodes := make([]stack.L2CLNodeID, l2NodeConfig.KonaNodesWithReth)
-	rethKonaELNodes := make([]stack.L2ELNodeID, l2NodeConfig.KonaNodesWithReth)
+	rethOpCLNodes := make([]stack.ComponentID, l2NodeConfig.OpNodesWithReth)
+	rethOpELNodes := make([]stack.ComponentID, l2NodeConfig.OpNodesWithReth)
+	rethKonaCLNodes := make([]stack.ComponentID, l2NodeConfig.KonaNodesWithReth)
+	rethKonaELNodes := make([]stack.ComponentID, l2NodeConfig.KonaNodesWithReth)
 
-	gethOpCLNodes := make([]stack.L2CLNodeID, l2NodeConfig.OpNodesWithGeth)
-	gethOpELNodes := make([]stack.L2ELNodeID, l2NodeConfig.OpNodesWithGeth)
-	gethKonaCLNodes := make([]stack.L2CLNodeID, l2NodeConfig.KonaNodesWithGeth)
-	gethKonaELNodes := make([]stack.L2ELNodeID, l2NodeConfig.KonaNodesWithGeth)
+	gethOpCLNodes := make([]stack.ComponentID, l2NodeConfig.OpNodesWithGeth)
+	gethOpELNodes := make([]stack.ComponentID, l2NodeConfig.OpNodesWithGeth)
+	gethKonaCLNodes := make([]stack.ComponentID, l2NodeConfig.KonaNodesWithGeth)
+	gethKonaELNodes := make([]stack.ComponentID, l2NodeConfig.KonaNodesWithGeth)
 
-	gethOpSequencerCLNodes := make([]stack.L2CLNodeID, l2NodeConfig.OpSequencerNodesWithGeth)
-	gethOpSequencerELNodes := make([]stack.L2ELNodeID, l2NodeConfig.OpSequencerNodesWithGeth)
-	gethKonaSequencerCLNodes := make([]stack.L2CLNodeID, l2NodeConfig.KonaSequencerNodesWithGeth)
-	gethKonaSequencerELNodes := make([]stack.L2ELNodeID, l2NodeConfig.KonaSequencerNodesWithGeth)
+	gethOpSequencerCLNodes := make([]stack.ComponentID, l2NodeConfig.OpSequencerNodesWithGeth)
+	gethOpSequencerELNodes := make([]stack.ComponentID, l2NodeConfig.OpSequencerNodesWithGeth)
+	gethKonaSequencerCLNodes := make([]stack.ComponentID, l2NodeConfig.KonaSequencerNodesWithGeth)
+	gethKonaSequencerELNodes := make([]stack.ComponentID, l2NodeConfig.KonaSequencerNodesWithGeth)
 
-	rethOpSequencerCLNodes := make([]stack.L2CLNodeID, l2NodeConfig.OpSequencerNodesWithReth)
-	rethOpSequencerELNodes := make([]stack.L2ELNodeID, l2NodeConfig.OpSequencerNodesWithReth)
-	rethKonaSequencerCLNodes := make([]stack.L2CLNodeID, l2NodeConfig.KonaSequencerNodesWithReth)
-	rethKonaSequencerELNodes := make([]stack.L2ELNodeID, l2NodeConfig.KonaSequencerNodesWithReth)
+	rethOpSequencerCLNodes := make([]stack.ComponentID, l2NodeConfig.OpSequencerNodesWithReth)
+	rethOpSequencerELNodes := make([]stack.ComponentID, l2NodeConfig.OpSequencerNodesWithReth)
+	rethKonaSequencerCLNodes := make([]stack.ComponentID, l2NodeConfig.KonaSequencerNodesWithReth)
+	rethKonaSequencerELNodes := make([]stack.ComponentID, l2NodeConfig.KonaSequencerNodesWithReth)
 
 	for i := range l2NodeConfig.OpSequencerNodesWithGeth {
 		gethOpSequencerCLNodes[i] = stack.NewL2CLNodeID(fmt.Sprintf("cl-geth-op-sequencer-%d", i), l2ID)
@@ -428,10 +424,10 @@ func NewDefaultMixedOpKonaSystemIDs(l1ID, l2ID eth.ChainID, l2NodeConfig L2NodeC
 	}
 
 	ids := DefaultMixedOpKonaSystemIDs{
-		L1:   stack.L1NetworkID(l1ID),
+		L1:   stack.NewL1NetworkID(l1ID),
 		L1EL: stack.NewL1ELNodeID("l1", l1ID),
 		L1CL: stack.NewL1CLNodeID("l1", l1ID),
-		L2:   stack.L2NetworkID(l2ID),
+		L2:   stack.NewL2NetworkID(l2ID),
 
 		L2CLOpGethSequencerNodes: gethOpSequencerCLNodes,
 		L2ELOpGethSequencerNodes: gethOpSequencerELNodes,
@@ -488,7 +484,7 @@ func DefaultMixedOpKonaSystem(dest *DefaultMixedOpKonaSystemIDs, l2NodeConfig L2
 	// Spawn all nodes.
 	for i := range ids.L2CLKonaGethSequencerNodes {
 		opt.Add(sysgo.WithOpGeth(ids.L2ELKonaGethSequencerNodes[i]))
-		opt.Add(sysgo.WithKonaNode(ids.L2CLKonaGethSequencerNodes[i], ids.L1CL, ids.L1EL, ids.L2ELKonaGethSequencerNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+		opt.Add(sysgo.WithKonaNode(ids.L2CLKonaGethSequencerNodes[i], ids.L1CL, ids.L1EL, ids.L2ELKonaGethSequencerNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 			cfg.IsSequencer = true
 			cfg.SequencerSyncMode = sync.ELSync
 			cfg.VerifierSyncMode = sync.ELSync
@@ -497,14 +493,14 @@ func DefaultMixedOpKonaSystem(dest *DefaultMixedOpKonaSystemIDs, l2NodeConfig L2
 
 	for i := range ids.L2CLOpGethSequencerNodes {
 		opt.Add(sysgo.WithOpGeth(ids.L2ELOpGethSequencerNodes[i]))
-		opt.Add(sysgo.WithOpNode(ids.L2CLOpGethSequencerNodes[i], ids.L1CL, ids.L1EL, ids.L2ELOpGethSequencerNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+		opt.Add(sysgo.WithOpNode(ids.L2CLOpGethSequencerNodes[i], ids.L1CL, ids.L1EL, ids.L2ELOpGethSequencerNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 			cfg.IsSequencer = true
 		})))
 	}
 
 	for i := range ids.L2CLKonaRethSequencerNodes {
 		opt.Add(sysgo.WithOpReth(ids.L2ELKonaRethSequencerNodes[i]))
-		opt.Add(sysgo.WithKonaNode(ids.L2CLKonaRethSequencerNodes[i], ids.L1CL, ids.L1EL, ids.L2ELKonaRethSequencerNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+		opt.Add(sysgo.WithKonaNode(ids.L2CLKonaRethSequencerNodes[i], ids.L1CL, ids.L1EL, ids.L2ELKonaRethSequencerNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 			cfg.IsSequencer = true
 			cfg.SequencerSyncMode = sync.ELSync
 			cfg.VerifierSyncMode = sync.ELSync
@@ -513,14 +509,14 @@ func DefaultMixedOpKonaSystem(dest *DefaultMixedOpKonaSystemIDs, l2NodeConfig L2
 
 	for i := range ids.L2CLOpRethSequencerNodes {
 		opt.Add(sysgo.WithOpReth(ids.L2ELOpRethSequencerNodes[i]))
-		opt.Add(sysgo.WithOpNode(ids.L2CLOpRethSequencerNodes[i], ids.L1CL, ids.L1EL, ids.L2ELOpRethSequencerNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+		opt.Add(sysgo.WithOpNode(ids.L2CLOpRethSequencerNodes[i], ids.L1CL, ids.L1EL, ids.L2ELOpRethSequencerNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 			cfg.IsSequencer = true
 		})))
 	}
 
 	for i := range ids.L2CLKonaGethNodes {
 		opt.Add(sysgo.WithOpGeth(ids.L2ELKonaGethNodes[i]))
-		opt.Add(sysgo.WithKonaNode(ids.L2CLKonaGethNodes[i], ids.L1CL, ids.L1EL, ids.L2ELKonaGethNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+		opt.Add(sysgo.WithKonaNode(ids.L2CLKonaGethNodes[i], ids.L1CL, ids.L1EL, ids.L2ELKonaGethNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 			cfg.SequencerSyncMode = sync.ELSync
 			cfg.VerifierSyncMode = sync.ELSync
 		})))
@@ -533,7 +529,7 @@ func DefaultMixedOpKonaSystem(dest *DefaultMixedOpKonaSystemIDs, l2NodeConfig L2
 
 	for i := range ids.L2CLKonaRethNodes {
 		opt.Add(sysgo.WithOpReth(ids.L2ELKonaRethNodes[i]))
-		opt.Add(sysgo.WithKonaNode(ids.L2CLKonaRethNodes[i], ids.L1CL, ids.L1EL, ids.L2ELKonaRethNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+		opt.Add(sysgo.WithKonaNode(ids.L2CLKonaRethNodes[i], ids.L1CL, ids.L1EL, ids.L2ELKonaRethNodes[i], sysgo.L2CLOptionFn(func(p devtest.P, id stack.ComponentID, cfg *sysgo.L2CLConfig) {
 			cfg.SequencerSyncMode = sync.ELSync
 			cfg.VerifierSyncMode = sync.ELSync
 		})))
@@ -558,7 +554,7 @@ func DefaultMixedOpKonaSystem(dest *DefaultMixedOpKonaSystemIDs, l2NodeConfig L2
 	opt.Add(sysgo.WithBatcher(ids.L2Batcher, ids.L1EL, CLNodeIDs[0], ELNodeIDs[0]))
 	opt.Add(sysgo.WithProposer(ids.L2Proposer, ids.L1EL, &CLNodeIDs[0], nil))
 
-	opt.Add(sysgo.WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ELNodeIDs[0]}))
+	opt.Add(sysgo.WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ELNodeIDs[0]}))
 
 	opt.Add(stack.Finally(func(orch *sysgo.Orchestrator) {
 		*dest = ids

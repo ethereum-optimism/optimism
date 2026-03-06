@@ -4,11 +4,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 )
 
-func WithLabel[I comparable, E interface {
-	stack.Identifiable[I]
+func WithLabel[E interface {
+	stack.Identifiable
 	Label(key string) string
-}](key, value string) stack.Matcher[I, E] {
-	return MatchElemFn[I, E](func(elem E) bool {
+}](key, value string) stack.Matcher[E] {
+	return MatchElemFn[E](func(elem E) bool {
 		return elem.Label(key) == value
 	})
 }
@@ -30,7 +30,7 @@ const (
 )
 
 func (v Vendor) Match(elems []stack.L2ELNode) []stack.L2ELNode {
-	return WithLabel[stack.L2ELNodeID, stack.L2ELNode](LabelVendor, string(v)).Match(elems)
+	return WithLabel[stack.L2ELNode](LabelVendor, string(v)).Match(elems)
 }
 
 func (v Vendor) String() string {

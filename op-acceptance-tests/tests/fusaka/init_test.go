@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 			sysgo.WithForkAtL1Offset(forks.Osaka, 0),
 			sysgo.WithForkAtL1Offset(forks.BPO1, 1),
 		),
-		sysgo.WithBatcherOption(func(_ stack.L2BatcherID, cfg *batcher.CLIConfig) {
+		sysgo.WithBatcherOption(func(_ stack.ComponentID, cfg *batcher.CLIConfig) {
 			cfg.DataAvailabilityType = flags.BlobsType
 			cfg.TxMgrConfig.CellProofTime = 0 // Force cell proofs to be used
 		}),

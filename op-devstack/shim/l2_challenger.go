@@ -7,13 +7,13 @@ import (
 
 type L2ChallengerConfig struct {
 	CommonConfig
-	ID     stack.L2ChallengerID
+	ID     stack.ComponentID
 	Config *config.Config
 }
 
 type rpcL2Challenger struct {
 	commonImpl
-	id     stack.L2ChallengerID
+	id     stack.ComponentID
 	config *config.Config
 }
 
@@ -32,6 +32,6 @@ func NewL2Challenger(cfg L2ChallengerConfig) stack.L2Challenger {
 	}
 }
 
-func (r *rpcL2Challenger) ID() stack.L2ChallengerID {
+func (r *rpcL2Challenger) ID() stack.ComponentID {
 	return r.id
 }
