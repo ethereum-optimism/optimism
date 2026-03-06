@@ -285,70 +285,6 @@ func TestStartStop(t *testing.T) {
 }
 
 // =============================================================================
-// TestCollectCurrentL1
-// =============================================================================
-
-func TestCollectCurrentL1(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		setup  func(h *interopTestHarness) *interopTestHarness
-		assert func(t *testing.T, l1 eth.BlockID, err error)
-	}{
-		{
-			name: "returns minimum L1 across multiple chains",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
-				}).WithChain(8453, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")} // minimum
-				}).Build()
-			},
-			assert: func(t *testing.T, l1 eth.BlockID, err error) {
-				require.NoError(t, err)
-				require.Equal(t, uint64(100), l1.Number)
-				require.Equal(t, common.HexToHash("0x1"), l1.Hash)
-			},
-		},
-		{
-			name: "single chain returns its L1",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 500, Hash: common.HexToHash("0x5")}
-				}).Build()
-			},
-			assert: func(t *testing.T, l1 eth.BlockID, err error) {
-				require.NoError(t, err)
-				require.Equal(t, uint64(500), l1.Number)
-			},
-		},
-		{
-			name: "chain error propagated",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1Err = errors.New("chain not synced")
-				}).Build()
-			},
-			assert: func(t *testing.T, l1 eth.BlockID, err error) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "not ready")
-				require.Equal(t, eth.BlockID{}, l1)
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropTestHarness(t)
-			tc.setup(h)
-			l1, err := h.interop.collectCurrentL1()
-			tc.assert(t, l1, err)
-		})
-	}
-}
-
-// =============================================================================
 // TestCheckChainsReady
 // =============================================================================
 
@@ -1010,14 +946,9 @@ func TestProgressAndRecord(t *testing.T) {
 				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				require.Equal(t, eth.BlockID{}, h.interop.currentL1)
-
 				madeProgress, err := h.interop.progressAndRecord()
 				require.NoError(t, err)
 				require.False(t, madeProgress, "empty result should not advance verified timestamp")
-
-				require.Equal(t, uint64(100), h.interop.currentL1.Number)
-				require.Equal(t, common.HexToHash("0x1"), h.interop.currentL1.Hash)
 			},
 		},
 		{
@@ -1037,9 +968,6 @@ func TestProgressAndRecord(t *testing.T) {
 				madeProgress, err := h.interop.progressAndRecord()
 				require.NoError(t, err)
 				require.True(t, madeProgress, "valid result should advance verified timestamp")
-
-				require.Equal(t, expectedL1Inclusion.Number, h.interop.currentL1.Number)
-				require.Equal(t, expectedL1Inclusion.Hash, h.interop.currentL1.Hash)
 			},
 		},
 		{
@@ -1052,9 +980,6 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
-				initialL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0x50")}
-				h.interop.currentL1 = initialL1
-
 				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
 					return Result{
 						Timestamp:    ts,
@@ -1067,22 +992,6 @@ func TestProgressAndRecord(t *testing.T) {
 				madeProgress, err := h.interop.progressAndRecord()
 				require.NoError(t, err)
 				require.False(t, madeProgress, "invalid result should not advance verified timestamp")
-
-				require.Equal(t, initialL1.Number, h.interop.currentL1.Number)
-				require.Equal(t, initialL1.Hash, h.interop.currentL1.Hash)
-			},
-		},
-		{
-			name: "errors propagated",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1Err = errors.New("L1 sync error")
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				madeProgress, err := h.interop.progressAndRecord()
-				require.Error(t, err)
-				require.False(t, madeProgress, "error should not advance verified timestamp")
 			},
 		},
 	}
@@ -1124,10 +1033,6 @@ func TestInterop_FullCycle(t *testing.T) {
 
 	// Run 3 cycles
 	for i := 0; i < 3; i++ {
-		l1, err := interop.collectCurrentL1()
-		require.NoError(t, err)
-		require.Equal(t, uint64(1000), l1.Number)
-
 		result, err := interop.progressInterop()
 		require.NoError(t, err)
 		require.False(t, result.IsEmpty())
@@ -1490,25 +1395,6 @@ func TestReset(t *testing.T) {
 				require.False(t, has)
 				has, _ = h.interop.verifiedDB.Has(102)
 				require.False(t, has)
-			},
-		},
-		{
-			name: "resets currentL1",
-			setup: func(h *interopTestHarness) (*interopTestHarness, *mockLogsDBForInterop) {
-				h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 99}
-				}).Build()
-				mockLogsDB := &mockLogsDBForInterop{}
-				h.interop.logsDBs[h.Mock(10).id] = mockLogsDB
-				return h, mockLogsDB
-			},
-			run: func(t *testing.T, h *interopTestHarness, mockLogsDB *mockLogsDBForInterop) {
-				h.interop.currentL1 = eth.BlockID{Number: 500, Hash: common.HexToHash("0xL1")}
-
-				invalidatedBlock := eth.BlockRef{Number: 100, ParentHash: common.Hash{}}
-				h.interop.Reset(h.Mock(10).id, 100, invalidatedBlock)
-
-				require.Equal(t, eth.BlockID{}, h.interop.currentL1)
 			},
 		},
 		{

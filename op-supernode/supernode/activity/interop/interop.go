@@ -51,8 +51,6 @@ type Interop struct {
 	cancel  context.CancelFunc
 	started bool
 
-	currentL1 eth.BlockID
-
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
 
 	// cycleVerifyFn handles same-timestamp cycle verification.
@@ -186,13 +184,6 @@ func (i *Interop) Resume() {
 // progressAndRecord attempts to progress interop and record the result.
 // Returns (madeProgress, error) where madeProgress indicates if we advanced the verified timestamp.
 func (i *Interop) progressAndRecord() (bool, error) {
-	// Check the L1s of each chain prior to performing interop
-	localCurrentL1, err := i.collectCurrentL1()
-	if err != nil {
-		i.log.Error("failed to collect current L1", "err", err)
-		return false, err
-	}
-
 	// Perform the interop evaluation
 	result, err := i.progressInterop()
 	if err != nil {
@@ -219,35 +210,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	// - if interop ran and advanced the verified timestamp, the L1Inclusion is the L1 inclusion at the verified timestamp
 	// this is because the individual chains may advance their CurrentL1, and if progress is being made, we might not be done using the collected L1s.
 	verifiedAdvanced := !result.IsEmpty()
-	i.mu.Lock()
-	if verifiedAdvanced {
-		// the new CurrentL1 is the L1 inclusion at the verified timestamp
-		i.currentL1 = result.L1Inclusion
-	} else {
-		// the new CurrentL1 is the lowest CurrentL1 from the collected chains
-		i.currentL1 = localCurrentL1
-	}
-	i.mu.Unlock()
 	return verifiedAdvanced, nil
-}
-
-// collectCurrentL1 collects the current L1 head of all chains,
-// which is the minimum L1 head of all the derivation pipelines in Chain Containers
-func (i *Interop) collectCurrentL1() (eth.BlockID, error) {
-	var currentL1 eth.BlockID
-	first := true
-	for _, chain := range i.chains {
-		status, err := chain.SyncStatus(i.ctx)
-		if err != nil {
-			return eth.BlockID{}, fmt.Errorf("chain %s not ready: %w", chain.ID(), err)
-		}
-		block := status.CurrentL1
-		if first || block.Number < currentL1.Number {
-			currentL1 = block.ID()
-			first = false
-		}
-	}
-	return currentL1, nil
 }
 
 func (i *Interop) progressInterop() (Result, error) {
@@ -414,14 +377,6 @@ func (i *Interop) commitVerifiedResult(timestamp uint64, verifiedResult Verified
 	return i.verifiedDB.Commit(verifiedResult)
 }
 
-// CurrentL1 returns the L1 block which has been fully considered for interop,
-// whether or not it advanced the verified timestamp.
-func (i *Interop) CurrentL1() eth.BlockID {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-	return i.currentL1
-}
-
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.
 // For timestamps before the activation timestamp, this returns true since interop
 // wasn't active yet and verification proceeds automatically.
@@ -509,9 +464,6 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock 
 
 	i.resetLogsDB(chainID, db, invalidatedBlock)
 	i.resetVerifiedDB(timestamp)
-
-	// Reset the currentL1 to force re-evaluation
-	i.currentL1 = eth.BlockID{}
 }
 
 // resetLogsDB rewinds or clears the logsDB for a chain to the block before the invalidated block.

@@ -39,9 +39,6 @@ type VerificationActivity interface {
 	// Reset resets the activity's state.
 	Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef)
 
-	// CurrentL1 returns the current L1 block ID.
-	CurrentL1() eth.BlockID
-
 	// VerifiedAtTimestamp returns true if the activity has verified the data at the given timestamp.
 	VerifiedAtTimestamp(ts uint64) (bool, error)
 
