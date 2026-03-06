@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"path"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -20,14 +21,23 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
+
+// L1Client defines the L1 chain interactions needed by the pipeline.
+// In production this is satisfied by *ethclient.Client; in tests it
+// can be replaced with a mock to avoid external RPC dependencies.
+type L1Client interface {
+	ChainID(ctx context.Context) (*big.Int, error)
+	CodeAt(ctx context.Context, account common.Address, blockNumber *big.Int) ([]byte, error)
+	Client() *rpc.Client
+}
 
 type Env struct {
 	StateWriter  StateWriter
 	L1ScriptHost *script.Host
-	L1Client     *ethclient.Client
+	L1Client     L1Client
 	Broadcaster  broadcaster.Broadcaster
 	Deployer     common.Address
 	Logger       log.Logger
