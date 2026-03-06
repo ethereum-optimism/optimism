@@ -697,6 +697,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "OPContractsManagerUtils_InitializingDuringUpgrade",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "string",
