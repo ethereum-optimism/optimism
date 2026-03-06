@@ -46,7 +46,7 @@ disk_packages=()
 while IFS= read -r dir; do
   # Only count packages with actual Test functions (not just _test.go boilerplate)
   if grep -rql '^func Test' "$dir"/*_test.go 2>/dev/null; then
-    rel="${dir#$TESTS_DIR/}"
+    rel="${dir#"$TESTS_DIR"/}"
     disk_packages+=("$rel")
   fi
 done < <(find "$TESTS_DIR" -name '*_test.go' -printf '%h\n' | sort -u)
@@ -65,7 +65,7 @@ while IFS= read -r line; do
     continue
   fi
   if $in_shard && [[ "$line" =~ package:.*$MODULE/ ]]; then
-    pkg="${line##*$MODULE/}"
+    pkg="${line##*"$MODULE"/}"
     pkg="${pkg%%\"*}"
     pkg="${pkg%%\'*}"
     pkg="$(echo "$pkg" | xargs)"  # trim whitespace
