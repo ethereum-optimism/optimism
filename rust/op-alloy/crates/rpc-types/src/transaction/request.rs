@@ -197,6 +197,16 @@ impl From<OpTxEnvelope> for OpTransactionRequest {
     }
 }
 
+impl From<super::Transaction> for OpTransactionRequest {
+    fn from(tx: super::Transaction) -> Self {
+        let recovered = tx.inner.into_recovered();
+        let from = recovered.signer();
+        let mut req: Self = recovered.into_inner().into();
+        req.0.from = Some(from);
+        req
+    }
+}
+
 impl TransactionBuilder7702 for OpTransactionRequest {
     fn authorization_list(&self) -> Option<&Vec<SignedAuthorization>> {
         self.as_ref().authorization_list()
