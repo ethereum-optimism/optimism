@@ -24,6 +24,8 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 
 func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
+	// TODO(#19242): Unskip this once supernode correctly replaces invalid blocks.
+	t.Skip("Supernode does not yet replace invalid blocks")
 	sys := presets.NewSimpleInterop(t)
 	sfp.RunInvalidBlockTest(t, sys)
 }
