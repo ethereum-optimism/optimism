@@ -1,0 +1,74 @@
+adapters:
+  go:
+    enabled: true
+    root: "."
+    special_paths:
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+    cache_key_files:
+      - "go.sum"
+
+  sol:
+    enabled: true
+    root: "packages/contracts-bedrock"
+    source_dirs:
+      - "src/"
+      - "test/"
+      - "scripts/"
+    remappings_file: "remappings.txt"
+    special_paths:
+      - "packages/contracts-bedrock/foundry.toml"
+    cache_key_files:
+      - "packages/contracts-bedrock/foundry.toml"
+    features:
+      - name: main
+        env:
+          FOUNDRY_PROFILE: "ci"
+        always: true
+      - name: CUSTOM_GAS_TOKEN
+        env:
+          FOUNDRY_PROFILE: "ci"
+          SYS_FEATURE__CUSTOM_GAS_TOKEN: "true"
+        trigger_paths:
+          - "src/L1/SystemConfig.sol"
+          - "src/L1/OptimismPortal2.sol"
+          - "src/libraries/GasPayingToken.sol"
+      - name: OPTIMISM_PORTAL_INTEROP
+        env:
+          FOUNDRY_PROFILE: "ci"
+          DEV_FEATURE__OPTIMISM_PORTAL_INTEROP: "true"
+        trigger_paths:
+          - "src/L1/OptimismPortal2.sol"
+          - "src/L2/CrossL2Inbox.sol"
+      - name: OPCM_V2
+        env:
+          FOUNDRY_PROFILE: "ci"
+          DEV_FEATURE__OPCM_V2: "true"
+        trigger_paths:
+          - "src/L1/OPContractsManager.sol"
+      - name: CGT_INTEROP
+        env:
+          FOUNDRY_PROFILE: "ci"
+          SYS_FEATURE__CUSTOM_GAS_TOKEN: "true"
+          DEV_FEATURE__OPTIMISM_PORTAL_INTEROP: "true"
+        trigger_paths:
+          - "src/L1/OptimismPortal2.sol"
+          - "src/libraries/GasPayingToken.sol"
+      - name: CGT_OPCM
+        env:
+          FOUNDRY_PROFILE: "ci"
+          SYS_FEATURE__CUSTOM_GAS_TOKEN: "true"
+          DEV_FEATURE__OPCM_V2: "true"
+        trigger_paths:
+          - "src/L1/OPContractsManager.sol"
+          - "src/libraries/GasPayingToken.sol"
+
+  rust:
+    enabled: true
+    root: "rust"
+    special_paths:
+      - "rust/Cargo.lock"
+      - "rust/Cargo.toml"
+    cache_key_files:
+      - "rust/Cargo.lock"

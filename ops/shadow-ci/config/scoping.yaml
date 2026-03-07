@@ -1,0 +1,63 @@
+# Confidence threshold: targets below this score are treated as always-run.
+confidence_threshold: 0.9
+
+# How long a target must be in the always-run list without a false negative
+# before it's eligible for scoping.
+always_run_graduation_weeks: 8
+
+# Special paths that force ALL tests in ALL languages.
+force_all_paths:
+  - ".circleci/"
+  - "ops/"
+  - "mise.toml"
+
+# Always-run targets by language.
+# These start large and shrink as the graph proves itself.
+always_run:
+  go:
+    - "github.com/ethereum-optimism/optimism/op-e2e/system"
+    - "github.com/ethereum-optimism/optimism/op-e2e/faultproofs"
+  sol:
+    - "test/invariants/"
+  rust: []
+
+# Acceptance test gate mapping.
+acceptance_gates:
+  base:
+    trigger_paths:
+      - "op-node/"
+      - "op-batcher/"
+      - "op-proposer/"
+      - "op-program/"
+      - "packages/contracts-bedrock/src/L1/"
+      - "packages/contracts-bedrock/src/L2/"
+    always: true
+  isthmus:
+    trigger_paths:
+      - "op-node/rollup/derive/isthmus"
+      - "packages/contracts-bedrock/src/L2/"
+  interop:
+    trigger_paths:
+      - "op-supervisor/"
+      - "op-node/rollup/interop/"
+      - "packages/contracts-bedrock/src/L2/CrossL2Inbox.sol"
+      - "packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol"
+  cgt:
+    trigger_paths:
+      - "packages/contracts-bedrock/src/libraries/GasPayingToken.sol"
+      - "packages/contracts-bedrock/src/L1/SystemConfig.sol"
+
+# Activation controls what's enabled.
+activation:
+  mode: shadow  # shadow | belt-and-suspenders | primary
+  languages:
+    go: true
+    sol: true
+    rust: true
+  agents:
+    flake_investigator: true
+    graph_maintainer: true
+    config_verifier: true
+    report_analyst: true
+  comparison:
+    required: false  # true in belt-and-suspenders mode

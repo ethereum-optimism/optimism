@@ -1,0 +1,34 @@
+platform: circleci
+
+circleci:
+  # Runner mapping: abstract runner class -> CircleCI resource class.
+  runners:
+    small: "docker+medium"
+    medium: "docker+large"
+    large: "latitude-1"
+    xlarge: "latitude-1"
+    e2e: "latitude-1-go-e2e"
+    faultproofs: "latitude-fps-1"
+
+  # How to identify the main CI pipeline for comparison.
+  main_ci:
+    workflows:
+      - "main"
+      - "rust-ci"
+    artifact_patterns:
+      go: "junit*.xml"
+      sol: "results*.xml"
+
+  # Concurrency limits (shadow CI should not starve main CI).
+  max_concurrency:
+    latitude-1: 4
+    latitude-1-go-e2e: 1
+    latitude-fps-1: 0
+
+events:
+  store: local
+  local:
+    dir: /tmp/shadow-ci-events
+  gcs:
+    bucket: "op-shadow-ci"
+    project: "oplabs-ci"
