@@ -73,27 +73,30 @@ func main() {
 	warnings := 0
 
 	// Check: every mainline PR job should be represented.
+	// On PR/MQ: DEFER is acceptable. On post_merge/nightly: everything should run.
 	fmt.Println("--- PR Stage Coherence ---")
-	if decision.Stage == model.StagePR || decision.Stage == model.StageMergeQueue {
-		for cat, mainJob := range mainlinePRJobs {
-			cd, ok := decision.Categories[cat]
-			if !ok {
-				fmt.Printf("  ERROR  %-30s missing from decision (mainline: %s)\n", cat, mainJob)
-				errors++
-				continue
-			}
-			if cd.Needed && !cd.Skipped {
-				fmt.Printf("  OK     %-30s → RUN  (mainline: %s)\n", cat, mainJob)
-			} else if cd.StageSkipped {
-				fmt.Printf("  DEFER  %-30s → deferred to %s (mainline: %s)\n", cat, cd.PlacedAt, mainJob)
-			} else {
-				fmt.Printf("  WARN   %-30s → SKIP (%s) but mainline runs %s\n", cat, cd.SkipWhy, mainJob)
-				warnings++
-			}
+	for cat, mainJob := range mainlinePRJobs {
+		cd, ok := decision.Categories[cat]
+		if !ok {
+			fmt.Printf("  ERROR  %-30s missing from decision (mainline: %s)\n", cat, mainJob)
+			errors++
+			continue
+		}
+		if cd.Needed && !cd.Skipped {
+			fmt.Printf("  OK     %-30s → RUN  (mainline: %s)\n", cat, mainJob)
+		} else if cd.StageSkipped && (decision.Stage == model.StagePR || decision.Stage == model.StageMergeQueue) {
+			fmt.Printf("  DEFER  %-30s → deferred to %s (mainline: %s)\n", cat, cd.PlacedAt, mainJob)
+		} else if cd.StageSkipped {
+			// Stage-deferred on post_merge or nightly — this is wrong, should run.
+			fmt.Printf("  ERROR  %-30s → still deferred at %s stage (mainline: %s)\n", cat, decision.Stage, mainJob)
+			errors++
+		} else {
+			fmt.Printf("  WARN   %-30s → SKIP (%s) but mainline runs %s\n", cat, cd.SkipWhy, mainJob)
+			warnings++
 		}
 	}
 
-	// Check: develop-only jobs should be skipped on PR.
+	// Check: develop-only jobs should be skipped on PR/MQ, running on develop/nightly.
 	fmt.Println("\n--- Develop-Only Jobs ---")
 	for cat, desc := range mainlineDevelopOnlyJobs {
 		cd, ok := decision.Categories[cat]
@@ -102,11 +105,11 @@ func main() {
 			errors++
 			continue
 		}
-		if decision.Stage == model.StagePR {
+		if decision.Stage == model.StagePR || decision.Stage == model.StageMergeQueue {
 			if cd.Skipped {
-				fmt.Printf("  OK     %-30s correctly skipped on PR (%s)\n", cat, desc)
+				fmt.Printf("  OK     %-30s correctly skipped on %s (%s)\n", cat, decision.Stage, desc)
 			} else {
-				fmt.Printf("  ERROR  %-30s running on PR but should be develop-only (%s)\n", cat, desc)
+				fmt.Printf("  ERROR  %-30s running on %s but should be develop-only (%s)\n", cat, decision.Stage, desc)
 				errors++
 			}
 		} else if decision.IsDevelop {
@@ -119,7 +122,7 @@ func main() {
 		}
 	}
 
-	// Check: schedule-only jobs should be skipped on non-schedule.
+	// Check: schedule-only jobs should be skipped on non-schedule, running on schedule.
 	fmt.Println("\n--- Schedule-Only Jobs ---")
 	for cat, desc := range mainlineScheduleOnlyJobs {
 		cd, ok := decision.Categories[cat]
@@ -128,7 +131,14 @@ func main() {
 			errors++
 			continue
 		}
-		if !decision.IsSchedule {
+		if decision.IsSchedule {
+			if cd.Needed && !cd.Skipped {
+				fmt.Printf("  OK     %-30s correctly running on schedule (%s)\n", cat, desc)
+			} else {
+				fmt.Printf("  ERROR  %-30s skipped but should run on schedule (%s)\n", cat, desc)
+				errors++
+			}
+		} else {
 			if cd.Skipped {
 				fmt.Printf("  OK     %-30s correctly skipped (not scheduled) (%s)\n", cat, desc)
 			} else {
