@@ -17,10 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// defaultFallbackBlock is used when fixtures don't have metadata yet.
-// One block past the v6.0.0-rc.2 OPCM deployment on Sepolia.
-const defaultFallbackBlock = 10101510
-
 func TestImplementations(t *testing.T) {
 	t.Parallel()
 
@@ -32,7 +28,7 @@ func TestImplementations(t *testing.T) {
 	defer cancel()
 
 	fixturePath := devnet.RPCReplayFixturePath("bootstrap_implementations")
-	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromFixture(lgr, fixturePath, defaultFallbackBlock)
+	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromFixture(lgr, fixturePath, devnet.DefaultSepoliaFallbackBlock)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, stopL1())

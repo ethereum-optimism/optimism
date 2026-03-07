@@ -15,6 +15,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// DefaultSepoliaFallbackBlock is the default fork block for Sepolia fixtures
+// without metadata. One block past the v6.0.0-rc.2 OPCM deployment on Sepolia.
+const DefaultSepoliaFallbackBlock = 10101510
+
 type CleanupFunc func() error
 
 func NewForked(lgr log.Logger, rpcURL string, anvilOpts ...AnvilOption) (*Anvil, CleanupFunc, error) {
@@ -197,6 +201,9 @@ func queryLatestBlock(rpcURL string) (uint64, error) {
 		return 0, fmt.Errorf("eth_blockNumber request failed: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("eth_blockNumber returned HTTP %d", resp.StatusCode)
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read response: %w", err)

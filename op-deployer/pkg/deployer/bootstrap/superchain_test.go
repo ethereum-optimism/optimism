@@ -27,7 +27,7 @@ func TestSuperchain(t *testing.T) {
 	defer cancel()
 
 	fixturePath := devnet.RPCReplayFixturePath("bootstrap_superchain")
-	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromFixture(lgr, fixturePath, defaultFallbackBlock)
+	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromFixture(lgr, fixturePath, devnet.DefaultSepoliaFallbackBlock)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, stopL1())

@@ -108,9 +108,10 @@ func (p *RPCReplayProxy) Start() error {
 
 	p.srv = &http.Server{Handler: p}
 
-	errCh := make(chan error, 1)
 	go func() {
-		errCh <- p.srv.Serve(ln)
+		if err := p.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			p.lgr.Error("rpc replay proxy server error", "err", err)
+		}
 	}()
 
 	p.lgr.Info("rpc replay proxy started", "port", p.listenPort, "mode", p.modeString())
@@ -348,13 +349,14 @@ func (p *RPCReplayProxy) loadFixtures() error {
 
 func (p *RPCReplayProxy) saveFixtures() error {
 	p.mu.Lock()
+	meta := p.metadata
 	fixtures := make(map[string]rpcReplayEntry, len(p.fixtures))
 	for k, v := range p.fixtures {
 		fixtures[k] = v
 	}
 	p.mu.Unlock()
 
-	fixture := rpcReplayFixture{Metadata: p.metadata, Entries: fixtures}
+	fixture := rpcReplayFixture{Metadata: meta, Entries: fixtures}
 	data, err := json.MarshalIndent(fixture, "", "  ")
 	if err != nil {
 		return err
