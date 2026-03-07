@@ -98,7 +98,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "build",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseBase + "\n            mise install go rust forge cast anvil just make",
+			SetupSteps:    miseBase + "\n            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev\n            mise install go rust forge cast anvil just make",
 			Categories:    groupCats["build"],
 		},
 		{
@@ -119,7 +119,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "rust",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseBase + "\n            mise install rust",
+			SetupSteps:    miseBase + "\n            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev\n            mise install rust",
 			Categories:    groupCats["rust"],
 		},
 		{

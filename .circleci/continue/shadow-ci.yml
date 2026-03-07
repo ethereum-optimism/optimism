@@ -139,6 +139,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
+            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
             mise install go rust forge cast anvil just make
       - run:
           name: Execute build categories
@@ -229,6 +230,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
+            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
             mise install rust
       - run:
           name: Execute rust categories
