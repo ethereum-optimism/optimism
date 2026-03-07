@@ -194,7 +194,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install go gotestsum golangci-lint mockery forge make
+            mise install go gotestsum golangci-lint mockery forge cast anvil just make
       - run:
           name: Execute go categories
           no_output_timeout: 45m
@@ -214,6 +214,7 @@ jobs:
     docker:
       - image: << pipeline.parameters.c-default_docker_image >>
     resource_class: 2xlarge
+    circleci_ip_ranges: true
     steps:
       - checkout
       - attach_workspace:

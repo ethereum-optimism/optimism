@@ -199,7 +199,7 @@ job_categories:
       pr: liteci
       develop: ci
     command: |
-      cd packages/contracts-bedrock && FOUNDRY_PROFILE=liteci forge test
+      cd packages/contracts-bedrock && just build-go-ffi && FOUNDRY_PROFILE=liteci forge test
     description: "Solidity tests with feature matrix"
 
   sol_upgrade:
@@ -213,7 +213,7 @@ job_categories:
       - { chain: ink, base: mainnet }
       - { chain: unichain, base: mainnet }
     command: |
-      cd packages/contracts-bedrock && just test-upgrade
+      cd packages/contracts-bedrock && ETH_RPC_URL=https://ci-mainnet-l1-archive.optimism.io FORK_OP_CHAIN=op FORK_BASE_CHAIN=mainnet just test-upgrade
     description: "Solidity upgrade tests on fork chains"
 
   sol_heavy_fuzz:
@@ -254,7 +254,7 @@ job_categories:
       - validate-spacers-no-build
       - opcm-upgrade-checks-no-build
     command: |
-      cd packages/contracts-bedrock && just pre-pr-no-build
+      cd packages/contracts-bedrock && for check in semver-lock-no-build semver-diff-check-no-build validate-deploy-configs lint snapshots-check-no-build interfaces-check-no-build reinitializer-check-no-build size-check unused-imports-check-no-build strict-pragma-check-no-build validate-spacers-no-build opcm-upgrade-checks-no-build; do echo "=== $check ===" && just $check || exit 1; done
     description: "Solidity static checks"
 
   # === ACCEPTANCE TESTS ===
