@@ -2,8 +2,9 @@
 # Runs alongside main CI, makes optimal run/skip decisions for every job category,
 # and proves equivalence before replacing the existing CI.
 #
-# This config is merged with main.yml via path-filtering. Jobs here can
-# reference jobs defined in main.yml (e.g. contracts-bedrock-build).
+# This is a separate workflow so it CANNOT reference jobs from the main workflow
+# (CircleCI `requires` only works within the same workflow). Build dependencies
+# like contracts and cannon prestates are built inline where needed.
 
 version: 2.1
 
@@ -104,10 +105,11 @@ jobs:
               --decision-output /tmp/shadow-ci/decision.json \
               --events-dir /tmp/shadow-ci/events \
               --pipeline-id "${CIRCLE_PIPELINE_ID}"
-      - persist_to_workspace:
-          root: .
-          paths:
-            - ops/shadow-ci/bin/
+      - run:
+          name: Stage workspace artifacts
+          command: |
+            mkdir -p /tmp/shadow-ci/bin
+            cp ops/shadow-ci/bin/* /tmp/shadow-ci/bin/
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -130,13 +132,21 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
-          at: .
-      - attach_workspace:
           at: /tmp
       - check-decision:
           category: go_tests
       - restore_cache:
           key: go-tests-v2-{{ checksum "go.mod" }}
+      - run:
+          name: Build contracts for tests
+          command: |
+            cd packages/contracts-bedrock
+            git submodule update --init --recursive --single-branch --force -j 8
+            just forge-build
+            cd ../../op-deployer
+            just copy-contract-artifacts
+          environment:
+            FOUNDRY_PROFILE: ci
       - run:
           name: Build cannon for tests
           command: make -C cannon cannon elf
@@ -206,12 +216,13 @@ jobs:
     parameters:
       package:
         type: string
+      needs_artifacts:
+        type: boolean
+        default: false
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      - attach_workspace:
-          at: .
       - attach_workspace:
           at: /tmp
       - run:
@@ -232,6 +243,21 @@ jobs:
               exit 0
             }
             echo "$NEEDED"
+      - when:
+          condition: <<parameters.needs_artifacts>>
+          steps:
+            - run:
+                name: Build contracts and cannon for fuzz
+                command: |
+                  cd packages/contracts-bedrock
+                  git submodule update --init --recursive --single-branch --force -j 8
+                  just forge-build
+                  cd ../../op-deployer
+                  just copy-contract-artifacts
+                  cd ..
+                  make -C cannon cannon elf
+                environment:
+                  FOUNDRY_PROFILE: ci
       - run:
           name: Run fuzz tests for <<parameters.package>>
           no_output_timeout: 10m
@@ -260,8 +286,6 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
-      - attach_workspace:
-          at: .
       - attach_workspace:
           at: /tmp
       - check-decision:
@@ -352,8 +376,6 @@ jobs:
           checkout-method: full
           enable-mise-cache: true
       - attach_workspace:
-          at: .
-      - attach_workspace:
           at: /tmp
       - check-decision:
           category: sol_upgrade
@@ -400,11 +422,17 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
-          at: .
-      - attach_workspace:
           at: /tmp
       - check-decision:
           category: cannon_tests
+      - run:
+          name: Build contracts for cannon tests
+          command: |
+            cd packages/contracts-bedrock
+            git submodule update --init --recursive --single-branch --force -j 8
+            just forge-build
+          environment:
+            FOUNDRY_PROFILE: ci
       - run:
           name: Run cannon tests
           no_output_timeout: 15m
@@ -450,8 +478,6 @@ jobs:
           checkout-method: full
           enable-mise-cache: true
       - attach_workspace:
-          at: .
-      - attach_workspace:
           at: /tmp
       - check-decision:
           category: sol_checks
@@ -474,13 +500,8 @@ jobs:
             import json
             d = json.load(open('/tmp/shadow-ci/decision.json'))
             checks = d.get('categories', {}).get('sol_checks', {}).get('configs', [])
-            # If decision doesn't list checks, use all from scoping config
-            import yaml
-            if not checks:
-                with open('../../ops/shadow-ci/config/scoping.yaml') as f:
-                    s = yaml.safe_load(f)
-                checks = s.get('job_categories', {}).get('sol_checks', {}).get('checks', [])
-            print(' '.join(checks))
+            if checks:
+                print(' '.join(checks))
             " 2>/dev/null || echo "lint size-check")
 
             for check in $checks; do
@@ -530,19 +551,64 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
-          at: .
-      - attach_workspace:
           at: /tmp
       - check-decision:
           category: acceptance_tests
+      - run:
+          name: Build contracts and cannon prestates
+          command: |
+            cd packages/contracts-bedrock
+            git submodule update --init --recursive --single-branch --force -j 8
+            just forge-build
+            cd ../../op-deployer
+            just copy-contract-artifacts
+            cd ..
+            make -j reproducible-prestate
+          environment:
+            FOUNDRY_PROFILE: ci
+      - run:
+          name: Build kona binaries
+          no_output_timeout: 45m
+          command: |
+            cd rust
+            git submodule update --init --recursive --single-branch --force -j 8
+            cargo build --release --bin kona-node --bin kona-supervisor
+      - run:
+          name: Build op-rbuilder submodule
+          no_output_timeout: 30m
+          command: |
+            git submodule update --init --single-branch op-rbuilder
+            cd op-rbuilder
+            cargo build --release -p op-rbuilder --bin op-rbuilder
+            mkdir -p ../.circleci-cache/rust-binaries
+            cp target/release/op-rbuilder ../.circleci-cache/rust-binaries/
+      - run:
+          name: Build rollup-boost submodule
+          no_output_timeout: 30m
+          command: |
+            git submodule update --init --single-branch rollup-boost
+            cd rollup-boost
+            cargo build --release -p rollup-boost --bin rollup-boost
+            cp target/release/rollup-boost ../.circleci-cache/rust-binaries/
+      - run:
+          name: Configure Rust binary paths
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SUPERVISOR=$ROOT_DIR/rust/target/release/kona-supervisor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       - run:
           name: Run shadow acceptance tests
           no_output_timeout: 120m
           command: |
             mkdir -p /tmp/shadow-ci/test-results
             export GOGC=0
+            cd op-acceptance-tests
+            go mod download
             LOG_LEVEL=info just acceptance-test "" "" || true  # Shadow mode
-            cp op-acceptance-tests/results/results.xml /tmp/shadow-ci/test-results/acceptance-results.xml 2>/dev/null || true
+            cp results/results.xml /tmp/shadow-ci/test-results/acceptance-results.xml 2>/dev/null || true
       - shadow-store-results
 
   # ===========================================================================
@@ -557,15 +623,13 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
-          at: .
-      - attach_workspace:
           at: /tmp
       - run:
           name: Compare shadow vs main CI
           command: |
             mkdir -p /tmp/shadow-ci/comparison
 
-            ops/shadow-ci/bin/compare \
+            /tmp/shadow-ci/bin/compare \
               --config ops/shadow-ci/config \
               --pipeline-id "${CIRCLE_PIPELINE_ID}" \
               --shadow-results /tmp/shadow-ci/test-results/ \
@@ -612,8 +676,6 @@ workflows:
       - shadow-ci-go-tests:
           requires:
             - shadow-ci-setup
-            - contracts-bedrock-build  # from main.yml
-            - cannon-prestate          # from main.yml
           context:
             - circleci-repo-readonly-authenticated-github-token
 
@@ -632,14 +694,13 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
-      # Fuzz packages that need build artifacts.
+      # Fuzz packages that need build artifacts (contracts + cannon).
       - shadow-ci-go-fuzz:
           name: shadow-ci-fuzz-<<matrix.package>>
           package: <<matrix.package>>
+          needs_artifacts: true
           requires:
             - shadow-ci-setup
-            - contracts-bedrock-build
-            - cannon-prestate
           matrix:
             parameters:
               package:
@@ -663,25 +724,52 @@ workflows:
       - shadow-ci-cannon-tests:
           requires:
             - shadow-ci-setup
-            - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
 
       # === SOLIDITY ===
+      # Use explicit job entries instead of matrix for multi-feature combos,
+      # because commas in matrix values break CircleCI parameter parsing.
       - shadow-ci-sol-tests:
-          name: shadow-ci-sol-<<matrix.features>>
-          features: <<matrix.features>>
+          name: shadow-ci-sol-main
+          features: main
           requires:
             - shadow-ci-setup
-          matrix:
-            parameters:
-              features:
-                - main
-                - CUSTOM_GAS_TOKEN
-                - OPTIMISM_PORTAL_INTEROP
-                - OPCM_V2
-                - OPCM_V2,CUSTOM_GAS_TOKEN
-                - OPCM_V2,OPTIMISM_PORTAL_INTEROP
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - shadow-ci-sol-tests:
+          name: shadow-ci-sol-CUSTOM_GAS_TOKEN
+          features: CUSTOM_GAS_TOKEN
+          requires:
+            - shadow-ci-setup
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - shadow-ci-sol-tests:
+          name: shadow-ci-sol-OPTIMISM_PORTAL_INTEROP
+          features: OPTIMISM_PORTAL_INTEROP
+          requires:
+            - shadow-ci-setup
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - shadow-ci-sol-tests:
+          name: shadow-ci-sol-OPCM_V2
+          features: OPCM_V2
+          requires:
+            - shadow-ci-setup
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - shadow-ci-sol-tests:
+          name: shadow-ci-sol-OPCM_V2-CUSTOM_GAS_TOKEN
+          features: "OPCM_V2,CUSTOM_GAS_TOKEN"
+          requires:
+            - shadow-ci-setup
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - shadow-ci-sol-tests:
+          name: shadow-ci-sol-OPCM_V2-OPTIMISM_PORTAL_INTEROP
+          features: "OPCM_V2,OPTIMISM_PORTAL_INTEROP"
+          requires:
+            - shadow-ci-setup
           context:
             - circleci-repo-readonly-authenticated-github-token
 
@@ -710,8 +798,6 @@ workflows:
       - shadow-ci-acceptance-tests:
           requires:
             - shadow-ci-setup
-            - contracts-bedrock-build
-            - cannon-prestate
           context:
             - circleci-repo-readonly-authenticated-github-token
 
@@ -725,8 +811,8 @@ workflows:
             - shadow-ci-sol-CUSTOM_GAS_TOKEN
             - shadow-ci-sol-OPTIMISM_PORTAL_INTEROP
             - shadow-ci-sol-OPCM_V2
-            - shadow-ci-sol-OPCM_V2,CUSTOM_GAS_TOKEN
-            - shadow-ci-sol-OPCM_V2,OPTIMISM_PORTAL_INTEROP
+            - shadow-ci-sol-OPCM_V2-CUSTOM_GAS_TOKEN
+            - shadow-ci-sol-OPCM_V2-OPTIMISM_PORTAL_INTEROP
             - shadow-ci-sol-checks
             - shadow-ci-upgrade-op
             - shadow-ci-upgrade-base
