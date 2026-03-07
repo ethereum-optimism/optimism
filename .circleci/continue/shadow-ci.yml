@@ -33,6 +33,7 @@ commands:
             go build -o bin/runner ./cmd/runner
             go build -o bin/compare ./cmd/compare
             go build -o bin/aggregate ./cmd/aggregate
+            go build -o bin/validate ./cmd/validate
 
   check-decision:
     description: "Check pipeline decision for a category and halt if not needed"
@@ -91,6 +92,9 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - build-shadow-ci
+      - run:
+          name: Validate pipeline config
+          command: ops/shadow-ci/bin/validate --pipeline .circleci/continue/shadow-ci.yml --strict
       - run:
           name: Compute affected targets and pipeline decision
           command: |
