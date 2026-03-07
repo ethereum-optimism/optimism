@@ -275,6 +275,7 @@ RPC_TEST_PKGS := \
 RPC_REPLAY_PKGS := \
 	./op-deployer/pkg/deployer/pipeline/... \
 	./op-deployer/pkg/deployer/integration_test/cli/... \
+	./op-deployer/pkg/deployer/manage/... \
 	./op-deployer/pkg/deployer/opcm/...
 
 # All test packages used by CI (combination of all package groups)
