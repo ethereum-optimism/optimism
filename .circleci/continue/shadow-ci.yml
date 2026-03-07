@@ -193,7 +193,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install go gotestsum golangci-lint mockery make
+            mise install go gotestsum golangci-lint mockery forge make
       - run:
           name: Execute go categories
           no_output_timeout: 45m
@@ -273,6 +273,8 @@ jobs:
             source $BASH_ENV
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
             mise install rust just
+            curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+            cargo binstall --no-confirm cargo-nextest
       - run:
           name: Execute rust categories
           no_output_timeout: 45m
@@ -337,20 +339,30 @@ workflows:
             - shadow-ci-setup
       - shadow-ci-tests
       - shadow-ci-build:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - shadow-ci-setup
       - shadow-ci-go:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - shadow-ci-setup
             - shadow-ci-build
       - shadow-ci-sol:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - shadow-ci-setup
             - shadow-ci-build
       - shadow-ci-rust:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - shadow-ci-setup
             - shadow-ci-build
       - shadow-ci-misc:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - shadow-ci-setup

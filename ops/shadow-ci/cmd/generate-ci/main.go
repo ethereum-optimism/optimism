@@ -108,7 +108,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "go",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseBase + "\n            mise install go gotestsum golangci-lint mockery make",
+			SetupSteps:    miseBase + "\n            mise install go gotestsum golangci-lint mockery forge make",
 			Categories:    groupCats["go"],
 		},
 		{
@@ -124,7 +124,9 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			ResourceClass: "2xlarge",
 			SetupSteps: miseBase + `
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
-            mise install rust just`,
+            mise install rust just
+            curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+            cargo binstall --no-confirm cargo-nextest`,
 			Categories: groupCats["rust"],
 		},
 		{
@@ -380,6 +382,8 @@ workflows:
             - shadow-ci-setup
       - shadow-ci-tests
 {{ range .Groups }}      - shadow-ci-{{ .Name }}:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - shadow-ci-setup{{ range $dep, $_ := (index $.GroupDeps .Name) }}
             - shadow-ci-{{ $dep }}{{ end }}
