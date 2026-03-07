@@ -135,7 +135,8 @@ jobs:
             curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
             echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/.foundry/bin' >> $BASH_ENV
             source $BASH_ENV
-            curl -L https://foundry.paradigm.xyz | bash
+            export SHELL=/bin/bash
+            curl -L https://foundry.paradigm.xyz | bash || true
             ~/.foundry/bin/foundryup
       - run:
           name: Execute build categories
@@ -194,7 +195,8 @@ jobs:
       - run:
           name: Install toolchain (sol)
           command: |
-            curl -L https://foundry.paradigm.xyz | bash
+            export SHELL=/bin/bash
+            curl -L https://foundry.paradigm.xyz | bash || true
             echo 'export PATH=$PATH:$HOME/.foundry/bin' >> $BASH_ENV
             source $BASH_ENV
             ~/.foundry/bin/foundryup
@@ -252,7 +254,8 @@ jobs:
       - run:
           name: Install toolchain (misc)
           command: |
-            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck python3-pip
+            pip3 install semgrep || true
       - run:
           name: Execute misc categories
           no_output_timeout: 45m

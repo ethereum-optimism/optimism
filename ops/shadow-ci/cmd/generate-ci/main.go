@@ -94,7 +94,8 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			SetupSteps: `curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
             echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/.foundry/bin' >> $BASH_ENV
             source $BASH_ENV
-            curl -L https://foundry.paradigm.xyz | bash
+            export SHELL=/bin/bash
+            curl -L https://foundry.paradigm.xyz | bash || true
             ~/.foundry/bin/foundryup`,
 			Categories: groupCats["build"],
 		},
@@ -113,7 +114,8 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "sol",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: `curl -L https://foundry.paradigm.xyz | bash
+			SetupSteps: `export SHELL=/bin/bash
+            curl -L https://foundry.paradigm.xyz | bash || true
             echo 'export PATH=$PATH:$HOME/.foundry/bin' >> $BASH_ENV
             source $BASH_ENV
             ~/.foundry/bin/foundryup`,
@@ -131,8 +133,9 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "misc",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "medium",
-			SetupSteps:    `sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck`,
-			Categories:    groupCats["misc"],
+			SetupSteps: `sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck python3-pip
+            pip3 install semgrep || true`,
+			Categories: groupCats["misc"],
 		},
 	}
 
