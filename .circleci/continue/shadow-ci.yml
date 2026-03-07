@@ -9,14 +9,9 @@
 # 3. CircleCI's continuation API receives the generated YAML and runs it
 #
 # State persistence:
-# State (flake DB, correlation matrix) is persisted via CircleCI artifacts.
-# Each run fetches state from the previous successful pipeline, updates it,
-# and stores it as an artifact for the next run. Configure via platform.yaml:
-#   state:
-#     backend: circleci
-#     circleci:
-#       artifacts_dir: /tmp/shadow-ci/artifacts
-#       state_prefix: shadow-ci-state/
+# State (flake DB, correlation matrix) is persisted via Upstash Redis.
+# Env vars UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are
+# provided by the shadow-ci-test-context CircleCI context.
 
 version: 2.1
 
@@ -89,4 +84,6 @@ jobs:
 workflows:
   shadow-ci:
     jobs:
-      - shadow-ci-setup
+      - shadow-ci-setup:
+          context:
+            - shadow-ci-test-context
