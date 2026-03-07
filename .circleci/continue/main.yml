@@ -1876,6 +1876,15 @@ jobs:
                 paths:
                   - op-service/testutils/devnet/fixtures
             - notify-failures-on-develop
+      - unless:
+          condition:
+            or:
+              - equal: ["develop", << pipeline.git.branch >>]
+              - << parameters.rpc_fixtures_dispatch >>
+          steps:
+            - run:
+                name: Skipping (not on develop and rpc_fixtures_dispatch not set)
+                command: echo "Skipped"
 
   go-tests-with-fault-proof-deps:
     parameters:
