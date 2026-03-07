@@ -198,7 +198,7 @@ job_categories:
       pr: liteci
       develop: ci
     command: |
-      cd packages/contracts-bedrock && forge test
+      cd packages/contracts-bedrock && FOUNDRY_PROFILE=liteci forge test
     description: "Solidity tests with feature matrix"
 
   sol_upgrade:

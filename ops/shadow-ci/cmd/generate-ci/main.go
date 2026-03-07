@@ -115,7 +115,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "sol",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseBase + "\n            mise install forge cast anvil just",
+			SetupSteps:    miseBase + "\n            mise install go forge cast anvil just",
 			Categories:    groupCats["sol"],
 		},
 		{

@@ -232,7 +232,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install forge cast anvil just
+            mise install go forge cast anvil just
       - run:
           name: Execute sol categories
           no_output_timeout: 45m
