@@ -22,22 +22,33 @@ always_run:
 
 # Job categories — every job in the CI maps to a category.
 # Shadow CI decides per-category whether to run, skip, or defer.
+#
+# Groups control which CI executor job runs a category:
+#   build — runs in shadow-ci-build (installs all toolchains)
+#   go    — runs in shadow-ci-go (Go + gotestsum)
+#   sol   — runs in shadow-ci-sol (Foundry)
+#   rust  — runs in shadow-ci-rust (Rust toolchain)
+#   misc  — runs in shadow-ci-misc (shellcheck, semgrep, etc.)
+#   (empty) — decision-only, shadow CI decides but mainline executes
 job_categories:
   # === BUILDS ===
   contracts_build:
+    group: build
     trigger_paths:
       - "packages/contracts-bedrock/"
       - "op-deployer/"
     always_on_develop: true
     command: |
-      cd packages/contracts-bedrock && forge build
+      cd packages/contracts-bedrock && just forge-build --deny-warnings --skip test
     workspace_paths:
       - "packages/contracts-bedrock/forge-artifacts"
       - "packages/contracts-bedrock/cache"
+      - "packages/contracts-bedrock/artifacts"
     runner: medium
     description: "Build Solidity contracts (forge-build)"
 
   cannon_prestate:
+    group: build
     trigger_paths:
       - "cannon/"
       - "op-program/"
@@ -53,6 +64,7 @@ job_categories:
     description: "Build cannon prestates for fault proofs"
 
   go_binaries_for_sysgo:
+    group: build
     trigger_paths:
       - "cannon/"
       - "op-program/"
@@ -68,6 +80,7 @@ job_categories:
     description: "Build Go binaries for sysgo acceptance tests"
 
   rust_build:
+    group: build
     trigger_paths:
       - "rust/"
       - "Cargo.lock"
@@ -80,6 +93,7 @@ job_categories:
     description: "Build Rust binaries (kona, op-reth)"
 
   rust_submodule_build:
+    group: build
     trigger_paths:
       - "op-rbuilder/"
       - "rollup-boost/"
@@ -103,12 +117,16 @@ job_categories:
 
   # === GO TESTS ===
   go_tests:
+    group: go
     use_graph: true
     language: go
     depends_on: ["contracts_build"]
+    command: |
+      make go-tests-short-ci
     description: "Go unit tests (gotestsum, 12-node PR / 16-node develop)"
 
   go_fuzz:
+    group: go
     use_graph: true
     language: go
     depends_on: ["contracts_build"]
@@ -130,6 +148,7 @@ job_categories:
     description: "Go fuzz tests per package"
 
   go_fault_proofs:
+    group: go
     trigger_paths:
       - "op-e2e/"
       - "cannon/"
@@ -137,17 +156,34 @@ job_categories:
       - "packages/contracts-bedrock/src/"
     depends_on: ["contracts_build", "cannon_prestate"]
     develop_only: true
+    command: |
+      make go-tests-fraud-proofs-ci
     description: "Fault proof e2e tests (develop only, 480min timeout)"
 
   cannon_tests:
+    group: go
     trigger_paths:
       - "cannon/"
       - "packages/contracts-bedrock/src/cannon/"
     depends_on: ["contracts_build"]
+    command: |
+      cd cannon && make lint test
     description: "Cannon Go lint and test"
+
+  go_lint:
+    group: go
+    trigger_paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yaml"
+    command: |
+      golangci-lint run --timeout=15m ./...
+    description: "Go lint (golangci-lint)"
 
   # === SOLIDITY TESTS ===
   sol_tests:
+    group: sol
     use_graph: true
     language: sol
     depends_on: ["contracts_build"]
@@ -161,9 +197,12 @@ job_categories:
     profiles:
       pr: liteci
       develop: ci
+    command: |
+      cd packages/contracts-bedrock && forge test
     description: "Solidity tests with feature matrix"
 
   sol_upgrade:
+    group: sol
     trigger_paths:
       - "packages/contracts-bedrock/"
     depends_on: ["contracts_build"]
@@ -172,22 +211,31 @@ job_categories:
       - { chain: base, base: mainnet }
       - { chain: ink, base: mainnet }
       - { chain: unichain, base: mainnet }
+    command: |
+      cd packages/contracts-bedrock && just test-upgrade
     description: "Solidity upgrade tests on fork chains"
 
   sol_heavy_fuzz:
+    group: sol
     trigger_paths:
       - "packages/contracts-bedrock/"
     depends_on: ["contracts_build"]
     schedule_only: true
+    command: |
+      cd packages/contracts-bedrock && FOUNDRY_PROFILE=ciheavy forge test
     description: "Heavy fuzz nightly (ciheavy profile)"
 
   sol_coverage:
+    group: sol
     trigger_paths:
       - "packages/contracts-bedrock/"
     depends_on: ["contracts_build"]
+    command: |
+      cd packages/contracts-bedrock && forge coverage
     description: "Solidity coverage reports"
 
   sol_checks:
+    group: sol
     trigger_paths:
       - "packages/contracts-bedrock/"
     depends_on: ["contracts_build"]
@@ -204,10 +252,13 @@ job_categories:
       - strict-pragma-check-no-build
       - validate-spacers-no-build
       - opcm-upgrade-checks-no-build
+    command: |
+      cd packages/contracts-bedrock && just pre-pr-no-build
     description: "Solidity static checks"
 
   # === ACCEPTANCE TESTS ===
   acceptance_tests:
+    group: go
     trigger_paths:
       - "op-node/"
       - "op-batcher/"
@@ -220,10 +271,13 @@ job_categories:
       - "rust/"
     depends_on: ["contracts_build", "cannon_prestate", "go_binaries_for_sysgo", "rust_build"]
     always_on_develop: true
+    command: |
+      make op-acceptance-tests
     description: "Sysgo acceptance tests (gateless)"
 
   # === RUST CI ===
   rust_ci:
+    group: rust
     trigger_paths:
       - "rust/"
       - "Cargo.lock"
@@ -236,9 +290,12 @@ job_categories:
       - docs
       - doctest
       - cargo-tests
+    command: |
+      cd rust && cargo fmt --check && cargo clippy --workspace && cargo test --workspace
     description: "Rust CI checks and tests"
 
   rust_e2e:
+    group: rust
     trigger_paths:
       - "rust/"
       - "op-rbuilder/"
@@ -252,37 +309,42 @@ job_categories:
     description: "Rust e2e tests (sysgo devnet)"
 
   # === LINT & CHECKS ===
-  go_lint:
-    trigger_paths:
-      - "**/*.go"
-      - "go.mod"
-      - "go.sum"
-      - ".golangci.yaml"
-    description: "Go lint (golangci-lint)"
-
   semgrep:
+    group: misc
     trigger_paths:
       - "packages/contracts-bedrock/"
       - ".semgrep/"
+    command: |
+      semgrep --config .semgrep/ packages/contracts-bedrock/
     description: "Semgrep security scanning"
 
   shell_check:
+    group: misc
     trigger_paths:
       - "**/*.sh"
       - "ops/"
+    command: |
+      find . -name '*.sh' -not -path '*/node_modules/*' -not -path '*/vendor/*' -not -path '*/.git/*' | xargs shellcheck --severity=warning
     description: "ShellCheck linting"
 
   generated_mocks:
+    group: go
     trigger_paths:
       - "op-node/"
       - "op-service/"
+    command: |
+      make generate-mocks-ci && git diff --exit-code
     description: "Check generated mocks are up to date"
 
   todo_issues:
+    group: misc
     always: true
+    command: |
+      scripts/todo-checker.sh || true
     description: "Check TODO/FIXME annotations"
 
   kontrol:
+    group: sol
     trigger_paths:
       - "packages/contracts-bedrock/src/L1/OptimismPortal2.sol"
       - "packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol"

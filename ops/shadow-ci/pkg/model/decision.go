@@ -41,9 +41,14 @@ type JobCategoryConfig struct {
 	Configs         []string         `yaml:"configs" json:"configs,omitempty"`
 	Description     string           `yaml:"description" json:"description"`
 
+	// Execution group — determines which CI job runs this category.
+	// Values: "build", "go", "sol", "rust", "misc". Categories with no group
+	// are decision-only (shadow CI decides run/skip but doesn't execute).
+	Group string `yaml:"group" json:"group,omitempty"`
+
 	// Dependency and build fields for dynamic pipeline generation.
 	DependsOn      []string `yaml:"depends_on" json:"depends_on,omitempty"`       // categories this one requires
-	Command        string   `yaml:"command" json:"command,omitempty"`             // build command (for non-test categories)
+	Command        string   `yaml:"command" json:"command,omitempty"`             // build/test command to execute
 	WorkspacePaths []string `yaml:"workspace_paths" json:"workspace_paths,omitempty"` // paths to persist in workspace
 	RunnerClass    string   `yaml:"runner" json:"runner,omitempty"`               // resource class override
 }
