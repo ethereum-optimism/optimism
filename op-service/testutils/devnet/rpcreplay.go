@@ -12,6 +12,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -84,7 +85,7 @@ func NewRPCReplayProxy(lgr log.Logger, upstream string, fixturePath string, mode
 	return &RPCReplayProxy{
 		lgr:         lgr.New("module", "rpcreplay"),
 		upstream:    upstream,
-		client:      &http.Client{},
+		client:      &http.Client{Timeout: 30 * time.Second},
 		mode:        mode,
 		fixturePath: fixturePath,
 		fixtures:    make(map[string]rpcReplayEntry),
@@ -325,6 +326,10 @@ func (p *RPCReplayProxy) forwardToUpstream(body []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("upstream returned HTTP %d", resp.StatusCode)
+	}
 
 	return io.ReadAll(resp.Body)
 }
