@@ -3,7 +3,11 @@
 #
 # This config is included via path-filtering continuation from config.yml.
 # Since it's already a continued pipeline, it cannot use a second continuation.
-# Instead, the setup job computes the full pipeline decision and stores artifacts.
+#
+# Jobs:
+#   shadow-ci-setup   — Build engine, compute pipeline decision, persist state
+#   shadow-ci-verify  — Validate decision coherence against mainline CI
+#   shadow-ci-tests   — Run shadow CI's own Go test suite
 #
 # State persistence:
 # State (flake DB, correlation matrix) is persisted via Upstash Redis.
@@ -45,6 +49,7 @@ jobs:
             go build -o bin/validate ./cmd/validate
             go build -o bin/optimize ./cmd/optimize
             go build -o bin/auto-revert ./cmd/auto-revert
+            go build -o bin/coherence ./cmd/coherence
       - run:
           name: Update flake state
           command: |
@@ -62,13 +67,18 @@ jobs:
               --events-dir /tmp/shadow-ci/events \
               --pipeline-id "$CIRCLE_PIPELINE_ID"
       - run:
-          name: Validate generated artifacts
+          name: Stage artifacts for workspace
           command: |
-            echo "=== Decision ==="
-            cat /tmp/shadow-ci/decision.json | python3 -m json.tool
-            echo ""
-            echo "=== Affected ==="
-            cat /tmp/shadow-ci/affected.json | python3 -m json.tool
+            mkdir -p /tmp/shadow-ci-workspace
+            cp -r ops/shadow-ci/bin /tmp/shadow-ci-workspace/bin
+            cp /tmp/shadow-ci/decision.json /tmp/shadow-ci-workspace/decision.json
+            cp /tmp/shadow-ci/affected.json /tmp/shadow-ci-workspace/affected.json
+      - persist_to_workspace:
+          root: /tmp/shadow-ci-workspace
+          paths:
+            - bin
+            - decision.json
+            - affected.json
       - store_artifacts:
           path: /tmp/shadow-ci/decision.json
           destination: shadow-ci/decision.json
@@ -76,9 +86,48 @@ jobs:
           path: /tmp/shadow-ci/affected.json
           destination: shadow-ci/affected.json
 
+  shadow-ci-verify:
+    docker:
+      - image: << pipeline.parameters.c-default_docker_image >>
+    resource_class: medium
+    steps:
+      - attach_workspace:
+          at: /tmp/shadow-ci-workspace
+      - run:
+          name: Verify decision coherence with mainline CI
+          command: |
+            /tmp/shadow-ci-workspace/bin/coherence \
+              --decision /tmp/shadow-ci-workspace/decision.json
+      - store_artifacts:
+          path: /tmp/shadow-ci-workspace/decision.json
+          destination: shadow-ci/decision.json
+
+  shadow-ci-tests:
+    docker:
+      - image: << pipeline.parameters.c-default_docker_image >>
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Install Go
+          command: |
+            curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
+            echo 'export PATH=$PATH:/usr/local/go/bin' >> $BASH_ENV
+      - run:
+          name: Run shadow CI test suite
+          command: |
+            cd ops/shadow-ci
+            go test -v -count=1 ./...
+      - store_test_results:
+          path: /tmp/shadow-ci-test-results
+
 workflows:
   shadow-ci:
     jobs:
       - shadow-ci-setup:
           context:
             - shadow-ci-test-context
+      - shadow-ci-verify:
+          requires:
+            - shadow-ci-setup
+      - shadow-ci-tests
