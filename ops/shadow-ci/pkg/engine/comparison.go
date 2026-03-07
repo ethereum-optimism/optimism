@@ -151,6 +151,58 @@ func (ce *ComparisonEngine) Compare(shadowResults []model.TestResult, mainResult
 	return result
 }
 
+// CorrelationDecaySignal indicates that a correlation-based deferral may no longer hold.
+type CorrelationDecaySignal struct {
+	DeferredTest       string  `json:"deferred_test"`
+	CorrelatedTest     string  `json:"correlated_test"`
+	PreviousCoFailRate float64 `json:"previous_co_fail_rate"`
+	Event              string  `json:"event"`
+}
+
+// CheckCorrelationDecay examines false negatives to detect correlation decay.
+// If a deferred test failed on develop but its correlated fast test passed on PR,
+// the correlation is decaying and the deferred test should be promoted back.
+func (ce *ComparisonEngine) CheckCorrelationDecay(
+	falseNegatives []model.FalseNegativeDetail,
+	currentPlacement model.PlacementConfig,
+	correlations *CorrelationMatrix,
+	passedTests map[string]bool,
+) []CorrelationDecaySignal {
+	if correlations == nil {
+		return nil
+	}
+
+	var signals []CorrelationDecaySignal
+
+	for _, fn := range falseNegatives {
+		fnKey := fn.Test.Key()
+
+		// Check if this test was deferred via correlation.
+		for _, corr := range correlations.Correlations {
+			if corr.TestB != fnKey {
+				continue
+			}
+			// corr.TestA is the "fast" correlated test.
+			// If TestA passed but TestB (deferred) would have failed, correlation is decaying.
+			if passedTests[corr.TestA] {
+				signal := CorrelationDecaySignal{
+					DeferredTest:       fnKey,
+					CorrelatedTest:     corr.TestA,
+					PreviousCoFailRate: corr.CoFailRate,
+					Event:              "correlated test passed but deferred test failed",
+				}
+				signals = append(signals, signal)
+
+				if ce.emitter != nil {
+					ce.emitter.Emit(model.EventCorrelationDecayed, signal)
+				}
+			}
+		}
+	}
+
+	return signals
+}
+
 func computeWallTime(results []model.TestResult) time.Duration {
 	var max time.Duration
 	for _, r := range results {

@@ -2,9 +2,10 @@ package model
 
 // Config is the top-level configuration loaded from YAML files.
 type Config struct {
-	Adapters AdaptersConfig `yaml:"adapters" json:"adapters"`
-	Scoping  ScopingConfig  `yaml:"scoping" json:"scoping"`
-	Platform PlatformConfig `yaml:"platform" json:"platform"`
+	Adapters  AdaptersConfig  `yaml:"adapters" json:"adapters"`
+	Scoping   ScopingConfig   `yaml:"scoping" json:"scoping"`
+	Platform  PlatformConfig  `yaml:"platform" json:"platform"`
+	Placement PlacementConfig `yaml:"placement" json:"placement"`
 }
 
 // AdaptersConfig configures language adapters.

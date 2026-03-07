@@ -29,7 +29,7 @@ func TestDecisionEngine_PathBased(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	changedFiles := []string{"op-node/rollup/derive/batch.go", "op-node/README.md"}
 	decision := de.Decide(changedFiles, "feat/my-feature", false)
@@ -60,7 +60,7 @@ func TestDecisionEngine_PathBasedWithFeatureMatrix(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	decision := de.Decide([]string{"packages/contracts-bedrock/src/L1/OptimismPortal.sol"}, "feat/x", false)
 	cat := decision.Categories["sol_tests"]
@@ -79,7 +79,7 @@ func TestDecisionEngine_PathBasedWithConfigs(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	decision := de.Decide([]string{"packages/contracts-bedrock/src/L1/SystemConfig.sol"}, "feat/x", false)
 	cat := decision.Categories["sol_checks"]
@@ -112,7 +112,7 @@ func TestDecisionEngine_GraphBased(t *testing.T) {
 		},
 	}
 
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 	decision := de.Decide(nil, "feat/x", false)
 
 	// go_tests: has affected targets.
@@ -145,7 +145,7 @@ func TestDecisionEngine_GraphBasedWithFeatureMatrix(t *testing.T) {
 		},
 	}
 
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 	decision := de.Decide(nil, "feat/x", false)
 
 	cat := decision.Categories["sol_tests"]
@@ -176,7 +176,7 @@ func TestDecisionEngine_GraphBasedWithConfigurations(t *testing.T) {
 		},
 	}
 
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 	decision := de.Decide(nil, "feat/x", false)
 
 	cat := decision.Categories["go_tests"]
@@ -205,7 +205,7 @@ func TestDecisionEngine_GraphBasedNoTargets(t *testing.T) {
 		},
 	}
 
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 	decision := de.Decide(nil, "feat/x", false)
 
 	cat := decision.Categories["go_tests"]
@@ -222,7 +222,7 @@ func TestDecisionEngine_ForceAll(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ForceAll: true, ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 	decision := de.Decide(nil, "develop", false)
 
 	// Everything runs when force-all is triggered.
@@ -240,7 +240,7 @@ func TestDecisionEngine_ForceAllSkipsScheduleOnly(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ForceAll: true, ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 	decision := de.Decide(nil, "develop", false)
 
 	// Force-all runs normal jobs.
@@ -263,7 +263,7 @@ func TestDecisionEngine_FuzzPackages(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	// Only op-node changed.
 	changedFiles := []string{"op-node/rollup/derive/batch.go"}
@@ -287,7 +287,7 @@ func TestDecisionEngine_FuzzPackagesMultiple(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	changedFiles := []string{"op-node/rollup/derive/batch.go", "cannon/mipsevm/exec.go"}
 	decision := de.Decide(changedFiles, "feat/x", false)
@@ -312,7 +312,7 @@ func TestDecisionEngine_FuzzPackagesNoneTriggered(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	changedFiles := []string{"README.md"}
 	decision := de.Decide(changedFiles, "feat/x", false)
@@ -333,7 +333,7 @@ func TestDecisionEngine_AlwaysOnDevelop(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	// On develop: always runs regardless of changed files.
 	d1 := de.Decide([]string{"README.md"}, "develop", false)
@@ -355,7 +355,7 @@ func TestDecisionEngine_Always(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	// Runs on feature branch with no changes.
 	decision := de.Decide(nil, "feat/x", false)
@@ -373,7 +373,7 @@ func TestDecisionEngine_TagOnly(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	decision := de.Decide(nil, "develop", false)
 	cat := decision.Categories["release"]
@@ -392,7 +392,7 @@ func TestDecisionEngine_ScheduleOnlyOnSchedule(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	// Schedule-only skips on non-schedule.
 	d1 := de.Decide([]string{"op-node/foo.go"}, "develop", false)
@@ -414,7 +414,7 @@ func TestDecisionEngine_DevelopOnlyOnDevelop(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	// On develop with matching paths: runs.
 	d1 := de.Decide([]string{"op-e2e/faultproof_test.go"}, "develop", false)
@@ -433,7 +433,7 @@ func TestDecisionEngine_NoTriggerConfig(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	decision := de.Decide([]string{"anything.go"}, "feat/x", false)
 	cat := decision.Categories["unknown"]
@@ -447,7 +447,7 @@ func TestDecisionEngine_DecisionMetadata(t *testing.T) {
 	}
 
 	affected := &AffectedResult{ForceAll: true, ByLanguage: map[string]*LanguageResult{}}
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	decision := de.Decide(nil, "develop", true)
 	assert.Equal(t, "develop", decision.Branch)
@@ -466,7 +466,7 @@ func TestDecisionEngine_PriorityOrder(t *testing.T) {
 			},
 		}
 		affected := &AffectedResult{ForceAll: true, ByLanguage: map[string]*LanguageResult{}}
-		de := NewDecisionEngine(scoping, affected, nil)
+		de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 		d := de.Decide(nil, "develop", false)
 		assert.True(t, d.Categories["nightly"].Skipped)
 	})
@@ -478,7 +478,7 @@ func TestDecisionEngine_PriorityOrder(t *testing.T) {
 			},
 		}
 		affected := &AffectedResult{ForceAll: true, ByLanguage: map[string]*LanguageResult{}}
-		de := NewDecisionEngine(scoping, affected, nil)
+		de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 		d := de.Decide(nil, "develop", false)
 		assert.True(t, d.Categories["release"].Skipped)
 	})
@@ -490,7 +490,7 @@ func TestDecisionEngine_PriorityOrder(t *testing.T) {
 			},
 		}
 		affected := &AffectedResult{ForceAll: true, ByLanguage: map[string]*LanguageResult{}}
-		de := NewDecisionEngine(scoping, affected, nil)
+		de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 		d := de.Decide([]string{"op-node/foo.go"}, "feat/x", false)
 		assert.True(t, d.Categories["heavy"].Skipped)
 	})
@@ -502,7 +502,7 @@ func TestDecisionEngine_PriorityOrder(t *testing.T) {
 			},
 		}
 		affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
-		de := NewDecisionEngine(scoping, affected, nil)
+		de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 		d := de.Decide(nil, "feat/x", false)
 		assert.True(t, d.Categories["setup"].Needed)
 	})
@@ -747,7 +747,7 @@ func TestDecisionEngine_RealisticPipeline(t *testing.T) {
 		},
 	}
 
-	de := NewDecisionEngine(scoping, affected, nil)
+	de := NewDecisionEngine(scoping, model.PlacementConfig{DefaultStage: model.StagePR}, nil, affected, nil)
 
 	// Simulate a PR that changes op-node and op-service.
 	changedFiles := []string{
@@ -787,4 +787,167 @@ func TestDecisionEngine_RealisticPipeline(t *testing.T) {
 
 	// Fault proof full: develop-only, skipped on PR.
 	assert.True(t, decision.Categories["fault_proof_full"].Skipped)
+}
+
+// Stage-aware placement tests
+
+func TestDecisionEngine_StageFiltering(t *testing.T) {
+	scoping := model.ScopingConfig{
+		JobCategories: map[string]model.JobCategoryConfig{
+			"go_tests":     {TriggerPaths: []string{"op-node/"}},
+			"sol_coverage": {TriggerPaths: []string{"packages/contracts-bedrock/"}},
+			"fault_proofs": {TriggerPaths: []string{"op-e2e/"}},
+		},
+	}
+
+	placement := model.PlacementConfig{
+		DefaultStage: model.StagePR,
+		Assignments: map[string]model.CategoryPlacement{
+			"sol_coverage": {Stage: model.StagePostMerge, Source: "static"},
+			"fault_proofs": {Stage: model.StagePostMerge, Source: "static"},
+		},
+	}
+
+	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
+
+	t.Run("PR stage skips post_merge categories", func(t *testing.T) {
+		de := NewDecisionEngine(scoping, placement, nil, affected, nil)
+		d := de.Decide([]string{"op-node/foo.go", "packages/contracts-bedrock/src/X.sol", "op-e2e/test.go"}, "feat/x", false)
+
+		// go_tests: placed at PR (default), runs at PR stage.
+		assert.True(t, d.Categories["go_tests"].Needed)
+		assert.False(t, d.Categories["go_tests"].StageSkipped)
+
+		// sol_coverage: placed at post_merge, deferred at PR stage.
+		assert.True(t, d.Categories["sol_coverage"].Skipped)
+		assert.True(t, d.Categories["sol_coverage"].StageSkipped)
+		assert.Equal(t, model.StagePostMerge, d.Categories["sol_coverage"].PlacedAt)
+		assert.Contains(t, d.Categories["sol_coverage"].SkipWhy, "deferred to post_merge")
+
+		// fault_proofs: placed at post_merge, deferred at PR stage.
+		assert.True(t, d.Categories["fault_proofs"].Skipped)
+		assert.True(t, d.Categories["fault_proofs"].StageSkipped)
+	})
+
+	t.Run("post_merge stage runs everything", func(t *testing.T) {
+		de := NewDecisionEngine(scoping, placement, nil, affected, nil)
+		// develop branch → post_merge stage.
+		d := de.Decide([]string{"op-node/foo.go", "packages/contracts-bedrock/src/X.sol", "op-e2e/test.go"}, "develop", false)
+
+		assert.Equal(t, model.StagePostMerge, d.Stage)
+		assert.True(t, d.Categories["go_tests"].Needed)
+		assert.True(t, d.Categories["sol_coverage"].Needed)
+		assert.False(t, d.Categories["sol_coverage"].StageSkipped)
+		assert.True(t, d.Categories["fault_proofs"].Needed)
+		assert.False(t, d.Categories["fault_proofs"].StageSkipped)
+	})
+}
+
+func TestDecisionEngine_PinnedConstraintOverridesStageFilter(t *testing.T) {
+	scoping := model.ScopingConfig{
+		JobCategories: map[string]model.JobCategoryConfig{
+			"go_lint": {TriggerPaths: []string{"op-node/"}},
+		},
+	}
+
+	placement := model.PlacementConfig{
+		DefaultStage: model.StagePostMerge,
+		Constraints: []model.PlacementConstraint{
+			{Category: "go_lint", PinnedStage: model.StagePR, Reason: "must run pre-merge"},
+		},
+	}
+
+	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
+	de := NewDecisionEngine(scoping, placement, nil, affected, nil)
+	d := de.Decide([]string{"op-node/foo.go"}, "feat/x", false)
+
+	// go_lint is pinned to PR, so it runs even though default is post_merge.
+	assert.True(t, d.Categories["go_lint"].Needed)
+	assert.Equal(t, model.StagePR, d.Categories["go_lint"].PlacedAt)
+}
+
+func TestDecisionEngine_MergeQueueStage(t *testing.T) {
+	scoping := model.ScopingConfig{
+		JobCategories: map[string]model.JobCategoryConfig{
+			"go_tests":        {TriggerPaths: []string{"op-node/"}},
+			"acceptance_tests": {TriggerPaths: []string{"op-node/"}},
+		},
+	}
+
+	placement := model.PlacementConfig{
+		DefaultStage: model.StagePR,
+		Assignments: map[string]model.CategoryPlacement{
+			"acceptance_tests": {Stage: model.StageMergeQueue, Source: "optimizer"},
+		},
+	}
+
+	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
+
+	t.Run("PR stage skips merge_queue categories", func(t *testing.T) {
+		de := NewDecisionEngine(scoping, placement, nil, affected, nil)
+		d := de.Decide([]string{"op-node/foo.go"}, "feat/x", false)
+
+		assert.Equal(t, model.StagePR, d.Stage)
+		assert.True(t, d.Categories["go_tests"].Needed)
+		assert.True(t, d.Categories["acceptance_tests"].Skipped)
+		assert.True(t, d.Categories["acceptance_tests"].StageSkipped)
+	})
+
+	t.Run("merge queue stage runs merge_queue categories", func(t *testing.T) {
+		de := NewDecisionEngine(scoping, placement, nil, affected, nil)
+		d := de.Decide([]string{"op-node/foo.go"}, "gh-readonly-queue/develop/pr-123-abc", false)
+
+		assert.Equal(t, model.StageMergeQueue, d.Stage)
+		assert.True(t, d.Categories["go_tests"].Needed)
+		assert.True(t, d.Categories["acceptance_tests"].Needed)
+		assert.False(t, d.Categories["acceptance_tests"].StageSkipped)
+	})
+}
+
+func TestDecisionEngine_NightlyRunsEverything(t *testing.T) {
+	scoping := model.ScopingConfig{
+		JobCategories: map[string]model.JobCategoryConfig{
+			"heavy": {TriggerPaths: []string{"op-node/"}},
+		},
+	}
+
+	placement := model.PlacementConfig{
+		DefaultStage: model.StagePR,
+		Assignments: map[string]model.CategoryPlacement{
+			"heavy": {Stage: model.StageNightly, Source: "optimizer"},
+		},
+	}
+
+	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
+	de := NewDecisionEngine(scoping, placement, nil, affected, nil)
+	d := de.Decide([]string{"op-node/foo.go"}, "develop", true)
+
+	assert.Equal(t, model.StageNightly, d.Stage)
+	assert.True(t, d.Categories["heavy"].Needed)
+	assert.False(t, d.Categories["heavy"].StageSkipped)
+}
+
+func TestDecisionEngine_StageSetOnDecision(t *testing.T) {
+	scoping := model.ScopingConfig{
+		JobCategories: map[string]model.JobCategoryConfig{},
+	}
+	placement := model.PlacementConfig{DefaultStage: model.StagePR}
+	affected := &AffectedResult{ByLanguage: map[string]*LanguageResult{}}
+	de := NewDecisionEngine(scoping, placement, nil, affected, nil)
+
+	tests := []struct {
+		branch     string
+		isSchedule bool
+		want       model.Stage
+	}{
+		{"feat/x", false, model.StagePR},
+		{"gh-readonly-queue/develop/pr-1-abc", false, model.StageMergeQueue},
+		{"develop", false, model.StagePostMerge},
+		{"develop", true, model.StageNightly},
+	}
+
+	for _, tt := range tests {
+		d := de.Decide(nil, tt.branch, tt.isSchedule)
+		assert.Equal(t, tt.want, d.Stage, "branch=%s schedule=%v", tt.branch, tt.isSchedule)
+	}
 }

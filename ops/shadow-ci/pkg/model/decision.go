@@ -5,6 +5,7 @@ package model
 type PipelineDecision struct {
 	ForceAll   bool                         `json:"force_all"`
 	Branch     string                       `json:"branch"`
+	Stage      Stage                        `json:"stage"`
 	IsDevelop  bool                         `json:"is_develop"`
 	IsSchedule bool                         `json:"is_schedule"`
 	Categories map[string]*CategoryDecision `json:"categories"`
@@ -12,14 +13,16 @@ type PipelineDecision struct {
 
 // CategoryDecision is the decision for a single job category.
 type CategoryDecision struct {
-	Needed   bool     `json:"needed"`
-	Reason   string   `json:"reason"`
-	Skipped  bool     `json:"skipped"`
-	SkipWhy  string   `json:"skip_why,omitempty"`
-	Targets  []string `json:"targets,omitempty"`  // affected targets (for graph-based categories)
-	Packages []string `json:"packages,omitempty"` // affected packages (for fuzz routing)
-	Features []string `json:"features,omitempty"` // needed features (for sol matrix)
-	Configs  []string `json:"configs,omitempty"`  // needed configs (for rust e2e)
+	Needed       bool     `json:"needed"`
+	Reason       string   `json:"reason"`
+	Skipped      bool     `json:"skipped"`
+	SkipWhy      string   `json:"skip_why,omitempty"`
+	PlacedAt     Stage    `json:"placed_at,omitempty"`     // stage this category is placed at
+	StageSkipped bool     `json:"stage_skipped,omitempty"` // true if skipped due to stage placement
+	Targets      []string `json:"targets,omitempty"`       // affected targets (for graph-based categories)
+	Packages     []string `json:"packages,omitempty"`      // affected packages (for fuzz routing)
+	Features     []string `json:"features,omitempty"`      // needed features (for sol matrix)
+	Configs      []string `json:"configs,omitempty"`       // needed configs (for rust e2e)
 }
 
 // JobCategoryConfig defines a CI job category in scoping.yaml.

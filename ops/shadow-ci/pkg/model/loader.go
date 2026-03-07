@@ -24,6 +24,16 @@ func LoadConfig(dir string) (*Config, error) {
 		return nil, fmt.Errorf("platform.yaml: %w", err)
 	}
 
+	// Placement is optional — defaults to everything at PR stage.
+	placementPath := filepath.Join(dir, "placement.yaml")
+	if _, err := os.Stat(placementPath); err == nil {
+		if err := loadYAMLFile(placementPath, &cfg.Placement); err != nil {
+			return nil, fmt.Errorf("placement.yaml: %w", err)
+		}
+	} else {
+		cfg.Placement.DefaultStage = StagePR
+	}
+
 	return cfg, nil
 }
 

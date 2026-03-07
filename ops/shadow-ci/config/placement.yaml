@@ -1,0 +1,88 @@
+# Default stage for categories without explicit placement.
+default_stage: pr
+
+# Hard constraints the optimizer cannot override.
+constraints:
+  # Critical checks must always run at PR stage.
+  - category: go_lint
+    pinned_stage: pr
+    reason: "lint must catch issues before merge"
+  - category: semgrep
+    pinned_stage: pr
+    reason: "security scanning must run pre-merge"
+  - category: sol_checks
+    pinned_stage: pr
+    reason: "static checks must run pre-merge"
+  - category: todo_issues
+    pinned_stage: pr
+    reason: "always-run category"
+  - category: generated_mocks
+    pinned_stage: pr
+    reason: "mock freshness must be checked pre-merge"
+
+  # Heavy/nightly jobs pinned to their stage.
+  - category: sol_heavy_fuzz
+    pinned_stage: nightly
+    reason: "too slow for any other stage"
+  - category: flake_shake
+    pinned_stage: nightly
+    reason: "diagnostic job, not a gate"
+  - category: sync_tests
+    pinned_stage: nightly
+    reason: "network sync tests are slow and external"
+  - category: docker_publish
+    pinned_stage: nightly
+    reason: "publishing, not testing"
+  - category: kontrol
+    pinned_stage: post_merge
+    reason: "formal verification is slow"
+
+  # Publishing must not run at PR.
+  - category: publish_cannon_prestates
+    min_stage: post_merge
+    reason: "only publish on develop"
+  - category: publish_contract_artifacts
+    pinned_stage: nightly
+    reason: "tag-triggered only"
+
+# Initial assignments (optimizer will update these over time).
+assignments:
+  contracts_build:
+    stage: pr
+    source: static
+  cannon_prestate:
+    stage: pr
+    source: static
+  go_tests:
+    stage: pr
+    source: static
+  sol_tests:
+    stage: pr
+    source: static
+  acceptance_tests:
+    stage: pr
+    source: static
+  rust_ci:
+    stage: pr
+    source: static
+  rust_e2e:
+    stage: pr
+    source: static
+  go_fuzz:
+    stage: pr
+    source: static
+  sol_upgrade:
+    stage: pr
+    source: static
+  sol_coverage:
+    stage: post_merge
+    source: static
+  go_fault_proofs:
+    stage: post_merge
+    source: static
+  cannon_tests:
+    stage: pr
+    source: static
+  shell_check:
+    stage: pr
+    source: static

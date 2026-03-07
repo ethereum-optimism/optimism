@@ -10,27 +10,33 @@ import (
 
 // DecisionEngine produces a PipelineDecision covering every job category.
 type DecisionEngine struct {
-	scoping  model.ScopingConfig
-	affected *AffectedResult
-	emitter  *events.Emitter
+	scoping   model.ScopingConfig
+	placement model.PlacementConfig
+	flakeDB   *model.FlakeDB
+	affected  *AffectedResult
+	emitter   *events.Emitter
 }
 
 // NewDecisionEngine creates a new DecisionEngine.
-func NewDecisionEngine(scoping model.ScopingConfig, affected *AffectedResult, emitter *events.Emitter) *DecisionEngine {
+func NewDecisionEngine(scoping model.ScopingConfig, placement model.PlacementConfig, flakeDB *model.FlakeDB, affected *AffectedResult, emitter *events.Emitter) *DecisionEngine {
 	return &DecisionEngine{
-		scoping:  scoping,
-		affected: affected,
-		emitter:  emitter,
+		scoping:   scoping,
+		placement: placement,
+		flakeDB:   flakeDB,
+		affected:  affected,
+		emitter:   emitter,
 	}
 }
 
 // Decide evaluates all job categories against the changed files and affected results.
 func (de *DecisionEngine) Decide(changedFiles []string, branch string, isSchedule bool) *model.PipelineDecision {
 	isDevelop := branch == "develop"
+	stage := model.DetermineStage(branch, isSchedule)
 
 	decision := &model.PipelineDecision{
 		ForceAll:   de.affected.ForceAll,
 		Branch:     branch,
+		Stage:      stage,
 		IsDevelop:  isDevelop,
 		IsSchedule: isSchedule,
 		Categories: make(map[string]*model.CategoryDecision),
@@ -38,6 +44,21 @@ func (de *DecisionEngine) Decide(changedFiles []string, branch string, isSchedul
 
 	for name, cat := range de.scoping.JobCategories {
 		cd := de.evaluateCategory(name, cat, changedFiles, isDevelop, isSchedule)
+
+		// Apply stage-based filtering: if the category is placed at a later
+		// stage than the current run, skip it (unless it was already skipped
+		// for another reason).
+		if cd.Needed && !cd.Skipped {
+			placedAt := de.placement.GetCategoryStage(name)
+			cd.PlacedAt = placedAt
+			if !model.ShouldRunAtStage(placedAt, stage) {
+				cd.Needed = false
+				cd.Skipped = true
+				cd.StageSkipped = true
+				cd.SkipWhy = fmt.Sprintf("deferred to %s stage (current: %s)", placedAt, stage)
+			}
+		}
+
 		decision.Categories[name] = cd
 	}
 

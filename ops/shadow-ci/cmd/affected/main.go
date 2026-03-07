@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/engine"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/events"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
+	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/platform/circleci"
 )
 
 func main() {
@@ -29,6 +30,9 @@ func main() {
 	decisionOutput := flag.String("decision-output", "/tmp/shadow-ci/decision.json", "Pipeline decision output path")
 	eventsDir := flag.String("events-dir", "/tmp/shadow-ci/events", "Events directory")
 	pipelineID := flag.String("pipeline-id", os.Getenv("CIRCLE_PIPELINE_ID"), "Pipeline ID")
+	flakeDBPath := flag.String("flake-db", "", "Path to flake database JSON (optional)")
+	continueMode := flag.Bool("continue", false, "Generate continuation YAML for CircleCI dynamic config")
+	continuationOutput := flag.String("continuation-output", "/tmp/shadow-ci-continuation.yml", "Continuation YAML output path")
 	flag.Parse()
 
 	cfg, err := model.LoadConfig(*configDir)
@@ -62,12 +66,21 @@ func main() {
 			lang, lr.SelectedTargets, lr.TotalTargets, lr.SkipRate*100, lr.AlwaysRunCount)
 	}
 
+	// Load flake database (optional).
+	var flakeDB *model.FlakeDB
+	if *flakeDBPath != "" {
+		flakeDB, err = model.LoadFlakeDB(*flakeDBPath)
+		if err != nil {
+			fatal("loading flake db: %v", err)
+		}
+	}
+
 	// Phase 2: produce pipeline decision covering ALL job categories.
-	de := engine.NewDecisionEngine(cfg.Scoping, affected, emitter)
+	de := engine.NewDecisionEngine(cfg.Scoping, cfg.Placement, flakeDB, affected, emitter)
 	decision := de.Decide(changedFiles, *branch, *schedule)
 
 	// Print decision summary.
-	fmt.Println("\n=== Pipeline Decision ===")
+	fmt.Printf("\n=== Pipeline Decision (stage: %s) ===\n", decision.Stage)
 	needed, skipped := 0, 0
 	for name, cd := range decision.Categories {
 		if cd.Needed {
@@ -96,6 +109,30 @@ func main() {
 
 	fmt.Printf("\nWrote affected targets to %s\n", *output)
 	fmt.Printf("Wrote pipeline decision to %s\n", *decisionOutput)
+
+	// Continuation mode: render CircleCI YAML from decision + plan.
+	if *continueMode {
+		trigger := model.Trigger{
+			Type:   string(decision.Stage),
+			Branch: *branch,
+			Base:   *base,
+			Head:   *head,
+		}
+		planner := engine.NewPlanner()
+		plan := planner.Plan(trigger, changedFiles, affected, emitter)
+
+		renderer := circleci.NewRenderer(cfg.Platform.CircleCI.Runners)
+		yamlData, err := renderer.RenderFromDecision(decision, plan)
+		if err != nil {
+			fatal("rendering continuation: %v", err)
+		}
+
+		os.MkdirAll(filepath.Dir(*continuationOutput), 0o755)
+		if err := os.WriteFile(*continuationOutput, yamlData, 0o644); err != nil {
+			fatal("writing continuation YAML: %v", err)
+		}
+		fmt.Printf("Rendered %d bytes of continuation YAML to %s\n", len(yamlData), *continuationOutput)
+	}
 }
 
 func writeJSON(path string, v any) {

@@ -132,3 +132,74 @@ func TestComparisonEngine_EmptyResults(t *testing.T) {
 	assert.Equal(t, 0, result.FalseNegatives)
 	assert.Equal(t, 0, result.ShadowCICaught)
 }
+
+// Correlation decay tests
+
+func TestCorrelationDecay_Detected(t *testing.T) {
+	ce := NewComparisonEngine(nil)
+
+	falseNegatives := []model.FalseNegativeDetail{
+		{
+			Test:     model.TestIdentifier{Name: "TestSlow", Package: "pkg"},
+			Language: "go",
+		},
+	}
+
+	correlations := &CorrelationMatrix{
+		Correlations: []Correlation{
+			{
+				TestA:      "pkg/TestFast",
+				TestB:      "pkg/TestSlow",
+				CoFailRate: 0.95,
+			},
+		},
+	}
+
+	passedTests := map[string]bool{
+		"pkg/TestFast": true,
+	}
+
+	signals := ce.CheckCorrelationDecay(falseNegatives, model.PlacementConfig{}, correlations, passedTests)
+	assert.Len(t, signals, 1)
+	assert.Equal(t, "pkg/TestSlow", signals[0].DeferredTest)
+	assert.Equal(t, "pkg/TestFast", signals[0].CorrelatedTest)
+	assert.Equal(t, 0.95, signals[0].PreviousCoFailRate)
+}
+
+func TestCorrelationDecay_NoDecay(t *testing.T) {
+	ce := NewComparisonEngine(nil)
+
+	falseNegatives := []model.FalseNegativeDetail{
+		{
+			Test:     model.TestIdentifier{Name: "TestSlow", Package: "pkg"},
+			Language: "go",
+		},
+	}
+
+	correlations := &CorrelationMatrix{
+		Correlations: []Correlation{
+			{
+				TestA:      "pkg/TestFast",
+				TestB:      "pkg/TestSlow",
+				CoFailRate: 0.95,
+			},
+		},
+	}
+
+	// TestFast also failed — no decay.
+	passedTests := map[string]bool{}
+
+	signals := ce.CheckCorrelationDecay(falseNegatives, model.PlacementConfig{}, correlations, passedTests)
+	assert.Empty(t, signals)
+}
+
+func TestCorrelationDecay_NilCorrelations(t *testing.T) {
+	ce := NewComparisonEngine(nil)
+
+	falseNegatives := []model.FalseNegativeDetail{
+		{Test: model.TestIdentifier{Name: "TestX", Package: "pkg"}},
+	}
+
+	signals := ce.CheckCorrelationDecay(falseNegatives, model.PlacementConfig{}, nil, nil)
+	assert.Nil(t, signals)
+}

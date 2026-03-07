@@ -40,6 +40,22 @@ const (
 
 	// Report events.
 	EventWeeklyReport EventType = "report.weekly"
+
+	// Flake lifecycle events.
+	EventFlakeStateChanged EventType = "flake.state_changed"
+	EventFlakeQuarantined  EventType = "flake.quarantined"
+	EventFlakeRestored     EventType = "flake.restored"
+
+	// Placement events.
+	EventPlacementChanged EventType = "placement.changed"
+
+	// Correlation events.
+	EventCorrelationFound   EventType = "correlation.found"
+	EventCorrelationDecayed EventType = "correlation.decayed"
+
+	// Auto-revert events.
+	EventAutoRevertTriggered EventType = "auto_revert.triggered"
+	EventAutoRevertSkipped   EventType = "auto_revert.skipped"
 )
 
 // Event is the universal telemetry unit.
