@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/platform"
@@ -31,6 +32,9 @@ func (a *Adapter) Render(plan model.TestPlan) ([]byte, error) {
 }
 
 func (a *Adapter) FetchResults(pipelineID string) ([]model.TestResult, error) {
+	if err := validatePathComponent(pipelineID); err != nil {
+		return nil, fmt.Errorf("invalid pipeline ID: %w", err)
+	}
 	path := filepath.Join(a.outputDir, pipelineID, "results.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -45,11 +49,25 @@ func (a *Adapter) FetchResults(pipelineID string) ([]model.TestResult, error) {
 }
 
 func (a *Adapter) StoreArtifact(name string, data []byte) error {
+	if err := validatePathComponent(name); err != nil {
+		return fmt.Errorf("invalid artifact name: %w", err)
+	}
 	return os.WriteFile(filepath.Join(a.outputDir, name), data, 0o644)
 }
 
 func (a *Adapter) FetchArtifact(pipelineID string, name string) ([]byte, error) {
+	if err := validatePathComponent(name); err != nil {
+		return nil, fmt.Errorf("invalid artifact name: %w", err)
+	}
 	return os.ReadFile(filepath.Join(a.outputDir, name))
+}
+
+// validatePathComponent rejects path traversal attempts in user-supplied path segments.
+func validatePathComponent(s string) error {
+	if strings.Contains(s, "..") || strings.Contains(s, "/") || strings.Contains(s, string(filepath.Separator)) {
+		return fmt.Errorf("must not contain path separators or '..'")
+	}
+	return nil
 }
 
 func (a *Adapter) CurrentPipeline() platform.PipelineInfo {

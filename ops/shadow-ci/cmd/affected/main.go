@@ -70,6 +70,10 @@ func main() {
 }
 
 func getChangedFiles(repoRoot, base, head string) ([]string, error) {
+	// Prevent git flag injection via --base or --head values.
+	if strings.HasPrefix(base, "-") || strings.HasPrefix(head, "-") {
+		return nil, fmt.Errorf("invalid ref: must not start with '-'")
+	}
 	cmd := exec.Command("git", "diff", "--name-only", base+"..."+head)
 	cmd.Dir = repoRoot
 	out, err := cmd.Output()

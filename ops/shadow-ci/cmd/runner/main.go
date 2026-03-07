@@ -30,6 +30,12 @@ func main() {
 	if *language == "" {
 		fatal("--language is required")
 	}
+	if strings.Contains(*language, "/") || strings.Contains(*language, "..") {
+		fatal("--language contains invalid characters")
+	}
+	if strings.Contains(*config, "/") || strings.Contains(*config, "..") {
+		fatal("--config contains invalid characters")
+	}
 
 	cfg, err := model.LoadConfig(*configDir)
 	if err != nil {
