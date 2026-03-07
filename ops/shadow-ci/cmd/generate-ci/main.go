@@ -86,11 +86,11 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 	}
 
 	// All groups use mise to install toolchains from mise.toml.
-	// This matches how mainline CI works (via utils/checkout-with-mise).
-	miseSetup := `curl -sSf https://mise.run | sh
+	// Each group only installs the specific tools it needs to avoid
+	// GitHub API rate limits from downloading everything.
+	miseBase := `curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
-            source $BASH_ENV
-            mise install`
+            source $BASH_ENV`
 
 	// Build group definitions.
 	groups := []groupInfo{
@@ -98,35 +98,35 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "build",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseSetup,
+			SetupSteps:    miseBase + "\n            mise install go rust forge cast anvil just make",
 			Categories:    groupCats["build"],
 		},
 		{
 			Name:          "go",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseSetup,
+			SetupSteps:    miseBase + "\n            mise install go gotestsum golangci-lint make",
 			Categories:    groupCats["go"],
 		},
 		{
 			Name:          "sol",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseSetup,
+			SetupSteps:    miseBase + "\n            mise install forge cast anvil just",
 			Categories:    groupCats["sol"],
 		},
 		{
 			Name:          "rust",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseSetup,
+			SetupSteps:    miseBase + "\n            mise install rust",
 			Categories:    groupCats["rust"],
 		},
 		{
 			Name:          "misc",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "medium",
-			SetupSteps:    miseSetup,
+			SetupSteps:    miseBase + "\n            mise install shellcheck python uv\n            mise install \"pipx:semgrep\"",
 			Categories:    groupCats["misc"],
 		},
 	}
@@ -208,12 +208,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install mise and toolchains
+          name: Install mise and Go
           command: |
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install go
       - run:
           name: Build shadow CI binaries
           command: |
@@ -289,12 +289,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install mise and toolchains
+          name: Install mise and Go
           command: |
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install go
       - run:
           name: Check shadow-ci.yml is not stale
           command: |

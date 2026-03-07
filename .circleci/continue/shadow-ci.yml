@@ -23,12 +23,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install mise and toolchains
+          name: Install mise and Go
           command: |
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install go
       - run:
           name: Build shadow CI binaries
           command: |
@@ -104,12 +104,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install mise and toolchains
+          name: Install mise and Go
           command: |
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install go
       - run:
           name: Check shadow-ci.yml is not stale
           command: |
@@ -139,7 +139,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install go rust forge cast anvil just make
       - run:
           name: Execute build categories
           no_output_timeout: 45m
@@ -169,7 +169,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install go gotestsum golangci-lint make
       - run:
           name: Execute go categories
           no_output_timeout: 45m
@@ -199,7 +199,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install forge cast anvil just
       - run:
           name: Execute sol categories
           no_output_timeout: 45m
@@ -229,7 +229,7 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install rust
       - run:
           name: Execute rust categories
           no_output_timeout: 45m
@@ -259,7 +259,8 @@ jobs:
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install
+            mise install shellcheck python uv
+            mise install "pipx:semgrep"
       - run:
           name: Execute misc categories
           no_output_timeout: 45m
