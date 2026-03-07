@@ -26,6 +26,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 )
 
+// sepoliaForkBlock is a pinned Sepolia block for deterministic test fixtures.
+// This is one block past the v6.0.0-rc.2 OPCM deployment, ensuring all
+// current contracts are available. Must be updated when new OPCM versions
+// are deployed and referenced by tests.
+const sepoliaForkBlock = 10101510
+
 // sepoliaRPCProxy sets up an RPC proxy that records or replays Sepolia RPC calls.
 // When SEPOLIA_RPC_URL is set with RPC_REPLAY_RECORD=true, it records fixtures.
 // When SEPOLIA_RPC_URL is unset, it replays from existing fixtures.
@@ -80,13 +86,13 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Run("embedded L1 locator with standard intent types and standard roles", func(t *testing.T) {
 		runTest := func(configType state.IntentType) {
 			_, afacts := testutil.LocalArtifacts(t)
-			host, err := env.DefaultForkedScriptHost(
-				ctx,
+			host, err := env.ForkedScriptHost(
 				broadcaster.NoopBroadcaster(),
 				testlog.Logger(t, log.LevelInfo),
 				common.Address{'D'},
 				afacts,
 				rpcClient,
+				big.NewInt(sepoliaForkBlock),
 			)
 			require.NoError(t, err)
 
@@ -441,13 +447,13 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
+	host, err := env.ForkedScriptHost(
 		broadcaster.NoopBroadcaster(),
 		testlog.Logger(t, log.LevelInfo),
 		common.Address{'D'},
 		afacts,
 		rpcClient,
+		big.NewInt(sepoliaForkBlock),
 	)
 	require.NoError(t, err)
 
@@ -570,13 +576,13 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
+	host, err := env.ForkedScriptHost(
 		broadcaster.NoopBroadcaster(),
 		testlog.Logger(t, log.LevelInfo),
 		common.Address{'D'},
 		afacts,
 		rpcClient,
+		big.NewInt(sepoliaForkBlock),
 	)
 	require.NoError(t, err)
 
@@ -682,13 +688,13 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
+	host, err := env.ForkedScriptHost(
 		broadcaster.NoopBroadcaster(),
 		testlog.Logger(t, log.LevelInfo),
 		common.Address{'D'},
 		afacts,
 		rpcClient,
+		big.NewInt(sepoliaForkBlock),
 	)
 	require.NoError(t, err)
 
@@ -748,13 +754,13 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
+	host, err := env.ForkedScriptHost(
 		broadcaster.NoopBroadcaster(),
 		testlog.Logger(t, log.LevelInfo),
 		common.Address{'D'},
 		afacts,
 		rpcClient,
+		big.NewInt(sepoliaForkBlock),
 	)
 	require.NoError(t, err)
 

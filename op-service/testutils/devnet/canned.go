@@ -74,27 +74,34 @@ func IsRPCRecordMode() bool {
 	return os.Getenv("RPC_REPLAY_RECORD") == "true"
 }
 
-// RPCReplayOrRecord returns a replay proxy configured based on environment:
-//   - If SEPOLIA_RPC_URL is set and RPC_REPLAY_RECORD=true: records to fixturePath
-//   - If SEPOLIA_RPC_URL is not set: replays from fixturePath (no network needed)
-//   - If SEPOLIA_RPC_URL is set but RPC_REPLAY_RECORD is not: acts as plain proxy (pass-through)
+// RPCReplayOrRecord returns a replay proxy configured based on environment and fixture state:
+//
+//  1. If fixtures exist on disk and RPC_REPLAY_RECORD is not set: replays from fixtures (fast, offline).
+//  2. If RPC_REPLAY_RECORD=true and SEPOLIA_RPC_URL is set: records to fixturePath.
+//  3. If no fixtures and SEPOLIA_RPC_URL is set: passes through to live RPC via RetryProxy.
+//  4. If no fixtures and no SEPOLIA_RPC_URL: returns an error.
 //
 // Returns the proxy and a cleanup function. The proxy's Endpoint() can be used
 // anywhere an RPC URL is expected.
 func RPCReplayOrRecord(lgr log.Logger, fixturePath string) (*RPCReplayProxy, CleanupFunc, error) {
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
 
-	if rpcURL == "" {
-		// Replay mode: no external RPC needed
-		proxy := NewRPCReplayProxy(lgr, "", fixturePath, RPCReplayModeReplay)
-		if err := proxy.Start(); err != nil {
-			return nil, nil, fmt.Errorf("failed to start replay proxy: %w", err)
+	// Prefer replay from existing fixtures unless recording is explicitly requested
+	if !IsRPCRecordMode() {
+		if _, err := os.Stat(fixturePath); err == nil {
+			proxy := NewRPCReplayProxy(lgr, "", fixturePath, RPCReplayModeReplay)
+			if err := proxy.Start(); err != nil {
+				return nil, nil, fmt.Errorf("failed to start replay proxy: %w", err)
+			}
+			return proxy, func() error { return proxy.Stop() }, nil
 		}
-		return proxy, func() error { return proxy.Stop() }, nil
+	}
+
+	if rpcURL == "" {
+		return nil, nil, fmt.Errorf("no fixture file at %s and SEPOLIA_RPC_URL not set", fixturePath)
 	}
 
 	if IsRPCRecordMode() {
-		// Record mode: forward to real Sepolia and save fixtures
 		proxy := NewRPCReplayProxy(lgr, rpcURL, fixturePath, RPCReplayModeRecord)
 		if err := proxy.Start(); err != nil {
 			return nil, nil, fmt.Errorf("failed to start record proxy: %w", err)
@@ -102,13 +109,12 @@ func RPCReplayOrRecord(lgr log.Logger, fixturePath string) (*RPCReplayProxy, Cle
 		return proxy, func() error { return proxy.Stop() }, nil
 	}
 
-	// Pass-through mode: just use RetryProxy as before (SEPOLIA_RPC_URL is set but not recording)
+	// Pass-through: forward to live RPC without recording
 	retryProxy := NewRetryProxy(lgr, rpcURL)
 	if err := retryProxy.Start(); err != nil {
 		return nil, nil, fmt.Errorf("failed to start retry proxy: %w", err)
 	}
-	// Wrap in a replay proxy that just passes through
-	proxy := NewRPCReplayProxy(lgr, retryProxy.Endpoint(), fixturePath, RPCReplayModeRecord)
+	proxy := NewRPCReplayProxy(lgr, retryProxy.Endpoint(), fixturePath, RPCReplayModePassthrough)
 	if err := proxy.Start(); err != nil {
 		_ = retryProxy.Stop()
 		return nil, nil, fmt.Errorf("failed to start pass-through proxy: %w", err)

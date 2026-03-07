@@ -1,10 +1,9 @@
 package opcm
 
 import (
-	"context"
 	"log/slog"
+	"math/big"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -44,15 +43,14 @@ func TestSetDisputeGameImpl(t *testing.T) {
 	// OP Sepolia DGF owner
 	deployer := common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
+	// Pin to one block past the v6.0.0-rc.2 OPCM deployment for deterministic fixtures
+	host, err := env.ForkedScriptHost(
 		broadcaster.NoopBroadcaster(),
 		testlog.Logger(t, log.LevelInfo),
 		deployer,
 		artifacts,
 		l1RPC,
+		big.NewInt(10101510),
 	)
 	require.NoError(t, err)
 

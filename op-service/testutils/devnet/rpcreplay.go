@@ -24,6 +24,8 @@ const (
 	RPCReplayModeRecord RPCReplayMode = iota
 	// RPCReplayModeReplay serves responses from a fixture file without external calls.
 	RPCReplayModeReplay
+	// RPCReplayModePassthrough forwards requests to upstream without recording.
+	RPCReplayModePassthrough
 )
 
 // rpcReplayEntry stores a single recorded RPC request/response pair.
@@ -128,10 +130,14 @@ func (p *RPCReplayProxy) Endpoint() string {
 }
 
 func (p *RPCReplayProxy) modeString() string {
-	if p.mode == RPCReplayModeRecord {
+	switch p.mode {
+	case RPCReplayModeRecord:
 		return "record"
+	case RPCReplayModePassthrough:
+		return "passthrough"
+	default:
+		return "replay"
 	}
-	return "replay"
 }
 
 func (p *RPCReplayProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +177,7 @@ func (p *RPCReplayProxy) handleSingle(w http.ResponseWriter, body []byte) {
 		return
 	}
 
-	// Record mode: forward to upstream
+	// Forward to upstream (record and passthrough modes)
 	respBody, err := p.forwardToUpstream(body)
 	if err != nil {
 		p.lgr.Error("failed to forward request", "method", req.Method, "err", err)
@@ -179,22 +185,22 @@ func (p *RPCReplayProxy) handleSingle(w http.ResponseWriter, body []byte) {
 		return
 	}
 
-	// Cache the response (strip the ID since we reconstruct it on replay)
-	var respParsed jsonRPCResponse
-	if err := json.Unmarshal(respBody, &respParsed); err == nil {
-		// Store the result/error portion only
-		entry := rpcReplayEntry{
-			Method: req.Method,
-			Params: req.Params,
+	if p.mode == RPCReplayModeRecord {
+		var respParsed jsonRPCResponse
+		if err := json.Unmarshal(respBody, &respParsed); err == nil {
+			entry := rpcReplayEntry{
+				Method: req.Method,
+				Params: req.Params,
+			}
+			if respParsed.Error != nil {
+				entry.Response = mustMarshal(map[string]json.RawMessage{"error": respParsed.Error})
+			} else {
+				entry.Response = mustMarshal(map[string]json.RawMessage{"result": respParsed.Result})
+			}
+			p.mu.Lock()
+			p.fixtures[key] = entry
+			p.mu.Unlock()
 		}
-		if respParsed.Error != nil {
-			entry.Response = mustMarshal(map[string]json.RawMessage{"error": respParsed.Error})
-		} else {
-			entry.Response = mustMarshal(map[string]json.RawMessage{"result": respParsed.Result})
-		}
-		p.mu.Lock()
-		p.fixtures[key] = entry
-		p.mu.Unlock()
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -230,33 +236,34 @@ func (p *RPCReplayProxy) handleBatch(w http.ResponseWriter, body []byte) {
 		return
 	}
 
-	// Record mode: forward batch to upstream
+	// Record/passthrough: forward batch to upstream
 	respBody, err := p.forwardToUpstream(body)
 	if err != nil {
 		http.Error(w, "upstream error", http.StatusBadGateway)
 		return
 	}
 
-	// Parse response array and cache each entry
-	var resps []jsonRPCResponse
-	if err := json.Unmarshal(respBody, &resps); err == nil {
-		for i, req := range reqs {
-			if i >= len(resps) {
-				break
+	if p.mode == RPCReplayModeRecord {
+		var resps []jsonRPCResponse
+		if err := json.Unmarshal(respBody, &resps); err == nil {
+			for i, req := range reqs {
+				if i >= len(resps) {
+					break
+				}
+				key := requestKey(req.Method, req.Params)
+				entry := rpcReplayEntry{
+					Method: req.Method,
+					Params: req.Params,
+				}
+				if resps[i].Error != nil {
+					entry.Response = mustMarshal(map[string]json.RawMessage{"error": resps[i].Error})
+				} else {
+					entry.Response = mustMarshal(map[string]json.RawMessage{"result": resps[i].Result})
+				}
+				p.mu.Lock()
+				p.fixtures[key] = entry
+				p.mu.Unlock()
 			}
-			key := requestKey(req.Method, req.Params)
-			entry := rpcReplayEntry{
-				Method: req.Method,
-				Params: req.Params,
-			}
-			if resps[i].Error != nil {
-				entry.Response = mustMarshal(map[string]json.RawMessage{"error": resps[i].Error})
-			} else {
-				entry.Response = mustMarshal(map[string]json.RawMessage{"result": resps[i].Result})
-			}
-			p.mu.Lock()
-			p.fixtures[key] = entry
-			p.mu.Unlock()
 		}
 	}
 

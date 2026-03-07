@@ -271,6 +271,12 @@ RPC_TEST_PKGS := \
 	./op-deployer/pkg/deployer/pipeline/... \
 	./op-deployer/pkg/deployer/upgrade/...
 
+# Packages that use the RPC replay proxy for cached fixtures
+RPC_REPLAY_PKGS := \
+	./op-deployer/pkg/deployer/pipeline/... \
+	./op-deployer/pkg/deployer/integration_test/cli/... \
+	./op-deployer/pkg/deployer/opcm/...
+
 # All test packages used by CI (combination of all package groups)
 ALL_TEST_PACKAGES := $(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)
 
@@ -354,6 +360,19 @@ go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps 
 go-tests-ci-kona-action: ## Runs action tests for kona with gotestsum for CI (assumes deps built by CI)
 	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS="-count=1 -timeout 60m -run Test_ProgramAction"
 .PHONY: go-tests-ci-kona-action
+
+rpc-fixtures-record: ## Records RPC replay fixtures (requires SEPOLIA_RPC_URL)
+	@echo "Recording RPC fixtures..."
+	$(CI_ENV_VARS) && \
+	RPC_REPLAY_RECORD=true go test $(RPC_REPLAY_PKGS) \
+		-count=1 -timeout=300s -tags=ci -short
+.PHONY: rpc-fixtures-record
+
+rpc-fixtures-verify: ## Verifies tests pass in replay mode (no network)
+	@echo "Verifying RPC fixtures in replay mode..."
+	unset SEPOLIA_RPC_URL && go test $(RPC_REPLAY_PKGS) \
+		-count=1 -timeout=300s -tags=ci -short
+.PHONY: rpc-fixtures-verify
 
 go-tests-fraud-proofs-ci: ## Runs fraud proofs Go tests with gotestsum for CI (assumes deps built by CI)
 	@echo "Setting up test directories..."

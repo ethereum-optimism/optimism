@@ -1795,6 +1795,9 @@ jobs:
           at: .
       - restore_cache:
           key: go-tests-v2-{{ checksum "go.mod" }}
+      - restore_cache:
+          keys:
+            - rpc-fixtures-v1-
       - run:
           name: Run Go tests via Makefile
           no_output_timeout: <<parameters.no_output_timeout>>
@@ -1834,6 +1837,32 @@ jobs:
           steps:
             - notify-failures-on-develop:
                 mentions: "<<parameters.mentions>>"
+
+  rpc-fixture-refresh:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: 2xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - restore_cache:
+          key: go-tests-v2-{{ checksum "go.mod" }}
+      - run:
+          name: Record RPC fixtures
+          no_output_timeout: 10m
+          command: make rpc-fixtures-record
+      - run:
+          name: Verify fixtures in replay mode
+          no_output_timeout: 10m
+          command: make rpc-fixtures-verify
+      - save_cache:
+          key: rpc-fixtures-v1-{{ epoch }}
+          paths:
+            - op-service/testutils/devnet/fixtures
+      - notify-failures-on-develop
 
   go-tests-with-fault-proof-deps:
     parameters:
@@ -3067,6 +3096,17 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+      - rpc-fixture-refresh:
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate
+            - go-binaries-for-sysgo
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              only: develop
       - analyze-op-program-client:
           context:
             - circleci-repo-readonly-authenticated-github-token

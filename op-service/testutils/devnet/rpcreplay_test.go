@@ -171,6 +171,48 @@ func TestFixtureKeys(t *testing.T) {
 	require.Equal(t, "eth_chainId:abc123", keys[1])
 }
 
+func TestRPCReplayOrRecord_PrefersFixtures(t *testing.T) {
+	lgr := log.NewLogger(log.DiscardHandler())
+
+	// Create a fixture file with a known response
+	fixturePath := filepath.Join(t.TempDir(), "test.json")
+	fixture := rpcReplayFixture{
+		Entries: map[string]rpcReplayEntry{
+			requestKey("eth_chainId", json.RawMessage(`[]`)): {
+				Method:   "eth_chainId",
+				Params:   json.RawMessage(`[]`),
+				Response: json.RawMessage(`{"result":"0xaa36a7"}`),
+			},
+		},
+	}
+	data, err := json.Marshal(fixture)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(fixturePath, data, 0o644))
+
+	// Even with SEPOLIA_RPC_URL set, fixtures should be used (replay mode)
+	t.Setenv("SEPOLIA_RPC_URL", "http://127.0.0.1:1") // Invalid URL — proves we don't hit it
+	t.Setenv("RPC_REPLAY_RECORD", "")
+
+	proxy, cleanup, err := RPCReplayOrRecord(lgr, fixturePath)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cleanup()) })
+
+	resp := doRPCCall(t, proxy.Endpoint(), "eth_chainId", `[]`)
+	require.Contains(t, string(resp), "0xaa36a7")
+}
+
+func TestRPCReplayOrRecord_NoFixturesNoRPC(t *testing.T) {
+	lgr := log.NewLogger(log.DiscardHandler())
+
+	fixturePath := filepath.Join(t.TempDir(), "nonexistent.json")
+	t.Setenv("SEPOLIA_RPC_URL", "")
+	t.Setenv("RPC_REPLAY_RECORD", "")
+
+	_, _, err := RPCReplayOrRecord(lgr, fixturePath)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no fixture file")
+}
+
 func doRPCCall(t *testing.T, endpoint, method, params string) []byte {
 	t.Helper()
 	reqBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"` + method + `","params":` + params + `}`)
