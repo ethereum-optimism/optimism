@@ -14,7 +14,14 @@ func FromConfig(cfg model.StateStoreConfig, branch string) (Store, error) {
 	case "circleci":
 		token := os.Getenv("CIRCLE_TOKEN")
 		if token == "" {
-			return nil, fmt.Errorf("CIRCLE_TOKEN env var required for circleci state backend")
+			// Fall back to local store when token isn't available.
+			// State won't persist across pipelines but everything else works.
+			fmt.Fprintf(os.Stderr, "warning: CIRCLE_TOKEN not set, falling back to local state store\n")
+			dir := cfg.Local.Dir
+			if dir == "" {
+				dir = "/tmp/shadow-ci/state"
+			}
+			return NewLocalStore(dir), nil
 		}
 		slug := os.Getenv("CIRCLE_PROJECT_SLUG")
 		if slug == "" {
