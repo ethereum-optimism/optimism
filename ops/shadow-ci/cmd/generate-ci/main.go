@@ -88,6 +88,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 	// All groups use mise to install toolchains from mise.toml.
 	// Each group only installs the specific tools it needs to avoid
 	// GitHub API rate limits from downloading everything.
+	// MISE_GITHUB_TOKEN is set if available to avoid rate limits.
 	miseBase := `curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV`
@@ -98,8 +99,10 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "build",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseBase + "\n            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev\n            mise install go rust forge cast anvil just make",
-			Categories:    groupCats["build"],
+			SetupSteps: miseBase + `
+            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
+            mise install go rust forge cast anvil just make`,
+			Categories: groupCats["build"],
 		},
 		{
 			Name:          "go",
@@ -119,15 +122,21 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "rust",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseBase + "\n            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev\n            mise install rust",
-			Categories:    groupCats["rust"],
+			SetupSteps: miseBase + `
+            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
+            mise install rust`,
+			Categories: groupCats["rust"],
 		},
 		{
+			// Misc uses apt/pip directly to avoid GitHub API rate limits.
+			// shellcheck and semgrep don't need mise.
 			Name:          "misc",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "medium",
-			SetupSteps:    miseBase + "\n            mise install shellcheck python uv\n            mise install \"pipx:semgrep\"",
-			Categories:    groupCats["misc"],
+			SetupSteps: `sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck python3-pip pipx
+            pipx install semgrep || pip3 install semgrep || true
+            echo 'export PATH=$PATH:$HOME/.local/bin' >> $BASH_ENV`,
+			Categories: groupCats["misc"],
 		},
 	}
 

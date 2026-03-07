@@ -258,11 +258,9 @@ jobs:
       - run:
           name: Install toolchain (misc)
           command: |
-            curl -sSf https://mise.run | sh
-            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
-            source $BASH_ENV
-            mise install shellcheck python uv
-            mise install "pipx:semgrep"
+            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck python3-pip pipx
+            pipx install semgrep || pip3 install semgrep || true
+            echo 'export PATH=$PATH:$HOME/.local/bin' >> $BASH_ENV
       - run:
           name: Execute misc categories
           no_output_timeout: 45m
