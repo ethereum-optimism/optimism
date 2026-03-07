@@ -142,7 +142,7 @@ jobs:
           command: |
             cd packages/contracts-bedrock
             git submodule update --init --recursive --single-branch --force -j 8
-            just forge-build
+            just build-no-tests
             cd ../../op-deployer
             just copy-contract-artifacts
           environment:
@@ -251,7 +251,7 @@ jobs:
                 command: |
                   cd packages/contracts-bedrock
                   git submodule update --init --recursive --single-branch --force -j 8
-                  just forge-build
+                  just build-no-tests
                   cd ../../op-deployer
                   just copy-contract-artifacts
                   cd ..
@@ -430,7 +430,7 @@ jobs:
           command: |
             cd packages/contracts-bedrock
             git submodule update --init --recursive --single-branch --force -j 8
-            just forge-build
+            just build-no-tests
           environment:
             FOUNDRY_PROFILE: ci
       - run:
@@ -559,7 +559,7 @@ jobs:
           command: |
             cd packages/contracts-bedrock
             git submodule update --init --recursive --single-branch --force -j 8
-            just forge-build
+            just build-no-tests
             cd ../../op-deployer
             just copy-contract-artifacts
             cd ..
