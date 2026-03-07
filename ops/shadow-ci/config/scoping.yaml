@@ -177,9 +177,10 @@ job_categories:
       - "go.mod"
       - "go.sum"
       - ".golangci.yaml"
+      - "linter/"
     command: |
-      golangci-lint run --timeout=15m ./...
-    description: "Go lint (golangci-lint)"
+      make lint-go
+    description: "Go lint (custom golangci-lint wrapper)"
 
   # === SOLIDITY TESTS ===
   sol_tests:
@@ -333,7 +334,7 @@ job_categories:
       - "op-node/"
       - "op-service/"
     command: |
-      make generate-mocks-ci && git diff --exit-code
+      make generate-mocks-op-node && make generate-mocks-op-service && git diff --exit-code
     description: "Check generated mocks are up to date"
 
   todo_issues:

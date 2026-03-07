@@ -65,11 +65,12 @@ func main() {
 
 // groupInfo describes an execution group for the CI template.
 type groupInfo struct {
-	Name         string
-	DockerImage  string
-	ResourceClass string
-	SetupSteps   string // shell commands to install toolchain
-	Categories   []string
+	Name            string
+	DockerImage     string
+	ResourceClass   string
+	CircleCIIPRanges bool   // use whitelisted IPs for external API access
+	SetupSteps      string // shell commands to install toolchain
+	Categories      []string
 }
 
 func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
@@ -105,10 +106,11 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Categories: groupCats["build"],
 		},
 		{
-			Name:          "go",
-			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
-			ResourceClass: "2xlarge",
-			SetupSteps:    miseBase + "\n            mise install go gotestsum golangci-lint mockery forge make",
+			Name:            "go",
+			DockerImage:     "<< pipeline.parameters.c-default_docker_image >>",
+			ResourceClass:   "2xlarge",
+			CircleCIIPRanges: true,
+			SetupSteps:      miseBase + "\n            mise install go gotestsum golangci-lint mockery forge make",
 			Categories:    groupCats["go"],
 		},
 		{
@@ -324,7 +326,8 @@ jobs:
   shadow-ci-{{ .Name }}:
     docker:
       - image: {{ .DockerImage }}
-    resource_class: {{ .ResourceClass }}
+    resource_class: {{ .ResourceClass }}{{ if .CircleCIIPRanges }}
+    circleci_ip_ranges: true{{ end }}
     steps:
       - checkout
       - attach_workspace:
