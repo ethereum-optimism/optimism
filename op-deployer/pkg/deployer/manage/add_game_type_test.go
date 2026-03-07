@@ -28,7 +28,7 @@ func TestAddGameType(t *testing.T) {
 	// Since the opcm version is not yet on sepolia, we create a fork of sepolia then deploy the opcm via deploy implementations.
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	fixturePath := devnet.RPCReplayFixturePath("manage_add_game_type")
-	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlockWithReplay(lgr, 10101510, fixturePath)
+	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlockWithReplay(lgr, devnet.DefaultSepoliaFallbackBlock, fixturePath)
 	pkHex, _, _ := shared.DefaultPrivkey(t)
 	require.NoError(t, err)
 	t.Cleanup(func() {

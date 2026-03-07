@@ -32,7 +32,7 @@ func TestInteropMigration(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	fixturePath := devnet.RPCReplayFixturePath("manage_interop_migration")
-	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlockWithReplay(lgr, 10101510, fixturePath)
+	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlockWithReplay(lgr, devnet.DefaultSepoliaFallbackBlock, fixturePath)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, stopL1())
