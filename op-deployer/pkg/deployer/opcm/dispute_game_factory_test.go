@@ -43,14 +43,14 @@ func TestSetDisputeGameImpl(t *testing.T) {
 	// OP Sepolia DGF owner
 	deployer := common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2")
 
-	// Pin to one block past the v6.0.0-rc.2 OPCM deployment for deterministic fixtures
+	forkBlock := devnet.FixtureForkBlock(fixturePath, 10101510)
 	host, err := env.ForkedScriptHost(
 		broadcaster.NoopBroadcaster(),
 		testlog.Logger(t, log.LevelInfo),
 		deployer,
 		artifacts,
 		l1RPC,
-		big.NewInt(10101510),
+		big.NewInt(int64(forkBlock)),
 	)
 	require.NoError(t, err)
 

@@ -26,31 +26,31 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 )
 
-// sepoliaForkBlock is a pinned Sepolia block for deterministic test fixtures.
-// This is one block past the v6.0.0-rc.2 OPCM deployment, ensuring all
-// current contracts are available. Must be updated when new OPCM versions
-// are deployed and referenced by tests.
-const sepoliaForkBlock = 10101510
+// defaultFallbackBlock is the fallback fork block when fixtures lack metadata.
+// One block past the v6.0.0-rc.2 OPCM deployment on Sepolia.
+const defaultFallbackBlock = 10101510
 
 // sepoliaRPCProxy sets up an RPC proxy that records or replays Sepolia RPC calls.
-// When SEPOLIA_RPC_URL is set with RPC_REPLAY_RECORD=true, it records fixtures.
-// When SEPOLIA_RPC_URL is unset, it replays from existing fixtures.
-func sepoliaRPCProxy(t *testing.T, lgr log.Logger, fixtureName string) string {
+// Returns the proxy endpoint and the fork block to use (read from fixture metadata,
+// falling back to fallbackBlock).
+func sepoliaRPCProxy(t *testing.T, lgr log.Logger, fixtureName string, fallbackBlock uint64) (string, uint64) {
 	t.Helper()
 	fixturePath := devnet.RPCReplayFixturePath(fixtureName)
+	forkBlock := devnet.FixtureForkBlock(fixturePath, fallbackBlock)
 	proxy, cleanup, err := devnet.RPCReplayOrRecord(lgr, fixturePath)
 	require.NoError(t, err)
+	proxy.SetForkBlock(forkBlock)
 	t.Cleanup(func() {
 		require.NoError(t, cleanup())
 	})
-	return proxy.Endpoint()
+	return proxy.Endpoint(), forkBlock
 }
 
 func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "init_opcm_reuse_logic")
+	endpoint, forkBlock := sepoliaRPCProxy(t, lgr, "init_opcm_reuse_logic", defaultFallbackBlock)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -92,7 +92,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 				common.Address{'D'},
 				afacts,
 				rpcClient,
-				big.NewInt(sepoliaForkBlock),
+				big.NewInt(int64(forkBlock)),
 			)
 			require.NoError(t, err)
 
@@ -220,7 +220,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "populate_superchain_state")
+	endpoint, forkBlock := sepoliaRPCProxy(t, lgr, "populate_superchain_state", 8227159)
 
 	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
@@ -232,9 +232,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 		common.Address{'D'},
 		afacts,
 		rpcClient,
-		// corresponds to the latest block on sepolia as of 04/30/2025. used to prevent config drift on sepolia
-		// from failing this test
-		big.NewInt(8227159),
+		big.NewInt(int64(forkBlock)),
 	)
 	require.NoError(t, err)
 
@@ -331,7 +329,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "populate_superchain_state_v2")
+	endpoint, forkBlock := sepoliaRPCProxy(t, lgr, "populate_superchain_state_v2", 8227159)
 
 	rpcClient, err := rpc.Dial(endpoint)
 	require.NoError(t, err)
@@ -343,9 +341,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 		common.Address{'D'},
 		afacts,
 		rpcClient,
-		// corresponds to the latest block on sepolia as of 04/30/2025. used to prevent config drift on sepolia
-		// from failing this test
-		big.NewInt(8227159),
+		big.NewInt(int64(forkBlock)),
 	)
 	require.NoError(t, err)
 
@@ -433,7 +429,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "init_opcmv2_superchain_config_proxy")
+	endpoint, forkBlock := sepoliaRPCProxy(t, lgr, "init_opcmv2_superchain_config_proxy", defaultFallbackBlock)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -453,7 +449,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 		common.Address{'D'},
 		afacts,
 		rpcClient,
-		big.NewInt(sepoliaForkBlock),
+		big.NewInt(int64(forkBlock)),
 	)
 	require.NoError(t, err)
 
@@ -507,7 +503,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "init_opcmv2_roles_reverts")
+	endpoint, _ := sepoliaRPCProxy(t, lgr, "init_opcmv2_roles_reverts", defaultFallbackBlock)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -559,7 +555,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "init_opcmv1_superchain_config_proxy")
+	endpoint, forkBlock := sepoliaRPCProxy(t, lgr, "init_opcmv1_superchain_config_proxy", defaultFallbackBlock)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -582,7 +578,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 		common.Address{'D'},
 		afacts,
 		rpcClient,
-		big.NewInt(sepoliaForkBlock),
+		big.NewInt(int64(forkBlock)),
 	)
 	require.NoError(t, err)
 
@@ -626,7 +622,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "init_opcmv1_roles_reverts")
+	endpoint, _ := sepoliaRPCProxy(t, lgr, "init_opcmv1_roles_reverts", defaultFallbackBlock)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -674,7 +670,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "init_flow_selection_v1")
+	endpoint, forkBlock := sepoliaRPCProxy(t, lgr, "init_flow_selection_v1", defaultFallbackBlock)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -694,7 +690,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 		common.Address{'D'},
 		afacts,
 		rpcClient,
-		big.NewInt(sepoliaForkBlock),
+		big.NewInt(int64(forkBlock)),
 	)
 	require.NoError(t, err)
 
@@ -740,7 +736,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	t.Parallel()
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
-	endpoint := sepoliaRPCProxy(t, lgr, "init_flow_selection_v2")
+	endpoint, forkBlock := sepoliaRPCProxy(t, lgr, "init_flow_selection_v2", defaultFallbackBlock)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -760,7 +756,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 		common.Address{'D'},
 		afacts,
 		rpcClient,
-		big.NewInt(sepoliaForkBlock),
+		big.NewInt(int64(forkBlock)),
 	)
 	require.NoError(t, err)
 

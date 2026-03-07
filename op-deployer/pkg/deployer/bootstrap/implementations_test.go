@@ -3,8 +3,6 @@ package bootstrap
 import (
 	"context"
 	"log/slog"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,57 +12,40 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
 
-var networks = []string{"mainnet", "sepolia"}
+// defaultFallbackBlock is used when fixtures don't have metadata yet.
+// One block past the v6.0.0-rc.2 OPCM deployment on Sepolia.
+const defaultFallbackBlock = 10101510
 
 func TestImplementations(t *testing.T) {
-	for _, network := range networks {
-		t.Run(network, func(t *testing.T) {
-			envVar := strings.ToUpper(network) + "_RPC_URL"
-			rpcURL := os.Getenv(envVar)
-			require.NotEmpty(t, rpcURL, "must specify RPC url via %s env var", envVar)
-			testImplementations(t, rpcURL)
-		})
-	}
-}
+	t.Parallel()
 
-func testImplementations(t *testing.T, forkRPCURL string) {
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-
-	if forkRPCURL == "" {
-		t.Skip("forkRPCURL not set")
-	}
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	forkedL1, stopL1, err := devnet.NewForked(lgr, forkRPCURL)
+	fixturePath := devnet.RPCReplayFixturePath("bootstrap_implementations")
+	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromFixture(lgr, fixturePath, defaultFallbackBlock)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, stopL1())
 	})
 	l1RPC := forkedL1.RPCUrl()
 
-	client, err := ethclient.Dial(l1RPC)
-	require.NoError(t, err)
-
-	chainID, err := client.ChainID(ctx)
-	require.NoError(t, err)
-
-	superchain, err := standard.SuperchainFor(bigs.Uint64Strict(chainID))
+	// Sepolia chain ID = 11155111
+	superchain, err := standard.SuperchainFor(11155111)
 	require.NoError(t, err)
 
 	loc, _ := testutil.LocalArtifacts(t)
 
-	proxyAdminOwner, err := standard.L1ProxyAdminOwner(bigs.Uint64Strict(chainID))
+	proxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
 	require.NoError(t, err)
 	deploy := func() opcm.DeployImplementationsOutput {
 		out, err := Implementations(ctx, ImplementationsConfig{

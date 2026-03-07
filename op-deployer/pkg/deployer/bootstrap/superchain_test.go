@@ -3,8 +3,6 @@ package bootstrap
 import (
 	"context"
 	"log/slog"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,29 +19,15 @@ import (
 )
 
 func TestSuperchain(t *testing.T) {
-	for _, network := range networks {
-		t.Run(network, func(t *testing.T) {
-			envVar := strings.ToUpper(network) + "_RPC_URL"
-			rpcURL := os.Getenv(envVar)
-			require.NotEmpty(t, rpcURL, "must specify RPC url via %s env var", envVar)
-			testSuperchain(t, rpcURL)
-		})
-	}
-}
-
-func testSuperchain(t *testing.T, forkRPCURL string) {
 	t.Parallel()
-
-	if forkRPCURL == "" {
-		t.Skip("forkRPCURL not set")
-	}
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	forkedL1, stopL1, err := devnet.NewForked(lgr, forkRPCURL)
+	fixturePath := devnet.RPCReplayFixturePath("bootstrap_superchain")
+	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromFixture(lgr, fixturePath, defaultFallbackBlock)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, stopL1())
