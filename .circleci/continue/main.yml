@@ -50,6 +50,9 @@ parameters:
   c-ai_contracts_test_dispatch:
     type: boolean
     default: false
+  c-rpc_fixtures_dispatch:
+    type: boolean
+    default: false
   c-github-event-type:
     type: string
     default: "__not_set__"
@@ -1839,30 +1842,40 @@ jobs:
                 mentions: "<<parameters.mentions>>"
 
   rpc-fixture-refresh:
+    parameters:
+      rpc_fixtures_dispatch:
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
     steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - attach_workspace:
-          at: .
-      - restore_cache:
-          key: go-tests-v2-{{ checksum "go.mod" }}
-      - run:
-          name: Record RPC fixtures
-          no_output_timeout: 10m
-          command: make rpc-fixtures-record
-      - run:
-          name: Verify fixtures in replay mode
-          no_output_timeout: 10m
-          command: make rpc-fixtures-verify
-      - save_cache:
-          key: rpc-fixtures-v1-{{ epoch }}
-          paths:
-            - op-service/testutils/devnet/fixtures
-      - notify-failures-on-develop
+      - when:
+          condition:
+            or:
+              - equal: ["develop", << pipeline.git.branch >>]
+              - << parameters.rpc_fixtures_dispatch >>
+          steps:
+            - utils/checkout-with-mise:
+                checkout-method: blobless
+                enable-mise-cache: true
+            - attach_workspace:
+                at: .
+            - restore_cache:
+                key: go-tests-v2-{{ checksum "go.mod" }}
+            - run:
+                name: Record RPC fixtures
+                no_output_timeout: 10m
+                command: make rpc-fixtures-record
+            - run:
+                name: Verify fixtures in replay mode
+                no_output_timeout: 10m
+                command: make rpc-fixtures-verify
+            - save_cache:
+                key: rpc-fixtures-v1-{{ epoch }}
+                paths:
+                  - op-service/testutils/devnet/fixtures
+            - notify-failures-on-develop
 
   go-tests-with-fault-proof-deps:
     parameters:
@@ -3097,6 +3110,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
       - rpc-fixture-refresh:
+          rpc_fixtures_dispatch: <<pipeline.parameters.c-rpc_fixtures_dispatch>>
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -3104,9 +3118,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-          filters:
-            branches:
-              only: develop
       - analyze-op-program-client:
           context:
             - circleci-repo-readonly-authenticated-github-token
