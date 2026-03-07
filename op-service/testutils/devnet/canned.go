@@ -1,10 +1,16 @@
 package devnet
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -137,6 +143,8 @@ func NewForkedSepoliaFromBlockWithReplay(lgr log.Logger, block uint64, fixturePa
 		return nil, nil, err
 	}
 
+	proxy.SetForkBlock(block)
+
 	anvil, err := NewAnvil(lgr, WithForkURL(proxy.Endpoint()), WithBlockTime(3), WithForkBlockNumber(block))
 	if err != nil {
 		_ = proxyCleanup()
@@ -156,4 +164,52 @@ func NewForkedSepoliaFromBlockWithReplay(lgr log.Logger, block uint64, fixturePa
 	}
 
 	return anvil, cleanup, nil
+}
+
+// NewForkedSepoliaFromFixture creates a forked Sepolia anvil instance that reads
+// its fork block from the fixture metadata. During recording, it queries
+// eth_blockNumber from SEPOLIA_RPC_URL to determine the fork block. During replay,
+// it reads the block from the fixture. If the fixture has no metadata, fallbackBlock
+// is used (backward compatibility with fixtures recorded before metadata support).
+func NewForkedSepoliaFromFixture(lgr log.Logger, fixturePath string, fallbackBlock uint64) (*Anvil, CleanupFunc, error) {
+	block := FixtureForkBlock(fixturePath, fallbackBlock)
+
+	if IsRPCRecordMode() {
+		rpcURL := os.Getenv("SEPOLIA_RPC_URL")
+		if rpcURL != "" {
+			latestBlock, err := queryLatestBlock(rpcURL)
+			if err != nil {
+				lgr.Warn("failed to query latest block, using fallback", "err", err, "fallback", fallbackBlock)
+			} else {
+				block = latestBlock
+			}
+		}
+	}
+
+	return NewForkedSepoliaFromBlockWithReplay(lgr, block, fixturePath)
+}
+
+// queryLatestBlock queries eth_blockNumber from the given RPC URL.
+func queryLatestBlock(rpcURL string) (uint64, error) {
+	reqBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}`)
+	resp, err := http.Post(rpcURL, "application/json", bytes.NewReader(reqBody)) //nolint:gosec,noctx
+	if err != nil {
+		return 0, fmt.Errorf("eth_blockNumber request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read response: %w", err)
+	}
+	var result struct {
+		Result string `json:"result"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, fmt.Errorf("failed to parse response: %w", err)
+	}
+	blockNum, err := strconv.ParseUint(strings.TrimPrefix(result.Result, "0x"), 16, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse block number %q: %w", result.Result, err)
+	}
+	return blockNum, nil
 }
