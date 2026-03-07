@@ -42,6 +42,19 @@ func FromConfig(cfg model.StateStoreConfig, branch string) (Store, error) {
 			StatePrefix:  cfg.CircleCI.StatePrefix,
 		}), nil
 
+	case "upstash":
+		url := os.Getenv("UPSTASH_REDIS_REST_URL")
+		token := os.Getenv("UPSTASH_REDIS_REST_TOKEN")
+		if url == "" || token == "" {
+			fmt.Fprintf(os.Stderr, "warning: UPSTASH_REDIS_REST_URL/TOKEN not set, falling back to local state store\n")
+			dir := cfg.Local.Dir
+			if dir == "" {
+				dir = "/tmp/shadow-ci/state"
+			}
+			return NewLocalStore(dir), nil
+		}
+		return NewUpstashStore(url, token, "shadow-ci:"), nil
+
 	case "local", "":
 		dir := cfg.Local.Dir
 		if dir == "" {

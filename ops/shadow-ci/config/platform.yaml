@@ -36,7 +36,7 @@ events:
 # Cross-pipeline state persistence (flake DB, correlation matrix, etc.).
 # Backend options: "local" (dev/testing), "circleci" (via artifacts).
 state:
-  backend: circleci
+  backend: upstash
   local:
     dir: /tmp/shadow-ci/state
   circleci:
