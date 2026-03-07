@@ -35,9 +35,15 @@ type rpcReplayEntry struct {
 	Response json.RawMessage `json:"response"`
 }
 
+// RPCReplayFixtureMetadata stores recording context alongside fixture entries.
+type RPCReplayFixtureMetadata struct {
+	ForkBlock uint64 `json:"fork_block,omitempty"`
+}
+
 // rpcReplayFixture is the on-disk format for recorded RPC fixtures.
 type rpcReplayFixture struct {
-	Entries map[string]rpcReplayEntry `json:"entries"`
+	Metadata RPCReplayFixtureMetadata  `json:"metadata"`
+	Entries  map[string]rpcReplayEntry `json:"entries"`
 }
 
 // jsonRPCRequest represents a JSON-RPC 2.0 request for parsing.
@@ -66,8 +72,9 @@ type RPCReplayProxy struct {
 	srv         *http.Server
 	listenPort  int
 
-	mu       sync.Mutex
-	fixtures map[string]rpcReplayEntry
+	mu        sync.Mutex
+	fixtures  map[string]rpcReplayEntry
+	metadata  RPCReplayFixtureMetadata
 }
 
 // NewRPCReplayProxy creates a new replay proxy.
@@ -127,6 +134,21 @@ func (p *RPCReplayProxy) Stop() error {
 // Endpoint returns the local URL of the proxy.
 func (p *RPCReplayProxy) Endpoint() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", p.listenPort)
+}
+
+// SetForkBlock records the fork block number in fixture metadata.
+// Call this before Stop() so the block is persisted when fixtures are saved.
+func (p *RPCReplayProxy) SetForkBlock(block uint64) {
+	p.mu.Lock()
+	p.metadata.ForkBlock = block
+	p.mu.Unlock()
+}
+
+// ForkBlock returns the fork block from fixture metadata, if set.
+func (p *RPCReplayProxy) ForkBlock() (uint64, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.metadata.ForkBlock, p.metadata.ForkBlock != 0
 }
 
 func (p *RPCReplayProxy) modeString() string {
@@ -319,6 +341,7 @@ func (p *RPCReplayProxy) loadFixtures() error {
 
 	p.mu.Lock()
 	p.fixtures = fixture.Entries
+	p.metadata = fixture.Metadata
 	p.mu.Unlock()
 	return nil
 }
@@ -331,7 +354,7 @@ func (p *RPCReplayProxy) saveFixtures() error {
 	}
 	p.mu.Unlock()
 
-	fixture := rpcReplayFixture{Entries: fixtures}
+	fixture := rpcReplayFixture{Metadata: p.metadata, Entries: fixtures}
 	data, err := json.MarshalIndent(fixture, "", "  ")
 	if err != nil {
 		return err
@@ -380,6 +403,30 @@ func mustMarshal(v interface{}) json.RawMessage {
 		panic(err)
 	}
 	return data
+}
+
+// ReadFixtureMetadata reads just the metadata from a fixture file.
+// Returns zero-valued metadata if the file doesn't exist or has no metadata.
+func ReadFixtureMetadata(fixturePath string) (RPCReplayFixtureMetadata, error) {
+	data, err := os.ReadFile(fixturePath)
+	if err != nil {
+		return RPCReplayFixtureMetadata{}, err
+	}
+	var fixture rpcReplayFixture
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		return RPCReplayFixtureMetadata{}, err
+	}
+	return fixture.Metadata, nil
+}
+
+// FixtureForkBlock returns the fork block from a fixture file's metadata.
+// If the file doesn't exist or has no fork_block metadata, returns fallback.
+func FixtureForkBlock(fixturePath string, fallback uint64) uint64 {
+	meta, err := ReadFixtureMetadata(fixturePath)
+	if err != nil || meta.ForkBlock == 0 {
+		return fallback
+	}
+	return meta.ForkBlock
 }
 
 // FixtureKeys returns sorted keys from a fixture file, useful for debugging.

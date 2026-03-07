@@ -201,6 +201,69 @@ func TestRPCReplayOrRecord_PrefersFixtures(t *testing.T) {
 	require.Contains(t, string(resp), "0xaa36a7")
 }
 
+func TestRPCReplayProxy_MetadataRoundTrip(t *testing.T) {
+	lgr := log.NewLogger(log.DiscardHandler())
+	upstreamURL, cleanup := newFakeUpstream(t)
+	defer cleanup()
+
+	fixturePath := filepath.Join(t.TempDir(), "meta_fixtures.json")
+
+	// Record with fork block metadata
+	recorder := NewRPCReplayProxy(lgr, upstreamURL, fixturePath, RPCReplayModeRecord)
+	recorder.SetForkBlock(12345)
+	require.NoError(t, recorder.Start())
+
+	doRPCCall(t, recorder.Endpoint(), "eth_chainId", `[]`)
+	require.NoError(t, recorder.Stop())
+
+	// Verify metadata was saved
+	meta, err := ReadFixtureMetadata(fixturePath)
+	require.NoError(t, err)
+	require.Equal(t, uint64(12345), meta.ForkBlock)
+
+	// Replay should load metadata
+	replayer := NewRPCReplayProxy(lgr, "", fixturePath, RPCReplayModeReplay)
+	require.NoError(t, replayer.Start())
+
+	block, ok := replayer.ForkBlock()
+	require.True(t, ok)
+	require.Equal(t, uint64(12345), block)
+
+	require.NoError(t, replayer.Stop())
+}
+
+func TestFixtureForkBlock_Fallback(t *testing.T) {
+	// Missing file returns fallback
+	block := FixtureForkBlock(filepath.Join(t.TempDir(), "nonexistent.json"), 99999)
+	require.Equal(t, uint64(99999), block)
+
+	// Fixture without metadata returns fallback
+	fixturePath := filepath.Join(t.TempDir(), "no_meta.json")
+	fixture := rpcReplayFixture{
+		Entries: map[string]rpcReplayEntry{
+			"eth_chainId:abc": {Method: "eth_chainId"},
+		},
+	}
+	data, err := json.Marshal(fixture)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(fixturePath, data, 0o644))
+
+	block = FixtureForkBlock(fixturePath, 99999)
+	require.Equal(t, uint64(99999), block)
+
+	// Fixture with metadata returns the stored block
+	fixtureWithMeta := rpcReplayFixture{
+		Metadata: RPCReplayFixtureMetadata{ForkBlock: 42},
+		Entries:  map[string]rpcReplayEntry{},
+	}
+	data, err = json.Marshal(fixtureWithMeta)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(fixturePath, data, 0o644))
+
+	block = FixtureForkBlock(fixturePath, 99999)
+	require.Equal(t, uint64(42), block)
+}
+
 func TestRPCReplayOrRecord_NoFixturesNoRPC(t *testing.T) {
 	lgr := log.NewLogger(log.DiscardHandler())
 
