@@ -2,15 +2,18 @@ package sysgo
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -315,6 +318,20 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, supernodeID stack.SupernodeI
 		if cluster, ok := orch.ClusterForL2(l2ChainID); ok {
 			depSet = cluster.DepSet()
 		}
+		sequencerP2PKeyHex := ""
+		if isSequencer {
+			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2ChainID.ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
+		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
+			p,
+			logger.New("chain_id", l2ChainID.String(), "component", "supernode-p2p"),
+			l2Net.rollupCfg.BlockTime,
+			false,
+			true,
+			sequencerP2PKeyHex,
+		)
 		return &config.Config{
 			L1: &config.L1EndpointConfig{
 				L1NodeAddr:       l1EL.UserRPC(),
@@ -335,12 +352,13 @@ func withSharedSupernodeCLsImpl(orch *Orchestrator, supernodeID stack.SupernodeI
 			Beacon:                          &config.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
 			Driver:                          driver.Config{SequencerEnabled: isSequencer, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
+			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			InteropConfig:                   interopCfg,
-			P2P:                             nil,
+			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
+			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
 			ConfigPersistence:               config.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},

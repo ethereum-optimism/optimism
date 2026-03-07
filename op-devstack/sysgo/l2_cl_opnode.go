@@ -3,12 +3,9 @@ package sysgo
 import (
 	"context"
 	"encoding/hex"
-	"flag"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,9 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-node/config"
-	opNodeFlags "github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -224,48 +218,20 @@ func withOpNode(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack
 
 		logger := p.Logger()
 
-		var p2pSignerSetup p2p.SignerSetup
-		var p2pConfig *p2p.Config
-		// code block for P2P setup
-		{
-			// make a dummy flagset since p2p config initialization helpers only input cli context
-			fs := flag.NewFlagSet("", flag.ContinueOnError)
-			// use default flags
-			for _, f := range opNodeFlags.P2PFlags(opNodeFlags.EnvVarPrefix) {
-				require.NoError(f.Apply(fs))
-			}
-			// mandatory P2P flags
-			require.NoError(fs.Set(opNodeFlags.AdvertiseIPName, "127.0.0.1"))
-			require.NoError(fs.Set(opNodeFlags.AdvertiseTCPPortName, "0"))
-			require.NoError(fs.Set(opNodeFlags.AdvertiseUDPPortName, "0"))
-			require.NoError(fs.Set(opNodeFlags.ListenIPName, "127.0.0.1"))
-			require.NoError(fs.Set(opNodeFlags.ListenTCPPortName, "0"))
-			require.NoError(fs.Set(opNodeFlags.ListenUDPPortName, "0"))
-			// avoid resource unavailable error by using memorydb
-			require.NoError(fs.Set(opNodeFlags.DiscoveryPathName, "memory"))
-			require.NoError(fs.Set(opNodeFlags.PeerstorePathName, "memory"))
-			// For peer ID
-			networkPrivKey, err := crypto.GenerateKey()
-			require.NoError(err)
-			networkPrivKeyHex := hex.EncodeToString(crypto.FromECDSA(networkPrivKey))
-			require.NoError(fs.Set(opNodeFlags.P2PPrivRawName, networkPrivKeyHex))
-			// Explicitly set to empty; do not default to resolving DNS of external bootnodes
-			require.NoError(fs.Set(opNodeFlags.BootnodesName, ""))
-
-			cliCtx := cli.NewContext(&cli.App{}, fs, nil)
-			if cfg.IsSequencer {
-				p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
-				require.NoError(err, "need p2p key for sequencer")
-				p2pKeyHex := hex.EncodeToString(crypto.FromECDSA(p2pKey))
-				require.NoError(fs.Set(opNodeFlags.SequencerP2PKeyName, p2pKeyHex))
-				p2pSignerSetup, err = p2pcli.LoadSignerSetup(cliCtx, logger)
-				require.NoError(err, "failed to load p2p signer")
-				logger.Info("Sequencer key acquired")
-			}
-			p2pConfig, err = p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
-			require.NoError(err, "failed to load p2p config")
-			p2pConfig.NoDiscovery = cfg.NoDiscovery
+		sequencerP2PKeyHex := ""
+		if cfg.IsSequencer {
+			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
 		}
+		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
+			p,
+			logger,
+			l2Net.rollupCfg.BlockTime,
+			cfg.NoDiscovery,
+			cfg.EnableReqRespSync,
+			sequencerP2PKeyHex,
+		)
 
 		// specify interop config, but do not configure anything, to disable indexing mode
 		interopCfg := &interop.Config{}
@@ -279,9 +245,6 @@ func withOpNode(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack
 				RPCJwtSecretPath: jwtPath,
 			}
 		}
-
-		// Set the req-resp sync flag as per config
-		p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 
 		nodeCfg := &config.Config{
 			L1: &config.L1EndpointConfig{
