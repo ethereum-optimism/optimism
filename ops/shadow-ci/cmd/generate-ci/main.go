@@ -108,7 +108,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "go",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps:    miseBase + "\n            mise install go gotestsum golangci-lint make",
+			SetupSteps:    miseBase + "\n            mise install go gotestsum golangci-lint mockery make",
 			Categories:    groupCats["go"],
 		},
 		{
@@ -124,7 +124,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			ResourceClass: "2xlarge",
 			SetupSteps: miseBase + `
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
-            mise install rust`,
+            mise install rust just`,
 			Categories: groupCats["rust"],
 		},
 		{
@@ -327,7 +327,16 @@ jobs:
       - checkout
       - attach_workspace:
           at: /tmp/shadow-ci-workspace
-      - run:
+{{ if ne .Name "build" }}      - run:
+          name: Restore build artifacts
+          command: |
+            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
+              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
+              echo "Restored build artifacts"
+            else
+              echo "No build artifacts to restore"
+            fi
+{{ end }}      - run:
           name: Install toolchain ({{ .Name }})
           command: |
             {{ .SetupSteps }}
@@ -340,7 +349,21 @@ jobs:
               --decision /tmp/shadow-ci-workspace/decision.json \
               --config ops/shadow-ci/config \
               --results-dir /tmp/shadow-ci-test-results
-      - store_test_results:
+{{ if eq .Name "build" }}      - run:
+          name: Stage build artifacts for downstream groups
+          command: |
+            mkdir -p /tmp/shadow-ci-workspace/build-artifacts
+            for path in packages/contracts-bedrock/forge-artifacts packages/contracts-bedrock/cache packages/contracts-bedrock/artifacts op-program/bin cannon/bin .devnet rust/target/release; do
+              if [ -e "$path" ]; then
+                mkdir -p "/tmp/shadow-ci-workspace/build-artifacts/$(dirname $path)"
+                cp -r "$path" "/tmp/shadow-ci-workspace/build-artifacts/$path"
+              fi
+            done
+      - persist_to_workspace:
+          root: /tmp/shadow-ci-workspace
+          paths:
+            - build-artifacts
+{{ end }}      - store_test_results:
           path: /tmp/shadow-ci-test-results
       - store_artifacts:
           path: /tmp/shadow-ci-test-results

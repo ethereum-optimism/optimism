@@ -291,7 +291,7 @@ job_categories:
       - doctest
       - cargo-tests
     command: |
-      cd rust && cargo fmt --check && cargo clippy --workspace && cargo test --workspace
+      cd rust && just install-nightly && just lint && just test
     description: "Rust CI checks and tests"
 
   rust_e2e:

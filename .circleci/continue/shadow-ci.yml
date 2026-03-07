@@ -150,6 +150,20 @@ jobs:
               --decision /tmp/shadow-ci-workspace/decision.json \
               --config ops/shadow-ci/config \
               --results-dir /tmp/shadow-ci-test-results
+      - run:
+          name: Stage build artifacts for downstream groups
+          command: |
+            mkdir -p /tmp/shadow-ci-workspace/build-artifacts
+            for path in packages/contracts-bedrock/forge-artifacts packages/contracts-bedrock/cache packages/contracts-bedrock/artifacts op-program/bin cannon/bin .devnet rust/target/release; do
+              if [ -e "$path" ]; then
+                mkdir -p "/tmp/shadow-ci-workspace/build-artifacts/$(dirname $path)"
+                cp -r "$path" "/tmp/shadow-ci-workspace/build-artifacts/$path"
+              fi
+            done
+      - persist_to_workspace:
+          root: /tmp/shadow-ci-workspace
+          paths:
+            - build-artifacts
       - store_test_results:
           path: /tmp/shadow-ci-test-results
       - store_artifacts:
@@ -165,12 +179,21 @@ jobs:
       - attach_workspace:
           at: /tmp/shadow-ci-workspace
       - run:
+          name: Restore build artifacts
+          command: |
+            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
+              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
+              echo "Restored build artifacts"
+            else
+              echo "No build artifacts to restore"
+            fi
+      - run:
           name: Install toolchain (go)
           command: |
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install go gotestsum golangci-lint make
+            mise install go gotestsum golangci-lint mockery make
       - run:
           name: Execute go categories
           no_output_timeout: 45m
@@ -194,6 +217,15 @@ jobs:
       - checkout
       - attach_workspace:
           at: /tmp/shadow-ci-workspace
+      - run:
+          name: Restore build artifacts
+          command: |
+            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
+              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
+              echo "Restored build artifacts"
+            else
+              echo "No build artifacts to restore"
+            fi
       - run:
           name: Install toolchain (sol)
           command: |
@@ -225,13 +257,22 @@ jobs:
       - attach_workspace:
           at: /tmp/shadow-ci-workspace
       - run:
+          name: Restore build artifacts
+          command: |
+            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
+              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
+              echo "Restored build artifacts"
+            else
+              echo "No build artifacts to restore"
+            fi
+      - run:
           name: Install toolchain (rust)
           command: |
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
-            mise install rust
+            mise install rust just
       - run:
           name: Execute rust categories
           no_output_timeout: 45m
@@ -255,6 +296,15 @@ jobs:
       - checkout
       - attach_workspace:
           at: /tmp/shadow-ci-workspace
+      - run:
+          name: Restore build artifacts
+          command: |
+            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
+              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
+              echo "Restored build artifacts"
+            else
+              echo "No build artifacts to restore"
+            fi
       - run:
           name: Install toolchain (misc)
           command: |
