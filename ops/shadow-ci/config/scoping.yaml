@@ -56,7 +56,7 @@ job_categories:
     always_on_develop: true
     depends_on: ["contracts_build"]
     command: |
-      make cannon-prestate
+      make cannon-prestates
     workspace_paths:
       - "op-program/bin"
       - "cannon/bin"

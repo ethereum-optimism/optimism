@@ -23,10 +23,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Go
+          name: Install mise and toolchains
           command: |
-            curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-            echo 'export PATH=$PATH:/usr/local/go/bin' >> $BASH_ENV
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+            mise install
       - run:
           name: Build shadow CI binaries
           command: |
@@ -102,10 +104,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Go
+          name: Install mise and toolchains
           command: |
-            curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-            echo 'export PATH=$PATH:/usr/local/go/bin' >> $BASH_ENV
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+            mise install
       - run:
           name: Check shadow-ci.yml is not stale
           command: |
@@ -132,12 +136,10 @@ jobs:
       - run:
           name: Install toolchain (build)
           command: |
-            curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-            echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/.foundry/bin' >> $BASH_ENV
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            export SHELL=/bin/bash
-            curl -L https://foundry.paradigm.xyz | bash || true
-            ~/.foundry/bin/foundryup
+            mise install
       - run:
           name: Execute build categories
           no_output_timeout: 45m
@@ -164,11 +166,10 @@ jobs:
       - run:
           name: Install toolchain (go)
           command: |
-            curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-            echo 'export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin' >> $BASH_ENV
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            go install gotest.tools/gotestsum@latest
-            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
+            mise install
       - run:
           name: Execute go categories
           no_output_timeout: 45m
@@ -195,11 +196,10 @@ jobs:
       - run:
           name: Install toolchain (sol)
           command: |
-            export SHELL=/bin/bash
-            curl -L https://foundry.paradigm.xyz | bash || true
-            echo 'export PATH=$PATH:$HOME/.foundry/bin' >> $BASH_ENV
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            ~/.foundry/bin/foundryup
+            mise install
       - run:
           name: Execute sol categories
           no_output_timeout: 45m
@@ -226,8 +226,10 @@ jobs:
       - run:
           name: Install toolchain (rust)
           command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            echo 'export PATH=$PATH:$HOME/.cargo/bin' >> $BASH_ENV
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+            mise install
       - run:
           name: Execute rust categories
           no_output_timeout: 45m
@@ -254,8 +256,10 @@ jobs:
       - run:
           name: Install toolchain (misc)
           command: |
-            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck python3-pip
-            pip3 install semgrep || true
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+            mise install
       - run:
           name: Execute misc categories
           no_output_timeout: 45m

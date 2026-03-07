@@ -85,57 +85,49 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 		sort.Strings(cats)
 	}
 
+	// All groups use mise to install toolchains from mise.toml.
+	// This matches how mainline CI works (via utils/checkout-with-mise).
+	miseSetup := `curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+            mise install`
+
 	// Build group definitions.
 	groups := []groupInfo{
 		{
 			Name:          "build",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: `curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-            echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/.foundry/bin' >> $BASH_ENV
-            source $BASH_ENV
-            export SHELL=/bin/bash
-            curl -L https://foundry.paradigm.xyz | bash || true
-            ~/.foundry/bin/foundryup`,
-			Categories: groupCats["build"],
+			SetupSteps:    miseSetup,
+			Categories:    groupCats["build"],
 		},
 		{
 			Name:          "go",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: `curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-            echo 'export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin' >> $BASH_ENV
-            source $BASH_ENV
-            go install gotest.tools/gotestsum@latest
-            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0`,
-			Categories: groupCats["go"],
+			SetupSteps:    miseSetup,
+			Categories:    groupCats["go"],
 		},
 		{
 			Name:          "sol",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: `export SHELL=/bin/bash
-            curl -L https://foundry.paradigm.xyz | bash || true
-            echo 'export PATH=$PATH:$HOME/.foundry/bin' >> $BASH_ENV
-            source $BASH_ENV
-            ~/.foundry/bin/foundryup`,
-			Categories: groupCats["sol"],
+			SetupSteps:    miseSetup,
+			Categories:    groupCats["sol"],
 		},
 		{
 			Name:          "rust",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            echo 'export PATH=$PATH:$HOME/.cargo/bin' >> $BASH_ENV`,
-			Categories: groupCats["rust"],
+			SetupSteps:    miseSetup,
+			Categories:    groupCats["rust"],
 		},
 		{
 			Name:          "misc",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "medium",
-			SetupSteps: `sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck python3-pip
-            pip3 install semgrep || true`,
-			Categories: groupCats["misc"],
+			SetupSteps:    miseSetup,
+			Categories:    groupCats["misc"],
 		},
 	}
 
@@ -216,10 +208,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Go
+          name: Install mise and toolchains
           command: |
-            curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-            echo 'export PATH=$PATH:/usr/local/go/bin' >> $BASH_ENV
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+            mise install
       - run:
           name: Build shadow CI binaries
           command: |
@@ -295,10 +289,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Go
+          name: Install mise and toolchains
           command: |
-            curl -sSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
-            echo 'export PATH=$PATH:/usr/local/go/bin' >> $BASH_ENV
+            curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+            mise install
       - run:
           name: Check shadow-ci.yml is not stale
           command: |
