@@ -45,6 +45,9 @@ func NewServer(config Config, chains []eth.ChainID) (*Server, error) {
 		validChains[chain] = struct{}{}
 	}
 
+	// Store the absolute root path back into the config to use as a trusted base directory
+	config.DataDir = root
+
 	return &Server{
 		config:      config,
 		validChains: validChains,
@@ -95,8 +98,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	filePath := filepath.Join(s.config.DataDir, chainID.String(), fileName)
 
+	// Ensure the resolved file path is contained within the configured data directory
+	absFilePath, err := filepath.Abs(filePath)
+	if err != nil {
+		s.logError("error resolving file path", err, dbName)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	dataDirWithSep := s.config.DataDir
+	if !strings.HasSuffix(dataDirWithSep, string(os.PathSeparator)) {
+		dataDirWithSep += string(os.PathSeparator)
+	}
+	filePathWithSep := absFilePath
+	if !strings.HasSuffix(filePathWithSep, string(os.PathSeparator)) {
+		filePathWithSep += string(os.PathSeparator)
+	}
+	if !strings.HasPrefix(filePathWithSep, dataDirWithSep) {
+		s.logError("attempt to access file outside of data directory", fmt.Errorf("invalid path %q", absFilePath), dbName)
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+
 	// Open the file for reading
-	file, err := os.Open(filePath)
+	file, err := os.Open(absFilePath)
 	if err != nil {
 		s.logError("error opening file", err, dbName)
 		http.Error(w, "file not found", http.StatusNotFound)
