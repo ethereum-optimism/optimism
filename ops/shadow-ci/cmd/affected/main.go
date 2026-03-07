@@ -133,7 +133,7 @@ func main() {
 		plan := planner.Plan(trigger, changedFiles, affected, emitter)
 
 		renderer := circleci.NewRenderer(cfg.Platform.CircleCI.Runners)
-		yamlData, err := renderer.RenderFromDecision(decision, plan)
+		yamlData, err := renderer.RenderFromDecision(decision, plan, cfg.Scoping)
 		if err != nil {
 			fatal("rendering continuation: %v", err)
 		}

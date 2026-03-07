@@ -29,6 +29,12 @@ job_categories:
       - "packages/contracts-bedrock/"
       - "op-deployer/"
     always_on_develop: true
+    command: |
+      cd packages/contracts-bedrock && forge build
+    workspace_paths:
+      - "packages/contracts-bedrock/forge-artifacts"
+      - "packages/contracts-bedrock/cache"
+    runner: medium
     description: "Build Solidity contracts (forge-build)"
 
   cannon_prestate:
@@ -37,6 +43,13 @@ job_categories:
       - "op-program/"
       - "rust/"
     always_on_develop: true
+    depends_on: ["contracts_build"]
+    command: |
+      make cannon-prestate
+    workspace_paths:
+      - "op-program/bin"
+      - "cannon/bin"
+    runner: large
     description: "Build cannon prestates for fault proofs"
 
   go_binaries_for_sysgo:
@@ -44,6 +57,14 @@ job_categories:
       - "cannon/"
       - "op-program/"
     always_on_develop: true
+    depends_on: ["contracts_build"]
+    command: |
+      make op-program cannon
+    workspace_paths:
+      - "op-program/bin"
+      - "cannon/bin"
+      - ".devnet"
+    runner: large
     description: "Build Go binaries for sysgo acceptance tests"
 
   rust_build:
@@ -51,12 +72,24 @@ job_categories:
       - "rust/"
       - "Cargo.lock"
     always_on_develop: true
+    command: |
+      cd rust && cargo build --release --workspace
+    workspace_paths:
+      - "rust/target/release"
+    runner: large
     description: "Build Rust binaries (kona, op-reth)"
 
   rust_submodule_build:
     trigger_paths:
       - "op-rbuilder/"
       - "rollup-boost/"
+    command: |
+      git submodule update --init --recursive op-rbuilder rollup-boost && \
+      cd op-rbuilder && cargo build --release
+    workspace_paths:
+      - "op-rbuilder/target/release"
+      - "rollup-boost/target/release"
+    runner: large
     description: "Build Rust submodule binaries (op-rbuilder, rollup-boost)"
 
   docker_build:
@@ -64,17 +97,21 @@ job_categories:
       - "ops/docker/"
       - "op-deployer/"
     schedule_only: false
+    command: |
+      ops/docker/build.sh
     description: "Build Docker images"
 
   # === GO TESTS ===
   go_tests:
     use_graph: true
     language: go
+    depends_on: ["contracts_build"]
     description: "Go unit tests (gotestsum, 12-node PR / 16-node develop)"
 
   go_fuzz:
     use_graph: true
     language: go
+    depends_on: ["contracts_build"]
     fuzz_packages:
       - package: op-challenger
         trigger_paths: ["op-challenger/"]
@@ -98,6 +135,7 @@ job_categories:
       - "cannon/"
       - "op-program/"
       - "packages/contracts-bedrock/src/"
+    depends_on: ["contracts_build", "cannon_prestate"]
     develop_only: true
     description: "Fault proof e2e tests (develop only, 480min timeout)"
 
@@ -105,12 +143,14 @@ job_categories:
     trigger_paths:
       - "cannon/"
       - "packages/contracts-bedrock/src/cannon/"
+    depends_on: ["contracts_build"]
     description: "Cannon Go lint and test"
 
   # === SOLIDITY TESTS ===
   sol_tests:
     use_graph: true
     language: sol
+    depends_on: ["contracts_build"]
     feature_matrix:
       - main
       - CUSTOM_GAS_TOKEN
@@ -126,6 +166,7 @@ job_categories:
   sol_upgrade:
     trigger_paths:
       - "packages/contracts-bedrock/"
+    depends_on: ["contracts_build"]
     chains:
       - { chain: op, base: mainnet }
       - { chain: base, base: mainnet }
@@ -136,17 +177,20 @@ job_categories:
   sol_heavy_fuzz:
     trigger_paths:
       - "packages/contracts-bedrock/"
+    depends_on: ["contracts_build"]
     schedule_only: true
     description: "Heavy fuzz nightly (ciheavy profile)"
 
   sol_coverage:
     trigger_paths:
       - "packages/contracts-bedrock/"
+    depends_on: ["contracts_build"]
     description: "Solidity coverage reports"
 
   sol_checks:
     trigger_paths:
       - "packages/contracts-bedrock/"
+    depends_on: ["contracts_build"]
     checks:
       - semver-lock-no-build
       - semver-diff-check-no-build
@@ -174,6 +218,7 @@ job_categories:
       - "packages/contracts-bedrock/"
       - "op-e2e/"
       - "rust/"
+    depends_on: ["contracts_build", "cannon_prestate", "go_binaries_for_sysgo", "rust_build"]
     always_on_develop: true
     description: "Sysgo acceptance tests (gateless)"
 
@@ -198,6 +243,7 @@ job_categories:
       - "rust/"
       - "op-rbuilder/"
       - "rollup-boost/"
+    depends_on: ["rust_build", "rust_submodule_build"]
     configs:
       - simple-kona
       - simple-kona-geth
@@ -242,6 +288,7 @@ job_categories:
       - "packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol"
       - "packages/contracts-bedrock/src/L1/L1StandardBridge.sol"
       - "packages/contracts-bedrock/src/L2/L2StandardBridge.sol"
+    depends_on: ["contracts_build"]
     develop_only: true
     description: "Kontrol formal verification"
 
@@ -250,16 +297,19 @@ job_categories:
     trigger_paths:
       - "cannon/"
       - "op-program/"
+    depends_on: ["cannon_prestate"]
     develop_only: true
     description: "Publish cannon prestates to GCS"
 
   publish_contract_artifacts:
     tag_only: true
     tag_pattern: "op-contracts/v.*"
+    depends_on: ["contracts_build"]
     description: "Publish contract artifacts to GCS"
 
   docker_publish:
     schedule_only: true
+    depends_on: ["docker_build"]
     description: "Publish multi-platform Docker images"
 
   # === FLAKE SHAKE ===

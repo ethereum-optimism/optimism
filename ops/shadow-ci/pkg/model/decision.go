@@ -40,6 +40,12 @@ type JobCategoryConfig struct {
 	Checks          []string         `yaml:"checks" json:"checks,omitempty"`
 	Configs         []string         `yaml:"configs" json:"configs,omitempty"`
 	Description     string           `yaml:"description" json:"description"`
+
+	// Dependency and build fields for dynamic pipeline generation.
+	DependsOn      []string `yaml:"depends_on" json:"depends_on,omitempty"`       // categories this one requires
+	Command        string   `yaml:"command" json:"command,omitempty"`             // build command (for non-test categories)
+	WorkspacePaths []string `yaml:"workspace_paths" json:"workspace_paths,omitempty"` // paths to persist in workspace
+	RunnerClass    string   `yaml:"runner" json:"runner,omitempty"`               // resource class override
 }
 
 // FuzzPackage maps a fuzz package to its trigger paths.

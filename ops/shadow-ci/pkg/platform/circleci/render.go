@@ -86,6 +86,7 @@ type templateJob struct {
 	Config      string
 	Env         map[string]string
 	Reason      string
+	Requires    []string
 }
 
 func targetIDs(targets []model.Target) string {
@@ -152,9 +153,73 @@ func yamlSafe(s string) string {
 // RenderFromDecision produces CircleCI continuation YAML from a PipelineDecision.
 // This is the dynamic pipeline generation path — the decision engine decides
 // which categories run, and this method generates the minimal YAML for them.
-func (r *Renderer) RenderFromDecision(decision *model.PipelineDecision, plan *model.TestPlan) ([]byte, error) {
+// It resolves the dependency graph: when a test category depends on a build
+// category (via depends_on in scoping config), the build job is automatically
+// included and the test job gets a `requires` clause.
+func (r *Renderer) RenderFromDecision(decision *model.PipelineDecision, plan *model.TestPlan, scoping model.ScopingConfig) ([]byte, error) {
 	data := decisionTemplateData{
 		Stage: string(decision.Stage),
+	}
+
+	// Collect all needed test/non-build category names.
+	neededCategories := make(map[string]bool)
+	for name, cd := range decision.Categories {
+		if cd.Needed && !cd.Skipped {
+			neededCategories[name] = true
+		}
+	}
+
+	// Resolve build dependencies: for each needed category, include its
+	// depends_on categories as build jobs.
+	buildJobsNeeded := make(map[string]bool)
+	categoryDeps := make(map[string][]string) // category → build job names it requires
+	for name := range neededCategories {
+		cat, ok := scoping.JobCategories[name]
+		if !ok {
+			continue
+		}
+		for _, dep := range cat.DependsOn {
+			depCat, depOk := scoping.JobCategories[dep]
+			if !depOk {
+				continue
+			}
+			buildName := fmt.Sprintf("shadow-%s", dep)
+			buildJobsNeeded[dep] = true
+
+			// Also resolve transitive deps of build categories.
+			for _, transDep := range depCat.DependsOn {
+				buildJobsNeeded[transDep] = true
+				// The build dep itself requires its own transitive dep.
+				transBuildName := fmt.Sprintf("shadow-%s", transDep)
+				categoryDeps[dep] = appendUnique(categoryDeps[dep], transBuildName)
+			}
+
+			categoryDeps[name] = appendUnique(categoryDeps[name], buildName)
+		}
+	}
+
+	// Generate build jobs.
+	for depName := range buildJobsNeeded {
+		cat, ok := scoping.JobCategories[depName]
+		if !ok {
+			continue
+		}
+		runner := "large"
+		if cat.RunnerClass != "" {
+			runner = cat.RunnerClass
+		}
+		bj := buildTemplateJob{
+			Name:           fmt.Sprintf("shadow-%s", depName),
+			Runner:         r.mapRunner(runner),
+			Timeout:        "30m",
+			Command:        strings.TrimSpace(cat.Command),
+			WorkspacePaths: cat.WorkspacePaths,
+			Requires:       categoryDeps[depName],
+		}
+		if bj.Command == "" {
+			bj.Command = fmt.Sprintf("echo 'Build step: %s'", depName)
+		}
+		data.BuildJobs = append(data.BuildJobs, bj)
 	}
 
 	// Add test jobs from the plan (graph-based categories).
@@ -171,7 +236,14 @@ func (r *Renderer) RenderFromDecision(decision *model.PipelineDecision, plan *mo
 				Env:         mergeEnv(job.Configurations),
 				Reason:      job.SelectionReason,
 			}
-			data.Jobs = append(data.Jobs, tj)
+			// Resolve requires from the job's language to find its category.
+			for catName, cat := range scoping.JobCategories {
+				if cat.UseGraph && cat.Language == job.Language {
+					tj.Requires = categoryDeps[catName]
+					break
+				}
+			}
+			data.TestJobs = append(data.TestJobs, tj)
 		}
 	}
 
@@ -180,13 +252,18 @@ func (r *Renderer) RenderFromDecision(decision *model.PipelineDecision, plan *mo
 		if !cd.Needed || cd.Skipped {
 			continue
 		}
-		// Skip graph-based categories — they're handled via plan jobs above.
-		if len(cd.Targets) > 0 {
+		// Skip graph-based categories (handled via plan jobs) and build categories.
+		if len(cd.Targets) > 0 || buildJobsNeeded[name] {
 			continue
+		}
+		cat := scoping.JobCategories[name]
+		runner := "large"
+		if cat.RunnerClass != "" {
+			runner = cat.RunnerClass
 		}
 		tj := templateJob{
 			Name:        fmt.Sprintf("shadow-%s", name),
-			Runner:      r.mapRunner("large"),
+			Runner:      r.mapRunner(runner),
 			Parallelism: 1,
 			Timeout:     "20m",
 			Language:    name,
@@ -194,17 +271,20 @@ func (r *Renderer) RenderFromDecision(decision *model.PipelineDecision, plan *mo
 			Config:      "default",
 			Env:         make(map[string]string),
 			Reason:      cd.Reason,
+			Requires:    categoryDeps[name],
 		}
 		if len(cd.Features) > 0 {
 			tj.Targets = strings.Join(cd.Features, ",")
 		}
-		data.Jobs = append(data.Jobs, tj)
+		data.TestJobs = append(data.TestJobs, tj)
 	}
 
-	// Comparison job depends on all test jobs.
-	data.ComparisonDeps = make([]string, len(data.Jobs))
-	for i, j := range data.Jobs {
-		data.ComparisonDeps[i] = j.Name
+	// Comparison job depends on all build + test jobs.
+	for _, bj := range data.BuildJobs {
+		data.ComparisonDeps = append(data.ComparisonDeps, bj.Name)
+	}
+	for _, tj := range data.TestJobs {
+		data.ComparisonDeps = append(data.ComparisonDeps, tj.Name)
 	}
 
 	tmpl, err := template.New("decision-workflow").Funcs(template.FuncMap{
@@ -222,10 +302,29 @@ func (r *Renderer) RenderFromDecision(decision *model.PipelineDecision, plan *mo
 	return buf.Bytes(), nil
 }
 
+func appendUnique(slice []string, item string) []string {
+	for _, s := range slice {
+		if s == item {
+			return slice
+		}
+	}
+	return append(slice, item)
+}
+
 type decisionTemplateData struct {
 	Stage          string
-	Jobs           []templateJob
+	BuildJobs      []buildTemplateJob
+	TestJobs       []templateJob
 	ComparisonDeps []string
+}
+
+type buildTemplateJob struct {
+	Name           string
+	Runner         string
+	Timeout        string
+	Command        string
+	WorkspacePaths []string
+	Requires       []string
 }
 
 var decisionWorkflowTemplate = `# Auto-generated by shadow-ci decision engine. Do not edit.
@@ -234,7 +333,28 @@ var decisionWorkflowTemplate = `# Auto-generated by shadow-ci decision engine. D
 version: 2.1
 
 jobs:
-{{- range .Jobs }}
+{{- range .BuildJobs }}
+  {{ .Name }}:
+    machine:
+      image: default
+    resource_class: {{ .Runner }}
+    steps:
+      - checkout
+      - run:
+          name: Build ({{ .Name }})
+          no_output_timeout: {{ .Timeout }}
+          command: |
+            {{ .Command }}
+{{- if .WorkspacePaths }}
+      - persist_to_workspace:
+          root: .
+          paths:
+{{- range .WorkspacePaths }}
+            - {{ . }}
+{{- end }}
+{{- end }}
+{{ end }}
+{{- range .TestJobs }}
   {{ .Name }}:
     machine:
       image: default
@@ -280,8 +400,27 @@ jobs:
 workflows:
   shadow-ci:
     jobs:
-{{- range .Jobs }}
+{{- range .BuildJobs }}
+{{- if .Requires }}
+      - {{ .Name }}:
+          requires:
+{{- range .Requires }}
+            - {{ . }}
+{{- end }}
+{{- else }}
       - {{ .Name }}
+{{- end }}
+{{- end }}
+{{- range .TestJobs }}
+{{- if .Requires }}
+      - {{ .Name }}:
+          requires:
+{{- range .Requires }}
+            - {{ . }}
+{{- end }}
+{{- else }}
+      - {{ .Name }}
+{{- end }}
 {{- end }}
       - shadow-comparison:
           requires:
