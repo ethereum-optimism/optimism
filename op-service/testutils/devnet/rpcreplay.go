@@ -72,9 +72,9 @@ type RPCReplayProxy struct {
 	srv         *http.Server
 	listenPort  int
 
-	mu        sync.Mutex
-	fixtures  map[string]rpcReplayEntry
-	metadata  RPCReplayFixtureMetadata
+	mu       sync.Mutex
+	fixtures map[string]rpcReplayEntry
+	metadata RPCReplayFixtureMetadata
 }
 
 // NewRPCReplayProxy creates a new replay proxy.
