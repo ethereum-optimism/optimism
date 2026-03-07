@@ -1,12 +1,9 @@
-# Shadow CI — dynamic pipeline generation.
-# This is a thin shell. All intelligence lives in ops/shadow-ci/.
-# DO NOT add jobs here — they are generated dynamically by the decision engine.
+# Shadow CI — adaptive test placement engine.
+# All intelligence lives in ops/shadow-ci/.
 #
-# How it works:
-# 1. shadow-ci-setup builds the decision engine and runs it
-# 2. The engine computes affected targets, evaluates all job categories,
-#    applies stage-based placement, and generates continuation YAML
-# 3. CircleCI's continuation API receives the generated YAML and runs it
+# This config is included via path-filtering continuation from config.yml.
+# Since it's already a continued pipeline, it cannot use a second continuation.
+# Instead, the setup job computes the full pipeline decision and stores artifacts.
 #
 # State persistence:
 # State (flake DB, correlation matrix) is persisted via Upstash Redis.
@@ -22,9 +19,6 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
-
-orbs:
-  continuation: circleci/continuation@1.0.0
 
 jobs:
   shadow-ci-setup:
@@ -54,32 +48,33 @@ jobs:
       - run:
           name: Update flake state
           command: |
-            # Flake reactor loads state from the configured backend
-            # (circleci artifacts by default), processes recent events,
-            # and saves updated state back.
             ops/shadow-ci/bin/flake-reactor \
               --config ops/shadow-ci/config \
               --events-dir /tmp/shadow-ci/events \
               --branch "$CIRCLE_BRANCH"
       - run:
-          name: Generate pipeline
+          name: Compute pipeline decision
           command: |
-            # The decision engine loads flake DB from the state store,
-            # computes affected targets, applies stage placement, and
-            # renders continuation YAML.
             ops/shadow-ci/bin/affected \
               --config ops/shadow-ci/config \
               --repo . \
               --branch "$CIRCLE_BRANCH" \
-              --continue \
-              --continuation-output /tmp/shadow-ci-continuation.yml \
               --events-dir /tmp/shadow-ci/events \
               --pipeline-id "$CIRCLE_PIPELINE_ID"
+      - run:
+          name: Validate generated artifacts
+          command: |
+            echo "=== Decision ==="
+            cat /tmp/shadow-ci/decision.json | python3 -m json.tool
+            echo ""
+            echo "=== Affected ==="
+            cat /tmp/shadow-ci/affected.json | python3 -m json.tool
       - store_artifacts:
-          path: /tmp/shadow-ci/artifacts
-          destination: shadow-ci-state
-      - continuation/continue:
-          configuration_path: /tmp/shadow-ci-continuation.yml
+          path: /tmp/shadow-ci/decision.json
+          destination: shadow-ci/decision.json
+      - store_artifacts:
+          path: /tmp/shadow-ci/affected.json
+          destination: shadow-ci/affected.json
 
 workflows:
   shadow-ci:
