@@ -75,3 +75,60 @@ func TestComparisonEngine_FlakeInShadow(t *testing.T) {
 	assert.Equal(t, 1, result.MainCIFlakeFailures)
 	assert.Equal(t, 1, result.ShadowCIFlakes)
 }
+
+func TestComparisonEngine_MultipleFlakesDeduped(t *testing.T) {
+	ce := NewComparisonEngine(nil)
+
+	// Two flaky tests with the same fingerprint should be deduped.
+	shadow := []model.TestResult{
+		{Test: model.TestIdentifier{Name: "TestFlaky1", Package: "pkg"}, Status: model.StatusFail, Classification: model.Flake, Fingerprint: "go:pkg:same"},
+		{Test: model.TestIdentifier{Name: "TestFlaky2", Package: "pkg2"}, Status: model.StatusFail, Classification: model.Flake, Fingerprint: "go:pkg:same"},
+		{Test: model.TestIdentifier{Name: "TestFlaky3", Package: "pkg3"}, Status: model.StatusFail, Classification: model.Flake, Fingerprint: "go:pkg:different"},
+	}
+	main := []model.TestResult{}
+
+	result := ce.Compare(shadow, main)
+	assert.Equal(t, 2, result.ShadowCIFlakes) // 2 unique fingerprints
+	assert.Len(t, result.UniqueFingerprints, 2)
+}
+
+func TestComparisonEngine_PartialCatchRate(t *testing.T) {
+	ce := NewComparisonEngine(nil)
+
+	shadow := []model.TestResult{
+		{Test: model.TestIdentifier{Name: "TestA", Package: "pkg"}, Status: model.StatusFail, Classification: model.RealFailure},
+		// TestB not in shadow set
+	}
+	main := []model.TestResult{
+		{Test: model.TestIdentifier{Name: "TestA", Package: "pkg"}, Status: model.StatusFail},
+		{Test: model.TestIdentifier{Name: "TestB", Package: "pkg"}, Status: model.StatusFail},
+	}
+
+	result := ce.Compare(shadow, main)
+	assert.Equal(t, 0.5, result.CatchRate) // caught 1 of 2
+	assert.Equal(t, 1, result.ShadowCICaught)
+	assert.Equal(t, 1, result.FalseNegatives)
+}
+
+func TestComparisonEngine_Performance(t *testing.T) {
+	ce := NewComparisonEngine(nil)
+
+	shadow := []model.TestResult{
+		{Test: model.TestIdentifier{Name: "TestA", Package: "pkg"}, Duration: 5 * 60e9}, // 5 min
+	}
+	main := []model.TestResult{
+		{Test: model.TestIdentifier{Name: "TestA", Package: "pkg"}, Duration: 10 * 60e9}, // 10 min
+	}
+
+	result := ce.Compare(shadow, main)
+	assert.Equal(t, 2.0, result.Speedup) // 10min / 5min
+	assert.InDelta(t, 0.5, result.ComputeReduction, 0.01)
+}
+
+func TestComparisonEngine_EmptyResults(t *testing.T) {
+	ce := NewComparisonEngine(nil)
+	result := ce.Compare(nil, nil)
+	assert.Equal(t, 1.0, result.CatchRate) // no failures = perfect
+	assert.Equal(t, 0, result.FalseNegatives)
+	assert.Equal(t, 0, result.ShadowCICaught)
+}
