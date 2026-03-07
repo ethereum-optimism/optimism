@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/adapters"
@@ -22,8 +23,11 @@ func main() {
 	repoRoot := flag.String("repo", ".", "Repository root")
 	base := flag.String("base", "origin/develop", "Base ref for diff")
 	head := flag.String("head", "HEAD", "Head ref for diff")
-	output := flag.String("output", "/tmp/shadow-ci-affected.json", "Output path")
-	eventsDir := flag.String("events-dir", "/tmp/shadow-ci-events", "Events directory")
+	branch := flag.String("branch", os.Getenv("CIRCLE_BRANCH"), "Current branch")
+	schedule := flag.Bool("schedule", false, "Whether this is a scheduled run")
+	output := flag.String("output", "/tmp/shadow-ci/affected.json", "Affected output path")
+	decisionOutput := flag.String("decision-output", "/tmp/shadow-ci/decision.json", "Pipeline decision output path")
+	eventsDir := flag.String("events-dir", "/tmp/shadow-ci/events", "Events directory")
 	pipelineID := flag.String("pipeline-id", os.Getenv("CIRCLE_PIPELINE_ID"), "Pipeline ID")
 	flag.Parse()
 
@@ -44,33 +48,67 @@ func main() {
 
 	registry := buildRegistry(cfg)
 	store := events.NewLocalStore(*eventsDir)
-	emitter := events.NewEmitter(store, *pipelineID, 0, *head, "")
+	emitter := events.NewEmitter(store, *pipelineID, 0, *head, *branch)
 
+	// Phase 1: compute affected targets per language (graph-based).
 	computer := engine.NewAffectedComputer(registry, cfg.Scoping, *repoRoot)
-	result, err := computer.Compute(changedFiles, emitter)
+	affected, err := computer.Compute(changedFiles, emitter)
 	if err != nil {
 		fatal("computing affected: %v", err)
 	}
 
-	for lang, lr := range result.ByLanguage {
+	for lang, lr := range affected.ByLanguage {
 		fmt.Printf("[%s] selected=%d total=%d skip=%.1f%% always_run=%d\n",
 			lang, lr.SelectedTargets, lr.TotalTargets, lr.SkipRate*100, lr.AlwaysRunCount)
 	}
 
-	data, err := json.MarshalIndent(result, "", "  ")
+	// Phase 2: produce pipeline decision covering ALL job categories.
+	de := engine.NewDecisionEngine(cfg.Scoping, affected, emitter)
+	decision := de.Decide(changedFiles, *branch, *schedule)
+
+	// Print decision summary.
+	fmt.Println("\n=== Pipeline Decision ===")
+	needed, skipped := 0, 0
+	for name, cd := range decision.Categories {
+		if cd.Needed {
+			needed++
+			detail := cd.Reason
+			if len(cd.Targets) > 0 {
+				detail += fmt.Sprintf(" (%d targets)", len(cd.Targets))
+			}
+			if len(cd.Packages) > 0 {
+				detail += fmt.Sprintf(" [%s]", strings.Join(cd.Packages, ", "))
+			}
+			fmt.Printf("  RUN  %-30s %s\n", name, detail)
+		} else if cd.Skipped {
+			skipped++
+			fmt.Printf("  SKIP %-30s %s\n", name, cd.SkipWhy)
+		}
+	}
+	fmt.Printf("\nTotal: %d run, %d skip, %d categories\n", needed, skipped, len(decision.Categories))
+
+	// Write outputs.
+	os.MkdirAll(filepath.Dir(*output), 0o755)
+	os.MkdirAll(filepath.Dir(*decisionOutput), 0o755)
+
+	writeJSON(*output, affected)
+	writeJSON(*decisionOutput, decision)
+
+	fmt.Printf("\nWrote affected targets to %s\n", *output)
+	fmt.Printf("Wrote pipeline decision to %s\n", *decisionOutput)
+}
+
+func writeJSON(path string, v any) {
+	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		fatal("marshaling: %v", err)
 	}
-
-	if err := os.WriteFile(*output, data, 0o644); err != nil {
-		fatal("writing output: %v", err)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		fatal("writing %s: %v", path, err)
 	}
-
-	fmt.Printf("Wrote affected targets to %s\n", *output)
 }
 
 func getChangedFiles(repoRoot, base, head string) ([]string, error) {
-	// Prevent git flag injection via --base or --head values.
 	if strings.HasPrefix(base, "-") || strings.HasPrefix(head, "-") {
 		return nil, fmt.Errorf("invalid ref: must not start with '-'")
 	}

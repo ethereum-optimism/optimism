@@ -5,10 +5,9 @@ confidence_threshold: 0.9
 # before it's eligible for scoping.
 always_run_graduation_weeks: 8
 
-# Special paths that force ALL tests in ALL languages.
+# Special paths that force ALL jobs.
 force_all_paths:
   - ".circleci/"
-  - "ops/"
   - "mise.toml"
 
 # Always-run targets by language.
@@ -20,6 +19,267 @@ always_run:
   sol:
     - "test/invariants/"
   rust: []
+
+# Job categories — every job in the CI maps to a category.
+# Shadow CI decides per-category whether to run, skip, or defer.
+job_categories:
+  # === BUILDS ===
+  contracts_build:
+    trigger_paths:
+      - "packages/contracts-bedrock/"
+      - "op-deployer/"
+    always_on_develop: true
+    description: "Build Solidity contracts (forge-build)"
+
+  cannon_prestate:
+    trigger_paths:
+      - "cannon/"
+      - "op-program/"
+      - "rust/"
+    always_on_develop: true
+    description: "Build cannon prestates for fault proofs"
+
+  go_binaries_for_sysgo:
+    trigger_paths:
+      - "cannon/"
+      - "op-program/"
+    always_on_develop: true
+    description: "Build Go binaries for sysgo acceptance tests"
+
+  rust_build:
+    trigger_paths:
+      - "rust/"
+      - "Cargo.lock"
+    always_on_develop: true
+    description: "Build Rust binaries (kona, op-reth)"
+
+  rust_submodule_build:
+    trigger_paths:
+      - "op-rbuilder/"
+      - "rollup-boost/"
+    description: "Build Rust submodule binaries (op-rbuilder, rollup-boost)"
+
+  docker_build:
+    trigger_paths:
+      - "ops/docker/"
+      - "op-deployer/"
+    schedule_only: false
+    description: "Build Docker images"
+
+  # === GO TESTS ===
+  go_tests:
+    use_graph: true
+    language: go
+    description: "Go unit tests (gotestsum, 12-node PR / 16-node develop)"
+
+  go_fuzz:
+    use_graph: true
+    language: go
+    fuzz_packages:
+      - package: op-challenger
+        trigger_paths: ["op-challenger/"]
+      - package: op-node
+        trigger_paths: ["op-node/"]
+      - package: op-service
+        trigger_paths: ["op-service/"]
+      - package: op-chain-ops
+        trigger_paths: ["op-chain-ops/"]
+      - package: cannon
+        trigger_paths: ["cannon/", "packages/contracts-bedrock/src/cannon/"]
+        needs_artifacts: true
+      - package: op-e2e
+        trigger_paths: ["op-e2e/", "packages/contracts-bedrock/src/"]
+        needs_artifacts: true
+    description: "Go fuzz tests per package"
+
+  go_fault_proofs:
+    trigger_paths:
+      - "op-e2e/"
+      - "cannon/"
+      - "op-program/"
+      - "packages/contracts-bedrock/src/"
+    develop_only: true
+    description: "Fault proof e2e tests (develop only, 480min timeout)"
+
+  cannon_tests:
+    trigger_paths:
+      - "cannon/"
+      - "packages/contracts-bedrock/src/cannon/"
+    description: "Cannon Go lint and test"
+
+  # === SOLIDITY TESTS ===
+  sol_tests:
+    use_graph: true
+    language: sol
+    feature_matrix:
+      - main
+      - CUSTOM_GAS_TOKEN
+      - OPTIMISM_PORTAL_INTEROP
+      - OPCM_V2
+      - OPCM_V2,CUSTOM_GAS_TOKEN
+      - OPCM_V2,OPTIMISM_PORTAL_INTEROP
+    profiles:
+      pr: liteci
+      develop: ci
+    description: "Solidity tests with feature matrix"
+
+  sol_upgrade:
+    trigger_paths:
+      - "packages/contracts-bedrock/"
+    chains:
+      - { chain: op, base: mainnet }
+      - { chain: base, base: mainnet }
+      - { chain: ink, base: mainnet }
+      - { chain: unichain, base: mainnet }
+    description: "Solidity upgrade tests on fork chains"
+
+  sol_heavy_fuzz:
+    trigger_paths:
+      - "packages/contracts-bedrock/"
+    schedule_only: true
+    description: "Heavy fuzz nightly (ciheavy profile)"
+
+  sol_coverage:
+    trigger_paths:
+      - "packages/contracts-bedrock/"
+    description: "Solidity coverage reports"
+
+  sol_checks:
+    trigger_paths:
+      - "packages/contracts-bedrock/"
+    checks:
+      - semver-lock-no-build
+      - semver-diff-check-no-build
+      - validate-deploy-configs
+      - lint
+      - snapshots-check-no-build
+      - interfaces-check-no-build
+      - reinitializer-check-no-build
+      - size-check
+      - unused-imports-check-no-build
+      - strict-pragma-check-no-build
+      - validate-spacers-no-build
+      - opcm-upgrade-checks-no-build
+    description: "Solidity static checks"
+
+  # === ACCEPTANCE TESTS ===
+  acceptance_tests:
+    trigger_paths:
+      - "op-node/"
+      - "op-batcher/"
+      - "op-proposer/"
+      - "op-challenger/"
+      - "op-supervisor/"
+      - "op-program/"
+      - "packages/contracts-bedrock/"
+      - "op-e2e/"
+      - "rust/"
+    always_on_develop: true
+    description: "Sysgo acceptance tests (gateless)"
+
+  # === RUST CI ===
+  rust_ci:
+    trigger_paths:
+      - "rust/"
+      - "Cargo.lock"
+    checks:
+      - fmt
+      - clippy
+      - deny
+      - zepter
+      - typos
+      - docs
+      - doctest
+      - cargo-tests
+    description: "Rust CI checks and tests"
+
+  rust_e2e:
+    trigger_paths:
+      - "rust/"
+      - "op-rbuilder/"
+      - "rollup-boost/"
+    configs:
+      - simple-kona
+      - simple-kona-geth
+      - simple-kona-sequencer
+      - large-kona-sequencer
+    description: "Rust e2e tests (sysgo devnet)"
+
+  # === LINT & CHECKS ===
+  go_lint:
+    trigger_paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yaml"
+    description: "Go lint (golangci-lint)"
+
+  semgrep:
+    trigger_paths:
+      - "packages/contracts-bedrock/"
+      - ".semgrep/"
+    description: "Semgrep security scanning"
+
+  shell_check:
+    trigger_paths:
+      - "**/*.sh"
+      - "ops/"
+    description: "ShellCheck linting"
+
+  generated_mocks:
+    trigger_paths:
+      - "op-node/"
+      - "op-service/"
+    description: "Check generated mocks are up to date"
+
+  todo_issues:
+    always: true
+    description: "Check TODO/FIXME annotations"
+
+  kontrol:
+    trigger_paths:
+      - "packages/contracts-bedrock/src/L1/OptimismPortal2.sol"
+      - "packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol"
+      - "packages/contracts-bedrock/src/L1/L1StandardBridge.sol"
+      - "packages/contracts-bedrock/src/L2/L2StandardBridge.sol"
+    develop_only: true
+    description: "Kontrol formal verification"
+
+  # === PUBLISHING ===
+  publish_cannon_prestates:
+    trigger_paths:
+      - "cannon/"
+      - "op-program/"
+    develop_only: true
+    description: "Publish cannon prestates to GCS"
+
+  publish_contract_artifacts:
+    tag_only: true
+    tag_pattern: "op-contracts/v.*"
+    description: "Publish contract artifacts to GCS"
+
+  docker_publish:
+    schedule_only: true
+    description: "Publish multi-platform Docker images"
+
+  # === FLAKE SHAKE ===
+  flake_shake:
+    schedule_only: true
+    description: "Flake shake testing (daily)"
+
+  # === SYNC TESTS ===
+  sync_tests:
+    schedule_only: true
+    networks:
+      - op-sepolia
+      - base-sepolia
+      - unichain-sepolia
+      - op-mainnet
+      - base-mainnet
+    sync_modes:
+      - consensus-layer
+      - execution-layer
+    description: "Sync tests across networks (daily)"
 
 # Acceptance test gate mapping.
 acceptance_gates:

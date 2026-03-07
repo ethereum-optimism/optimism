@@ -40,12 +40,13 @@ type FeatureRule struct {
 
 // ScopingConfig controls target scoping and confidence.
 type ScopingConfig struct {
-	ConfidenceThreshold      float64                    `yaml:"confidence_threshold" json:"confidence_threshold"`
-	AlwaysRunGraduationWeeks int                        `yaml:"always_run_graduation_weeks" json:"always_run_graduation_weeks"`
-	ForceAllPaths            []string                   `yaml:"force_all_paths" json:"force_all_paths"`
-	AlwaysRun                map[string][]string         `yaml:"always_run" json:"always_run"`
-	AcceptanceGates          map[string]AcceptanceGate   `yaml:"acceptance_gates" json:"acceptance_gates"`
-	Activation               ActivationConfig            `yaml:"activation" json:"activation"`
+	ConfidenceThreshold      float64                          `yaml:"confidence_threshold" json:"confidence_threshold"`
+	AlwaysRunGraduationWeeks int                              `yaml:"always_run_graduation_weeks" json:"always_run_graduation_weeks"`
+	ForceAllPaths            []string                         `yaml:"force_all_paths" json:"force_all_paths"`
+	AlwaysRun                map[string][]string               `yaml:"always_run" json:"always_run"`
+	JobCategories            map[string]JobCategoryConfig      `yaml:"job_categories" json:"job_categories"`
+	AcceptanceGates          map[string]AcceptanceGate         `yaml:"acceptance_gates" json:"acceptance_gates"`
+	Activation               ActivationConfig                  `yaml:"activation" json:"activation"`
 }
 
 // AcceptanceGate defines an acceptance test gate.

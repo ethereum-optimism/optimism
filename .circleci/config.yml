@@ -124,6 +124,8 @@ workflows:
             .* c-flake-shake-workers << pipeline.parameters.flake-shake-workers >> .circleci/continue/main.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
 
+            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/shadow-ci.yml
+
             (rust|\.circleci)/.* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
             (rust|\.circleci)/.* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
             (rust|\.circleci)/.* c-base_image << pipeline.parameters.base_image >> .circleci/continue/rust-ci.yml

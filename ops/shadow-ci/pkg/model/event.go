@@ -35,6 +35,9 @@ const (
 	EventGraphUpdated      EventType = "graph.updated"
 	EventConfidenceChanged EventType = "confidence.changed"
 
+	// Decision events.
+	EventPipelineDecision EventType = "pipeline.decision"
+
 	// Report events.
 	EventWeeklyReport EventType = "report.weekly"
 )
