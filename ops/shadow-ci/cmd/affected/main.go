@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/events"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/platform/circleci"
+	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/state"
 )
 
 func main() {
@@ -66,12 +67,22 @@ func main() {
 			lang, lr.SelectedTargets, lr.TotalTargets, lr.SkipRate*100, lr.AlwaysRunCount)
 	}
 
-	// Load flake database (optional).
+	// Load flake database via state store (or direct path as fallback).
+	stateStore, err := state.FromConfig(cfg.Platform.State, *branch)
+	if err != nil {
+		fatal("creating state store: %v", err)
+	}
+
 	var flakeDB *model.FlakeDB
 	if *flakeDBPath != "" {
 		flakeDB, err = model.LoadFlakeDB(*flakeDBPath)
 		if err != nil {
 			fatal("loading flake db: %v", err)
+		}
+	} else {
+		flakeDB, err = model.LoadFlakeDBFromStore(stateStore, "flake-db")
+		if err != nil {
+			fatal("loading flake db from state store: %v", err)
 		}
 	}
 

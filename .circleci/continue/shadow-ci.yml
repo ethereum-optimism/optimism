@@ -7,6 +7,16 @@
 # 2. The engine computes affected targets, evaluates all job categories,
 #    applies stage-based placement, and generates continuation YAML
 # 3. CircleCI's continuation API receives the generated YAML and runs it
+#
+# State persistence:
+# State (flake DB, correlation matrix) is persisted via CircleCI artifacts.
+# Each run fetches state from the previous successful pipeline, updates it,
+# and stores it as an artifact for the next run. Configure via platform.yaml:
+#   state:
+#     backend: circleci
+#     circleci:
+#       artifacts_dir: /tmp/shadow-ci/artifacts
+#       state_prefix: shadow-ci-state/
 
 version: 2.1
 
@@ -49,18 +59,19 @@ jobs:
       - run:
           name: Update flake state
           command: |
-            if [ -f /tmp/shadow-ci/flake-db.json ]; then
-              ops/shadow-ci/bin/flake-reactor \
-                --events-dir /tmp/shadow-ci/events \
-                --flake-db /tmp/shadow-ci/flake-db.json
-            fi
+            # Flake reactor loads state from the configured backend
+            # (circleci artifacts by default), processes recent events,
+            # and saves updated state back.
+            ops/shadow-ci/bin/flake-reactor \
+              --config ops/shadow-ci/config \
+              --events-dir /tmp/shadow-ci/events \
+              --branch "$CIRCLE_BRANCH"
       - run:
           name: Generate pipeline
           command: |
-            FLAKE_DB_FLAG=""
-            if [ -f /tmp/shadow-ci/flake-db.json ]; then
-              FLAKE_DB_FLAG="--flake-db /tmp/shadow-ci/flake-db.json"
-            fi
+            # The decision engine loads flake DB from the state store,
+            # computes affected targets, applies stage placement, and
+            # renders continuation YAML.
             ops/shadow-ci/bin/affected \
               --config ops/shadow-ci/config \
               --repo . \
@@ -68,8 +79,10 @@ jobs:
               --continue \
               --continuation-output /tmp/shadow-ci-continuation.yml \
               --events-dir /tmp/shadow-ci/events \
-              --pipeline-id "$CIRCLE_PIPELINE_ID" \
-              $FLAKE_DB_FLAG
+              --pipeline-id "$CIRCLE_PIPELINE_ID"
+      - store_artifacts:
+          path: /tmp/shadow-ci/artifacts
+          destination: shadow-ci-state
       - continuation/continue:
           configuration_path: /tmp/shadow-ci-continuation.yml
 

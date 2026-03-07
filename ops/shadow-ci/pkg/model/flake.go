@@ -6,6 +6,13 @@ import (
 	"time"
 )
 
+// StateStore is a minimal interface for loading/saving state blobs.
+// This avoids a circular import with the state package.
+type StateStore interface {
+	Load(key string) ([]byte, error)
+	Save(key string, data []byte) error
+}
+
 // FlakeState represents a test's position in the flake lifecycle.
 type FlakeState string
 
@@ -103,4 +110,28 @@ func (db *FlakeDB) Save(path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+// LoadFlakeDBFromStore loads a FlakeDB from a StateStore. Returns an empty DB
+// if the key doesn't exist.
+func LoadFlakeDBFromStore(store StateStore, key string) (*FlakeDB, error) {
+	data, err := store.Load(key)
+	if err != nil {
+		// Treat not-found as empty DB.
+		return NewFlakeDB(), nil
+	}
+	db := NewFlakeDB()
+	if err := json.Unmarshal(data, db); err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+// SaveToStore writes the FlakeDB to a StateStore.
+func (db *FlakeDB) SaveToStore(store StateStore, key string) error {
+	data, err := json.MarshalIndent(db, "", "  ")
+	if err != nil {
+		return err
+	}
+	return store.Save(key, data)
 }

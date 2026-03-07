@@ -32,3 +32,13 @@ events:
   gcs:
     bucket: "op-shadow-ci"
     project: "oplabs-ci"
+
+# Cross-pipeline state persistence (flake DB, correlation matrix, etc.).
+# Backend options: "local" (dev/testing), "circleci" (via artifacts).
+state:
+  backend: circleci
+  local:
+    dir: /tmp/shadow-ci/state
+  circleci:
+    artifacts_dir: /tmp/shadow-ci/artifacts
+    state_prefix: "shadow-ci-state/"

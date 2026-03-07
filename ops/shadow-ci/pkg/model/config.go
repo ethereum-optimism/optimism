@@ -71,9 +71,10 @@ type ComparisonConfig struct {
 
 // PlatformConfig configures the CI platform.
 type PlatformConfig struct {
-	Platform string          `yaml:"platform" json:"platform"`
-	CircleCI CircleCIConfig  `yaml:"circleci" json:"circleci"`
+	Platform string           `yaml:"platform" json:"platform"`
+	CircleCI CircleCIConfig   `yaml:"circleci" json:"circleci"`
 	Events   EventStoreConfig `yaml:"events" json:"events"`
+	State    StateStoreConfig `yaml:"state" json:"state"`
 }
 
 // CircleCIConfig configures CircleCI-specific settings.
@@ -105,4 +106,22 @@ type LocalConfig struct {
 type GCSConfig struct {
 	Bucket  string `yaml:"bucket" json:"bucket"`
 	Project string `yaml:"project" json:"project"`
+}
+
+// StateStoreConfig configures cross-pipeline state persistence.
+type StateStoreConfig struct {
+	// Backend selects the state store implementation: "local", "circleci".
+	Backend string `yaml:"backend" json:"backend"`
+
+	// Local configuration (used when backend is "local").
+	Local LocalConfig `yaml:"local,omitempty" json:"local,omitempty"`
+
+	// CircleCI configuration (used when backend is "circleci").
+	CircleCI CircleCIStateConfig `yaml:"circleci,omitempty" json:"circleci,omitempty"`
+}
+
+// CircleCIStateConfig configures the CircleCI artifact-backed state store.
+type CircleCIStateConfig struct {
+	ArtifactsDir string `yaml:"artifacts_dir" json:"artifacts_dir"` // local dir for store_artifacts
+	StatePrefix  string `yaml:"state_prefix" json:"state_prefix"`   // artifact path prefix
 }
