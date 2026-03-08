@@ -1,4 +1,3 @@
-// op-acceptance-tests/tests/custom_gas_token/helpers.go
 package custom_gas_token
 
 import (
@@ -8,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
 
@@ -23,7 +21,7 @@ func newSystem(t devtest.T) *presets.Minimal {
 	liq := new(big.Int).Mul(big.NewInt(1_000_000), big.NewInt(1e18)) // 1M tokens * 18 decimals
 	return presets.NewMinimal(t,
 		stack.MakeCommon(sysgo.WithDeployerOptions(
-			sysgo.WithCustomGasToken("Custom Gas Token", "CGT", liq, gethcommon.Address{}),
+			sysgo.WithCustomGasToken("Custom Gas Token", "CGT", liq, common.Address{}),
 		)),
 	)
 }
