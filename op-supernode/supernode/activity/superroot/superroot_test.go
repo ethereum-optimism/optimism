@@ -17,12 +17,13 @@ import (
 )
 
 type mockCC struct {
-	verL2  eth.BlockID
-	verL1  eth.BlockID
-	optL2  eth.BlockID
-	optL1  eth.BlockID
-	output eth.Bytes32
-	status *eth.SyncStatus
+	verL2           eth.BlockID
+	verL1           eth.BlockID
+	optL2           eth.BlockID
+	optL1           eth.BlockID
+	output          eth.Bytes32
+	status          *eth.SyncStatus
+	verifierL1s     []eth.BlockID
 
 	verifiedErr   error
 	outputErr     error
@@ -35,7 +36,9 @@ func (m *mockCC) Stop(ctx context.Context) error   { return nil }
 func (m *mockCC) Pause(ctx context.Context) error  { return nil }
 func (m *mockCC) Resume(ctx context.Context) error { return nil }
 
-func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {
+func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
+func (m *mockCC) VerifierCurrentL1s() []eth.BlockID {
+	return m.verifierL1s
 }
 
 func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
@@ -317,6 +320,54 @@ func TestSuperroot_AtTimestamp_EmptyChains(t *testing.T) {
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
 	require.Len(t, out.OptimisticAtTimestamp, 0)
+}
+
+func TestSuperroot_AtTimestamp_VerifierL1ReducesCurrentL1(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verL2:  eth.BlockID{Number: 100},
+			verL1:  eth.BlockID{Number: 1000},
+			optL2:  eth.BlockID{Number: 100},
+			optL1:  eth.BlockID{Number: 1000},
+			output: eth.Bytes32{},
+			status: &eth.SyncStatus{
+				CurrentL1: eth.L1BlockRef{Number: 2000},
+			},
+			// Verifier has only processed up to L1 block 1500, which is less than derivation's 2000
+			verifierL1s: []eth.BlockID{{Number: 1500}},
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	out, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	// CurrentL1 should be 1500 (verifier), not 2000 (derivation)
+	require.Equal(t, uint64(1500), out.CurrentL1.Number)
+}
+
+func TestSuperroot_AtTimestamp_VerifierL1HigherThanDerivationDoesNotIncrease(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verL2:  eth.BlockID{Number: 100},
+			verL1:  eth.BlockID{Number: 1000},
+			optL2:  eth.BlockID{Number: 100},
+			optL1:  eth.BlockID{Number: 1000},
+			output: eth.Bytes32{},
+			status: &eth.SyncStatus{
+				CurrentL1: eth.L1BlockRef{Number: 2000},
+			},
+			// Verifier is ahead of derivation — should not increase the minimum
+			verifierL1s: []eth.BlockID{{Number: 3000}},
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	out, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	// CurrentL1 should still be 2000 (derivation), since verifier is ahead
+	require.Equal(t, uint64(2000), out.CurrentL1.Number)
 }
 
 // assertErr returns a generic error instance used to signal mock failures.

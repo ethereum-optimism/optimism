@@ -57,10 +57,8 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		finalizedInitialized  bool
 		chainOutputs          = make([]eth.ChainIDAndOutput, 0, len(s.chains))
 	)
-	// Get current l1s
-	// this informs callers that the chains local views have considered at least up to this L1 block
-	// TODO(#18651): Currently there are no verifiers to consider, but once there are, this needs to be updated to consider if
-	// they have also processed the L1 data.
+	// Get current L1s — the minimum L1 block that all derivation pipelines and verifiers have processed.
+	// This informs callers that the chains' local views have considered at least up to this L1 block.
 	for chainID, chain := range s.chains {
 		status, err := chain.SyncStatus(ctx)
 		if err != nil {
@@ -74,6 +72,12 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		currentL1 := status.CurrentL1.ID()
 		if currentL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
 			minCurrentL1 = currentL1
+		}
+		// Also consider the L1 progress of any registered verifiers.
+		for _, verifierL1 := range chain.VerifierCurrentL1s() {
+			if verifierL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
+				minCurrentL1 = verifierL1
+			}
 		}
 		// Conservative aggregation across chains: take the minimum timestamps.
 		// If any chain has a zero timestamp (not initialized), the aggregate is zero.

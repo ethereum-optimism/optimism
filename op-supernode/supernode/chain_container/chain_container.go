@@ -46,6 +46,9 @@ type ChainContainer interface {
 	// invalidatedBlock is the block that triggered the rewind and is passed to reset callbacks.
 	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
 	RegisterVerifier(v activity.VerificationActivity)
+	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
+	// This allows callers to determine the minimum L1 block that all verifiers have processed.
+	VerifierCurrentL1s() []eth.BlockID
 	// FetchReceipts fetches the receipts for a given block by hash.
 	// Returns block info and receipts, or an error if the block or receipts cannot be fetched.
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
@@ -156,6 +159,14 @@ func (c *simpleChainContainer) ID() eth.ChainID {
 // This allows late binding when activities and chains have circular dependencies.
 func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity) {
 	c.verifiers = append(c.verifiers, v)
+}
+
+func (c *simpleChainContainer) VerifierCurrentL1s() []eth.BlockID {
+	result := make([]eth.BlockID, len(c.verifiers))
+	for i, v := range c.verifiers {
+		result[i] = v.CurrentL1()
+	}
+	return result
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
