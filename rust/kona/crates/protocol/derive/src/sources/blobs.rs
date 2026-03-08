@@ -1,8 +1,8 @@
 //! Blob Data Source
 
 use crate::{
-    BlobData, BlobProvider, ChainProvider, DataAvailabilityProvider,
-    PipelineError, PipelineErrorKind, PipelineResult,
+    BlobData, BlobProvider, ChainProvider, DataAvailabilityProvider, PipelineError,
+    PipelineErrorKind, PipelineResult,
 };
 use alloc::{boxed::Box, vec::Vec};
 use alloy_consensus::{
