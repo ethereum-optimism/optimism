@@ -47,6 +47,9 @@ impl SpanBatchPrefix {
 
     /// Decodes the parent check from a reader.
     pub fn decode_parent_check(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
+        if r.len() < 20 {
+            return Err(SpanBatchError::Decoding(SpanDecodingError::ParentCheck));
+        }
         let (parent_check, remaining) = r.split_at(20);
         let parent_check = FixedBytes::<20>::from_slice(parent_check);
         *r = remaining;
@@ -56,6 +59,9 @@ impl SpanBatchPrefix {
 
     /// Decodes the L1 origin check from a reader.
     pub fn decode_l1_origin_check(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
+        if r.len() < 20 {
+            return Err(SpanBatchError::Decoding(SpanDecodingError::L1OriginCheck));
+        }
         let (l1_origin_check, remaining) = r.split_at(20);
         let l1_origin_check = FixedBytes::<20>::from_slice(l1_origin_check);
         *r = remaining;
@@ -78,6 +84,29 @@ mod test {
     use super::*;
     use alloc::vec::Vec;
     use alloy_primitives::address;
+
+    #[test]
+    fn test_decode_parent_check_truncated() {
+        let mut prefix = SpanBatchPrefix::default();
+        let buf = [0u8; 19]; // one byte short
+        let result = prefix.decode_parent_check(&mut buf.as_slice());
+        assert_eq!(result, Err(SpanBatchError::Decoding(SpanDecodingError::ParentCheck)));
+    }
+
+    #[test]
+    fn test_decode_l1_origin_check_truncated() {
+        let mut prefix = SpanBatchPrefix::default();
+        let buf = [0u8; 19]; // one byte short
+        let result = prefix.decode_l1_origin_check(&mut buf.as_slice());
+        assert_eq!(result, Err(SpanBatchError::Decoding(SpanDecodingError::L1OriginCheck)));
+    }
+
+    #[test]
+    fn test_decode_parent_check_empty() {
+        let mut prefix = SpanBatchPrefix::default();
+        let result = prefix.decode_parent_check(&mut [].as_slice());
+        assert_eq!(result, Err(SpanBatchError::Decoding(SpanDecodingError::ParentCheck)));
+    }
 
     #[test]
     fn test_span_batch_prefix_encoding_roundtrip() {
