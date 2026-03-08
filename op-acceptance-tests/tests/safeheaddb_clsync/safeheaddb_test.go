@@ -13,6 +13,7 @@ import (
 func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t,
+		presets.WithSingleChainMultiNode(),
 		presets.WithConsensusLayerSync(),
 		presets.WithSafeDBEnabled(),
 		presets.WithCompatibleTypes(compat.SysGo),

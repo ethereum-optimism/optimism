@@ -31,7 +31,10 @@ func WithMinimalWithConductors() stack.CommonOption {
 
 func NewMinimalWithConductors(t devtest.T, opts ...stack.CommonOption) *MinimalWithConductors {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMinimalWithConductors()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithMinimalWithConductors()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	chains := system.L2Networks()
 	conductorSets := make(map[stack.ComponentID]dsl.ConductorSet)

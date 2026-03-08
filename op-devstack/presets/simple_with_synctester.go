@@ -24,7 +24,10 @@ func WithSimpleWithSyncTester() stack.CommonOption {
 
 func NewSimpleWithSyncTester(t devtest.T, opts ...stack.CommonOption) *SimpleWithSyncTester {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSimpleWithSyncTester()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithSimpleWithSyncTester()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
 	l2 := system.L2Network(match.L2ChainA)

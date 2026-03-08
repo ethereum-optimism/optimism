@@ -13,6 +13,7 @@ import (
 func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t,
+		presets.WithSingleChainMultiNode(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithSafeDBEnabled(),
 		presets.WithCompatibleTypes(compat.SysGo),
@@ -46,6 +47,7 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t,
+		presets.WithSingleChainMultiNode(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithSafeDBEnabled(),
 		presets.WithCompatibleTypes(compat.SysGo),

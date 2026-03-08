@@ -30,6 +30,7 @@ const blockSizeLimit = 5_000
 func TestDABlockThrottling(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t,
+		presets.WithMinimal(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
 			cfg.ThrottleConfig.LowerThreshold = 99

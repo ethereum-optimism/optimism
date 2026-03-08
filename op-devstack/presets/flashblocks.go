@@ -47,7 +47,10 @@ func WithSingleChainSystemWithFlashblocks() stack.CommonOption {
 
 func NewSingleChainWithFlashblocks(t devtest.T, opts ...stack.CommonOption) *SingleChainWithFlashblocks {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSingleChainSystemWithFlashblocks()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithSingleChainSystemWithFlashblocks()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	l1Net := system.L1Network(match.FirstL1Network)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))

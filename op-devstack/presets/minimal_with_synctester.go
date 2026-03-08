@@ -22,7 +22,10 @@ func WithMinimalWithSyncTester(fcu eth.FCUState) stack.CommonOption {
 
 func NewMinimalWithSyncTester(t devtest.T, fcu eth.FCUState, opts ...stack.CommonOption) *MinimalWithSyncTester {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMinimalWithSyncTester(fcu)}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithMinimalWithSyncTester(fcu)}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))

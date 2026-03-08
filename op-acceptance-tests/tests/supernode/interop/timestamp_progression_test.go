@@ -11,7 +11,7 @@ import (
 // correct data after the interop activity has processed timestamps.
 func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := newSystem(gt, t)
+	sys := newSystem(t)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time
@@ -54,7 +54,7 @@ func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 // This proves the supernode waits for all chains' local safe heads before verifying.
 func TestSupernodeInteropChainLag(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystem(gt, t)
+	sys := newSystem(t)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	ctx := t.Ctx()

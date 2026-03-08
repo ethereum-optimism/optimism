@@ -33,7 +33,10 @@ func NewSingleChainMultiNode(t devtest.T, opts ...stack.CommonOption) *SingleCha
 
 func NewSingleChainMultiNodeWithoutCheck(t devtest.T, opts ...stack.CommonOption) *SingleChainMultiNode {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSingleChainMultiNode()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithSingleChainMultiNode()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
@@ -62,7 +65,10 @@ func WithSingleChainMultiNodeWithoutP2P() stack.CommonOption {
 // No sync check is performed — the follower node may not be caught up yet.
 func NewSingleChainMultiNodeWithoutP2PWithoutCheck(t devtest.T, opts ...stack.CommonOption) *SingleChainMultiNode {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSingleChainMultiNodeWithoutP2P()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithSingleChainMultiNodeWithoutP2P()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
@@ -90,7 +96,10 @@ type SingleChainMultiNodeWithTestSeq struct {
 
 func NewSingleChainMultiNodeWithTestSeq(t devtest.T, opts ...stack.CommonOption) *SingleChainMultiNodeWithTestSeq {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithNewSingleChainMultiNodeWithTestSeq()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithNewSingleChainMultiNodeWithTestSeq()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))

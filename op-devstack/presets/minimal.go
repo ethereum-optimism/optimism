@@ -66,7 +66,10 @@ func WithMinimal() stack.CommonOption {
 
 func NewMinimal(t devtest.T, opts ...stack.CommonOption) *Minimal {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMinimal()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithMinimal()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 
 	return minimalFromSystem(t, system, orch)

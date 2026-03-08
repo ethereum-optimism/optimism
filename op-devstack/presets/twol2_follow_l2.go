@@ -32,7 +32,10 @@ func WithTwoL2SupernodeFollowL2(delaySeconds uint64) stack.CommonOption {
 // Use delaySeconds=0 for interop at genesis, or a positive value to test the transition.
 func NewTwoL2SupernodeFollowL2(t devtest.T, delaySeconds uint64, opts ...stack.CommonOption) *TwoL2SupernodeFollowL2 {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithTwoL2SupernodeFollowL2(delaySeconds)}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithTwoL2SupernodeFollowL2(delaySeconds)}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	base := twoL2SupernodeInteropFromSystem(t, system, orch, delaySeconds)
 

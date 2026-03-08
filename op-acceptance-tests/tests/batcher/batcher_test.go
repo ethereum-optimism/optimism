@@ -27,6 +27,7 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithTestSeq(t,
+		presets.WithNewSingleChainMultiNodeWithTestSeq(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithNoDiscovery(),

@@ -15,7 +15,7 @@ import (
 // All messages are valid, and no interruptions to the chains are expected.
 func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystem(gt, t)
+	sys := newSystem(t)
 
 	// Create funded EOAs on both chains
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)

@@ -11,7 +11,6 @@ import (
 
 // TestSupernodeSameTimestampExecMessage: Chain B executes Chain A's init at same timestamp - VALID
 func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
-	gt.Setenv("DEVSTACK_L2CL_KIND", "supernode")
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0).ForSameTimestampTesting(t)
 	rng := rand.New(rand.NewSource(99999))
@@ -27,7 +26,6 @@ func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 
 // TestSupernodeSameTimestampInvalidTransitive: Bad log index causes transitive invalidation
 func TestSupernodeSameTimestampInvalidTransitive(gt *testing.T) {
-	gt.Setenv("DEVSTACK_L2CL_KIND", "supernode")
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0).ForSameTimestampTesting(t)
 	rng := rand.New(rand.NewSource(77777))
@@ -44,7 +42,6 @@ func TestSupernodeSameTimestampInvalidTransitive(gt *testing.T) {
 
 // TestSupernodeSameTimestampCycle: Mutual exec messages create cycle - both replaced
 func TestSupernodeSameTimestampCycle(gt *testing.T) {
-	gt.Setenv("DEVSTACK_L2CL_KIND", "supernode")
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0).ForSameTimestampTesting(t)
 	rng := rand.New(rand.NewSource(55555))

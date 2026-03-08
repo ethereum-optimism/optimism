@@ -52,7 +52,10 @@ func WithTwoL2SupernodeInterop(delaySeconds uint64) stack.CommonOption {
 
 func NewTwoL2(t devtest.T, opts ...stack.CommonOption) *TwoL2 {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithTwoL2()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithTwoL2()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 
 	l1Net := system.L1Network(match.FirstL1Network)
@@ -78,7 +81,10 @@ func NewTwoL2(t devtest.T, opts ...stack.CommonOption) *TwoL2 {
 
 func NewTwoL2Supernode(t devtest.T, opts ...stack.CommonOption) *TwoL2 {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithTwoL2Supernode()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithTwoL2Supernode()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 
 	l1Net := system.L1Network(match.FirstL1Network)
@@ -166,7 +172,10 @@ func (s *TwoL2SupernodeInterop) SuperNodeClient() apis.SupernodeQueryAPI {
 // The delaySeconds must match what was passed to WithTwoL2SupernodeInterop in TestMain.
 func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...stack.CommonOption) *TwoL2SupernodeInterop {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithTwoL2SupernodeInterop(delaySeconds)}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithTwoL2SupernodeInterop(delaySeconds)}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	return twoL2SupernodeInteropFromSystem(t, system, orch, delaySeconds)
 }

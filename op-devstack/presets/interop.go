@@ -49,7 +49,10 @@ type SingleChainInterop struct {
 
 func NewSingleChainInterop(t devtest.T, opts ...stack.CommonOption) *SingleChainInterop {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSingleChainInterop()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithSingleChainInterop()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	return singleChainInteropFromSystem(t, system, orch)
 }
@@ -210,7 +213,10 @@ func WithUnscheduledInterop() stack.CommonOption {
 
 func NewSimpleInterop(t devtest.T, opts ...stack.CommonOption) *SimpleInterop {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSimpleInterop()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithSimpleInterop()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	return simpleInteropFromSystem(t, system, orch)
 }
@@ -303,7 +309,10 @@ func WithMultiSupervisorInterop() stack.CommonOption {
 // Each L2CLs per chain is connected via P2P.
 func NewMultiSupervisorInterop(t devtest.T, opts ...stack.CommonOption) *MultiSupervisorInterop {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMultiSupervisorInterop()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithMultiSupervisorInterop()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	simpleInterop := simpleInteropFromSystem(t, system, orch)
 
@@ -334,7 +343,10 @@ func WithMinimalInteropNoSupervisor() stack.CommonOption {
 // NewMinimalInteropNoSupervisor creates a MinimalInteropNoSupervisor preset for acceptance tests.
 func NewMinimalInteropNoSupervisor(t devtest.T, opts ...stack.CommonOption) *MinimalInteropNoSupervisor {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithMinimalInteropNoSupervisor()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithMinimalInteropNoSupervisor()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 
 	l1Net := system.L1Network(match.FirstL1Network)

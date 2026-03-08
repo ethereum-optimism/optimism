@@ -20,6 +20,7 @@ import (
 func newSystem(t devtest.T) *presets.Minimal {
 	liq := new(big.Int).Mul(big.NewInt(1_000_000), big.NewInt(1e18)) // 1M tokens * 18 decimals
 	return presets.NewMinimal(t,
+		presets.WithMinimal(),
 		stack.MakeCommon(sysgo.WithDeployerOptions(
 			sysgo.WithCustomGasToken("Custom Gas Token", "CGT", liq, common.Address{}),
 		)),

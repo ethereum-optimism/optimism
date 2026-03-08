@@ -25,6 +25,7 @@ import (
 func TestRecoverModeWhenChainHealthy(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t,
+		presets.WithMinimal(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithLogLevel(slog.LevelDebug),
 	)

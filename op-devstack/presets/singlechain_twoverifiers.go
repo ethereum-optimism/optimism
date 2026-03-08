@@ -20,7 +20,10 @@ type SingleChainTwoVerifiers struct {
 
 func NewSingleChainTwoVerifiersWithoutCheck(t devtest.T, opts ...stack.CommonOption) *SingleChainTwoVerifiers {
 	system := shim.NewSystem(t)
-	orch := NewTestOrchestrator(t, append([]stack.CommonOption{WithSingleChainTwoVerifiersFollowL2()}, opts...)...)
+	if len(opts) == 0 {
+		opts = []stack.CommonOption{WithSingleChainTwoVerifiersFollowL2()}
+	}
+	orch := NewTestOrchestrator(t, opts...)
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))

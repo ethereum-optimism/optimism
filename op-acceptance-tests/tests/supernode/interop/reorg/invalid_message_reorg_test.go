@@ -24,7 +24,6 @@ import (
 // - A replacement block is built at the same height (deposits-only)
 // - The replacement block's timestamp eventually becomes verified
 func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
-	gt.Setenv("DEVSTACK_L2CL_KIND", "supernode")
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 

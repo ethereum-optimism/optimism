@@ -17,7 +17,6 @@ const InteropActivationDelay = uint64(20)
 // AFTER genesis. This verifies that VerifiedAt (via superroot_atTimestamp) returns
 // verified data for timestamps both before and after the activation boundary.
 func TestSupernodeInteropActivationAfterGenesis(gt *testing.T) {
-	gt.Setenv("DEVSTACK_L2CL_KIND", "supernode")
 	t := devtest.ParallelT(gt)
 	t.Skip("The TestMain setup code for this test is unstable")
 	sys := presets.NewTwoL2SupernodeInterop(t, InteropActivationDelay)
