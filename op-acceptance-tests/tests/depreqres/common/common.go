@@ -32,7 +32,7 @@ func stableSyncStatus(require *testreq.Assertions, node *dsl.L2CLNode) *eth.Sync
 
 func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...stack.CommonOption) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, append([]stack.CommonOption{presets.WithSingleChainMultiNode()}, opts...)...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
 
@@ -75,7 +75,7 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 
 func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...stack.CommonOption) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, append([]stack.CommonOption{presets.WithSingleChainMultiNode()}, opts...)...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
 
