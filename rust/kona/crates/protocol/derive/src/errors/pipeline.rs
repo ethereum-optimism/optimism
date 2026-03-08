@@ -355,7 +355,7 @@ pub enum ResetError {
     BlockNotFound(BlockId),
     /// The blob provider returned more blobs than were requested (over-fill). The first argument
     /// is the number of blob placeholders filled; the second is the total number of blobs
-    /// returned. This matches op-node's `fillBlobPointers` check at blob_data_source.go:162-163
+    /// returned. This matches the check in `fillBlobPointers` in `blob_data_source.go`
     /// which returns `fmt.Errorf("got too many blobs")` wrapped as `NewResetError`. Can occur
     /// with buggy blob providers or in rare L1 reorg scenarios.
     #[error(
