@@ -366,8 +366,8 @@ mod tests {
 
     #[test]
     fn test_decode_tx_sigs_truncated() {
-        let mut txs = SpanBatchTransactions::default();
-        txs.total_block_tx_count = 1;
+        let mut txs =
+            SpanBatchTransactions { total_block_tx_count: 1, ..Default::default() };
         // Provide a valid y_parity bitfield (1 bit = 1 byte) but truncated signature data
         // SpanBatchBits::decode for 1 bit needs 1 byte for the bitfield
         let buf = vec![0u8]; // y_parity byte, but no r/s signature bytes
@@ -380,10 +380,11 @@ mod tests {
 
     #[test]
     fn test_decode_tx_tos_truncated() {
-        let mut txs = SpanBatchTransactions::default();
-        txs.total_block_tx_count = 1;
-        // contract_creation_bits with bit 0 = false (not contract creation, so needs a `to`)
-        txs.contract_creation_bits = SpanBatchBits::default();
+        let mut txs = SpanBatchTransactions {
+            total_block_tx_count: 1,
+            contract_creation_bits: SpanBatchBits::default(),
+            ..Default::default()
+        };
         let buf = [0u8; 19]; // one byte short of a 20-byte address
         let result = txs.decode_tx_tos(&mut buf.as_slice());
         assert_eq!(
@@ -394,9 +395,11 @@ mod tests {
 
     #[test]
     fn test_decode_tx_tos_empty() {
-        let mut txs = SpanBatchTransactions::default();
-        txs.total_block_tx_count = 1;
-        txs.contract_creation_bits = SpanBatchBits::default();
+        let mut txs = SpanBatchTransactions {
+            total_block_tx_count: 1,
+            contract_creation_bits: SpanBatchBits::default(),
+            ..Default::default()
+        };
         let result = txs.decode_tx_tos(&mut [].as_slice());
         assert_eq!(
             result,
