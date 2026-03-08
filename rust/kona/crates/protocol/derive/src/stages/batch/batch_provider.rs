@@ -316,7 +316,7 @@ mod test {
     // (None != Some(...)), causing either duplicate l1_block insertion (normal case) or
     // l1_blocks.clear() followed by MissingOrigin.crit() halt (lagging case).
     #[test]
-    fn test_spec_batch_provider_holocene_transition_origin_not_transferred() {
+    fn test_spec_batch_provider_holocene_transition_origin_transferred() {
         let provider = TestNextBatchProvider::new(vec![]);
         let l2_provider = TestL2ChainProvider::default();
         // Holocene activates at timestamp 2.
