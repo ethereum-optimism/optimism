@@ -199,9 +199,7 @@ impl SpanBatchTransactions {
         let contract_creation_count = self.contract_creation_count();
         for _ in 0..(self.total_block_tx_count - contract_creation_count) {
             if r.len() < 20 {
-                return Err(SpanBatchError::Decoding(
-                    SpanDecodingError::InvalidTransactionData,
-                ));
+                return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
             }
             let to = Address::from_slice(&r[..20]);
             tos.push(to);
