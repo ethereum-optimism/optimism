@@ -1,7 +1,7 @@
 //! Blob Data Source
 
 use crate::{
-    BlobData, BlobProvider, BlobProviderError, ChainProvider, DataAvailabilityProvider,
+    BlobData, BlobProvider, ChainProvider, DataAvailabilityProvider,
     PipelineError, PipelineErrorKind, PipelineResult,
 };
 use alloc::{boxed::Box, vec::Vec};
