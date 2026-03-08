@@ -18,6 +18,7 @@ import (
 func TestCLELDivergence(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t,
+		presets.WithSingleChainMultiNodeWithoutP2P(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithReqRespSyncDisabled(),

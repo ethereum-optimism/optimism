@@ -15,6 +15,7 @@ func TestFollowSource_LocalSafeDivergesThenConverges(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	require := t.Require()
 	sys := presets.NewTwoL2SupernodeFollowL2(t, 0,
+		presets.WithTwoL2SupernodeFollowL2(0),
 		presets.WithReqRespSyncDisabled(),
 		presets.WithNoDiscovery(),
 		presets.WithCompatibleTypes(compat.SysGo),

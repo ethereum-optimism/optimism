@@ -16,6 +16,7 @@ import (
 
 func newSystem(t devtest.T) *presets.SingleChainMultiNode {
 	return presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t,
+		presets.WithSingleChainMultiNodeWithoutP2P(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
 			// For stopping derivation, not to advance safe heads

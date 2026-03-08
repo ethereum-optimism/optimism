@@ -17,6 +17,7 @@ import (
 func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t,
+		presets.WithSingleChainMultiNode(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithReqRespSyncDisabled(),

@@ -18,6 +18,7 @@ import (
 
 func newSystem(t devtest.T) *presets.SingleChainTwoVerifiers {
 	return presets.NewSingleChainTwoVerifiersWithoutCheck(t,
+		presets.WithSingleChainTwoVerifiersFollowL2(),
 		presets.WithReqRespSyncDisabled(),
 		presets.WithNoDiscovery(),
 		presets.WithCompatibleTypes(compat.SysGo),

@@ -17,6 +17,7 @@ import (
 
 func newSystem(t devtest.T) *presets.SingleChainMultiNodeWithTestSeq {
 	return presets.NewSingleChainMultiNodeWithTestSeq(t,
+		presets.WithNewSingleChainMultiNodeWithTestSeq(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithNoDiscovery(),
 	)

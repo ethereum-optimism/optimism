@@ -20,6 +20,7 @@ func TestSyncTesterHardforks(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
 	sys := presets.NewSimpleWithSyncTester(t,
+		presets.WithSimpleWithSyncTester(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithHardforkSequentialActivation(forks.Bedrock, forks.Jovian, 6),
 		presets.WithNoDiscovery(),

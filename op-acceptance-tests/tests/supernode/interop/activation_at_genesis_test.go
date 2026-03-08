@@ -10,7 +10,7 @@ import (
 )
 
 func newSystem(t devtest.T) *presets.TwoL2SupernodeInterop {
-	return presets.NewTwoL2SupernodeInterop(t, 0, presets.WithTimeTravel())
+	return presets.NewTwoL2SupernodeInterop(t, 0, presets.WithTwoL2SupernodeInterop(0), presets.WithTimeTravel())
 }
 
 // TestSupernodeInteropActivationAtGenesis tests behavior when interop is activated

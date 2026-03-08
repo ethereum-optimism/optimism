@@ -16,6 +16,7 @@ import (
 func TestMultiELSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleWithSyncTester(t,
+		presets.WithSimpleWithSyncTester(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithELSyncActive(),
 		presets.WithCompatibleTypes(compat.SysGo),
