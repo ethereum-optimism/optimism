@@ -211,136 +211,174 @@ gates:
         timeout: 15m
 
   # ============================================================================
-  # CI PARALLEL SHARDS (NAIVE ROUND-ROBIN)
+  # CI PARALLEL SHARDS (NAIVE ROUND-ROBIN — infra#566 emulation)
   # ============================================================================
-  # Emulates the naive sharding from ethereum-optimism/infra#566:
-  # all 46 packages sorted alphabetically, assigned round-robin (i % 8).
-  # Compare wall-clock time against the curated shards in #19423.
+  # Exact emulation of ethereum-optimism/infra#566's naive sharding:
+  #   1. Discover all 68 test packages on disk (loadGatelessValidators)
+  #   2. sort.Strings (Go lexicographic sort)
+  #   3. i % 8 == shardIndex (round-robin assignment)
+  #   4. --exclude-gates flake-shake (post-shard exclusion)
   #
-  # Exclusions match #19423: fault-proof tests, external-network tests,
-  # and flake-shake quarantine packages are not included.
+  # This includes fault-proof tests, external-network tests, etc. — the naive
+  # approach has no awareness of test weight or prerequisites.
   # ============================================================================
 
   - id: ci-shard-0
-    description: "Naive round-robin shard 0/8"
+    description: "Naive round-robin shard 0/8 (infra#566 emulation)"
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/elsync
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/message
-        timeout: 30m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade-no-supervisor
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/rules
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/same_timestamp_invalid
-        timeout: 20m
-
-  - id: ci-shard-1
-    description: "Naive round-robin shard 1/8"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/chain
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/syncmodereqressync/clsync
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/prep
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade-singlechain
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/safeheaddb_clsync
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/...
-        timeout: 20m
-
-  - id: ci-shard-2
-    description: "Naive round-robin shard 2/8"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/conductor
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/batcher/throttling
         timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/ecotone
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/reorgs
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/proofs
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync/multisupervisor_interop
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/preinterop
         timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/safeheaddb_elsync
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_e2e
-        timeout: 20m
-
-  - id: ci-shard-3
-    description: "Naive round-robin shard 3/8"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fjord
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/seqwindow
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/erc20_bridge
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sequencer
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_elsync
-        timeout: 20m
-
-  - id: ci-shard-4
-    description: "Naive round-robin shard 4/8"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/batcher/...
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/smoke
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/operator_fee
-        timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/clsync/gap_clp2p
         timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_elsync_multi
         timeout: 20m
 
-  - id: ci-shard-5
-    description: "Naive round-robin shard 5/8"
+  - id: ci-shard-1
+    description: "Naive round-robin shard 1/8 (infra#566 emulation)"
     tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/chain
+        timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/custom_gas_token
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fusaka
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fjord
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync/multisupervisor_interop
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/proofs-singlechain
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/pectra
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync/simple_interop
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/preinterop-singlechain
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sequencer
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/elsync/gap_clp2p
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_ext_el
+        timeout: 20m
+
+  - id: ci-shard-2
+    description: "Naive round-robin shard 2/8 (infra#566 emulation)"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/conductor
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/proofs/fpp
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/withdrawal_root
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/elsync/gap_elp2p
         timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_hfs
         timeout: 20m
 
-  - id: ci-shard-6
-    description: "Naive round-robin shard 6/8"
+  - id: ci-shard-3
+    description: "Naive round-robin shard 3/8 (infra#566 emulation)"
     tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
+        timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/clsync
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fusaka
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/proofs/serial
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade-no-supervisor
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian/bpo2
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/elsync/reorg
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_hfs_ext
+        timeout: 20m
+
+  - id: ci-shard-4
+    description: "Naive round-robin shard 4/8 (infra#566 emulation)"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal/cannon
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/divergence
         timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/contract
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync/simple_interop
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/proofs/withdrawal
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/withdrawal_root
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade-singlechain
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/follow_l2
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian/pectra
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/follow_l2
         timeout: 20m
 
-  - id: ci-shard-7
-    description: "Naive round-robin shard 7/8"
+  - id: ci-shard-5
+    description: "Naive round-robin shard 5/8 (infra#566 emulation)"
     tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/divergence
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal/cannon_kona
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/elsync
         timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/reorgs
         timeout: 20m
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian/...
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/erc20_bridge
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/proofs/cannon
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/follow_l2
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/manual
+        timeout: 20m
+
+  - id: ci-shard-6
+    description: "Naive round-robin shard 6/8 (infra#566 emulation)"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal/permissioned
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/syncmodereqressync/clsync
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/message
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/seqwindow
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/operator_fee
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/rules
         timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/reorg
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_e2e
+        timeout: 20m
+
+  - id: ci-shard-7
+    description: "Naive round-robin shard 7/8 (infra#566 emulation)"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/batcher
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/prep
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/smoke
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/pectra
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/safeheaddb_clsync
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/same_timestamp_invalid
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_elsync
         timeout: 20m

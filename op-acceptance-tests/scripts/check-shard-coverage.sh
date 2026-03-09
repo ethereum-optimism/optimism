@@ -20,25 +20,11 @@ MODULE="github.com/ethereum-optimism/optimism/op-acceptance-tests/tests"
 # --- Known exclusions (covered by develop-CI, nightly, or flake-shake) ---
 # If you add a package here, add a comment explaining where it's covered.
 EXCLUDED_PACKAGES=(
-  # Fault-proof tests — covered by develop-CI gates (isthmus, pre-interop, interop)
-  "base/withdrawal/cannon"
-  "base/withdrawal/cannon_kona"
-  "base/withdrawal/permissioned"
-  "isthmus/preinterop"
-  "isthmus/preinterop-singlechain"
-  "interop/proofs"
-  "interop/proofs/fpp"
-  "interop/proofs/serial"
-  "interop/proofs/withdrawal"
-  "interop/proofs-singlechain"
-  "proofs/cannon"
-  # External-network daily tests — covered by sync-test-op-node gate
-  "sync_tester/sync_tester_ext_el"
-  "sync_tester/sync_tester_hfs_ext"
-  # Flake-shake quarantine — temporarily excluded, tracked in flake-shake gate
+  # Flake-shake quarantine — excluded by --exclude-gates flake-shake in infra#566
   "supernode/interop/activation"
   "depreqres/syncmodereqressync/elsync"
   "depreqres/reqressyncdisabled"
+  "supernode/interop"
 )
 
 # --- Find all test packages on disk that contain actual test functions ---
