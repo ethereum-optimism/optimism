@@ -16,6 +16,9 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
+  c-rust_changes_detected:
+    type: boolean
+    default: false
 
 # Commands used by rust-e2e jobs
 commands:
@@ -164,14 +167,24 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
 
+  required-rust-e2e:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - run: echo "Required Rust E2E checks passed"
+
 # ============================================================================
 # RUST E2E WORKFLOWS
 # ============================================================================
 workflows:
+  # Rust E2E CI — runs on rust path changes or manual dispatch
   rust-e2e-ci:
     when:
       or:
-        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-rust_changes_detected >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -233,4 +246,25 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # -----------------------------------------------------------------------
+      # Required gate — fans in on all E2E test jobs
+      # -----------------------------------------------------------------------
+      - required-rust-e2e:
+          requires:
+            - rust-e2e-simple-kona
+            - rust-e2e-simple-kona-geth
+            - rust-e2e-simple-kona-sequencer
+            - rust-e2e-large-kona-sequencer
+            - rust-e2e-restart
+            - kona-proof-action-single
+
+  # Required Rust E2E gate (skip) — runs when no rust changes and no dispatch
+  # Immediately passes the required-rust-e2e check so GitHub is satisfied
+  rust-e2e-gate-skip:
+    when:
+      and:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - not: << pipeline.parameters.c-rust_changes_detected >>
+    jobs:
+      - required-rust-e2e
 

@@ -21,6 +21,9 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
+  c-rust_changes_detected:
+    type: boolean
+    default: false
 
 # ============================================================================
 # COMMANDS
@@ -1026,18 +1029,27 @@ jobs:
             echo "Successfully published prestates artifacts to GCS"
       - rust-save-build-cache: *kona-publish-prestate-cache
 
+  required-rust-ci:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - run: echo "Required Rust CI checks passed"
+
 # ============================================================================
 # WORKFLOWS
 # ============================================================================
 workflows:
   # ==========================================================================
   # Unified Rust CI workflow
-  # Runs on any rust/.* change or manual dispatch with rust_ci_dispatch=true
+  # Runs on rust path changes or manual dispatch with rust_ci_dispatch=true
   # ==========================================================================
   rust-ci:
     when:
       or:
-        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-rust_changes_detected >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_ci_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -1193,6 +1205,26 @@ workflows:
           name: kona-host-client-offline-cannon
           context: *rust-ci-context
 
+      # -----------------------------------------------------------------------
+      # Required gate — fans in on required Rust CI jobs
+      # -----------------------------------------------------------------------
+      - required-rust-ci:
+          requires:
+            - rust-tests
+            - rust-clippy
+            - rust-docs
+
+  # ==========================================================================
+  # Required Rust CI gate (skip) — runs when no rust changes and no dispatch
+  # Immediately passes the required-rust-ci check so GitHub is satisfied
+  # ==========================================================================
+  rust-ci-gate-skip:
+    when:
+      and:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - not: << pipeline.parameters.c-rust_changes_detected >>
+    jobs:
+      - required-rust-ci
 
   # ==========================================================================
   # Kona scheduled workflows
@@ -1211,6 +1243,7 @@ workflows:
       and:
         - equal: ["develop", <<pipeline.git.branch>>]
         - equal: ["webhook", << pipeline.trigger_source >>] # Only trigger on push to develop, not scheduled runs
+        - << pipeline.parameters.c-rust_changes_detected >>  # Only publish when rust paths changed
     jobs:
       - kona-publish-prestate-artifacts:
           name: kona-publish-<<matrix.version>>
