@@ -225,7 +225,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - shadow-ci-tools-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+            - shadow-ci-tools-v2-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
       - run:
           name: Install tools (cache miss only)
           command: |
@@ -243,7 +243,7 @@ jobs:
             done
             touch /tmp/shadow-ci-tools/.cached
       - save_cache:
-          key: shadow-ci-tools-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+          key: shadow-ci-tools-v2-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
           paths:
             - /tmp/shadow-ci-tools
       - run:
@@ -323,7 +323,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - shadow-ci-tools-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+            - shadow-ci-tools-v2-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
       - run:
           name: Install Go (cache miss only)
           command: |
@@ -361,7 +361,7 @@ jobs:
           at: /tmp/shadow-ci-workspace
       - restore_cache:
           keys:
-            - shadow-ci-tools-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+            - shadow-ci-tools-v2-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
 {{ if ne .Name "build" }}      - run:
           name: Restore build artifacts
           command: |
