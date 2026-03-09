@@ -178,27 +178,22 @@ jobs:
 # RUST E2E WORKFLOWS
 # ============================================================================
 workflows:
+  # Rust E2E CI — runs on rust path changes or manual dispatch
   rust-e2e-ci:
     when:
       or:
-        - equal: ["webhook", << pipeline.trigger_source >>]
+        - and:
+            - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-rust_changes_detected >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test
-          when:
-            or:
-              - << pipeline.parameters.c-rust_changes_detected >>
-              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate: &rust-e2e-job-base
-          when:
-            or:
-              - << pipeline.parameters.c-rust_changes_detected >>
-              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &cannon-kona-host
@@ -206,20 +201,12 @@ workflows:
           directory: rust
           profile: release
           binary: "kona-host"
-          when:
-            or:
-              - << pipeline.parameters.c-rust_changes_detected >>
-              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: rust
           profile: release
-          when:
-            or:
-              - << pipeline.parameters.c-rust_changes_detected >>
-              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
@@ -227,10 +214,6 @@ workflows:
           directory: rust
           profile: release
           binary: "op-reth"
-          when:
-            or:
-              - << pipeline.parameters.c-rust_changes_detected >>
-              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-e2e-sysgo-tests:
@@ -238,10 +221,6 @@ workflows:
           matrix:
             parameters:
               devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
-          when:
-            or:
-              - << pipeline.parameters.c-rust_changes_detected >>
-              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -253,10 +232,6 @@ workflows:
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart
           <<: *rust-e2e-job-base
-          when:
-            or:
-              - << pipeline.parameters.c-rust_changes_detected >>
-              - << pipeline.parameters.c-rust_e2e_dispatch >>
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -266,17 +241,13 @@ workflows:
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
-          when:
-            or:
-              - << pipeline.parameters.c-rust_changes_detected >>
-              - << pipeline.parameters.c-rust_e2e_dispatch >>
           requires:
             - kona-build-release
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
       # -----------------------------------------------------------------------
-      # Required gate — always runs, fans in on all E2E test jobs
+      # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
       - required-rust-e2e:
           requires:
@@ -286,4 +257,14 @@ workflows:
             - rust-e2e-large-kona-sequencer
             - rust-e2e-restart
             - kona-proof-action-single
+
+  # Required Rust E2E gate (skip) — runs when no rust changes and no dispatch
+  # Immediately passes the required-rust-e2e check so GitHub is satisfied
+  rust-e2e-gate-skip:
+    when:
+      and:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - not: << pipeline.parameters.c-rust_changes_detected >>
+    jobs:
+      - required-rust-e2e
 
