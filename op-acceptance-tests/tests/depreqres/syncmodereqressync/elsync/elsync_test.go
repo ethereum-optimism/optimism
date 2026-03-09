@@ -15,7 +15,6 @@ import (
 
 func systemOpts() []stack.CommonOption {
 	return []stack.CommonOption{
-		presets.WithSingleChainMultiNode(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithSyncModeReqRespSync(),
