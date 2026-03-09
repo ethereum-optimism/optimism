@@ -1288,6 +1288,18 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
         );
     }
+
+    /// @notice Tests that deploy reverts when the ZK dispute game is enabled without the
+    ///         ZK_DISPUTE_GAME dev feature flag.
+    function test_deploy_zkGameEnabledWithoutDevFeature_reverts() public {
+        deployConfig.disputeGameConfigs[3].enabled = true;
+        deployConfig.disputeGameConfigs[3].initBond = 0.08 ether;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
 }
 
 /// @title OPContractsManagerV2_DevFeatureBitmap_Test

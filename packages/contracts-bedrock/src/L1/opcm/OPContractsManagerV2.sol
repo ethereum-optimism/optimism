@@ -676,7 +676,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
-    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
+    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
         // Start validating the dispute game configs. Put allowed game types here.
         GameType[] memory validGameTypes = new GameType[](4);
         validGameTypes[0] = GameTypes.CANNON;
@@ -710,6 +710,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
+        }
+
+        // The ZK dispute game can only be enabled when the ZK_DISPUTE_GAME dev feature is active.
+        // zkDisputeGameImpl is address(0) when the feature is off, so enabling it would register
+        // address(0) in the DisputeGameFactory.
+        if (_cfg.disputeGameConfigs[3].enabled && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
         // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
