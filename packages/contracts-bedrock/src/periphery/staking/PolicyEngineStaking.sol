@@ -193,9 +193,9 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Accepts ownership after being nominated via `transferOwnership`.
     function acceptOwnership() external {
         if (msg.sender != _pendingOwner) revert PolicyEngineStaking_NotPendingOwner();
-        emit OwnershipTransferred(_owner, msg.sender);
         _owner = msg.sender;
         _pendingOwner = address(0);
+        emit OwnershipTransferred(_owner, msg.sender);
     }
 
     /// @notice Pauses the contract. Stake is disabled while paused.
