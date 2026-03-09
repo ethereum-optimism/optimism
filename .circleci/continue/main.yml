@@ -71,6 +71,11 @@ parameters:
   c-flake-shake-workers:
     type: integer
     default: 50
+  # Set to true by path-filtering when files under rust/ change.
+  # Used to skip expensive Rust builds on feature branches that don't touch Rust.
+  c-rust_files_changed:
+    type: boolean
+    default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
@@ -577,6 +582,10 @@ commands:
         description: "Whether to save the cache at the end of the build"
         type: boolean
         default: false
+      rust_files_changed:
+        description: "Whether Rust source files changed. When false on feature branches, the build is skipped if cached binaries are available."
+        type: boolean
+        default: true
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -597,6 +606,25 @@ commands:
             PWD=$(pwd)
             export CARGO_TARGET_DIR="$PWD/<< parameters.directory >>/target"
             echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
+
+            # On feature branches where Rust files haven't changed, skip the expensive cargo build
+            # if the restored cache already contains the expected binaries. This saves ~9 minutes
+            # on PRs that don't touch Rust. Always build on develop/main as a safety backstop.
+            if [ "<< parameters.rust_files_changed >>" = "false" ] && \
+               [ "$CIRCLE_BRANCH" != "develop" ] && [ "$CIRCLE_BRANCH" != "main" ]; then
+              PROFILE_DIR="<< parameters.profile >>"
+              if [ "$PROFILE_DIR" = "debug" ]; then
+                PROFILE_DIR="debug"
+              fi
+              BINARY_DIR="$CARGO_TARGET_DIR/$PROFILE_DIR"
+              if ls "$BINARY_DIR"/kona-* "$BINARY_DIR"/op-* 2>/dev/null | head -1 > /dev/null; then
+                echo "Skipping Rust build: no Rust file changes on feature branch, using cached binaries"
+                ls -la "$BINARY_DIR"/kona-* "$BINARY_DIR"/op-* "$BINARY_DIR"/rollup-boost 2>/dev/null || true
+                exit 0
+              fi
+              echo "WARNING: No Rust changes detected but cached binaries not found. Building from source."
+            fi
+
             export PROFILE="--profile << parameters.profile >>"
 
             # Debug profile is specified as "debug" in the config/target, but cargo build expects "dev"
@@ -677,6 +705,10 @@ jobs:
         description: "Whether to persist the built binaries to the CircleCI workspace"
         type: boolean
         default: false
+      rust_files_changed:
+        description: "Whether Rust source files changed. When false on feature branches, the build is skipped if cached binaries are available."
+        type: boolean
+        default: true
     steps:
       - rust-build:
           directory: << parameters.directory >>
@@ -688,6 +720,7 @@ jobs:
           binary: << parameters.binary >>
           toolchain: << parameters.toolchain >>
           save_cache: << parameters.save_cache >>
+          rust_files_changed: << parameters.rust_files_changed >>
       - when:
           condition: << parameters.persist_to_workspace >>
           steps:
@@ -3154,6 +3187,7 @@ workflows:
           features: "default"
           save_cache: true
           persist_to_workspace: true
+          rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-submodule: &rust-build-op-rbuilder
