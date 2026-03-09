@@ -25,104 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestInitLiveStrategy_OPCMReuseLogic tests init logic paths that do NOT require a forked
-// script host (no PopulateSuperchainState call). These use a mockL1Client so they run
-// without SEPOLIA_RPC_URL.
-func TestInitLiveStrategy_OPCMReuseLogic(t *testing.T) {
-	t.Parallel()
-
-	lgr := testlog.Logger(t, slog.LevelInfo)
-	ctx := context.Background()
-	mock := newSepoliaMockL1Client()
-	l1ChainID := uint64(11155111)
-
-	t.Run("untagged L1 locator", func(t *testing.T) {
-		st := &state.State{
-			Version: 1,
-		}
-		require.NoError(t, InitLiveStrategy(
-			ctx,
-			&Env{
-				L1Client: mock,
-				Logger:   lgr,
-			},
-			&state.Intent{
-				L1ChainID:          l1ChainID,
-				L1ContractsLocator: artifacts.MustNewLocatorFromURL("file:///not-a-path"),
-				L2ContractsLocator: artifacts.MustNewLocatorFromURL("file:///not-a-path"),
-			},
-			st,
-		))
-
-		// Defining a file locator will always deploy a new superchain and OPCM
-		require.Nil(t, st.SuperchainDeployment)
-		require.Nil(t, st.ImplementationsDeployment)
-	})
-
-	t.Run("tagged L1 locator with standard intent types and modified roles", func(t *testing.T) {
-		runTest := func(configType state.IntentType) {
-			intent := &state.Intent{
-				ConfigType:         configType,
-				L1ChainID:          l1ChainID,
-				L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
-				L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
-				SuperchainRoles: &addresses.SuperchainRoles{
-					SuperchainGuardian: common.Address{0: 99},
-				},
-			}
-			st := &state.State{
-				Version: 1,
-			}
-			require.NoError(t, InitLiveStrategy(
-				ctx,
-				&Env{
-					L1Client: mock,
-					Logger:   lgr,
-				},
-				intent,
-				st,
-			))
-
-			// Modified roles will cause a new superchain and OPCM to be deployed
-			require.Nil(t, st.SuperchainDeployment)
-			require.Nil(t, st.ImplementationsDeployment)
-		}
-
-		runTest(state.IntentTypeStandard)
-		runTest(state.IntentTypeStandardOverrides)
-	})
-
-	t.Run("tagged locator with custom intent type", func(t *testing.T) {
-		intent := &state.Intent{
-			ConfigType:         state.IntentTypeCustom,
-			L1ChainID:          l1ChainID,
-			L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
-			L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
-			SuperchainRoles: &addresses.SuperchainRoles{
-				SuperchainGuardian: common.Address{0: 99},
-			},
-		}
-		st := &state.State{
-			Version: 1,
-		}
-		require.NoError(t, InitLiveStrategy(
-			ctx,
-			&Env{
-				L1Client: mock,
-				Logger:   lgr,
-			},
-			intent,
-			st,
-		))
-
-		// Custom intent types always deploy a new superchain and OPCM
-		require.Nil(t, st.SuperchainDeployment)
-		require.Nil(t, st.ImplementationsDeployment)
-	})
-}
-
-// TestInitLiveStrategy_OPCMReuseLogicSepolia tests the "embedded L1 locator" path which
-// calls PopulateSuperchainState via a forked script host and therefore requires SEPOLIA_RPC_URL.
 func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Parallel()
 
@@ -144,6 +46,28 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	client := ethclient.NewClient(rpcClient)
 
 	l1ChainID := uint64(11155111)
+	t.Run("untagged L1 locator", func(t *testing.T) {
+		st := &state.State{
+			Version: 1,
+		}
+		require.NoError(t, InitLiveStrategy(
+			ctx,
+			&Env{
+				L1Client: client,
+				Logger:   lgr,
+			},
+			&state.Intent{
+				L1ChainID:          l1ChainID,
+				L1ContractsLocator: artifacts.MustNewLocatorFromURL("file:///not-a-path"),
+				L2ContractsLocator: artifacts.MustNewLocatorFromURL("file:///not-a-path"),
+			},
+			st,
+		))
+
+		// Defining a file locator will always deploy a new superchain and OPCM
+		require.Nil(t, st.SuperchainDeployment)
+		require.Nil(t, st.ImplementationsDeployment)
+	})
 
 	t.Run("embedded L1 locator with standard intent types and standard roles", func(t *testing.T) {
 		runTest := func(configType state.IntentType) {
@@ -210,6 +134,79 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 
 		runTest(state.IntentTypeStandard)
 		runTest(state.IntentTypeStandardOverrides)
+	})
+}
+
+// TestInitLiveStrategy_OPCMReuseLogic tests init logic paths that do NOT require a forked
+// script host (no PopulateSuperchainState call). These use a mockL1Client so they run
+// without SEPOLIA_RPC_URL.
+func TestInitLiveStrategy_OPCMReuseLogic(t *testing.T) {
+	t.Parallel()
+
+	lgr := testlog.Logger(t, slog.LevelInfo)
+	ctx := context.Background()
+	mock := newSepoliaMockL1Client()
+	l1ChainID := uint64(11155111)
+
+	t.Run("tagged L1 locator with standard intent types and modified roles", func(t *testing.T) {
+		runTest := func(configType state.IntentType) {
+			intent := &state.Intent{
+				ConfigType:         configType,
+				L1ChainID:          l1ChainID,
+				L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
+				L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+				SuperchainRoles: &addresses.SuperchainRoles{
+					SuperchainGuardian: common.Address{0: 99},
+				},
+			}
+			st := &state.State{
+				Version: 1,
+			}
+			require.NoError(t, InitLiveStrategy(
+				ctx,
+				&Env{
+					L1Client: mock,
+					Logger:   lgr,
+				},
+				intent,
+				st,
+			))
+
+			// Modified roles will cause a new superchain and OPCM to be deployed
+			require.Nil(t, st.SuperchainDeployment)
+			require.Nil(t, st.ImplementationsDeployment)
+		}
+
+		runTest(state.IntentTypeStandard)
+		runTest(state.IntentTypeStandardOverrides)
+	})
+
+	t.Run("tagged locator with custom intent type", func(t *testing.T) {
+		intent := &state.Intent{
+			ConfigType:         state.IntentTypeCustom,
+			L1ChainID:          l1ChainID,
+			L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
+			L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+			SuperchainRoles: &addresses.SuperchainRoles{
+				SuperchainGuardian: common.Address{0: 99},
+			},
+		}
+		st := &state.State{
+			Version: 1,
+		}
+		require.NoError(t, InitLiveStrategy(
+			ctx,
+			&Env{
+				L1Client: mock,
+				Logger:   lgr,
+			},
+			intent,
+			st,
+		))
+
+		// Custom intent types always deploy a new superchain and OPCM
+		require.Nil(t, st.SuperchainDeployment)
+		require.Nil(t, st.ImplementationsDeployment)
 	})
 }
 
