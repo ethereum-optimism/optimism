@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Documentation: `just test-docs`
 
 ## Code Style
-- MSRV: 1.88
+- MSRV: 1.92
 - Format with nightly rustfmt: `cargo +nightly fmt`
 - Imports: organized by crate, reordered automatically
 - Error handling: use proper error types, prefer `Result<T, E>` over panics
@@ -73,7 +73,7 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 4. **Monorepo Integration**: Pins and integrates with the Optimism monorepo for action tests
 
 ### Key Configuration Files
-- `rust-toolchain.toml`: Pins Rust version to 1.88
+- `rust-toolchain.toml`: Pins Rust version to 1.92
 - `rustfmt.toml`: Custom formatting configuration with crate-level import grouping
 - `clippy.toml`: MSRV configuration for clippy
 - `deny.toml`: Dependency auditing and license compliance

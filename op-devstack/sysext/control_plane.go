@@ -26,27 +26,27 @@ func (c *ControlPlane) setLifecycleState(svcID string, mode stack.ControlAction)
 	}
 }
 
-func (c *ControlPlane) SupervisorState(id stack.SupervisorID, mode stack.ControlAction) {
-	c.setLifecycleState(string(id), mode)
-}
-
-func (c *ControlPlane) L2CLNodeState(id stack.L2CLNodeID, mode stack.ControlAction) {
+func (c *ControlPlane) SupervisorState(id stack.ComponentID, mode stack.ControlAction) {
 	c.setLifecycleState(id.Key(), mode)
 }
 
-func (c *ControlPlane) L2ELNodeState(id stack.L2ELNodeID, mode stack.ControlAction) {
+func (c *ControlPlane) L2CLNodeState(id stack.ComponentID, mode stack.ControlAction) {
 	c.setLifecycleState(id.Key(), mode)
 }
 
-func (c *ControlPlane) FakePoSState(id stack.L1CLNodeID, mode stack.ControlAction) {
+func (c *ControlPlane) L2ELNodeState(id stack.ComponentID, mode stack.ControlAction) {
+	c.setLifecycleState(id.Key(), mode)
+}
+
+func (c *ControlPlane) FakePoSState(id stack.ComponentID, mode stack.ControlAction) {
 	panic("not implemented: plug in kurtosis wrapper, or gate for the test that uses this method to not run in kurtosis")
 }
 
-func (c *ControlPlane) RollupBoostNodeState(id stack.RollupBoostNodeID, mode stack.ControlAction) {
+func (c *ControlPlane) RollupBoostNodeState(id stack.ComponentID, mode stack.ControlAction) {
 	c.setLifecycleState(id.Key(), mode)
 }
 
-func (c *ControlPlane) OPRBuilderNodeState(id stack.OPRBuilderNodeID, mode stack.ControlAction) {
+func (c *ControlPlane) OPRBuilderNodeState(id stack.ComponentID, mode stack.ControlAction) {
 	c.setLifecycleState(id.Key(), mode)
 }
 

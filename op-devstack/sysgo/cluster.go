@@ -7,7 +7,7 @@ import (
 )
 
 type Cluster struct {
-	id     stack.ClusterID
+	id     stack.ComponentID
 	cfgset depset.FullConfigSetMerged
 }
 

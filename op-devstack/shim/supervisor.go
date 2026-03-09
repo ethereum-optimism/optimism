@@ -9,13 +9,13 @@ import (
 
 type SupervisorConfig struct {
 	CommonConfig
-	ID     stack.SupervisorID
+	ID     stack.ComponentID
 	Client client.RPC
 }
 
 type rpcSupervisor struct {
 	commonImpl
-	id stack.SupervisorID
+	id stack.ComponentID
 
 	client client.RPC
 	api    apis.SupervisorAPI
@@ -33,7 +33,7 @@ func NewSupervisor(cfg SupervisorConfig) stack.Supervisor {
 	}
 }
 
-func (r *rpcSupervisor) ID() stack.SupervisorID {
+func (r *rpcSupervisor) ID() stack.ComponentID {
 	return r.id
 }
 

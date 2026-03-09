@@ -27,13 +27,13 @@ func NewSingleChainTwoVerifiersWithoutCheck(t devtest.T) *SingleChainTwoVerifier
 	verifierCL := l2.L2CLNode(match.Assume(t,
 		match.And(
 			match.Not(match.WithSequencerActive(t.Ctx())),
-			match.Not[stack.L2CLNodeID, stack.L2CLNode](singleChainMultiNode.L2CL.ID()),
-			match.Not[stack.L2CLNodeID, stack.L2CLNode](singleChainMultiNode.L2CLB.ID()),
+			match.Not(stack.ByID[stack.L2CLNode](singleChainMultiNode.L2CL.ID())),
+			match.Not(stack.ByID[stack.L2CLNode](singleChainMultiNode.L2CLB.ID())),
 		)))
 	verifierEL := l2.L2ELNode(match.Assume(t,
 		match.And(
-			match.Not[stack.L2ELNodeID, stack.L2ELNode](singleChainMultiNode.L2EL.ID()),
-			match.Not[stack.L2ELNodeID, stack.L2ELNode](singleChainMultiNode.L2ELB.ID()),
+			match.Not(stack.ByID[stack.L2ELNode](singleChainMultiNode.L2EL.ID())),
+			match.Not(stack.ByID[stack.L2ELNode](singleChainMultiNode.L2ELB.ID())),
 		)))
 	preset := &SingleChainTwoVerifiers{
 		SingleChainMultiNode: *singleChainMultiNode,

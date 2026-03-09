@@ -22,14 +22,14 @@ import (
 type L2ELClient string
 
 const (
-	L2ELClientGeth L2ELClient = "geth"
-	L2ELClientReth L2ELClient = "reth"
+	L2ELClientGeth           L2ELClient = "geth"
+	L2ELClientReth           L2ELClient = "reth"
 	L2ELClientRethWithProofs L2ELClient = "reth-with-proof"
 )
 
 type L2ELNodeID struct {
-	stack.L2ELNodeID
-	Client L2ELClient
+	L2ELNodeID stack.ComponentID
+	Client     L2ELClient
 }
 
 type L2ELNode struct {
@@ -117,12 +117,8 @@ func WithMixedOpProofPreset() stack.CommonOption {
 	return stack.MakeCommon(DefaultMixedOpProofSystem(&DefaultMixedOpProofSystemIDs{}))
 }
 
-func L2NodeMatcher[
-	I interface {
-		comparable
-		Key() string
-	}, E stack.Identifiable[I]](value ...string) stack.Matcher[I, E] {
-	return match.MatchElemFn[I, E](func(elem E) bool {
+func L2NodeMatcher[E stack.Identifiable](value ...string) stack.Matcher[E] {
+	return match.MatchElemFn[E](func(elem E) bool {
 		for _, v := range value {
 			if !strings.Contains(elem.ID().Key(), v) {
 				return false
@@ -223,37 +219,37 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 }
 
 type DefaultMixedOpProofSystemIDs struct {
-	L1   stack.L1NetworkID
-	L1EL stack.L1ELNodeID
-	L1CL stack.L1CLNodeID
+	L1   stack.ComponentID
+	L1EL stack.ComponentID
+	L1CL stack.ComponentID
 
-	L2 stack.L2NetworkID
+	L2 stack.ComponentID
 
-	L2CLSequencer stack.L2CLNodeID
+	L2CLSequencer stack.ComponentID
 	L2ELSequencer L2ELNodeID
 
-	L2CLValidator stack.L2CLNodeID
+	L2CLValidator stack.ComponentID
 	L2ELValidator L2ELNodeID
 
-	L2Batcher    stack.L2BatcherID
-	L2Proposer   stack.L2ProposerID
-	L2Challenger stack.L2ChallengerID
+	L2Batcher    stack.ComponentID
+	L2Proposer   stack.ComponentID
+	L2Challenger stack.ComponentID
 
-	TestSequencer stack.TestSequencerID
+	TestSequencer stack.ComponentID
 }
 
 func NewDefaultMixedOpProofSystemIDs(l1ID, l2ID eth.ChainID) DefaultMixedOpProofSystemIDs {
 	ids := DefaultMixedOpProofSystemIDs{
-		L1:            stack.L1NetworkID(l1ID),
+		L1:            stack.NewL1NetworkID(l1ID),
 		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
 		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
-		L2:            stack.L2NetworkID(l2ID),
+		L2:            stack.NewL2NetworkID(l2ID),
 		L2CLSequencer: stack.NewL2CLNodeID("sequencer", l2ID),
 		L2CLValidator: stack.NewL2CLNodeID("validator", l2ID),
 		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
 		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
 		L2Challenger:  stack.NewL2ChallengerID("main", l2ID),
-		TestSequencer: "test-sequencer",
+		TestSequencer: stack.NewTestSequencerID("test-sequencer"),
 	}
 
 	// default to op-geth for sequencer and op-reth-with-proof for validator
@@ -360,7 +356,7 @@ func defaultMixedOpProofSystemOpts(src, dest *DefaultMixedOpProofSystemIDs) stac
 	opt.Add(sysgo.WithBatcher(src.L2Batcher, src.L1EL, src.L2CLSequencer, src.L2ELSequencer.L2ELNodeID))
 	opt.Add(sysgo.WithProposer(src.L2Proposer, src.L1EL, &src.L2CLSequencer, nil))
 
-	opt.Add(sysgo.WithFaucets([]stack.L1ELNodeID{src.L1EL}, []stack.L2ELNodeID{src.L2ELSequencer.L2ELNodeID}))
+	opt.Add(sysgo.WithFaucets([]stack.ComponentID{src.L1EL}, []stack.ComponentID{src.L2ELSequencer.L2ELNodeID}))
 
 	opt.Add(sysgo.WithTestSequencer(src.TestSequencer, src.L1CL, src.L2CLSequencer, src.L1EL, src.L2ELSequencer.L2ELNodeID))
 

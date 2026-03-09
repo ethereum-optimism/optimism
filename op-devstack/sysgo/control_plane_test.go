@@ -58,7 +58,7 @@ func TestControlPlane(gt *testing.T) {
 func testSupervisorRestart(ids DefaultInteropSystemIDs, system stack.System, control stack.ControlPlane) {
 	t := system.T()
 	logger := t.Logger()
-	supervisor := system.Supervisor(ids.Supervisor)
+	supervisor := system.Supervisor(stack.ByID[stack.Supervisor](ids.Supervisor))
 
 	// progress supervisor
 	for range 3 {
@@ -103,7 +103,7 @@ func testSupervisorRestart(ids DefaultInteropSystemIDs, system stack.System, con
 func testL2CLRestart(ids DefaultInteropSystemIDs, system stack.System, control stack.ControlPlane) {
 	t := system.T()
 	logger := t.Logger()
-	seqA := system.L2Network(ids.L2A).L2CLNode(ids.L2ACL)
+	seqA := system.L2Network(stack.ByID[stack.L2Network](ids.L2A)).L2CLNode(stack.ByID[stack.L2CLNode](ids.L2ACL))
 
 	// progress chain
 	for range 3 {
@@ -165,7 +165,7 @@ func TestControlPlaneFakePoS(gt *testing.T) {
 
 	ctx := t.Ctx()
 
-	el := system.L1Network(ids.L1).L1ELNode(match.FirstL1EL)
+	el := system.L1Network(stack.ByID[stack.L1Network](ids.L1)).L1ELNode(match.FirstL1EL)
 
 	// progress chain
 	blockTime := time.Second * 6

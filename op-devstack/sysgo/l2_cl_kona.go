@@ -27,12 +27,12 @@ import (
 type KonaNode struct {
 	mu sync.Mutex
 
-	id stack.L2CLNodeID
+	id stack.ComponentID
 
 	userRPC          string
 	interopEndpoint  string // warning: currently not fully supported
 	interopJwtSecret eth.Bytes32
-	el               stack.L2ELNodeID
+	el               stack.ComponentID
 
 	userProxy *tcpproxy.Proxy
 
@@ -63,9 +63,9 @@ func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
 		InteropJwtSecret: k.interopJwtSecret,
 	})
 	sysL2CL.SetLabel(match.LabelVendor, string(match.KonaNode))
-	l2Net := system.L2Network(stack.L2NetworkID(k.id.ChainID()))
+	l2Net := system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(k.id.ChainID())))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
-	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(k.el))
+	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(stack.ByID[stack.L2ELNode](k.el)))
 }
 
 func (k *KonaNode) Start() {
@@ -161,13 +161,12 @@ func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
 
 var _ L2CLNode = (*KonaNode)(nil)
 
-func WithKonaNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, l2FollowSourceID stack.L2CLNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithKonaNodeFollowL2(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID, l2FollowSourceID stack.ComponentID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		followSource := func(orch *Orchestrator) string {
 			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
-			l2CLComponent, ok := orch.registry.Get(stack.ConvertL2CLNodeID(l2FollowSourceID).ComponentID)
+			l2CLFollowSource, ok := orch.GetL2CL(l2FollowSourceID)
 			p.Require().True(ok, "l2 CL Follow Source required")
-			l2CLFollowSource := l2CLComponent.(L2CLNode)
 			return l2CLFollowSource.UserRPC()
 		}(orch)
 		opts = append(opts, L2CLFollowSource(followSource))
@@ -175,33 +174,29 @@ func WithKonaNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1EL
 	})
 }
 
-func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithKonaNode(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(withKonaNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...))
 }
 
-func withKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) func(orch *Orchestrator) {
+func withKonaNode(l2CLID stack.ComponentID, l1CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID, opts ...L2CLOption) func(orch *Orchestrator) {
 	return func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
 		require := p.Require()
 
-		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(l1CLID.ChainID())).ComponentID)
+		l1Net, ok := orch.GetL1Network(stack.NewL1NetworkID(l1CLID.ChainID()))
 		require.True(ok, "l1 network required")
-		l1Net := l1NetComponent.(*L1Network)
 
-		l2NetComponent, ok := orch.registry.Get(stack.ConvertL2NetworkID(stack.L2NetworkID(l2CLID.ChainID())).ComponentID)
+		l2Net, ok := orch.GetL2Network(stack.NewL2NetworkID(l2CLID.ChainID()))
 		require.True(ok, "l2 network required")
-		l2Net := l2NetComponent.(*L2Network)
 
 		l1ChainConfig := l1Net.genesis.Config
 
-		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
+		l1EL, ok := orch.GetL1EL(l1ELID)
 		require.True(ok, "l1 EL node required")
-		l1EL := l1ELComponent.(L1ELNode)
 
-		l1CLComponent, ok := orch.registry.Get(stack.ConvertL1CLNodeID(l1CLID).ComponentID)
+		l1CL, ok := orch.GetL1CL(l1CLID)
 		require.True(ok, "l1 CL node required")
-		l1CL := l1CLComponent.(*L1CLNode)
 
 		l2EL, ok := orch.GetL2EL(l2ELID)
 		require.True(ok, "l2 EL node required")
@@ -306,7 +301,7 @@ func withKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		k.Start()
 		p.Cleanup(k.Stop)
 		p.Logger().Info("Kona-node is up", "rpc", k.UserRPC())
-		cid := stack.ConvertL2CLNodeID(l2CLID).ComponentID
+		cid := l2CLID
 		require.False(orch.registry.Has(cid), "must not already exist")
 		orch.registry.Register(cid, k)
 	}

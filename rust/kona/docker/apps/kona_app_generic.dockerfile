@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   pkg-config
 
 # Install rust
-ENV RUST_VERSION=1.88
+ENV RUST_VERSION=1.92
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 

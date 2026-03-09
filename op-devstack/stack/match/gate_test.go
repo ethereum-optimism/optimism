@@ -36,11 +36,11 @@ func (f *fakeTesting) Gate() *testreq.Assertions {
 }
 
 func TestAssume(t *testing.T) {
-	a := &testObject{id: "a"}
-	b := &testObject{id: "b"}
+	a := newTestObject("a")
+	b := newTestObject("b")
 	fT := &fakeTesting{T: nil, g: &gateTesting{log: t.Logf}}
 
-	m := Assume(fT, First[testID, *testObject]())
+	m := Assume(fT, First[*testObject]())
 	require.Equal(t, m.String(), "Assume(ByIndex(0))")
 	require.Equal(t, []*testObject{a}, m.Match([]*testObject{a}))
 	require.Equal(t, []*testObject{a}, m.Match([]*testObject{a, b}))

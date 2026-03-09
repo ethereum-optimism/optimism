@@ -11,7 +11,7 @@ import (
 
 type L2CLNodeConfig struct {
 	CommonConfig
-	ID     stack.L2CLNodeID
+	ID     stack.ComponentID
 	Client client.RPC
 
 	UserRPC string
@@ -22,13 +22,13 @@ type L2CLNodeConfig struct {
 
 type rpcL2CLNode struct {
 	commonImpl
-	id               stack.L2CLNodeID
+	id               stack.ComponentID
 	client           client.RPC
 	rollupClient     apis.RollupClient
 	p2pClient        apis.P2PClient
-	els              locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
-	rollupBoostNodes locks.RWMap[stack.RollupBoostNodeID, stack.RollupBoostNode]
-	oprbuilderNodes  locks.RWMap[stack.OPRBuilderNodeID, stack.OPRBuilderNode]
+	els              locks.RWMap[stack.ComponentID, stack.L2ELNode]
+	rollupBoostNodes locks.RWMap[stack.ComponentID, stack.RollupBoostNode]
+	oprbuilderNodes  locks.RWMap[stack.ComponentID, stack.OPRBuilderNode]
 
 	userRPC string
 
@@ -60,7 +60,7 @@ func (r *rpcL2CLNode) ClientRPC() client.RPC {
 	return r.client
 }
 
-func (r *rpcL2CLNode) ID() stack.L2CLNodeID {
+func (r *rpcL2CLNode) ID() stack.ComponentID {
 	return r.id
 }
 
@@ -85,7 +85,7 @@ func (r *rpcL2CLNode) LinkOPRBuilderNode(oprb stack.OPRBuilderNode) {
 }
 
 func (r *rpcL2CLNode) ELs() []stack.L2ELNode {
-	return stack.SortL2ELNodes(r.els.Values())
+	return sortByIDFunc(r.els.Values())
 }
 
 func (r *rpcL2CLNode) ELClient() apis.EthClient {
@@ -101,11 +101,11 @@ func (r *rpcL2CLNode) ELClient() apis.EthClient {
 }
 
 func (r *rpcL2CLNode) RollupBoostNodes() []stack.RollupBoostNode {
-	return stack.SortRollupBoostNodes(r.rollupBoostNodes.Values())
+	return sortByIDFunc(r.rollupBoostNodes.Values())
 }
 
 func (r *rpcL2CLNode) OPRBuilderNodes() []stack.OPRBuilderNode {
-	return stack.SortOPRBuilderNodes(r.oprbuilderNodes.Values())
+	return sortByIDFunc(r.oprbuilderNodes.Values())
 }
 
 func (r *rpcL2CLNode) UserRPC() string {

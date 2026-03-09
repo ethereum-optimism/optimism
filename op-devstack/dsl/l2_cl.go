@@ -32,7 +32,7 @@ func NewL2CLNode(inner stack.L2CLNode, control stack.ControlPlane) *L2CLNode {
 	}
 }
 
-func (cl *L2CLNode) ID() stack.L2CLNodeID {
+func (cl *L2CLNode) ID() stack.ComponentID {
 	return cl.inner.ID()
 }
 

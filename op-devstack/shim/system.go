@@ -24,22 +24,7 @@ type presetSystem struct {
 	// Unified component registry for generic access
 	registry *stack.Registry
 
-	// Legacy typed maps - kept for backward compatibility during migration
-	superchains locks.RWMap[stack.SuperchainID, stack.Superchain]
-	clusters    locks.RWMap[stack.ClusterID, stack.Cluster]
-
-	// tracks L1 networks by L1NetworkID (a typed eth.ChainID)
-	l1Networks locks.RWMap[stack.L1NetworkID, stack.L1Network]
-	// tracks L2 networks by L2NetworkID (a typed eth.ChainID)
-	l2Networks locks.RWMap[stack.L2NetworkID, stack.L2Network]
-
-	// tracks all networks, and ensures there are no networks with the same eth.ChainID
-	networks locks.RWMap[eth.ChainID, stack.Network]
-
-	supervisors locks.RWMap[stack.SupervisorID, stack.Supervisor]
-	supernodes  locks.RWMap[stack.SupernodeID, stack.Supernode]
-	sequencers  locks.RWMap[stack.TestSequencerID, stack.TestSequencer]
-	syncTesters locks.RWMap[stack.SyncTesterID, stack.SyncTester]
+	supernodes locks.RWMap[stack.ComponentID, stack.Supernode]
 }
 
 var _ stack.ExtensibleSystem = (*presetSystem)(nil)
@@ -74,78 +59,131 @@ func (p *presetSystem) ComponentIDs(kind stack.ComponentKind) []stack.ComponentI
 }
 
 func (p *presetSystem) Superchain(m stack.SuperchainMatcher) stack.Superchain {
-	v, ok := findMatch(m, p.superchains.Get, p.Superchains)
+	getter := func(id stack.ComponentID) (stack.Superchain, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.Superchain), true
+	}
+	v, ok := findMatch(m, getter, p.Superchains)
 	p.require().True(ok, "must find superchain %s", m)
 	return v
 }
 
 func (p *presetSystem) AddSuperchain(v stack.Superchain) {
-	p.require().True(p.superchains.SetIfMissing(v.ID(), v), "superchain %s must not already exist", v.ID())
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertSuperchainID(v.ID()).ComponentID, v)
+	id := v.ID()
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "superchain %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetSystem) Cluster(m stack.ClusterMatcher) stack.Cluster {
-	v, ok := findMatch(m, p.clusters.Get, p.Clusters)
+	getter := func(id stack.ComponentID) (stack.Cluster, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.Cluster), true
+	}
+	v, ok := findMatch(m, getter, p.Clusters)
 	p.require().True(ok, "must find cluster %s", m)
 	return v
 }
 
 func (p *presetSystem) AddCluster(v stack.Cluster) {
-	p.require().True(p.clusters.SetIfMissing(v.ID(), v), "cluster %s must not already exist", v.ID())
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertClusterID(v.ID()).ComponentID, v)
+	id := v.ID()
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "cluster %s must not already exist", id)
+	p.registry.Register(id, v)
+}
+
+// networkExistsByChainID checks if any network (L1 or L2) exists with the given chain ID
+func (p *presetSystem) networkExistsByChainID(chainID eth.ChainID) bool {
+	l1ID := stack.NewL1NetworkID(chainID)
+	if _, ok := p.registry.Get(l1ID); ok {
+		return true
+	}
+	l2ID := stack.NewL2NetworkID(chainID)
+	if _, ok := p.registry.Get(l2ID); ok {
+		return true
+	}
+	return false
 }
 
 func (p *presetSystem) Network(id eth.ChainID) stack.Network {
-	if l1Net, ok := p.l1Networks.Get(stack.L1NetworkID(id)); ok {
-		return l1Net
+	l1ID := stack.NewL1NetworkID(id)
+	if l1Net, ok := p.registry.Get(l1ID); ok {
+		return l1Net.(stack.L1Network)
 	}
-	if l2Net, ok := p.l2Networks.Get(stack.L2NetworkID(id)); ok {
-		return l2Net
+	l2ID := stack.NewL2NetworkID(id)
+	if l2Net, ok := p.registry.Get(l2ID); ok {
+		return l2Net.(stack.L2Network)
 	}
 	p.t.FailNow()
 	return nil
 }
 
 func (p *presetSystem) L1Network(m stack.L1NetworkMatcher) stack.L1Network {
-	v, ok := findMatch(m, p.l1Networks.Get, p.L1Networks)
+	getter := func(id stack.ComponentID) (stack.L1Network, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.L1Network), true
+	}
+	v, ok := findMatch(m, getter, p.L1Networks)
 	p.require().True(ok, "must find l1 network %s", m)
 	return v
 }
 
 func (p *presetSystem) AddL1Network(v stack.L1Network) {
 	id := v.ID()
-	p.require().True(p.networks.SetIfMissing(id.ChainID(), v), "chain with id %s must not already exist", id.ChainID())
-	p.require().True(p.l1Networks.SetIfMissing(id, v), "L1 chain %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertL1NetworkID(id).ComponentID, v)
+	p.require().False(p.networkExistsByChainID(id.ChainID()), "chain with id %s must not already exist", id.ChainID())
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "L1 chain %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetSystem) L2Network(m stack.L2NetworkMatcher) stack.L2Network {
-	v, ok := findMatch(m, p.l2Networks.Get, p.L2Networks)
+	getter := func(id stack.ComponentID) (stack.L2Network, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.L2Network), true
+	}
+	v, ok := findMatch(m, getter, p.L2Networks)
 	p.require().True(ok, "must find l2 network %s", m)
 	return v
 }
 
 func (p *presetSystem) AddL2Network(v stack.L2Network) {
 	id := v.ID()
-	p.require().True(p.networks.SetIfMissing(id.ChainID(), v), "chain with id %s must not already exist", id.ChainID())
-	p.require().True(p.l2Networks.SetIfMissing(id, v), "L2 chain %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertL2NetworkID(id).ComponentID, v)
+	p.require().False(p.networkExistsByChainID(id.ChainID()), "chain with id %s must not already exist", id.ChainID())
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "L2 chain %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetSystem) Supervisor(m stack.SupervisorMatcher) stack.Supervisor {
-	v, ok := findMatch(m, p.supervisors.Get, p.Supervisors)
+	getter := func(id stack.ComponentID) (stack.Supervisor, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.Supervisor), true
+	}
+	v, ok := findMatch(m, getter, p.Supervisors)
 	p.require().True(ok, "must find supervisor %s", m)
 	return v
 }
 
 func (p *presetSystem) AddSupervisor(v stack.Supervisor) {
-	p.require().True(p.supervisors.SetIfMissing(v.ID(), v), "supervisor %s must not already exist", v.ID())
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertSupervisorID(v.ID()).ComponentID, v)
+	id := v.ID()
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "supervisor %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetSystem) Supernode(m stack.SupernodeMatcher) stack.Supernode {
@@ -159,61 +197,105 @@ func (p *presetSystem) AddSupernode(v stack.Supernode) {
 }
 
 func (p *presetSystem) TestSequencer(m stack.TestSequencerMatcher) stack.TestSequencer {
-	v, ok := findMatch(m, p.sequencers.Get, p.TestSequencers)
+	getter := func(id stack.ComponentID) (stack.TestSequencer, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.TestSequencer), true
+	}
+	v, ok := findMatch(m, getter, p.TestSequencers)
 	p.require().True(ok, "must find sequencer %s", m)
 	return v
 }
 
 func (p *presetSystem) AddTestSequencer(v stack.TestSequencer) {
-	p.require().True(p.sequencers.SetIfMissing(v.ID(), v), "sequencer %s must not already exist", v.ID())
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertTestSequencerID(v.ID()).ComponentID, v)
+	id := v.ID()
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "sequencer %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetSystem) AddSyncTester(v stack.SyncTester) {
-	p.require().True(p.syncTesters.SetIfMissing(v.ID(), v), "sync tester %s must not already exist", v.ID())
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertSyncTesterID(v.ID()).ComponentID, v)
+	id := v.ID()
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "sync tester %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
-func (p *presetSystem) SuperchainIDs() []stack.SuperchainID {
-	return stack.SortSuperchainIDs(p.superchains.Keys())
+func (p *presetSystem) SuperchainIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindSuperchain))
 }
 
 func (p *presetSystem) Superchains() []stack.Superchain {
-	return stack.SortSuperchains(p.superchains.Values())
+	ids := p.registry.IDsByKind(stack.KindSuperchain)
+	result := make([]stack.Superchain, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.Superchain))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
-func (p *presetSystem) ClusterIDs() []stack.ClusterID {
-	return stack.SortClusterIDs(p.clusters.Keys())
+func (p *presetSystem) ClusterIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindCluster))
 }
 
 func (p *presetSystem) Clusters() []stack.Cluster {
-	return stack.SortClusters(p.clusters.Values())
+	ids := p.registry.IDsByKind(stack.KindCluster)
+	result := make([]stack.Cluster, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.Cluster))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
-func (p *presetSystem) L1NetworkIDs() []stack.L1NetworkID {
-	return stack.SortL1NetworkIDs(p.l1Networks.Keys())
+func (p *presetSystem) L1NetworkIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindL1Network))
 }
 
 func (p *presetSystem) L1Networks() []stack.L1Network {
-	return stack.SortL1Networks(p.l1Networks.Values())
+	ids := p.registry.IDsByKind(stack.KindL1Network)
+	result := make([]stack.L1Network, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.L1Network))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
-func (p *presetSystem) L2NetworkIDs() []stack.L2NetworkID {
-	return stack.SortL2NetworkIDs(p.l2Networks.Keys())
+func (p *presetSystem) L2NetworkIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindL2Network))
 }
 
 func (p *presetSystem) L2Networks() []stack.L2Network {
-	return stack.SortL2Networks(p.l2Networks.Values())
+	ids := p.registry.IDsByKind(stack.KindL2Network)
+	result := make([]stack.L2Network, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.L2Network))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
-func (p *presetSystem) SupervisorIDs() []stack.SupervisorID {
-	return stack.SortSupervisorIDs(p.supervisors.Keys())
+func (p *presetSystem) SupervisorIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindSupervisor))
 }
 
 func (p *presetSystem) Supervisors() []stack.Supervisor {
-	return stack.SortSupervisors(p.supervisors.Values())
+	ids := p.registry.IDsByKind(stack.KindSupervisor)
+	result := make([]stack.Supervisor, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.Supervisor))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
 func (p *presetSystem) Supernodes() []stack.Supernode {
@@ -221,7 +303,14 @@ func (p *presetSystem) Supernodes() []stack.Supernode {
 }
 
 func (p *presetSystem) TestSequencers() []stack.TestSequencer {
-	return stack.SortTestSequencers(p.sequencers.Values())
+	ids := p.registry.IDsByKind(stack.KindTestSequencer)
+	result := make([]stack.TestSequencer, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.TestSequencer))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
 func (p *presetSystem) SetTimeTravelClock(cl stack.TimeTravelClock) {

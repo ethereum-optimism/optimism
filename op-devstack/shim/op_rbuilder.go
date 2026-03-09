@@ -13,13 +13,13 @@ import (
 type OPRBuilderNodeConfig struct {
 	ELNodeConfig
 	RollupCfg         *rollup.Config
-	ID                stack.OPRBuilderNodeID
+	ID                stack.ComponentID
 	FlashblocksClient *opclient.WSClient
 }
 
 type OPRBuilderNode struct {
 	rpcELNode
-	id                stack.OPRBuilderNodeID
+	id                stack.ComponentID
 	engineClient      *sources.EngineClient
 	flashblocksClient *opclient.WSClient
 }
@@ -41,7 +41,7 @@ func NewOPRBuilderNode(cfg OPRBuilderNodeConfig) *OPRBuilderNode {
 	}
 }
 
-func (r *OPRBuilderNode) ID() stack.OPRBuilderNodeID {
+func (r *OPRBuilderNode) ID() stack.ComponentID {
 	return r.id
 }
 

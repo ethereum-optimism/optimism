@@ -4,7 +4,7 @@ description = "OP EVM implementation"
 
 version = "0.26.3"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.92"
 authors = ["Alloy Contributors", "OpLabsPBC"]
 license.workspace = true
 homepage = "https://github.com/ethereum-optimism/optimism"

@@ -85,10 +85,10 @@ func WithDeployerCacheDir(dirPath string) DeployerPipelineOption {
 
 // WithDAFootprintGasScalar sets the DA footprint gas scalar with which the networks identified by
 // l2IDs will be launched. If there are no l2IDs provided, all L2 networks are set with scalar.
-func WithDAFootprintGasScalar(scalar uint16, l2IDs ...stack.L2NetworkID) DeployerOption {
+func WithDAFootprintGasScalar(scalar uint16, l2IDs ...stack.ComponentID) DeployerOption {
 	return func(p devtest.P, _ devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2 := range builder.L2s() {
-			if len(l2IDs) == 0 || slices.ContainsFunc(l2IDs, func(id stack.L2NetworkID) bool {
+			if len(l2IDs) == 0 || slices.ContainsFunc(l2IDs, func(id stack.ComponentID) bool {
 				return id.ChainID() == l2.ChainID()
 			}) {
 				l2.WithDAFootprintGasScalar(scalar)
@@ -125,22 +125,22 @@ func WithDeployer() stack.Option[*Orchestrator] {
 			require := o.P().Require()
 			require.NotNil(o.wb, "must have a world builder")
 
-			l1ID := stack.L1NetworkID(eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID))
-			superchainID := stack.SuperchainID("main")
-			clusterID := stack.ClusterID("main")
+			l1ID := stack.NewL1NetworkID(eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID))
+			superchainID := stack.NewSuperchainID("main")
+			clusterID := stack.NewClusterID("main")
 
 			l1Net := &L1Network{
 				id:        l1ID,
 				genesis:   wb.outL1Genesis,
 				blockTime: 6,
 			}
-			o.registry.Register(stack.ConvertL1NetworkID(l1ID).ComponentID, l1Net)
+			o.registry.Register(l1ID, l1Net)
 
-			o.registry.Register(stack.ConvertSuperchainID(superchainID).ComponentID, &Superchain{
+			o.registry.Register(superchainID, &Superchain{
 				id:         superchainID,
 				deployment: wb.outSuperchainDeployment,
 			})
-			o.registry.Register(stack.ConvertClusterID(clusterID).ComponentID, &Cluster{
+			o.registry.Register(clusterID, &Cluster{
 				id:     clusterID,
 				cfgset: wb.outFullCfgSet,
 			})
@@ -153,7 +153,7 @@ func WithDeployer() stack.Option[*Orchestrator] {
 				l2Dep, ok := wb.outL2Deployment[chainID]
 				require.True(ok, "L2 deployment must exist")
 
-				l2ID := stack.L2NetworkID(chainID)
+				l2ID := stack.NewL2NetworkID(chainID)
 				l2Net := &L2Network{
 					id:         l2ID,
 					l1ChainID:  l1ID.ChainID(),
@@ -162,7 +162,7 @@ func WithDeployer() stack.Option[*Orchestrator] {
 					deployment: l2Dep,
 					keys:       o.keys,
 				}
-				o.registry.Register(stack.ConvertL2NetworkID(l2ID).ComponentID, l2Net)
+				o.registry.Register(l2ID, l2Net)
 			}
 		},
 	}

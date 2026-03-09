@@ -461,9 +461,10 @@ func TestRegistryGet_TypeSafe(t *testing.T) {
 	r := NewRegistry()
 
 	chainID := eth.ChainIDFromUInt64(420)
-	id := NewL2BatcherID2("batcher1", chainID)
-	component := &mockComponent{id: id.ComponentID, name: "test-batcher"}
+	id := NewL2BatcherID("batcher1", chainID)
+	component := &mockComponent{id: id, name: "test-batcher"}
 
+	// Use the ID for generic registry functions
 	RegistryRegister(r, id, component)
 
 	// Type-safe get

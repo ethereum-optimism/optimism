@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-func WithSequencerActive(ctx context.Context) stack.Matcher[stack.L2CLNodeID, stack.L2CLNode] {
-	return MatchElemFn[stack.L2CLNodeID, stack.L2CLNode](func(elem stack.L2CLNode) bool {
+func WithSequencerActive(ctx context.Context) stack.Matcher[stack.L2CLNode] {
+	return MatchElemFn[stack.L2CLNode](func(elem stack.L2CLNode) bool {
 		sequencing, err := retry.Do(ctx, 10, retry.Exponential(), func() (bool, error) {
 			return elem.RollupAPI().SequencerActive(ctx)
 		})

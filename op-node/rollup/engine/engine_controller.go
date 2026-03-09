@@ -229,7 +229,7 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 			panic("superAuthority supplied an identifier for the safe head which is not known to the engine")
 		}
 		return br
-	} else if e.supervisorEnabled {
+	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedSafeHead
 	} else {
 		return e.localSafeHead
@@ -262,7 +262,7 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 			panic("superAuthority supplied an identifier for the finalized head which is not known to the engine")
 		}
 		return br
-	} else if e.supervisorEnabled {
+	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedFinalizedHead
 	} else {
 		return e.localFinalizedHead
@@ -787,7 +787,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) {
 
 func (e *EngineController) localSafeIsFullySafe(timestamp uint64) bool {
 	// pre-interop (or if supervisor disabled) everything that is local-safe is also immediately cross-safe.
-	return !e.rollupCfg.IsInterop(timestamp) || !e.supervisorEnabled
+	return !e.rollupCfg.IsInterop(timestamp) || (!e.supervisorEnabled && !e.syncCfg.FollowSourceEnabled())
 }
 
 func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -1208,7 +1208,7 @@ func (e *EngineController) startPayload(ctx context.Context, fc eth.ForkchoiceSt
 	}
 }
 
-func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2BlockRef) {
+func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalizedRef eth.L2BlockRef) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -1216,9 +1216,14 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2Block
 		// Assume the sanity of external safe and finalized are checked
 		if updateUnsafe {
 			// May interrupt ongoing EL Sync to update the target, or trigger EL Sync
-			e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
+			e.tryUpdateUnsafe(e.ctx, eLocalSafeRef)
 		}
-		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+		e.tryUpdateLocalSafe(e.ctx, eLocalSafeRef, true, eth.L1BlockRef{})
+		// Inject external cross-safe. Must happen before promoteFinalized
+		// (which rejects finalized > SafeL2Head).
+		if eSafeBlockRef.Number > e.deprecatedSafeHead.Number {
+			e.PromoteSafe(e.ctx, eSafeBlockRef, eth.L1BlockRef{})
+		}
 		// Directly update the Engine Controller state, bypassing finalizer
 		if e.FinalizedHead().Number <= eFinalizedRef.Number {
 			e.promoteFinalized(e.ctx, eFinalizedRef)
@@ -1229,19 +1234,20 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2Block
 		"currentUnsafe", e.unsafeHead,
 		"currentSafe", e.SafeL2Head(),
 		"externalSafe", eSafeBlockRef,
+		"externalLocalSafe", eLocalSafeRef,
 		"externalFinalized", eFinalizedRef,
 	)
 
 	logger.Info("Follow Source: Process external refs")
 
-	if e.unsafeHead.Number < eSafeBlockRef.Number {
+	if e.unsafeHead.Number < eLocalSafeRef.Number {
 		// EL Sync target may be updated
-		logger.Debug("Follow Source: EL Sync: External safe ahead of current unsafe")
+		logger.Debug("Follow Source: EL Sync: External local safe ahead of current unsafe")
 		followExternalRefs(true)
 		return
 	}
 
-	fetchedSafe, err := e.engine.L2BlockRefByNumber(e.ctx, eSafeBlockRef.Number)
+	fetchedSafe, err := e.engine.L2BlockRefByNumber(e.ctx, eLocalSafeRef.Number)
 	if errors.Is(err, ethereum.NotFound) {
 		// We queried a block before the EngineController unsafe head number,
 		// but it is not found. This indicates the underlying EL is still syncing.
@@ -1253,18 +1259,18 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2Block
 		return
 	}
 	if err != nil {
-		logger.Debug("Follow Source: Failed to fetch external safe from local EL", "err", err)
+		logger.Debug("Follow Source: Failed to fetch external local safe from local EL", "err", err)
 		return
 	}
 
-	if fetchedSafe == eSafeBlockRef {
-		// External safe is found locally and matches.
+	if fetchedSafe == eLocalSafeRef {
+		// External local safe is found locally and matches.
 		logger.Debug("Follow Source: Consolidation")
 		followExternalRefs(false)
 		return
 	}
 
-	// External safe is found locally but they differ so trigger reorg.
+	// External local safe is found locally but they differ so trigger reorg.
 	// Reorging may trigger EL Sync, or updating the EL Sync target.
 	logger.Warn("Follow Source: Reorg. May Trigger EL sync")
 	followExternalRefs(true)

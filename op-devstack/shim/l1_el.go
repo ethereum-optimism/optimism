@@ -7,12 +7,12 @@ import (
 
 type L1ELNodeConfig struct {
 	ELNodeConfig
-	ID stack.L1ELNodeID
+	ID stack.ComponentID
 }
 
 type rpcL1ELNode struct {
 	rpcELNode
-	id stack.L1ELNodeID
+	id stack.ComponentID
 }
 
 var _ stack.L1ELNode = (*rpcL1ELNode)(nil)
@@ -26,6 +26,6 @@ func NewL1ELNode(cfg L1ELNodeConfig) stack.L1ELNode {
 	}
 }
 
-func (r *rpcL1ELNode) ID() stack.L1ELNodeID {
+func (r *rpcL1ELNode) ID() stack.ComponentID {
 	return r.id
 }

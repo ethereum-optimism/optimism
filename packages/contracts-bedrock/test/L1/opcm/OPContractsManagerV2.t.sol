@@ -478,6 +478,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
     }
 
+    /// @notice Tests that the upgrade function reverts when not delegatecalled.
+    function test_upgrade_notDelegateCalled_reverts() public {
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_OnlyDelegateCall.selector);
+        opcmV2.upgrade(v2UpgradeInput);
+    }
+
     /// @notice Tests that the upgrade function reverts if not called by the correct ProxyAdmin
     ///         owner address.
     function test_upgrade_notProxyAdminOwner_reverts() public {
@@ -654,14 +660,24 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         uint256 originalBond = disputeGameFactory.initBonds(GameTypes.CANNON);
 
         // First, disable Cannon and clear its bond so the factory entry is removed.
+        // If the chain's current respectedGameType is CANNON, we must override it to
+        // PERMISSIONED_CANNON since we can't disable the respected game type.
         v2UpgradeInput.disputeGameConfigs[0].enabled = false;
         v2UpgradeInput.disputeGameConfigs[0].initBond = 0;
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(GameTypes.PERMISSIONED_CANNON)
+            })
+        );
         runCurrentUpgradeV2(chainPAO, hex"", "PLDG-10");
         assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "game impl not cleared");
 
         // Re-enable Cannon and restore its bond so that it is re-installed.
+        // Remove the startingRespectedGameType override since CANNON is enabled again.
         v2UpgradeInput.disputeGameConfigs[0].enabled = true;
         v2UpgradeInput.disputeGameConfigs[0].initBond = originalBond;
+        v2UpgradeInput.extraInstructions.pop();
         runCurrentUpgradeV2(chainPAO);
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
@@ -682,8 +698,16 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
 
         // Disable Cannon and zero its bond, then ensure it is removed.
+        // If the chain's current respectedGameType is CANNON, we must override it to
+        // PERMISSIONED_CANNON since we can't disable the respected game type.
         v2UpgradeInput.disputeGameConfigs[0].enabled = false;
         v2UpgradeInput.disputeGameConfigs[0].initBond = 0;
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(GameTypes.PERMISSIONED_CANNON)
+            })
+        );
         runCurrentUpgradeV2(chainPAO, hex"", "PLDG-10");
         assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "game impl not cleared");
         assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), 0, "init bond not cleared");
@@ -730,6 +754,45 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             Claim.unwrap(newPrestate),
             "permissioned prestate not updated"
         );
+    }
+
+    /// @notice Tests that the upgrade function reverts when duplicate non-PermittedProxyDeployment
+    ///         instruction keys are provided.
+    function test_upgrade_duplicateInstructionKeys_reverts() public {
+        delete v2UpgradeInput.extraInstructions;
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({ key: "SomeCustomKey", data: bytes("Data1") })
+        );
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({ key: "SomeCustomKey", data: bytes("Data2") })
+        );
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_DuplicateUpgradeInstruction.selector, "SomeCustomKey"
+            )
+        );
+    }
+
+    /// @notice Tests that duplicate PermittedProxyDeployment instruction keys are allowed.
+    function test_upgrade_duplicatePermittedProxyDeploymentKeys_succeeds() public {
+        delete v2UpgradeInput.extraInstructions;
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+                data: bytes("DelayedWETH")
+            })
+        );
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+                data: bytes("DelayedWETH")
+            })
+        );
+
+        runCurrentUpgradeV2(chainPAO);
     }
 
     /// @notice INVARIANT: Upgrades must always work when the system is paused.
@@ -944,7 +1007,7 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
 
     /// @notice Tests that the upgradeSuperchain function reverts when not delegatecalled.
     function test_upgradeSuperchain_notDelegateCalled_reverts() public {
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_OnlyDelegateCall.selector);
         opcmV2.upgradeSuperchain(superchainUpgradeInput);
     }
 
@@ -1133,6 +1196,43 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // Disable Cannon but keep a non-zero init bond.
         deployConfig.disputeGameConfigs[0].enabled = false;
         deployConfig.disputeGameConfigs[0].initBond = 1 ether;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Tests that two different senders deploying with the same saltMixer and l2ChainId
+    ///         get different contract addresses.
+    function test_deploy_differentSendersDifferentAddresses_succeeds() public {
+        address senderA = makeAddr("senderA");
+        address senderB = makeAddr("senderB");
+
+        vm.prank(senderA);
+        IOPContractsManagerV2.ChainContracts memory ctsA = opcmV2.deploy(deployConfig);
+
+        vm.prank(senderB);
+        IOPContractsManagerV2.ChainContracts memory ctsB = opcmV2.deploy(deployConfig);
+
+        assertNotEq(
+            address(ctsA.systemConfig), address(ctsB.systemConfig), "systemConfig addresses should differ by sender"
+        );
+    }
+
+    /// @notice Tests that deploy reverts when startingRespectedGameType is not in the disputeGameConfigs.
+    function test_deploy_startingGameTypeNotInConfigs_reverts() public {
+        deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Tests that deploy reverts when startingRespectedGameType is a disabled game type.
+    function test_deploy_startingGameTypeDisabled_reverts() public {
+        deployConfig.startingRespectedGameType = GameTypes.CANNON;
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
@@ -1349,6 +1449,13 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             string.concat("Game type set when it should not be: ", _label)
         );
         assertEq(_dgf.gameArgs(_gameType), hex"", string.concat("Game args should be empty: ", _label));
+    }
+
+    /// @notice Tests that the migrate function reverts when not delegatecalled.
+    function test_migrate_notDelegateCalled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_OnlyDelegateCall.selector);
+        opcmV2.migrate(input);
     }
 
     /// @notice Tests that the migration function succeeds and liquidity is migrated.
