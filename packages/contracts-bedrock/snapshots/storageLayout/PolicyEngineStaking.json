@@ -33,5 +33,12 @@
     "offset": 1,
     "slot": "3",
     "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "_pendingOwner",
+    "offset": 0,
+    "slot": "4",
+    "type": "address"
   }
 ]

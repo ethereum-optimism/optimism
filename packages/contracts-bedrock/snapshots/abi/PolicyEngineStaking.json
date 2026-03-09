@@ -29,6 +29,13 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "acceptOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -117,6 +124,19 @@
         "internalType": "uint128",
         "name": "lastUpdate",
         "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pendingOwner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -357,6 +377,25 @@
         "type": "address"
       }
     ],
+    "name": "OwnershipTransferStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
     "name": "OwnershipTransferred",
     "type": "event"
   },
@@ -423,6 +462,11 @@
   {
     "inputs": [],
     "name": "PolicyEngineStaking_NotAllowedToSetBeneficiary",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PolicyEngineStaking_NotPendingOwner",
     "type": "error"
   },
   {

@@ -1059,11 +1059,11 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
     }
 }
 
-/// @title PolicyEngineStaking_DecreasePeData_Test
-/// @notice Tests `_decreasePeData` behavior via unstake (partial vs full).
-contract PolicyEngineStaking_DecreasePeData_Test is PolicyEngineStaking_TestInit {
+/// @title PolicyEngineStaking_Unstake_LastUpdate_Test
+/// @notice Tests lastUpdate behavior on partial vs full unstake.
+contract PolicyEngineStaking_Unstake_LastUpdate_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that partial unstake preserves lastUpdate (does not reset it).
-    function test_decreasePeData_partialUnstake_preservesLastUpdate_succeeds() external {
+    function test_unstake_partialPreservesLastUpdate_succeeds() external {
         uint128 stakeAmount = uint128(100 ether);
         uint128 unstakeAmount = uint128(40 ether);
 
@@ -1084,7 +1084,7 @@ contract PolicyEngineStaking_DecreasePeData_Test is PolicyEngineStaking_TestInit
     }
 
     /// @notice Tests that full unstake resets lastUpdate to block.timestamp.
-    function test_decreasePeData_fullUnstake_resetsLastUpdate_succeeds() external {
+    function test_unstake_fullResetsLastUpdate_succeeds() external {
         uint128 stakeAmount = uint128(100 ether);
 
         vm.prank(alice);
