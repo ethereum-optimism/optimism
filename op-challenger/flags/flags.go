@@ -232,6 +232,14 @@ var (
 		Value:   false,
 		Hidden:  true,
 	}
+	CannonKonaExperimentalWitnessEndpointFlag = &cli.BoolFlag{
+		Name: "cannon-kona-experimental-witness-endpoint",
+		Usage: "Enable experimental witness endpoint for Kona interop. " +
+			"Uses debug_executePayload RPC to collect execution witnesses, " +
+			"reducing proof generation time by avoiding re-execution. " +
+			"Requires op-reth or execution client with debug_executePayload support.",
+		EnvVars: prefixEnvVars("CANNON_KONA_EXPERIMENTAL_WITNESS_ENDPOINT"),
+	}
 	GameWindowFlag = &cli.DurationFlag{
 		Name: "game-window",
 		Usage: "The time window which the challenger will look for games to progress and claim bonds. " +
@@ -296,6 +304,7 @@ var optionalFlags = []cli.Flag{
 	CannonKonaServerFlag,
 	CannonKonaPreStateFlag,
 	CannonKonaL2CustomFlag,
+	CannonKonaExperimentalWitnessEndpointFlag,
 	GameWindowFlag,
 	SelectiveClaimResolutionFlag,
 	UnsafeAllowInvalidPrestate,
@@ -645,15 +654,16 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			VmBin:             ctx.String(CannonBinFlag.Name),
 			Server:            ctx.String(CannonKonaServerFlag.Name),
 			Networks:          networks,
-			L2Custom:          ctx.Bool(CannonKonaL2CustomFlag.Name),
-			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
-			L1GenesisPath:     L1GenesisFlag.String(ctx, gameTypes.CannonKonaGameType),
-			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
-			DepsetConfigPath:  DepsetConfigFlag.String(ctx, gameTypes.CannonKonaGameType),
-			SnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
-			InfoFreq:          ctx.Uint(CannonInfoFreqFlag.Name),
-			DebugInfo:         true,
-			BinarySnapshots:   true,
+			L2Custom:                          ctx.Bool(CannonKonaL2CustomFlag.Name),
+			RollupConfigPaths:                 RollupConfigFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
+			L1GenesisPath:                     L1GenesisFlag.String(ctx, gameTypes.CannonKonaGameType),
+			L2GenesisPaths:                    L2GenesisFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
+			DepsetConfigPath:                  DepsetConfigFlag.String(ctx, gameTypes.CannonKonaGameType),
+			SnapshotFreq:                      ctx.Uint(CannonSnapshotFreqFlag.Name),
+			InfoFreq:                          ctx.Uint(CannonInfoFreqFlag.Name),
+			DebugInfo:                         true,
+			BinarySnapshots:                   true,
+			EnableExperimentalWitnessEndpoint: ctx.Bool(CannonKonaExperimentalWitnessEndpointFlag.Name),
 		},
 		CannonKonaAbsolutePreState:        ctx.String(CannonKonaPreStateFlag.Name),
 		CannonKonaAbsolutePreStateBaseURL: cannonKonaPreStatesURL,

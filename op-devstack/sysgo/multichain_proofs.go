@@ -285,6 +285,7 @@ func startInteropChallenger(
 		options = append(options,
 			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 			sharedchallenger.WithSuperCannonKonaGameType(),
+			sharedchallenger.WithExperimentalWitnessEndpoint(),
 		)
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
