@@ -98,6 +98,7 @@ job_categories:
     trigger_paths:
       - "op-rbuilder/"
       - "rollup-boost/"
+    depends_on: ["rust_build"]
     command: |
       git submodule update --init --recursive op-rbuilder rollup-boost && \
       cd op-rbuilder && cargo build --release
