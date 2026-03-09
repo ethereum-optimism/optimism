@@ -1,4 +1,4 @@
-//! Module containing a [`TxDeposit`] builder for the Karst network upgrade transactions.
+//! Module containing a `TxDeposit` builder for the Karst network upgrade transactions.
 //!
 //! Karst network upgrade transactions are defined in the [OP Stack Specs][specs].
 //!

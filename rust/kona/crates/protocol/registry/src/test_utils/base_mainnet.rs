@@ -58,6 +58,7 @@ pub const BASE_MAINNET_CONFIG: RollupConfig = RollupConfig {
         pectra_blob_schedule_time: None,
         isthmus_time: Some(BASE_MAINNET_ISTHMUS_TIMESTAMP),
         jovian_time: Some(BASE_MAINNET_JOVIAN_TIMESTAMP),
+        karst_time: None,
         interop_time: None,
     },
     batch_inbox_address: address!("ff00000000000000000000000000000000008453"),
