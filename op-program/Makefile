@@ -154,15 +154,10 @@ run-vm-compat:
 		--build-arg GO_VERSION=1.24.10-alpine3.21 \
 		--build-arg VM_TARGET=current \
 		--progress plain \
-		--target export \
 		--output "$(VM_COMPAT_OUTPUT_DIR)" \
 		-f Dockerfile.vmcompat ../
-	@docker build \
-		--build-arg GO_VERSION=1.24.10-alpine3.21 \
-		--build-arg VM_TARGET=current \
-		--progress plain \
-		--target check \
-		-f Dockerfile.vmcompat ../
+	# TODO(#18334): Uncomment once vm-compat supports go1.25
+	#@docker build --build-arg GO_VERSION=1.25.4-alpine3.21 --build-arg VM_TARGET=next --progress plain -f Dockerfile.vmcompat ../
 
 .PHONY: \
 	op-program \
