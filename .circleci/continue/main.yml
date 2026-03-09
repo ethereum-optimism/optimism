@@ -3190,14 +3190,14 @@ workflows:
           matrix:
             parameters:
               gate:
-                - interop-a
-                - interop-b
-                - sync-a
-                - sync-b
-                - sync-c
-                - protocol
-                - supernode
-                - misc
+                - "0"
+                - "1"
+                - "2"
+                - "3"
+                - "4"
+                - "5"
+                - "6"
+                - "7"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
