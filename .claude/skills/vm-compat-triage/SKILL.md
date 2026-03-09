@@ -165,21 +165,7 @@ make run-vm-compat
 ```
 This builds and runs the analysis inside Docker. The findings JSON will be in the Docker build output (and as a CI artifact if the artifact capture PR is merged).
 
-**3. CI log output (last resort).** Extract from the failed step's output:
-```bash
-# Use v1.1 API to get step output
-OUTPUT_URL=$(curl -s "https://circleci.com/api/v1.1/project/gh/ethereum-optimism/optimism/$JOB_NUMBER" | \
-  python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-for step in d.get('steps', []):
-    for action in step.get('actions', []):
-        if 'Run Analyzer' in action.get('name', '') and action.get('status') == 'failed':
-            print(action.get('output_url', ''))
-")
-```
-
-**WARNING:** CircleCI truncates large log output. The JSON array may be cut off at the beginning, losing CRITICAL findings. Only use this as a last resort.
+**Do NOT use CI log output.** CircleCI truncates large log output, which silently drops findings from the beginning of the JSON array. Triage based on incomplete data is worse than useless — it gives false confidence. If neither CI artifacts nor local execution are available, stop and tell the user to set up one of those options.
 
 ### Step 3: Load and parse findings
 
