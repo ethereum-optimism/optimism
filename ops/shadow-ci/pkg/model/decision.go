@@ -51,6 +51,10 @@ type JobCategoryConfig struct {
 	Command        string   `yaml:"command" json:"command,omitempty"`             // build/test command to execute
 	WorkspacePaths []string `yaml:"workspace_paths" json:"workspace_paths,omitempty"` // paths to persist in workspace
 	RunnerClass    string   `yaml:"runner" json:"runner,omitempty"`               // resource class override
+
+	// Content-addressed build cache fields.
+	CacheInputs   []string `yaml:"cache_inputs" json:"cache_inputs,omitempty"`       // paths hashed for cache key (defaults to trigger_paths)
+	VerifyCommand string   `yaml:"verify_command" json:"verify_command,omitempty"`   // shell command that exits 0 if cached outputs are valid
 }
 
 // FuzzPackage maps a fuzz package to its trigger paths.

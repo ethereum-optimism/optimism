@@ -358,7 +358,10 @@ jobs:
       - restore_cache:
           keys:
             - shadow-ci-mise-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
-{{ if ne .Name "build" }}      - run:
+{{ if eq .Name "build" }}      - restore_cache:
+          keys:
+            - shadow-ci-build-v1-
+{{ end }}{{ if ne .Name "build" }}      - run:
           name: Restore build artifacts
           command: |
             if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
@@ -379,7 +382,8 @@ jobs:
               --group {{ .Name }} \
               --decision /tmp/shadow-ci-workspace/decision.json \
               --config ops/shadow-ci/config \
-              --results-dir /tmp/shadow-ci-test-results
+              --results-dir /tmp/shadow-ci-test-results{{ if eq .Name "build" }} \
+              --cache-dir /tmp/shadow-ci-cache{{ end }}
 {{ if eq .Name "build" }}      - run:
           name: Stage build artifacts for downstream groups
           command: |
@@ -390,6 +394,10 @@ jobs:
                 cp -r "$path" "/tmp/shadow-ci-workspace/build-artifacts/$path"
               fi
             done
+      - save_cache:
+          key: shadow-ci-build-v1-{{ "{{" }} epoch {{ "}}" }}
+          paths:
+            - /tmp/shadow-ci-cache
       - persist_to_workspace:
           root: /tmp/shadow-ci-workspace
           paths:

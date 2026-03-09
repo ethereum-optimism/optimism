@@ -19,6 +19,7 @@ cache
 
 !op-chain-ops/foundry/testdata/srcmaps/cache
 !op-chain-ops/foundry/testdata/srcmaps/artifacts
+!ops/shadow-ci/pkg/cache
 
 !op-deployer/pkg/deployer/artifacts
 

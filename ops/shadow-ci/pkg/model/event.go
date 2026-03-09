@@ -56,6 +56,12 @@ const (
 	// Auto-revert events.
 	EventAutoRevertTriggered EventType = "auto_revert.triggered"
 	EventAutoRevertSkipped   EventType = "auto_revert.skipped"
+
+	// Cache events.
+	EventCacheHit          EventType = "cache.hit"
+	EventCacheMiss         EventType = "cache.miss"
+	EventCacheVerifyPassed EventType = "cache.verify_passed"
+	EventCacheVerifyFailed EventType = "cache.verify_failed"
 )
 
 // Event is the universal telemetry unit.
@@ -93,6 +99,13 @@ type FlakePayload struct {
 type RetryPayload struct {
 	Original TestResult `json:"original"`
 	Retry    TestResult `json:"retry"`
+}
+
+// CachePayload is the payload for cache events.
+type CachePayload struct {
+	Category string `json:"category"`
+	CacheKey string `json:"cache_key"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 // FalseNegativeDetail describes a test that shadow CI missed.

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/cache"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 )
 
@@ -25,6 +26,7 @@ func main() {
 	configDir := flag.String("config", "ops/shadow-ci/config", "Path to config directory")
 	resultsDir := flag.String("results-dir", "/tmp/shadow-ci-test-results", "Results output directory")
 	dryRun := flag.Bool("dry-run", false, "Print what would run without executing")
+	cacheDir := flag.String("cache-dir", "", "Build cache directory (empty disables caching)")
 	flag.Parse()
 
 	if *group == "" {
@@ -46,6 +48,12 @@ func main() {
 	}
 
 	os.MkdirAll(*resultsDir, 0o755)
+
+	// Create cache resolver if caching is enabled.
+	var resolver *cache.Resolver
+	if *cacheDir != "" {
+		resolver = cache.NewResolver(".", *cacheDir)
+	}
 
 	// Collect categories for this group.
 	type catEntry struct {
@@ -136,6 +144,44 @@ func main() {
 				return
 			}
 
+			// Cache resolution for categories with workspace outputs.
+			if resolver != nil && len(e.cat.WorkspacePaths) > 0 {
+				if *dryRun {
+					if key, keyErr := resolver.ComputeKey(e.name, e.cat); keyErr == nil {
+						fmt.Printf("--- %s: DRY RUN cache key=%s ---\n", e.name, key)
+					}
+				} else {
+					res, resolveErr := resolver.Resolve(e.name, e.cat)
+					if resolveErr != nil {
+						fmt.Printf("--- %s: cache key error: %v, proceeding with full build ---\n", e.name, resolveErr)
+					} else if res.Hit && res.Verified {
+						// Cache hit — restore artifacts and skip build.
+						if restoreErr := resolver.Restore(e.name, e.cat); restoreErr != nil {
+							fmt.Printf("--- %s: cache restore failed: %v, proceeding with full build ---\n", e.name, restoreErr)
+						} else {
+							fmt.Printf("--- %s: CACHED (key=%s, verified in %s) ---\n\n", e.name, res.CacheKey, res.Duration.Round(time.Millisecond))
+							mu.Lock()
+							results = append(results, result{Category: e.name, Status: "cached", Duration: res.Duration})
+							mu.Unlock()
+							close(done[e.name])
+							return
+						}
+					} else if res.Hit && !res.Verified {
+						fmt.Printf("--- %s: CACHE STALE (key=%s matched but verify failed in %s) ---\n", e.name, res.CacheKey, res.Duration.Round(time.Millisecond))
+						fmt.Printf("    WARNING: cache key was insufficient — rebuilding\n")
+						// Write warning to results dir for observability.
+						warnPath := filepath.Join(*resultsDir, e.name+"-cache-verify-failed.json")
+						warnJSON, _ := json.Marshal(map[string]string{
+							"category": e.name, "cache_key": res.CacheKey,
+							"event": "cache.verify_failed",
+						})
+						os.WriteFile(warnPath, warnJSON, 0o644)
+					} else {
+						fmt.Printf("--- %s: cache miss (key=%s) ---\n", e.name, res.CacheKey)
+					}
+				}
+			}
+
 			fmt.Printf("--- %s: executing ---\n", e.name)
 			fmt.Printf("Command: %s\n", command)
 
@@ -179,6 +225,16 @@ func main() {
 				fmt.Println()
 			} else {
 				fmt.Printf("--- %s: PASSED in %s ---\n\n", e.name, duration.Round(time.Second))
+				// Save to cache after successful build.
+				if resolver != nil && len(e.cat.WorkspacePaths) > 0 {
+					if key, keyErr := resolver.ComputeKey(e.name, e.cat); keyErr == nil {
+						if saveErr := resolver.Save(e.name, e.cat, key); saveErr != nil {
+							fmt.Printf("    warning: cache save failed: %v\n", saveErr)
+						} else {
+							fmt.Printf("    cached artifacts for key=%s\n", key)
+						}
+					}
+				}
 			}
 
 			mu.Lock()
@@ -205,6 +261,8 @@ func main() {
 			emoji = "✗"
 		} else if r.Status == "no_command" || r.Status == "dry_run" {
 			emoji = "-"
+		} else if r.Status == "cached" {
+			emoji = "⚡"
 		}
 		fmt.Printf("  %s %-30s %s (%s)\n", emoji, r.Category, r.Status, r.Duration.Round(time.Millisecond))
 	}

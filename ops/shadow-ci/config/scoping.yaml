@@ -45,6 +45,13 @@ job_categories:
       - "packages/contracts-bedrock/cache"
       - "packages/contracts-bedrock/artifacts"
       - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
+    cache_inputs:
+      - "packages/contracts-bedrock/src/"
+      - "packages/contracts-bedrock/foundry.toml"
+      - "packages/contracts-bedrock/remappings.txt"
+      - "op-deployer/"
+    verify_command: |
+      cd packages/contracts-bedrock && forge build --sizes 2>&1 | grep -q "no files changed, compilation skipped"
     runner: medium
     description: "Build Solidity contracts (forge-build)"
 
@@ -61,6 +68,13 @@ job_categories:
     workspace_paths:
       - "op-program/bin"
       - "cannon/bin"
+    cache_inputs:
+      - "cannon/"
+      - "op-program/"
+      - "rust/"
+      - "packages/contracts-bedrock/src/"
+    verify_command: |
+      test -f op-program/bin/op-program && test -f cannon/bin/cannon
     runner: large
     description: "Build cannon prestates for fault proofs"
 
@@ -77,6 +91,14 @@ job_categories:
       - "op-program/bin"
       - "cannon/bin"
       - ".devnet"
+    cache_inputs:
+      - "cannon/"
+      - "op-program/"
+      - "packages/contracts-bedrock/src/"
+      - "packages/contracts-bedrock/foundry.toml"
+      - "go.sum"
+    verify_command: |
+      test -f op-program/bin/op-program && test -f cannon/bin/cannon && go build -v ./op-program/... 2>&1 | grep -c "^" | xargs test 0 -eq
     runner: large
     description: "Build Go binaries for sysgo acceptance tests"
 
@@ -90,6 +112,11 @@ job_categories:
       cd rust && cargo build --release --workspace
     workspace_paths:
       - "rust/target/release"
+    cache_inputs:
+      - "rust/"
+      - "Cargo.lock"
+    verify_command: |
+      cd rust && cargo check --release 2>&1 | tail -1 | grep -qE "(Finished|warning)"
     runner: large
     description: "Build Rust binaries (kona, op-reth)"
 
@@ -105,6 +132,11 @@ job_categories:
     workspace_paths:
       - "op-rbuilder/target/release"
       - "rollup-boost/target/release"
+    cache_inputs:
+      - "op-rbuilder/"
+      - "rollup-boost/"
+    verify_command: |
+      test -d op-rbuilder/target/release && test -d rollup-boost/target/release
     runner: large
     description: "Build Rust submodule binaries (op-rbuilder, rollup-boost)"
 
