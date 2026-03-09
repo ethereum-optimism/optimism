@@ -39,11 +39,12 @@ job_categories:
       - "op-deployer/"
     always_on_develop: true
     command: |
-      cd packages/contracts-bedrock && just forge-build --deny-warnings --skip test
+      cd packages/contracts-bedrock && just forge-build --deny-warnings --skip test && cd ../../op-deployer && just copy-contract-artifacts
     workspace_paths:
       - "packages/contracts-bedrock/forge-artifacts"
       - "packages/contracts-bedrock/cache"
       - "packages/contracts-bedrock/artifacts"
+      - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
     runner: medium
     description: "Build Solidity contracts (forge-build)"
 
@@ -213,7 +214,7 @@ job_categories:
       - { chain: ink, base: mainnet }
       - { chain: unichain, base: mainnet }
     command: |
-      cd packages/contracts-bedrock && ETH_RPC_URL=https://ci-mainnet-l1-archive.optimism.io FORK_OP_CHAIN=op FORK_BASE_CHAIN=mainnet just test-upgrade
+      cd packages/contracts-bedrock && just build-go-ffi && ETH_RPC_URL=https://ci-mainnet-l1-archive.optimism.io FORK_OP_CHAIN=op FORK_BASE_CHAIN=mainnet FOUNDRY_FUZZ_SEED=42424242 FOUNDRY_FUZZ_RUNS=1 FOUNDRY_PROFILE=ci just test-upgrade
     description: "Solidity upgrade tests on fork chains"
 
   sol_heavy_fuzz:

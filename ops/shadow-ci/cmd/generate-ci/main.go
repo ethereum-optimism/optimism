@@ -359,7 +359,7 @@ jobs:
           name: Stage build artifacts for downstream groups
           command: |
             mkdir -p /tmp/shadow-ci-workspace/build-artifacts
-            for path in packages/contracts-bedrock/forge-artifacts packages/contracts-bedrock/cache packages/contracts-bedrock/artifacts op-program/bin cannon/bin .devnet rust/target/release; do
+            for path in packages/contracts-bedrock/forge-artifacts packages/contracts-bedrock/cache packages/contracts-bedrock/artifacts op-deployer/pkg/deployer/artifacts/forge-artifacts op-program/bin cannon/bin .devnet rust/target/release; do
               if [ -e "$path" ]; then
                 mkdir -p "/tmp/shadow-ci-workspace/build-artifacts/$(dirname $path)"
                 cp -r "$path" "/tmp/shadow-ci-workspace/build-artifacts/$path"
