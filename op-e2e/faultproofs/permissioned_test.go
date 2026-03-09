@@ -20,7 +20,7 @@ func TestPermissionedGameType(t *testing.T) {
 
 	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys, disputegame.WithFactoryPrivKey(sys.Cfg.Secrets.Proposer))
 
-	game := gameFactory.StartPermissionedGame(ctx, "sequencer", 1, disputegame.WithOutputRoot(common.Hash{0x01, 0xaa}))
+	game := gameFactory.StartPermissionedGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
 
 	// Start a challenger with both cannon and alphabet support
 	gameFactory.StartChallenger(ctx, "TowerDefense",

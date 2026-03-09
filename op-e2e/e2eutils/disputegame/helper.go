@@ -56,7 +56,6 @@ type GameCfg struct {
 	allowUnsafe      bool
 	superOutputRoots []eth.Bytes32
 	super            eth.Super
-	outputRoot       common.Hash
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -90,13 +89,6 @@ func WithInvalidSuperRoot() GameOpt {
 func WithSuper(super eth.Super) GameOpt {
 	return gameOptFn(func(c *GameCfg) {
 		c.super = super
-	})
-}
-
-// WithOutputRoot allows specifying a custom output root.
-func WithOutputRoot(outputRoot common.Hash) GameOpt {
-	return gameOptFn(func(c *GameCfg) {
-		c.outputRoot = outputRoot
 	})
 }
 
@@ -191,31 +183,29 @@ func NewGameCfg(opts ...GameOpt) *GameCfg {
 	return cfg
 }
 
-func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputCannonGameHelper {
-	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, cannonGameType, opts...)
+func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputCannonGameHelper {
+	cfg := NewGameCfg(opts...)
+	h.WaitForBlock(l2Node, l2BlockNumber, cfg)
+	output, err := h.System.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
+	h.Require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
+	return h.StartOutputCannonGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot), opts...)
 }
 
-func (h *FactoryHelper) StartPermissionedGame(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputCannonGameHelper {
-	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, permissionedGameType, opts...)
+func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputCannonGameHelper {
+	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, rootClaim, cannonGameType, opts...)
 }
 
-func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node string, l2BlockNumber uint64, gameType uint32, opts ...GameOpt) *OutputCannonGameHelper {
+func (h *FactoryHelper) StartPermissionedGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputCannonGameHelper {
+	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, rootClaim, permissionedGameType, opts...)
+}
+
+func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *OutputCannonGameHelper {
 	cfg := NewGameCfg(opts...)
 	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "OutputCannonGameHelper")
 	rollupClient := h.System.RollupClient(l2Node)
 	l2Client := h.System.NodeClient(l2Node)
 
-	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
-
-	// If a custom output root was provided via options, use it; otherwise derive from extraData
-	var rootClaim common.Hash
-	if cfg.outputRoot != (common.Hash{}) {
-		rootClaim = cfg.outputRoot
-	} else {
-		output, err := rollupClient.OutputAtBlock(ctx, l2BlockNumber)
-		h.Require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
-		rootClaim = common.Hash(output.OutputRoot)
-	}
+	extraData := h.CreateBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
@@ -317,23 +307,21 @@ func (h *FactoryHelper) GetL1Head(ctx context.Context, game contracts.FaultDispu
 	return l1Head
 }
 
-func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputAlphabetGameHelper {
+func (h *FactoryHelper) StartOutputAlphabetGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputAlphabetGameHelper {
+	cfg := NewGameCfg(opts...)
+	h.WaitForBlock(l2Node, l2BlockNumber, cfg)
+	output, err := h.System.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
+	h.Require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
+	return h.StartOutputAlphabetGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot))
+}
+
+func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputAlphabetGameHelper {
 	cfg := NewGameCfg(opts...)
 	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "OutputAlphabetGameHelper")
 	rollupClient := h.System.RollupClient(l2Node)
 	l2Client := h.System.NodeClient(l2Node)
 
-	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
-
-	// If a custom output root was provided via options, use it; otherwise derive from extraData
-	var rootClaim common.Hash
-	if cfg.outputRoot != (common.Hash{}) {
-		rootClaim = cfg.outputRoot
-	} else {
-		output, err := rollupClient.OutputAtBlock(ctx, l2BlockNumber)
-		h.Require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
-		rootClaim = common.Hash(output.OutputRoot)
-	}
+	extraData := h.CreateBisectionGameExtraData(l2Node, l2BlockNumber, cfg)
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
@@ -364,7 +352,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	}
 }
 
-func (h *FactoryHelper) createBisectionGameExtraData(l2Node string, l2BlockNumber uint64, cfg *GameCfg) []byte {
+func (h *FactoryHelper) CreateBisectionGameExtraData(l2Node string, l2BlockNumber uint64, cfg *GameCfg) []byte {
 	h.WaitForBlock(l2Node, l2BlockNumber, cfg)
 	h.T.Logf("Creating game with l2 block number: %v", l2BlockNumber)
 	extraData := make([]byte, 32)
