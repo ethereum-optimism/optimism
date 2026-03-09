@@ -17,13 +17,13 @@ import (
 )
 
 type mockCC struct {
-	verL2           eth.BlockID
-	verL1           eth.BlockID
-	optL2           eth.BlockID
-	optL1           eth.BlockID
-	output          eth.Bytes32
-	status          *eth.SyncStatus
-	verifierL1s     []eth.BlockID
+	verL2       eth.BlockID
+	verL1       eth.BlockID
+	optL2       eth.BlockID
+	optL1       eth.BlockID
+	output      eth.Bytes32
+	status      *eth.SyncStatus
+	verifierL1s []eth.BlockID
 
 	verifiedErr   error
 	outputErr     error
