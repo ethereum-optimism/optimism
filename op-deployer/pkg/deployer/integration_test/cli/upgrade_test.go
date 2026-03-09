@@ -24,10 +24,6 @@ import (
 // - forks sepolia at a block before op-sepolia was upgraded
 // - runs the upgrade CLI command using op-sepolia values to simulate its upgrade
 func TestCLIUpgrade(t *testing.T) {
-	if os.Getenv("SEPOLIA_RPC_URL") == "" {
-		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
-	}
-
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	// op-sepolia values

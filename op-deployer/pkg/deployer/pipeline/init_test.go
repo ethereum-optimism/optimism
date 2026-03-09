@@ -127,9 +127,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	if rpcURL == "" {
-		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
-	}
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -223,9 +221,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	if rpcURL == "" {
-		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
-	}
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -343,9 +339,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	if rpcURL == "" {
-		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
-	}
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -454,9 +448,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	if rpcURL == "" {
-		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
-	}
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -584,9 +576,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	if rpcURL == "" {
-		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
-	}
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -703,9 +693,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	if rpcURL == "" {
-		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
-	}
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
@@ -778,9 +766,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	t.Parallel()
 
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	if rpcURL == "" {
-		t.Skip("SEPOLIA_RPC_URL not set, skipping RPC-dependent test")
-	}
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
 
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
