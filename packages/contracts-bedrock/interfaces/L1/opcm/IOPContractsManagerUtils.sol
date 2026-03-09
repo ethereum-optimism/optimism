@@ -151,6 +151,14 @@ interface IOPContractsManagerUtils {
         view
         returns (bytes memory);
 
+    function assertValidStandardGameConfigs(
+        DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _startingRespectedGameType,
+        bool _isInitialDeployment
+    )
+        external
+        pure;
+
     function assertValidSuperRootMigrationConfig(
         DisputeGameConfig[] memory _disputeGameConfigs,
         GameType _startingRespectedGameType,
