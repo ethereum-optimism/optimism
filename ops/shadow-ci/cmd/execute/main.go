@@ -4,20 +4,22 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 )
 
 // execute reads a pipeline decision and scoping config, then runs all needed
-// categories for a given group. This is the bridge between shadow CI's decision
-// engine and actual test execution — one binary that dispatches dynamically
-// based on config, so shadow-ci.yml never needs to change when categories are
-// added or modified.
+// categories for a given group. Categories with satisfied dependencies run in
+// parallel — the executor builds a DAG from depends_on and launches each
+// category as soon as its deps complete.
 func main() {
 	group := flag.String("group", "", "Execution group to run (build, go, sol, rust, misc)")
 	decisionPath := flag.String("decision", "/tmp/shadow-ci-workspace/decision.json", "Path to decision JSON")
@@ -30,7 +32,6 @@ func main() {
 		fatal("--group is required (build, go, sol, rust, misc)")
 	}
 
-	// Load config and decision.
 	cfg, err := model.LoadConfig(*configDir)
 	if err != nil {
 		fatal("loading config: %v", err)
@@ -70,26 +71,15 @@ func main() {
 		entries = append(entries, catEntry{name: name, cat: cat, cd: cd})
 	}
 
-	// Sort by dependency order — categories with no deps first.
-	sort.Slice(entries, func(i, j int) bool {
-		// Categories that are depended upon should run first.
-		for _, dep := range entries[j].cat.DependsOn {
-			if dep == entries[i].name {
-				return true
-			}
-		}
-		for _, dep := range entries[i].cat.DependsOn {
-			if dep == entries[j].name {
-				return false
-			}
-		}
-		return entries[i].name < entries[j].name
-	})
-
 	if len(entries) == 0 {
 		fmt.Printf("No categories to execute for group %q\n", *group)
 		os.Exit(0)
 	}
+
+	// Sort for deterministic display.
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].name < entries[j].name
+	})
 
 	fmt.Printf("=== Shadow CI Execute: group=%s, %d categories ===\n", *group, len(entries))
 	for _, e := range entries {
@@ -97,65 +87,115 @@ func main() {
 	}
 	fmt.Println()
 
-	// Execute each category.
 	type result struct {
 		Category string        `json:"category"`
 		Status   string        `json:"status"`
 		Duration time.Duration `json:"duration_ms"`
 		Output   string        `json:"output,omitempty"`
 	}
-	var results []result
-	failures := 0
 
+	// Build the set of categories in this group for dep resolution.
+	inGroup := make(map[string]bool)
 	for _, e := range entries {
-		command := strings.TrimSpace(e.cat.Command)
-		if command == "" {
-			fmt.Printf("--- %s: no command configured, skipping execution ---\n", e.name)
-			results = append(results, result{
-				Category: e.name,
-				Status:   "no_command",
-			})
-			continue
-		}
-
-		fmt.Printf("--- %s: executing ---\n", e.name)
-		fmt.Printf("Command: %s\n", command)
-
-		if *dryRun {
-			fmt.Printf("DRY RUN: would execute %q\n\n", command)
-			results = append(results, result{
-				Category: e.name,
-				Status:   "dry_run",
-			})
-			continue
-		}
-
-		start := time.Now()
-		cmd := exec.Command("bash", "-c", command)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Env = os.Environ()
-
-		err := cmd.Run()
-		duration := time.Since(start)
-
-		status := "pass"
-		if err != nil {
-			status = "fail"
-			failures++
-			fmt.Printf("--- %s: FAILED in %s: %v ---\n\n", e.name, duration.Round(time.Second), err)
-		} else {
-			fmt.Printf("--- %s: PASSED in %s ---\n\n", e.name, duration.Round(time.Second))
-		}
-
-		results = append(results, result{
-			Category: e.name,
-			Status:   status,
-			Duration: duration,
-		})
+		inGroup[e.name] = true
 	}
 
-	// Write results summary.
+	// Build dependency graph: for each category, track which in-group deps
+	// must complete before it can start. Out-of-group deps (e.g. build deps
+	// from another group) are assumed already satisfied.
+	done := make(map[string]chan struct{})
+	for _, e := range entries {
+		done[e.name] = make(chan struct{})
+	}
+
+	var (
+		mu       sync.Mutex
+		results  []result
+		failures int
+	)
+
+	var wg sync.WaitGroup
+	for _, e := range entries {
+		wg.Add(1)
+		go func(e catEntry) {
+			defer wg.Done()
+
+			// Wait for in-group dependencies.
+			for _, dep := range e.cat.DependsOn {
+				if ch, ok := done[dep]; ok {
+					<-ch
+				}
+			}
+
+			command := strings.TrimSpace(e.cat.Command)
+			if command == "" {
+				fmt.Printf("--- %s: no command configured, skipping execution ---\n", e.name)
+				mu.Lock()
+				results = append(results, result{Category: e.name, Status: "no_command"})
+				mu.Unlock()
+				close(done[e.name])
+				return
+			}
+
+			fmt.Printf("--- %s: executing ---\n", e.name)
+			fmt.Printf("Command: %s\n", command)
+
+			if *dryRun {
+				fmt.Printf("DRY RUN: would execute %q\n\n", command)
+				mu.Lock()
+				results = append(results, result{Category: e.name, Status: "dry_run"})
+				mu.Unlock()
+				close(done[e.name])
+				return
+			}
+
+			// Each category writes output to its own log file so parallel
+			// output doesn't interleave. We tee to the log and print a
+			// summary when done.
+			logPath := filepath.Join(*resultsDir, e.name+".log")
+			logFile, err := os.Create(logPath)
+			if err != nil {
+				fatal("creating log file for %s: %v", e.name, err)
+			}
+
+			start := time.Now()
+			cmd := exec.Command("bash", "-c", command)
+			cmd.Stdout = io.MultiWriter(logFile, os.Stdout)
+			cmd.Stderr = io.MultiWriter(logFile, os.Stderr)
+			cmd.Env = os.Environ()
+
+			runErr := cmd.Run()
+			duration := time.Since(start)
+			logFile.Close()
+
+			status := "pass"
+			if runErr != nil {
+				status = "fail"
+				mu.Lock()
+				failures++
+				mu.Unlock()
+				fmt.Printf("--- %s: FAILED in %s: %v ---\n\n", e.name, duration.Round(time.Second), runErr)
+			} else {
+				fmt.Printf("--- %s: PASSED in %s ---\n\n", e.name, duration.Round(time.Second))
+			}
+
+			mu.Lock()
+			results = append(results, result{Category: e.name, Status: status, Duration: duration})
+			mu.Unlock()
+
+			// Signal completion so dependents can start, even on failure
+			// (let them fail too rather than hang).
+			close(done[e.name])
+		}(e)
+	}
+
+	wg.Wait()
+
+	// Sort results for deterministic output.
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Category < results[j].Category
+	})
+
 	fmt.Printf("\n=== Shadow CI Execute Summary (group=%s) ===\n", *group)
 	for _, r := range results {
 		emoji := "✓"
@@ -173,10 +213,10 @@ func main() {
 	fmt.Printf("\nWrote results to %s\n", resultPath)
 
 	if failures > 0 {
-		fmt.Printf("\nFAIL: %d/%d categories failed\n", failures, len(entries))
+		fmt.Printf("\nFAIL: %d/%d categories failed\n", failures, len(results))
 		os.Exit(1)
 	}
-	fmt.Printf("\nPASS: all %d categories succeeded\n", len(entries))
+	fmt.Printf("\nPASS: all %d categories succeeded\n", len(results))
 }
 
 func fatal(format string, args ...any) {
