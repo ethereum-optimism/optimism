@@ -202,7 +202,7 @@ contract OptimisticZkGame is Clone, ISemver, IDisputeGame {
         AccessManager _accessManager
     ) {
         // Set up initial game state.
-        GAME_TYPE = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
+        GAME_TYPE = GameTypes.ZK_DISPUTE_GAME;
         MAX_CHALLENGE_DURATION = _maxChallengeDuration;
         MAX_PROVE_DURATION = _maxProveDuration;
         DISPUTE_GAME_FACTORY = _disputeGameFactory;
