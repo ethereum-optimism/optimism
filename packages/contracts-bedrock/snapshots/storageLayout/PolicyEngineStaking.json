@@ -29,14 +29,14 @@
   },
   {
     "bytes": "20",
-    "label": "_owner",
+    "label": "owner",
     "offset": 1,
     "slot": "3",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "_pendingOwner",
+    "label": "pendingOwner",
     "offset": 0,
     "slot": "4",
     "type": "address"
