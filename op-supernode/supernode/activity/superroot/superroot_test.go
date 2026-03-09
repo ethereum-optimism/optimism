@@ -122,6 +122,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2000},
+				SafeL2:      eth.L2BlockRef{Time: 190},
 				LocalSafeL2: eth.L2BlockRef{Time: 200},
 				FinalizedL2: eth.L2BlockRef{Time: 150},
 			},
@@ -134,6 +135,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2100},
+				SafeL2:      eth.L2BlockRef{Time: 170},
 				LocalSafeL2: eth.L2BlockRef{Time: 180},
 				FinalizedL2: eth.L2BlockRef{Time: 140},
 			},
@@ -151,6 +153,44 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	require.Equal(t, uint64(1000), out.Data.VerifiedRequiredL1.Number)
 	// With zero outputs, the superroot will be deterministic, just ensure it's set
 	_ = out.Data.SuperRoot
+}
+
+// TODO: We might want to change this behavior later and remove this test when we do
+func TestSuperroot_AtTimestamp_UsesLocalSafeTimestampNotSafeTimestamp(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verL2:  eth.BlockID{Number: 100},
+			verL1:  eth.BlockID{Number: 1000},
+			optL2:  eth.BlockID{Number: 100},
+			optL1:  eth.BlockID{Number: 1000},
+			output: eth.Bytes32{},
+			status: &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 2000},
+				SafeL2:      eth.L2BlockRef{Time: 90},
+				LocalSafeL2: eth.L2BlockRef{Time: 180},
+				FinalizedL2: eth.L2BlockRef{Time: 150},
+			},
+		},
+		eth.ChainIDFromUInt64(420): &mockCC{
+			verL2:  eth.BlockID{Number: 200},
+			verL1:  eth.BlockID{Number: 1100},
+			optL2:  eth.BlockID{Number: 200},
+			optL1:  eth.BlockID{Number: 1100},
+			output: eth.Bytes32{},
+			status: &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 2100},
+				SafeL2:      eth.L2BlockRef{Time: 80},
+				LocalSafeL2: eth.L2BlockRef{Time: 170},
+				FinalizedL2: eth.L2BlockRef{Time: 140},
+			},
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &superrootAPI{s: s}
+	out, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Equal(t, uint64(170), out.CurrentSafeTimestamp)
 }
 
 func TestSuperroot_AtTimestamp_ComputesSuperRoot(t *testing.T) {
