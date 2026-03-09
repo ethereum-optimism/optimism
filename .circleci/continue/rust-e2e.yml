@@ -16,6 +16,9 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
+  c-rust_changes_detected:
+    type: boolean
+    default: false
 
 # Commands used by rust-e2e jobs
 commands:
@@ -164,6 +167,13 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
 
+  required-rust-e2e:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - run: echo "Required Rust E2E checks passed"
+
 # ============================================================================
 # RUST E2E WORKFLOWS
 # ============================================================================
@@ -178,9 +188,17 @@ workflows:
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test
+          when:
+            or:
+              - << pipeline.parameters.c-rust_changes_detected >>
+              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate: &rust-e2e-job-base
+          when:
+            or:
+              - << pipeline.parameters.c-rust_changes_detected >>
+              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &cannon-kona-host
@@ -188,12 +206,20 @@ workflows:
           directory: rust
           profile: release
           binary: "kona-host"
+          when:
+            or:
+              - << pipeline.parameters.c-rust_changes_detected >>
+              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: rust
           profile: release
+          when:
+            or:
+              - << pipeline.parameters.c-rust_changes_detected >>
+              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
@@ -201,6 +227,10 @@ workflows:
           directory: rust
           profile: release
           binary: "op-reth"
+          when:
+            or:
+              - << pipeline.parameters.c-rust_changes_detected >>
+              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-e2e-sysgo-tests:
@@ -208,6 +238,10 @@ workflows:
           matrix:
             parameters:
               devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
+          when:
+            or:
+              - << pipeline.parameters.c-rust_changes_detected >>
+              - << pipeline.parameters.c-rust_e2e_dispatch >>
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -219,6 +253,10 @@ workflows:
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart
           <<: *rust-e2e-job-base
+          when:
+            or:
+              - << pipeline.parameters.c-rust_changes_detected >>
+              - << pipeline.parameters.c-rust_e2e_dispatch >>
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -228,9 +266,24 @@ workflows:
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
+          when:
+            or:
+              - << pipeline.parameters.c-rust_changes_detected >>
+              - << pipeline.parameters.c-rust_e2e_dispatch >>
           requires:
             - kona-build-release
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # -----------------------------------------------------------------------
+      # Required gate — always runs, fans in on all E2E test jobs
+      # -----------------------------------------------------------------------
+      - required-rust-e2e:
+          requires:
+            - rust-e2e-simple-kona
+            - rust-e2e-simple-kona-geth
+            - rust-e2e-simple-kona-sequencer
+            - rust-e2e-large-kona-sequencer
+            - rust-e2e-restart
+            - kona-proof-action-single
 

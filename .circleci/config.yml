@@ -125,14 +125,18 @@ workflows:
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
             rust/.* c-rust_files_changed true .circleci/continue/main.yml
 
-            (rust|\.circleci)/.* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
-            (rust|\.circleci)/.* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
-            (rust|\.circleci)/.* c-base_image << pipeline.parameters.base_image >> .circleci/continue/rust-ci.yml
-            (rust|\.circleci)/.* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-ci.yml
+            # Rust CI — always include config, gate jobs via c-rust_changes_detected
+            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
+            .* c-base_image << pipeline.parameters.base_image >> .circleci/continue/rust-ci.yml
+            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-ci.yml
+            .* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
+            (rust|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-ci.yml
 
-            (rust|op-e2e|\.circleci)/.* c-rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
-            (rust|op-e2e|\.circleci)/.* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
-            (rust|op-e2e|\.circleci)/.* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
+            # Rust E2E — always include config, gate jobs via c-rust_changes_detected
+            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
+            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
+            .* c-rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
+            (rust|op-e2e|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-e2e.yml
 
   setup-tag:
     when:
