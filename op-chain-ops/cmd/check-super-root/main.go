@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	// RPCEndpointsFlagName defines the flag name for the RPC endpoints.
-	RPCEndpointsFlagName = "rpc-endpoints"
+	// SuperNodeRPCFlagName defines the flag name for the SuperNode RPC endpoint.
+	SuperNodeRPCFlagName = "super-node-rpc"
 	// TimestampFlagName defines the flag name for the optional target timestamp.
 	TimestampFlagName = "timestamp"
 )
@@ -23,15 +23,15 @@ const (
 // Config holds the configuration for the check-super-root command.
 type Config struct {
 	Logger          log.Logger
-	RPCEndpoints    []string
+	SuperNodeRPC    string
 	TargetTimestamp *uint64 // Optional target timestamp
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context) (*Config, error) {
-	rpcs := ctx.StringSlice(RPCEndpointsFlagName)
-	if len(rpcs) == 0 {
-		return nil, fmt.Errorf("flag %s is required", RPCEndpointsFlagName)
+	superNodeRPC := ctx.String(SuperNodeRPCFlagName)
+	if superNodeRPC == "" {
+		return nil, fmt.Errorf("flag %s is required", SuperNodeRPCFlagName)
 	}
 
 	var targetTimestamp *uint64
@@ -42,14 +42,14 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 
 	return &Config{
 		Logger:          oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)),
-		RPCEndpoints:    rpcs,
+		SuperNodeRPC:    superNodeRPC,
 		TargetTimestamp: targetTimestamp,
 	}, nil
 }
 
 // Main is the entrypoint for the check-super-root command.
 func Main(cfg *Config, ctx *cli.Context) error {
-	migrator, err := script.NewSuperRootMigrator(cfg.Logger, cfg.RPCEndpoints, cfg.TargetTimestamp)
+	migrator, err := script.NewSuperRootMigrator(cfg.Logger, cfg.SuperNodeRPC, cfg.TargetTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to create SuperRootMigrator: %w", err)
 	}
@@ -63,15 +63,15 @@ func Main(cfg *Config, ctx *cli.Context) error {
 
 // Flags contains the list of configuration options available to the binary.
 var Flags = []cli.Flag{
-	&cli.StringSliceFlag{
-		Name:     RPCEndpointsFlagName,
-		Usage:    "Required: List of L2 execution client RPC endpoints (e.g., http://host:port).",
+	&cli.StringFlag{
+		Name:     SuperNodeRPCFlagName,
+		Usage:    "Required: SuperNode RPC endpoint (e.g., http://host:port).",
 		Required: true,
-		EnvVars:  []string{"CHECK_SUPER_ROOT_RPC_ENDPOINTS"},
+		EnvVars:  []string{"CHECK_SUPER_ROOT_SUPER_NODE_RPC"},
 	},
 	&cli.Uint64Flag{
 		Name:    TimestampFlagName,
-		Usage:   "Optional: Target timestamp for super root calculation. If not set, uses the latest common finalized block timestamp.",
+		Usage:   "Optional: Target timestamp for super root lookup. If not set, uses the latest finalized timestamp reported by SuperNode.",
 		EnvVars: []string{"CHECK_SUPER_ROOT_TIMESTAMP"},
 	},
 }
@@ -81,7 +81,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "check-super-root"
-	app.Usage = "Calculates a super root from multiple L2 EL endpoints based on their common finalized state."
+	app.Usage = "Fetches a verified super root from SuperNode."
 	// Combine specific flags with log flags
 	app.Flags = append(Flags, oplog.CLIFlags("CHECK_SUPER_ROOT")...)
 
