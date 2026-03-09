@@ -275,6 +275,11 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Sets whether a staker can set the caller as beneficiary. When disallowing,
     ///         if the staker's current beneficiary is the caller, their stake attribution is
     ///         moved back to the staker (beneficiary reset to self).
+    ///         This function is intentionally NOT gated by `whenNotPaused`. Allowlist
+    ///         mutations remain available during pause so that beneficiaries can revoke
+    ///         stakers at any time. Note that disallowing a staker who is currently
+    ///         delegated to the caller will move effective stake attribution back to the
+    ///         staker, changing ordering-power state even while the contract is paused.
     ///
     /// @param _staker The staker to allow or deny.
     /// @param _allowed The allowed state.
