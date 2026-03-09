@@ -2535,6 +2535,10 @@ jobs:
           command: |
             make run-vm-compat
           working_directory: op-program
+      - store_artifacts:
+          path: op-program/bin/vm-compat-output/vm-compat-findings.json
+          destination: vm-compat-findings.json
+          when: always
 
   op-program-compat:
     docker:

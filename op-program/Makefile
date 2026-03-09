@@ -146,10 +146,31 @@ analyze-op-program-client-current:
 analyze-op-program-client-next:
 	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64-next.yaml ./compatibility-test/baseline-cannon-multithreaded-64-next.json
 
+VM_COMPAT_OUTPUT_DIR := bin/vm-compat-output
+VM_COMPAT_IMAGE_TAG := op-program-vmcompat:latest
+
 run-vm-compat:
-	@docker build --build-arg GO_VERSION=1.24.10-alpine3.21 --build-arg VM_TARGET=current --progress plain -f Dockerfile.vmcompat ../
+	@rm -rf "$(VM_COMPAT_OUTPUT_DIR)" && mkdir -p "$(VM_COMPAT_OUTPUT_DIR)"
+	@docker build \
+		--build-arg GO_VERSION=1.24.10-alpine3.21 \
+		--build-arg VM_TARGET=current \
+		--progress plain \
+		-t "$(VM_COMPAT_IMAGE_TAG)" \
+		-f Dockerfile.vmcompat ../
+	@container_id=$$(docker create "$(VM_COMPAT_IMAGE_TAG)"); \
+	docker cp "$$container_id:/app/op-program/vm-compat-findings.json" "$(VM_COMPAT_OUTPUT_DIR)/vm-compat-findings.json" 2>/dev/null || true; \
+	docker cp "$$container_id:/app/op-program/vm-compat-exit-code" "$(VM_COMPAT_OUTPUT_DIR)/vm-compat-exit-code" 2>/dev/null || true; \
+	docker rm "$$container_id" > /dev/null; \
+	exit_code=$$(cat "$(VM_COMPAT_OUTPUT_DIR)/vm-compat-exit-code" 2>/dev/null || echo "1"); \
+	if [ "$$exit_code" != "0" ]; then \
+		echo "vm-compat analysis failed (exit code $$exit_code)"; \
+		if [ -s "$(VM_COMPAT_OUTPUT_DIR)/vm-compat-findings.json" ]; then \
+			echo "Findings saved to $(VM_COMPAT_OUTPUT_DIR)/vm-compat-findings.json"; \
+		fi; \
+		exit 1; \
+	fi
 	# TODO(#18334): Uncomment once vm-compat supports go1.25
-	#@docker build --build-arg GO_VERSION=1.25.4-alpine3.21 --build-arg VM_TARGET=next --progress plain -f Dockerfile.vmcompat ../
+	#@docker build --build-arg GO_VERSION=1.25.4-alpine3.21 --build-arg VM_TARGET=next --progress plain -t "$(VM_COMPAT_IMAGE_TAG)" -f Dockerfile.vmcompat ../
 
 .PHONY: \
 	op-program \
