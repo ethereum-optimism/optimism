@@ -23,8 +23,8 @@ func (c *SuperNodeClient) SuperRootAtTimestamp(ctx context.Context, timestamp ui
 	return
 }
 
-func (c *SuperNodeClient) SyncStatus(ctx context.Context) (result eth.SuperRootSyncStatusResponse, err error) {
-	err = c.rpc.CallContext(ctx, &result, "superroot_syncStatus")
+func (c *SuperNodeClient) SyncStatus(ctx context.Context) (result eth.SuperNodeSyncStatusResponse, err error) {
+	err = c.rpc.CallContext(ctx, &result, "supernode_syncStatus")
 	return
 }
 

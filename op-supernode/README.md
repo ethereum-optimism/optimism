@@ -79,6 +79,8 @@ Components which expose Start/Stop are given a goroutine to work during `op-supe
   - Runtime: emits a simple heartbeat message to the logs to show liveness.
 - `SuperRoot`
   - RPC: `superroot_atTimestamp` produces a SuperRoot from Verified L2 blocks, and includes sync/derivation information for Proofs.
+- `Supernode`
+  - RPC: `supernode_syncStatus` returns aggregate per-chain sync status across the dependency set.
 
 ### Quickstart
 Build:

@@ -156,7 +156,7 @@ func TestSuperNodeClient_SyncStatus(t *testing.T) {
 
 		chainA := eth.ChainIDFromUInt64(1)
 		chainB := eth.ChainIDFromUInt64(2)
-		expected := eth.SuperRootSyncStatusResponse{
+		expected := eth.SuperNodeSyncStatusResponse{
 			Chains: map[eth.ChainID]eth.SyncStatus{
 				chainA: {
 					CurrentL1:     eth.L1BlockRef{Number: 100},
@@ -181,9 +181,9 @@ func TestSuperNodeClient_SyncStatus(t *testing.T) {
 			LocalSafeTimestamp: 170,
 			FinalizedTimestamp: 100,
 		}
-		rpc.On("CallContext", ctx, new(eth.SuperRootSyncStatusResponse),
-			"superroot_syncStatus", []any(nil)).Run(func(args mock.Arguments) {
-			*args[1].(*eth.SuperRootSyncStatusResponse) = expected
+		rpc.On("CallContext", ctx, new(eth.SuperNodeSyncStatusResponse),
+			"supernode_syncStatus", []any(nil)).Run(func(args mock.Arguments) {
+			*args[1].(*eth.SuperNodeSyncStatusResponse) = expected
 		}).Return([]error{nil})
 
 		result, err := client.SyncStatus(ctx)
@@ -197,8 +197,8 @@ func TestSuperNodeClient_SyncStatus(t *testing.T) {
 		defer rpc.AssertExpectations(t)
 		client := NewSuperNodeClient(rpc)
 
-		rpc.On("CallContext", ctx, new(eth.SuperRootSyncStatusResponse),
-			"superroot_syncStatus", []any(nil)).Return([]error{errors.New("boom")})
+		rpc.On("CallContext", ctx, new(eth.SuperNodeSyncStatusResponse),
+			"supernode_syncStatus", []any(nil)).Return([]error{errors.New("boom")})
 		_, err := client.SyncStatus(ctx)
 		require.Error(t, err)
 	})
