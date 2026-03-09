@@ -20,7 +20,8 @@ go run op-chain-ops/cmd/check-super-root/main.go --super-node-rpc $SUPER_NODE_RP
 Output:
 
 ```bash
-INFO [05-19|16:24:50.736] Super root fetched successfully superRoot=0xa47cfdd734e7db568eea0531c5fa6117398a5218d76371a17656e13836a8a44f timestamp=1747682546 chains=2
+INFO [03-09|16:28:40.038] Resolved latest finalized timestamp from SuperNode timestamp=1,773,088,121 safeTimestamp=1,773,088,125 currentL1=004750..926869:2
+INFO [03-09|16:28:40.039] Super root fetched successfully          superRoot=0xd77796a621f585359d8ca87479a63b73d9e00aaec24e57cd9176d4f4ef91939d timestamp=1,773,088,121 chains=2 currentL1=004750..926869:2
 ```
 
 Record the bytes32 hash of the super root and the timestamp the SuperRoot is valid for
@@ -42,6 +43,9 @@ go run op-chain-ops/cmd/check-super-root/main.go --super-node-rpc $SUPER_NODE_RP
 
 The output should match the above
 
+The explicit timestamp path logs the requested timestamp first, then the fetched super root:
+
 ```bash
-INFO [05-19|16:24:50.736] Super root fetched successfully superRoot=0xa47cfdd734e7db568eea0531c5fa6117398a5218d76371a17656e13836a8a44f timestamp=1747682546 chains=2
+INFO [03-09|16:28:40.037] Using user-provided timestamp            timestamp=1,773,088,121
+INFO [03-09|16:28:40.039] Super root fetched successfully          superRoot=0xd77796a621f585359d8ca87479a63b73d9e00aaec24e57cd9176d4f4ef91939d timestamp=1,773,088,121 chains=2 currentL1=004750..926869:2
 ```
