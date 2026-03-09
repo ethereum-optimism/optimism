@@ -1183,17 +1183,13 @@ workflows:
       # Kona crate-specific jobs (lint, FPVM builds, benches, coverage)
       # -----------------------------------------------------------------------
       - kona-cargo-lint:
-          name: kona-lint-<<matrix.target>>
-          matrix:
-            parameters:
-              target: ["cannon"]
+          name: kona-lint-cannon
+          target: "cannon"
           context: *rust-ci-context
 
       - kona-build-fpvm:
-          name: kona-build-fpvm-<<matrix.target>>
-          matrix:
-            parameters:
-              target: ["cannon-client"]
+          name: kona-build-fpvm-cannon-client
+          target: "cannon-client"
           context: *rust-ci-context
 
       - kona-coverage:
@@ -1216,15 +1212,46 @@ workflows:
 
   # ==========================================================================
   # Required Rust CI gate (skip) — runs when no rust changes and no dispatch
-  # Immediately passes the required-rust-ci check so GitHub is satisfied
+  # Just runs the rust cargo tests for the different packages in the repo and try to build the fpvm-prestates
   # ==========================================================================
-  rust-ci-gate-skip:
+  rust-ci-gate-short:
     when:
       and:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - not: << pipeline.parameters.c-rust_changes_detected >>
     jobs:
-      - required-rust-ci
+      - rust-ci-cargo-tests:
+          name: rust-tests
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-cargo-tests:
+          name: op-reth-integration-tests
+          directory: rust
+          command: "--justfile op-reth/justfile test-integration"
+          cache_profile: debug
+          context: *rust-ci-context
+
+      - rust-ci-cargo-tests:
+          name: op-reth-tests-edge
+          directory: rust
+          command: "--justfile op-reth/justfile test"
+          flags: "edge"
+          cache_profile: debug
+          context: *rust-ci-context
+
+      - kona-build-fpvm:
+          name: kona-build-fpvm-cannon-client
+          target: "cannon-client"
+          context: *rust-ci-context
+
+      - required-rust-ci:
+          requires:
+            - rust-tests
+            - op-reth-integration-tests
+            - op-reth-tests-edge
+            - kona-build-fpvm-cannon-client
+
 
   # ==========================================================================
   # Kona scheduled workflows

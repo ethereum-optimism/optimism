@@ -259,12 +259,35 @@ workflows:
             - kona-proof-action-single
 
   # Required Rust E2E gate (skip) — runs when no rust changes and no dispatch
-  # Immediately passes the required-rust-e2e check so GitHub is satisfied
+  # Just runs action tests
   rust-e2e-gate-skip:
     when:
       and:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - not: << pipeline.parameters.c-rust_changes_detected >>
     jobs:
-      - required-rust-e2e
+      - contracts-bedrock-build:
+          build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary:
+          name: kona-build-release
+          directory: rust
+          profile: release
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # Proof tests - single kind only, interop excluded per original config
+      - kona-proof-action-tests:
+          name: kona-proof-action-single
+          kind: single
+          requires:
+            - kona-build-release
+            - contracts-bedrock-build
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      - required-rust-e2e:
+          requires:
+            - kona-proof-action-single
+
 
