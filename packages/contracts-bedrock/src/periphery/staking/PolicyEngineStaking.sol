@@ -32,8 +32,8 @@ contract PolicyEngineStaking is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     /// @notice Base storage slot for PE stakingData mapping. Policy Engine reads from
     ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
