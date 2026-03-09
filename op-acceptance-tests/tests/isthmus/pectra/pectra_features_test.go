@@ -10,8 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -36,19 +34,15 @@ type testSystem struct {
 }
 
 func newSystem(t devtest.T) *testSystem {
-	system := shim.NewSystem(t)
-	orch := presets.Orchestrator()
-	orch.Hydrate(system)
-
-	l2 := dsl.NewL2Network(system.L2Network(match.Assume(t, match.L2ChainA)), orch.ControlPlane())
+	preset := presets.NewMinimal(t)
+	l2 := preset.L2Chain
 	t.Require().True(l2.IsForkActive(forks.Isthmus), "Isthmus fork must be active for Pectra features")
 
-	l2EL := dsl.NewL2ELNode(l2.Escape().L2ELNode(match.WithArchive(t.Ctx())), orch.ControlPlane())
+	l2EL := l2.ArchiveEL()
 	wallet := dsl.NewRandomHDWallet(t, 30)
-	l2Faucet := dsl.NewFaucet(l2.Escape().Faucet(match.FirstFaucet))
 
 	return &testSystem{
-		FunderL2: dsl.NewFunder(wallet, l2Faucet, l2EL),
+		FunderL2: dsl.NewFunder(wallet, preset.FaucetL2, l2EL),
 		L2EL:     l2EL,
 		L2Chain:  l2,
 	}

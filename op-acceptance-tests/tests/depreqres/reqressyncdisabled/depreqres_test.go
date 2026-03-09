@@ -3,16 +3,18 @@ package depreqres
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/common"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 	// We don't want the safe head to move, as this can also progress the unsafe head
 	sys.L2Batcher.Stop()
 	l := t.Logger()

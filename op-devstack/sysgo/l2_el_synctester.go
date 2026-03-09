@@ -5,10 +5,6 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
@@ -18,8 +14,7 @@ import (
 type SyncTesterEL struct {
 	mu sync.Mutex
 
-	id      stack.ComponentID
-	l2Net   *L2Network
+	target  ComponentTarget
 	jwtPath string
 
 	authRPC string
@@ -29,10 +24,9 @@ type SyncTesterEL struct {
 	userProxy *tcpproxy.Proxy
 
 	config *SyncTesterELConfig
-	p      devtest.P
+	p      devtest.CommonT
 
-	// Reference to the orchestrator to find the EL node to connect to
-	orch *Orchestrator
+	syncTester *SyncTesterService
 }
 
 type SyncTesterELConfig struct {
@@ -56,22 +50,15 @@ func DefaultSyncTesterELConfig() *SyncTesterELConfig {
 }
 
 type SyncTesterELOption interface {
-	Apply(p devtest.P, id stack.ComponentID, cfg *SyncTesterELConfig)
+	Apply(p devtest.T, target ComponentTarget, cfg *SyncTesterELConfig)
 }
 
-// WithGlobalSyncTesterELOption applies the SyncTesterELOption to all SyncTesterEL instances in this orchestrator
-func WithGlobalSyncTesterELOption(opt SyncTesterELOption) stack.Option[*Orchestrator] {
-	return stack.BeforeDeploy(func(o *Orchestrator) {
-		o.SyncTesterELOptions = append(o.SyncTesterELOptions, opt)
-	})
-}
-
-type SyncTesterELOptionFn func(p devtest.P, id stack.ComponentID, cfg *SyncTesterELConfig)
+type SyncTesterELOptionFn func(p devtest.T, target ComponentTarget, cfg *SyncTesterELConfig)
 
 var _ SyncTesterELOption = SyncTesterELOptionFn(nil)
 
-func (fn SyncTesterELOptionFn) Apply(p devtest.P, id stack.ComponentID, cfg *SyncTesterELConfig) {
-	fn(p, id, cfg)
+func (fn SyncTesterELOptionFn) Apply(p devtest.T, target ComponentTarget, cfg *SyncTesterELConfig) {
+	fn(p, target, cfg)
 }
 
 // SyncTesterELOptionBundle a list of multiple SyncTesterELOption, to all be applied in order.
@@ -79,54 +66,26 @@ type SyncTesterELOptionBundle []SyncTesterELOption
 
 var _ SyncTesterELOptionBundle = SyncTesterELOptionBundle(nil)
 
-func (l SyncTesterELOptionBundle) Apply(p devtest.P, id stack.ComponentID, cfg *SyncTesterELConfig) {
+func (l SyncTesterELOptionBundle) Apply(p devtest.T, target ComponentTarget, cfg *SyncTesterELConfig) {
 	for _, opt := range l {
 		p.Require().NotNil(opt, "cannot Apply nil SyncTesterELOption")
-		opt.Apply(p, id, cfg)
+		opt.Apply(p, target, cfg)
 	}
 }
 
 var _ L2ELNode = (*SyncTesterEL)(nil)
 
-func (n *SyncTesterEL) hydrate(system stack.ExtensibleSystem) {
-	require := system.T().Require()
-	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.userRPC, client.WithLazyDial())
-	require.NoError(err)
-	system.T().Cleanup(rpcCl.Close)
-
-	// Sync Tester EL is always writable, and needs no auth
-	engineCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.authRPC)
-	require.NoError(err)
-	system.T().Cleanup(engineCl.Close)
-
-	l2Net := system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(n.id.ChainID())))
-	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
-		RollupCfg: l2Net.RollupConfig(),
-		ELNodeConfig: shim.ELNodeConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			Client:       rpcCl,
-			ChainID:      n.id.ChainID(),
-		},
-		EngineClient: engineCl,
-		ID:           n.id,
-	})
-	sysL2EL.SetLabel(match.LabelVendor, "sync-tester")
-	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
-}
-
 func (n *SyncTesterEL) Start() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	// The SyncTesterEL should connect to the existing sync tester service
-	// Get the endpoint from the orchestrator's syncTester service
-	if n.orch.syncTester == nil || n.orch.syncTester.service == nil {
-		n.p.Logger().Error("syncTester service not available in orchestrator")
+	// The SyncTesterEL should connect to the existing sync tester service.
+	if n.syncTester == nil || n.syncTester.service == nil {
+		n.p.Logger().Error("syncTester service not available")
 		return
 	}
 
-	// Use NewEndpoint to get the correct session-specific endpoint for this chain ID
-	endpoint := n.orch.syncTester.service.SyncTesterRPCPath(n.id.ChainID(), true)
+	endpoint := n.syncTester.SyncTesterRPCPath(n.target.ChainID, true)
 
 	path := endpoint + n.config.Path()
 
@@ -151,7 +110,7 @@ func (n *SyncTesterEL) Start() {
 		n.userRPC = rpc + path
 	}
 
-	sessionURL := n.orch.syncTester.service.RPC() + path
+	sessionURL := n.syncTester.RPC() + path
 
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), sessionURL))
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), sessionURL))
@@ -171,39 +130,4 @@ func (n *SyncTesterEL) EngineRPC() string {
 
 func (n *SyncTesterEL) JWTPath() string {
 	return n.jwtPath
-}
-
-// WithSyncTesterL2ELNode creates a SyncTesterEL that satisfies the L2ELNode interface
-// The sync tester acts as an EL node that can be used by CL nodes for testing sync.
-func WithSyncTesterL2ELNode(id, readonlyEL stack.ComponentID, opts ...SyncTesterELOption) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
-		require := p.Require()
-
-		l2Net, ok := orch.GetL2Network(stack.NewL2NetworkID(readonlyEL.ChainID()))
-		require.True(ok, "L2 network required")
-
-		cfg := DefaultSyncTesterELConfig()
-		orch.SyncTesterELOptions.Apply(p, id, cfg)       // apply global options
-		SyncTesterELOptionBundle(opts).Apply(p, id, cfg) // apply specific options
-
-		jwtPath, _ := orch.writeDefaultJWT()
-
-		syncTesterEL := &SyncTesterEL{
-			id:      id,
-			l2Net:   l2Net,
-			jwtPath: jwtPath,
-			config:  cfg,
-			p:       p,
-			orch:    orch,
-		}
-
-		p.Logger().Info("Starting sync tester EL", "id", id)
-		syncTesterEL.Start()
-		p.Cleanup(syncTesterEL.Stop)
-		p.Logger().Info("sync tester EL is ready", "userRPC", syncTesterEL.userRPC, "authRPC", syncTesterEL.authRPC)
-		cid := id
-		require.False(orch.registry.Has(cid), "must be unique L2 EL node")
-		orch.registry.Register(cid, syncTesterEL)
-	})
 }

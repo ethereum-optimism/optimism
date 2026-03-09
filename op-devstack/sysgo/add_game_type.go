@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -28,98 +27,26 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
-	if gameType == gameTypes.PermissionedGameType {
-		// Permissioned games are added as part of the initial deployment
-		// so no action required.
-		return stack.Combine[*Orchestrator]()
-	}
-	opts := stack.FnOption[*Orchestrator]{
-		FinallyFn: func(o *Orchestrator) {
-			absolutePrestate := PrestateForGameType(o.P(), gameType)
-			l1ELID, l2NetIDs := requireGameTypeTargetIDs(o)
-			for _, l2NetID := range l2NetIDs {
-				addGameType(o, absolutePrestate, gameType, l1ELID, l2NetID.ChainID())
-			}
-		},
-	}
-	return opts
-}
-
-func WithRespectedGameType(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
-	return stack.FnOption[*Orchestrator]{
-		FinallyFn: func(o *Orchestrator) {
-			l1ELID, l2NetIDs := requireGameTypeTargetIDs(o)
-			for _, l2NetID := range l2NetIDs {
-				setRespectedGameType(o, gameType, l1ELID, l2NetID.ChainID())
-			}
-		},
-	}
-}
-
-func WithCannonGameTypeAdded(l1ELID stack.ComponentID, l2ChainID eth.ChainID) stack.Option[*Orchestrator] {
-	return stack.FnOption[*Orchestrator]{
-		FinallyFn: func(o *Orchestrator) {
-			// TODO(#17867): Rebuild the op-program prestate using the newly minted L2 chain configs before using it.
-			absolutePrestate := getAbsolutePrestate(o.P(), "op-program/bin/prestate-proof-mt64.json")
-			addGameType(o, absolutePrestate, gameTypes.CannonGameType, l1ELID, l2ChainID)
-		},
-	}
-}
-
-func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
-	return stack.FnOption[*Orchestrator]{
-		BeforeDeployFn: func(o *Orchestrator) {
-			o.l2ChallengerOpts.useCannonKonaConfig = true
-		},
-		FinallyFn: func(o *Orchestrator) {
-			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
-			l1ELID, l2NetIDs := requireGameTypeTargetIDs(o)
-			for _, l2NetID := range l2NetIDs {
-				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, l1ELID, l2NetID.ChainID())
-			}
-		},
-	}
-}
-
-func requireGameTypeTargetIDs(o *Orchestrator) (stack.ComponentID, []stack.ComponentID) {
-	require := o.P().Require()
-	l2NetIDs := o.registry.IDsByKind(stack.KindL2Network)
-	require.NotEmpty(l2NetIDs, "need at least one L2 network to configure game types")
-
-	l1ELIDs := o.registry.IDsByKind(stack.KindL1ELNode)
-	require.NotEmpty(l1ELIDs, "need at least one L1 EL node to configure game types")
-
-	return l1ELIDs[0], l2NetIDs
-}
-
-func WithChallengerCannonKonaEnabled() stack.Option[*Orchestrator] {
-	return stack.FnOption[*Orchestrator]{
-		BeforeDeployFn: func(o *Orchestrator) {
-			o.l2ChallengerOpts.useCannonKonaConfig = true
-		},
-	}
-}
-
-func setRespectedGameType(o *Orchestrator, gameType gameTypes.GameType, l1ELID stack.ComponentID, l2ChainID eth.ChainID) {
-	t := o.P()
+func setRespectedGameTypeForRuntime(
+	t devtest.T,
+	keys devkeys.Keys,
+	gameType gameTypes.GameType,
+	l1ChainID eth.ChainID,
+	l1ELRPC string,
+	l2Net *L2Network,
+) {
 	require := t.Require()
-	require.NotNil(o.wb, "must have a world builder")
-	l1ChainID := l1ELID.ChainID()
+	require.NotNil(l2Net, "l2 network must exist")
+	require.NotNil(l2Net.rollupCfg, "l2 rollup config must exist")
 
-	l2Network, ok := o.GetL2Network(stack.NewL2NetworkID(l2ChainID))
-	require.True(ok, "l2Net must exist")
-	portalAddr := l2Network.rollupCfg.DepositContractAddress
+	portalAddr := l2Net.rollupCfg.DepositContractAddress
 
-	l1EL, ok := o.GetL1EL(l1ELID)
-	require.True(ok, "l1El must exist")
-
-	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1ELRPC)
 	require.NoError(err)
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
-	guardianKey, err := o.keys.Secret(devkeys.SuperchainOperatorKeys(l1ChainID.ToBig())(devkeys.SuperchainConfigGuardianKey))
+	guardianKey, err := keys.Secret(devkeys.SuperchainOperatorKeys(l1ChainID.ToBig())(devkeys.SuperchainConfigGuardianKey))
 	require.NoError(err, "failed to get guardian key")
 
 	transactOpts, err := bind.NewKeyedTransactorWithChainID(guardianKey, l1ChainID.ToBig())
@@ -153,34 +80,38 @@ func setRespectedGameType(o *Orchestrator, gameType gameTypes.GameType, l1ELID s
 	require.Equal(rcpt.Status, gethTypes.ReceiptStatusSuccessful, "set respected game type tx did not execute correctly")
 }
 
-func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType gameTypes.GameType, l1ELID stack.ComponentID, l2ChainID eth.ChainID) {
-	t := o.P()
+func addGameTypeForRuntime(
+	t devtest.T,
+	keys devkeys.Keys,
+	absolutePrestate common.Hash,
+	gameType gameTypes.GameType,
+	l1ChainID eth.ChainID,
+	l1ELRPC string,
+	l2Net *L2Network,
+) {
 	require := t.Require()
-	require.NotNil(o.wb, "must have a world builder")
-	l1ChainID := l1ELID.ChainID()
+	require.NotNil(l2Net, "l2 network must exist")
+	require.NotNil(l2Net.deployment, "l2 deployment must exist")
+	require.NotEqual(common.Address{}, l2Net.opcmImpl, "missing OPCM implementation address")
+	require.NotEqual(common.Address{}, l2Net.mipsImpl, "missing MIPS implementation address")
 
-	opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
-
-	l1EL, ok := o.GetL1EL(l1ELID)
-	require.True(ok, "l1El must exist")
-
-	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1ELRPC)
 	require.NoError(err)
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
-	l1PAO, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
+	l1PAO, err := keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
 	require.NoError(err, "failed to get l1 proxy admin owner address")
 
 	cfg := manage.AddGameTypeConfig{
-		L1RPCUrl:                l1EL.UserRPC(),
+		L1RPCUrl:                l1ELRPC,
 		Logger:                  t.Logger(),
 		ArtifactsLocator:        LocalArtifacts(t),
 		CacheDir:                t.TempDir(),
 		L1ProxyAdminOwner:       l1PAO,
-		OPCMImpl:                opcmAddr,
-		SystemConfigProxy:       o.wb.outL2Deployment[l2ChainID].SystemConfigProxyAddr(),
-		DelayedWETHProxy:        o.wb.outL2Deployment[l2ChainID].PermissionlessDelayedWETHProxyAddr(),
+		OPCMImpl:                l2Net.opcmImpl,
+		SystemConfigProxy:       l2Net.deployment.SystemConfigProxyAddr(),
+		DelayedWETHProxy:        l2Net.deployment.PermissionlessDelayedWETHProxyAddr(),
 		DisputeGameType:         uint32(gameType),
 		DisputeAbsolutePrestate: absolutePrestate,
 		DisputeMaxGameDepth:     big.NewInt(73),
@@ -188,19 +119,19 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType gameTyp
 		DisputeClockExtension:   10800,
 		DisputeMaxClockDuration: 302400,
 		InitialBond:             eth.GWei(80_000_000).ToBig(), // 0.08 ETH
-		VM:                      o.wb.output.ImplementationsDeployment.MipsImpl,
+		VM:                      l2Net.mipsImpl,
 		Permissionless:          true,
-		SaltMixer:               fmt.Sprintf("devstack-%s-%s", l2ChainID, absolutePrestate.Hex()),
+		SaltMixer:               fmt.Sprintf("devstack-%s-%s", l2Net.ChainID(), absolutePrestate.Hex()),
 	}
 
-	OPChainProxyAdmin := o.wb.outL2Deployment[l2ChainID].ProxyAdminAddr()
+	opChainProxyAdmin := l2Net.deployment.ProxyAdminAddr()
 
 	_, addGameTypeCalldata, err := manage.AddGameType(t.Ctx(), cfg)
 	require.NoError(err, "failed to create add game type calldata")
 	require.Len(addGameTypeCalldata, 1, "calldata must contain one entry")
 
 	chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
-	l1PAOKey, err := o.keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
+	l1PAOKey, err := keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
 	require.NoError(err, "failed to get l1 proxy admin owner key")
 	transactOpts, err := bind.NewKeyedTransactorWithChainID(l1PAOKey, l1ChainID.ToBig())
 	require.NoError(err, "must have transact opts")
@@ -209,18 +140,18 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType gameTyp
 	t.Log("Deploying delegate call proxy contract")
 	delegateCallProxy, proxyContract := deployDelegateCallProxy(t, transactOpts, client, l1PAO)
 	// transfer ownership to the proxy so that we can delegatecall the opcm
-	transferOwnership(t, l1PAOKey, client, OPChainProxyAdmin, delegateCallProxy)
-	dgf := o.wb.outL2Deployment[l2ChainID].DisputeGameFactoryProxyAddr()
+	transferOwnership(t, l1PAOKey, client, opChainProxyAdmin, delegateCallProxy)
+	dgf := l2Net.deployment.DisputeGameFactoryProxyAddr()
 	transferOwnership(t, l1PAOKey, client, dgf, delegateCallProxy)
 
 	t.Log("sending opcm.addGameType transaction")
-	tx, err := proxyContract.ExecuteDelegateCall(transactOpts, opcmAddr, addGameTypeCalldata[0].Data)
+	tx, err := proxyContract.ExecuteDelegateCall(transactOpts, l2Net.opcmImpl, addGameTypeCalldata[0].Data)
 	require.NoError(err, "failed to send add game type tx")
 	_, err = wait.ForReceiptOK(t.Ctx(), client, tx.Hash())
 	require.NoError(err, "failed to wait for add game type receipt")
 
 	// reset ProxyAdmin ownership transfers
-	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, OPChainProxyAdmin, l1PAO)
+	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, opChainProxyAdmin, l1PAO)
 	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, dgf, l1PAO)
 }
 
@@ -236,7 +167,7 @@ func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.
 	}
 }
 
-func LocalArtifacts(t devtest.P) *artifacts.Locator {
+func LocalArtifacts(t devtest.T) *artifacts.Locator {
 	require := t.Require()
 	_, testFilename, _, ok := runtime.Caller(0)
 	require.Truef(ok, "failed to get test filename")

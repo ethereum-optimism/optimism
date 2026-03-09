@@ -1,4 +1,4 @@
-// Package loadtest contains interop load tests that run against sysgo and sysext networks
+// Package loadtest contains interop load tests that run against sysgo networks
 // satisfying the SimpleInterop spec.
 //
 // Configure test behavior with the following environment variables:

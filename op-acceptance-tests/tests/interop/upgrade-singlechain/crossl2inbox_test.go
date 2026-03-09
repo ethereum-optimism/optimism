@@ -3,13 +3,14 @@ package upgrade
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -17,10 +18,17 @@ import (
 func TestPostInbox(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSingleChainInterop(t)
+	offset := uint64(30)
+	sys := presets.NewSingleChainInterop(t, presets.WithDeployerOptions(
+		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+			for _, l2Cfg := range builder.L2s() {
+				l2Cfg.WithForkAtOffset(forks.Interop, &offset)
+			}
+		},
+	))
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
 		require := t.Require()
-		el := net.Escape().L2ELNode(match.FirstL2EL)
+		el := net.PrimaryEL()
 
 		activationBlock := net.AwaitActivation(t, forks.Interop)
 		require.NotZero(activationBlock, "must not activate interop at genesis")

@@ -6,13 +6,26 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+func simpleWithSyncTesterOpts() []presets.Option {
+	return []presets.Option{
+		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(_ devtest.T, id sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.VerifierSyncMode = sync.ELSync
+		})),
+		presets.WithGlobalSyncTesterELOption(sysgo.SyncTesterELOptionFn(func(_ devtest.T, id sysgo.ComponentTarget, cfg *sysgo.SyncTesterELConfig) {
+			cfg.ELSyncActive = true
+		})),
+	}
+}
+
 func TestSyncTesterELSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleWithSyncTester(t)
+	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()

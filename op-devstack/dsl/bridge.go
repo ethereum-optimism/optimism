@@ -12,7 +12,6 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	nodebindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -66,7 +65,7 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *Stand
 		bindings.WithClient(l1Client),
 		bindings.WithTo(l1PortalAddr),
 		bindings.WithTest(t))
-	l2Client := l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()
+	l2Client := l2Network.PrimaryEL().EthClient()
 	l2tol1MessagePasser := bindings.NewBindings[bindings.L2ToL1MessagePasser](
 		bindings.WithClient(l2Client),
 		bindings.WithTo(predeploys.L2ToL1MessagePasserAddr),

@@ -9,13 +9,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 )
 
 func TestSequencerRestart(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newRestartPreset(t)
 
 	nodes := out.L2CLValidatorNodes()
 	sequencerNodes := out.L2CLSequencerNodes()
@@ -33,7 +32,7 @@ func TestSequencerRestart(gt *testing.T) {
 	dsl.CheckAll(t, preCheckFuns...)
 
 	// Let's stop the sequencer node.
-	t.Logf("Stopping sequencer %s", sequencer.Escape().ID().Key())
+	t.Logf("Stopping sequencer %s", sequencer.Escape().Name())
 	sequencer.Stop()
 
 	var stopCheckFuns []dsl.CheckFunc
@@ -43,7 +42,7 @@ func TestSequencerRestart(gt *testing.T) {
 		_, err := retry.Do(t.Ctx(), 5, &retry.ExponentialStrategy{Max: 10 * time.Second, Min: 1 * time.Second, MaxJitter: 250 * time.Millisecond}, func() (any, error) {
 			for _, peer := range nodePeers.Peers {
 				if peer.PeerID == seqPeerId {
-					return nil, fmt.Errorf("expected node %s to be disconnected from sequencer %s", node.Escape().ID().Key(), sequencer.Escape().ID().Key())
+					return nil, fmt.Errorf("expected node %s to be disconnected from sequencer %s", node.Escape().Name(), sequencer.Escape().Name())
 				}
 			}
 			return nil, nil
@@ -58,13 +57,13 @@ func TestSequencerRestart(gt *testing.T) {
 	dsl.CheckAll(t, stopCheckFuns...)
 
 	// Let's restart the sequencer node.
-	t.Logf("Starting sequencer %s", sequencer.Escape().ID().Key())
+	t.Logf("Starting sequencer %s", sequencer.Escape().Name())
 	sequencer.Start()
 
 	// Let's reconnect the sequencer to the nodes.
-	t.Logf("Reconnecting sequencer %s to nodes", sequencer.Escape().ID().Key())
+	t.Logf("Reconnecting sequencer %s to nodes", sequencer.Escape().Name())
 	for _, node := range nodes {
-		t.Logf("Connecting sequencer %s to node %s", sequencer.Escape().ID().Key(), node.Escape().ID().Key())
+		t.Logf("Connecting sequencer %s to node %s", sequencer.Escape().Name(), node.Escape().Name())
 		sequencer.ConnectPeer(&node)
 	}
 

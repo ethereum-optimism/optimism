@@ -44,9 +44,6 @@ parameters:
   c-heavy_fuzz_dispatch:
     type: boolean
     default: false
-  c-sync_test_op_node_dispatch:
-    type: boolean
-    default: false
   c-ai_contracts_test_dispatch:
     type: boolean
     default: false
@@ -2014,133 +2011,12 @@ jobs:
             - notify-failures-on-develop:
                 mentions: "<<parameters.mentions>>"
 
-  op-acceptance-sync-tests-docker:
-    parameters:
-      gate:
-        description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
-        type: string
-        default: ""
-      l2_cl_kind:
-        description: "L2 consensus layer client (op-node or kona)"
-        type: string
-        default: "op-node"
-      l2_el_kind:
-        description: "L2 execution layer client (op-geth or op-reth)"
-        type: string
-        default: "op-geth"
-      no_output_timeout:
-        description: Timeout for when CircleCI kills the job if there's no output
-        type: string
-        default: 30m
-      # Optional sync test configuration parameters
-      network_preset:
-        description: Network preset
-        type: string
-        default: ""
-      l2_cl_syncmode:
-        description: L2 CL Sync mode - can be EL Sync or CL Sync
-        type: string
-        default: ""
-    resource_class: xlarge
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    circleci_ip_ranges: true
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      # Restore cached Go modules
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
-      # Download Go dependencies
-      - run:
-          name: Download Go dependencies
-          working_directory: op-acceptance-tests
-          command: go mod download
-      - run:
-          name: Lint/Vet/Build op-acceptance-tests/cmd
-          working_directory: op-acceptance-tests
-          command: |
-            just cmd-check
-      # Persist schedule name into env var
-      - run:
-          name: Persist schedule name into env var
-          command: |
-            echo 'export CIRCLECI_PIPELINE_SCHEDULE_NAME="<< pipeline.schedule.name >>"' >> $BASH_ENV
-            echo 'export CIRCLECI_PARAMETERS_SYNC_TEST_OP_NODE_DISPATCH="<< pipeline.parameters.c-sync_test_op_node_dispatch >>"' >> $BASH_ENV
-      - run:
-          name: Configure L2 stack
-          command: |
-            echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
-            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
-      # Run the acceptance tests
-      - run:
-          name: Run acceptance tests (gate=<<parameters.gate>>)
-          working_directory: op-acceptance-tests
-          no_output_timeout: 1h
-          environment:
-            GOFLAGS: "-mod=mod"
-            GO111MODULE: "on"
-            GOGC: "0"
-            # Optional sync test configuration environment variables (only set if parameters are provided)
-            NETWORK_PRESET: "<<parameters.network_preset>>"
-            L2_CL_SYNCMODE: "<<parameters.l2_cl_syncmode>>"
-          command: |
-            # Run the tests
-            LOG_LEVEL=debug just acceptance-test "" "<<parameters.gate>>"
-      - run:
-          name: Print results (summary)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/summary.log" || true
-      - run:
-          name: Print results (failures)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/failed/*.log" || true
-          when: on_fail
-      - run:
-          name: Print results (all)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/all.log" || true
-      - run:
-          name: Generate JUnit XML test report for CircleCI
-          working_directory: op-acceptance-tests
-          when: always
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
-      # Save the module cache for future runs
-      - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
-      # Store test results and artifacts
-      - when:
-          condition: always
-          steps:
-            - store_test_results:
-                path: ./op-acceptance-tests/results
-      - when:
-          condition: always
-          steps:
-            - store_artifacts:
-                path: ./op-acceptance-tests/logs
-      - notify-failures-on-develop:
-          mentions: "@changwan <@U08L5U8070U>" # @changwan @Anton Evangelatov
-
   op-acceptance-tests:
     parameters:
       gate:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
-        default: ""
+        default: "base"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona)"
         type: string
@@ -2149,6 +2025,10 @@ jobs:
         description: "L2 execution layer client (op-geth or op-reth)"
         type: string
         default: "op-geth"
+      run_all:
+        description: When true, run all tests in gateless mode.
+        type: boolean
+        default: false
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -2200,16 +2080,17 @@ jobs:
           command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
-          name: Run acceptance tests (gate=<<parameters.gate>>)
+          name: Run acceptance tests
           working_directory: op-acceptance-tests
           no_output_timeout: 1h
           command: |
-            if [[ "<<parameters.gate>>" == "" ]]; then
+            if <<parameters.run_all>>; then
               echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
+              LOG_LEVEL=info just acceptance-test-all
             else
               echo "Running in gate mode (gate=<<parameters.gate>>)"
+              LOG_LEVEL=info just acceptance-test "<<parameters.gate>>"
             fi
-            LOG_LEVEL=info just acceptance-test "" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2326,7 +2207,6 @@ jobs:
               --flake-shake \
               --flake-shake-iterations "$FLAKE_SHAKE_ITERATIONS" \
               --log.level debug \
-              --orchestrator sysgo \
               --logdir "./$OUTPUT_DIR"
       - persist_to_workspace:
           root: op-acceptance-tests
@@ -3330,7 +3210,7 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
-          gate: "" # Empty gate = gateless mode
+          run_all: true
           no_output_timeout: 120m # Allow longer runs for memory-all gate
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3722,40 +3602,6 @@ workflows:
       - stale-check:
           context:
             - circleci-repo-optimism
-
-  scheduled-sync-test-op-node:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-sync_test_op_node_dispatch >>]
-    jobs:
-      - contracts-bedrock-build: # needed for sysgo tests
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate: # needed for sysgo tests
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - op-acceptance-sync-tests-docker:
-          name: "sync-test-<<matrix.network_preset>>-daily-<<matrix.l2_cl_syncmode>>"
-          gate: sync-test-op-node
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-          matrix:
-            parameters:
-              network_preset:
-                [
-                  "op-sepolia",
-                  "unichain-sepolia",
-                  "op-mainnet",
-                ]
-              l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
   scheduled-heavy-fuzz-tests:
     when:

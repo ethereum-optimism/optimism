@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,7 +14,7 @@ import (
 // (receive() -> depositTransaction) reverts under CGT, preventing ETH from getting stuck.
 func TestCGT_PortalReceiveReverts(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newCGTMinimal(t)
 	ensureCGTOrSkip(t, sys)
 
 	l1c := sys.L1EL.EthClient()

@@ -4,30 +4,42 @@ import (
 	"testing"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func InitWithGameType(m *testing.M, gameType gameTypes.GameType) {
-	presets.DoMain(m,
-		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithMinimal(),
-		presets.WithTimeTravel(),
-		presets.WithFinalizationPeriodSeconds(1),
-		// Satisfy OptimismPortal2 PROOF_MATURITY_DELAY_SECONDS check, avoid OptimismPortal_ProofNotOldEnough() revert
-		presets.WithProofMaturityDelaySeconds(2),
-		// Satisfy AnchorStateRegistry DISPUTE_GAME_FINALITY_DELAY_SECONDS check, avoid OptimismPortal_InvalidRootClaim() revert
-		presets.WithDisputeGameFinalityDelaySeconds(2),
-		presets.WithAddedGameType(gameType),
-		presets.WithRespectedGameType(gameType),
-	)
+func withdrawalOpts(gameType gameTypes.GameType) []presets.Option {
+	opts := []presets.Option{
+		presets.WithTimeTravelEnabled(),
+		presets.WithDeployerOptions(
+			sysgo.WithFinalizationPeriodSeconds(1),
+			// Satisfy OptimismPortal2 PROOF_MATURITY_DELAY_SECONDS check, avoid OptimismPortal_ProofNotOldEnough() revert
+			sysgo.WithProofMaturityDelaySeconds(2),
+			// Satisfy AnchorStateRegistry DISPUTE_GAME_FINALITY_DELAY_SECONDS check, avoid OptimismPortal_InvalidRootClaim() revert
+			sysgo.WithDisputeGameFinalityDelaySeconds(2),
+		),
+		presets.WithGameTypeAdded(gameType),
+		presets.WithRespectedGameTypeOverride(gameType),
+		presets.WithProposerOption(func(_ sysgo.ComponentTarget, cfg *ps.CLIConfig) {
+			cfg.DisputeGameType = uint32(gameType)
+		}),
+	}
+	if gameType == gameTypes.CannonKonaGameType {
+		opts = append(opts, presets.WithChallengerCannonKonaEnabled())
+	}
+	return opts
+}
+
+func newSystem(t devtest.T, gameType gameTypes.GameType) *presets.Minimal {
+	return presets.NewMinimal(t, withdrawalOpts(gameType)...)
 }
 
 func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newSystem(t, gameType)
 	require := sys.T.Require()
 
 	bridge := sys.StandardBridge()

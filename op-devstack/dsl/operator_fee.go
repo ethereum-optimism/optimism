@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -42,12 +41,12 @@ func NewOperatorFee(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *Operator
 		bindings.WithTest(t))
 
 	l1Block := bindings.NewBindings[bindings.L1Block](
-		bindings.WithClient(l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()),
+		bindings.WithClient(l2Network.PrimaryEL().EthClient()),
 		bindings.WithTo(predeploys.L1BlockAddr),
 		bindings.WithTest(t))
 
 	gasPriceOracle := bindings.NewBindings[bindings.GasPriceOracle](
-		bindings.WithClient(l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()),
+		bindings.WithClient(l2Network.PrimaryEL().EthClient()),
 		bindings.WithTo(predeploys.GasPriceOracleAddr),
 		bindings.WithTest(t))
 

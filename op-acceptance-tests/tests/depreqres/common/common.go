@@ -4,14 +4,72 @@ import (
 	"testing"
 	"time"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
+
+func syncModeOpt(syncMode sync.Mode) presets.Option {
+	return presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+		func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			if syncMode == sync.CLSync {
+				cfg.SequencerSyncMode = sync.CLSync
+			}
+			cfg.VerifierSyncMode = syncMode
+		}))
+}
+
+func reqRespSyncDisabledOpt() presets.Option {
+	return presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+		func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.EnableReqRespSync = false
+			cfg.UseReqRespSync = false
+		}))
+}
+
+func syncModeReqRespSyncOpt() presets.Option {
+	return presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+		func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.UseReqRespSync = true
+		}))
+}
+
+func noDiscoveryOpt() presets.Option {
+	return presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+		func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.NoDiscovery = true
+		}))
+}
+
+func batcherStoppedOpt() presets.Option {
+	return presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+		cfg.Stopped = true
+	})
+}
+
+func ReqRespSyncDisabledOpts(syncMode sync.Mode) []presets.Option {
+	return []presets.Option{
+		syncModeOpt(syncMode),
+		reqRespSyncDisabledOpt(),
+		noDiscoveryOpt(),
+		batcherStoppedOpt(),
+	}
+}
+
+func SyncModeReqRespSyncOpts(syncMode sync.Mode) []presets.Option {
+	return []presets.Option{
+		syncModeOpt(syncMode),
+		syncModeReqRespSyncOpt(),
+		noDiscoveryOpt(),
+		batcherStoppedOpt(),
+	}
+}
 
 // stableSyncStatus returns the sync status of node after any in-flight gossip messages
 // have been drained. DisconnectPeer closes the libp2p connection but a buffered gossip
@@ -29,9 +87,9 @@ func stableSyncStatus(require *testreq.Assertions, node *dsl.L2CLNode) *eth.Sync
 	return ss
 }
 
-func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
+func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
 
@@ -72,9 +130,9 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
 }
 
-func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
+func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
 

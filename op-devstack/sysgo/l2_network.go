@@ -1,38 +1,52 @@
 package sysgo
 
 import (
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type L2Network struct {
-	id         stack.ComponentID
+	name       string
+	chainID    eth.ChainID
 	l1ChainID  eth.ChainID
 	genesis    *core.Genesis
 	rollupCfg  *rollup.Config
 	deployment *L2Deployment
+	opcmImpl   common.Address
+	mipsImpl   common.Address
 	keys       devkeys.Keys
 }
 
-func (c *L2Network) hydrate(system stack.ExtensibleSystem) {
-	l1Net := system.L1Network(stack.ByID[stack.L1Network](stack.NewL1NetworkID(c.l1ChainID)))
-	sysL2Net := shim.NewL2Network(shim.L2NetworkConfig{
-		NetworkConfig: shim.NetworkConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			ChainConfig:  c.genesis.Config,
-		},
-		ID:           c.id,
-		RollupConfig: c.rollupCfg,
-		Deployment:   c.deployment,
-		Keys:         shim.NewKeyring(c.keys, system.T().Require()),
-		Superchain:   nil,
-		L1:           l1Net,
-		Cluster:      nil,
-	})
-	system.AddL2Network(sysL2Net)
+func (c *L2Network) Name() string {
+	return c.name
+}
+
+func (c *L2Network) ChainID() eth.ChainID {
+	return c.chainID
+}
+
+func (c *L2Network) L1ChainID() eth.ChainID {
+	return c.l1ChainID
+}
+
+func (c *L2Network) ChainConfig() *params.ChainConfig {
+	return c.genesis.Config
+}
+
+func (c *L2Network) RollupConfig() *rollup.Config {
+	return c.rollupCfg
+}
+
+func (c *L2Network) Deployment() stack.L2Deployment {
+	return c.deployment
+}
+
+func (c *L2Network) Keys() devkeys.Keys {
+	return c.keys
 }

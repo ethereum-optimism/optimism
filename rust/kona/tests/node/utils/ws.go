@@ -93,7 +93,8 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 					return
 				}
 
-				msgChan <- msg
+				// Clone the raw payload before the next ReadJSON call can reuse the buffer.
+				msgChan <- append(json.RawMessage(nil), msg...)
 			}
 		}()
 
@@ -120,8 +121,6 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 
 				var p push[Out]
 				require.NoError(t, json.Unmarshal(msg, &p), "decode: %v", err)
-
-				t.Log(wsRPC, method, "received websocket message", p.Params.Result)
 				output <- p.Params.Result
 			}
 		}

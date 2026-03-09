@@ -6,9 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -17,7 +14,7 @@ import (
 
 func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
+	sys := newSingleChainTwoVerifiersFollowL2(t)
 	logger := t.Logger()
 
 	// Takes about 2 minutes for L1 finalization
@@ -59,7 +56,7 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 
 func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
+	sys := newSingleChainTwoVerifiersFollowL2(t)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
@@ -67,13 +64,11 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	// L2CLB is the verifier without follow source, derivation enabled
 
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
-	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
-
 	// Pass the L1 genesis
 	sys.L1Network.WaitForBlock()
 
 	// Stop auto advancing L1
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Stop)
+	sys.L1CL.Stop()
 
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
@@ -102,7 +97,7 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	require.NoError(ts.Next(ctx))
 
 	// Start advancing L1
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
+	sys.L1CL.Start()
 
 	// Make sure L1 reorged
 	sys.L1EL.WaitForBlockNumber(l1BlockBeforeReorg.Number)
@@ -130,7 +125,7 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 
 func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
+	sys := newSingleChainTwoVerifiersFollowL2(t)
 	require := t.Require()
 	logger := t.Logger()
 

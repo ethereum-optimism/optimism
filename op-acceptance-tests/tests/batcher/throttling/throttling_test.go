@@ -7,22 +7,37 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherConfig "github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
+const blockSizeLimit = 5_000
+
 // TestDABlockThrottling verifies that the execution client respects the block size limit set via
 // miner_setMaxDASize. It spams transactions to saturate block space and asserts that blocks are
 // filled to near capacity without exceeding the limit.
 func TestDABlockThrottling(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := presets.NewMinimal(t, presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+		// Enable throttling with step controller for predictable behavior.
+		cfg.ThrottleConfig.LowerThreshold = 99 // > 0 enables the throttling loop.
+		cfg.ThrottleConfig.UpperThreshold = 100
+		cfg.ThrottleConfig.ControllerType = batcherConfig.StepControllerType
+
+		cfg.ThrottleConfig.BlockSizeLowerLimit = blockSizeLimit - 1
+		cfg.ThrottleConfig.BlockSizeUpperLimit = blockSizeLimit
+
+		cfg.PollInterval = 500 * time.Millisecond // Fast poll for quicker test feedback.
+	}))
 
 	spamCtx, cancelSpam := context.WithCancel(t.Ctx())
 	defer cancelSpam()

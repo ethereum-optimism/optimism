@@ -2,17 +2,15 @@
 DOCKER_IMAGE_NAME := op-reth
 DOCKER_TAG := local
 DOCKERFILE_PATH := ../../../DockerfileOpProof
-KURTOSIS_PACKAGE := github.com/ethpandaops/optimism-package@998796c0f3bb478d63d729e65f0b76e24112e00d
-DEVNET ?= opgeth-seq-opreth-val
 GO_PKG_NAME ?= proofs/core
 SOURCE_DIR := $(shell pwd)
 OP_DEVSTACK_PROOF_SEQUENCER_EL ?= op-geth
 OP_DEVSTACK_PROOF_VALIDATOR_EL ?= op-reth-with-proof
 
-.PHONY: all build-docker build-contracts unzip-contract-artifacts update-packages run clean help
+.PHONY: all build build-docker build-docker-with-cov build-contracts unzip-contract-artifacts update-packages test-e2e-sysgo
 
 # Default target
-all: build-docker run
+all: test-e2e-sysgo
 
 # Build op-reth
 build:
@@ -34,15 +32,6 @@ build-docker-with-cov:
 	  -f $(notdir $(DOCKERFILE_PATH)) \
 	  -t $(DOCKER_IMAGE_NAME):$(DOCKER_TAG) .
 
-# Run Kurtosis with the optimism devnet
-run:
-	@echo "Starting Optimism devnet with historical proof configuration..."
-	@DEVNET_PATH="./devnets/$(DEVNET).yaml"; \
-    if [ ! -z "$(DEVNET_CUSTOM_PATH)" ]; then \
-        DEVNET_PATH="$(DEVNET_CUSTOM_PATH)"; \
-    fi; \
-    kurtosis run $(KURTOSIS_PACKAGE) --args-file $$DEVNET_PATH --enclave $(DEVNET)
-
 # Build smart contract artifacts with Foundry
 build-contracts:
 	@echo "Building contracts with forge..."
@@ -61,33 +50,14 @@ update-packages:
 	mkdir -p "$(SOURCE_DIR)/artifacts/compressed"
 	cp "$(SOURCE_DIR)/optimism/op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst" "$(SOURCE_DIR)/artifacts/compressed/artifacts.tzst"
 
-# Run E2E tests using Kurtosis
-test-e2e-kurtosis: build-contracts
-	@echo "Running E2E tests with Kurtosis for $(DEVNET)"
-	@DEVNET_PATH="$(SOURCE_DIR)/devnets/$(DEVNET).yaml"; \
-    if [ ! -z "$(DEVNET_CUSTOM_PATH)" ]; then \
-        DEVNET_PATH="$(DEVNET_CUSTOM_PATH)"; \
-    fi; \
-	export OP_DEPLOYER_ARTIFACTS="$(SOURCE_DIR)/artifacts/src/forge-artifacts"; \
-	export DEVNET_ENV_URL="ktnative://$(DEVNET)$$DEVNET_PATH"; \
-	export DISABLE_OP_E2E_LEGACY=true; \
-	export DEVSTACK_ORCHESTRATOR=sysext; \
-	go test -count=1 -timeout 40m -v ./$(GO_PKG_NAME)
-
 # Run E2E tests using Sysgo
-test-e2e-sysgo: unzip-contract-artifacts build-contracts
+test-e2e-sysgo: build unzip-contract-artifacts build-contracts
 	@echo "Running E2E tests with Sysgo"
 	export OP_DEPLOYER_ARTIFACTS="$(SOURCE_DIR)/artifacts/src/forge-artifacts"; \
 	export DISABLE_OP_E2E_LEGACY=true; \
-	export DEVSTACK_ORCHESTRATOR=sysgo; \
 	export OP_RETH_ENABLE_PROOF_HISTORY=true; \
 	export SKIP_P2P_CONNECTION_CHECK=true; \
 	export OP_RETH_EXEC_PATH="${SOURCE_DIR}/../../../target/debug/op-reth"; \
 	export OP_DEVSTACK_PROOF_SEQUENCER_EL=$(OP_DEVSTACK_PROOF_SEQUENCER_EL); \
 	export OP_DEVSTACK_PROOF_VALIDATOR_EL=$(OP_DEVSTACK_PROOF_VALIDATOR_EL); \
 	go test -count=1 -timeout 40m -v ./$(GO_PKG_NAME)
-
-# Stop and clean Kurtosis services
-clean:
-	@echo "Cleaning up Kurtosis services..."
-	kurtosis clean -a

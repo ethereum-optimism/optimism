@@ -8,7 +8,6 @@ import (
 // TestSequencer
 type TestSequencer interface {
 	Common
-	ID() ComponentID
 
 	AdminAPI() apis.TestSequencerAdminAPI
 	BuildAPI() apis.TestSequencerBuildAPI

@@ -17,7 +17,7 @@ func NewL2Challenger(inner stack.L2Challenger) *L2Challenger {
 }
 
 func (c *L2Challenger) String() string {
-	return c.inner.ID().String()
+	return c.inner.Name()
 }
 
 // Escape returns the underlying stack.L2Challenger

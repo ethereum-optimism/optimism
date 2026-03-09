@@ -3,10 +3,12 @@ package custom_gas_token
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -22,6 +24,20 @@ var (
 	l2XDMAddr    = common.HexToAddress("0x4200000000000000000000000000000000000007")
 	l2BridgeAddr = common.HexToAddress("0x4200000000000000000000000000000000000010")
 )
+
+func cgtOpts() []presets.Option {
+	// Create a CGT-enabled devnet with 1M tokens of liquidity.
+	liq := new(big.Int).Mul(big.NewInt(1_000_000), big.NewInt(1e18))
+	return []presets.Option{
+		presets.WithDeployerOptions(
+			sysgo.WithCustomGasToken("Custom Gas Token", "CGT", liq, common.Address{}),
+		),
+	}
+}
+
+func newCGTMinimal(t devtest.T) *presets.Minimal {
+	return presets.NewMinimal(t, cgtOpts()...)
+}
 
 // isCGTEnabled checks if CGT mode is enabled without skipping the test.
 // Returns true if CGT is enabled, false if native ETH mode, and false if the check fails.

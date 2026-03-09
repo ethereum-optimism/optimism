@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
@@ -48,234 +47,6 @@ type MigrateInputV2 struct {
 	StartingRespectedGameType uint32
 }
 
-func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.ComponentID, clIDs []stack.ComponentID, supervisorID stack.ComponentID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
-	return withSuperRoots(l1ChainID, l1ELID, clIDs, primaryL2, func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32 {
-		return getSuperRoot(t, o, timestamp, supervisorID)
-	})
-}
-
-func WithSuperRootsFromSupernode(l1ChainID eth.ChainID, l1ELID stack.ComponentID, clIDs []stack.ComponentID, supernodeID stack.SupernodeID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
-	return withSuperRoots(l1ChainID, l1ELID, clIDs, primaryL2, func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32 {
-		return getSuperRootFromSupernode(t, o, timestamp, supernodeID)
-	})
-}
-
-func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.ComponentID, clIDs []stack.ComponentID, primaryL2 eth.ChainID, getSuperRootAtTimestamp func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32) stack.Option[*Orchestrator] {
-	return stack.FnOption[*Orchestrator]{
-		FinallyFn: func(o *Orchestrator) {
-			t := o.P()
-			require := t.Require()
-			require.NotNil(o.wb, "must have a world builder")
-			require.NotEmpty(o.wb.output.ImplementationsDeployment.OpcmImpl, "must have an OPCM implementation")
-
-			l1EL, ok := o.GetL1EL(l1ELID)
-			require.True(ok, "must have L1 EL node")
-			rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
-			require.NoError(err)
-			client := ethclient.NewClient(rpcClient)
-			w3Client := w3.NewClient(rpcClient)
-
-			var superrootTime uint64
-			// Supernode does not support super roots at genesis.
-			// So let's wait for safe heads to advance before querying atTimestamp.
-			for _, clID := range clIDs {
-				l2CL, ok := o.GetL2CL(clID)
-				require.True(ok, "must have L2 CL node")
-				// TODO(#18947): Ideally, we should be able to wait on the supernode's SyncStatus directly
-				// rather than check the sync statuses of all CLs
-				rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), l2CL.UserRPC())
-				t.Require().NoError(err)
-				defer rollupClient.Close()
-				ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
-				err = wait.For(ctx, time.Second*1, func() (bool, error) {
-					status, err := rollupClient.SyncStatus(ctx)
-					if err != nil {
-						return false, err
-					}
-					if status == nil {
-						return false, nil
-					}
-					superrootTime = status.SafeL2.Time
-					return status.SafeL2.Number > 0, nil
-				})
-				cancel()
-				t.Require().NoError(err, "waiting for supernode chain safe head to advance failed")
-			}
-
-			superRoot := getSuperRootAtTimestamp(t, o, superrootTime)
-
-			l1pao, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
-			require.NoError(err, "must have L1 proxy admin owner private key")
-
-			superchainConfigAddr := o.wb.outSuperchainDeployment.SuperchainConfigAddr()
-			superchainProxyAdmin := getProxyAdmin(t, w3Client, superchainConfigAddr)
-			require.NotEmpty(superchainProxyAdmin, "superchain proxy admin address is empty")
-
-			// Detect OPCM version to determine if we use V1 or V2 migration input
-			opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
-			useV2 := isOPCMV2(t, w3Client, opcmAddr)
-
-			absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
-			absoluteCannonKonaPrestate := getInteropCannonKonaAbsolutePrestate(t)
-
-			// Use primaryL2 to determine which challenger / proposer roles to promote to the shared permissioned fdg
-			permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
-			proposer, err := o.keys.Address(permissionedChainOps(devkeys.ProposerRole))
-			o.P().Require().NoError(err, "must have configured proposer")
-			challenger, err := o.keys.Address(permissionedChainOps(devkeys.ChallengerRole))
-			o.P().Require().NoError(err, "must have configured challenger")
-
-			// Build chain configs for both V1 and V2 compatibility
-			var opChainConfigs []bindings.OPContractsManagerOpChainConfig
-			var l2ChainIDs []eth.ChainID
-			for l2ChainID, l2Deployment := range o.wb.outL2Deployment {
-				l2ChainIDs = append(l2ChainIDs, l2ChainID)
-				opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
-					SystemConfigProxy:  l2Deployment.SystemConfigProxyAddr(),
-					CannonPrestate:     absoluteCannonPrestate,
-					CannonKonaPrestate: absoluteCannonKonaPrestate,
-				})
-			}
-
-			opcmABI, err := bindings.OPContractsManagerMetaData.GetAbi()
-			o.P().Require().NoError(err, "invalid OPCM ABI")
-			contract := batching.NewBoundContract(opcmABI, opcmAddr)
-
-			var migrateCallData []byte
-			if useV2 {
-				// OPCM V2 (>= 7.0.0) uses IOPContractsManagerMigrator.MigrateInput
-				var chainSystemConfigs []common.Address
-				for _, cfg := range opChainConfigs {
-					chainSystemConfigs = append(chainSystemConfigs, cfg.SystemConfigProxy)
-				}
-
-				migrateInputV2 := MigrateInputV2{
-					ChainSystemConfigs: chainSystemConfigs,
-					DisputeGameConfigs: []DisputeGameConfigV2{
-						{
-							Enabled:  true,
-							InitBond: big.NewInt(0),
-							GameType: superCannonGameType,
-							GameArgs: absoluteCannonPrestate[:],
-						},
-					},
-					StartingAnchorRoot: bindings.Proposal{
-						Root:             common.Hash(superRoot),
-						L2SequenceNumber: big.NewInt(int64(superrootTime)),
-					},
-					StartingRespectedGameType: superCannonGameType,
-				}
-				migrateCall := contract.Call("migrate", migrateInputV2)
-				migrateCallData, err = migrateCall.Pack()
-				require.NoError(err)
-			} else {
-				// OPCM V1 (< 7.0.0) uses IOPContractsManagerInteropMigrator.MigrateInput
-				migrateInputV1 := bindings.OPContractsManagerInteropMigratorMigrateInput{
-					UsePermissionlessGame: true,
-					StartingAnchorRoot: bindings.Proposal{
-						Root:             common.Hash(superRoot),
-						L2SequenceNumber: big.NewInt(int64(superrootTime)),
-					},
-					GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
-						Proposer:         proposer,
-						Challenger:       challenger,
-						MaxGameDepth:     big.NewInt(73),
-						SplitDepth:       big.NewInt(30),
-						InitBond:         big.NewInt(0),
-						ClockExtension:   10800,
-						MaxClockDuration: 302400,
-					},
-					OpChainConfigs: opChainConfigs,
-				}
-				migrateCall := contract.Call("migrate", migrateInputV1)
-				migrateCallData, err = migrateCall.Pack()
-				require.NoError(err)
-			}
-
-			chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
-			l1PAOKey, err := o.keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
-			require.NoError(err, "must have configured L1 proxy admin owner private key")
-			transactOpts, err := bind.NewKeyedTransactorWithChainID(l1PAOKey, l1ChainID.ToBig())
-			require.NoError(err, "must have transact opts")
-			transactOpts.Context = t.Ctx()
-
-			t.Log("Deploying delegate call proxy contract")
-			// The DelegateCallProxy is used to simulate a GnosisSafe proxy that satisfies the delegatecall requirement of the OPCM.
-			delegateCallProxy, proxyContract := deployDelegateCallProxy(t, transactOpts, client, l1pao)
-			oldSuperchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
-			transferOwnership(t, l1PAOKey, client, superchainProxyAdmin, delegateCallProxy)
-
-			oldDisputeGameFactories := make(map[eth.ChainID]common.Address)
-			for i, opChainConfig := range opChainConfigs {
-				var portal common.Address
-				require.NoError(
-					w3Client.Call(
-						w3eth.CallFunc(opChainConfig.SystemConfigProxy, optimismPortalFn).Returns(&portal),
-					))
-				portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
-				transferOwnership(t, l1PAOKey, client, portalProxyAdmin, delegateCallProxy)
-
-				dgf := getDisputeGameFactory(t, w3Client, portal)
-				transferOwnership(t, l1PAOKey, client, dgf, delegateCallProxy)
-				oldDisputeGameFactories[l2ChainIDs[i]] = dgf
-			}
-
-			t.Log("Executing delegate call")
-			migrateTx, err := proxyContract.ExecuteDelegateCall(transactOpts, opcmAddr, migrateCallData)
-			require.NoErrorf(err, "migrate delegatecall failed: %v", errutil.TryAddRevertReason(err))
-			_, err = wait.ForReceiptOK(t.Ctx(), client, migrateTx.Hash())
-			require.NoError(err)
-
-			var sharedDGF common.Address
-			{
-				for _, l2Deployment := range o.wb.outL2Deployment {
-					portal := getOptimismPortal(t, w3Client, l2Deployment.SystemConfigProxyAddr())
-					addr := getDisputeGameFactory(t, w3Client, portal)
-					if sharedDGF == (common.Address{}) {
-						sharedDGF = addr
-					} else {
-						require.Equal(sharedDGF, addr, "dispute game factory address is not the same for all deployments")
-					}
-				}
-				require.NotEmpty(getSuperGameImpl(t, w3Client, sharedDGF))
-				o.wb.outInteropMigration = &InteropMigration{
-					DisputeGameFactory: sharedDGF,
-				}
-			}
-
-			// reset ownership transfers
-			resetOwnershipAfterMigration(t,
-				o,
-				l1ChainID.ToBig(),
-				l1PAOKey,
-				w3Client,
-				client,
-				delegateCallProxy,
-				opChainConfigs,
-			)
-
-			resetOldDisputeGameFactories(t,
-				o,
-				l1ChainID.ToBig(),
-				l1PAOKey,
-				client,
-				delegateCallProxy,
-				oldDisputeGameFactories,
-			)
-
-			transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, superchainProxyAdmin, oldSuperchainProxyAdminOwner)
-
-			superchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
-			t.Require().Equal(oldSuperchainProxyAdminOwner, superchainProxyAdminOwner, "superchain proxy admin owner is not the L1PAO")
-
-			for _, l2Deployment := range o.wb.outL2Deployment {
-				l2Deployment.disputeGameFactoryProxy = sharedDGF
-			}
-			t.Log("Interop migration complete")
-		},
-	}
-}
-
 func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts, client *ethclient.Client, owner common.Address) (common.Address, *delegatecallproxy.Delegatecallproxy) {
 	deployAddress, tx, proxyContract, err := delegatecallproxy.DeployDelegatecallproxy(transactOpts, client, owner)
 	t.Require().NoError(err, "DelegateCallProxy deployment failed")
@@ -285,16 +56,39 @@ func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts,
 	return deployAddress, proxyContract
 }
 
-func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervisorID stack.ComponentID) eth.Bytes32 {
-	supervisor, ok := o.GetSupervisor(supervisorID)
-	t.Require().True(ok, "must have supervisor")
+func awaitSuperrootTime(t devtest.T, cls ...L2CLNode) uint64 {
+	t.Require().NotEmpty(cls, "at least one L2 CL is required")
 
+	var superrootTime uint64
+	for _, l2CL := range cls {
+		rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), l2CL.UserRPC())
+		t.Require().NoError(err)
+		defer rollupClient.Close()
+
+		ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
+		err = wait.For(ctx, time.Second, func() (bool, error) {
+			status, err := rollupClient.SyncStatus(ctx)
+			if err != nil {
+				return false, err
+			}
+			if status == nil || status.SafeL2.Number == 0 {
+				return false, nil
+			}
+			superrootTime = status.SafeL2.Time
+			return true, nil
+		})
+		cancel()
+		t.Require().NoError(err, "waiting for chain safe head to advance failed")
+	}
+	return superrootTime
+}
+
+func getSupervisorSuperRoot(t devtest.T, supervisor Supervisor, timestamp uint64) eth.Bytes32 {
 	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
 	t.Require().NoError(err)
 
-	// wait for the super root to be ready
-	ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
-	err = wait.For(ctx, time.Second*1, func() (bool, error) {
+	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
+	err = wait.For(ctx, time.Second, func() (bool, error) {
 		status, err := client.SyncStatus(ctx)
 		if err != nil {
 			return false, err
@@ -309,15 +103,12 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 	return super.SuperRoot
 }
 
-func getSuperRootFromSupernode(t devtest.CommonT, o *Orchestrator, timestamp uint64, supernodeID stack.SupernodeID) eth.Bytes32 {
-	supernode, ok := o.supernodes.Get(supernodeID)
-	t.Require().True(ok, "must have supernode")
-
+func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) eth.Bytes32 {
 	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), supernode.UserRPC())
 	t.Require().NoError(err)
 
-	ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
-	err = wait.For(ctx, time.Second*1, func() (bool, error) {
+	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
+	err = wait.For(ctx, time.Second, func() (bool, error) {
 		resp, err := client.SuperRootAtTimestamp(ctx, timestamp)
 		if err != nil {
 			t.Logf("DEBUG: Failed to get super root at timestamp %d: err: %v", timestamp, err)
@@ -332,6 +123,179 @@ func getSuperRootFromSupernode(t devtest.CommonT, o *Orchestrator, timestamp uin
 	t.Require().NoError(err, "super root at timestamp failed")
 	t.Require().NotNil(resp.Data, "super root data must be present")
 	return resp.Data.SuperRoot
+}
+
+func migrateSuperRoots(
+	t devtest.T,
+	keys devkeys.Keys,
+	migration *interopMigrationState,
+	l1ChainID eth.ChainID,
+	l1EL L1ELNode,
+	superRoot eth.Bytes32,
+	superrootTime uint64,
+	primaryL2 eth.ChainID,
+) common.Address {
+	require := t.Require()
+	require.NotNil(migration, "interop migration state is required")
+	require.NotEmpty(migration.opcmImpl, "must have an OPCM implementation")
+	require.NotEmpty(migration.superchainConfigAddr, "must have a superchain deployment")
+	require.NotEmpty(migration.l2Deployments, "must have L2 deployments for interop migration")
+
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
+	require.NoError(err)
+	client := ethclient.NewClient(rpcClient)
+	w3Client := w3.NewClient(rpcClient)
+
+	l1pao, err := keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
+	require.NoError(err, "must have L1 proxy admin owner private key")
+
+	superchainProxyAdmin := getProxyAdmin(t, w3Client, migration.superchainConfigAddr)
+	require.NotEmpty(superchainProxyAdmin, "superchain proxy admin address is empty")
+
+	useV2 := isOPCMV2(t, w3Client, migration.opcmImpl)
+	absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
+	absoluteCannonKonaPrestate := getInteropCannonKonaAbsolutePrestate(t)
+
+	permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
+	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
+	require.NoError(err, "must have configured proposer")
+	challenger, err := keys.Address(permissionedChainOps(devkeys.ChallengerRole))
+	require.NoError(err, "must have configured challenger")
+
+	var opChainConfigs []bindings.OPContractsManagerOpChainConfig
+	var l2ChainIDs []eth.ChainID
+	for l2ChainID, l2Deployment := range migration.l2Deployments {
+		l2ChainIDs = append(l2ChainIDs, l2ChainID)
+		opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
+			SystemConfigProxy:  l2Deployment.SystemConfigProxyAddr(),
+			CannonPrestate:     absoluteCannonPrestate,
+			CannonKonaPrestate: absoluteCannonKonaPrestate,
+		})
+	}
+
+	opcmABI, err := bindings.OPContractsManagerMetaData.GetAbi()
+	require.NoError(err, "invalid OPCM ABI")
+	contract := batching.NewBoundContract(opcmABI, migration.opcmImpl)
+
+	var migrateCallData []byte
+	if useV2 {
+		var chainSystemConfigs []common.Address
+		for _, cfg := range opChainConfigs {
+			chainSystemConfigs = append(chainSystemConfigs, cfg.SystemConfigProxy)
+		}
+		migrateInputV2 := MigrateInputV2{
+			ChainSystemConfigs: chainSystemConfigs,
+			DisputeGameConfigs: []DisputeGameConfigV2{
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(0),
+					GameType: superCannonGameType,
+					GameArgs: absoluteCannonPrestate[:],
+				},
+			},
+			StartingAnchorRoot: bindings.Proposal{
+				Root:             common.Hash(superRoot),
+				L2SequenceNumber: big.NewInt(int64(superrootTime)),
+			},
+			StartingRespectedGameType: superCannonGameType,
+		}
+		migrateCall := contract.Call("migrate", migrateInputV2)
+		migrateCallData, err = migrateCall.Pack()
+		require.NoError(err)
+	} else {
+		migrateInputV1 := bindings.OPContractsManagerInteropMigratorMigrateInput{
+			UsePermissionlessGame: true,
+			StartingAnchorRoot: bindings.Proposal{
+				Root:             common.Hash(superRoot),
+				L2SequenceNumber: big.NewInt(int64(superrootTime)),
+			},
+			GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
+				Proposer:         proposer,
+				Challenger:       challenger,
+				MaxGameDepth:     big.NewInt(73),
+				SplitDepth:       big.NewInt(30),
+				InitBond:         big.NewInt(0),
+				ClockExtension:   10800,
+				MaxClockDuration: 302400,
+			},
+			OpChainConfigs: opChainConfigs,
+		}
+		migrateCall := contract.Call("migrate", migrateInputV1)
+		migrateCallData, err = migrateCall.Pack()
+		require.NoError(err)
+	}
+
+	l1PAOKey, err := keys.Secret(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
+	require.NoError(err, "must have configured L1 proxy admin owner")
+	transactOpts, err := bind.NewKeyedTransactorWithChainID(l1PAOKey, l1ChainID.ToBig())
+	require.NoError(err, "must have transact opts")
+	transactOpts.Context = t.Ctx()
+
+	t.Log("Deploying delegate call proxy contract")
+	delegateCallProxy, proxyContract := deployDelegateCallProxy(t, transactOpts, client, l1pao)
+	oldSuperchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
+	transferOwnership(t, l1PAOKey, client, superchainProxyAdmin, delegateCallProxy)
+
+	oldDisputeGameFactories := make(map[eth.ChainID]common.Address)
+	for i, opChainConfig := range opChainConfigs {
+		var portal common.Address
+		require.NoError(w3Client.Call(w3eth.CallFunc(opChainConfig.SystemConfigProxy, optimismPortalFn).Returns(&portal)))
+		portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
+		transferOwnership(t, l1PAOKey, client, portalProxyAdmin, delegateCallProxy)
+
+		dgf := getDisputeGameFactory(t, w3Client, portal)
+		transferOwnership(t, l1PAOKey, client, dgf, delegateCallProxy)
+		oldDisputeGameFactories[l2ChainIDs[i]] = dgf
+	}
+
+	t.Log("Executing delegate call")
+	migrateTx, err := proxyContract.ExecuteDelegateCall(transactOpts, migration.opcmImpl, migrateCallData)
+	require.NoErrorf(err, "migrate delegatecall failed: %v", errutil.TryAddRevertReason(err))
+	_, err = wait.ForReceiptOK(t.Ctx(), client, migrateTx.Hash())
+	require.NoError(err)
+
+	var sharedDGF common.Address
+	for _, l2Deployment := range migration.l2Deployments {
+		portal := getOptimismPortal(t, w3Client, l2Deployment.SystemConfigProxyAddr())
+		addr := getDisputeGameFactory(t, w3Client, portal)
+		if sharedDGF == (common.Address{}) {
+			sharedDGF = addr
+		} else {
+			require.Equal(sharedDGF, addr, "dispute game factory address is not the same for all deployments")
+		}
+	}
+	require.NotEmpty(getSuperGameImpl(t, w3Client, sharedDGF))
+
+	resetOwnershipAfterMigration(
+		t,
+		keys,
+		l1ChainID.ToBig(),
+		l1PAOKey,
+		w3Client,
+		client,
+		delegateCallProxy,
+		opChainConfigs,
+	)
+	resetOldDisputeGameFactoriesAfterMigration(
+		t,
+		keys,
+		l1ChainID.ToBig(),
+		l1PAOKey,
+		client,
+		delegateCallProxy,
+		oldDisputeGameFactories,
+	)
+	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, superchainProxyAdmin, oldSuperchainProxyAdminOwner)
+
+	superchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
+	require.Equal(oldSuperchainProxyAdminOwner, superchainProxyAdminOwner, "superchain proxy admin owner is not the L1PAO")
+
+	for chainID, l2Deployment := range migration.l2Deployments {
+		l2Deployment.disputeGameFactoryProxy = sharedDGF
+		migration.l2Deployments[chainID] = l2Deployment
+	}
+	t.Log("Interop migration complete")
+	return sharedDGF
 }
 
 func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
@@ -486,7 +450,7 @@ func transferOwnershipForDelegateCallProxy(
 
 func resetOwnershipAfterMigration(
 	t devtest.CommonT,
-	o *Orchestrator,
+	keys devkeys.Keys,
 	l1ChainID *big.Int,
 	ownerPrivateKey *ecdsa.PrivateKey,
 	w3Client *w3.Client,
@@ -494,7 +458,7 @@ func resetOwnershipAfterMigration(
 	delegateCallProxy common.Address,
 	opChainConfigs []bindings.OPContractsManagerOpChainConfig,
 ) {
-	l1PAO, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID)(devkeys.L1ProxyAdminOwnerRole))
+	l1PAO, err := keys.Address(devkeys.ChainOperatorKeys(l1ChainID)(devkeys.L1ProxyAdminOwnerRole))
 	t.Require().NoError(err, "must have L1 proxy admin owner private key")
 
 	portal0 := getOptimismPortal(t, w3Client, opChainConfigs[0].SystemConfigProxy)
@@ -523,13 +487,9 @@ func resetOwnershipAfterMigration(
 		l1PAO,
 	)
 
-	// The migration temporarily transfers ownership of each portal ProxyAdmin to the DelegateCallProxy
-	// to satisfy the delegatecall requirement of the OPCM. Reset these back to the L1 proxy admin owner
-	// after the shared admin contracts are restored.
 	for _, cfg := range opChainConfigs {
 		portal := getOptimismPortal(t, w3Client, cfg.SystemConfigProxy)
 		portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
-		// In some setups the migration may already restore ownership. Only reset when still owned by the proxy.
 		if getOwner(t, w3Client, portalProxyAdmin) == delegateCallProxy {
 			transferOwnershipForDelegateCallProxy(
 				t,
@@ -543,7 +503,6 @@ func resetOwnershipAfterMigration(
 		}
 	}
 
-	// The Proxy Admin owner is changed. Assert that the admin of other proxies are consistent
 	var sharedAnchorStateRegistryProxy common.Address
 	err = w3Client.Call(w3eth.CallFunc(portal0, anchorStateRegistryFn).Returns(&sharedAnchorStateRegistryProxy))
 	t.Require().NoError(err)
@@ -562,9 +521,9 @@ func resetOwnershipAfterMigration(
 	}
 }
 
-func resetOldDisputeGameFactories(
+func resetOldDisputeGameFactoriesAfterMigration(
 	t devtest.CommonT,
-	o *Orchestrator,
+	keys devkeys.Keys,
 	l1ChainID *big.Int,
 	ownerPrivateKey *ecdsa.PrivateKey,
 	client *ethclient.Client,
@@ -573,9 +532,8 @@ func resetOldDisputeGameFactories(
 ) {
 	for l2ChainID, oldDGF := range oldDisputeGameFactories {
 		chainOpsForL2 := devkeys.ChainOperatorKeys(l2ChainID.ToBig())
-		l1PAOForL2, err := o.keys.Address(chainOpsForL2(devkeys.L1ProxyAdminOwnerRole))
+		l1PAOForL2, err := keys.Address(chainOpsForL2(devkeys.L1ProxyAdminOwnerRole))
 		t.Require().NoError(err, "must have configured L1 proxy admin owner private key")
-		// Not required since the old DGFs are not used; but done to prevent surprises later
 		transferOwnershipForDelegateCallProxy(
 			t,
 			l1ChainID,

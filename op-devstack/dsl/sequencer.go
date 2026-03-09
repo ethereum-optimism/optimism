@@ -25,7 +25,7 @@ func NewTestSequencer(inner stack.TestSequencer) *TestSequencer {
 }
 
 func (s *TestSequencer) String() string {
-	return s.inner.ID().String()
+	return s.inner.Name()
 }
 
 func (s *TestSequencer) Escape() stack.TestSequencer {

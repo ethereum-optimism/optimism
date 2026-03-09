@@ -25,7 +25,7 @@ func NewL2Batcher(inner stack.L2Batcher) *L2Batcher {
 }
 
 func (b *L2Batcher) String() string {
-	return b.inner.ID().String()
+	return b.inner.Name()
 }
 
 // Escape returns the underlying stack.L2Batcher
@@ -45,12 +45,12 @@ func (b *L2Batcher) Stop() {
 		}
 		return err
 	})
-	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call StopBatcher API on chain %s, but got error", b.inner.ID().ChainID()))
+	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call StopBatcher API on chain %s, but got error", b.inner.ChainID()))
 }
 
 func (b *L2Batcher) Start() {
 	err := retry.Do0(b.ctx, 3, retry.Exponential(), func() error {
 		return b.inner.ActivityAPI().StartBatcher(b.ctx)
 	})
-	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call StartBatcher API on chain %s, but got error", b.inner.ID().ChainID()))
+	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call StartBatcher API on chain %s, but got error", b.inner.ChainID()))
 }

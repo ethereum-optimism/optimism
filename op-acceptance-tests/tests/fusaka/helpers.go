@@ -12,8 +12,8 @@ import (
 
 // ConfigureDevstackEnvVars sets the appropriate env vars to use a mise-installed geth binary for
 // the L1 EL. This is useful in Osaka acceptance tests since op-geth does not include full Osaka
-// support. This is meant to run before presets.DoMain in a TestMain function. It will log to
-// stdout. ResetDevstackEnvVars should be used to reset the environment variables when TestMain
+// support. This is meant to run before constructing a devstack target in the test. It will log to
+// stdout. ResetDevstackEnvVars should be used to reset the environment variables when the test
 // exits.
 //
 // Note that this is a no-op if either [sysgo.DevstackL1ELKindVar] or [sysgo.GethExecPathEnvVar]

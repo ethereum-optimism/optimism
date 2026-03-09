@@ -11,29 +11,23 @@ import (
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 )
 
 type OpGeth struct {
 	mu sync.Mutex
 
-	p             devtest.P
+	p             devtest.CommonT
 	logger        log.Logger
-	id            stack.ComponentID
+	name          string
 	l2Net         *L2Network
 	jwtPath       string
 	jwtSecret     [32]byte
 	supervisorRPC string
 	l2Geth        *geth.GethInstance
-	readOnly      bool
 	cfg           *L2ELConfig
 
 	authRPC string
@@ -55,36 +49,6 @@ func (n *OpGeth) EngineRPC() string {
 
 func (n *OpGeth) JWTPath() string {
 	return n.jwtPath
-}
-
-func (n *OpGeth) hydrate(system stack.ExtensibleSystem) {
-	require := system.T().Require()
-	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.userRPC, client.WithLazyDial())
-	require.NoError(err)
-	system.T().Cleanup(rpcCl.Close)
-
-	// ReadOnly cannot expose auth RPC
-	var engineCl client.RPC
-	if !n.readOnly {
-		auth := rpc.WithHTTPAuth(gn.NewJWTAuth(n.jwtSecret))
-		engineCl, err = client.NewRPC(system.T().Ctx(), system.Logger(), n.authRPC, client.WithGethRPCOptions(auth))
-		require.NoError(err)
-		system.T().Cleanup(engineCl.Close)
-	}
-
-	l2Net := system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(n.id.ChainID())))
-	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
-		RollupCfg: l2Net.RollupConfig(),
-		ELNodeConfig: shim.ELNodeConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			Client:       rpcCl,
-			ChainID:      n.id.ChainID(),
-		},
-		EngineClient: engineCl,
-		ID:           n.id,
-	})
-	sysL2EL.SetLabel(match.LabelVendor, string(match.OpGeth))
-	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
 }
 
 func (n *OpGeth) Start() {
@@ -113,7 +77,7 @@ func (n *OpGeth) Start() {
 	}
 
 	require := n.p.Require()
-	l2Geth, err := geth.InitL2(n.id.String(), n.l2Net.genesis, n.jwtPath,
+	l2Geth, err := geth.InitL2(NewComponentTarget(n.name, n.l2Net.ChainID()).String(), n.l2Net.genesis, n.jwtPath,
 		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
 			ethCfg.InteropMessageRPC = n.supervisorRPC
 			ethCfg.InteropMempoolFiltering = true
@@ -173,53 +137,8 @@ func (n *OpGeth) Stop() {
 		n.logger.Warn("op-geth already stopped")
 		return
 	}
-	n.logger.Info("Closing op-geth", "id", n.id)
+	n.logger.Info("Closing op-geth", "name", n.name, "chain", n.l2Net.ChainID())
 	closeErr := n.l2Geth.Close()
-	n.logger.Info("Closed op-geth", "id", n.id, "err", closeErr)
+	n.logger.Info("Closed op-geth", "name", n.name, "chain", n.l2Net.ChainID(), "err", closeErr)
 	n.l2Geth = nil
-}
-
-func WithOpGeth(id stack.ComponentID, opts ...L2ELOption) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
-		require := p.Require()
-
-		l2Net, ok := orch.GetL2Network(stack.NewL2NetworkID(id.ChainID()))
-		require.True(ok, "L2 network required")
-
-		cfg := DefaultL2ELConfig()
-		orch.l2ELOptions.Apply(p, id, cfg)       // apply global options
-		L2ELOptionBundle(opts).Apply(p, id, cfg) // apply specific options
-
-		jwtPath, jwtSecret := orch.writeDefaultJWT()
-
-		useInterop := l2Net.genesis.Config.InteropTime != nil
-
-		supervisorRPC := ""
-		if useInterop && cfg.SupervisorID != nil {
-			sup, ok := orch.GetSupervisor(*cfg.SupervisorID)
-			require.True(ok, "supervisor is required for interop")
-			supervisorRPC = sup.UserRPC()
-		}
-
-		logger := p.Logger()
-
-		l2EL := &OpGeth{
-			id:            id,
-			p:             orch.P(),
-			logger:        logger,
-			l2Net:         l2Net,
-			jwtPath:       jwtPath,
-			jwtSecret:     jwtSecret,
-			supervisorRPC: supervisorRPC,
-			cfg:           cfg,
-		}
-		l2EL.Start()
-		p.Cleanup(func() {
-			l2EL.Stop()
-		})
-		cid := id
-		require.False(orch.registry.Has(cid), "must be unique L2 EL node")
-		orch.registry.Register(cid, l2EL)
-	})
 }

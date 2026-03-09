@@ -16,7 +16,7 @@ import (
 )
 
 func newDevstackP2PConfig(
-	p devtest.P,
+	p devtest.CommonT,
 	logger log.Logger,
 	blockTime uint64,
 	noDiscovery bool,

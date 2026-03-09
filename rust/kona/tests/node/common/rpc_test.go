@@ -17,7 +17,7 @@ import (
 func TestP2PPeers(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	p2pPeersAndPeerStats(t, out)
 
@@ -35,7 +35,7 @@ func p2pSelfAndPeers(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 		go func(node *dsl.L2CLNode) {
 			defer wg.Done()
 			clRPC := node_utils.GetNodeRPCEndpoint(node)
-			clName := node.Escape().ID().Key()
+			clName := node.Escape().Name()
 
 			// Gather the peers for the node.
 			peers := &apis.PeerDump{}
@@ -49,7 +49,7 @@ func p2pSelfAndPeers(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 					// We get the peer's info.
 					otherPeerInfo := &apis.PeerInfo{}
 					otherCLRPC := node_utils.GetNodeRPCEndpoint(&node)
-					otherCLName := node.Escape().ID().Key()
+					otherCLName := node.Escape().Name()
 					require.NoError(t, node_utils.SendRPCRequest(otherCLRPC, "opp2p_self", otherPeerInfo), "failed to send RPC request to node %s: %s", clName)
 
 					// These checks fail for the op-node. It seems that their p2p handler is flaky and doesn't always return the correct peer info.
@@ -93,7 +93,7 @@ func p2pPeersAndPeerStats(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 		go func(node *dsl.L2CLNode) {
 			defer wg.Done()
 			clRPC := node_utils.GetNodeRPCEndpoint(node)
-			clName := node.Escape().ID().Key()
+			clName := node.Escape().Name()
 
 			peers := &apis.PeerDump{}
 			require.NoError(t, node_utils.SendRPCRequest(clRPC, "opp2p_peers", peers, true), "failed to send RPC request to node %s: %s", clName)
@@ -112,7 +112,7 @@ func p2pBanPeer(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 	nodes := out.L2CLNodes()
 	for _, node := range nodes {
 		clRPC := node_utils.GetNodeRPCEndpoint(&node)
-		clName := node.Escape().ID().Key()
+		clName := node.Escape().Name()
 
 		peers := &apis.PeerDump{}
 		require.NoError(t, node_utils.SendRPCRequest(clRPC, "opp2p_peers", peers, true), "failed to send RPC request to node %s: %s", clName)
@@ -162,7 +162,7 @@ func p2pBanPeer(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 
 func rollupConfig(t devtest.T, node *dsl.L2CLNode) *rollup.Config {
 	clRPC := node_utils.GetNodeRPCEndpoint(node)
-	clName := node.Escape().ID().Key()
+	clName := node.Escape().Name()
 
 	rollupConfig := &rollup.Config{}
 	require.NoError(t, node_utils.SendRPCRequest(clRPC, "optimism_rollupConfig", rollupConfig), "failed to send RPC request to node %s: %s", clName)
@@ -181,7 +181,7 @@ func rollupConfigMatches(t devtest.T, configA *rollup.Config, configB *rollup.Co
 func TestRollupConfig(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	rollupConfigs := make([]*rollup.Config, 0)
 

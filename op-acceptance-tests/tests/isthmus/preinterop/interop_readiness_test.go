@@ -104,7 +104,7 @@ func init() {
 
 func TestInteropReadiness(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := newSimpleInteropPreinterop(t)
 
 	t.Logger().Info("Started test")
 

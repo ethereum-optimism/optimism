@@ -9,7 +9,7 @@ import (
 // L2CLNode is a L2 ethereum consensus-layer node
 type L2CLNode interface {
 	Common
-	ID() ComponentID
+	ChainID() eth.ChainID
 
 	ClientRPC() client.RPC
 	RollupAPI() apis.RollupClient
@@ -24,11 +24,4 @@ type L2CLNode interface {
 	OPRBuilderNodes() []OPRBuilderNode
 
 	ELClient() apis.EthClient
-}
-
-type LinkableL2CLNode interface {
-	// Links the nodes. Does not make any backend changes, just registers the EL as connected to this CL.
-	LinkEL(el L2ELNode)
-	LinkRollupBoostNode(rollupBoostNode RollupBoostNode)
-	LinkOPRBuilderNode(oprb OPRBuilderNode)
 }

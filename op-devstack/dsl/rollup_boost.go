@@ -8,18 +8,17 @@ import (
 
 type RollupBoostNodesSet []*RollupBoostNode
 
-func NewRollupBoostNodesSet(inner []stack.RollupBoostNode, control stack.ControlPlane) RollupBoostNodesSet {
+func NewRollupBoostNodesSet(inner []stack.RollupBoostNode) RollupBoostNodesSet {
 	rollupBoostNodes := make([]*RollupBoostNode, len(inner))
 	for i, c := range inner {
-		rollupBoostNodes[i] = NewRollupBoostNode(c, control)
+		rollupBoostNodes[i] = NewRollupBoostNode(c)
 	}
 	return rollupBoostNodes
 }
 
 // RollupBoostNode wraps a stack.RollupBoostNode interface for DSL operations
 type RollupBoostNode struct {
-	inner   stack.RollupBoostNode
-	control stack.ControlPlane
+	inner stack.RollupBoostNode
 }
 
 func (r *RollupBoostNode) Escape() stack.RollupBoostNode {
@@ -27,10 +26,9 @@ func (r *RollupBoostNode) Escape() stack.RollupBoostNode {
 }
 
 // NewRollupBoostNode creates a new RollupBoostNode DSL wrapper
-func NewRollupBoostNode(inner stack.RollupBoostNode, control stack.ControlPlane) *RollupBoostNode {
+func NewRollupBoostNode(inner stack.RollupBoostNode) *RollupBoostNode {
 	return &RollupBoostNode{
-		inner,
-		control,
+		inner: inner,
 	}
 }
 

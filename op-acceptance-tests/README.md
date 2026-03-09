@@ -19,28 +19,17 @@ This process helps maintain high-quality standards across all networks in the OP
 
 ## Architecture
 
-The acceptance testing system supports two orchestrator modes:
+The acceptance testing system uses `sysgo` in-process orchestration:
 
 ### **sysgo (In-process)**
 - **Use case**: Fast, isolated testing without external dependencies
 - **Benefits**: Quick startup, no external infrastructure needed
 - **Dependencies**: None (pure Go services)
 
-### **sysext (External)**
-- **Use case**: Testing against Kurtosis-managed devnets or persistent networks
-- **Benefits**: Testing against realistic network conditions
-- **Dependencies**: Docker, Kurtosis (for Kurtosis devnets)
-
-The system automatically selects the appropriate orchestrator based on your usage pattern.
-
 ## Dependencies
 
 ### Basic Dependencies
 * Mise (install as instructed in CONTRIBUTING.md)
-
-### Additional Dependencies (for external devnet testing)
-* Docker
-* Kurtosis
 
 Dependencies are managed using the repo-wide `mise` config. Run `mise install` at the repo root to install `op-acceptor` and other tools.
 
@@ -50,41 +39,37 @@ Dependencies are managed using the repo-wide `mise` config. Run `mise install` a
 
 ```bash
 # Run in-process tests (fast, no external dependencies)
-just acceptance-test "" base
-
-# Run against Kurtosis devnets (requires Docker + Kurtosis)
-just acceptance-test simple base
-just acceptance-test interop interop
+just acceptance-test base
 ```
 
 ### Available Commands
 
 ```bash
-# Default: Run tests against simple devnet with base gate
+# Default: run in-process tests with base gate
 just
 
-# Run specific devnet and gate combinations
-just acceptance-test <devnet> <gate>
+# Run a specific gate
+just acceptance-test <gate>
 
-# Use specific op-acceptor version
-ACCEPTOR_VERSION=v1.0.0 just acceptance-test "" base
+# Run all tests (gateless)
+just acceptance-test-all
 ```
 
 ### Direct CLI Usage
 
-You can also run the acceptance test wrapper directly:
+You can also run `op-acceptor` directly:
 
 ```bash
 cd op-acceptance-tests
 
-# In-process testing (sysgo orchestrator)
-go run cmd/main.go --orchestrator sysgo --gate base --testdir .. --validators ./acceptance-tests.yaml --acceptor op-acceptor
-
-# External devnet testing (sysext orchestrator)
-go run cmd/main.go --orchestrator sysext --devnet simple --gate base --testdir .. --validators ./acceptance-tests.yaml --kurtosis-dir ../kurtosis-devnet --acceptor op-acceptor
-
-# Remote network testing
-go run cmd/main.go --orchestrator sysext --devnet "kt://my-network" --gate base --testdir .. --validators ./acceptance-tests.yaml --acceptor op-acceptor
+# In-process testing
+op-acceptor \
+  --gate base \
+  --testdir .. \
+  --validators ./acceptance-tests.yaml \
+  --log.level info \
+  --allow-skips \
+  --exclude-gates flake-shake
 ```
 
 ## Development Usage
@@ -95,43 +80,13 @@ For rapid test development, use in-process testing:
 
 ```bash
 cd op-acceptance-tests
-# Not providing a network uses the sysgo orchestrator (in-memory network) which is faster and easier to iterate with.
-just acceptance-test "" base
+just acceptance-test base
 ```
-
-### Testing Against External Devnets
-
-For integration testing against realistic networks:
-
-1. **Automated approach** (rebuilds devnet each time):
-   ```bash
-   just acceptance-test interop interop
-   ```
-
-2. **Manual approach** (once-off)
-   ```bash
-   cd op-acceptance-tests
-   # This spins up a devnet, then runs op-acceptor
-   go run cmd/main.go --orchestrator sysext --devnet "interop" --gate interop --testdir .. --validators ./acceptance-tests.yaml
-   ```
-
-3. **Manual approach** (faster for repeated testing):
-   ```bash
-   # Deploy devnet once
-   cd kurtosis-devnet
-   just isthmus-devnet
-
-   # Run tests multiple times against the same devnet
-   cd op-acceptance-tests
-   # This runs op-acceptor (devnet spin up is skipped due to `--reuse-devnet`)
-   go run cmd/main.go --orchestrator sysext --devnet "interop" --gate interop --testdir .. --validators ./acceptance-tests.yaml --reuse-devnet
-   ```
 
 ### Configuration
 
 - `acceptance-tests.yaml`: Defines the validation gates and the suites and tests that should be run for each gate.
 - `justfile`: Contains the commands for running the acceptance tests.
-- `cmd/main.go`: Wrapper binary that handles orchestrator selection and devnet management.
 
 ### Logging Configuration
 
@@ -189,16 +144,14 @@ op-acceptor \
   --validators ./acceptance-tests.yaml \
   --gate flake-shake \
   --flake-shake \
-  --flake-shake-iterations 10 \
-  --orchestrator sysgo
+  --flake-shake-iterations 10
 
 # Run with more iterations for thorough testing
 op-acceptor \
   --validators ./acceptance-tests.yaml \
   --gate flake-shake \
   --flake-shake \
-  --flake-shake-iterations 100 \
-  --orchestrator sysgo
+  --flake-shake-iterations 100
 ```
 
 ### Adding Tests to Flake-Shake
@@ -261,15 +214,12 @@ For rapid development and testing:
 ```bash
 cd op-acceptance-tests
 
-# Run all tests (sysgo gateless mode) - most comprehensive coverage
-just acceptance-test "" ""
+# Run all tests (gateless mode) - most comprehensive coverage
+just acceptance-test-all
 
 # Run specific gate-based tests (traditional mode)
-just acceptance-test "" base        # In-process (sysgo) with gate
-just acceptance-test simple base    # External devnet (sysext) with gate
+just acceptance-test base
 ```
-
-Using an empty gate (`""`) triggers gateless mode with the sysgo orchestrator, auto-discovering all tests.
 
 ## Further Information
 

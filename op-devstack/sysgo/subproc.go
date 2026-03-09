@@ -12,7 +12,7 @@ import (
 
 // SubProcess is a process that can be started and stopped.
 type SubProcess struct {
-	p   devtest.P
+	p   devtest.CommonT
 	cmd *exec.Cmd
 
 	stdOutCallback logpipe.LogCallback
@@ -24,7 +24,7 @@ type SubProcess struct {
 	mu sync.Mutex
 }
 
-func NewSubProcess(p devtest.P, stdOutCallback, stdErrCallback logpipe.LogCallback) *SubProcess {
+func NewSubProcess(p devtest.CommonT, stdOutCallback, stdErrCallback logpipe.LogCallback) *SubProcess {
 	return &SubProcess{
 		p:              p,
 		stdOutCallback: stdOutCallback,

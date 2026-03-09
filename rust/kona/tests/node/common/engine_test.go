@@ -14,7 +14,7 @@ import (
 func TestEngine(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	// Get the nodes from the network.
 	nodes := out.L2CLKonaNodes()
@@ -25,23 +25,16 @@ func TestEngine(gt *testing.T) {
 		go func(node *dsl.L2CLNode) {
 			defer wg.Done()
 
-			queue := make(chan []uint64)
-
-			// Spawn a task that gets the engine queue length with a ws connection.
+			done := make(chan struct{})
 			go func() {
-				done := make(chan struct{})
-				go func() {
-					// Wait for 40 unsafe blocks to be produced.
-					node.Advanced(types.LocalUnsafe, 40, 100)
-					done <- struct{}{}
-				}()
-
-				queue <- node_utils.GetDevWS(t, node, "engine_queue_size", done)
+				defer close(done)
+				// Wait for 40 unsafe blocks to be produced.
+				node.Advanced(types.LocalUnsafe, 40, 100)
 			}()
 
-			q := <-queue
-			for _, q := range q {
-				require.LessOrEqual(t, q, uint64(1), "engine queue length should be 1 or less")
+			queueLens := node_utils.GetDevWS(t, node, "engine_queue_size", done)
+			for _, queueLen := range queueLens {
+				require.LessOrEqual(t, queueLen, uint64(1), "engine queue length should be 1 or less")
 			}
 		}(&node)
 	}

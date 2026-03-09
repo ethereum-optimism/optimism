@@ -17,10 +17,22 @@ func NewL1CLNode(inner stack.L1CLNode) *L1CLNode {
 }
 
 func (cl *L1CLNode) String() string {
-	return cl.inner.ID().String()
+	return cl.inner.Name()
 }
 
 // Escape returns the underlying stack.L1CLNode
 func (cl *L1CLNode) Escape() stack.L1CLNode {
 	return cl.inner
+}
+
+func (cl *L1CLNode) Start() {
+	lifecycle, ok := cl.inner.(stack.Lifecycle)
+	cl.require.Truef(ok, "L1CL node %s is not lifecycle-controllable", cl.inner.Name())
+	lifecycle.Start()
+}
+
+func (cl *L1CLNode) Stop() {
+	lifecycle, ok := cl.inner.(stack.Lifecycle)
+	cl.require.Truef(ok, "L1CL node %s is not lifecycle-controllable", cl.inner.Name())
+	lifecycle.Stop()
 }

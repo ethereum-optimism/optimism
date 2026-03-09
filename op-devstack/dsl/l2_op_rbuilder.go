@@ -8,10 +8,10 @@ import (
 
 type OPRBuilderNodeSet []*OPRBuilderNode
 
-func NewOPRBuilderNodeSet(inner []stack.OPRBuilderNode, control stack.ControlPlane) OPRBuilderNodeSet {
+func NewOPRBuilderNodeSet(inner []stack.OPRBuilderNode) OPRBuilderNodeSet {
 	oprbuilders := make([]*OPRBuilderNode, len(inner))
 	for i, c := range inner {
-		oprbuilders[i] = NewOPRBuilderNode(c, control)
+		oprbuilders[i] = NewOPRBuilderNode(c)
 	}
 	return oprbuilders
 }
@@ -20,20 +20,18 @@ type OPRBuilderNode struct {
 	commonImpl
 	inner    stack.OPRBuilderNode
 	wsClient *opclient.WSClient
-	control  stack.ControlPlane
 }
 
-func NewOPRBuilderNode(inner stack.OPRBuilderNode, control stack.ControlPlane) *OPRBuilderNode {
+func NewOPRBuilderNode(inner stack.OPRBuilderNode) *OPRBuilderNode {
 	return &OPRBuilderNode{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
 		wsClient:   inner.FlashblocksClient(),
-		control:    control,
 	}
 }
 
 func (c *OPRBuilderNode) String() string {
-	return c.inner.ID().String()
+	return c.inner.Name()
 }
 
 func (c *OPRBuilderNode) Escape() stack.OPRBuilderNode {
@@ -45,10 +43,14 @@ func (c *OPRBuilderNode) FlashblocksClient() *opclient.WSClient {
 }
 
 func (el *OPRBuilderNode) Stop() {
-	el.log.Info("Stopping", "id", el.inner.ID())
-	el.control.OPRBuilderNodeState(el.inner.ID(), stack.Stop)
+	el.log.Info("Stopping", "name", el.inner.Name())
+	lifecycle, ok := el.inner.(stack.Lifecycle)
+	el.require.Truef(ok, "op-rbuilder node %s is not lifecycle-controllable", el.inner.Name())
+	lifecycle.Stop()
 }
 
 func (el *OPRBuilderNode) Start() {
-	el.control.OPRBuilderNodeState(el.inner.ID(), stack.Start)
+	lifecycle, ok := el.inner.(stack.Lifecycle)
+	el.require.Truef(ok, "op-rbuilder node %s is not lifecycle-controllable", el.inner.Name())
+	lifecycle.Start()
 }

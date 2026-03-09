@@ -10,7 +10,7 @@ import (
 )
 
 func TestEthSimulateV1(gt *testing.T) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 	ctx := t.Ctx()
 

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -18,7 +17,7 @@ import (
 // a valid SystemConfig address via its systemConfig() view.
 func TestCGT_L1PortalIntrospection(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newCGTMinimal(t)
 
 	// Skip if this devnet is not CGT-enabled (uses your existing gate).
 	ensureCGTOrSkip(t, sys)

@@ -9,6 +9,7 @@ import (
 type Common interface {
 	T() devtest.T
 	Logger() log.Logger
+	Name() string
 
 	// Label retrieves a label by key.
 	// If the label does not exist, it returns an empty string.

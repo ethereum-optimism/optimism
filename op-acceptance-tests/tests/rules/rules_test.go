@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -42,7 +41,7 @@ func TestBoostPriorityOrdering(gt *testing.T) {
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 
-	sys := presets.NewSingleChainWithFlashblocks(t)
+	sys := newRulesSystem(t)
 
 	topLevelCtx, span := tracer.Start(ctx, "test boost priority ordering")
 	defer span.End()
@@ -170,7 +169,7 @@ func TestBoostedVsNonBoostedOrdering(gt *testing.T) {
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 
-	sys := presets.NewSingleChainWithFlashblocks(t)
+	sys := newRulesSystem(t)
 
 	topLevelCtx, span := tracer.Start(ctx, "test boosted vs non-boosted ordering")
 	defer span.End()
@@ -263,7 +262,7 @@ func TestSameSenderNonceOrdering(gt *testing.T) {
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 
-	sys := presets.NewSingleChainWithFlashblocks(t)
+	sys := newRulesSystem(t)
 
 	topLevelCtx, span := tracer.Start(ctx, "test same sender nonce ordering")
 	defer span.End()
@@ -363,7 +362,7 @@ func TestMultipleSendersWithMixedPriorities(gt *testing.T) {
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 
-	sys := presets.NewSingleChainWithFlashblocks(t)
+	sys := newRulesSystem(t)
 
 	topLevelCtx, span := tracer.Start(ctx, "test multiple senders mixed priorities")
 	defer span.End()
@@ -515,7 +514,7 @@ func TestSingleSenderRandomNonceOrderWithRandomScores(gt *testing.T) {
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 
-	sys := presets.NewSingleChainWithFlashblocks(t)
+	sys := newRulesSystem(t)
 
 	topLevelCtx, span := tracer.Start(ctx, "test single sender random nonce order with random scores")
 	defer span.End()

@@ -9,7 +9,7 @@ import (
 )
 
 func TestPublicRpcAdvance(gt *testing.T) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 
 	sys.L2Chain.PublicRPC().Advanced(eth.Unsafe, 5)

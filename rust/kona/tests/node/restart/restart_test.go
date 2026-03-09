@@ -18,7 +18,7 @@ import (
 func TestRestartSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newRestartPreset(t)
 
 	nodes := out.L2CLValidatorNodes()
 	sequencerNodes := out.L2CLSequencerNodes()
@@ -35,8 +35,8 @@ func TestRestartSync(gt *testing.T) {
 	dsl.CheckAll(t, preCheckFuns...)
 
 	for _, node := range nodes {
-		t.Logf("testing restarts for node %s", node.Escape().ID().Key())
-		clName := node.Escape().ID().Key()
+		t.Logf("testing restarts for node %s", node.Escape().Name())
+		clName := node.Escape().Name()
 		nodePeerId := node.PeerInfo().PeerID
 
 		t.Logf("stopping node %s", clName)
@@ -48,7 +48,7 @@ func TestRestartSync(gt *testing.T) {
 			seqPeers := sequencer.Peers()
 			for _, peer := range seqPeers.Peers {
 				if peer.PeerID == nodePeerId {
-					return nil, fmt.Errorf("expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().ID().Key())
+					return nil, fmt.Errorf("expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().Name())
 				}
 			}
 			return nil, nil
@@ -68,7 +68,7 @@ func TestRestartSync(gt *testing.T) {
 
 	var postStartCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		clName := node.Escape().ID().Key()
+		clName := node.Escape().Name()
 		t.Logf("starting node %s", clName)
 		node.Start()
 
@@ -85,13 +85,13 @@ func TestRestartSync(gt *testing.T) {
 		found := false
 		for _, peer := range peers.Peers {
 			if peer.PeerID == sequencer.PeerInfo().PeerID {
-				t.Logf("node %s is connected to reference node %s", clName, sequencer.Escape().ID().Key())
+				t.Logf("node %s is connected to reference node %s", clName, sequencer.Escape().Name())
 				found = true
 				break
 			}
 		}
 
-		t.Require().True(found, "expected node %s to be connected to reference node %s", clName, sequencer.Escape().ID().Key())
+		t.Require().True(found, "expected node %s to be connected to reference node %s", clName, sequencer.Escape().Name())
 	}
 
 	dsl.CheckAll(t, postStartCheckFuns...)

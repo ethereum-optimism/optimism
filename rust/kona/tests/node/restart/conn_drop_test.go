@@ -14,7 +14,7 @@ import (
 func TestConnDropSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newRestartPreset(t)
 
 	nodes := out.L2CLValidatorNodes()
 	sequencerNodes := out.L2CLSequencerNodes()
@@ -32,20 +32,20 @@ func TestConnDropSync(gt *testing.T) {
 
 	var postDisconnectCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		clName := node.Escape().ID().Key()
+		clName := node.Escape().Name()
 
 		node.DisconnectPeer(&sequencer)
 
 		// Ensure that the node is no longer connected to the sequencer
-		t.Logf("node %s is disconnected from sequencer %s", clName, sequencer.Escape().ID().Key())
+		t.Logf("node %s is disconnected from sequencer %s", clName, sequencer.Escape().Name())
 		seqPeers := sequencer.Peers()
 		for _, peer := range seqPeers.Peers {
-			t.Require().NotEqual(peer.PeerID, node.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().ID().Key())
+			t.Require().NotEqual(peer.PeerID, node.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().Name())
 		}
 
 		peers := node.Peers()
 		for _, peer := range peers.Peers {
-			t.Require().NotEqual(peer.PeerID, sequencer.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().ID().Key())
+			t.Require().NotEqual(peer.PeerID, sequencer.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().Name())
 		}
 
 		currentUnsafeHead := node.ChainSyncStatus(node.ChainID(), types.LocalUnsafe)
@@ -92,7 +92,7 @@ func TestConnDropSync(gt *testing.T) {
 
 	var postReconnectCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		clName := node.Escape().ID().Key()
+		clName := node.Escape().Name()
 
 		node.ConnectPeer(&sequencer)
 
@@ -104,13 +104,13 @@ func TestConnDropSync(gt *testing.T) {
 		found := false
 		for _, peer := range peers.Peers {
 			if peer.PeerID == sequencer.PeerInfo().PeerID {
-				t.Logf("node %s is connected to reference node %s", clName, sequencer.Escape().ID().Key())
+				t.Logf("node %s is connected to reference node %s", clName, sequencer.Escape().Name())
 				found = true
 				break
 			}
 		}
 
-		t.Require().True(found, "expected node %s to be connected to reference node %s", clName, sequencer.Escape().ID().Key())
+		t.Require().True(found, "expected node %s to be connected to reference node %s", clName, sequencer.Escape().Name())
 
 		// Check that the node is resyncing with the unsafe head network
 		postReconnectCheckFuns = append(postReconnectCheckFuns, node_utils.MatchedWithinRange(t, node, sequencer, 3, types.LocalSafe, 50), node.AdvancedFn(types.LocalUnsafe, 50, 100), node_utils.MatchedWithinRange(t, node, sequencer, 3, types.LocalUnsafe, 100))

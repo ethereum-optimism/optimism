@@ -5,9 +5,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -21,19 +18,17 @@ import (
 //  4. CLP2P is restored, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
 
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
-	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
-
 	// Pass the L1 genesis
 	sys.L1Network.WaitForBlock()
 
 	// Stop auto advancing L1
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Stop)
+	sys.L1CL.Stop()
 
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
@@ -68,7 +63,7 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	require.NoError(ts.Next(ctx))
 
 	// Start advancing L1
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
+	sys.L1CL.Start()
 
 	// Make sure L1 reorged
 	sys.L1EL.WaitForBlockNumber(l1BlockBeforeReorg.Number)
@@ -153,7 +148,7 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 //  4. Verifier then backfills and closes the unsafe gap once reconnected via CLP2P.
 func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
@@ -162,13 +157,11 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	sys.L2Batcher.Stop()
 
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
-	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
-
 	// Pass the L1 genesis
 	sys.L1Network.WaitForBlock()
 
 	// Stop auto advancing L1
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Stop)
+	sys.L1CL.Stop()
 
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
@@ -203,7 +196,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	require.NoError(ts.Next(ctx))
 
 	// Start advancing L1
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
+	sys.L1CL.Start()
 
 	// Make sure L1 reorged
 	sys.L1EL.WaitForBlockNumber(l1BlockBeforeReorg.Number)
@@ -277,7 +270,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 //  4. CLP2P is restored Verifier, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
@@ -286,13 +279,11 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	sys.L2Batcher.Stop()
 
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
-	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
-
 	// Pass the L1 genesis
 	sys.L1Network.WaitForBlock()
 
 	// Stop auto advancing L1
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Stop)
+	sys.L1CL.Stop()
 
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
@@ -331,7 +322,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	require.NoError(ts.Next(ctx))
 
 	// Start advancing L1
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
+	sys.L1CL.Start()
 
 	// Make sure L1 reorged
 	sys.L1EL.WaitForBlockNumber(l1BlockBeforeReorg.Number)

@@ -3,9 +3,12 @@ package msg
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -15,7 +18,13 @@ import (
 func TestUnscheduledInterop(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t, presets.WithDeployerOptions(
+		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+			for _, l2 := range builder.L2s() {
+				l2.WithForkAtOffset(forks.Interop, nil)
+			}
+		},
+	))
 	t.Logger().Info("Checking that chain A and B can sync, even though interop is not scheduled")
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.Finalized, 5, 100),

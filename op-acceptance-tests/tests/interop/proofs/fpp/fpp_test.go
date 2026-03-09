@@ -10,7 +10,7 @@ import (
 
 func TestFPP(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 
 	startTimestamp := max(sys.L2ChainA.Escape().RollupConfig().TimestampForBlock(1), sys.L2ChainB.Escape().RollupConfig().TimestampForBlock(1))
 	endTimestamp := sys.L2ChainA.Escape().RollupConfig().TimestampForBlock(5)
@@ -22,7 +22,9 @@ func TestFPP(gt *testing.T) {
 
 func TestNextSuperRootNotFound(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	// TODO(#19180): Unskip this once supernode is updated.
+	t.Skip("Supernode does not yet return optimistic blocks until blocks are fully validated")
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	blockTime := sys.L2ChainA.Escape().RollupConfig().BlockTime
 
 	// Need to setup situation where the next super root is not found but the next block is safe on the first chain, but not safe on the second.
