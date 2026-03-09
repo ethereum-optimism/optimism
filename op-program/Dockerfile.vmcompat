@@ -32,3 +32,7 @@ ENV FINDINGS_OUTPUT_PATH=/app/op-program/vm-compat-findings.json
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   touch /app/op-program/vm-compat-findings.json && \
   make "analyze-op-program-client-${VM_TARGET}"; echo $? > /app/op-program/vm-compat-exit-code
+
+FROM scratch AS export
+COPY --from=builder /app/op-program/vm-compat-findings.json .
+COPY --from=builder /app/op-program/vm-compat-exit-code .
