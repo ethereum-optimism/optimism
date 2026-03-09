@@ -48,7 +48,6 @@ job_categories:
     cache_inputs:
       - "packages/contracts-bedrock/src/"
       - "packages/contracts-bedrock/foundry.toml"
-      - "packages/contracts-bedrock/remappings.txt"
       - "op-deployer/"
     verify_command: |
       cd packages/contracts-bedrock && forge build --sizes 2>&1 | grep -q "no files changed, compilation skipped"
@@ -114,7 +113,6 @@ job_categories:
       - "rust/target/release"
     cache_inputs:
       - "rust/"
-      - "Cargo.lock"
     verify_command: |
       cd rust && cargo check --release 2>&1 | tail -1 | grep -qE "(Finished|warning)"
     runner: large
