@@ -90,13 +90,28 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 	// workspace. Group jobs restore the mise directory from workspace instead
 	// of downloading, which avoids the circleci_ip_ranges bandwidth throttle
 	// that was causing 50+ minute installs.
-	miseRestore := `echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
-            source $BASH_ENV
-            if [ -d /tmp/shadow-ci-workspace/mise ]; then
+	//
+	// After restoring, we add both shims and each tool's bin directory to PATH
+	// to ensure all tools (including cargo, rustup) are available without
+	// depending on mise reshim working perfectly.
+	miseRestore := `if [ -d /tmp/shadow-ci-workspace/mise ]; then
               mkdir -p $HOME/.local/share $HOME/.local/bin
               cp -r /tmp/shadow-ci-workspace/mise $HOME/.local/share/mise
               cp /tmp/shadow-ci-workspace/mise-bin/mise $HOME/.local/bin/mise
-              mise reshim
+              # Add mise shims and all installed tool bin dirs to PATH
+              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims"
+              for d in $HOME/.local/share/mise/installs/*/; do
+                for bindir in "$d"/*/bin; do
+                  [ -d "$bindir" ] && MISE_PATH="$MISE_PATH:$bindir"
+                done
+              done
+              echo "export PATH=$MISE_PATH:\$PATH" >> $BASH_ENV
+              source $BASH_ENV
+              mise reshim 2>/dev/null || true
+            else
+              curl -sSf https://mise.run | sh
+              echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+              source $BASH_ENV
             fi`
 
 	// Build group definitions.
