@@ -306,6 +306,10 @@ contract PolicyEngineStaking is ISemver {
     ///         stakers at any time. Note that disallowing a staker who is currently
     ///         delegated to the caller will move effective stake attribution back to the
     ///         staker, changing ordering-power state even while the contract is paused.
+    ///         Trust assumption: stakers who delegate to a beneficiary implicitly trust
+    ///         that the beneficiary will not remove them from the allowlist at a
+    ///         disadvantageous time. Removal triggers `_increasePeData` on the staker,
+    ///         which resets their `lastUpdate` and thus their accumulated staking weight.
     ///
     /// @param _staker The staker to allow or deny.
     /// @param _allowed The allowed state.
