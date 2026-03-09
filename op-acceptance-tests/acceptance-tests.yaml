@@ -176,6 +176,11 @@ gates:
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_ext_el
         timeout: 30m
+      # sync_tester_hfs_ext: hardfork-switch external-network tests. Moved from PR CI
+      # (ci-shard-sync-b) to daily: too slow for PRs (800s), and covered by
+      # sync-a EL/CL sync tests for typical code changes.
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_hfs_ext
+        timeout: 30m
 
   - id: jovian
     inherits:
@@ -204,3 +209,153 @@ gates:
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/...
         timeout: 15m
+
+  # ============================================================================
+  # CI PARALLEL SHARDS
+  # ============================================================================
+  # These gates partition the full acceptance test suite into parallel CI jobs,
+  # replacing the single serial memory-all (gateless) job. Each shard covers a
+  # non-overlapping subset of packages, so the wall-clock time equals the longest
+  # shard rather than the sum of all tests.
+  #
+  # Design rules:
+  #  - No inheritance between shards (no test duplication across shards)
+  #  - Flake-shake tests excluded to match existing memory-all --exclude-gates behavior
+  #  - Each shard targets ~20-40 tests for ~2-4 min wall clock on 2xlarge+
+  # ============================================================================
+
+  - id: ci-shard-interop-a
+    description: "CI parallel shard A: core interop tests (message, sync, smoke, contract)"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/message
+        timeout: 30m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync/multisupervisor_interop
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync/simple_interop
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/smoke
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/contract
+        timeout: 20m
+
+  - id: ci-shard-interop-b
+    description: "CI parallel shard B: advanced interop tests (reorgs, upgrade, loadtest, seqwindow, prep)"
+    tests:
+      # interop/proofs* excluded: fault-proof tests require cannon prestates, 6h timeouts,
+      # and are covered by develop-CI `interop` gate. Not suitable for PR CI.
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/reorgs
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade-no-supervisor
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/upgrade-singlechain
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/seqwindow
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/prep
+        timeout: 20m
+
+  - id: ci-shard-sync-a
+    description: "CI parallel shard C1: core sync tests (sync/*, sync_tester e2e/el)"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/...
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_e2e
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_elsync
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_elsync_multi
+        timeout: 20m
+      # sync_tester_ext_el excluded: external-network tests run daily via sync-test-op-node gate only.
+
+  - id: ci-shard-sync-c
+    description: "CI parallel shard C3: depreqres sync tests"
+    tests:
+      # depreqres non-flaky subset (excludes reqressyncdisabled root and syncmodereqressync/elsync which are in flake-shake)
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/clsync
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/elsync
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/divergence
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/syncmodereqressync/clsync
+        timeout: 20m
+
+  - id: ci-shard-sync-b
+    description: "CI parallel shard C2: HFS sync tests (in-memory)"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_hfs
+        timeout: 20m
+      # sync_tester_hfs_ext excluded: external-network hardfork tests (14 tests, 800s).
+      # Moved to daily sync-test-op-node gate to preserve coverage without blocking PRs.
+
+  - id: ci-shard-protocol
+    description: "CI parallel shard D1: protocol tests (base, isthmus, ecotone, fjord, flashblocks)"
+    tests:
+      # base/... excluded to avoid base/withdrawal/cannon* fault-proof packages.
+      # Using explicit packages matching the base gate definition.
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/chain
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/conductor
+        timeout: 20m
+      # isthmus/... excluded to avoid preinterop and preinterop-singlechain (fault-proof tests).
+      # Those are covered by develop-CI `pre-interop` gate. List only fast sub-packages here.
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/operator_fee
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/withdrawal_root
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/erc20_bridge
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/pectra
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/ecotone
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fjord
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks
+        timeout: 20m
+
+  - id: ci-shard-supernode
+    description: "CI parallel shard D2: supernode tests (non-flaky subset)"
+    tests:
+      # supernode non-flaky subset (excludes supernode/interop/activation which is in flake-shake)
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/follow_l2
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/reorg
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/same_timestamp_invalid
+        timeout: 20m
+
+  - id: ci-shard-misc
+    description: "CI parallel shard E: miscellaneous tests (jovian, cgt, batcher, safeheaddb, etc.)"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian/...
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/custom_gas_token
+        timeout: 20m
+      # tests/proofs excluded: fault-proof tests covered by develop-CI `isthmus` gate.
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/batcher/...
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/safeheaddb_clsync
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/safeheaddb_elsync
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sequencer
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fusaka
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/rules
+        timeout: 20m

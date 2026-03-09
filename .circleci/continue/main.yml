@@ -2023,6 +2023,10 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
+      skip_prepare:
+        description: Skip the 'go test -c' pre-compilation step. Set true for per-gate shard jobs where only a subset of packages are needed.
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     circleci_ip_ranges: true
@@ -2031,6 +2035,9 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - run:
+          name: Verify shard coverage (no orphan test packages)
+          command: op-acceptance-tests/scripts/check-shard-coverage.sh
       - attach_workspace:
           at: .
       - run:
@@ -2057,11 +2064,15 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             just cmd-check
-      # Prepare the test environment
-      - run:
-          name: Prepare test environment (compile tests and cache build results)
-          working_directory: op-acceptance-tests
-          command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
+      # Prepare the test environment (skip for shard jobs where only a subset of packages are needed)
+      - when:
+          condition:
+            not: <<parameters.skip_prepare>>
+          steps:
+            - run:
+                name: Prepare test environment (compile tests and cache build results)
+                working_directory: op-acceptance-tests
+                command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
           name: Run acceptance tests (gate=<<parameters.gate>>)
@@ -2884,7 +2895,7 @@ workflows:
             branches:
               only: develop
       - contracts-bedrock-coverage:
-          # Generate coverage reports.
+          # Generate coverage reports. Runs on develop only — not on the PR critical path.
           name: contracts-bedrock-coverage <<matrix.features>>
           test_timeout: 1h
           test_profile: cicoverage
@@ -2895,6 +2906,9 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+          filters:
+            branches:
+              only: develop
       # On PRs, run upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
@@ -2975,6 +2989,9 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+          filters:
+            branches:
+              only: develop
       - diff-fetcher-forge-artifacts:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3162,11 +3179,25 @@ workflows:
       - go-binaries-for-sysgo:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # IN-MEMORY (all)
+      # IN-MEMORY (parallel shards) — replaces the single serial memory-all job.
+      # Each shard runs a non-overlapping subset of packages defined in acceptance-tests.yaml,
+      # so wall-clock time = longest shard, not sum of all tests.
       - op-acceptance-tests:
-          name: memory-all
-          gate: "" # Empty gate = gateless mode
-          no_output_timeout: 120m # Allow longer runs for memory-all gate
+          name: memory-shard-<<matrix.gate>>
+          gate: "ci-shard-<<matrix.gate>>"
+          no_output_timeout: 30m
+          skip_prepare: true
+          matrix:
+            parameters:
+              gate:
+                - interop-a
+                - interop-b
+                - sync-a
+                - sync-b
+                - sync-c
+                - protocol
+                - supernode
+                - misc
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

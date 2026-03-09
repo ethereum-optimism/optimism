@@ -213,63 +213,80 @@ make-pre-test: ## Makes pre-test setup
 TEST_DEPS := op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test
 
 # Excludes: op-validator, op-deployer/pkg/{validation,deployer/{bootstrap,manage,opcm,pipeline,upgrade}} (need RPC)
+# Package list ordered for round-robin load balancing across 12 CI nodes.
+# Heavy packages are placed first so they spread across different nodes.
+# When reordering, ensure every package appears exactly once.
 TEST_PKGS := \
-	./op-alt-da/... \
-	./op-batcher/... \
-	./op-chain-ops/... \
-	./op-node/... \
-	./op-proposer/... \
-	./op-challenger/... \
-	./op-faucet/... \
-	./op-dispute-mon/... \
-	./op-conductor/... \
-	./op-program/... \
-	./op-service/... \
-	./op-supervisor/... \
-	./op-test-sequencer/... \
-	./op-fetcher/... \
-	./op-e2e/system/... \
-	./op-e2e/e2eutils/... \
-	./op-e2e/opgeth/... \
-	./op-e2e/interop/... \
-	./op-e2e/actions/altda \
-	./op-e2e/actions/batcher \
-	./op-e2e/actions/derivation \
-	./op-e2e/actions/helpers \
-	./op-e2e/actions/interop \
+	./op-e2e/system/proofs \
 	./op-e2e/actions/proofs \
+	./op-e2e/actions/interop \
+	./op-e2e/system/bridge \
+	./op-e2e/system/da \
+	./op-e2e/interop/... \
+	./op-devstack/... \
+	./op-e2e/actions/batcher \
+	./op-supernode/... \
+	./op-service/... \
+	./op-node/... \
+	./op-e2e/system/verifier \
+	./op-e2e/system/fees \
+	./op-program/... \
+	./op-e2e/system/conductor \
+	./op-challenger/... \
+	./op-e2e/opgeth/... \
+	./op-e2e/actions/derivation \
+	./op-conductor/... \
+	./op-batcher/... \
+	./op-e2e/actions/sync \
+	./kurtosis-devnet/... \
+	./op-e2e/actions/upgrades \
+	./op-e2e/actions/helpers \
+	./op-e2e/system/altda \
+	./op-e2e/system/contracts \
+	./op-e2e/system/e2esys \
+	./op-e2e/system/fjord \
+	./op-e2e/system/isthmus \
+	./op-e2e/system/p2p \
+	./op-e2e/system/runcfg \
+	./op-e2e/system/helpers \
+	./op-supervisor/... \
+	./op-e2e/actions/altda \
+	./op-e2e/actions/sequencer \
 	./op-e2e/actions/proposer \
 	./op-e2e/actions/safedb \
-	./op-e2e/actions/sequencer \
-	./op-e2e/actions/sync \
-	./op-e2e/actions/upgrades \
-	./packages/contracts-bedrock/scripts/checks/... \
-	./op-dripper/... \
-	./devnet-sdk/... \
-	./kurtosis-devnet/... \
-	./op-devstack/... \
+	./op-chain-ops/... \
+	./op-e2e/e2eutils/... \
 	./op-deployer/pkg/deployer/artifacts/... \
-	./op-deployer/pkg/deployer/broadcaster/... \
 	./op-deployer/pkg/deployer/clean/... \
-	./op-deployer/pkg/deployer/integration_test/ \
-	./op-deployer/pkg/deployer/integration_test/cli/... \
 	./op-deployer/pkg/deployer/standard/... \
 	./op-deployer/pkg/deployer/state/... \
 	./op-deployer/pkg/deployer/verify/... \
-	./op-sync-tester/... \
-	./op-supernode/...
+	./op-deployer/pkg/deployer/broadcaster/... \
+	./packages/contracts-bedrock/scripts/checks/... \
+	./op-alt-da/... \
+	./op-proposer/... \
+	./op-faucet/... \
+	./op-dispute-mon/... \
+	./op-dripper/... \
+	./op-test-sequencer/... \
+	./op-fetcher/... \
+	./devnet-sdk/... \
+	./op-sync-tester/...
 
 FRAUD_PROOF_TEST_PKGS := \
 	./op-e2e/faultproofs/...
 
-# Includes: op-validator, op-deployer/pkg/{bootstrap,manage,opcm,pipeline,upgrade} (need RPC)
+# RPC-dependent tests: run in go-tests-full (develop) only, not in go-tests-short (PR gate).
+# These fork live Ethereum state via Anvil and flake ~314 times/month under concurrent load.
 RPC_TEST_PKGS := \
 	./op-validator/pkg/validations/... \
 	./op-deployer/pkg/deployer/bootstrap/... \
 	./op-deployer/pkg/deployer/manage/... \
 	./op-deployer/pkg/deployer/opcm/... \
 	./op-deployer/pkg/deployer/pipeline/... \
-	./op-deployer/pkg/deployer/upgrade/...
+	./op-deployer/pkg/deployer/upgrade/... \
+	./op-deployer/pkg/deployer/integration_test/ \
+	./op-deployer/pkg/deployer/integration_test/cli/...
 
 # All test packages used by CI (combination of all package groups)
 ALL_TEST_PACKAGES := $(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)
@@ -307,7 +324,8 @@ go-tests-short: $(TEST_DEPS) ## Runs comprehensive Go tests with -short flag
 .PHONY: go-tests-short
 
 # Internal target for running Go tests with gotestsum for CI
-# Usage: make _go-tests-ci-internal GO_TEST_FLAGS="-short"
+# Usage: make _go-tests-ci-internal GO_TEST_FLAGS="-short" CI_TEST_PACKAGES="..."
+CI_TEST_PACKAGES ?= $(ALL_TEST_PACKAGES)
 _go-tests-ci-internal:
 	$(MAKE) -C cannon cannon elf # Required for cannon/provider_test TestLastStepCacheAccuracy
 	@echo "Setting up test directories..."
@@ -318,7 +336,7 @@ _go-tests-ci-internal:
 	if [ -n "$$CIRCLE_NODE_TOTAL" ] && [ "$$CIRCLE_NODE_TOTAL" -gt 1 ]; then \
 		export NODE_INDEX=$${CIRCLE_NODE_INDEX:-0} && \
 		export NODE_TOTAL=$${CIRCLE_NODE_TOTAL:-1} && \
-		export PARALLEL_PACKAGES=$$(echo "$(ALL_TEST_PACKAGES)" | tr ' ' '\n' | awk -v idx=$$NODE_INDEX -v total=$$NODE_TOTAL 'NR % total == idx' | tr '\n' ' ') && \
+		export PARALLEL_PACKAGES=$$(echo "$(CI_TEST_PACKAGES)" | tr ' ' '\n' | awk -v idx=$$NODE_INDEX -v total=$$NODE_TOTAL 'NR % total == idx' | tr '\n' ' ') && \
 		if [ -n "$$PARALLEL_PACKAGES" ]; then \
 			echo "Node $$NODE_INDEX/$$NODE_TOTAL running packages: $$PARALLEL_PACKAGES"; \
 			gotestsum --format=testname \
@@ -329,7 +347,7 @@ _go-tests-ci-internal:
 				--packages="$$PARALLEL_PACKAGES" \
 				-- -parallel=$$PARALLEL -coverprofile=coverage-$$NODE_INDEX.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci"; \
 		else \
-			echo "ERROR: Node $$NODE_INDEX/$$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (ALL_TEST_PACKAGES has $$(echo '$(ALL_TEST_PACKAGES)' | wc -w) packages)"; \
+			echo "ERROR: Node $$NODE_INDEX/$$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (CI_TEST_PACKAGES has $$(echo '$(CI_TEST_PACKAGES)' | wc -w) packages)"; \
 			exit 1; \
 		fi; \
 	else \
@@ -338,13 +356,13 @@ _go-tests-ci-internal:
 			--jsonfile=./tmp/testlogs/log.json \
 			--rerun-fails=3 \
 			--rerun-fails-max-failures=50 \
-			--packages="$(ALL_TEST_PACKAGES)" \
+			--packages="$(CI_TEST_PACKAGES)" \
 			-- -parallel=$$PARALLEL -coverprofile=coverage.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci"; \
 	fi
 .PHONY: _go-tests-ci-internal
 
 go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps built by CI)
-	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS="-short"
+	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS="-short" CI_TEST_PACKAGES="$(TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)"
 .PHONY: go-tests-short-ci
 
 go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps built by CI)
