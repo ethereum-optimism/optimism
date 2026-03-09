@@ -24,11 +24,11 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ checksum "mise.toml" }}
+            - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
       - run:
           name: Install tools (cache miss only)
           command: |
-            if [ -f /tmp/shadow-ci-tools/.cached ]; then
+            if [ -d "$HOME/.local/share/mise/installs" ] && [ -n "$(ls -A $HOME/.local/share/mise/installs 2>/dev/null)" ]; then
               echo "Tools restored from cache"
               exit 0
             fi
@@ -36,19 +36,17 @@ jobs:
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
             mise install go forge cast anvil just make gotestsum golangci-lint mockery
-            mkdir -p /tmp/shadow-ci-tools
-            for bin in go gofmt forge cast anvil just make gotestsum golangci-lint mockery; do
-              src=$(mise which $bin 2>/dev/null || which $bin 2>/dev/null) && cp "$src" /tmp/shadow-ci-tools/
-            done
-            touch /tmp/shadow-ci-tools/.cached
       - save_cache:
-          key: shadow-ci-tools-v2-{{ checksum "mise.toml" }}
+          key: shadow-ci-mise-v1-{{ checksum "mise.toml" }}
           paths:
-            - /tmp/shadow-ci-tools
+            - ~/.local/share/mise/installs
+            - ~/.local/bin
       - run:
           name: Build shadow CI binaries
           command: |
-            export PATH=/tmp/shadow-ci-tools:$PATH
+            [ -f "$HOME/.local/bin/mise" ] || curl -sSf https://mise.run | sh
+            export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH
+            mise reshim
             cd ops/shadow-ci
             mkdir -p bin
             CGO_ENABLED=0 go build -o bin/affected ./cmd/affected
@@ -122,7 +120,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ checksum "mise.toml" }}
+            - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
       - run:
           name: Install Go (cache miss only)
           command: |
@@ -159,15 +157,14 @@ jobs:
           at: /tmp/shadow-ci-workspace
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ checksum "mise.toml" }}
+            - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
       - run:
           name: Install toolchain (build)
           command: |
-            echo 'export PATH=/tmp/shadow-ci-tools:$PATH' >> $BASH_ENV
-            source $BASH_ENV
-            curl -sSf https://mise.run | sh
+            [ -f "$HOME/.local/bin/mise" ] || curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
+            mise reshim
             mise install rust just
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
       - run:
@@ -210,7 +207,7 @@ jobs:
           at: /tmp/shadow-ci-workspace
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ checksum "mise.toml" }}
+            - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
       - run:
           name: Restore build artifacts
           command: |
@@ -223,8 +220,10 @@ jobs:
       - run:
           name: Install toolchain (go)
           command: |
-            echo 'export PATH=/tmp/shadow-ci-tools:$PATH' >> $BASH_ENV
+            [ -f "$HOME/.local/bin/mise" ] || curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
+            mise reshim
       - run:
           name: Execute go categories
           no_output_timeout: 45m
@@ -251,7 +250,7 @@ jobs:
           at: /tmp/shadow-ci-workspace
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ checksum "mise.toml" }}
+            - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
       - run:
           name: Restore build artifacts
           command: |
@@ -264,8 +263,10 @@ jobs:
       - run:
           name: Install toolchain (sol)
           command: |
-            echo 'export PATH=/tmp/shadow-ci-tools:$PATH' >> $BASH_ENV
+            [ -f "$HOME/.local/bin/mise" ] || curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
+            mise reshim
       - run:
           name: Execute sol categories
           no_output_timeout: 45m
@@ -291,7 +292,7 @@ jobs:
           at: /tmp/shadow-ci-workspace
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ checksum "mise.toml" }}
+            - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
       - run:
           name: Restore build artifacts
           command: |
@@ -304,11 +305,10 @@ jobs:
       - run:
           name: Install toolchain (rust)
           command: |
-            echo 'export PATH=/tmp/shadow-ci-tools:$PATH' >> $BASH_ENV
-            source $BASH_ENV
-            curl -sSf https://mise.run | sh
+            [ -f "$HOME/.local/bin/mise" ] || curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
+            mise reshim
             mise install rust just
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
             curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
@@ -338,7 +338,7 @@ jobs:
           at: /tmp/shadow-ci-workspace
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ checksum "mise.toml" }}
+            - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
       - run:
           name: Restore build artifacts
           command: |

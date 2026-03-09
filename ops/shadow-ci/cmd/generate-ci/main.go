@@ -88,17 +88,15 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 	}
 
 	// Tools are cached via CircleCI save_cache/restore_cache keyed on mise.toml.
-	// Each group restores the cache and adds the tools dir to PATH.
+	// The setup job installs mise + all tools and caches the full mise tree.
+	// Group jobs restore the cache and regenerate shims.
 	// Groups that need Rust install it directly (no IP range throttle on build/rust).
-	toolsRestore := `echo 'export PATH=/tmp/shadow-ci-tools:$PATH' >> $BASH_ENV
-            source $BASH_ENV`
-
-	miseInstall := `curl -sSf https://mise.run | sh
+	toolsRestore := `[ -f "$HOME/.local/bin/mise" ] || curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
-            source $BASH_ENV`
+            source $BASH_ENV
+            mise reshim`
 
-	rustInstall := miseInstall + `
-            mise install rust just
+	rustInstall := `mise install rust just
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev`
 
 	// Build group definitions.
@@ -225,11 +223,11 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+            - shadow-ci-mise-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
       - run:
           name: Install tools (cache miss only)
           command: |
-            if [ -f /tmp/shadow-ci-tools/.cached ]; then
+            if [ -d "$HOME/.local/share/mise/installs" ] && [ -n "$(ls -A $HOME/.local/share/mise/installs 2>/dev/null)" ]; then
               echo "Tools restored from cache"
               exit 0
             fi
@@ -237,19 +235,17 @@ jobs:
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
             mise install go forge cast anvil just make gotestsum golangci-lint mockery
-            mkdir -p /tmp/shadow-ci-tools
-            for bin in go gofmt forge cast anvil just make gotestsum golangci-lint mockery; do
-              src=$(mise which $bin 2>/dev/null || which $bin 2>/dev/null) && cp "$src" /tmp/shadow-ci-tools/
-            done
-            touch /tmp/shadow-ci-tools/.cached
       - save_cache:
-          key: shadow-ci-tools-v2-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+          key: shadow-ci-mise-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
           paths:
-            - /tmp/shadow-ci-tools
+            - ~/.local/share/mise/installs
+            - ~/.local/bin
       - run:
           name: Build shadow CI binaries
           command: |
-            export PATH=/tmp/shadow-ci-tools:$PATH
+            [ -f "$HOME/.local/bin/mise" ] || curl -sSf https://mise.run | sh
+            export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH
+            mise reshim
             cd ops/shadow-ci
             mkdir -p bin
             CGO_ENABLED=0 go build -o bin/affected ./cmd/affected
@@ -323,7 +319,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+            - shadow-ci-mise-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
       - run:
           name: Install Go (cache miss only)
           command: |
@@ -361,7 +357,7 @@ jobs:
           at: /tmp/shadow-ci-workspace
       - restore_cache:
           keys:
-            - shadow-ci-tools-v2-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+            - shadow-ci-mise-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
 {{ if ne .Name "build" }}      - run:
           name: Restore build artifacts
           command: |
