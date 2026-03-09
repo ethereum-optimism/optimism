@@ -71,6 +71,12 @@ parameters:
   c-flake-shake-workers:
     type: integer
     default: 50
+  # Set to true by path-filtering when files under rust/ change.
+  # When false on feature branches, kona-build-release skips cargo build and
+  # reuses cached binaries — saving ~9 minutes on PRs that don't touch Rust.
+  c-rust_files_changed:
+    type: boolean
+    default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
@@ -576,6 +582,10 @@ commands:
         description: "Whether to save the cache at the end of the build"
         type: boolean
         default: false
+      rust_files_changed:
+        description: "Set to false to skip cargo build and reuse cached binaries (feature branches only)."
+        type: boolean
+        default: true
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -596,6 +606,22 @@ commands:
             PWD=$(pwd)
             export CARGO_TARGET_DIR="$PWD/<< parameters.directory >>/target"
             echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
+
+            # On feature branches where rust/ hasn't changed, reuse binaries from
+            # the restored target cache instead of running cargo build (~9 min saving).
+            # Always build on develop/main as a safety backstop.
+            if [ "<< parameters.rust_files_changed >>" = "false" ] \
+                && [ "$CIRCLE_BRANCH" != "develop" ] \
+                && [ "$CIRCLE_BRANCH" != "main" ]; then
+              binary_dir="$CARGO_TARGET_DIR/<< parameters.profile >>"
+              if [ -d "$binary_dir" ] && ls "$binary_dir"/* >/dev/null 2>&1; then
+                echo "No rust/ changes on feature branch — skipping cargo build"
+                ls -lh "$binary_dir"/ | head -20
+                exit 0
+              fi
+              echo "WARNING: no cached binaries found, building from source"
+            fi
+
             export PROFILE="--profile << parameters.profile >>"
 
             # Debug profile is specified as "debug" in the config/target, but cargo build expects "dev"
@@ -676,6 +702,10 @@ jobs:
         description: "Whether to persist the built binaries to the CircleCI workspace"
         type: boolean
         default: false
+      rust_files_changed:
+        description: "Set to false to skip cargo build and reuse cached binaries (feature branches only)."
+        type: boolean
+        default: true
     steps:
       - rust-build:
           directory: << parameters.directory >>
@@ -687,6 +717,7 @@ jobs:
           binary: << parameters.binary >>
           toolchain: << parameters.toolchain >>
           save_cache: << parameters.save_cache >>
+          rust_files_changed: << parameters.rust_files_changed >>
       - when:
           condition: << parameters.persist_to_workspace >>
           steps:
@@ -3136,6 +3167,7 @@ workflows:
           features: "default"
           save_cache: true
           persist_to_workspace: true
+          rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-submodule: &rust-build-op-rbuilder
