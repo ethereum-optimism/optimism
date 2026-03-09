@@ -9,6 +9,7 @@ type SuperNodeSyncStatusResponse struct {
 	ChainIDs []ChainID `json:"chain_ids"`
 
 	// CurrentL1 is the highest L1 block ID that has been fully derived and verified by all chains.
+	// This value is derived from the minimum per-chain current L1 block IDs, including validators.
 	CurrentL1 BlockID `json:"current_l1"`
 
 	// SafeTimestamp is the highest L2 timestamp that is safe across the dependency set at the CurrentL1.

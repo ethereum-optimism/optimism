@@ -143,7 +143,6 @@ func TestSupernode_SyncStatus_Succeeds(t *testing.T) {
 	require.Equal(t, []eth.ChainID{chainA, chainB}, out.ChainIDs)
 	require.Equal(t, uint64(2000), out.CurrentL1.Number)
 	require.Equal(t, out.Chains[chainA].CurrentL1.ID(), out.CurrentL1)
-	require.Equal(t, out.Chains[chainB].CurrentL1.ID(), out.CurrentL1)
 	require.Equal(t, uint64(170), out.SafeTimestamp)
 	require.Equal(t, uint64(180), out.LocalSafeTimestamp)
 	require.Equal(t, uint64(140), out.FinalizedTimestamp)
@@ -154,7 +153,7 @@ func TestSupernode_SyncStatus_Succeeds(t *testing.T) {
 	require.Greater(t, statusA.LocalSafeL2.Number, statusA.SafeL2.Number)
 }
 
-func TestSupernode_SyncStatus_PanicsOnCurrentL1Mismatch(t *testing.T) {
+func TestSupernode_SyncStatus_UsesMinimumCurrentL1(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
@@ -170,9 +169,9 @@ func TestSupernode_SyncStatus_PanicsOnCurrentL1Mismatch(t *testing.T) {
 	}
 	s := New(gethlog.New(), chains)
 	api := &api{a: s}
-	require.Panics(t, func() {
-		_, _ = api.SyncStatus(context.Background())
-	})
+	out, err := api.SyncStatus(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, eth.BlockID{Number: 100, Hash: common.Hash{0x11}}, out.CurrentL1)
 }
 
 func TestSupernode_SyncStatus_ErrorOnCurrentL1(t *testing.T) {

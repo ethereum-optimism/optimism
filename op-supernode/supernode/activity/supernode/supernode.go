@@ -2,7 +2,6 @@ package supernode
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -44,7 +43,7 @@ func (api *api) SyncStatus(ctx context.Context) (eth.SuperNodeSyncStatusResponse
 func (a *Activity) syncStatus(ctx context.Context) (eth.SuperNodeSyncStatusResponse, error) {
 	var (
 		statuses              map[eth.ChainID]eth.SyncStatus
-		currentL1             eth.L1BlockRef
+		minCurrentL1          eth.BlockID
 		minLocalSafeTimestamp uint64
 		minSafeTimestamp      uint64
 		minFinalizedTimestamp uint64
@@ -65,10 +64,10 @@ func (a *Activity) syncStatus(ctx context.Context) (eth.SuperNodeSyncStatusRespo
 		}
 		statuses[chainID] = *status
 
-		if (currentL1 != eth.L1BlockRef{}) && currentL1 != status.CurrentL1 {
-			panic(fmt.Sprintf("currentL1 desync between chains: expected %v got %v for chain %s", currentL1, status.CurrentL1, chainID.String()))
+		currentL1 := status.CurrentL1.ID()
+		if currentL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
+			minCurrentL1 = currentL1
 		}
-		currentL1 = status.CurrentL1
 
 		if !localSafeInitialized {
 			minLocalSafeTimestamp = status.LocalSafeL2.Time
@@ -107,7 +106,7 @@ func (a *Activity) syncStatus(ctx context.Context) (eth.SuperNodeSyncStatusRespo
 	return eth.SuperNodeSyncStatusResponse{
 		Chains:             statuses,
 		ChainIDs:           chainIDs,
-		CurrentL1:          currentL1.ID(),
+		CurrentL1:          minCurrentL1,
 		SafeTimestamp:      minSafeTimestamp,
 		LocalSafeTimestamp: minLocalSafeTimestamp,
 		FinalizedTimestamp: minFinalizedTimestamp,
