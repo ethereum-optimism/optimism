@@ -34,6 +34,9 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Emitted when ownership is transferred.
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
+    /// @notice Emitted when a new owner is nominated via `transferOwnership`.
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+
     /// @notice Thrown when the caller is not the owner.
     error PolicyEngineStaking_OnlyOwner();
 
@@ -61,6 +64,9 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Thrown when trying to change beneficiary to the current beneficiary.
     error PolicyEngineStaking_SameBeneficiary();
 
+    /// @notice Thrown when the caller is not the pending owner.
+    error PolicyEngineStaking_NotPendingOwner();
+
     /// @notice Thrown when trying to allowlist/disallow yourself.
     error PolicyEngineStaking_SelfAllowlist();
 
@@ -69,9 +75,17 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
 
-    /// @notice Transfers ownership of the contract to a new account. Only callable by owner.
-    /// @param _newOwner The address of the new owner.
+    /// @notice Returns the pending owner nominated via `transferOwnership`.
+    function pendingOwner() external view returns (address);
+
+    /// @notice Nominates a new owner. The nominated address must call `acceptOwnership`
+    ///         to finalize the transfer (two-step pattern). Only callable by owner.
+    ///
+    /// @param _newOwner The address of the nominated owner.
     function transferOwnership(address _newOwner) external;
+
+    /// @notice Accepts ownership after being nominated via `transferOwnership`.
+    function acceptOwnership() external;
 
     /// @notice Returns whether the contract is paused.
     function paused() external view returns (bool);

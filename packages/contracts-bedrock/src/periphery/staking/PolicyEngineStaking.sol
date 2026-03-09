@@ -32,8 +32,8 @@ contract PolicyEngineStaking is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Base storage slot for PE stakingData mapping. Policy Engine reads from
     ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
@@ -57,6 +57,9 @@ contract PolicyEngineStaking is ISemver {
 
     /// @notice The owner of the contract. Can pause, unpause, and transfer ownership.
     address private _owner;
+
+    /// @notice The pending owner nominated via `transferOwnership`.
+    address private _pendingOwner;
 
     /// @notice Emitted when a user stakes OP tokens.
     /// @param account The address that staked tokens.
@@ -100,6 +103,11 @@ contract PolicyEngineStaking is ISemver {
     /// @param newOwner      The address of the new owner.
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
+    /// @notice Emitted when a new owner is nominated via `transferOwnership`.
+    /// @param previousOwner The current owner who initiated the transfer.
+    /// @param newOwner      The nominated pending owner.
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+
     /// @notice Thrown when the caller is not the owner.
     error PolicyEngineStaking_OnlyOwner();
 
@@ -126,6 +134,9 @@ contract PolicyEngineStaking is ISemver {
 
     /// @notice Thrown when trying to change beneficiary to the current beneficiary.
     error PolicyEngineStaking_SameBeneficiary();
+
+    /// @notice Thrown when the caller is not the pending owner.
+    error PolicyEngineStaking_NotPendingOwner();
 
     /// @notice Thrown when trying to allowlist/disallow yourself.
     error PolicyEngineStaking_SelfAllowlist();
@@ -157,6 +168,11 @@ contract PolicyEngineStaking is ISemver {
         return _owner;
     }
 
+    /// @notice Returns the pending owner address.
+    function pendingOwner() external view returns (address) {
+        return _pendingOwner;
+    }
+
     /// @notice Returns the staking token address.
     ///
     /// @return The ERC20 token used for staking.
@@ -164,12 +180,22 @@ contract PolicyEngineStaking is ISemver {
         return STAKING_TOKEN;
     }
 
-    /// @notice Transfers ownership of the contract to a new account.
-    /// @param _newOwner The address of the new owner.
+    /// @notice Nominates a new owner. The nominated address must call `acceptOwnership`
+    ///         to finalize the transfer (two-step pattern).
+    ///
+    /// @param _newOwner The address of the nominated owner.
     function transferOwnership(address _newOwner) external onlyOwner {
         if (_newOwner == address(0)) revert PolicyEngineStaking_ZeroAddress();
-        emit OwnershipTransferred(_owner, _newOwner);
-        _owner = _newOwner;
+        _pendingOwner = _newOwner;
+        emit OwnershipTransferStarted(_owner, _newOwner);
+    }
+
+    /// @notice Accepts ownership after being nominated via `transferOwnership`.
+    function acceptOwnership() external {
+        if (msg.sender != _pendingOwner) revert PolicyEngineStaking_NotPendingOwner();
+        emit OwnershipTransferred(_owner, msg.sender);
+        _owner = msg.sender;
+        _pendingOwner = address(0);
     }
 
     /// @notice Pauses the contract. Stake is disabled while paused.

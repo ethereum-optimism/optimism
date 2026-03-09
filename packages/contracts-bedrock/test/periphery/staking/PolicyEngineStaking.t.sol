@@ -28,6 +28,7 @@ abstract contract PolicyEngineStaking_TestInit is CommonTest {
     event BeneficiaryAllowlistUpdated(address indexed beneficiary, address indexed staker, bool allowed);
     event Paused();
     event Unpaused();
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
     function setUp() public virtual override {
         super.setUp();
@@ -61,22 +62,41 @@ abstract contract PolicyEngineStaking_TestInit is CommonTest {
 }
 
 /// @title PolicyEngineStaking_TransferOwnership_Test
-/// @notice Tests the `transferOwnership` function.
+/// @notice Tests the two-step `transferOwnership` / `acceptOwnership` pattern.
 contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestInit {
-    /// @notice Tests that owner can transfer ownership.
+    /// @notice Tests that transferOwnership nominates a pending owner without changing owner.
     function testFuzz_transferOwnership_succeeds(address _newOwner) external {
         vm.assume(_newOwner != address(0));
 
         vm.expectEmit(address(staking));
-        emit OwnershipTransferred(owner, _newOwner);
+        emit OwnershipTransferStarted(owner, _newOwner);
 
         vm.prank(owner);
         staking.transferOwnership(_newOwner);
 
-        assertEq(staking.owner(), _newOwner);
+        // Owner should NOT change yet
+        assertEq(staking.owner(), owner);
+        assertEq(staking.pendingOwner(), _newOwner);
     }
 
-    /// @notice Tests that new owner can exercise ownership after transfer.
+    /// @notice Tests that pendingOwner can accept ownership.
+    function test_acceptOwnership_succeeds() external {
+        address newOwner = makeAddr("newOwner");
+
+        vm.prank(owner);
+        staking.transferOwnership(newOwner);
+
+        vm.expectEmit(address(staking));
+        emit OwnershipTransferred(owner, newOwner);
+
+        vm.prank(newOwner);
+        staking.acceptOwnership();
+
+        assertEq(staking.owner(), newOwner);
+        assertEq(staking.pendingOwner(), address(0));
+    }
+
+    /// @notice Tests that new owner can exercise ownership after accepting.
     function test_transferOwnership_newOwnerCanPause_succeeds() external {
         address newOwner = makeAddr("newOwner");
 
@@ -84,23 +104,29 @@ contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestI
         staking.transferOwnership(newOwner);
 
         vm.prank(newOwner);
+        staking.acceptOwnership();
+
+        vm.prank(newOwner);
         staking.pause();
         assertTrue(staking.paused());
     }
 
-    /// @notice Tests that old owner loses ownership after transfer.
+    /// @notice Tests that old owner loses ownership after transfer is accepted.
     function test_transferOwnership_oldOwnerReverts_reverts() external {
         address newOwner = makeAddr("newOwner");
 
         vm.prank(owner);
         staking.transferOwnership(newOwner);
 
+        vm.prank(newOwner);
+        staking.acceptOwnership();
+
         vm.prank(owner);
         vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
         staking.pause();
     }
 
-    /// @notice Tests that non-owner cannot transfer ownership.
+    /// @notice Tests that non-owner cannot call transferOwnership.
     function testFuzz_transferOwnership_notOwner_reverts(address _caller) external {
         vm.assume(_caller != owner && _caller != address(0));
 
@@ -114,6 +140,29 @@ contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestI
         vm.prank(owner);
         vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
         staking.transferOwnership(address(0));
+    }
+
+    /// @notice Tests that non-pending-owner cannot accept ownership.
+    function test_acceptOwnership_notPendingOwner_reverts() external {
+        address newOwner = makeAddr("newOwner");
+
+        vm.prank(owner);
+        staking.transferOwnership(newOwner);
+
+        vm.prank(alice);
+        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_NotPendingOwner.selector);
+        staking.acceptOwnership();
+    }
+
+    /// @notice Tests that pendingOwner view returns the correct value.
+    function test_pendingOwner_succeeds() external {
+        assertEq(staking.pendingOwner(), address(0));
+
+        address newOwner = makeAddr("newOwner");
+        vm.prank(owner);
+        staking.transferOwnership(newOwner);
+
+        assertEq(staking.pendingOwner(), newOwner);
     }
 }
 
