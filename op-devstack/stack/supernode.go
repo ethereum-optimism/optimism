@@ -2,64 +2,43 @@ package stack
 
 import (
 	"fmt"
-	"log/slog"
+	"sort"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// SupernodeID identifies a Supernode by name, is type-safe, and can be value-copied and used as map key.
-type SupernodeID genericID
-
-var _ GenericID = (*SupernodeID)(nil)
-
-const SupernodeKind Kind = "Supernode"
+// SupernodeID is kept as a semantic alias for ComponentID.
+// Supernode IDs are key-only IDs with KindSupernode.
+type SupernodeID = ComponentID
 
 func NewSupernodeID(key string, chains ...eth.ChainID) SupernodeID {
-	var s string
+	var suffix string
 	for _, chain := range chains {
-		s += chain.String()
+		suffix += chain.String()
 	}
-	return SupernodeID(fmt.Sprintf("%s-%s", key, s))
-}
-
-func (id SupernodeID) String() string {
-	return genericID(id).string(SupernodeKind)
-}
-
-func (id SupernodeID) Kind() Kind {
-	return SupernodeKind
-}
-
-func (id SupernodeID) LogValue() slog.Value {
-	return slog.StringValue(id.String())
-}
-
-func (id SupernodeID) MarshalText() ([]byte, error) {
-	return genericID(id).marshalText(SupernodeKind)
-}
-
-func (id *SupernodeID) UnmarshalText(data []byte) error {
-	return (*genericID)(id).unmarshalText(SupernodeKind, data)
+	return NewComponentIDKeyOnly(KindSupernode, fmt.Sprintf("%s-%s", key, suffix))
 }
 
 func SortSupernodeIDs(ids []SupernodeID) []SupernodeID {
-	return copyAndSortCmp(ids)
+	out := append([]SupernodeID(nil), ids...)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Less(out[j])
+	})
+	return out
 }
 
 func SortSupernodes(elems []Supernode) []Supernode {
-	return copyAndSort(elems, lessElemOrdered[SupernodeID, Supernode])
-}
-
-var _ SupernodeMatcher = SupernodeID("")
-
-func (id SupernodeID) Match(elems []Supernode) []Supernode {
-	return findByID(id, elems)
+	out := append([]Supernode(nil), elems...)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID().Less(out[j].ID())
+	})
+	return out
 }
 
 type Supernode interface {
 	Common
-	ID() SupernodeID
+	ID() ComponentID
 	QueryAPI() apis.SupernodeQueryAPI
 }
 

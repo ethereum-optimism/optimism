@@ -9,14 +9,14 @@ import (
 
 type FlashblocksWSClientConfig struct {
 	CommonConfig
-	ID        stack.FlashblocksWSClientID
+	ID        stack.ComponentID
 	WsUrl     string
 	WsHeaders http.Header
 }
 
 type flashblocksWSClient struct {
 	commonImpl
-	id        stack.FlashblocksWSClientID
+	id        stack.ComponentID
 	wsUrl     string
 	wsHeaders http.Header
 }
@@ -33,7 +33,7 @@ func NewFlashblocksWSClient(cfg FlashblocksWSClientConfig) stack.FlashblocksWSCl
 	}
 }
 
-func (r *flashblocksWSClient) ID() stack.FlashblocksWSClientID {
+func (r *flashblocksWSClient) ID() stack.ComponentID {
 	return r.id
 }
 

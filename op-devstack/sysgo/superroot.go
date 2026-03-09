@@ -48,19 +48,19 @@ type MigrateInputV2 struct {
 	StartingRespectedGameType uint32
 }
 
-func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.ComponentID, clIDs []stack.ComponentID, supervisorID stack.ComponentID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
 	return withSuperRoots(l1ChainID, l1ELID, clIDs, primaryL2, func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32 {
 		return getSuperRoot(t, o, timestamp, supervisorID)
 	})
 }
 
-func WithSuperRootsFromSupernode(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, supernodeID stack.SupernodeID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+func WithSuperRootsFromSupernode(l1ChainID eth.ChainID, l1ELID stack.ComponentID, clIDs []stack.ComponentID, supernodeID stack.SupernodeID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
 	return withSuperRoots(l1ChainID, l1ELID, clIDs, primaryL2, func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32 {
 		return getSuperRootFromSupernode(t, o, timestamp, supernodeID)
 	})
 }
 
-func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stack.L2CLNodeID, primaryL2 eth.ChainID, getSuperRootAtTimestamp func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32) stack.Option[*Orchestrator] {
+func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.ComponentID, clIDs []stack.ComponentID, primaryL2 eth.ChainID, getSuperRootAtTimestamp func(t devtest.CommonT, o *Orchestrator, timestamp uint64) eth.Bytes32) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			t := o.P()
@@ -68,9 +68,8 @@ func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stac
 			require.NotNil(o.wb, "must have a world builder")
 			require.NotEmpty(o.wb.output.ImplementationsDeployment.OpcmImpl, "must have an OPCM implementation")
 
-			l1ELComponent, ok := o.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
+			l1EL, ok := o.GetL1EL(l1ELID)
 			require.True(ok, "must have L1 EL node")
-			l1EL := l1ELComponent.(L1ELNode)
 			rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 			require.NoError(err)
 			client := ethclient.NewClient(rpcClient)
@@ -80,9 +79,8 @@ func withSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, clIDs []stac
 			// Supernode does not support super roots at genesis.
 			// So let's wait for safe heads to advance before querying atTimestamp.
 			for _, clID := range clIDs {
-				l2CLComponent, ok := o.registry.Get(stack.ConvertL2CLNodeID(clID).ComponentID)
+				l2CL, ok := o.GetL2CL(clID)
 				require.True(ok, "must have L2 CL node")
-				l2CL := l2CLComponent.(L2CLNode)
 				// TODO(#18947): Ideally, we should be able to wait on the supernode's SyncStatus directly
 				// rather than check the sync statuses of all CLs
 				rollupClient, err := dial.DialRollupClientWithTimeout(t.Ctx(), t.Logger(), l2CL.UserRPC())
@@ -287,10 +285,9 @@ func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts,
 	return deployAddress, proxyContract
 }
 
-func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervisorID stack.SupervisorID) eth.Bytes32 {
-	supervisorComponent, ok := o.registry.Get(stack.ConvertSupervisorID(supervisorID).ComponentID)
+func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervisorID stack.ComponentID) eth.Bytes32 {
+	supervisor, ok := o.GetSupervisor(supervisorID)
 	t.Require().True(ok, "must have supervisor")
-	supervisor := supervisorComponent.(Supervisor)
 
 	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
 	t.Require().NoError(err)

@@ -12,7 +12,7 @@ import (
 
 type SyncTesterConfig struct {
 	CommonConfig
-	ID     stack.SyncTesterID
+	ID     stack.ComponentID
 	Addr   string
 	Client client.RPC
 }
@@ -20,7 +20,7 @@ type SyncTesterConfig struct {
 // presetSyncTester wraps around a syncTester-service,
 type presetSyncTester struct {
 	commonImpl
-	id stack.SyncTesterID
+	id stack.ComponentID
 	// Endpoint for initializing RPC Client per session
 	addr string
 	// RPC Client initialized without session
@@ -39,7 +39,7 @@ func NewSyncTester(cfg SyncTesterConfig) stack.SyncTester {
 	}
 }
 
-func (p *presetSyncTester) ID() stack.SyncTesterID {
+func (p *presetSyncTester) ID() stack.ComponentID {
 	return p.id
 }
 

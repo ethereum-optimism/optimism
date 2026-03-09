@@ -9,8 +9,25 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
+
+// stableSyncStatus returns the sync status of node after any in-flight gossip messages
+// have been drained. DisconnectPeer closes the libp2p connection but a buffered gossip
+// payload can still arrive and be processed via AddUnsafePayload (SyncModeReqResp=true
+// routes CL gossip through the CLSync path even in ELSync mode). Polling until the
+// head is stable ensures the snapshot reflects a quiesced state.
+func stableSyncStatus(require *testreq.Assertions, node *dsl.L2CLNode) *eth.SyncStatus {
+	ss := node.SyncStatus()
+	require.Eventually(func() bool {
+		next := node.SyncStatus()
+		stable := next.UnsafeL2.Number == ss.UnsafeL2.Number
+		ss = next
+		return stable
+	}, 5*time.Second, 200*time.Millisecond, "L2CLB head should stabilize after disconnect")
+	return ss
+}
 
 func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
 	t := devtest.SerialT(gt)
@@ -30,7 +47,7 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 	sys.L2CL.DisconnectPeer(sys.L2CLB)
 
 	ssA_before := sys.L2CL.SyncStatus()
-	ssB_before := sys.L2CLB.SyncStatus()
+	ssB_before := stableSyncStatus(require, sys.L2CLB)
 
 	l.Info("L2CL status before delay", "unsafeL2", ssA_before.UnsafeL2.ID(), "safeL2", ssA_before.SafeL2.ID())
 	l.Info("L2CLB status before delay", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
@@ -73,7 +90,7 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sle
 	sys.L2CL.DisconnectPeer(sys.L2CLB)
 
 	ssA_before := sys.L2CL.SyncStatus()
-	ssB_before := sys.L2CLB.SyncStatus()
+	ssB_before := stableSyncStatus(require, sys.L2CLB)
 
 	l.Info("L2CL status before delay", "unsafeL2", ssA_before.UnsafeL2.ID(), "safeL2", ssA_before.SafeL2.ID())
 	l.Info("L2CLB status before delay", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())

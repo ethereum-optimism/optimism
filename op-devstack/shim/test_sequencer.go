@@ -10,14 +10,14 @@ import (
 
 type TestSequencerConfig struct {
 	CommonConfig
-	ID             stack.TestSequencerID
+	ID             stack.ComponentID
 	Client         client.RPC
 	ControlClients map[eth.ChainID]client.RPC
 }
 
 type rpcTestSequencer struct {
 	commonImpl
-	id stack.TestSequencerID
+	id stack.ComponentID
 
 	client   client.RPC
 	api      apis.TestSequencerAPI
@@ -42,7 +42,7 @@ func NewTestSequencer(cfg TestSequencerConfig) stack.TestSequencer {
 	return s
 }
 
-func (r *rpcTestSequencer) ID() stack.TestSequencerID {
+func (r *rpcTestSequencer) ID() stack.ComponentID {
 	return r.id
 }
 

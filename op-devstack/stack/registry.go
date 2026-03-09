@@ -293,10 +293,10 @@ func (r *Registry) Clear() {
 // Type-safe generic accessor functions.
 // These provide compile-time type safety when working with the registry.
 
-// RegistryGet retrieves a component by its typed ID and returns it as the expected type.
+// RegistryGet retrieves a component by its ID and returns it as the expected type.
 // Returns the zero value and false if not found or if the type doesn't match.
-func RegistryGet[T any, M KindMarker](r *Registry, id ID[M]) (T, bool) {
-	component, ok := r.Get(id.ComponentID)
+func RegistryGet[T any](r *Registry, id ComponentID) (T, bool) {
+	component, ok := r.Get(id)
 	if !ok {
 		var zero T
 		return zero, false
@@ -358,7 +358,7 @@ func RegistryRangeByKind[T any](r *Registry, kind ComponentKind, fn func(id Comp
 	})
 }
 
-// RegistryRegister is a type-safe way to register a component with a typed ID.
-func RegistryRegister[T any, M KindMarker](r *Registry, id ID[M], component T) {
-	r.Register(id.ComponentID, component)
+// RegistryRegister is a type-safe way to register a component with an ID.
+func RegistryRegister[T any](r *Registry, id ComponentID, component T) {
+	r.Register(id, component)
 }

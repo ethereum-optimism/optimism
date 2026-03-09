@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/locks"
 )
 
 type NetworkConfig struct {
@@ -20,11 +19,6 @@ type presetNetwork struct {
 
 	// Unified component registry for generic access
 	registry *stack.Registry
-
-	// Legacy typed maps - kept for backward compatibility during migration
-	// These will be removed once all callers migrate to generic access
-	faucets     locks.RWMap[stack.FaucetID, stack.Faucet]
-	syncTesters locks.RWMap[stack.SyncTesterID, stack.SyncTester]
 }
 
 var _ stack.Network = (*presetNetwork)(nil)
@@ -68,16 +62,30 @@ func (p *presetNetwork) ChainConfig() *params.ChainConfig {
 	return p.chainCfg
 }
 
-func (p *presetNetwork) FaucetIDs() []stack.FaucetID {
-	return stack.SortFaucetIDs(p.faucets.Keys())
+func (p *presetNetwork) FaucetIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindFaucet))
 }
 
 func (p *presetNetwork) Faucets() []stack.Faucet {
-	return stack.SortFaucets(p.faucets.Values())
+	ids := p.registry.IDsByKind(stack.KindFaucet)
+	result := make([]stack.Faucet, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.Faucet))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
 func (p *presetNetwork) Faucet(m stack.FaucetMatcher) stack.Faucet {
-	v, ok := findMatch(m, p.faucets.Get, p.Faucets)
+	getter := func(id stack.ComponentID) (stack.Faucet, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.Faucet), true
+	}
+	v, ok := findMatch(m, getter, p.Faucets)
 	p.require().True(ok, "must find faucet %s", m)
 	return v
 }
@@ -85,21 +93,35 @@ func (p *presetNetwork) Faucet(m stack.FaucetMatcher) stack.Faucet {
 func (p *presetNetwork) AddFaucet(v stack.Faucet) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "faucet %s must be on chain %s", id, p.chainID)
-	p.require().True(p.faucets.SetIfMissing(id, v), "faucet %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertFaucetID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "faucet %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
-func (p *presetNetwork) SyncTesterIDs() []stack.SyncTesterID {
-	return stack.SortSyncTesterIDs(p.syncTesters.Keys())
+func (p *presetNetwork) SyncTesterIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindSyncTester))
 }
 
 func (p *presetNetwork) SyncTesters() []stack.SyncTester {
-	return stack.SortSyncTesters(p.syncTesters.Values())
+	ids := p.registry.IDsByKind(stack.KindSyncTester)
+	result := make([]stack.SyncTester, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.SyncTester))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
 func (p *presetNetwork) SyncTester(m stack.SyncTesterMatcher) stack.SyncTester {
-	v, ok := findMatch(m, p.syncTesters.Get, p.SyncTesters)
+	getter := func(id stack.ComponentID) (stack.SyncTester, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.SyncTester), true
+	}
+	v, ok := findMatch(m, getter, p.SyncTesters)
 	p.require().True(ok, "must find sync tester %s", m)
 	return v
 }
@@ -107,7 +129,7 @@ func (p *presetNetwork) SyncTester(m stack.SyncTesterMatcher) stack.SyncTester {
 func (p *presetNetwork) AddSyncTester(v stack.SyncTester) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "sync tester %s must be on chain %s", id, p.chainID)
-	p.require().True(p.syncTesters.SetIfMissing(id, v), "sync tester %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertSyncTesterID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "sync tester %s must not already exist", id)
+	p.registry.Register(id, v)
 }

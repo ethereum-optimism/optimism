@@ -107,7 +107,7 @@ see the [SDK section of the docs](https://rollup.yoga/node/design/intro).
 
 ## MSRV
 
-The current MSRV (minimum supported rust version) is `1.88`.
+The current MSRV (minimum supported rust version) is `1.92`.
 
 The MSRV is not increased automatically, and will be updated
 only as part of a patch (pre-1.0) or minor (post-1.0) release.

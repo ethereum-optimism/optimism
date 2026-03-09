@@ -24,8 +24,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.8.0
-    string public constant version = "3.8.0";
+    /// @custom:semver 3.8.1
+    string public constant version = "3.8.1";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -190,6 +190,14 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
 
     /// @notice Determines whether a game is registered by checking that it was created by the
     ///         DisputeGameFactory.
+    /// @dev NOTE: A previous version of this function also verified that the game's
+    ///      AnchorStateRegistry matched address(this). This check was removed because
+    ///      retirementTimestamp (set to block.timestamp on initialize) invalidates all
+    ///      pre-existing games. However, there is a theoretical risk if: (a) the ASR
+    ///      proxy is upgraded to a net-new proxy address rather than upgraded in-place,
+    ///      (b) the upgrade is non-atomic, and (c) an invalid game from the old ASR
+    ///      is used in the gap between operations. This scenario is extremely contrived
+    ///      and not a practical concern for atomic proxy upgrades.
     /// @param _game The game to check.
     /// @return Whether the game is registered.
     function isGameRegistered(IDisputeGame _game) public view returns (bool) {

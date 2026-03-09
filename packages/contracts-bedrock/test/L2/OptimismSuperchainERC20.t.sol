@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 // Testing
 import { Test } from "test/setup/Test.sol";
+import { MockHelper } from "test/utils/MockHelper.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
@@ -23,7 +24,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title OptimismSuperchainERC20_TestInit
 /// @notice Reusable test initialization for `OptimismSuperchainERC20` tests.
-abstract contract OptimismSuperchainERC20_TestInit is Test {
+abstract contract OptimismSuperchainERC20_TestInit is Test, MockHelper {
     address internal constant ZERO_ADDRESS = address(0);
     address internal constant REMOTE_TOKEN = address(0x123);
     string internal constant NAME = "OptimismSuperchainERC20";
@@ -88,12 +89,6 @@ abstract contract OptimismSuperchainERC20_TestInit is Test {
                 )
             )
         );
-    }
-
-    /// @notice Helper function to setup a mock and expect a call to it.
-    function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
-        vm.mockCall(_receiver, _calldata, _returned);
-        vm.expectCall(_receiver, _calldata);
     }
 }
 

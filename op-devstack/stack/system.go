@@ -22,11 +22,11 @@ type System interface {
 	Supernode(m SupernodeMatcher) Supernode
 	TestSequencer(id TestSequencerMatcher) TestSequencer
 
-	SuperchainIDs() []SuperchainID
-	ClusterIDs() []ClusterID
-	L1NetworkIDs() []L1NetworkID
-	L2NetworkIDs() []L2NetworkID
-	SupervisorIDs() []SupervisorID
+	SuperchainIDs() []ComponentID
+	ClusterIDs() []ComponentID
+	L1NetworkIDs() []ComponentID
+	L2NetworkIDs() []ComponentID
+	SupervisorIDs() []ComponentID
 
 	Superchains() []Superchain
 	Clusters() []Cluster

@@ -805,6 +805,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_key",
+        "type": "string"
+      }
+    ],
+    "name": "OPContractsManagerV2_DuplicateUpgradeInstruction",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "OPContractsManagerV2_InvalidGameConfigs",
     "type": "error"
@@ -839,6 +850,11 @@
       }
     ],
     "name": "OPContractsManagerV2_InvalidUpgradeSequence",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_OnlyDelegateCall",
     "type": "error"
   },
   {

@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSingleChainMultiNodeWithoutP2P(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithCompatibleTypes(compat.SysGo),
-		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
 			// For stopping derivation, not to advance safe heads
 			cfg.Stopped = true
 		})),

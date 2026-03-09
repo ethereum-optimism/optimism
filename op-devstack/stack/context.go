@@ -9,20 +9,20 @@ import (
 )
 
 // ContextWithKind annotates the context with the given kind of service
-func ContextWithKind(ctx context.Context, kind Kind) context.Context {
+func ContextWithKind(ctx context.Context, kind ComponentKind) context.Context {
 	return logfilter.AddLogAttrToContext(ctx, "kind", kind)
 }
 
 // KindFromContext extracts the kind from the context.
-func KindFromContext(ctx context.Context) Kind {
-	v, _ := logfilter.ValueFromContext[Kind](ctx, "kind")
+func KindFromContext(ctx context.Context) ComponentKind {
+	v, _ := logfilter.ValueFromContext[ComponentKind](ctx, "kind")
 	return v
 }
 
 // KindSelector creates a log-filter that applies the given inner log-filter only if it matches the given kind.
 // For logs of the specified kind, it applies the inner filter.
 // For logs of other kinds, it returns false (filters them out).
-func KindSelector(kind Kind) logfilter.Selector {
+func KindSelector(kind ComponentKind) logfilter.Selector {
 	return logfilter.Select("kind", kind)
 }
 
@@ -48,7 +48,11 @@ func ChainIDSelector(chainID eth.ChainID) logfilter.Selector {
 // This also automatically attaches the chain ID and component kind to the context, if available from the ID.
 func ContextWithID(ctx context.Context, id slog.LogValuer) context.Context {
 	if idWithChainID, ok := id.(ChainIDProvider); ok {
-		ctx = ContextWithChainID(ctx, idWithChainID.ChainID())
+		chainID := idWithChainID.ChainID()
+		// Only set chain ID if it's non-zero (i.e., the ID type actually has a meaningful chain ID)
+		if chainID != (eth.ChainID{}) {
+			ctx = ContextWithChainID(ctx, chainID)
+		}
 	}
 	if idWithKind, ok := id.(KindProvider); ok {
 		ctx = ContextWithKind(ctx, idWithKind.Kind())

@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m,
 		presets.WithMinimal(),
 		presets.WithCompatibleTypes(compat.SysGo),
-		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
 			// Enable throttling with step controller for predictable behavior
 			cfg.ThrottleConfig.LowerThreshold = 99 // > 0 enables the throttling loop.
 			cfg.ThrottleConfig.UpperThreshold = 100

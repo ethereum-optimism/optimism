@@ -71,7 +71,7 @@ benches:
   cargo bench --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
 
 # Lint the workspace for all available targets
-lint-all: lint-native lint-cannon lint-asterisc lint-docs lint-typos
+lint-all: lint-native lint-cannon lint-docs lint-typos
 
 # Check spelling with typos (`cargo install typos-cli`)
 lint-typos:
@@ -97,19 +97,10 @@ lint-native: fmt-native-check lint-docs
 lint-cannon:
   docker run \
     --rm \
-    -e RUSTUP_TOOLCHAIN=nightly \
     -v {{KONA_ROOT}}/../:/workdir \
     -w="/workdir" \
-    ghcr.io/op-rs/kona/cannon-builder:0.3.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
+    us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v1.0.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -Zjson-target-spec -- -D warnings
 
-# Lint the workspace (risc-v arch). Currently, only the `kona-std-fpvm` crate is linted for the `asterisc` target, as it is the only crate with architecture-specific code.
-lint-asterisc:
-  docker run \
-    --rm \
-    -e RUSTUP_TOOLCHAIN=nightly \
-    -v {{KONA_ROOT}}/../:/workdir \
-    -w="/workdir" \
-    ghcr.io/op-rs/kona/asterisc-builder:0.3.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -- -D warnings
 
 # Lint the Rust documentation
 lint-docs:
@@ -130,15 +121,8 @@ build-cannon-client:
     --rm \
     -v {{KONA_ROOT}}/../:/workdir \
     -w="/workdir" \
-    ghcr.io/op-rs/kona/cannon-builder:0.3.0 cargo build -Zbuild-std=core,alloc -p kona-client --bin kona-client --profile release-client-lto
+    us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v1.0.0 cargo build -Zbuild-std=core,alloc -Zjson-target-spec -p kona-client --bin kona-client --profile release-client-lto
 
-# Build `kona-client` for the `asterisc` target.
-build-asterisc-client:
-  docker run \
-    --rm \
-    -v {{KONA_ROOT}}/../:/workdir \
-    -w="/workdir" \
-    ghcr.io/op-rs/kona/asterisc-builder:0.3.0 cargo build -Zbuild-std=core,alloc -p kona-client --bin kona-client --profile release-client-lto
 
 # Check for unused dependencies in the crate graph.
 check-udeps:

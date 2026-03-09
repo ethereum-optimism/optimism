@@ -4,6 +4,7 @@ pragma solidity ^0.8.15;
 // Testing
 import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { _changeClaimStatus, _dummyClaim } from "test/dispute/FaultDisputeGame.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { ByteUtils } from "test/setup/ByteUtils.sol";
 import { stdError } from "forge-std/StdError.sol";
@@ -255,22 +256,10 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
         return _dummyRootClaim(uint64(validl2SequenceNumber));
     }
 
-    /// @notice Helper to return a pseudo-random claim
-    function _dummyClaim() internal view returns (Claim) {
-        return Claim.wrap(keccak256(abi.encode(gasleft())));
-    }
-
     /// @notice Helper to get the localized key for an identifier in the context of the game proxy.
     function _getKey(uint256 _ident, bytes32 _localContext) internal view returns (bytes32) {
         bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy), _localContext));
         return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
-    }
-
-    /// @notice Helper to change the VM status byte of a claim.
-    function _changeClaimStatus(Claim _claim, VMStatus _status) internal pure returns (Claim out_) {
-        assembly {
-            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
-        }
     }
 }
 

@@ -9,13 +9,13 @@ import (
 
 type L1CLNodeConfig struct {
 	CommonConfig
-	ID     stack.L1CLNodeID
+	ID     stack.ComponentID
 	Client client.HTTP
 }
 
 type rpcL1CLNode struct {
 	commonImpl
-	id     stack.L1CLNodeID
+	id     stack.ComponentID
 	client apis.BeaconClient
 }
 
@@ -30,7 +30,7 @@ func NewL1CLNode(cfg L1CLNodeConfig) stack.L1CLNode {
 	}
 }
 
-func (r *rpcL1CLNode) ID() stack.L1CLNodeID {
+func (r *rpcL1CLNode) ID() stack.ComponentID {
 	return r.id
 }
 
