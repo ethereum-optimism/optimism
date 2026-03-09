@@ -135,11 +135,17 @@ contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestI
         staking.transferOwnership(alice);
     }
 
-    /// @notice Tests that transferring to zero address reverts.
-    function test_transferOwnership_zeroAddress_reverts() external {
+    /// @notice Tests that transferring to zero address cancels pending transfer.
+    function test_transferOwnership_zeroAddressCancels_succeeds() external {
+        address newOwner = makeAddr("newOwner");
+
         vm.prank(owner);
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
+        staking.transferOwnership(newOwner);
+        assertEq(staking.pendingOwner(), newOwner);
+
+        vm.prank(owner);
         staking.transferOwnership(address(0));
+        assertEq(staking.pendingOwner(), address(0));
     }
 
     /// @notice Tests that non-pending-owner cannot accept ownership.

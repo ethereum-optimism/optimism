@@ -170,12 +170,14 @@ contract PolicyEngineStaking is ISemver {
         return STAKING_TOKEN;
     }
 
-    /// @notice Nominates a new owner. The nominated address must call `acceptOwnership`
-    ///         to finalize the transfer (two-step pattern).
+    /// @notice Starts the ownership transfer of the contract to a new account. Replaces the
+    ///         pending transfer if there is one. The nominated address must call
+    ///         `acceptOwnership` to finalize the transfer (two-step pattern).
+    ///         Setting `_newOwner` to the zero address is allowed; this can be used to cancel
+    ///         an initiated ownership transfer.
     ///
     /// @param _newOwner The address of the nominated owner.
     function transferOwnership(address _newOwner) external onlyOwner {
-        if (_newOwner == address(0)) revert PolicyEngineStaking_ZeroAddress();
         pendingOwner = _newOwner;
         emit OwnershipTransferStarted(owner, _newOwner);
     }

@@ -78,8 +78,10 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Returns the pending owner nominated via `transferOwnership`.
     function pendingOwner() external view returns (address);
 
-    /// @notice Nominates a new owner. The nominated address must call `acceptOwnership`
-    ///         to finalize the transfer (two-step pattern). Only callable by owner.
+    /// @notice Starts the ownership transfer of the contract to a new account. Replaces the
+    ///         pending transfer if there is one. The nominated address must call
+    ///         `acceptOwnership` to finalize the transfer (two-step pattern). Only callable
+    ///         by owner. Setting `_newOwner` to the zero address cancels a pending transfer.
     ///
     /// @param _newOwner The address of the nominated owner.
     function transferOwnership(address _newOwner) external;
