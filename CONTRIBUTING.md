@@ -1,5 +1,7 @@
 # Optimism Monorepo Contributing Guide
 
+<!-- test: verify rust-ci gate-skip workflow -->
+
 ## What to Contribute
 
 Welcome to the Optimism Monorepo Contributing Guide!
