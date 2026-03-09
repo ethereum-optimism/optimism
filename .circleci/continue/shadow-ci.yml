@@ -68,8 +68,12 @@ jobs:
             cp -r ops/shadow-ci/bin /tmp/shadow-ci-workspace/bin
             cp /tmp/shadow-ci/decision.json /tmp/shadow-ci-workspace/decision.json
             cp /tmp/shadow-ci/affected.json /tmp/shadow-ci-workspace/affected.json
-            cp -r $HOME/.local/share/mise /tmp/shadow-ci-workspace/mise
+            cp -rL $HOME/.local/share/mise /tmp/shadow-ci-workspace/mise
             cp $HOME/.local/bin/mise /tmp/shadow-ci-workspace/mise-bin/mise
+            # Rust is installed via rustup into $HOME/.cargo — persist it too
+            if [ -d "$HOME/.cargo" ]; then
+              cp -r $HOME/.cargo /tmp/shadow-ci-workspace/cargo
+            fi
       - persist_to_workspace:
           root: /tmp/shadow-ci-workspace
           paths:
@@ -78,6 +82,7 @@ jobs:
             - affected.json
             - mise
             - mise-bin
+            - cargo
       - store_artifacts:
           path: /tmp/shadow-ci/decision.json
           destination: shadow-ci/decision.json
@@ -144,8 +149,12 @@ jobs:
               mkdir -p $HOME/.local/share $HOME/.local/bin
               cp -r /tmp/shadow-ci-workspace/mise $HOME/.local/share/mise
               cp /tmp/shadow-ci-workspace/mise-bin/mise $HOME/.local/bin/mise
-              # Add mise shims and all installed tool bin dirs to PATH
-              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims"
+              # Restore cargo/rustup if persisted (Rust installs via rustup)
+              if [ -d /tmp/shadow-ci-workspace/cargo ]; then
+                cp -r /tmp/shadow-ci-workspace/cargo $HOME/.cargo
+              fi
+              # Add mise shims, cargo bin, and all installed tool bin dirs to PATH
+              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.cargo/bin"
               for d in $HOME/.local/share/mise/installs/*/; do
                 for bindir in "$d"/*/bin; do
                   [ -d "$bindir" ] && MISE_PATH="$MISE_PATH:$bindir"
@@ -214,8 +223,12 @@ jobs:
               mkdir -p $HOME/.local/share $HOME/.local/bin
               cp -r /tmp/shadow-ci-workspace/mise $HOME/.local/share/mise
               cp /tmp/shadow-ci-workspace/mise-bin/mise $HOME/.local/bin/mise
-              # Add mise shims and all installed tool bin dirs to PATH
-              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims"
+              # Restore cargo/rustup if persisted (Rust installs via rustup)
+              if [ -d /tmp/shadow-ci-workspace/cargo ]; then
+                cp -r /tmp/shadow-ci-workspace/cargo $HOME/.cargo
+              fi
+              # Add mise shims, cargo bin, and all installed tool bin dirs to PATH
+              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.cargo/bin"
               for d in $HOME/.local/share/mise/installs/*/; do
                 for bindir in "$d"/*/bin; do
                   [ -d "$bindir" ] && MISE_PATH="$MISE_PATH:$bindir"
@@ -269,8 +282,12 @@ jobs:
               mkdir -p $HOME/.local/share $HOME/.local/bin
               cp -r /tmp/shadow-ci-workspace/mise $HOME/.local/share/mise
               cp /tmp/shadow-ci-workspace/mise-bin/mise $HOME/.local/bin/mise
-              # Add mise shims and all installed tool bin dirs to PATH
-              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims"
+              # Restore cargo/rustup if persisted (Rust installs via rustup)
+              if [ -d /tmp/shadow-ci-workspace/cargo ]; then
+                cp -r /tmp/shadow-ci-workspace/cargo $HOME/.cargo
+              fi
+              # Add mise shims, cargo bin, and all installed tool bin dirs to PATH
+              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.cargo/bin"
               for d in $HOME/.local/share/mise/installs/*/; do
                 for bindir in "$d"/*/bin; do
                   [ -d "$bindir" ] && MISE_PATH="$MISE_PATH:$bindir"
@@ -323,8 +340,12 @@ jobs:
               mkdir -p $HOME/.local/share $HOME/.local/bin
               cp -r /tmp/shadow-ci-workspace/mise $HOME/.local/share/mise
               cp /tmp/shadow-ci-workspace/mise-bin/mise $HOME/.local/bin/mise
-              # Add mise shims and all installed tool bin dirs to PATH
-              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims"
+              # Restore cargo/rustup if persisted (Rust installs via rustup)
+              if [ -d /tmp/shadow-ci-workspace/cargo ]; then
+                cp -r /tmp/shadow-ci-workspace/cargo $HOME/.cargo
+              fi
+              # Add mise shims, cargo bin, and all installed tool bin dirs to PATH
+              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.cargo/bin"
               for d in $HOME/.local/share/mise/installs/*/; do
                 for bindir in "$d"/*/bin; do
                   [ -d "$bindir" ] && MISE_PATH="$MISE_PATH:$bindir"
