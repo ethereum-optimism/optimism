@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { MockHelper } from "test/utils/MockHelper.sol";
 import {
     ProxyAdmin_SetProxyType_Test,
     ProxyAdmin_SetImplementationName_Test,
@@ -30,7 +31,7 @@ import { IL2ContractsManager } from "interfaces/L2/IL2ContractsManager.sol";
 
 /// @title L2ProxyAdmin_TestInit
 /// @notice Reusable test initialization for `L2ProxyAdmin` tests.
-abstract contract L2ProxyAdmin_TestInit is CommonTest {
+abstract contract L2ProxyAdmin_TestInit is CommonTest, MockHelper {
     IL2ProxyAdmin public l2ProxyAdmin;
     address public owner;
 
@@ -42,12 +43,6 @@ abstract contract L2ProxyAdmin_TestInit is CommonTest {
         super.setUp();
         l2ProxyAdmin = IL2ProxyAdmin(Predeploys.PROXY_ADMIN);
         owner = l2ProxyAdmin.owner();
-    }
-
-    /// @notice Helper function to setup a mock and expect a call to it.
-    function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
-        vm.mockCall(_receiver, _calldata, _returned);
-        vm.expectCall(_receiver, _calldata);
     }
 }
 

@@ -114,7 +114,7 @@ func (r *Anvil) Start() error {
 	go r.outputStream(r.stdout)
 	go r.outputStream(r.stderr)
 
-	timeoutC := time.NewTimer(5 * time.Second)
+	timeoutC := time.NewTimer(30 * time.Second)
 
 	select {
 	case <-r.startedCh:

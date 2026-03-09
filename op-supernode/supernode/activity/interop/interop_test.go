@@ -1535,3 +1535,70 @@ func TestReset(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// TestVerifiedBlockAtL1
+// =============================================================================
+
+func TestVerifiedBlockAtL1(t *testing.T) {
+	t.Run("zero l1Block returns empty immediately", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, nil).
+			Build()
+
+		// Commit some verified results so the DB is non-empty
+		for ts := uint64(100); ts <= 110; ts++ {
+			err := h.interop.verifiedDB.Commit(VerifiedResult{
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Number: ts + 1000},
+				L2Heads:     map[eth.ChainID]eth.BlockID{h.Mock(10).id: {Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Call with zero L1BlockRef — should return empty without scanning the DB
+		blockID, ts := h.interop.VerifiedBlockAtL1(h.Mock(10).id, eth.L1BlockRef{})
+		require.Equal(t, eth.BlockID{}, blockID)
+		require.Equal(t, uint64(0), ts)
+	})
+
+	t.Run("non-zero l1Block finds matching entry", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, nil).
+			Build()
+
+		chainID := h.Mock(10).id
+		expectedL2 := eth.BlockID{Hash: common.Hash{0xaa}, Number: 105}
+
+		for ts := uint64(100); ts <= 110; ts++ {
+			l2Head := eth.BlockID{Hash: common.Hash{byte(ts)}, Number: ts}
+			if ts == 105 {
+				l2Head = expectedL2
+			}
+			err := h.interop.verifiedDB.Commit(VerifiedResult{
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Number: ts * 10}, // L1 inclusion grows with timestamp
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: l2Head},
+			})
+			require.NoError(t, err)
+		}
+
+		// Query for L1 block 1059 — should match timestamp 105 (L1Inclusion.Number=1050 <= 1059)
+		// but not timestamp 106 (L1Inclusion.Number=1060 > 1059)
+		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1059, Time: 999}
+		blockID, ts := h.interop.VerifiedBlockAtL1(chainID, l1Block)
+		require.Equal(t, expectedL2, blockID)
+		require.Equal(t, uint64(105), ts)
+	})
+
+	t.Run("empty DB returns empty", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, nil).
+			Build()
+
+		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1000, Time: 999}
+		blockID, ts := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
+		require.Equal(t, eth.BlockID{}, blockID)
+		require.Equal(t, uint64(0), ts)
+	})
+}

@@ -23,6 +23,10 @@ var (
 
 	// L2CMDevFlag enables L2CM.
 	L2CMDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
+
+	// ZKDisputeGameDevFlag enables the ZK dispute game system (ZKDisputeGame).
+	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
+	ZKDisputeGameDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
