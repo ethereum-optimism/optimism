@@ -1009,3 +1009,47 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         return a;
     }
 }
+
+/// @title PolicyEngineStaking_DecreasePeData_Test
+/// @notice Tests `_decreasePeData` behavior via unstake (partial vs full).
+contract PolicyEngineStaking_DecreasePeData_Test is PolicyEngineStaking_TestInit {
+    /// @notice Tests that partial unstake preserves lastUpdate (does not reset it).
+    function test_decreasePeData_partialUnstake_preservesLastUpdate_succeeds() external {
+        uint128 stakeAmount = uint128(100 ether);
+        uint128 unstakeAmount = uint128(40 ether);
+
+        vm.prank(alice);
+        staking.stake(stakeAmount, alice);
+        (, uint128 lastUpdateAfterStake) = staking.peData(alice);
+
+        // Warp time forward
+        vm.warp(block.timestamp + 1000);
+
+        // Partial unstake — lastUpdate should NOT change
+        vm.prank(alice);
+        staking.unstake(unstakeAmount);
+
+        (uint128 effectiveStake, uint128 lastUpdateAfterUnstake) = staking.peData(alice);
+        assertEq(effectiveStake, stakeAmount - unstakeAmount);
+        assertEq(lastUpdateAfterUnstake, lastUpdateAfterStake, "lastUpdate should be preserved on partial unstake");
+    }
+
+    /// @notice Tests that full unstake resets lastUpdate to block.timestamp.
+    function test_decreasePeData_fullUnstake_resetsLastUpdate_succeeds() external {
+        uint128 stakeAmount = uint128(100 ether);
+
+        vm.prank(alice);
+        staking.stake(stakeAmount, alice);
+
+        // Warp time forward
+        uint256 newTimestamp = block.timestamp + 1000;
+        vm.warp(newTimestamp);
+
+        // Full unstake — lastUpdate should reset to block.timestamp
+        vm.prank(alice);
+        staking.unstake(stakeAmount);
+
+        (, uint128 lastUpdateAfterUnstake) = staking.peData(alice);
+        assertEq(lastUpdateAfterUnstake, newTimestamp, "lastUpdate should reset on full unstake");
+    }
+}

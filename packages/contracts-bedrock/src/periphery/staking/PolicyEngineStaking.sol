@@ -323,13 +323,18 @@ contract PolicyEngineStaking is ISemver {
         emit EffectiveStakeChanged(_account, pe.effectiveStake);
     }
 
-    /// @notice Decreases effective stake for an account and updates timestamp.
+    /// @notice Decreases effective stake for an account. Only resets `lastUpdate` when
+    ///         the effective stake reaches zero to avoid stale timestamps; otherwise the
+    ///         existing timestamp is preserved so remaining stake keeps its staking weight.
+    ///
     /// @param _account The account address.
     /// @param _amount  The amount to subtract.
     function _decreasePeData(address _account, uint128 _amount) internal {
         PEData storage pe = peData[_account];
         pe.effectiveStake -= _amount;
-        pe.lastUpdate = uint128(block.timestamp);
+        if (pe.effectiveStake == 0) {
+            pe.lastUpdate = uint128(block.timestamp);
+        }
         emit EffectiveStakeChanged(_account, pe.effectiveStake);
     }
 }
