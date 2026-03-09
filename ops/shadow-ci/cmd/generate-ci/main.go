@@ -86,13 +86,18 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 		sort.Strings(cats)
 	}
 
-	// All groups use mise to install toolchains from mise.toml.
-	// Each group only installs the specific tools it needs to avoid
-	// GitHub API rate limits from downloading everything.
-	// MISE_GITHUB_TOKEN is set if available to avoid rate limits.
-	miseBase := `curl -sSf https://mise.run | sh
-            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
-            source $BASH_ENV`
+	// Mise toolchains are pre-installed by the setup job and persisted via
+	// workspace. Group jobs restore the mise directory from workspace instead
+	// of downloading, which avoids the circleci_ip_ranges bandwidth throttle
+	// that was causing 50+ minute installs.
+	miseRestore := `echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+            if [ -d /tmp/shadow-ci-workspace/mise ]; then
+              mkdir -p $HOME/.local/share $HOME/.local/bin
+              cp -r /tmp/shadow-ci-workspace/mise $HOME/.local/share/mise
+              cp /tmp/shadow-ci-workspace/mise-bin/mise $HOME/.local/bin/mise
+              mise reshim
+            fi`
 
 	// Build group definitions.
 	groups := []groupInfo{
@@ -100,9 +105,8 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "build",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: miseBase + `
-            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
-            mise install go rust forge cast anvil just make`,
+			SetupSteps: miseRestore + `
+            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev`,
 			Categories: groupCats["build"],
 		},
 		{
@@ -110,7 +114,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			DockerImage:     "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass:   "2xlarge",
 			CircleCIIPRanges: true,
-			SetupSteps:      miseBase + "\n            mise install go gotestsum golangci-lint mockery forge cast anvil just make",
+			SetupSteps:      miseRestore,
 			Categories:    groupCats["go"],
 		},
 		{
@@ -118,16 +122,15 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			DockerImage:     "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass:   "2xlarge",
 			CircleCIIPRanges: true,
-			SetupSteps:      miseBase + "\n            mise install go forge cast anvil just",
+			SetupSteps:      miseRestore,
 			Categories:    groupCats["sol"],
 		},
 		{
 			Name:          "rust",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: miseBase + `
+			SetupSteps: miseRestore + `
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
-            mise install rust just
             curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
             cargo binstall --no-confirm cargo-nextest`,
 			Categories: groupCats["rust"],
@@ -222,12 +225,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install mise and Go
+          name: Install mise and all toolchains
           command: |
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install go
+            mise install go rust forge cast anvil just make gotestsum golangci-lint mockery
       - run:
           name: Build shadow CI binaries
           command: |
@@ -263,16 +266,20 @@ jobs:
       - run:
           name: Stage artifacts for workspace
           command: |
-            mkdir -p /tmp/shadow-ci-workspace
+            mkdir -p /tmp/shadow-ci-workspace/mise-bin
             cp -r ops/shadow-ci/bin /tmp/shadow-ci-workspace/bin
             cp /tmp/shadow-ci/decision.json /tmp/shadow-ci-workspace/decision.json
             cp /tmp/shadow-ci/affected.json /tmp/shadow-ci-workspace/affected.json
+            cp -r $HOME/.local/share/mise /tmp/shadow-ci-workspace/mise
+            cp $HOME/.local/bin/mise /tmp/shadow-ci-workspace/mise-bin/mise
       - persist_to_workspace:
           root: /tmp/shadow-ci-workspace
           paths:
             - bin
             - decision.json
             - affected.json
+            - mise
+            - mise-bin
       - store_artifacts:
           path: /tmp/shadow-ci/decision.json
           destination: shadow-ci/decision.json
