@@ -1257,7 +1257,7 @@ func (m *mockChainContainer) Stop(ctx context.Context) error   { return nil }
 func (m *mockChainContainer) Pause(ctx context.Context) error  { return nil }
 func (m *mockChainContainer) Resume(ctx context.Context) error { return nil }
 func (m *mockChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *mockChainContainer) VerifierCurrentL1s() []eth.BlockID              { return nil }
+func (m *mockChainContainer) VerifierCurrentL1s() []eth.BlockID { return nil }
 func (m *mockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	// Simulate slow chains. Sleep is outside the lock so it doesn't block other
 	// concurrent mock operations during tests.
