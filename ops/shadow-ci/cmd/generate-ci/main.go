@@ -17,8 +17,9 @@ import (
 // (scoping.yaml), and this tool generates the CircleCI config.
 //
 // Usage:
-//   go run ./cmd/generate-ci --config ops/shadow-ci/config --output .circleci/continue/shadow-ci.yml
-//   go run ./cmd/generate-ci --config ops/shadow-ci/config --check .circleci/continue/shadow-ci.yml
+//
+//	go run ./cmd/generate-ci --config ops/shadow-ci/config --output .circleci/continue/shadow-ci.yml
+//	go run ./cmd/generate-ci --config ops/shadow-ci/config --check .circleci/continue/shadow-ci.yml
 func main() {
 	configDir := flag.String("config", "ops/shadow-ci/config", "Path to config directory")
 	output := flag.String("output", "", "Write generated YAML to this path")
@@ -65,12 +66,12 @@ func main() {
 
 // groupInfo describes an execution group for the CI template.
 type groupInfo struct {
-	Name            string
-	DockerImage     string
-	ResourceClass   string
+	Name             string
+	DockerImage      string
+	ResourceClass    string
 	CircleCIIPRanges bool   // use whitelisted IPs for external API access
-	SetupSteps      string // shell commands to install toolchain
-	Categories      []string
+	SetupSteps       string // shell commands to install toolchain
+	Categories       []string
 }
 
 func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
@@ -86,37 +87,19 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 		sort.Strings(cats)
 	}
 
-	// Mise toolchains are pre-installed by the setup job and persisted via
-	// workspace. Group jobs restore the mise directory from workspace instead
-	// of downloading, which avoids the circleci_ip_ranges bandwidth throttle
-	// that was causing 50+ minute installs.
-	//
-	// After restoring, we add both shims and each tool's bin directory to PATH
-	// to ensure all tools (including cargo, rustup) are available without
-	// depending on mise reshim working perfectly.
-	miseRestore := `if [ -d /tmp/shadow-ci-workspace/mise ]; then
-              mkdir -p $HOME/.local/share $HOME/.local/bin
-              cp -r /tmp/shadow-ci-workspace/mise $HOME/.local/share/mise
-              cp /tmp/shadow-ci-workspace/mise-bin/mise $HOME/.local/bin/mise
-              # Restore cargo/rustup if persisted (Rust installs via rustup)
-              if [ -d /tmp/shadow-ci-workspace/cargo ]; then
-                cp -r /tmp/shadow-ci-workspace/cargo $HOME/.cargo
-              fi
-              # Add mise shims, cargo bin, and all installed tool bin dirs to PATH
-              MISE_PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.cargo/bin"
-              for d in $HOME/.local/share/mise/installs/*/; do
-                for bindir in "$d"/*/bin; do
-                  [ -d "$bindir" ] && MISE_PATH="$MISE_PATH:$bindir"
-                done
-              done
-              echo "export PATH=$MISE_PATH:\$PATH" >> $BASH_ENV
-              source $BASH_ENV
-              mise reshim 2>/dev/null || true
-            else
-              curl -sSf https://mise.run | sh
-              echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
-              source $BASH_ENV
-            fi`
+	// Tools are cached via CircleCI save_cache/restore_cache keyed on mise.toml.
+	// Each group restores the cache and adds the tools dir to PATH.
+	// Groups that need Rust install it directly (no IP range throttle on build/rust).
+	toolsRestore := `echo 'export PATH=/tmp/shadow-ci-tools:$PATH' >> $BASH_ENV
+            source $BASH_ENV`
+
+	miseInstall := `curl -sSf https://mise.run | sh
+            echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
+            source $BASH_ENV`
+
+	rustInstall := miseInstall + `
+            mise install rust just
+            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev`
 
 	// Build group definitions.
 	groups := []groupInfo{
@@ -124,39 +107,36 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			Name:          "build",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: miseRestore + `
-            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev`,
-			Categories: groupCats["build"],
+			SetupSteps:    toolsRestore + "\n            " + rustInstall,
+			Categories:    groupCats["build"],
 		},
 		{
-			Name:            "go",
-			DockerImage:     "<< pipeline.parameters.c-default_docker_image >>",
-			ResourceClass:   "2xlarge",
+			Name:             "go",
+			DockerImage:      "<< pipeline.parameters.c-default_docker_image >>",
+			ResourceClass:    "2xlarge",
 			CircleCIIPRanges: true,
-			SetupSteps:      miseRestore,
-			Categories:    groupCats["go"],
+			SetupSteps:       toolsRestore,
+			Categories:       groupCats["go"],
 		},
 		{
-			Name:            "sol",
-			DockerImage:     "<< pipeline.parameters.c-default_docker_image >>",
-			ResourceClass:   "2xlarge",
+			Name:             "sol",
+			DockerImage:      "<< pipeline.parameters.c-default_docker_image >>",
+			ResourceClass:    "2xlarge",
 			CircleCIIPRanges: true,
-			SetupSteps:      miseRestore,
-			Categories:    groupCats["sol"],
+			SetupSteps:       toolsRestore,
+			Categories:       groupCats["sol"],
 		},
 		{
 			Name:          "rust",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "2xlarge",
-			SetupSteps: miseRestore + `
-            sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
+			SetupSteps: toolsRestore + "\n            " + rustInstall + `
             curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
             cargo binstall --no-confirm cargo-nextest`,
 			Categories: groupCats["rust"],
 		},
 		{
-			// Misc uses apt/pip directly to avoid GitHub API rate limits.
-			// shellcheck and semgrep don't need mise.
+			// Misc uses apt/pip directly — no mise, no cache.
 			Name:          "misc",
 			DockerImage:   "<< pipeline.parameters.c-default_docker_image >>",
 			ResourceClass: "medium",
@@ -243,16 +223,33 @@ jobs:
     resource_class: large
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - shadow-ci-tools-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
       - run:
-          name: Install mise and all toolchains
+          name: Install tools (cache miss only)
           command: |
+            if [ -f /tmp/shadow-ci-tools/.cached ]; then
+              echo "Tools restored from cache"
+              exit 0
+            fi
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
-            mise install go rust forge cast anvil just make gotestsum golangci-lint mockery
+            mise install go forge cast anvil just make gotestsum golangci-lint mockery
+            mkdir -p /tmp/shadow-ci-tools
+            for bin in go gofmt forge cast anvil just make gotestsum golangci-lint mockery; do
+              src=$(which $bin 2>/dev/null) && cp "$src" /tmp/shadow-ci-tools/
+            done
+            touch /tmp/shadow-ci-tools/.cached
+      - save_cache:
+          key: shadow-ci-tools-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
+          paths:
+            - /tmp/shadow-ci-tools
       - run:
           name: Build shadow CI binaries
           command: |
+            export PATH=/tmp/shadow-ci-tools:$PATH
             cd ops/shadow-ci
             mkdir -p bin
             CGO_ENABLED=0 go build -o bin/affected ./cmd/affected
@@ -285,25 +282,16 @@ jobs:
       - run:
           name: Stage artifacts for workspace
           command: |
-            mkdir -p /tmp/shadow-ci-workspace/mise-bin
+            mkdir -p /tmp/shadow-ci-workspace
             cp -r ops/shadow-ci/bin /tmp/shadow-ci-workspace/bin
             cp /tmp/shadow-ci/decision.json /tmp/shadow-ci-workspace/decision.json
             cp /tmp/shadow-ci/affected.json /tmp/shadow-ci-workspace/affected.json
-            cp -rL $HOME/.local/share/mise /tmp/shadow-ci-workspace/mise
-            cp $HOME/.local/bin/mise /tmp/shadow-ci-workspace/mise-bin/mise
-            # Rust is installed via rustup into $HOME/.cargo — persist it too
-            if [ -d "$HOME/.cargo" ]; then
-              cp -r $HOME/.cargo /tmp/shadow-ci-workspace/cargo
-            fi
       - persist_to_workspace:
           root: /tmp/shadow-ci-workspace
           paths:
             - bin
             - decision.json
             - affected.json
-            - mise
-            - mise-bin
-            - cargo
       - store_artifacts:
           path: /tmp/shadow-ci/decision.json
           destination: shadow-ci/decision.json
@@ -333,9 +321,16 @@ jobs:
     resource_class: large
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - shadow-ci-tools-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
       - run:
-          name: Install mise and Go
+          name: Install Go (cache miss only)
           command: |
+            if [ -f /tmp/shadow-ci-tools/.cached ]; then
+              echo 'export PATH=/tmp/shadow-ci-tools:$PATH' >> $BASH_ENV
+              exit 0
+            fi
             curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
@@ -364,6 +359,9 @@ jobs:
       - checkout
       - attach_workspace:
           at: /tmp/shadow-ci-workspace
+      - restore_cache:
+          keys:
+            - shadow-ci-tools-v1-{{ "{{" }} checksum "mise.toml" {{ "}}" }}
 {{ if ne .Name "build" }}      - run:
           name: Restore build artifacts
           command: |
