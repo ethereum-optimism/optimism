@@ -154,18 +154,15 @@ run-vm-compat:
 		--build-arg GO_VERSION=1.24.10-alpine3.21 \
 		--build-arg VM_TARGET=current \
 		--progress plain \
+		--target export \
 		--output "$(VM_COMPAT_OUTPUT_DIR)" \
 		-f Dockerfile.vmcompat ../
-	@exit_code=$$(cat "$(VM_COMPAT_OUTPUT_DIR)/vm-compat-exit-code" 2>/dev/null || echo "1"); \
-	if [ "$$exit_code" != "0" ]; then \
-		echo "vm-compat analysis failed (exit code $$exit_code)"; \
-		if [ -s "$(VM_COMPAT_OUTPUT_DIR)/vm-compat-findings.json" ]; then \
-			echo "Findings saved to $(VM_COMPAT_OUTPUT_DIR)/vm-compat-findings.json"; \
-		fi; \
-		exit 1; \
-	fi
-	# TODO(#18334): Uncomment once vm-compat supports go1.25
-	#@docker build --build-arg GO_VERSION=1.25.4-alpine3.21 --build-arg VM_TARGET=next --progress plain --output "$(VM_COMPAT_OUTPUT_DIR)" -f Dockerfile.vmcompat ../
+	@docker build \
+		--build-arg GO_VERSION=1.24.10-alpine3.21 \
+		--build-arg VM_TARGET=current \
+		--progress plain \
+		--target check \
+		-f Dockerfile.vmcompat ../
 
 .PHONY: \
 	op-program \

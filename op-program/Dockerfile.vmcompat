@@ -26,7 +26,8 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 COPY . /app
 
 # Run the op-program analysis, capturing findings even on failure.
-# The exit code is saved so the caller can extract findings before failing.
+# The exit code is saved so the export stage can extract findings before the
+# check stage fails the build.
 WORKDIR /app/op-program
 ENV FINDINGS_OUTPUT_PATH=/app/op-program/vm-compat-findings.json
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -35,4 +36,6 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM scratch AS export
 COPY --from=builder /app/op-program/vm-compat-findings.json .
-COPY --from=builder /app/op-program/vm-compat-exit-code .
+
+FROM builder AS check
+RUN exit $(cat /app/op-program/vm-compat-exit-code)
