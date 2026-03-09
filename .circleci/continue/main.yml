@@ -2938,7 +2938,7 @@ workflows:
           test_profile: liteci
           matrix:
             parameters:
-              fork_op_chain: ["base", "ink", "unichain"]
+              fork_op_chain: ["op", "ink", "unichain"]
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -2954,7 +2954,7 @@ workflows:
           test_profile: ci
           matrix:
             parameters:
-              fork_op_chain: ["base", "ink", "unichain"]
+              fork_op_chain: ["op", "ink", "unichain"]
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3550,10 +3550,8 @@ workflows:
               network_preset:
                 [
                   "op-sepolia",
-                  "base-sepolia",
                   "unichain-sepolia",
                   "op-mainnet",
-                  "base-mainnet",
                 ]
               l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
