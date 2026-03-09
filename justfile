@@ -352,6 +352,10 @@ build-rust-release:
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
 
+# Updates the NUT bundle for a fork. Generates fresh bundle from contracts and snapshots it.
+update-nuts fork:
+  go run ./ops/scripts/update-nuts {{fork}}
+
 # Checks that TODO comments have corresponding issues.
 todo-checker:
   ./ops/scripts/todo-checker.sh
