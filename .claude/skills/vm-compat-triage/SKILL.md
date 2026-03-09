@@ -262,11 +262,7 @@ Help the user investigate. Common queries:
 
 Return to the options prompt after answering.
 
-### Step 6: Generate summary document
-
-After all findings are reviewed, generate a summary and save to `op-program/compatibility-test/triage-report.md` (gitignored — do not commit).
-
-### Step 7: Update the baseline
+### Step 6: Update the baseline
 
 Only proceed if ALL findings are marked as either unreachable or acceptable (none remaining as "needs investigation").
 
@@ -298,7 +294,7 @@ cat /tmp/vm-compat-full-report.json | jq 'walk(
 
 3. This replaces the entire baseline with the current state. The old baseline is not merged — it is replaced.
 
-### Step 8: Verify
+### Step 7: Verify
 
 After regenerating the baseline, re-run `vm-compat` with the new baseline to confirm zero new findings:
 
