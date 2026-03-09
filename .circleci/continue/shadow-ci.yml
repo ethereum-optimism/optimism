@@ -38,7 +38,7 @@ jobs:
             mise install go forge cast anvil just make gotestsum golangci-lint mockery
             mkdir -p /tmp/shadow-ci-tools
             for bin in go gofmt forge cast anvil just make gotestsum golangci-lint mockery; do
-              src=$(which $bin 2>/dev/null) && cp "$src" /tmp/shadow-ci-tools/
+              src=$(mise which $bin 2>/dev/null || which $bin 2>/dev/null) && cp "$src" /tmp/shadow-ci-tools/
             done
             touch /tmp/shadow-ci-tools/.cached
       - save_cache:
