@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -149,9 +148,9 @@ func main() {
 				return
 			}
 
-			// Each category writes output to its own log file so parallel
-			// output doesn't interleave. We tee to the log and print a
-			// summary when done.
+			// Each category captures output to its own log file to avoid
+			// interleaved parallel output. On completion, the tail of the
+			// log is printed for visibility.
 			logPath := filepath.Join(*resultsDir, e.name+".log")
 			logFile, err := os.Create(logPath)
 			if err != nil {
@@ -160,8 +159,8 @@ func main() {
 
 			start := time.Now()
 			cmd := exec.Command("bash", "-c", command)
-			cmd.Stdout = io.MultiWriter(logFile, os.Stdout)
-			cmd.Stderr = io.MultiWriter(logFile, os.Stderr)
+			cmd.Stdout = logFile
+			cmd.Stderr = logFile
 			cmd.Env = os.Environ()
 
 			runErr := cmd.Run()
@@ -174,7 +173,10 @@ func main() {
 				mu.Lock()
 				failures++
 				mu.Unlock()
-				fmt.Printf("--- %s: FAILED in %s: %v ---\n\n", e.name, duration.Round(time.Second), runErr)
+				fmt.Printf("--- %s: FAILED in %s: %v ---\n", e.name, duration.Round(time.Second), runErr)
+				// Print tail of log for debugging.
+				printLogTail(logPath, 30)
+				fmt.Println()
 			} else {
 				fmt.Printf("--- %s: PASSED in %s ---\n\n", e.name, duration.Round(time.Second))
 			}
@@ -217,6 +219,22 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("\nPASS: all %d categories succeeded\n", len(results))
+}
+
+func printLogTail(path string, lines int) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	all := strings.Split(string(data), "\n")
+	start := 0
+	if len(all) > lines {
+		start = len(all) - lines
+		fmt.Printf("  ... (%d lines omitted, see %s)\n", start, path)
+	}
+	for _, line := range all[start:] {
+		fmt.Printf("  | %s\n", line)
+	}
 }
 
 func fatal(format string, args ...any) {
