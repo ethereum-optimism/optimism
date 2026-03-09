@@ -468,7 +468,7 @@ tower-http = "0.6"
 # ==================== TOKIO ====================
 tokio = { version = "1.49.0", default-features = false }
 tokio-stream = "0.1.18"
-tokio-tungstenite = "0.28.0"
+tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"] }
 tokio-util = { version = "0.7.18", features = ["codec"] }
 
 # ==================== RPC ====================
