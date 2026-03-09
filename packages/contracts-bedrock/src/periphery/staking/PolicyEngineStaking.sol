@@ -56,10 +56,10 @@ contract PolicyEngineStaking is ISemver {
     bool public paused;
 
     /// @notice The owner of the contract. Can pause, unpause, and transfer ownership.
-    address private _owner;
+    address public owner;
 
     /// @notice The pending owner nominated via `transferOwnership`.
-    address private _pendingOwner;
+    address public pendingOwner;
 
     /// @notice Emitted when a user stakes OP tokens.
     /// @param account The address that staked tokens.
@@ -147,7 +147,7 @@ contract PolicyEngineStaking is ISemver {
     constructor(address _ownerAddr, address _token) {
         if (_ownerAddr == address(0)) revert PolicyEngineStaking_ZeroAddress();
         if (_token == address(0)) revert PolicyEngineStaking_ZeroAddress();
-        _owner = _ownerAddr;
+        owner = _ownerAddr;
         STAKING_TOKEN = IERC20(_token);
     }
 
@@ -159,18 +159,8 @@ contract PolicyEngineStaking is ISemver {
 
     /// @notice Modifier that reverts when the caller is not the owner.
     modifier onlyOwner() {
-        if (msg.sender != _owner) revert PolicyEngineStaking_OnlyOwner();
+        if (msg.sender != owner) revert PolicyEngineStaking_OnlyOwner();
         _;
-    }
-
-    /// @notice Returns the owner address.
-    function owner() external view returns (address) {
-        return _owner;
-    }
-
-    /// @notice Returns the pending owner address.
-    function pendingOwner() external view returns (address) {
-        return _pendingOwner;
     }
 
     /// @notice Returns the staking token address.
@@ -186,18 +176,18 @@ contract PolicyEngineStaking is ISemver {
     /// @param _newOwner The address of the nominated owner.
     function transferOwnership(address _newOwner) external onlyOwner {
         if (_newOwner == address(0)) revert PolicyEngineStaking_ZeroAddress();
-        _pendingOwner = _newOwner;
-        emit OwnershipTransferStarted(_owner, _newOwner);
+        pendingOwner = _newOwner;
+        emit OwnershipTransferStarted(owner, _newOwner);
     }
 
     /// @notice Accepts ownership after being nominated via `transferOwnership`.
     function acceptOwnership() external {
-        if (msg.sender != _pendingOwner) revert PolicyEngineStaking_NotPendingOwner();
-        _pendingOwner = address(0);
+        if (msg.sender != pendingOwner) revert PolicyEngineStaking_NotPendingOwner();
+        pendingOwner = address(0);
 
         // Emit event before owner change
-        emit OwnershipTransferred(_owner, msg.sender);
-        _owner = msg.sender;
+        emit OwnershipTransferred(owner, msg.sender);
+        owner = msg.sender;
     }
 
     /// @notice Pauses the contract. Stake is disabled while paused.
