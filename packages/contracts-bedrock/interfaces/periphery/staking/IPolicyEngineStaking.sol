@@ -85,6 +85,7 @@ interface IPolicyEngineStaking is ISemver {
     function transferOwnership(address _newOwner) external;
 
     /// @notice Accepts ownership after being nominated via `transferOwnership`.
+    ///         Only callable by the pending owner.
     function acceptOwnership() external;
 
     /// @notice Returns whether the contract is paused.
@@ -128,6 +129,7 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Sets whether a staker can set the caller as beneficiary. When disallowing,
     ///         if the staker's current beneficiary is the caller, their stake attribution is
     ///         moved back to the staker (beneficiary reset to self).
+    ///         This function is callable even when the contract is paused.
     ///
     /// @param _staker  The staker address.
     /// @param _allowed Whether the staker is allowed to set the caller as beneficiary.
