@@ -12,6 +12,7 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -22,6 +23,9 @@ import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableE
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
+import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
+import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 
 /// @title L2ForkUpgrade_Test
 /// @notice Integration test for L2 fork upgrades using NUT bundles.
@@ -49,19 +53,26 @@ contract L2ForkUpgrade_Test is CommonTest {
         address l2ERC721BridgeOtherBridge;
         address mintableERC20FactoryBridge;
         address mintableERC721FactoryBridge;
+        uint256 mintableERC721FactoryRemoteChainID;
+        // LiquidityController configuration (CGT only)
+        address liquidityControllerOwner;
+        string liquidityControllerGasPayingTokenName;
+        string liquidityControllerGasPayingTokenSymbol;
+        // FeeSplitter configuration
+        address feeSplitterSharesCalculator;
         // Fee vault configuration
         address sequencerFeeVaultRecipient;
         uint256 sequencerFeeVaultMinWithdrawal;
-        // Types.WithdrawalNetwork sequencerFeeVaultWithdrawalNetwork;
+        Types.WithdrawalNetwork sequencerFeeVaultWithdrawalNetwork;
         address baseFeeVaultRecipient;
         uint256 baseFeeVaultMinWithdrawal;
-        // Types.WithdrawalNetwork baseFeeVaultWithdrawalNetwork;
+        Types.WithdrawalNetwork baseFeeVaultWithdrawalNetwork;
         address l1FeeVaultRecipient;
         uint256 l1FeeVaultMinWithdrawal;
-        // Types.WithdrawalNetwork l1FeeVaultWithdrawalNetwork;
+        Types.WithdrawalNetwork l1FeeVaultWithdrawalNetwork;
         address operatorFeeVaultRecipient;
         uint256 operatorFeeVaultMinWithdrawal;
-        // Types.WithdrawalNetwork operatorFeeVaultWithdrawalNetwork;
+        Types.WithdrawalNetwork operatorFeeVaultWithdrawalNetwork;
         // ProxyAdmin ownership
         address proxyAdminOwner;
         // Feature flags
@@ -97,10 +108,7 @@ contract L2ForkUpgrade_Test is CommonTest {
 
         // Verify all aspects of the upgrade
         _verifyAllVersionsUpdated(preState);
-        _verifyBridgeConfigurations(preState);
-        _verifyFeeVaultConfigurations(preState);
-        _verifyFactoryConfigurations(preState);
-        _verifyProxyAdminOwnership(preState);
+        _verifyInitializationState(preState);
     }
 
     /// @notice Captures the current state before upgrade for comparison.
@@ -122,27 +130,72 @@ contract L2ForkUpgrade_Test is CommonTest {
             address(IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).BRIDGE());
         state_.mintableERC721FactoryBridge =
             address(IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).BRIDGE());
+        state_.mintableERC721FactoryRemoteChainID =
+            IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).REMOTE_CHAIN_ID();
+
+        // Capture LiquidityController configuration (only on CGT networks)
+        if (state_.isCustomGasToken) {
+            ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
+            state_.liquidityControllerOwner = liquidityController.owner();
+            state_.liquidityControllerGasPayingTokenName = liquidityController.gasPayingTokenName();
+            state_.liquidityControllerGasPayingTokenSymbol = liquidityController.gasPayingTokenSymbol();
+        }
+
+        // Capture FeeSplitter configuration
+        // eip150-safe
+        try IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator() returns (
+            ISharesCalculator sharesCalculator_
+        ) {
+            state_.feeSplitterSharesCalculator = address(sharesCalculator_);
+        } catch {
+            state_.feeSplitterSharesCalculator = address(0);
+        }
 
         // Capture fee vault configuration
         state_.sequencerFeeVaultRecipient = IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).RECIPIENT();
         state_.sequencerFeeVaultMinWithdrawal =
             IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).MIN_WITHDRAWAL_AMOUNT();
-        // state_.sequencerFeeVaultWithdrawalNetwork =
-        //     ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).WITHDRAWAL_NETWORK();
+        // eip150-safe
+        try IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).WITHDRAWAL_NETWORK() returns (
+            Types.WithdrawalNetwork withdrawalNetwork_
+        ) {
+            state_.sequencerFeeVaultWithdrawalNetwork = withdrawalNetwork_;
+        } catch {
+            state_.sequencerFeeVaultWithdrawalNetwork = Types.WithdrawalNetwork.L1;
+        }
 
         state_.baseFeeVaultRecipient = IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).RECIPIENT();
         state_.baseFeeVaultMinWithdrawal = IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).MIN_WITHDRAWAL_AMOUNT();
-        // state_.baseFeeVaultWithdrawalNetwork =
-        // IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT)).WITHDRAWAL_NETWORK();
+        // eip150-safe
+        try IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).WITHDRAWAL_NETWORK() returns (
+            Types.WithdrawalNetwork withdrawalNetwork_
+        ) {
+            state_.baseFeeVaultWithdrawalNetwork = withdrawalNetwork_;
+        } catch {
+            state_.baseFeeVaultWithdrawalNetwork = Types.WithdrawalNetwork.L1;
+        }
 
         state_.l1FeeVaultRecipient = IFeeVault(payable(Predeploys.L1_FEE_VAULT)).RECIPIENT();
         state_.l1FeeVaultMinWithdrawal = IFeeVault(payable(Predeploys.L1_FEE_VAULT)).MIN_WITHDRAWAL_AMOUNT();
-        // state_.l1FeeVaultWithdrawalNetwork = IL1FeeVault(payable(Predeploys.L1_FEE_VAULT)).WITHDRAWAL_NETWORK();
+        // eip150-safe
+        try IFeeVault(payable(Predeploys.L1_FEE_VAULT)).WITHDRAWAL_NETWORK() returns (
+            Types.WithdrawalNetwork withdrawalNetwork_
+        ) {
+            state_.l1FeeVaultWithdrawalNetwork = withdrawalNetwork_;
+        } catch {
+            state_.l1FeeVaultWithdrawalNetwork = Types.WithdrawalNetwork.L1;
+        }
 
         state_.operatorFeeVaultRecipient = IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).RECIPIENT();
         state_.operatorFeeVaultMinWithdrawal = IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).MIN_WITHDRAWAL_AMOUNT();
-        // state_.operatorFeeVaultWithdrawalNetwork =
-        // IOperatorFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).WITHDRAWAL_NETWORK();
+        // eip150-safe
+        try IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).WITHDRAWAL_NETWORK() returns (
+            Types.WithdrawalNetwork withdrawalNetwork_
+        ) {
+            state_.operatorFeeVaultWithdrawalNetwork = withdrawalNetwork_;
+        } catch {
+            state_.operatorFeeVaultWithdrawalNetwork = Types.WithdrawalNetwork.L1;
+        }
 
         // Capture ProxyAdmin ownership
         state_.proxyAdminOwner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
@@ -231,11 +284,11 @@ contract L2ForkUpgrade_Test is CommonTest {
             _preState.sequencerFeeVaultMinWithdrawal,
             "SequencerFeeVault.MIN_WITHDRAWAL_AMOUNT not preserved"
         );
-        // assertEq(
-        //     uint8(ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).WITHDRAWAL_NETWORK()),
-        //     uint8(_preState.sequencerFeeVaultWithdrawalNetwork),
-        //     "SequencerFeeVault.WITHDRAWAL_NETWORK not preserved"
-        // );
+        assertEq(
+            uint8(IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).WITHDRAWAL_NETWORK()),
+            uint8(_preState.sequencerFeeVaultWithdrawalNetwork),
+            "SequencerFeeVault.WITHDRAWAL_NETWORK not preserved"
+        );
 
         // BaseFeeVault
         assertEq(
@@ -248,11 +301,11 @@ contract L2ForkUpgrade_Test is CommonTest {
             _preState.baseFeeVaultMinWithdrawal,
             "BaseFeeVault.MIN_WITHDRAWAL_AMOUNT not preserved"
         );
-        // assertEq(
-        //     uint8(IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT)).WITHDRAWAL_NETWORK()),
-        //     uint8(_preState.baseFeeVaultWithdrawalNetwork),
-        //     "BaseFeeVault.WITHDRAWAL_NETWORK not preserved"
-        // );
+        assertEq(
+            uint8(IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).WITHDRAWAL_NETWORK()),
+            uint8(_preState.baseFeeVaultWithdrawalNetwork),
+            "BaseFeeVault.WITHDRAWAL_NETWORK not preserved"
+        );
 
         // L1FeeVault
         assertEq(
@@ -265,11 +318,11 @@ contract L2ForkUpgrade_Test is CommonTest {
             _preState.l1FeeVaultMinWithdrawal,
             "L1FeeVault.MIN_WITHDRAWAL_AMOUNT not preserved"
         );
-        // assertEq(
-        //     uint8(IL1FeeVault(payable(Predeploys.L1_FEE_VAULT)).WITHDRAWAL_NETWORK()),
-        //     uint8(_preState.l1FeeVaultWithdrawalNetwork),
-        //     "L1FeeVault.WITHDRAWAL_NETWORK not preserved"
-        // );
+        assertEq(
+            uint8(IFeeVault(payable(Predeploys.L1_FEE_VAULT)).WITHDRAWAL_NETWORK()),
+            uint8(_preState.l1FeeVaultWithdrawalNetwork),
+            "L1FeeVault.WITHDRAWAL_NETWORK not preserved"
+        );
 
         // OperatorFeeVault
         assertEq(
@@ -282,11 +335,11 @@ contract L2ForkUpgrade_Test is CommonTest {
             _preState.operatorFeeVaultMinWithdrawal,
             "OperatorFeeVault.MIN_WITHDRAWAL_AMOUNT not preserved"
         );
-        // assertEq(
-        //     uint8(IOperatorFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).WITHDRAWAL_NETWORK()),
-        //     uint8(_preState.operatorFeeVaultWithdrawalNetwork),
-        //     "OperatorFeeVault.WITHDRAWAL_NETWORK not preserved"
-        // );
+        assertEq(
+            uint8(IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).WITHDRAWAL_NETWORK()),
+            uint8(_preState.operatorFeeVaultWithdrawalNetwork),
+            "OperatorFeeVault.WITHDRAWAL_NETWORK not preserved"
+        );
     }
 
     /// @notice Verifies that factory configurations were preserved.
@@ -304,6 +357,40 @@ contract L2ForkUpgrade_Test is CommonTest {
             _preState.mintableERC721FactoryBridge,
             "OptimismMintableERC721Factory.BRIDGE not preserved"
         );
+        assertEq(
+            IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).REMOTE_CHAIN_ID(),
+            _preState.mintableERC721FactoryRemoteChainID,
+            "OptimismMintableERC721Factory.REMOTE_CHAIN_ID not preserved"
+        );
+    }
+
+    /// @notice Verifies that LiquidityController configuration was preserved.
+    function _verifyLiquidityControllerConfiguration(PreUpgradeState memory _preState) internal view {
+        if (!_preState.isCustomGasToken) return;
+
+        ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
+        assertEq(
+            liquidityController.owner(), _preState.liquidityControllerOwner, "LiquidityController.owner not preserved"
+        );
+        assertEq(
+            liquidityController.gasPayingTokenName(),
+            _preState.liquidityControllerGasPayingTokenName,
+            "LiquidityController.gasPayingTokenName not preserved"
+        );
+        assertEq(
+            liquidityController.gasPayingTokenSymbol(),
+            _preState.liquidityControllerGasPayingTokenSymbol,
+            "LiquidityController.gasPayingTokenSymbol not preserved"
+        );
+    }
+
+    /// @notice Verifies that FeeSplitter configuration was preserved.
+    function _verifyFeeSplitterConfiguration(PreUpgradeState memory _preState) internal view {
+        assertEq(
+            address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
+            _preState.feeSplitterSharesCalculator,
+            "FeeSplitter.sharesCalculator not preserved"
+        );
     }
 
     /// @notice Verifies that ProxyAdmin ownership was preserved.
@@ -313,5 +400,90 @@ contract L2ForkUpgrade_Test is CommonTest {
             _preState.proxyAdminOwner,
             "ProxyAdmin ownership should be preserved"
         );
+    }
+
+    /// @notice Verifies that all initializable predeploys are properly initialized after upgrade.
+    ///         This ensures no predeploy is left in an uninitialized or partially initialized state.
+    function _verifyInitializationState(PreUpgradeState memory _preState) internal view {
+        // Verify configuration preservation and initialization
+        _verifyBridgeConfigurations(_preState);
+        _verifyFeeVaultConfigurations(_preState);
+        _verifyFactoryConfigurations(_preState);
+        _verifyLiquidityControllerConfiguration(_preState);
+        _verifyFeeSplitterConfiguration(_preState);
+        _verifyProxyAdminOwnership(_preState);
+
+        // OpenZeppelin v4 Initializable contracts - slot varies by contract
+        _verifyOZv4Initialization(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bytes32(0), 20, "L2CrossDomainMessenger");
+        _verifyOZv4Initialization(Predeploys.L2_STANDARD_BRIDGE, bytes32(0), 0, "L2StandardBridge");
+        _verifyOZv4Initialization(Predeploys.L2_ERC721_BRIDGE, bytes32(0), 0, "L2ERC721Bridge");
+        _verifyOZv4Initialization(
+            Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, bytes32(0), 0, "OptimismMintableERC20Factory"
+        );
+        _verifyOZv4Initialization(
+            Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1)), 0, "OptimismMintableERC721Factory"
+        );
+        _verifyOZv4Initialization(Predeploys.FEE_SPLITTER, bytes32(0), 0, "FeeSplitter");
+
+        // LiquidityController (only on custom gas token networks)
+        if (_preState.isCustomGasToken) {
+            _verifyOZv4Initialization(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), 0, "LiquidityController");
+        }
+
+        // OpenZeppelin v5 Initializable contracts - ERC-7201 slot
+        _verifyOZv5Initialization(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
+        _verifyOZv5Initialization(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
+        _verifyOZv5Initialization(Predeploys.L1_FEE_VAULT, "L1FeeVault");
+        _verifyOZv5Initialization(Predeploys.OPERATOR_FEE_VAULT, "OperatorFeeVault");
+    }
+
+    /// @notice Helper to verify OpenZeppelin v4 initialization state.
+    /// @param _proxy The proxy address of the predeploy.
+    /// @param _slot The storage slot where the initialized value is located.
+    /// @param _offset The offset (in bytes from the right) of the initializer value in the slot.
+    /// @param _name The name of the predeploy for error messages.
+    function _verifyOZv4Initialization(
+        address _proxy,
+        bytes32 _slot,
+        uint8 _offset,
+        string memory _name
+    )
+        internal
+        view
+    {
+        bytes32 slotValue = vm.load(_proxy, _slot);
+        uint256 slotUint = uint256(slotValue);
+
+        // Extract the initialized byte at the specified offset
+        uint8 initializedValue = uint8((slotUint >> (uint256(_offset) * 8)) & 0xFF);
+
+        // The initialized value should be non-zero (typically 1 or higher)
+        assertGt(initializedValue, 0, string.concat(_name, " should be initialized (OZ v4)"));
+
+        // Verify _initializing is false (for OZ v4, this is the next byte after _initialized)
+        uint8 initializingValue = uint8((slotUint >> (uint256(_offset + 1) * 8)) & 0xFF);
+        assertEq(initializingValue, 0, string.concat(_name, " should not be mid-initialization (OZ v4)"));
+    }
+
+    /// @notice Helper to verify OpenZeppelin v5 initialization state.
+    /// @param _proxy The proxy address of the predeploy.
+    /// @param _name The name of the predeploy for error messages.
+    function _verifyOZv5Initialization(address _proxy, string memory _name) internal view {
+        // OZ v5 uses ERC-7201 namespaced storage
+        // Slot: keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
+        // ~bytes32(uint256(0xff))
+        bytes32 ozV5Slot = 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+        bytes32 slotValue = vm.load(_proxy, ozV5Slot);
+        uint256 slotUint = uint256(slotValue);
+
+        // Extract uint64 _initialized (low 8 bytes)
+        uint64 initializedValue = uint64(slotUint & 0xFFFFFFFFFFFFFFFF);
+
+        // The initialized value should be non-zero (typically 1 or higher)
+        assertGt(initializedValue, 0, string.concat(_name, " should be initialized (OZ v5)"));
+
+        // Extract bool _initializing (byte offset 8, bits 64..71)
+        uint8 initializingValue = uint8((slotUint >> 64) & 0xFF);
+        assertEq(initializingValue, 0, string.concat(_name, " should not be mid-initialization (OZ v5)"));
     }
 }
