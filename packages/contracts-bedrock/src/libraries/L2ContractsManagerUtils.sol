@@ -61,6 +61,15 @@ library L2ContractsManagerUtils {
         view
         returns (L2ContractsManagerTypes.FeeVaultConfig memory config_)
     {
+        // Try to read the withdrawal network from the FeeVault. If it fails, use the default value.
+        Types.WithdrawalNetwork withdrawalNetwork;
+        // eip150-safe
+        try IFeeVault(payable(_feeVault)).WITHDRAWAL_NETWORK() returns (Types.WithdrawalNetwork withdrawalNetwork_) {
+            withdrawalNetwork = withdrawalNetwork_;
+        } catch {
+            withdrawalNetwork = Types.WithdrawalNetwork.L1;
+        }
+
         // Note: We are intentionally using legacy deprecated getters for this 1.0.0 version of the L2ContractsManager.
         // Subsequent versions should use the new getters as L2ContractsManager should ensure that the new current
         // version of the FeeVault is used.
@@ -68,7 +77,7 @@ library L2ContractsManagerUtils {
         config_ = L2ContractsManagerTypes.FeeVaultConfig({
             recipient: feeVault.RECIPIENT(),
             minWithdrawalAmount: feeVault.MIN_WITHDRAWAL_AMOUNT(),
-            withdrawalNetwork: Types.WithdrawalNetwork.L2
+            withdrawalNetwork: withdrawalNetwork
         });
     }
 

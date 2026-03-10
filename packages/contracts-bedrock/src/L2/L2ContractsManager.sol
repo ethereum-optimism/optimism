@@ -221,8 +221,16 @@ contract L2ContractsManager is ISemver {
         }
 
         // FeeSplitter
-        fullConfig_.feeSplitter =
-            L2ContractsManagerTypes.FeeSplitterConfig({ sharesCalculator: ISharesCalculator(address(0)) });
+        ISharesCalculator sharesCalculator;
+        // eip150-safe
+        try IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator() returns (
+            ISharesCalculator sharesCalculator_
+        ) {
+            sharesCalculator = sharesCalculator_;
+        } catch {
+            sharesCalculator = ISharesCalculator(address(0));
+        }
+        fullConfig_.feeSplitter = L2ContractsManagerTypes.FeeSplitterConfig({ sharesCalculator: sharesCalculator });
     }
 
     /// @notice Upgrades each of the predeploys to its corresponding new implementation. Applies the appropriate

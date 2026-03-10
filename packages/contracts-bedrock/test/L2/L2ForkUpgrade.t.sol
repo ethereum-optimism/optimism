@@ -6,6 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Scripts
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
+import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -34,6 +35,9 @@ contract L2ForkUpgrade_Test is CommonTest {
 
     /// @notice Script used for bundle execution.
     ExecuteNUTBundle executeScript;
+
+    /// @notice Script used for bundle generation.
+    GenerateNUTBundle generateScript;
 
     /// @notice Struct to capture pre-upgrade state for comparison.
     struct PreUpgradeState {
@@ -76,6 +80,7 @@ contract L2ForkUpgrade_Test is CommonTest {
 
         // Initialize scripts
         executeScript = new ExecuteNUTBundle();
+        generateScript = new GenerateNUTBundle();
     }
 
     /// @notice Tests the complete L2 fork upgrade workflow.
@@ -83,6 +88,9 @@ contract L2ForkUpgrade_Test is CommonTest {
     function test_l2ForkUpgrade_completeUpgrade_succeeds() public {
         // Capture pre-upgrade state
         PreUpgradeState memory preState = _capturePreUpgradeState();
+
+        // Generate bundle
+        generateScript.run();
 
         // Execute bundle on forked L2
         executeScript.execute();
