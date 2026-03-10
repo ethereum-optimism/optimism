@@ -354,7 +354,7 @@ mod test {
         assert_eq!(bv.l1_blocks[0], block_a);
         assert_eq!(bv.l1_blocks[1], block_b);
 
-        // Verify origin was transferred (BQ-12 fix): BatchValidator.origin must equal the
+        // Verify origin was transferred: BatchValidator.origin must equal the
         // origin from the old BatchQueue, matching Go's TransformHolocene (batch_mux.go:68).
         assert_eq!(
             bv.origin,
