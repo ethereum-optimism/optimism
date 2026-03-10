@@ -295,8 +295,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
             GameType originalGameType = asr.respectedGameType();
             uint32 originalRaw = originalGameType.raw();
-            bool isPermissionless =
-                originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+            bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
 
             // Determine the target SUPER_* game type.
             GameType targetGameType =

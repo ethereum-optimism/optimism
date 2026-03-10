@@ -222,26 +222,6 @@ abstract contract OPContractsManagerUtilsCaller {
     }
 
     /// @notice Validates the config for a super root games migration.
-    /// @notice Validates the standard (non-migration) game config.
-    /// @param _disputeGameConfigs The dispute game configs.
-    /// @param _startingRespectedGameType The starting respected game type.
-    /// @param _isInitialDeployment Whether or not this is an initial deployment.
-    function _assertValidStandardGameConfigs(
-        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
-        GameType _startingRespectedGameType,
-        bool _isInitialDeployment
-    )
-        internal
-        view
-    {
-        _staticcall(
-            abi.encodeCall(
-                IOPContractsManagerUtils.assertValidStandardGameConfigs,
-                (_disputeGameConfigs, _startingRespectedGameType, _isInitialDeployment)
-            )
-        );
-    }
-
     /// @param _disputeGameConfigs The dispute game configs.
     /// @param _startingRespectedGameType The starting respected game type.
     /// @param _startingAnchorRoot The starting anchor root.
