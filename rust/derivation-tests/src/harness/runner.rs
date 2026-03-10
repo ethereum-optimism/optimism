@@ -4,7 +4,7 @@ use alloy_primitives::B256;
 use std::process::ExitStatus;
 
 use super::test::DerivationTest;
-use crate::server::TestServers;
+use crate::{l2::L2BlockRef, server::TestServers};
 
 /// Configuration for running a derivation implementation.
 #[derive(Debug, Clone)]
@@ -15,29 +15,38 @@ pub struct RunConfig {
     pub l2_rpc: String,
     /// Beacon API URL.
     pub beacon_url: String,
-    /// Expected claim (super root or output root).
+    /// Expected claim (super root or output root) at the target block.
     pub expected_claim: B256,
     /// L1 head block hash.
     pub l1_head: B256,
-    /// L2 head block hash.
+    /// L2 agreed safe head block hash (the starting point, before the target).
     pub l2_head: B256,
-    /// L2 output root at the starting block.
+    /// L2 output root at the agreed safe head.
     pub l2_output_root: B256,
-    /// L2 block number to derive to.
+    /// L2 block number to derive to (the target).
     pub l2_block_number: u64,
 }
 
 /// Build a `RunConfig` from a completed `DerivationTest` and its servers.
+///
+/// Uses the L2 genesis as the agreed starting point and the L2 head as the
+/// target block to prove.
 pub fn run_config_from_test(test: &DerivationTest, servers: &TestServers) -> RunConfig {
+    let genesis_ref = L2BlockRef { index: 0 };
+    let head = test.l2.head();
+
     RunConfig {
         l1_rpc: servers.l1_rpc_url().to_string(),
         l2_rpc: servers.l2_rpc_url().to_string(),
         beacon_url: servers.beacon_url().to_string(),
+        // Agreed state: genesis
+        l2_head: test.l2.block(genesis_ref).header.hash(),
+        l2_output_root: test.output_root_at(genesis_ref),
+        // Target/claimed state: head
+        l2_block_number: head.header.inner().number,
         expected_claim: test.expected_super_root(),
+        // L1 head: latest L1 block
         l1_head: test.l1.head().header.hash(),
-        l2_head: test.l2.head().header.hash(),
-        l2_output_root: test.expected_output_root(),
-        l2_block_number: test.l2.head().header.inner().number,
     }
 }
 

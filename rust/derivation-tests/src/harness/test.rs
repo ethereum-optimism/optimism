@@ -53,6 +53,20 @@ impl DerivationTest {
         output_root
     }
 
+    /// Compute the output root at a specific L2 block.
+    pub fn output_root_at(&self, block_ref: L2BlockRef) -> B256 {
+        let block = self.l2.block(block_ref);
+        let snapshot = self.l2.snapshot_at(block_ref);
+        compute_output_root_from_state(block, snapshot)
+    }
+
+    /// Compute the super root at a specific L2 block.
+    pub fn super_root_at(&self, block_ref: L2BlockRef) -> B256 {
+        let output_root = self.output_root_at(block_ref);
+        let timestamp = self.l2.block(block_ref).header.inner().timestamp;
+        compute_single_chain_super_root(timestamp, self.config.l2_chain_id, output_root)
+    }
+
     /// Compute the expected super root for the current L2 head.
     pub fn expected_super_root(&self) -> B256 {
         let output_root = self.expected_output_root();
@@ -232,11 +246,32 @@ mod tests {
         let servers = test.serve().await.unwrap();
         let run_config = crate::harness::run_config_from_test(&test, &servers);
 
+        // l2_head should be the genesis block hash (agreed starting point)
+        let genesis_hash = test.l2.block(crate::l2::L2BlockRef { index: 0 }).header.hash();
+        assert_eq!(run_config.l2_head, genesis_hash, "l2_head should be genesis block hash");
+
+        // l2_output_root should be the output root at genesis
+        let genesis_output_root = test.output_root_at(crate::l2::L2BlockRef { index: 0 });
+        assert_eq!(run_config.l2_output_root, genesis_output_root, "l2_output_root should match genesis");
+
+        // l2_block_number should be the target (head) block number
+        assert_eq!(
+            run_config.l2_block_number,
+            test.l2.head().header.inner().number,
+            "l2_block_number should be the head block number"
+        );
+        assert!(run_config.l2_block_number > 0, "l2_block_number should be > 0");
+
+        // l1_head should be the latest L1 block
+        assert_eq!(run_config.l1_head, test.l1.head().header.hash(), "l1_head should be latest L1 block");
+
+        // expected_claim should be the super root at the head
+        assert_eq!(run_config.expected_claim, test.expected_super_root(), "expected_claim should match super root");
+
         assert_ne!(run_config.l1_head, B256::ZERO, "l1_head should be non-zero");
         assert_ne!(run_config.l2_head, B256::ZERO, "l2_head should be non-zero");
         assert_ne!(run_config.expected_claim, B256::ZERO, "expected_claim should be non-zero");
         assert_ne!(run_config.l2_output_root, B256::ZERO, "l2_output_root should be non-zero");
-        assert!(run_config.l2_block_number > 0, "l2_block_number should be > 0");
         assert!(!run_config.l1_rpc.is_empty());
         assert!(!run_config.l2_rpc.is_empty());
         assert!(!run_config.beacon_url.is_empty());

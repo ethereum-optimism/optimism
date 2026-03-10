@@ -407,15 +407,206 @@ fn test_system_config_update() {
     );
 }
 
-/// Integration test that requires op-program binary.
-/// Run with: OP_PROGRAM_PATH=/path/to/op-program cargo test --ignored
-#[test]
+/// Integration test: run op-program against empty (deposit-only) L2 blocks.
+///
+/// Requires: `OP_PROGRAM_PATH=/path/to/op-program`
+/// Run with: `OP_PROGRAM_PATH=/path/to/op-program cargo test test_op_program_empty_blocks -- --ignored`
+#[tokio::test]
 #[ignore]
-fn test_op_program_empty_blocks() {
-    // This test would start servers and run op-program.
-    // Placeholder until we have the binary available.
-    let _test = build_empty_blocks_test(3);
-    eprintln!("op-program integration test not yet implemented");
+async fn test_op_program_empty_blocks() {
+    use derivation_tests::harness::{run_config_from_test, run_op_program};
+
+    if std::env::var("OP_PROGRAM_PATH").is_err() {
+        eprintln!("SKIP: OP_PROGRAM_PATH not set. Set it to run this integration test.");
+        return;
+    }
+
+    let mut test = DerivationTest::new();
+
+    // Build L1 blocks as epochs
+    test.l1.emit_empty_block(); // block 1
+    test.l1.emit_empty_block(); // block 2
+
+    // Build a deposit-only L2 block
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+    let block_ref = test.l2.build_empty_block().unwrap();
+
+    // Submit batch to L1 so derivation can find it
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
+    test.l1.emit_block_with_batches(vec![batch]);
+
+    // Start servers — they must stay alive while op-program runs
+    let servers = test.serve().await.unwrap();
+    let config = run_config_from_test(&test, &servers);
+
+    let status = run_op_program(&config).await.expect("op-program should execute");
+    servers.stop();
+
+    assert!(status.success(), "op-program should exit 0, got: {status}");
+}
+
+/// Integration test: run kona-host against empty (deposit-only) L2 blocks.
+///
+/// Requires: `KONA_HOST_PATH=/path/to/kona-host`
+/// Run with: `KONA_HOST_PATH=/path/to/kona-host cargo test test_kona_host_empty_blocks -- --ignored`
+#[tokio::test]
+#[ignore]
+async fn test_kona_host_empty_blocks() {
+    use derivation_tests::harness::{run_config_from_test, run_kona_host};
+
+    if std::env::var("KONA_HOST_PATH").is_err() {
+        eprintln!("SKIP: KONA_HOST_PATH not set. Set it to run this integration test.");
+        return;
+    }
+
+    let mut test = DerivationTest::new();
+
+    test.l1.emit_empty_block();
+    test.l1.emit_empty_block();
+
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+    let block_ref = test.l2.build_empty_block().unwrap();
+
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
+    test.l1.emit_block_with_batches(vec![batch]);
+
+    let servers = test.serve().await.unwrap();
+    let config = run_config_from_test(&test, &servers);
+    let rollup_config = test.config.rollup_config();
+    let l1_chain_config = test.config.l1_chain_config();
+
+    let status = run_kona_host(&config, &rollup_config, &l1_chain_config)
+        .await
+        .expect("kona-host should execute");
+    servers.stop();
+
+    assert!(status.success(), "kona-host should exit 0, got: {status}");
+}
+
+/// Integration test: run op-program with a user transfer submitted as a singular batch.
+///
+/// Requires: `OP_PROGRAM_PATH=/path/to/op-program`
+/// Run with: `OP_PROGRAM_PATH=/path/to/op-program cargo test test_op_program_with_batch -- --ignored`
+#[tokio::test]
+#[ignore]
+async fn test_op_program_with_batch() {
+    use alloy_consensus::{SignableTransaction, TxEip1559};
+    use alloy_primitives::{Address, TxKind, U256};
+    use alloy_signer::SignerSync;
+    use derivation_tests::harness::{run_config_from_test, run_op_program};
+    use op_alloy_consensus::OpTxEnvelope;
+
+    if std::env::var("OP_PROGRAM_PATH").is_err() {
+        eprintln!("SKIP: OP_PROGRAM_PATH not set. Set it to run this integration test.");
+        return;
+    }
+
+    let mut test = DerivationTest::new();
+
+    test.l1.emit_empty_block();
+    test.l1.emit_empty_block();
+
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+
+    // Sign a transfer from the prefunded account
+    let signer = helpers::funded_signer();
+    let tx = TxEip1559 {
+        chain_id: test.config.l2_chain_id,
+        nonce: 0,
+        gas_limit: 21_000,
+        max_fee_per_gas: 0,
+        max_priority_fee_per_gas: 0,
+        to: TxKind::Call(Address::with_last_byte(0x99)),
+        value: U256::from(1_000_000_000_000_000_000u64), // 1 ETH
+        ..Default::default()
+    };
+    let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing works");
+    let signed = tx.into_signed(sig);
+    let eth_envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
+    let op_tx = OpTxEnvelope::try_from_eth_envelope(eth_envelope)
+        .expect("should convert ETH envelope to OP envelope");
+
+    let block_ref = test.l2.build_block(vec![op_tx]).unwrap();
+
+    // Submit the batch to L1
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
+    test.l1.emit_block_with_batches(vec![batch]);
+
+    let servers = test.serve().await.unwrap();
+    let config = run_config_from_test(&test, &servers);
+
+    let status = run_op_program(&config).await.expect("op-program should execute");
+    servers.stop();
+
+    assert!(status.success(), "op-program should exit 0, got: {status}");
+}
+
+/// Integration test: run kona-host with a user transfer submitted as a singular batch.
+///
+/// Requires: `KONA_HOST_PATH=/path/to/kona-host`
+/// Run with: `KONA_HOST_PATH=/path/to/kona-host cargo test test_kona_host_with_batch -- --ignored`
+#[tokio::test]
+#[ignore]
+async fn test_kona_host_with_batch() {
+    use alloy_consensus::{SignableTransaction, TxEip1559};
+    use alloy_primitives::{Address, TxKind, U256};
+    use alloy_signer::SignerSync;
+    use derivation_tests::harness::{run_config_from_test, run_kona_host};
+    use op_alloy_consensus::OpTxEnvelope;
+
+    if std::env::var("KONA_HOST_PATH").is_err() {
+        eprintln!("SKIP: KONA_HOST_PATH not set. Set it to run this integration test.");
+        return;
+    }
+
+    let mut test = DerivationTest::new();
+
+    test.l1.emit_empty_block();
+    test.l1.emit_empty_block();
+
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+
+    let signer = helpers::funded_signer();
+    let tx = TxEip1559 {
+        chain_id: test.config.l2_chain_id,
+        nonce: 0,
+        gas_limit: 21_000,
+        max_fee_per_gas: 0,
+        max_priority_fee_per_gas: 0,
+        to: TxKind::Call(Address::with_last_byte(0x99)),
+        value: U256::from(1_000_000_000_000_000_000u64),
+        ..Default::default()
+    };
+    let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing works");
+    let signed = tx.into_signed(sig);
+    let eth_envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
+    let op_tx = OpTxEnvelope::try_from_eth_envelope(eth_envelope)
+        .expect("should convert ETH envelope to OP envelope");
+
+    let block_ref = test.l2.build_block(vec![op_tx]).unwrap();
+
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
+    test.l1.emit_block_with_batches(vec![batch]);
+
+    let servers = test.serve().await.unwrap();
+    let config = run_config_from_test(&test, &servers);
+    let rollup_config = test.config.rollup_config();
+    let l1_chain_config = test.config.l1_chain_config();
+
+    let status = run_kona_host(&config, &rollup_config, &l1_chain_config)
+        .await
+        .expect("kona-host should execute");
+    servers.stop();
+
+    assert!(status.success(), "kona-host should exit 0, got: {status}");
 }
 
 // ----- Server integration tests -----
