@@ -1,7 +1,7 @@
 //! L1 block and batch submission types.
 
 use alloy_consensus::Header;
-use alloy_primitives::{B256, Bytes, Sealed};
+use alloy_primitives::{Address, B256, Bytes, Sealed, U256};
 
 /// A constructed L1 block.
 #[derive(Debug, Clone)]
@@ -21,6 +21,20 @@ pub enum BatchSubmission {
     Calldata(Bytes),
     /// Batch data encoded as a blob.
     Blob(BlobWithCommitment),
+}
+
+/// A system config update to emit as an L1 log event.
+#[derive(Debug, Clone)]
+pub enum SystemConfigUpdate {
+    /// Update the batcher address.
+    BatcherAddress(Address),
+    /// Update the gas config (overhead + scalar).
+    GasConfig {
+        /// L1 fee overhead.
+        overhead: U256,
+        /// L1 fee scalar.
+        scalar: U256,
+    },
 }
 
 /// A blob with its KZG commitment and proof.

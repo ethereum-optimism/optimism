@@ -1,12 +1,20 @@
 //! L1 JSON-RPC server implementation.
 
-use alloy_primitives::{B256, Bytes};
+use alloy_primitives::{B256, Bytes, keccak256};
 use alloy_rlp::Encodable;
 use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
 use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::l1::L1Block;
+
+/// Compute a deterministic fake transaction hash from the block hash and tx index.
+fn fake_tx_hash(block_hash: B256, tx_index: usize) -> B256 {
+    let mut preimage = [0u8; 64];
+    preimage[..32].copy_from_slice(block_hash.as_slice());
+    preimage[56..64].copy_from_slice(&(tx_index as u64).to_be_bytes());
+    keccak256(preimage)
+}
 
 /// L1 RPC server trait.
 #[rpc(server)]
@@ -42,12 +50,18 @@ pub(crate) trait L1Rpc {
     /// Returns RLP-encoded receipts.
     #[method(name = "debug_getRawReceipts")]
     fn get_raw_receipts(&self, hash: B256) -> Result<Vec<Bytes>, ErrorObjectOwned>;
+
+    /// Returns a transaction receipt by hash.
+    #[method(name = "eth_getTransactionReceipt")]
+    fn get_transaction_receipt(&self, tx_hash: B256) -> Result<Option<Value>, ErrorObjectOwned>;
 }
 
 /// L1 RPC server implementation backed by in-memory blocks.
 pub(crate) struct L1RpcImpl {
     blocks: Vec<L1Block>,
     by_hash: HashMap<B256, usize>,
+    /// Maps fake tx hash to (block index, transaction index).
+    tx_index: HashMap<B256, (usize, usize)>,
     chain_id: u64,
 }
 
@@ -56,7 +70,16 @@ impl L1RpcImpl {
     pub(crate) fn new(blocks: Vec<L1Block>, chain_id: u64) -> Self {
         let by_hash: HashMap<B256, usize> =
             blocks.iter().enumerate().map(|(i, b)| (b.header.hash(), i)).collect();
-        Self { blocks, by_hash, chain_id }
+
+        let mut tx_index = HashMap::new();
+        for (block_idx, block) in blocks.iter().enumerate() {
+            for tx_idx in 0..block.transactions.len() {
+                let hash = fake_tx_hash(block.header.hash(), tx_idx);
+                tx_index.insert(hash, (block_idx, tx_idx));
+            }
+        }
+
+        Self { blocks, by_hash, tx_index, chain_id }
     }
 
     fn resolve_block_number(&self, number: &str) -> Option<usize> {
@@ -95,7 +118,7 @@ impl L1RpcImpl {
             "blobGasUsed": format!("0x{:x}", header.blob_gas_used.unwrap_or(0)),
             "excessBlobGas": format!("0x{:x}", header.excess_blob_gas.unwrap_or(0)),
             "transactions": block.transactions.iter().enumerate().map(|(i, _)| {
-                format!("0x{:064x}", i)
+                fake_tx_hash(block.header.hash(), i)
             }).collect::<Vec<_>>(),
         })
     }
@@ -137,6 +160,7 @@ impl L1RpcServer for L1RpcImpl {
                             "status": "0x1",
                             "cumulativeGasUsed": format!("0x{:x}", j * 21_000),
                             "logs": [],
+                            "transactionHash": fake_tx_hash(hash, j),
                             "transactionIndex": format!("0x{:x}", j),
                             "blockHash": hash,
                             "blockNumber": format!("0x{:x}", block.header.inner().number),
@@ -173,5 +197,24 @@ impl L1RpcServer for L1RpcImpl {
                 Bytes::from(buf)
             })
             .collect())
+    }
+
+    fn get_transaction_receipt(&self, tx_hash: B256) -> Result<Option<Value>, ErrorObjectOwned> {
+        Ok(self.tx_index.get(&tx_hash).map(|&(block_idx, tx_idx)| {
+            let block = &self.blocks[block_idx];
+            let block_hash = block.header.hash();
+            let block_number = block.header.inner().number;
+            let cumulative_gas = tx_idx as u64 * 21_000;
+
+            serde_json::json!({
+                "status": "0x1",
+                "cumulativeGasUsed": format!("0x{:x}", cumulative_gas),
+                "logs": [],
+                "transactionHash": tx_hash,
+                "transactionIndex": format!("0x{:x}", tx_idx),
+                "blockHash": block_hash,
+                "blockNumber": format!("0x{:x}", block_number),
+            })
+        }))
     }
 }
