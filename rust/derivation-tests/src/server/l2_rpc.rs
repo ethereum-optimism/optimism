@@ -2,13 +2,11 @@
 
 use alloy_primitives::{B256, Bytes};
 use alloy_rlp::Encodable;
-use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::ErrorObjectOwned;
+use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
 use serde_json::Value;
 use std::collections::HashMap;
 
-use crate::l2::L2Block;
-use crate::state::StateSnapshot;
+use crate::{l2::L2Block, state::StateSnapshot};
 
 /// L2 RPC server trait.
 #[rpc(server)]
@@ -65,30 +63,20 @@ pub(crate) struct L2RpcImpl {
 
 impl L2RpcImpl {
     /// Create from L2 blocks and their state snapshots.
-    pub(crate) fn new(
-        blocks: Vec<L2Block>,
-        snapshots: Vec<StateSnapshot>,
-        chain_id: u64,
-    ) -> Self {
-        let by_hash: HashMap<B256, usize> = blocks
-            .iter()
-            .enumerate()
-            .map(|(i, b)| (b.header.hash(), i))
-            .collect();
-        Self {
-            blocks,
-            snapshots,
-            by_hash,
-            chain_id,
-        }
+    pub(crate) fn new(blocks: Vec<L2Block>, snapshots: Vec<StateSnapshot>, chain_id: u64) -> Self {
+        let by_hash: HashMap<B256, usize> =
+            blocks.iter().enumerate().map(|(i, b)| (b.header.hash(), i)).collect();
+        Self { blocks, snapshots, by_hash, chain_id }
     }
 
     fn resolve_block(&self, block_id: &str) -> Option<usize> {
         // Try as hash first
-        if block_id.starts_with("0x") && block_id.len() == 66
-            && let Ok(hash) = block_id.parse::<B256>() {
-                return self.by_hash.get(&hash).copied();
-            }
+        if block_id.starts_with("0x") &&
+            block_id.len() == 66 &&
+            let Ok(hash) = block_id.parse::<B256>()
+        {
+            return self.by_hash.get(&hash).copied();
+        }
 
         // Try as number or tag
         match block_id {
@@ -139,10 +127,7 @@ impl L2RpcServer for L2RpcImpl {
         hash: B256,
         full_txs: bool,
     ) -> Result<Option<Value>, ErrorObjectOwned> {
-        Ok(self
-            .by_hash
-            .get(&hash)
-            .map(|&i| self.block_to_json(&self.blocks[i], full_txs)))
+        Ok(self.by_hash.get(&hash).map(|&i| self.block_to_json(&self.blocks[i], full_txs)))
     }
 
     fn get_block_by_number(
@@ -150,9 +135,7 @@ impl L2RpcServer for L2RpcImpl {
         number: String,
         full_txs: bool,
     ) -> Result<Option<Value>, ErrorObjectOwned> {
-        Ok(self
-            .resolve_block(&number)
-            .map(|i| self.block_to_json(&self.blocks[i], full_txs)))
+        Ok(self.resolve_block(&number).map(|i| self.block_to_json(&self.blocks[i], full_txs)))
     }
 
     fn get_proof(
@@ -161,9 +144,9 @@ impl L2RpcServer for L2RpcImpl {
         storage_keys: Vec<B256>,
         block_id: String,
     ) -> Result<Value, ErrorObjectOwned> {
-        let idx = self.resolve_block(&block_id).ok_or_else(|| {
-            ErrorObjectOwned::owned(-32602, "block not found", None::<String>)
-        })?;
+        let idx = self
+            .resolve_block(&block_id)
+            .ok_or_else(|| ErrorObjectOwned::owned(-32602, "block not found", None::<String>))?;
 
         let snapshot = &self.snapshots[idx];
 
@@ -192,9 +175,10 @@ impl L2RpcServer for L2RpcImpl {
 
     fn db_get(&self, key: Bytes) -> Result<Bytes, ErrorObjectOwned> {
         // Look up in the latest snapshot's node store
-        let snapshot = self.snapshots.last().ok_or_else(|| {
-            ErrorObjectOwned::owned(-32603, "no state available", None::<String>)
-        })?;
+        let snapshot = self
+            .snapshots
+            .last()
+            .ok_or_else(|| ErrorObjectOwned::owned(-32603, "no state available", None::<String>))?;
 
         // Try direct hash lookup
         if key.len() == 32 {
@@ -212,17 +196,13 @@ impl L2RpcServer for L2RpcImpl {
             }
         }
 
-        Err(ErrorObjectOwned::owned(
-            -32602,
-            "key not found",
-            None::<String>,
-        ))
+        Err(ErrorObjectOwned::owned(-32602, "key not found", None::<String>))
     }
 
     fn get_raw_header(&self, block_id: String) -> Result<Bytes, ErrorObjectOwned> {
-        let idx = self.resolve_block(&block_id).ok_or_else(|| {
-            ErrorObjectOwned::owned(-32602, "block not found", None::<String>)
-        })?;
+        let idx = self
+            .resolve_block(&block_id)
+            .ok_or_else(|| ErrorObjectOwned::owned(-32602, "block not found", None::<String>))?;
 
         let mut buf = Vec::new();
         self.blocks[idx].header.inner().encode(&mut buf);
@@ -230,10 +210,6 @@ impl L2RpcServer for L2RpcImpl {
     }
 
     fn execute_payload(&self) -> Result<Value, ErrorObjectOwned> {
-        Err(ErrorObjectOwned::owned(
-            -32601,
-            "method not found",
-            None::<String>,
-        ))
+        Err(ErrorObjectOwned::owned(-32601, "method not found", None::<String>))
     }
 }

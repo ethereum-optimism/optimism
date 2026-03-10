@@ -4,14 +4,16 @@ use alloy_consensus::Header;
 use alloy_primitives::{Bloom, Sealable};
 use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope};
 
-use crate::config::DeterministicConfig;
-use crate::l1::L1Block;
-use crate::state::{
-    StateSnapshot, TestStateDb, compute_receipts_root, compute_transactions_root,
+use crate::{
+    config::DeterministicConfig,
+    l1::L1Block,
+    state::{StateSnapshot, TestStateDb, compute_receipts_root, compute_transactions_root},
 };
 
-use super::deposit::l1_info_deposit_tx;
-use super::types::{L2Block, L2BlockRef};
+use super::{
+    deposit::l1_info_deposit_tx,
+    types::{L2Block, L2BlockRef},
+};
 
 /// Builds a deterministic L2 chain block by block.
 #[allow(missing_debug_implementations)]
@@ -52,11 +54,7 @@ impl L2ChainBuilder {
         };
         let sealed = genesis_header.seal_slow();
 
-        let genesis_block = L2Block {
-            header: sealed,
-            transactions: vec![],
-            receipts: vec![],
-        };
+        let genesis_block = L2Block { header: sealed, transactions: vec![], receipts: vec![] };
 
         Self {
             config: config.clone(),
@@ -70,9 +68,7 @@ impl L2ChainBuilder {
 
     /// Set the L1 epoch (origin block) for subsequent L2 blocks.
     pub fn set_epoch(&mut self, l1_block: &L1Block) {
-        self.current_epoch = Some(EpochRef {
-            l1_block: l1_block.clone(),
-        });
+        self.current_epoch = Some(EpochRef { l1_block: l1_block.clone() });
         self.seq_num = 0;
     }
 
@@ -86,10 +82,7 @@ impl L2ChainBuilder {
         &mut self,
         user_txs: Vec<OpTxEnvelope>,
     ) -> Result<L2BlockRef, Box<dyn std::error::Error>> {
-        let epoch = self
-            .current_epoch
-            .as_ref()
-            .ok_or("must set epoch before building blocks")?;
+        let epoch = self.current_epoch.as_ref().ok_or("must set epoch before building blocks")?;
 
         let prev = self.blocks.last().expect("always have genesis");
         let block_num = prev.header.inner().number + 1;
@@ -104,11 +97,8 @@ impl L2ChainBuilder {
         all_txs.extend(user_txs);
 
         // Build receipts (deposit tx always succeeds with empty receipt)
-        let receipts: Vec<OpReceiptEnvelope> = all_txs
-            .iter()
-            .enumerate()
-            .map(|(i, tx)| build_receipt(tx, i as u64))
-            .collect();
+        let receipts: Vec<OpReceiptEnvelope> =
+            all_txs.iter().enumerate().map(|(i, tx)| build_receipt(tx, i as u64)).collect();
 
         let transactions_root = compute_transactions_root(&all_txs);
         let receipts_root = compute_receipts_root(&receipts);
@@ -129,18 +119,12 @@ impl L2ChainBuilder {
         };
         let sealed = header.seal_slow();
 
-        let block = L2Block {
-            header: sealed,
-            transactions: all_txs,
-            receipts,
-        };
+        let block = L2Block { header: sealed, transactions: all_txs, receipts };
 
         self.blocks.push(block);
         self.snapshots.push(snapshot);
 
-        Ok(L2BlockRef {
-            index: self.blocks.len() - 1,
-        })
+        Ok(L2BlockRef { index: self.blocks.len() - 1 })
     }
 
     /// Build N empty (deposit-only) L2 blocks.
