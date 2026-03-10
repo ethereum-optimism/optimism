@@ -178,6 +178,42 @@ impl DerivationTest {
 mod tests {
     use super::*;
 
+    #[test]
+    fn blob_encoding_roundtrip() {
+        let mut test = DerivationTest::new();
+
+        test.l1.emit_empty_block();
+        test.l1.emit_empty_block();
+
+        let l1_block = test.l1.block_at(1).unwrap().clone();
+        test.l2.set_epoch(&l1_block);
+        let block_ref = test.l2.build_empty_block().unwrap();
+
+        let l1_origin = test.l1.block_at(1).unwrap().clone();
+
+        // Encode as blob span batch — exercises SidecarBuilder internally
+        let batch = test.blob_span_batch(&[block_ref], &l1_origin);
+
+        match batch {
+            BatchSubmission::Blob(blob_data) => {
+                // Sidecar should have exactly one blob
+                assert_eq!(blob_data.commitment.blobs.len(), 1, "expected one blob");
+                assert_eq!(blob_data.commitment.commitments.len(), 1, "expected one commitment");
+                assert_eq!(blob_data.commitment.proofs.len(), 1, "expected one proof");
+
+                // Versioned hash should be non-zero
+                assert_ne!(blob_data.versioned_hash, B256::ZERO, "versioned hash should be non-zero");
+
+                // Versioned hash should start with 0x01 (VERSIONED_HASH_VERSION_KZG)
+                assert_eq!(
+                    blob_data.versioned_hash[0], 0x01,
+                    "versioned hash should start with KZG version byte"
+                );
+            }
+            BatchSubmission::Calldata(_) => panic!("expected blob batch, got calldata"),
+        }
+    }
+
     #[tokio::test]
     async fn run_config_fields() {
         let mut test = DerivationTest::new();

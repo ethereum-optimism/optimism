@@ -6,6 +6,7 @@
 mod helpers;
 
 use alloy_primitives::Bytes;
+use derivation_tests::batch::{ChannelOut, CompressionAlgo, L1Origin};
 
 #[test]
 fn test_wrong_batcher_address() {
@@ -62,4 +63,50 @@ fn test_truncated_frame() {
         alloy_primitives::B256::ZERO,
         "super root should be non-zero even with garbage on L1"
     );
+}
+
+#[test]
+fn test_future_timestamp_batch() {
+    use kona_protocol::SingleBatch;
+
+    let mut test = helpers::default_test();
+
+    // Build L1 and L2 blocks normally
+    test.l1.emit_empty_block(); // block 1
+    test.l1.emit_empty_block(); // block 2
+
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+    test.l2.build_empty_block().unwrap();
+
+    // Manually construct a SingleBatch with a timestamp far in the future
+    let l1_origin = test.l1.block_at(1).unwrap();
+    let origin = L1Origin {
+        number: l1_origin.header.inner().number,
+        hash: l1_origin.header.hash(),
+    };
+
+    let future_batch = SingleBatch {
+        parent_hash: test.l2.head().header.hash(),
+        epoch_num: origin.number,
+        epoch_hash: origin.hash,
+        timestamp: 9_999_999_999, // far in the future
+        transactions: vec![],
+    };
+
+    // Encode and submit to L1
+    let channel_id = [0xFFu8; 16];
+    let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
+    channel.add_singular_batch(&future_batch).unwrap();
+    channel.close().unwrap();
+
+    let calldata = channel.to_calldata(100_000);
+    let batch =
+        derivation_tests::l1::BatchSubmission::Calldata(calldata.into_iter().next().unwrap());
+    test.l1.emit_block_with_batches(vec![batch]);
+
+    // The framework should handle this without panicking
+    let root1 = test.expected_super_root();
+    let root2 = test.expected_super_root();
+    assert_eq!(root1, root2, "super root should be deterministic even with future-timestamp batch");
 }
