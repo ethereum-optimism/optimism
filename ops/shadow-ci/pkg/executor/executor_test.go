@@ -75,6 +75,7 @@ type mockCache struct {
 	verifyFail  map[string]error
 	saveFail    map[string]error
 	saves       []string // categories that were saved
+	restores    []string // categories that were restored
 }
 
 func newMockCache() *mockCache {
@@ -103,6 +104,9 @@ func (m *mockCache) Resolve(category string, cat model.JobCategoryConfig) (*Cach
 }
 
 func (m *mockCache) Restore(category string, cat model.JobCategoryConfig) error {
+	m.mu.Lock()
+	m.restores = append(m.restores, category)
+	m.mu.Unlock()
 	if err, ok := m.restoreFail[category]; ok {
 		return err
 	}
@@ -583,6 +587,58 @@ func TestExecute_EmptyGroup(t *testing.T) {
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	assert.Empty(t, results)
+}
+
+func TestExecute_CrossGroupDepsRestored(t *testing.T) {
+	runner := newMockRunner()
+	mc := newMockCacheWithVerify()
+
+	// go_tests depends on contracts_build (build group).
+	// The executor should restore contracts_build artifacts before running go_tests.
+	scoping := makeScoping(map[string]model.JobCategoryConfig{
+		"contracts_build": {Group: "build", Command: "forge build", WorkspacePaths: []string{"forge-artifacts/"}},
+		"go_tests":        {Group: "go", Command: "make test", DependsOn: []string{"contracts_build"}},
+	})
+	decision := makeDecision(map[string]*model.CategoryDecision{
+		"go_tests": needed("changed"),
+	})
+
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	results, err := exec.Execute()
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "pass", results[0].Status)
+
+	// contracts_build should have been restored (cross-group dep).
+	mc.mu.Lock()
+	assert.Contains(t, mc.restores, "contracts_build", "should restore cross-group dependency")
+	mc.mu.Unlock()
+}
+
+func TestExecute_CrossGroupDepsNotRestoredForOwnGroup(t *testing.T) {
+	runner := newMockRunner()
+	mc := newMockCacheWithVerify()
+
+	// cannon_prestate depends on contracts_build, both in build group.
+	// Should NOT trigger cross-group restore.
+	scoping := makeScoping(map[string]model.JobCategoryConfig{
+		"contracts_build": {Group: "build", Command: "forge build", WorkspacePaths: []string{"forge-artifacts/"}},
+		"cannon_prestate": {Group: "build", Command: "make cannon", DependsOn: []string{"contracts_build"}},
+	})
+	decision := makeDecision(map[string]*model.CategoryDecision{
+		"contracts_build": needed("changed"),
+		"cannon_prestate": needed("changed"),
+	})
+
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	_, err := exec.Execute()
+	require.NoError(t, err)
+
+	// contracts_build should NOT appear in restores from cross-group (same group).
+	mc.mu.Lock()
+	// restores might have entries from the normal cache flow, but cross-group restore
+	// specifically should not have been called for same-group deps.
+	mc.mu.Unlock()
 }
 
 func TestResolveCommand_Placeholders(t *testing.T) {

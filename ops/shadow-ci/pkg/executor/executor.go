@@ -84,6 +84,11 @@ type catEntry struct {
 // Execute runs all needed categories for the configured group.
 // Returns results sorted by category name.
 func (e *Executor) Execute() ([]Result, error) {
+	// Restore cross-group dependency artifacts from cache before running.
+	if e.cache != nil {
+		e.restoreCrossGroupDeps()
+	}
+
 	entries := e.collectEntries()
 	if len(entries) == 0 {
 		fmt.Printf("No categories to execute for group %q\n", e.cfg.Group)
@@ -106,6 +111,35 @@ func (e *Executor) Execute() ([]Result, error) {
 		return results[i].Category < results[j].Category
 	})
 	return results, nil
+}
+
+// restoreCrossGroupDeps restores build artifacts from cache for categories
+// in other groups that the current group's categories depend on. This replaces
+// the old workspace-based artifact passing with cache-based restoration.
+func (e *Executor) restoreCrossGroupDeps() {
+	// Find all cross-group dependencies.
+	restored := make(map[string]bool)
+	for _, cat := range e.scoping.JobCategories {
+		if cat.Group != e.cfg.Group {
+			continue
+		}
+		for _, dep := range cat.DependsOn {
+			depCat, ok := e.scoping.JobCategories[dep]
+			if !ok || depCat.Group == e.cfg.Group || depCat.Group == "" {
+				continue
+			}
+			if restored[dep] || len(depCat.WorkspacePaths) == 0 {
+				continue
+			}
+			// Restore this dependency's artifacts from cache.
+			if err := e.cache.Restore(dep, depCat); err != nil {
+				fmt.Printf("  WARN  failed to restore %s artifacts from cache: %v\n", dep, err)
+			} else {
+				fmt.Printf("  DEPS  restored %s artifacts from cache\n", dep)
+			}
+			restored[dep] = true
+		}
+	}
 }
 
 // collectEntries filters categories for the configured group and decision.

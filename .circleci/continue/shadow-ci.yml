@@ -160,7 +160,16 @@ jobs:
             - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
       - restore_cache:
           keys:
-            - shadow-ci-build-v1-
+            - shadow-ci-cat-cannon_prestate-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-contracts_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_submodule_build-v1-
       - run:
           name: Install toolchain (build)
           command: |
@@ -180,26 +189,26 @@ jobs:
               --config ops/shadow-ci/config \
               --results-dir /tmp/shadow-ci-test-results \
               --cache-dir /tmp/shadow-ci-cache
-      - run:
-          name: Stage build artifacts for downstream groups
-          when: always
-          command: |
-            mkdir -p /tmp/shadow-ci-workspace/build-artifacts
-            for path in cannon/bin op-deployer/pkg/deployer/artifacts/forge-artifacts op-program/bin op-rbuilder/target/release packages/contracts-bedrock/artifacts packages/contracts-bedrock/cache packages/contracts-bedrock/forge-artifacts rust/target/release ; do
-              if [ -e "$path" ]; then
-                mkdir -p "/tmp/shadow-ci-workspace/build-artifacts/$(dirname $path)"
-                cp -r "$path" "/tmp/shadow-ci-workspace/build-artifacts/$path"
-              fi
-            done
       - save_cache:
           when: always
-          key: shadow-ci-build-v1-{{ epoch }}
+          key: shadow-ci-cat-cannon_prestate-v1-{{ epoch }}
           paths:
-            - /tmp/shadow-ci-cache
-      - persist_to_workspace:
-          root: /tmp/shadow-ci-workspace
+            - /tmp/shadow-ci-cache/cannon_prestate
+      - save_cache:
+          when: always
+          key: shadow-ci-cat-contracts_build-v1-{{ epoch }}
           paths:
-            - build-artifacts
+            - /tmp/shadow-ci-cache/contracts_build
+      - save_cache:
+          when: always
+          key: shadow-ci-cat-rust_build-v1-{{ epoch }}
+          paths:
+            - /tmp/shadow-ci-cache/rust_build
+      - save_cache:
+          when: always
+          key: shadow-ci-cat-rust_submodule_build-v1-{{ epoch }}
+          paths:
+            - /tmp/shadow-ci-cache/rust_submodule_build
       - store_test_results:
           path: /tmp/shadow-ci-test-results
       - store_artifacts:
@@ -218,15 +227,18 @@ jobs:
       - restore_cache:
           keys:
             - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
-      - run:
-          name: Restore build artifacts
-          command: |
-            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
-              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
-              echo "Restored build artifacts"
-            else
-              echo "No build artifacts to restore"
-            fi
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-cannon_prestate-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-contracts_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_submodule_build-v1-
       - run:
           name: Install toolchain (go)
           command: |
@@ -242,7 +254,8 @@ jobs:
               --group go \
               --decision /tmp/shadow-ci-workspace/decision.json \
               --config ops/shadow-ci/config \
-              --results-dir /tmp/shadow-ci-test-results
+              --results-dir /tmp/shadow-ci-test-results \
+              --cache-dir /tmp/shadow-ci-cache
       - store_test_results:
           path: /tmp/shadow-ci-test-results
       - store_artifacts:
@@ -261,15 +274,18 @@ jobs:
       - restore_cache:
           keys:
             - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
-      - run:
-          name: Restore build artifacts
-          command: |
-            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
-              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
-              echo "Restored build artifacts"
-            else
-              echo "No build artifacts to restore"
-            fi
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-cannon_prestate-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-contracts_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_submodule_build-v1-
       - run:
           name: Install toolchain (sol)
           command: |
@@ -285,7 +301,8 @@ jobs:
               --group sol \
               --decision /tmp/shadow-ci-workspace/decision.json \
               --config ops/shadow-ci/config \
-              --results-dir /tmp/shadow-ci-test-results
+              --results-dir /tmp/shadow-ci-test-results \
+              --cache-dir /tmp/shadow-ci-cache
       - store_test_results:
           path: /tmp/shadow-ci-test-results
       - store_artifacts:
@@ -303,15 +320,18 @@ jobs:
       - restore_cache:
           keys:
             - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
-      - run:
-          name: Restore build artifacts
-          command: |
-            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
-              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
-              echo "Restored build artifacts"
-            else
-              echo "No build artifacts to restore"
-            fi
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-cannon_prestate-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-contracts_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_submodule_build-v1-
       - run:
           name: Install toolchain (rust)
           command: |
@@ -331,7 +351,8 @@ jobs:
               --group rust \
               --decision /tmp/shadow-ci-workspace/decision.json \
               --config ops/shadow-ci/config \
-              --results-dir /tmp/shadow-ci-test-results
+              --results-dir /tmp/shadow-ci-test-results \
+              --cache-dir /tmp/shadow-ci-cache
       - store_test_results:
           path: /tmp/shadow-ci-test-results
       - store_artifacts:
@@ -349,15 +370,18 @@ jobs:
       - restore_cache:
           keys:
             - shadow-ci-mise-v1-{{ checksum "mise.toml" }}
-      - run:
-          name: Restore build artifacts
-          command: |
-            if [ -d /tmp/shadow-ci-workspace/build-artifacts ]; then
-              cp -r /tmp/shadow-ci-workspace/build-artifacts/. . 2>/dev/null || true
-              echo "Restored build artifacts"
-            else
-              echo "No build artifacts to restore"
-            fi
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-cannon_prestate-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-contracts_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_build-v1-
+      - restore_cache:
+          keys:
+            - shadow-ci-cat-rust_submodule_build-v1-
       - run:
           name: Install toolchain (misc)
           command: |
@@ -372,7 +396,8 @@ jobs:
               --group misc \
               --decision /tmp/shadow-ci-workspace/decision.json \
               --config ops/shadow-ci/config \
-              --results-dir /tmp/shadow-ci-test-results
+              --results-dir /tmp/shadow-ci-test-results \
+              --cache-dir /tmp/shadow-ci-cache
       - store_test_results:
           path: /tmp/shadow-ci-test-results
       - store_artifacts:
