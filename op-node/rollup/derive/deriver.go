@@ -180,22 +180,28 @@ func (d *PipelineDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.needAttributesConfirmation = false
 	case DepositsOnlyPayloadAttributesRequestEvent:
 		d.pipeline.log.Warn("Deriving deposits-only attributes", "origin", d.pipeline.Origin())
-		if x.Attributes != nil {
-			// Use the attributes carried in the event, avoiding dependence on
-			// pipeline state (lastAttribs) which may have been cleared by a reset.
-			attrib := d.pipeline.ApplyDepositsOnly(x.Attributes)
-			d.emitDerivedAttributesEvent(ctx, attrib)
-		} else {
-			// Fallback for callers that don't yet provide attributes in the event.
-			attrib, err := d.pipeline.DepositsOnlyAttributes(x.Parent, x.DerivedFrom)
-			if err != nil {
-				d.emitter.Emit(ctx, rollup.ResetEvent{
-					Err: fmt.Errorf("deriving deposits-only attributes: %w", err),
-				})
-				return true
-			}
-			d.emitDerivedAttributesEvent(ctx, attrib)
+		if x.Attributes == nil {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("deposits-only request missing attributes for parent %s derived from %s", x.Parent, x.DerivedFrom),
+			})
+			return true
 		}
+		if x.Attributes.Parent.ID() != x.Parent {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("deposits-only attributes parent mismatch: event parent %s, attributes parent %s",
+					x.Parent, x.Attributes.Parent.ID()),
+			})
+			return true
+		}
+		if x.Attributes.DerivedFrom != x.DerivedFrom {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("deposits-only attributes derivation origin mismatch: event origin %s, attributes origin %s",
+					x.DerivedFrom, x.Attributes.DerivedFrom),
+			})
+			return true
+		}
+		attrib := d.pipeline.ApplyDepositsOnly(x.Attributes)
+		d.emitDerivedAttributesEvent(ctx, attrib)
 	case ProvideL1Traversal:
 		if l1t, ok := d.pipeline.traversal.(ManagedL1Traversal); ok {
 			if err := l1t.ProvideNextL1(d.ctx, x.NextL1); err != nil {

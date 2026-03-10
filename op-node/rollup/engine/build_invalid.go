@@ -64,8 +64,25 @@ func (e *EngineController) onBuildInvalid(ctx context.Context, ev BuildInvalidEv
 }
 
 func (e *EngineController) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef, attribs *derive.AttributesWithParent) {
+	if attribs == nil {
+		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+			Err: fmt.Errorf("deposits-only request has no attributes for parent %s derived from %s", parent, derivedFrom),
+		})
+		return
+	}
+	if attribs.Parent.ID() != parent {
+		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+			Err: fmt.Errorf("deposits-only attributes parent mismatch: expected %s, got %s", parent, attribs.Parent.ID()),
+		})
+		return
+	}
+	if attribs.DerivedFrom != derivedFrom {
+		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+			Err: fmt.Errorf("deposits-only attributes derivation origin mismatch: expected %s, got %s", derivedFrom, attribs.DerivedFrom),
+		})
+		return
+	}
 	e.log.Warn("Holocene active, requesting deposits-only attributes", "parent", parent, "derived_from", derivedFrom)
-	// request deposits-only version, carrying the attributes to avoid dependence on pipeline state
 	e.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
 		Parent:      parent,
 		DerivedFrom: derivedFrom,

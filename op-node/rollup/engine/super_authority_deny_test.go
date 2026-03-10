@@ -108,6 +108,14 @@ func runSuperAuthorityTest(t *testing.T, tc superAuthorityTestCase) {
 		Time:       uint64(payload.ExecutionPayload.Timestamp),
 	}
 
+	// Simulate that a BuildStartEvent was processed before this payload,
+	// which stores the attributes on the engine controller.
+	ec.lastBuildAttribs = &derive.AttributesWithParent{
+		Attributes:  &eth.PayloadAttributes{Timestamp: payload.ExecutionPayload.Timestamp},
+		Parent:      eth.L2BlockRef{Hash: blockRef.ParentHash, Number: blockRef.Number - 1},
+		DerivedFrom: derivedFrom,
+	}
+
 	ec.onPayloadProcess(context.Background(), PayloadProcessEvent{
 		Envelope:    payload,
 		Ref:         blockRef,
