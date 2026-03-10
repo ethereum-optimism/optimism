@@ -45,7 +45,7 @@ pub fn run_config_from_test(test: &DerivationTest, servers: &TestServers) -> Run
 ///
 /// Requires `OP_PROGRAM_PATH` environment variable.
 #[allow(dead_code)]
-pub(super) async fn run_op_program(
+pub async fn run_op_program(
     config: &RunConfig,
 ) -> Result<ExitStatus, Box<dyn std::error::Error>> {
     let program_path = std::env::var("OP_PROGRAM_PATH").map_err(|_| "OP_PROGRAM_PATH not set")?;
@@ -78,15 +78,20 @@ pub(super) async fn run_op_program(
 ///
 /// Requires `KONA_HOST_PATH` environment variable.
 #[allow(dead_code)]
-pub(super) async fn run_kona_host(
+pub async fn run_kona_host(
     config: &RunConfig,
     rollup_config: &kona_genesis::RollupConfig,
+    l1_chain_config: &alloy_genesis::ChainConfig,
 ) -> Result<ExitStatus, Box<dyn std::error::Error>> {
     let host_path = std::env::var("KONA_HOST_PATH").map_err(|_| "KONA_HOST_PATH not set")?;
 
     // Write rollup config to temp file
     let rollup_config_file = tempfile::NamedTempFile::new()?;
     serde_json::to_writer(&rollup_config_file, rollup_config)?;
+
+    // Write L1 chain config to temp file
+    let l1_config_file = tempfile::NamedTempFile::new()?;
+    serde_json::to_writer(&l1_config_file, l1_chain_config)?;
 
     let status = tokio::process::Command::new(&host_path)
         .arg("--l1-node-address")
@@ -107,6 +112,8 @@ pub(super) async fn run_kona_host(
         .arg(config.l2_block_number.to_string())
         .arg("--rollup-config-path")
         .arg(rollup_config_file.path())
+        .arg("--l1-config-path")
+        .arg(l1_config_file.path())
         .status()
         .await?;
 
