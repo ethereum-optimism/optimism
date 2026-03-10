@@ -4,8 +4,7 @@ use crate::{OpNode, args::RollupArgs};
 use eyre::ErrReport;
 use futures_util::FutureExt;
 use reth_db::DatabaseEnv;
-use reth_db_api::database_metrics::DatabaseMetrics;
-use reth_node_builder::{FullNodeComponents, NodeBuilder, WithLaunchContext};
+use reth_node_builder::{NodeBuilder, WithLaunchContext};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_rpc::{
@@ -70,6 +69,7 @@ pub async fn launch_node_with_proof_history(
                     .boxed())
             })
             .extend_rpc_modules(move |ctx| {
+                info!(target: "reth::cli", "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)");
                 let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
                 let debug_ext = DebugApiExt::new(
                     ctx.node().provider().clone(),
@@ -78,8 +78,9 @@ pub async fn launch_node_with_proof_history(
                     Box::new(ctx.node().task_executor().clone()),
                     ctx.node().evm_config().clone(),
                 );
-                ctx.modules.replace_configured(api_ext.into_rpc())?;
-                ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
+                let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                info!(target: "reth::cli", eth_replaced, debug_replaced, "Proofs-history RPC overrides installed");
                 Ok(())
             });
     }

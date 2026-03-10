@@ -31,9 +31,9 @@ use kona_proof::{
 };
 use kona_proof_interop::{HintType, PreState};
 use kona_protocol::{BlockInfo, OutputRoot, Predeploys};
-use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use kona_providers_alloy::BlobWithCommitmentAndProof;
 use kona_registry::{L1_CONFIGS, ROLLUP_CONFIGS};
+use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use std::sync::Arc;
 use tokio::task;
 use tracing::{Instrument, debug, info, info_span, warn};
