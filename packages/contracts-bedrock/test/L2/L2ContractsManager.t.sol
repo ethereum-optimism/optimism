@@ -13,6 +13,7 @@ import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -1077,7 +1078,7 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
         );
         assertEq(
             EIP1967Helper.getImplementation(Predeploys.L1_BLOCK_ATTRIBUTES),
-            implementations.l1BlockImpl,
+            Config.sysFeatureCustomGasToken() ? implementations.l1BlockCGTImpl : implementations.l1BlockImpl,
             "L1Block should be upgraded"
         );
         assertEq(
