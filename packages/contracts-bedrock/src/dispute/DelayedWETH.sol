@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { WETH98 } from "src/universal/WETH98.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
-import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";

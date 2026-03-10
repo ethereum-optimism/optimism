@@ -15,7 +15,7 @@ import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @title ETHLockbox_TestInit
