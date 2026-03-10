@@ -251,7 +251,7 @@ job_categories:
     group: sol
     trigger_paths:
       - "packages/contracts-bedrock/"
-    depends_on: ["contracts_build"]
+    depends_on: ["contracts_build", "sol_tests"]
     chains:
       - { chain: op, base: mainnet }
       - { chain: base, base: mainnet }
@@ -275,7 +275,7 @@ job_categories:
     group: sol
     trigger_paths:
       - "packages/contracts-bedrock/"
-    depends_on: ["contracts_build"]
+    depends_on: ["contracts_build", "sol_tests"]
     command: |
       cd packages/contracts-bedrock && forge coverage
     description: "Solidity coverage reports"
