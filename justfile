@@ -1,6 +1,5 @@
 # Build all Rust binaries (release) for sysgo tests.
 build-rust-release:
-  cd rust && cargo build --release --bin kona-node --bin kona-supervisor
   cd op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
   cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 

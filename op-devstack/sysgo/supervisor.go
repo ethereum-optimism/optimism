@@ -18,7 +18,7 @@ type Supervisor interface {
 func WithSupervisor(supervisorID stack.ComponentID, clusterID stack.ComponentID, l1ELID stack.ComponentID) stack.Option[*Orchestrator] {
 	switch os.Getenv("DEVSTACK_SUPERVISOR_KIND") {
 	case "kona":
-		return WithKonaSupervisor(supervisorID, clusterID, l1ELID)
+		panic("kona-supervisor has been removed")
 	default:
 		return WithOPSupervisor(supervisorID, clusterID, l1ELID)
 	}
