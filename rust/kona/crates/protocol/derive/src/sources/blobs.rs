@@ -177,7 +177,9 @@ where
         // blob_data_source.go which returns `fmt.Errorf("got too many blobs")`
         // wrapped as `NewResetError`.
         if blob_index < blobs.len() {
-            return Err(ResetError::BlobsOverFill(blob_index, blobs.len()).reset());
+            return Err(
+                ResetError::BlobsOverFill { filled: blob_index, returned: blobs.len() }.reset()
+            );
         }
 
         self.open = true;
