@@ -168,27 +168,33 @@ contract L2ContractsManager is ISemver {
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
+            // TODO(#19468): Remove legacy getter after Karst upgrade.
             otherMessenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).OTHER_MESSENGER()
         });
 
         // L2StandardBridge
         fullConfig_.standardBridge = L2ContractsManagerTypes.StandardBridgeConfig({
+            // TODO(#19468): Remove legacy getter after Karst upgrade.
             otherBridge: IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).OTHER_BRIDGE()
         });
 
         // L2ERC721Bridge
         fullConfig_.erc721Bridge = L2ContractsManagerTypes.ERC721BridgeConfig({
+            // TODO(#19468): Remove legacy getter after Karst upgrade.
             otherBridge: IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).OTHER_BRIDGE()
         });
 
         // OptimismMintableERC20Factory
         fullConfig_.mintableERC20Factory = L2ContractsManagerTypes.MintableERC20FactoryConfig({
+            // TODO(#19468): Remove legacy getter after Karst upgrade.
             bridge: IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).BRIDGE()
         });
 
         // OptimismMintableERC721Factory
         fullConfig_.mintableERC721Factory = L2ContractsManagerTypes.MintableERC721FactoryConfig({
+            // TODO(#19468): Remove legacy getter after Karst upgrade.
             bridge: IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).BRIDGE(),
+            // TODO(#19468): Remove legacy getter after Karst upgrade.
             remoteChainID: IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).REMOTE_CHAIN_ID()
         });
 
