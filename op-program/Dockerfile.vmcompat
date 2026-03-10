@@ -34,5 +34,5 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   make "analyze-op-program-client-${VM_TARGET}"; echo $? > /app/op-program/vm-compat-exit-code
 
 FROM scratch AS export
-COPY --from=builder $FINDINGS_OUTPUT_PATH .
+COPY --from=builder /app/op-program/vm-compat-findings.json .
 COPY --from=builder /app/op-program/vm-compat-exit-code .
