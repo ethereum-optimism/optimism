@@ -19,8 +19,6 @@ cd packages/contracts-bedrock
 just generate-nut-bundle
 ```
 
-This runs `GenerateNUTBundle.s.sol` and writes `current-upgrade-bundle.json`.
-
 ### Snapshotting a bundle for a fork
 
 ```bash
@@ -29,12 +27,6 @@ just update-nuts <fork>
 
 This copies `current-upgrade-bundle.json` to `op-node/rollup/derive/<fork>_nut_bundle.json` and updates `fork_lock.toml` with the sha256 hash and current git commit.
 
-Typical usage after modifying contracts:
-
-```bash
-cd packages/contracts-bedrock && just generate-nut-bundle && cd ../..
-just update-nuts karst
-```
 
 ### Verifying a bundle
 
@@ -62,10 +54,3 @@ hash = "sha256:<hex>"                                      # sha256 of bundle co
 commit = "<full-sha>"                                      # commit that produced the bundle (optional)
 ```
 
-## Adding a new fork's bundle
-
-1. Implement fork-specific logic in `GenerateNUTBundle.s.sol`
-2. `cd packages/contracts-bedrock && just generate-nut-bundle`
-3. `just update-nuts <fork>`
-4. Add `//go:embed <fork>_nut_bundle.json` and switch case in `op-node/rollup/derive/upgrade_transaction.go`
-5. `just check-nut-locks` to verify
