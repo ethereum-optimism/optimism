@@ -6,12 +6,14 @@ Our latest releases, notes and changelogs can be found on Github. `op-node` rele
 
 ## Required Version by Network
 
-These are the minimal required versions for the `op-node`, `op-erigon` and `op-geth` by network.
+These are the minimal required versions for node software by network. **op-reth is the recommended execution client for new deployments.**
 
-| Network          | op-node                                                      | op-erigon                                                    | op-geth                                                      |
-| ---------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Boba Mainnet | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
-| Boba Sepolia | [v1.14.1](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.6.17) | currently unsupported | [v1.101603.1](https://github.com/bobanetwork/op-geth/releases/tag/v1.101603.1) |
+| Network          | op-node                                                      | op-reth | op-erigon                                                    | op-geth                                                      |
+| ---------------- | ------------------------------------------------------------ | ------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Boba Mainnet | [v1.16.5](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.16.5) | [latest](https://github.com/paradigmxyz/reth/pkgs/container/op-reth) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
+| Boba Sepolia | [v1.16.5](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.16.5) | [latest](https://github.com/paradigmxyz/reth/pkgs/container/op-reth) | currently unsupported | [v1.101603.1](https://github.com/bobanetwork/op-geth/releases/tag/v1.101603.1) |
+
+> **Note:** op-reth uses the upstream [ghcr.io/paradigmxyz/op-reth](https://github.com/paradigmxyz/reth/pkgs/container/op-reth) image which includes `boba-sepolia` and `boba` as built-in chains. No custom build is required.
 
 ## [op-node v1.14.1](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.14.1)
 
@@ -31,7 +33,7 @@ Unfortunately, op-erigon does not currently support Fusaka, once support is avai
 
 **Required Action**
 
-Migrate to op-geth for uninterrupted support
+Migrate to op-reth (recommended) or op-geth for uninterrupted support. See the [running a node](1_run-node-docker.md) guide for op-reth setup instructions.
 
 ## [op-geth v1.101603.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.1)
 

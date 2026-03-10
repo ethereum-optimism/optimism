@@ -2,6 +2,18 @@
 
 This tutorial will walk you through the process of using Docker to run an BOBA Sepolia node, OP Mainnet node and OP Sepolia node. You can find all Docker Compose files [here](https://github.com/bobanetwork/boba/tree/develop/boba-community).
 
+## Choose Your Execution Client
+
+Boba supports multiple execution clients. Pick the one that suits your needs:
+
+| Compose File | Execution Client | Consensus Client | Status |
+|---|---|---|---|
+| `docker-compose-boba-{network}-reth.yml` | **op-reth** | **op-node** | Recommended |
+| `docker-compose-boba-{network}.yml` | op-erigon | op-node | Supported |
+| `docker-compose-boba-{network}-geth.yml` | op-geth | op-node | Legacy |
+
+> **op-reth** is the recommended execution client for new deployments. It uses the upstream [op-reth](https://github.com/paradigmxyz/reth) image with Boba chains built-in — no custom build is required.
+
 ## Prerequisites
 
 * [docker](https://docs.docker.com/engine/install/)
@@ -35,11 +47,46 @@ Open the `.env` in your directory and set the variables inside. Read the descrip
 
 ## DB Configuration
 
+### Create a Shared Secret (JWT Token)
+
+```bash
+openssl rand -hex 32 > jwt-secret.txt
+```
+
 ### Download Snapshots
 
-You can download the database snapshot for the client and network you wish to run.
+Download the database snapshot for the client and network you wish to run. Always verify snapshots by comparing the sha256sum of the downloaded file to the sha256sum listed on the [snapshot downloads](snapshot-downloads) page.
 
-Always verify snapshots by comparing the sha256sum of the downloaded file to the sha256sum listed on this [page](snapshot-downloads). Check the sha256sum of the downloaded file by running `sha256sum <filename>`in a terminal.
+```bash
+sha256sum <filename>
+```
+
+#### op-reth (Recommended)
+
+* BOBA Mainnet
+
+  ```bash
+  curl -o boba-mainnet-reth-db-20260320.tar.zst -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-reth-db-20260320.tar.zst
+  ```
+
+* BOBA Sepolia
+
+  ```bash
+  curl -o boba-sepolia-reth-db-20260415.tar.zst -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-reth-db-20260415.tar.zst
+  ```
+
+Extract the snapshot into a `reth-data` directory:
+
+```bash
+mkdir -p reth-data
+tar --zstd -xf boba-{network}-reth-db-initial.tar.zst -C reth-data
+```
+
+These snapshots contain a pre-initialized reth database built from the op-geth state at the Bedrock migration block (block 1149019 for mainnet, block 511 for sepolia). No manual `init-state` step is needed — just extract and run. To regenerate the database from scratch, see the [migration guide](https://github.com/bobanetwork/boba/tree/develop/boba-community/scripts/geth-to-reth).
+
+Set the `DATA_DIR` in your `.env` to point to this directory (or leave it blank to use the default `./reth-data`).
+
+#### op-erigon / op-geth
 
 * BOBA Mainnet
 
@@ -52,7 +99,7 @@ Always verify snapshots by comparing the sha256sum of the downloaded file to the
   The **geth** db can be downloaded from [boba mainnet geth db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst)
 
   ```bash
-  curl -o boba-mainnet-geth-db-114909.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst
+  curl -o boba-mainnet-geth-db.tar.zst -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst
   ```
 
 - BOBA Sepolia
@@ -69,18 +116,10 @@ Always verify snapshots by comparing the sha256sum of the downloaded file to the
   curl -o boba-sepolia-geth-db.tar.zst -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst
   ```
 
-### Extract Snapshots
-
-Once you've downloaded the database snapshot, you'll need to extract it to a directory on your machine. This will take some time to complete.
+Extract erigon/geth snapshots:
 
 ```bash
 tar xvf data.tgz
-```
-
-### Create a Shared Secret (JWT Token)
-
-```bash
-openssl rand -hex 32 > jwt-secret.txt
 ```
 
 ### Modify Volume Location
@@ -99,18 +138,36 @@ op-node:
 
 ## Run the Node
 
-Once you've configured your `.env` file, you can run the node using Docker Compose. The following command will start the node in the background.
+Once you've configured your `.env` file, you can run the node using Docker Compose.
+
+### op-reth (Recommended)
 
 ```bash
-docker-compose -f [docker-compose-file] up -d
+# BOBA Mainnet
+docker compose -f docker-compose-boba-mainnet-reth.yml up -d
+
+# BOBA Sepolia
+docker compose -f docker-compose-boba-sepolia-reth.yml up -d
 ```
 
-## Optional: Run the Node with Geth
-
-We support both geth and erigon as the execution engines for Boba Mainnet node. You can start the node with geth using the following command:
+### op-erigon
 
 ```bash
-docker-compose -f docker-compose-mainnet-geth.yml up -d
+# BOBA Sepolia
+docker compose -f docker-compose-boba-sepolia.yml up -d
+
+# BOBA Mainnet
+docker compose -f docker-compose-boba-mainnet.yml up -d
+```
+
+### op-geth (Legacy)
+
+```bash
+# BOBA Sepolia
+docker compose -f docker-compose-boba-sepolia-geth.yml up -d
+
+# BOBA Mainnet
+docker compose -f docker-compose-boba-mainnet-geth.yml up -d
 ```
 
 ## Operating the Node

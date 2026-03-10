@@ -1,0 +1,88 @@
+version: '3.4'
+
+# Boba Sepolia node using op-reth (execution) + op-node (consensus)
+#
+# Prerequisites:
+#   1. Download and extract the reth snapshot (see boba-docs snapshot-downloads page).
+#      Alternatively, generate the database from scratch using the init service below
+#      and the scripts in scripts/geth-to-reth/.
+#
+#   2. Create a shared JWT secret:
+#      openssl rand -hex 32 > jwt-secret.txt
+#
+#   3. Create a .env file with at minimum:
+#      ETH1_HTTP=<L1 RPC URL>
+#      ETH2_HTTP=<L1 beacon URL>
+#      OP_NODE_VERSION=<op-node image tag>
+#
+# The upstream ghcr.io/paradigmxyz/op-reth:latest image includes boba-sepolia
+# as a built-in chain, so no custom build is required.
+
+services:
+  # One-time initialization: import state dump into op-reth.
+  # Place your reth-state.jsonl and header.rlp in the reth-data directory first.
+  # Run: docker compose -f docker-compose-boba-sepolia-reth.yml run --rm init
+  init:
+    image: ${RETH_IMAGE:-ghcr.io/paradigmxyz/op-reth}:${RETH_VERSION:-latest}
+    command: >
+      init-state
+      --chain=boba-sepolia
+      --datadir=/db
+      --without-ovm
+      --header=/db/header.rlp
+      /db/reth-state.jsonl
+    volumes:
+      - ${DATA_DIR:-./reth-data}:/db
+    profiles:
+      - init
+
+  l2:
+    image: ${RETH_IMAGE:-ghcr.io/paradigmxyz/op-reth}:${RETH_VERSION:-latest}
+    command: >
+      node
+      --chain=boba-sepolia
+      --datadir=/db
+      --http
+      --http.addr=0.0.0.0
+      --http.port=9545
+      --http.corsdomain=*
+      --http.api=eth,debug,net,web3
+      --authrpc.addr=0.0.0.0
+      --authrpc.port=8551
+      --authrpc.jwtsecret=/config/jwt-secret.txt
+      --rollup.sequencer-http=https://sepolia.boba.network
+      --rollup.disable-tx-pool-gossip
+    ports:
+      - "9545:9545"
+      - "8551:8551"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+      - ${DATA_DIR:-./reth-data}:/db
+
+  op-node:
+    depends_on:
+      - l2
+    image: ${OP_NODE_IMAGE:-us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node}:${OP_NODE_VERSION:-v1.16.2}
+    command: >
+      op-node
+      --l1=${ETH1_HTTP:-https://sepolia.gateway.tenderly.co}
+      --l1.beacon=${ETH2_HTTP}
+      --l2=http://l2:8551
+      --l2.jwt-secret=/config/jwt-secret.txt
+      --network=boba-sepolia
+      --rpc.addr=0.0.0.0
+      --rpc.port=8545
+      --p2p.bootnodes="enode://0d9f376f90b72f65c8cbeae4c7d34732678822109412c7e8253952b207618733a736f20b43c4c7c62e95b7e6389f04cc9e9e8dbe79ba75af884b0fcf5d580a3d@54.87.50.241:0?discport=30301,enode://48eb348c252f9c527ae40dee64995a65a5a6100725b1462184bb5b86cfbe817864e8ff90b52a78124289a476a1d805b27173d8f01722160c08159fa8880c47c0@13.220.237.71:0?discport=30301"
+    # Optional flags
+    #  --p2p.ban.peers=false
+    #  --p2p.priv.path=/config/p2p-node-key.txt
+    #  --p2p.discovery.path=/p2p_discovery_db
+    #  --p2p.peerstore.path=/p2p_peerstore_db
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+    #  - ./p2p-node-key.txt:/config/p2p-node-key.txt
+    #  - ./discovery:/p2p_discovery_db
+    #  - ./peerstore:/p2p_peerstore_db
+    restart: always
