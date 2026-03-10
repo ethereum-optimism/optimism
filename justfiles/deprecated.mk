@@ -23,5 +23,4 @@ endef
 
 $(foreach element,$(DEPRECATED_TARGETS),$(eval $(call make-deprecated-target,$(element))))
 
-.PHONY:
-	$(DEPRECATED_TARGETS)
+.PHONY: $(DEPRECATED_TARGETS)
