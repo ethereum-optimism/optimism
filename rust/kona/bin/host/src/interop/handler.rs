@@ -644,6 +644,12 @@ impl HintHandler for InteropHintHandler {
                 };
 
                 // 5. Store preimages in KV store
+                let preimages = execute_payload_response
+                    .state
+                    .into_iter()
+                    .chain(execute_payload_response.codes)
+                    .chain(execute_payload_response.keys);
+
                 let mut kv_lock = kv.write().await;
                 for preimage in preimages {
                     let computed_hash = keccak256(preimage.as_ref());
