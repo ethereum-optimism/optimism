@@ -616,7 +616,7 @@ commands:
               binary_dir="$CARGO_TARGET_DIR/<< parameters.profile >>"
               if [ -d "$binary_dir" ] && ls "$binary_dir"/* >/dev/null 2>&1; then
                 echo "No rust/ changes on feature branch — skipping cargo build"
-                ls -lh "$binary_dir"/ | head -20
+                ls -lh "$binary_dir"/ | head -20 || true
                 exit 0
               fi
               echo "WARNING: no cached binaries found, building from source"
