@@ -73,18 +73,6 @@ job_categories:
     runner: large
     description: "Build cannon prestates for fault proofs"
 
-  go_binaries_for_sysgo:
-    group: build
-    trigger_paths:
-      - "cannon/"
-      - "op-program/"
-    always_on_develop: true
-    depends_on: ["contracts_build", "cannon_prestate"]
-    command: |
-      make op-program cannon
-    runner: large
-    description: "Build Go binaries for sysgo acceptance tests"
-
   rust_build:
     group: build
     trigger_paths:
@@ -288,7 +276,7 @@ job_categories:
       - "packages/contracts-bedrock/"
       - "op-e2e/"
       - "rust/"
-    depends_on: ["contracts_build", "cannon_prestate", "go_binaries_for_sysgo", "rust_build"]
+    depends_on: ["contracts_build", "cannon_prestate", "rust_build"]
     always_on_develop: true
     command: |
       make op-acceptance-tests
