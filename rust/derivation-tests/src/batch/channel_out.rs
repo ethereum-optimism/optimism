@@ -2,7 +2,7 @@
 
 use alloy_primitives::Bytes;
 use alloy_rlp::Encodable;
-use kona_protocol::{ChannelId, Frame, SingleBatch};
+use kona_protocol::{ChannelId, Frame, SingleBatch, SpanBatch, SpanBatchError};
 
 use super::compression::{self, CompressionAlgo};
 
@@ -31,6 +31,21 @@ impl ChannelOut {
         self.uncompressed.push(0x00);
         // RLP-encode the singular batch
         batch.encode(&mut self.uncompressed);
+        Ok(())
+    }
+
+    /// Add a span batch to the channel.
+    ///
+    /// Converts the span batch to its raw encoding and writes the batch type prefix (0x01)
+    /// followed by the encoded raw span batch.
+    pub fn add_span_batch(&mut self, batch: &SpanBatch) -> Result<(), String> {
+        if self.closed {
+            return Err("channel already closed".into());
+        }
+        let raw = batch.to_raw_span_batch().map_err(|e: SpanBatchError| e.to_string())?;
+        // Batch type prefix: 0x01 = SpanBatch (per derivation spec)
+        self.uncompressed.push(0x01);
+        raw.encode(&mut self.uncompressed).map_err(|e: SpanBatchError| e.to_string())?;
         Ok(())
     }
 
@@ -131,5 +146,43 @@ mod tests {
         assert_eq!(calldata.len(), 1);
         // First byte is DerivationVersion0
         assert_eq!(calldata[0][0], 0x00);
+    }
+
+    #[test]
+    fn test_frame_splitting() {
+        // Create many batches with varied data that doesn't compress well,
+        // forcing the compressed output to be large enough for multiple frames.
+        let channel_id: ChannelId = [3u8; 16];
+        let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
+
+        for i in 0u8..20 {
+            // Use pseudo-random bytes that resist compression
+            let tx_data: Vec<u8> = (0..500).map(|j| i.wrapping_mul(37).wrapping_add(j as u8)).collect();
+            let batch = SingleBatch {
+                parent_hash: Default::default(),
+                epoch_num: (i as u64) + 1,
+                epoch_hash: Default::default(),
+                timestamp: 1000 + (i as u64) * 2,
+                transactions: vec![Bytes::from(tx_data)],
+            };
+            channel.add_singular_batch(&batch).unwrap();
+        }
+        channel.close().unwrap();
+
+        // Use a small max frame size to force multiple frames
+        let frames = channel.output_frames(50);
+        assert!(frames.len() > 1, "expected multiple frames, got {}", frames.len());
+
+        // Frame numbers should increment
+        for (i, frame) in frames.iter().enumerate() {
+            assert_eq!(frame.number, i as u16, "frame {i} has wrong number");
+            assert_eq!(frame.id, channel_id);
+        }
+
+        // Only the last frame should have is_last = true
+        for frame in &frames[..frames.len() - 1] {
+            assert!(!frame.is_last, "non-last frame should have is_last = false");
+        }
+        assert!(frames.last().unwrap().is_last, "last frame should have is_last = true");
     }
 }

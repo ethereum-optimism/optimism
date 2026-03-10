@@ -44,7 +44,7 @@ op-revm = { workspace = true, features = ["std"] }
 
 # RPC server
 jsonrpsee = { workspace = true, features = ["server"] }
-axum = "0.8"
+axum = { workspace = true }
 
 # Async runtime
 tokio = { workspace = true, features = ["full"] }
@@ -63,7 +63,7 @@ c-kzg = { workspace = true }
 # Utilities
 tempfile = { workspace = true }
 tracing = { workspace = true }
-thiserror = "2"
+thiserror = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }

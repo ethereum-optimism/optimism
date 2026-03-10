@@ -457,6 +457,7 @@ pin-project = "1.1.10"
 tracing-futures = "0.2"
 tower = "0.5.3"
 tower-http = "0.6"
+axum = "0.8"
 
 # ==================== TOKIO ====================
 tokio = { version = "1.49.0", default-features = false }

@@ -4,9 +4,9 @@ use alloy_primitives::B256;
 use kona_protocol::ChannelId;
 
 use crate::{
-    batch::{ChannelOut, CompressionAlgo, block_to_singular_batch},
+    batch::{ChannelOut, CompressionAlgo, L1Origin, block_to_singular_batch},
     config::DeterministicConfig,
-    l1::{BatchSubmission, L1ChainBuilder},
+    l1::{BatchSubmission, L1ChainBuilder, L1Block},
     l2::{L2BlockRef, L2ChainBuilder},
     roots::{compute_output_root_from_state, compute_single_chain_super_root},
     server::TestServers,
@@ -63,14 +63,24 @@ impl DerivationTest {
     }
 
     /// Encode L2 blocks as a singular batch in calldata.
-    pub fn singular_batch_calldata(&mut self, block_refs: &[L2BlockRef]) -> BatchSubmission {
+    ///
+    /// `l1_origin` specifies the L1 block that these L2 blocks were derived from.
+    pub fn singular_batch_calldata(
+        &mut self,
+        block_refs: &[L2BlockRef],
+        l1_origin: &L1Block,
+    ) -> BatchSubmission {
         let rollup_config = self.config.rollup_config();
         let channel_id = self.next_channel_id();
+        let origin = L1Origin {
+            number: l1_origin.header.inner().number,
+            hash: l1_origin.header.hash(),
+        };
 
         let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
         for block_ref in block_refs {
             let block = self.l2.block(*block_ref);
-            let batch = block_to_singular_batch(block, &rollup_config);
+            let batch = block_to_singular_batch(block, &rollup_config, origin);
             channel.add_singular_batch(&batch).expect("add batch failed");
         }
         channel.close().expect("close channel failed");
