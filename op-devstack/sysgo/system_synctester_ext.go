@@ -11,24 +11,24 @@ import (
 )
 
 type DefaultMinimalExternalELSystemIDs struct {
-	L1   stack.L1NetworkID
-	L1EL stack.L1ELNodeID
-	L1CL stack.L1CLNodeID
+	L1   stack.ComponentID
+	L1EL stack.ComponentID
+	L1CL stack.ComponentID
 
-	L2           stack.L2NetworkID
-	L2CL         stack.L2CLNodeID
-	L2EL         stack.L2ELNodeID
-	L2ELReadOnly stack.L2ELNodeID
+	L2           stack.ComponentID
+	L2CL         stack.ComponentID
+	L2EL         stack.ComponentID
+	L2ELReadOnly stack.ComponentID
 
-	SyncTester stack.SyncTesterID
+	SyncTester stack.ComponentID
 }
 
 func NewExternalELSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalExternalELSystemIDs {
 	ids := DefaultMinimalExternalELSystemIDs{
-		L1:           stack.L1NetworkID(l1ID),
+		L1:           stack.NewL1NetworkID(l1ID),
 		L1EL:         stack.NewL1ELNodeID("l1", l1ID),
 		L1CL:         stack.NewL1CLNodeID("l1", l1ID),
-		L2:           stack.L2NetworkID(l2ID),
+		L2:           stack.NewL2NetworkID(l2ID),
 		L2CL:         stack.NewL2CLNodeID("verifier", l2ID),
 		L2EL:         stack.NewL2ELNodeID("sync-tester-el", l2ID),
 		L2ELReadOnly: stack.NewL2ELNodeID("l2-el-readonly", l2ID),
@@ -72,14 +72,14 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 			},
 			blockTime: 12,
 		}
-		o.registry.Register(stack.ConvertL1NetworkID(ids.L1).ComponentID, l1Net)
+		o.registry.Register(ids.L1, l1Net)
 	}))
 
 	opt.Add(WithExtL1Nodes(ids.L1EL, ids.L1CL, networkPreset.L1ELEndpoint, networkPreset.L1CLBeaconEndpoint))
 
 	// Use empty dependency set and minimal cluster instead of deployer
 	opt.Add(WithEmptyDepSet(
-		stack.L2NetworkID(l2ChainID),
+		stack.NewL2NetworkID(l2ChainID),
 		networkPreset.L2NetworkName,
 	))
 

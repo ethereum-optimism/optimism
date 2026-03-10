@@ -3,8 +3,7 @@ FROM ubuntu:22.04
 ENV SHELL=/bin/bash
 ENV DEBIAN_FRONTEND=noninteractive
 
-# todo: pin `nightly` version
-ENV RUST_VERSION=nightly
+ENV RUST_VERSION=nightly-2026-02-20
 
 RUN apt-get update && apt-get install --assume-yes --no-install-recommends \
   ca-certificates \

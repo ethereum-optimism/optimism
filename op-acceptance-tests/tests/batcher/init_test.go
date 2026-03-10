@@ -17,7 +17,7 @@ func TestMain(m *testing.M) {
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithNoDiscovery(),
 		presets.WithTimeTravel(),
-		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
 			cfg.Stopped = true
 
 			// set the blob max size to 40_000 bytes for test purposes

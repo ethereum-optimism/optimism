@@ -155,12 +155,14 @@ impl SingleBatch {
 
         // If this is the first block in the jovian or interop hardfork, and the batch contains any
         // transactions, it must be dropped.
-        if (cfg.is_first_jovian_block(self.timestamp) || cfg.is_first_interop_block(self.timestamp)) &&
+        if (cfg.is_first_jovian_block(self.timestamp) ||
+            cfg.is_first_karst_block(self.timestamp) ||
+            cfg.is_first_interop_block(self.timestamp)) &&
             !self.transactions.is_empty()
         {
             warn!(
                 target: "single_batch",
-                "Sequencer included user transactions in jovian or interop transition block. Dropping batch."
+                "Sequencer included user transactions in jovian, karst, or interop transition block. Dropping batch."
             );
             return BatchValidity::Drop(BatchDropReason::NonEmptyTransitionBlock);
         }

@@ -46,6 +46,7 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/test/universal/WETH98.t.sol
+        - packages/contracts-bedrock/test/legacy/L1ChugSplashProxy.t.sol
 
   - id: sol-safety-natspec-semver-match
     languages: [generic]
@@ -456,3 +457,13 @@ rules:
         - packages/contracts-bedrock/src/L1/ProtocolVersions.sol
         # DataAvailabilityChallenge is a beta/non-standard contract.
         - packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
+
+  - id: sol-safety-use-deployutils-getcode
+    languages: [solidity]
+    severity: ERROR
+    message: Use DeployUtils.getCode() instead of vm.getCode(). When additional_compiler_profiles is configured in foundry.toml, vm.getCode() can non-deterministically resolve to the wrong compiler profile's artifact, causing bytecode mismatches across platforms.
+    pattern-either:
+      - pattern: vm.getCode(...)
+    paths:
+      exclude:
+        - packages/contracts-bedrock/scripts/libraries/DeployUtils.sol

@@ -49,16 +49,38 @@ func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
 	for chainID, faucetID := range n.service.Defaults() {
 		id := stack.NewFaucetID(faucetID.String(), chainID)
 		net := system.Network(chainID).(stack.ExtensibleNetwork)
-		net.Faucet(id).SetLabel("default", "true")
+		net.Faucet(stack.ByID[stack.Faucet](id)).SetLabel("default", "true")
 	}
 }
 
-func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func isL2ELFaucetKind(kind stack.ComponentKind) bool {
+	switch kind {
+	case stack.KindL2ELNode, stack.KindRollupBoostNode, stack.KindOPRBuilderNode:
+		return true
+	default:
+		return false
+	}
+}
+
+func WithFaucets(l1ELs []stack.ComponentID, l2ELs []stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
+
+		require.NotEmpty(l2ELs, "need at least one L2 EL for faucet service")
+		for i, l1ELID := range l1ELs {
+			require.Equalf(stack.KindL1ELNode, l1ELID.Kind(), "l1ELs[%d] must be kind %s", i, stack.KindL1ELNode)
+			require.Truef(l1ELID.HasChainID(), "l1ELs[%d] must be chain-scoped", i)
+		}
+		for i, l2ELID := range l2ELs {
+			require.Truef(isL2ELFaucetKind(l2ELID.Kind()),
+				"l2ELs[%d] must be one of %s, %s, %s",
+				i, stack.KindL2ELNode, stack.KindRollupBoostNode, stack.KindOPRBuilderNode)
+			require.Truef(l2ELID.HasChainID(), "l2ELs[%d] must be chain-scoped", i)
+		}
+
 		faucetID := stack.NewFaucetID("dev-faucet", l2ELs[0].ChainID())
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), faucetID))
-
-		require := p.Require()
+		require = p.Require()
 
 		require.Nil(orch.faucet, "can only support a single faucet-service in sysgo")
 
@@ -71,9 +93,8 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 			id := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", elID.ChainID()))
 			require.NotContains(faucets, id, "one faucet per chain only")
 
-			elComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(elID).ComponentID)
+			el, ok := orch.GetL1EL(elID)
 			require.True(ok, "need L1 EL for faucet", elID)
-			el := elComponent.(L1ELNode)
 
 			faucets[id] = &fconf.FaucetEntry{
 				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},
@@ -87,9 +108,8 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 			id := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", elID.ChainID()))
 			require.NotContains(faucets, id, "one faucet per chain only")
 
-			elComponent, ok := orch.registry.Get(stack.ConvertL2ELNodeID(elID).ComponentID)
+			el, ok := orch.GetL2EL(elID)
 			require.True(ok, "need L2 EL for faucet", elID)
-			el := elComponent.(L2ELNode)
 
 			faucets[id] = &fconf.FaucetEntry{
 				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},

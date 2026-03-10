@@ -50,7 +50,6 @@ docker buildx create --name kona-builder --use
 Nightly Docker images are automatically built and published every day at 2 AM UTC for:
 - `kona-node`
 - `kona-host`
-- `kona-supervisor`
 
 ### Using Nightly Images
 
@@ -58,7 +57,6 @@ Nightly Docker images are automatically built and published every day at 2 AM UT
 # Pull the latest nightly build (multi-platform: linux/amd64, linux/arm64)
 docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:nightly
 docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-host:nightly
-docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-supervisor:nightly
 
 # Pull a specific date's nightly build
 docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/kona-node:nightly-2024-12-10

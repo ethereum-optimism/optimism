@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { MockHelper } from "test/utils/MockHelper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -15,7 +16,7 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 
 /// @title SuperchainETHBridge_TestInit
 /// @notice Reusable test initialization for `SuperchainETHBridge` tests.
-abstract contract SuperchainETHBridge_TestInit is CommonTest {
+abstract contract SuperchainETHBridge_TestInit is CommonTest, MockHelper {
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
@@ -32,12 +33,6 @@ abstract contract SuperchainETHBridge_TestInit is CommonTest {
             vm.etch(address(superchainETHBridge), vm.getDeployedCode("SuperchainETHBridge.sol:SuperchainETHBridge"));
             vm.etch(address(ethLiquidity), vm.getDeployedCode("ETHLiquidity.sol:ETHLiquidity"));
         }
-    }
-
-    /// @notice Helper function to setup a mock and expect a call to it.
-    function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
-        vm.mockCall(_receiver, _calldata, _returned);
-        vm.expectCall(_receiver, _calldata);
     }
 }
 

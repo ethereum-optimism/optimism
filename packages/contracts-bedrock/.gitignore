@@ -40,3 +40,6 @@ deployments/1-deploy.json
 
 # Getting Started guide deploy config
 deploy-config/getting-started.json
+
+# Nut test deployment
+deployments/nut-*.json

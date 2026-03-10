@@ -24,8 +24,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
-	return stack.L2NetworkID(eth.ChainIDFromBig(net.Config.ChainID))
+func getL2ID(net *descriptors.L2Chain) stack.ComponentID {
+	return stack.NewL2NetworkID(eth.ChainIDFromBig(net.Config.ChainID))
 }
 
 func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.ExtensibleSystem) {
@@ -35,7 +35,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	env := o.env
 	l2ID := getL2ID(net)
 
-	l1 := system.L1Network(stack.L1NetworkID(eth.ChainIDFromBig(env.Env.L1.Config.ChainID)))
+	l1 := system.L1Network(stack.ByID[stack.L1Network](stack.NewL1NetworkID(eth.ChainIDFromBig(env.Env.L1.Config.ChainID))))
 
 	cfg := shim.L2NetworkConfig{
 		NetworkConfig: shim.NetworkConfig{
@@ -46,11 +46,11 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 		RollupConfig: net.RollupConfig,
 		Deployment:   newL2AddressBook(net.Addresses),
 		Keys:         o.defineSystemKeys(t, net),
-		Superchain:   system.Superchain(stack.SuperchainID(env.Env.Name)),
+		Superchain:   system.Superchain(stack.ByID[stack.Superchain](stack.NewSuperchainID(env.Env.Name))),
 		L1:           l1,
 	}
 	if o.isInterop() {
-		cfg.Cluster = system.Cluster(stack.ClusterID(env.Env.Name))
+		cfg.Cluster = system.Cluster(stack.ByID[stack.Cluster](stack.NewClusterID(env.Env.Name)))
 	}
 
 	opts := []client.RPCOption{}
@@ -187,7 +187,7 @@ func (o *Orchestrator) hydrateConductors(node *descriptors.Node, l2Net stack.Ext
 	conductor := shim.NewConductor(shim.ConductorConfig{
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		Client:       conductorClient,
-		ID:           stack.ConductorID(conductorService.Name),
+		ID:           stack.NewConductorID(conductorService.Name),
 	})
 
 	l2Net.AddConductor(conductor)

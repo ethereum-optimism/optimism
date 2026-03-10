@@ -25,7 +25,7 @@ import (
 type ExternalL1Geth struct {
 	mu sync.Mutex
 
-	id    stack.L1ELNodeID
+	id    stack.ComponentID
 	l1Net *L1Network
 	// authRPC points to a proxy that forwards to geth's endpoint
 	authRPC string
@@ -53,7 +53,7 @@ func (n *ExternalL1Geth) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
-	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID()))
+	l1Net := system.L1Network(stack.ByID[stack.L1Network](stack.NewL1NetworkID(n.id.ChainID())))
 	sysL1EL := shim.NewL1ELNode(shim.L1ELNodeConfig{
 		ID: n.id,
 		ELNodeConfig: shim.ELNodeConfig{
@@ -87,7 +87,7 @@ func (n *ExternalL1Geth) Start() {
 		n.p.Cleanup(func() {
 			n.userProxy.Close()
 		})
-		n.userRPC = "ws://" + n.userProxy.Addr()
+		n.userRPC = "http://" + n.userProxy.Addr()
 	}
 	logOut := logpipe.ToLogger(n.p.Logger().New("src", "stdout"))
 	logErr := logpipe.ToLogger(n.p.Logger().New("src", "stderr"))
@@ -95,15 +95,16 @@ func (n *ExternalL1Geth) Start() {
 	authRPC := make(chan string, 1)
 	onLogEntry := func(e logpipe.LogEntry) {
 		switch e.LogMessage() {
-		case "WebSocket enabled":
-			select {
-			case userRPC <- e.FieldValue("url").(string):
-			default:
-			}
 		case "HTTP server started":
-			if e.FieldValue("auth").(bool) {
+			auth, _ := e.FieldValue("auth").(bool)
+			if auth {
 				select {
 				case authRPC <- "http://" + e.FieldValue("endpoint").(string):
+				default:
+				}
+			} else {
+				select {
+				case userRPC <- "http://" + e.FieldValue("endpoint").(string):
 				default:
 				}
 			}
@@ -150,7 +151,7 @@ func (n *ExternalL1Geth) AuthRPC() string {
 
 const GethExecPathEnvVar = "SYSGO_GETH_EXEC_PATH"
 
-func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Option[*Orchestrator] {
+func WithL1NodesSubprocess(id stack.ComponentID, clID stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
 		require := p.Require()
@@ -160,9 +161,8 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 		_, err := os.Stat(execPath)
 		p.Require().NotErrorIs(err, os.ErrNotExist, "geth executable must exist")
 
-		l1NetComponent, ok := orch.registry.Get(stack.ConvertL1NetworkID(stack.L1NetworkID(id.ChainID())).ComponentID)
+		l1Net, ok := orch.GetL1Network(stack.NewL1NetworkID(id.ChainID()))
 		require.True(ok, "L1 network required")
-		l1Net := l1NetComponent.(*L1Network)
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
 
@@ -183,7 +183,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 		args := []string{
 			"--log.format", "json",
 			"--datadir", dataDirPath,
-			"--ws", "--ws.addr", "127.0.0.1", "--ws.port", "0", "--ws.origins", "*", "--ws.api", "admin,debug,eth,net,txpool",
+			"--http", "--http.addr", "127.0.0.1", "--http.port", "0", "--http.api", "admin,debug,eth,net,txpool",
 			"--authrpc.addr", "127.0.0.1", "--authrpc.port", "0", "--authrpc.jwtsecret", jwtPath,
 			"--ipcdisable",
 			"--port", "0",
@@ -208,7 +208,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 		l1EL.Start()
 		p.Cleanup(l1EL.Stop)
 		p.Logger().Info("geth is ready", "userRPC", l1EL.userRPC, "authRPC", l1EL.authRPC)
-		elCID := stack.ConvertL1ELNodeID(id).ComponentID
+		elCID := id
 		require.False(orch.registry.Has(elCID), "must be unique L1 EL node")
 		orch.registry.Register(elCID, l1EL)
 
@@ -236,7 +236,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 		}
 		fp.Start()
 		p.Cleanup(fp.Stop)
-		orch.registry.Register(stack.ConvertL1CLNodeID(clID).ComponentID, &L1CLNode{
+		orch.registry.Register(clID, &L1CLNode{
 			id:             clID,
 			beaconHTTPAddr: bcn.BeaconAddr(),
 			beacon:         bcn,

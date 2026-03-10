@@ -18,7 +18,7 @@ func (o *Orchestrator) hydrateSuperchain(sys stack.ExtensibleSystem) {
 	env := o.env
 	sys.AddSuperchain(shim.NewSuperchain(shim.SuperchainConfig{
 		CommonConfig: shim.NewCommonConfig(sys.T()),
-		ID:           stack.SuperchainID(env.Env.Name),
+		ID:           stack.NewSuperchainID(env.Env.Name),
 		Deployment:   newL1AddressBook(sys.T(), env.Env.L1.Addresses),
 	}))
 }
@@ -40,7 +40,7 @@ func (o *Orchestrator) hydrateClustersMaybe(sys stack.ExtensibleSystem) {
 
 		sys.AddCluster(shim.NewCluster(shim.ClusterConfig{
 			CommonConfig:  shim.NewCommonConfig(sys.T()),
-			ID:            stack.ClusterID(env.Env.Name),
+			ID:            stack.NewClusterID(env.Env.Name),
 			DependencySet: &depSet,
 		}))
 	}
@@ -52,11 +52,11 @@ func (o *Orchestrator) hydrateSupervisorsMaybe(sys stack.ExtensibleSystem) {
 		return
 	}
 
-	supervisors := make(map[stack.SupervisorID]bool)
+	supervisors := make(map[stack.ComponentID]bool)
 	for _, l2 := range o.env.Env.L2 {
 		if supervisorService, ok := l2.Services["supervisor"]; ok {
 			for _, instance := range supervisorService {
-				id := stack.SupervisorID(instance.Name)
+				id := stack.NewSupervisorID(instance.Name)
 				if supervisors[id] {
 					// each supervisor appears in multiple L2s (covering the dependency set),
 					// so we need to deduplicate
@@ -74,7 +74,7 @@ func (o *Orchestrator) hydrateSupervisorsMaybe(sys stack.ExtensibleSystem) {
 }
 
 func (o *Orchestrator) hydrateTestSequencersMaybe(sys stack.ExtensibleSystem) {
-	sequencers := make(map[stack.TestSequencerID]bool)
+	sequencers := make(map[string]bool)
 
 	// Collect all L2 chain IDs and the shared JWT secret
 	var (
@@ -95,13 +95,12 @@ func (o *Orchestrator) hydrateTestSequencersMaybe(sys stack.ExtensibleSystem) {
 	for _, l2 := range o.env.Env.L2 {
 		if sequencerService, ok := l2.Services["test-sequencer"]; ok {
 			for _, instance := range sequencerService {
-				id := stack.TestSequencerID(instance.Name)
-				if sequencers[id] {
+				if sequencers[instance.Name] {
 					// Each test_sequencer appears in multiple L2s
 					// So we need to deduplicate
 					continue
 				}
-				sequencers[id] = true
+				sequencers[instance.Name] = true
 
 				cc := make(map[eth.ChainID]client.RPC, len(chainIDs))
 				for _, chainID := range chainIDs {
@@ -116,7 +115,7 @@ func (o *Orchestrator) hydrateTestSequencersMaybe(sys stack.ExtensibleSystem) {
 
 				sys.AddTestSequencer(shim.NewTestSequencer(shim.TestSequencerConfig{
 					CommonConfig:   shim.NewCommonConfig(sys.T()),
-					ID:             id,
+					ID:             stack.NewTestSequencerID(instance.Name),
 					Client:         o.rpcClient(sys.T(), instance, RPCProtocol, "/", opts...),
 					ControlClients: cc,
 				}))

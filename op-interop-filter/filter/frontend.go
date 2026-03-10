@@ -30,6 +30,15 @@ func (f *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []comm
 	return nil
 }
 
+// PublicAdminFrontend exposes read-only admin methods on the public port.
+type PublicAdminFrontend struct {
+	backend *Backend
+}
+
+func (p *PublicAdminFrontend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return p.backend.FailsafeEnabled(), nil
+}
+
 // AdminFrontend handles admin RPC methods
 type AdminFrontend struct {
 	backend *Backend

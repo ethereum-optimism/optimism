@@ -31,7 +31,7 @@ const grafanaDockerPort = "3000"
 type L2MetricsRegistrar interface {
 	// RegisterL2MetricsTargets is called by components when they are started (or earlier) to register
 	// their metrics endpoints so that a prometheus instance may be spun up to scrape metrics.
-	RegisterL2MetricsTargets(serviceName stack.IDWithChain, endpoints ...PrometheusMetricsTarget)
+	RegisterL2MetricsTargets(serviceName stack.Keyed, endpoints ...PrometheusMetricsTarget)
 }
 
 type PrometheusMetricsTarget string

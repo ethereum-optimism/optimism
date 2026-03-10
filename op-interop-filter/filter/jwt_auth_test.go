@@ -122,6 +122,49 @@ func TestDedicatedAdminRPCServer(t *testing.T) {
 	})
 }
 
+func TestPublicAdminGetFailsafe(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+
+	filterServer := oprpc.NewServer(
+		"127.0.0.1",
+		0,
+		"test",
+		oprpc.WithLogger(logger),
+	)
+	filterServer.AddAPI(rpc.API{
+		Namespace: "supervisor",
+		Service:   new(testSupervisorAPI),
+	})
+	filterServer.AddAPI(rpc.API{
+		Namespace: "admin",
+		Service:   new(testAdminAPI),
+	})
+
+	require.NoError(t, filterServer.Start())
+	t.Cleanup(func() {
+		_ = filterServer.Stop()
+	})
+
+	endpoint := "http://" + filterServer.Endpoint()
+	filterClient, err := rpc.Dial(endpoint)
+	require.NoError(t, err)
+	t.Cleanup(filterClient.Close)
+
+	t.Run("admin_getFailsafeEnabled works on public port without JWT", func(t *testing.T) {
+		var res bool
+		err := filterClient.Call(&res, "admin_getFailsafeEnabled")
+		require.NoError(t, err)
+		require.Equal(t, false, res)
+	})
+
+	t.Run("supervisor API still works alongside public admin", func(t *testing.T) {
+		var res string
+		err := filterClient.Call(&res, "supervisor_ping")
+		require.NoError(t, err)
+		require.Equal(t, "pong", res)
+	})
+}
+
 func TestFilterAPIWithoutAdminServer(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 

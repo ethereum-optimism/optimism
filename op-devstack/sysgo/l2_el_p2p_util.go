@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
-func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID, trusted bool) stack.Option[*Orchestrator] {
+func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.ComponentID, trusted bool) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 

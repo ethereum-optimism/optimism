@@ -126,6 +126,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an invalid upgrade instruction is provided.
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
 
+    /// @notice Thrown when duplicate upgrade instruction keys are provided.
+    error OPContractsManagerV2_DuplicateUpgradeInstruction(string _key);
+
+    /// @notice Thrown when a function that must be delegatecalled is called directly.
+    error OPContractsManagerV2_OnlyDelegateCall();
+
     /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
 
@@ -147,9 +153,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.8
+    /// @custom:semver 7.0.12
     function version() public pure returns (string memory) {
-        return "7.0.8";
+        return "7.0.12";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -176,6 +182,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         Superchain-wide contracts.
     /// @param _inp The input for the Superchain upgrade.
     function upgradeSuperchain(SuperchainUpgradeInput memory _inp) external returns (SuperchainContracts memory) {
+        _onlyDelegateCall();
+
         // NOTE: Since this function is very minimal and only upgrades the SuperchainConfig
         // contract, not bothering to fully follow the pattern of the normal chain upgrade flow.
         // If we expand the scope of this function to add other Superchain-wide contracts, we'll
@@ -197,6 +205,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _cfg The full chain deployment configuration.
     /// @return The chain contracts.
     function deploy(FullConfig memory _cfg) external returns (ChainContracts memory) {
+        // Include msg.sender in the salt mixer to prevent cross-caller CREATE2 collisions.
+        string memory saltMixer = string(bytes.concat(bytes20(msg.sender), bytes(_cfg.saltMixer)));
+
         // Deploy is the ONLY place where we allow the "ALL" permission for proxy deployment.
         IOPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new IOPContractsManagerUtils.ExtraInstruction[](1);
@@ -207,7 +218,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Load the chain contracts.
         ChainContracts memory cts =
-            _loadChainContracts(ISystemConfig(address(0)), _cfg.l2ChainId, _cfg.saltMixer, instructions);
+            _loadChainContracts(ISystemConfig(address(0)), _cfg.l2ChainId, saltMixer, instructions);
 
         // Execute the deployment.
         return _apply(_cfg, cts, true);
@@ -217,6 +228,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _inp The chain upgrade input.
     /// @return The upgraded chain contracts.
     function upgrade(UpgradeInput memory _inp) external returns (ChainContracts memory) {
+        _onlyDelegateCall();
+
         // Sanity check that the SystemConfig isn't address(0). We use address(0) as a special
         // value to indicate that this is an initial deployment, so we definitely don't want to
         // allow it here.
@@ -264,6 +277,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///      look or function like all of the other functions in OPCMv2.
     /// @param _input The input parameters for the migration.
     function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) public {
+        _onlyDelegateCall();
+
         // Delegatecall to the migrator contract.
         (bool success, bytes memory result) =
             address(opcmMigrator).delegatecall(abi.encodeCall(IOPContractsManagerMigrator.migrate, (_input)));
@@ -286,6 +301,17 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         view
     {
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
+            // Check for duplicate instruction keys. PermittedProxyDeployment is exempt because
+            // multiple proxy deployments may need to be permitted in a single upgrade.
+            if (!_isMatchingInstructionByKey(_extraInstructions[i], Constants.PERMITTED_PROXY_DEPLOYMENT_KEY)) {
+                for (uint256 j = i + 1; j < _extraInstructions.length; j++) {
+                    if (keccak256(bytes(_extraInstructions[i].key)) == keccak256(bytes(_extraInstructions[j].key))) {
+                        revert OPContractsManagerV2_DuplicateUpgradeInstruction(_extraInstructions[i].key);
+                    }
+                }
+            }
+
+            // Check that the instruction is permitted.
             if (!_isPermittedInstruction(_extraInstructions[i])) {
                 revert OPContractsManagerV2_InvalidUpgradeInstruction(_extraInstructions[i].key);
             }
@@ -314,6 +340,17 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
                 return true;
             }
+        }
+
+        // Allow overriding the starting respected game type during upgrades. This is needed when
+        // disabling the currently-respected game type, since the validation requires the starting
+        // respected game type to correspond to an enabled game config.
+        if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingRespectedGameType")) {
+            GameType gameType = abi.decode(_instruction.data, (GameType));
+            if (gameType.raw() == GameTypes.CANNON_KONA.raw()) {
+                return isDevFeatureEnabled(DevFeatures.CANNON_KONA);
+            }
+            return true;
         }
 
         // Always return false by default.
@@ -644,7 +681,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
     function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
-        // Start validating the dispute game configs. Put allowed game types here.
+        // Start validating the dispute game configs. Put allowed game types here. Note that
+        // these game types are intentionally hardcoded rather than sourced from a shared utility.
+        // When new game types are added, this list and the corresponding list in the Migrator's
+        // _migratePortal function must both be updated.
         GameType[] memory validGameTypes = new GameType[](3);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
@@ -682,6 +722,21 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // remove this check at some point in the future if we stop making this assumption, but for
         // now we explicitly assert that it is enabled.
         if (!_cfg.disputeGameConfigs[1].enabled) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Validate that the starting respected game type corresponds to an enabled game config.
+        bool startingGameTypeFound = false;
+        for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
+            if (
+                _cfg.disputeGameConfigs[i].gameType.raw() == _cfg.startingRespectedGameType.raw()
+                    && _cfg.disputeGameConfigs[i].enabled
+            ) {
+                startingGameTypeFound = true;
+                break;
+            }
+        }
+        if (!startingGameTypeFound) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
     }
@@ -765,6 +820,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // ETHLockbox contract.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             // If we haven't already enabled the ETHLockbox, enable it.
+            // NOTE: setFeature will revert if the system is currently paused because toggling the
+            // lockbox changes the pause identifier. This means a guardian pause will block upgrades
+            // that enable interop. This is acceptable for now since interop is a dev feature and is
+            // not yet production-ready.
             if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
                 _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
             }
@@ -998,6 +1057,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///////////////////////////////////////////////////////////////////////////
     //                       INTERNAL UTILITY FUNCTIONS                      //
     ///////////////////////////////////////////////////////////////////////////
+
+    /// @notice Reverts if the function is being called directly rather than via delegatecall.
+    function _onlyDelegateCall() internal view {
+        if (address(this) == address(opcmV2)) {
+            revert OPContractsManagerV2_OnlyDelegateCall();
+        }
+    }
 
     /// @notice Helper for retrieving the version of the OPCM contract.
     /// @dev We use opcmV2.version() because it allows us to properly mock the version function

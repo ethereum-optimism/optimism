@@ -13,9 +13,9 @@ import (
 
 func TestCheckNodeEndpointErrors_NoErrors(t *testing.T) {
 	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, RollupEndpointErrors: nil},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, RollupEndpointErrors: make(map[string]bool)},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}}, // No RollupEndpointErrors field set
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointErrors: nil},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointErrors: make(map[string]bool)},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}}, // No NodeEndpointErrors field set
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
@@ -31,12 +31,12 @@ func TestCheckNodeEndpointErrors_SingleGameWithErrors(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
 			GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointErrors: map[string]bool{
+			NodeEndpointErrors: map[string]bool{
 				"endpoint_1": true,
 				"endpoint_2": true,
 			},
 		},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, RollupEndpointErrors: nil},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointErrors: nil},
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
@@ -52,21 +52,21 @@ func TestCheckNodeEndpointErrors_MultipleGamesWithOverlappingErrors(t *testing.T
 	games := []*types.EnrichedGameData{
 		{
 			GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointErrors: map[string]bool{
+			NodeEndpointErrors: map[string]bool{
 				"endpoint_1": true,
 				"endpoint_2": true,
 			},
 		},
 		{
 			GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointErrors: map[string]bool{
+			NodeEndpointErrors: map[string]bool{
 				"endpoint_2": true, // Overlapping with first game
 				"endpoint_3": true,
 			},
 		},
 		{
 			GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointErrors: map[string]bool{
+			NodeEndpointErrors: map[string]bool{
 				"endpoint_4": true,
 			},
 		},
@@ -84,17 +84,17 @@ func TestCheckNodeEndpointErrors_MultipleGamesWithOverlappingErrors(t *testing.T
 
 func TestCheckNodeEndpointErrors_MixedGamesWithAndWithoutErrors(t *testing.T) {
 	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, RollupEndpointErrors: nil},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointErrors: nil},
 		{
 			GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointErrors: map[string]bool{
+			NodeEndpointErrors: map[string]bool{
 				"endpoint_1": true,
 			},
 		},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, RollupEndpointErrors: make(map[string]bool)},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, NodeEndpointErrors: make(map[string]bool)},
 		{
 			GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x44}},
-			RollupEndpointErrors: map[string]bool{
+			NodeEndpointErrors: map[string]bool{
 				"endpoint_2": true,
 			},
 		},

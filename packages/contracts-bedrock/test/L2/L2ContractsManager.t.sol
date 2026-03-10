@@ -20,6 +20,7 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -123,7 +124,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.l1BlockCGTImpl = address(new L1BlockCGT());
         implementations.l2ToL1MessagePasserImpl = address(new L2ToL1MessagePasser());
         implementations.l2ToL1MessagePasserCGTImpl = address(new L2ToL1MessagePasserCGT());
-        implementations.optimismMintableERC721FactoryImpl = address(new OptimismMintableERC721Factory(address(0), 0));
+        implementations.optimismMintableERC721FactoryImpl = address(new OptimismMintableERC721Factory());
         implementations.proxyAdminImpl = address(new ProxyAdmin(address(0)));
         implementations.superchainETHBridgeImpl = address(new SuperchainETHBridge());
         implementations.ethLiquidityImpl = address(new ETHLiquidity());
@@ -293,6 +294,16 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             "MintableERC20Factory config mismatch"
         );
         assertEq(
+            _state1.config.mintableERC721Factory.bridge,
+            _state2.config.mintableERC721Factory.bridge,
+            "MintableERC721Factory bridge mismatch"
+        );
+        assertEq(
+            _state1.config.mintableERC721Factory.remoteChainID,
+            _state2.config.mintableERC721Factory.remoteChainID,
+            "MintableERC721Factory remoteChainID mismatch"
+        );
+        assertEq(
             _state1.config.sequencerFeeVault.recipient,
             _state2.config.sequencerFeeVault.recipient,
             "SequencerFeeVault recipient mismatch"
@@ -382,6 +393,18 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             address(IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).bridge()),
             address(preUpgradeConfig.mintableERC20Factory.bridge),
             "OptimismMintableERC20Factory.bridge not preserved"
+        );
+
+        // OptimismMintableERC721Factory
+        assertEq(
+            address(IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).bridge()),
+            address(preUpgradeConfig.mintableERC721Factory.bridge),
+            "OptimismMintableERC721Factory.bridge not preserved"
+        );
+        assertEq(
+            IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).remoteChainID(),
+            preUpgradeConfig.mintableERC721Factory.remoteChainID,
+            "OptimismMintableERC721Factory.remoteChainID not preserved"
         );
 
         // SequencerFeeVault
@@ -1020,20 +1043,20 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
     }
 
     /// @notice Tests that _isDevFeatureEnabled returns false when the flags implementation has no code.
-    function testFuzz_isDevFeatureEnabled_returnsFalse_whenFlagsImplHasNoCode(bytes32 _feature) public {
+    function testFuzz_isDevFeatureEnabled_whenFlagsImplHasNoCode_succeeds(bytes32 _feature) public {
         _simulateNoFlagsImpl();
         assertFalse(l2cm.isDevFeatureEnabled(_feature));
     }
 
     /// @notice Tests that the upgrade does not revert when L2DevFeatureFlags implementation has no code.
-    function test_upgrade_doesNotRevert_whenFlagsImplHasNoCode() public {
+    function test_upgrade_whenFlagsImplHasNoCode_succeeds() public {
         _simulateNoFlagsImpl();
         _executeUpgrade();
     }
 
     /// @notice Tests that all 7 interop predeploys retain their pre-upgrade implementations
     ///         when the flags implementation has no code.
-    function test_upgrade_skipsInteropPredeploys_whenFlagsImplHasNoCode() public {
+    function test_upgrade_skipsInteropPredeploys_succeeds() public {
         address[] memory interopPredeploys = new address[](7);
         interopPredeploys[0] = Predeploys.CROSS_L2_INBOX;
         interopPredeploys[1] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
@@ -1062,7 +1085,7 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
 
     /// @notice Tests that non-interop predeploys are still upgraded when L2DevFeatureFlags
     ///         implementation has no code.
-    function test_upgrade_upgradesNonInteropPredeploys_whenFlagsImplHasNoCode() public {
+    function test_upgrade_upgradesNonInteropPredeploys_succeeds() public {
         _simulateNoFlagsImpl();
         _executeUpgrade();
 

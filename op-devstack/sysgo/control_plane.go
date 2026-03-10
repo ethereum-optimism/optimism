@@ -17,47 +17,40 @@ func control(lifecycle stack.Lifecycle, mode stack.ControlAction) {
 	}
 }
 
-func (c *ControlPlane) SupervisorState(id stack.SupervisorID, mode stack.ControlAction) {
-	cid := stack.ConvertSupervisorID(id)
-	component, ok := c.o.registry.Get(cid.ComponentID)
+func (c *ControlPlane) SupervisorState(id stack.ComponentID, mode stack.ControlAction) {
+	component, ok := c.o.GetSupervisor(id)
 	c.o.P().Require().True(ok, "need supervisor to change state")
-	control(component.(Supervisor), mode)
+	control(component, mode)
 }
 
-func (c *ControlPlane) L2CLNodeState(id stack.L2CLNodeID, mode stack.ControlAction) {
-	cid := stack.ConvertL2CLNodeID(id)
-	component, ok := c.o.registry.Get(cid.ComponentID)
+func (c *ControlPlane) L2CLNodeState(id stack.ComponentID, mode stack.ControlAction) {
+	component, ok := c.o.GetL2CL(id)
 	c.o.P().Require().True(ok, "need l2cl node to change state")
-	control(component.(L2CLNode), mode)
+	control(component, mode)
 }
 
-func (c *ControlPlane) L2ELNodeState(id stack.L2ELNodeID, mode stack.ControlAction) {
-	cid := stack.ConvertL2ELNodeID(id)
-	component, ok := c.o.registry.Get(cid.ComponentID)
+func (c *ControlPlane) L2ELNodeState(id stack.ComponentID, mode stack.ControlAction) {
+	component, ok := c.o.GetL2EL(id)
 	c.o.P().Require().True(ok, "need l2el node to change state")
-	control(component.(L2ELNode), mode)
+	control(component, mode)
 }
 
-func (c *ControlPlane) FakePoSState(id stack.L1CLNodeID, mode stack.ControlAction) {
-	cid := stack.ConvertL1CLNodeID(id)
-	component, ok := c.o.registry.Get(cid.ComponentID)
+func (c *ControlPlane) FakePoSState(id stack.ComponentID, mode stack.ControlAction) {
+	component, ok := c.o.GetL1CL(id)
 	c.o.P().Require().True(ok, "need l1cl node to change state of fakePoS module")
-	s := component.(*L1CLNode)
-	control(s.fakepos, mode)
+	control(component.fakepos, mode)
 }
 
-func (c *ControlPlane) OPRBuilderNodeState(id stack.OPRBuilderNodeID, mode stack.ControlAction) {
-	cid := stack.ConvertOPRBuilderNodeID(id)
-	component, ok := c.o.registry.Get(cid.ComponentID)
+func (c *ControlPlane) OPRBuilderNodeState(id stack.ComponentID, mode stack.ControlAction) {
+	component, ok := c.o.GetOPRBuilder(id)
 	c.o.P().Require().True(ok, "need oprbuilder node to change state")
-	control(component.(*OPRBuilderNode), mode)
+	control(component, mode)
 }
 
-func (c *ControlPlane) RollupBoostNodeState(id stack.RollupBoostNodeID, mode stack.ControlAction) {
-	cid := stack.ConvertRollupBoostNodeID(id)
-	component, ok := c.o.registry.Get(cid.ComponentID)
+func (c *ControlPlane) RollupBoostNodeState(id stack.ComponentID, mode stack.ControlAction) {
+	component, ok := c.o.GetRollupBoost(id)
 	c.o.P().Require().True(ok, "need rollup boost node to change state")
-	control(component.(*RollupBoostNode), mode)
+	control(component, mode)
 }
 
 var _ stack.ControlPlane = (*ControlPlane)(nil)

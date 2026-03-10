@@ -136,7 +136,7 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
 		sysgo.WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL),
 		sysgo.WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
 
-		sysgo.WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}),
+		sysgo.WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2EL}),
 	)
 
 	orch := sysgo.NewOrchestrator(p, opts)

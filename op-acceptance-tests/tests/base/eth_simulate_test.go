@@ -15,7 +15,7 @@ func TestEthSimulateV1(gt *testing.T) {
 	ctx := t.Ctx()
 
 	type SimulateParams struct {
-		ReturnFullTransactions bool
+		ReturnFullTransactions bool  `json:"returnFullTransactions"`
 		BlockStateCalls        []any `json:"blockStateCalls"`
 	}
 
@@ -35,9 +35,6 @@ func TestEthSimulateV1(gt *testing.T) {
 	}
 
 	// wait until the chain mines at least one block
-	// (known limitation that we cannot simulate on top of the genesis block,
-	// Since the EL will just reuse the l1 attributes tx from the previous block
-	// and there is no such transaction for the genesis block).
 	sys.L1Network.WaitForBlock()
 
 	// Require the RPC call to succeed
@@ -68,14 +65,4 @@ func TestEthSimulateV1(gt *testing.T) {
 	bgu, err := hexutil.DecodeUint64(respBlock["blobGasUsed"].(string))
 	require.NoError(t, err)
 	require.NotZero(t, bgu)
-
-	err = rpcClient.CallContext(
-		ctx,
-		&resp,
-		"eth_simulateV1",
-		params,
-		"0x0", // Genesis block
-	)
-	t.Log("resp", resp)
-	require.Error(t, err, "eth_simulateV1 cannot be used on the genesis block")
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func TestProposer(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 
 	dgf := sys.DisputeGameFactory()

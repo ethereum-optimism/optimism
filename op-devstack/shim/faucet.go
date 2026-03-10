@@ -9,7 +9,7 @@ import (
 
 type FaucetConfig struct {
 	CommonConfig
-	ID     stack.FaucetID
+	ID     stack.ComponentID
 	Client client.RPC
 }
 
@@ -18,7 +18,7 @@ type FaucetConfig struct {
 // This deconflicts funding requests by parallel tests from the same funding account.
 type presetFaucet struct {
 	commonImpl
-	id           stack.FaucetID
+	id           stack.ComponentID
 	faucetClient *sources.FaucetClient
 }
 
@@ -33,7 +33,7 @@ func NewFaucet(cfg FaucetConfig) stack.Faucet {
 	}
 }
 
-func (p *presetFaucet) ID() stack.FaucetID {
+func (p *presetFaucet) ID() stack.ComponentID {
 	return p.id
 }
 

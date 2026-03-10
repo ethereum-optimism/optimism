@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { MockHelper } from "test/utils/MockHelper.sol";
 
 // Mocks
 import { MockFeeVault } from "test/mocks/MockFeeVault.sol";
@@ -11,6 +12,7 @@ import { RevertingRecipient } from "test/mocks/RevertingRecipient.sol";
 import { ReentrantMockFeeVault } from "test/mocks/ReentrantMockFeeVault.sol";
 
 // Libraries
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 
@@ -22,7 +24,7 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 
 /// @title FeeSplitter_TestInit
 /// @notice Reusable test initialization for `FeeSplitter` tests.
-contract FeeSplitter_TestInit is CommonTest {
+contract FeeSplitter_TestInit is CommonTest, MockHelper {
     // Events
     event FeesReceived(address indexed sender, uint256 amount, uint256 newBalance);
     event FeeDisbursementIntervalUpdated(uint128 oldFeeDisbursementInterval, uint128 newFeeDisbursementInterval);
@@ -53,12 +55,6 @@ contract FeeSplitter_TestInit is CommonTest {
         _feeVaults[1] = Predeploys.BASE_FEE_VAULT;
         _feeVaults[2] = Predeploys.L1_FEE_VAULT;
         _feeVaults[3] = Predeploys.OPERATOR_FEE_VAULT;
-    }
-
-    /// @notice Helper function to setup a mock and expect a call to it.
-    function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
-        vm.mockCall(_receiver, _calldata, _returned);
-        vm.expectCall(_receiver, _calldata);
     }
 
     /// @notice Helper to mock fee vault calls for successful withdrawal scenarios
@@ -127,7 +123,7 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
 
     /// @notice Test that the implementation contract disables initializers in the constructor
     function test_feeSplitterImplementation_constructorDisablesInitializers_succeeds() public {
-        bytes memory creationCode = vm.getCode("FeeSplitter.sol:FeeSplitter");
+        bytes memory creationCode = DeployUtils.getCode("FeeSplitter");
         address implementation;
 
         // Expect the Initialized event to be emitted

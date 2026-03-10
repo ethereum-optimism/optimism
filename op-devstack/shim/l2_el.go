@@ -14,7 +14,7 @@ type L2ELNodeConfig struct {
 	ELNodeConfig
 	EngineClient client.RPC
 	RollupCfg    *rollup.Config
-	ID           stack.L2ELNodeID
+	ID           stack.ComponentID
 }
 
 type rpcL2ELNode struct {
@@ -22,7 +22,7 @@ type rpcL2ELNode struct {
 	l2Client       *sources.L2Client
 	l2EngineClient *sources.EngineClient
 
-	id stack.L2ELNodeID
+	id stack.ComponentID
 }
 
 var _ stack.L2ELNode = (*rpcL2ELNode)(nil)
@@ -47,7 +47,7 @@ func NewL2ELNode(cfg L2ELNodeConfig) stack.L2ELNode {
 	}
 }
 
-func (r *rpcL2ELNode) ID() stack.L2ELNodeID {
+func (r *rpcL2ELNode) ID() stack.ComponentID {
 	return r.id
 }
 

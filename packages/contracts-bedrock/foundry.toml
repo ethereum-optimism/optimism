@@ -123,29 +123,9 @@ depth = 1
 #                       PROFILE: CIHEAVY                       #
 ################################################################
 
-[profile.ciheavy.fuzz]
-runs = 20000
-timeout = 300
-
-[profile.ciheavy.invariant]
-runs = 128
-depth = 512
-timeout = 300
-
-################################################################
-#                         PROFILE: LITE                        #
-################################################################
-
-[profile.lite]
+[profile.ciheavy]
 optimizer = false
 optimizer_runs = 0
-
-[profile.lite.fuzz]
-runs = 8
-
-[profile.lite.invariant]
-runs = 8
-depth = 8
 
 # IMPORTANT:
 # See the info in the "DEFAULT" profile to understand this section.
@@ -168,6 +148,92 @@ compilation_restrictions = [
   { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
   { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 }
 ]
+
+[profile.ciheavy.fuzz]
+runs = 20000
+timeout = 300
+
+[profile.ciheavy.invariant]
+runs = 128
+depth = 512
+timeout = 300
+
+################################################################
+#                       PROFILE: LITECI                        #
+################################################################
+# Unoptimized build (fast compile) with CI-level fuzz/invariant
+# settings. Used for PR test runs where build speed matters but
+# test thoroughness should match CI.
+
+[profile.liteci]
+optimizer = false
+optimizer_runs = 0
+
+# IMPORTANT:
+# See the info in the "DEFAULT" profile to understand this section.
+additional_compiler_profiles = [
+  { name = "dispute", optimizer_runs = 0 },
+]
+compilation_restrictions = [
+  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 }
+]
+
+[profile.liteci.fuzz]
+runs = 128
+
+[profile.liteci.invariant]
+runs = 64
+depth = 32
+
+################################################################
+#                         PROFILE: LITE                        #
+################################################################
+
+[profile.lite]
+optimizer = false
+optimizer_runs = 0
+
+# IMPORTANT:
+# See the info in the "DEFAULT" profile to understand this section.
+additional_compiler_profiles = [
+  { name = "dispute", optimizer_runs = 0 },
+]
+compilation_restrictions = [
+  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
+  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 }
+]
+
+[profile.lite.fuzz]
+runs = 8
+
+[profile.lite.invariant]
+runs = 8
+depth = 8
 
 ################################################################
 #                         PROFILE: KONTROL                     #

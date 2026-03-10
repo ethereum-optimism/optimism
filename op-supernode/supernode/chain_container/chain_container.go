@@ -46,6 +46,9 @@ type ChainContainer interface {
 	// invalidatedBlock is the block that triggered the rewind and is passed to reset callbacks.
 	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
 	RegisterVerifier(v activity.VerificationActivity)
+	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
+	// This allows callers to determine the minimum L1 block that all verifiers have processed.
+	VerifierCurrentL1s() []eth.BlockID
 	// FetchReceipts fetches the receipts for a given block by hash.
 	// Returns block info and receipts, or an error if the block or receipts cannot be fetched.
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
@@ -158,6 +161,14 @@ func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity)
 	c.verifiers = append(c.verifiers, v)
 }
 
+func (c *simpleChainContainer) VerifierCurrentL1s() []eth.BlockID {
+	result := make([]eth.BlockID, len(c.verifiers))
+	for i, v := range c.verifiers {
+		result[i] = v.CurrentL1()
+	}
+	return result
+}
+
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
 func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 	initOverload.SuperAuthority = superAuthority
@@ -200,6 +211,13 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		// Pass in the chain container as a SuperAuthority
 		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
 		if c.pause.Load() {
+			// Check for stop/cancellation even while paused, so teardown doesn't hang.
+			// Without this, a stuck pause (e.g. from RewindEngine exiting before Resume)
+			// causes this loop to spin forever, blocking wg.Wait() in Supernode.Stop().
+			if c.stop.Load() || ctx.Err() != nil {
+				c.log.Info("chain container stop requested while paused, stopping restart loop")
+				break
+			}
 			c.log.Info("chain container paused")
 			time.Sleep(1 * time.Second)
 			continue
@@ -490,6 +508,10 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	if err != nil {
 		return err
 	}
+	// Always resume the container on return, even if we exit early due to context cancellation
+	// or an error mid-rewind. Without this, a cancelled ctx leaves pause=true permanently,
+	// causing the Start() loop to spin forever and block Supernode.Stop()'s wg.Wait().
+	defer c.Resume(context.Background()) //nolint:errcheck
 	c.log.Info("chain_container/RewindEngine: paused container")
 
 	// stop the vn

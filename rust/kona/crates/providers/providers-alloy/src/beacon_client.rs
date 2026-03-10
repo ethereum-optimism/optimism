@@ -73,6 +73,13 @@ pub trait BeaconClient {
     /// The error type for [`BeaconClient`] implementations.
     type Error: core::fmt::Display;
 
+    /// Returns the slot number if this error represents a beacon slot not found (HTTP 404).
+    ///
+    /// Returns `None` for all other error kinds. This allows the blob provider to distinguish
+    /// permanently-unavailable slots (missed/orphaned beacon blocks) from transient errors,
+    /// and trigger a pipeline reset instead of retrying indefinitely.
+    fn slot_not_found(err: &Self::Error) -> Option<u64>;
+
     /// Returns the slot interval in seconds.
     async fn slot_interval(&self) -> Result<APIConfigResponse, Self::Error>;
 
@@ -104,6 +111,11 @@ pub enum BeaconClientError {
     /// HTTP request failed.
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
+
+    /// The beacon node returned HTTP 404 for the requested slot. This means the slot was missed
+    /// or orphaned and the blobs will never be available.
+    #[error("Beacon slot not found (HTTP 404) for slot {0}")]
+    SlotNotFound(u64),
 
     /// Blob hash not found in beacon response.
     #[error("Blob hash not found in beacon response: {0}")]
@@ -162,8 +174,16 @@ impl OnlineBeaconClient {
             .get(format!("{}/{}/{}", self.base, BLOBS_METHOD_PREFIX, slot))
             .query(&[("versioned_hashes", &params.join(","))])
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+
+        // A 404 means the beacon slot was missed or orphaned. Blobs for such slots will never
+        // become available, so surface this as a distinct error rather than a generic HTTP error
+        // so that callers can trigger a pipeline reset instead of retrying indefinitely.
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(BeaconClientError::SlotNotFound(slot));
+        }
+
+        let response = response.error_for_status()?;
         let bundle = response.json::<GetBlobsResponse>().await?;
 
         let returned_blobs_mapped_by_hash = bundle
@@ -193,6 +213,10 @@ impl OnlineBeaconClient {
 #[async_trait]
 impl BeaconClient for OnlineBeaconClient {
     type Error = BeaconClientError;
+
+    fn slot_not_found(err: &Self::Error) -> Option<u64> {
+        if let BeaconClientError::SlotNotFound(slot) = err { Some(*slot) } else { None }
+    }
 
     async fn slot_interval(&self) -> Result<APIConfigResponse, Self::Error> {
         kona_macros::inc!(gauge, Metrics::BEACON_CLIENT_REQUESTS, "method" => "spec");
@@ -330,5 +354,31 @@ mod tests {
             }
             blobs_mock.delete();
         }
+    }
+
+    /// Regression test: a beacon node HTTP 404 for a given slot must return
+    /// `BeaconClientError::SlotNotFound` rather than a generic `Http` error.
+    /// This allows the blob provider layer to map it to `BlobProviderError::BlobNotFound`
+    /// and the pipeline to issue a reset rather than retrying indefinitely.
+    #[tokio::test]
+    async fn test_filtered_beacon_blobs_404_returns_slot_not_found() {
+        let slot = 13779552u64; // slot from the real-world missed-slot incident
+        let test_blob_hash: FixedBytes<32> = FixedBytes::from_hex(TEST_BLOB_HASH_HEX).unwrap();
+        let requested_blob_hashes: Vec<B256> = vec![test_blob_hash];
+
+        let server = MockServer::start();
+        let blobs_mock = server.mock(|when, then| {
+            when.method(GET).path(format!("/eth/v1/beacon/blobs/{slot}"));
+            then.status(404).body(r#"{"code":404,"message":"Block not found"}"#);
+        });
+
+        let client = OnlineBeaconClient::new_http(server.base_url());
+        let response = client.filtered_beacon_blobs(slot, &requested_blob_hashes).await;
+        blobs_mock.assert();
+
+        assert!(
+            matches!(response, Err(BeaconClientError::SlotNotFound(s)) if s == slot),
+            "expected SlotNotFound({slot}), got {response:?}"
+        );
     }
 }

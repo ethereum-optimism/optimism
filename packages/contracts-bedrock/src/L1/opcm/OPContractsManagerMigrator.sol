@@ -5,12 +5,12 @@ pragma solidity 0.8.15;
 import { OPContractsManagerUtilsCaller } from "src/L1/opcm/OPContractsManagerUtilsCaller.sol";
 
 // Libraries
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
-import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
@@ -46,6 +46,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the starting respected game type is not a valid super game type.
     error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
 
+    /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
+    error OPContractsManagerMigrator_InteropNotEnabled();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -63,8 +66,21 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      temporary need to support the interop migration action. It will likely be removed in
     ///      the near future once interop support is baked more directly into OPCM. It does NOT
     ///      look or function like all of the other functions in OPCMv2.
+    /// @dev NOTE: This function is designed exclusively for the case of N independent pre-interop
+    ///      chains merging into a single interop set. It does NOT support partial migration (i.e.,
+    ///      migrating a subset of chains that share a lockbox), re-migration of already-migrated
+    ///      chains, or any other migration scenario. Re-calling this function on already-migrated
+    ///      portals will corrupt the shared DisputeGameFactory used by all migrated chains.
+    /// @dev NOTE: Unlike deploy/upgrade, this function does not enforce a SuperchainConfig
+    ///      version floor. The caller is responsible for ensuring the SuperchainConfig is
+    ///      upgraded to the current OPCM release version before calling migrate.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
+        // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
+        if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            revert OPContractsManagerMigrator_InteropNotEnabled();
+        }
+
         // Check that the starting respected game type is a valid super game type.
         if (
             _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON.raw()
@@ -93,7 +109,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // what we use here.
         IOPContractsManagerUtils.ProxyDeployArgs memory proxyDeployArgs = IOPContractsManagerUtils.ProxyDeployArgs({
             proxyAdmin: _input.chainSystemConfigs[0].proxyAdmin(),
-            addressManager: IAddressManager(address(0)), // AddressManager NOT needed for these proxies.
+            addressManager: _input.chainSystemConfigs[0].proxyAdmin().addressManager(),
             l2ChainId: block.timestamp,
             saltMixer: "interop salt mixer"
         });
@@ -139,16 +155,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             )
         );
 
-        // Deploy the new DelayedWETH.
-        IDelayedWETH delayedWETH = IDelayedWETH(
-            _loadOrDeployProxy(
-                address(0), // Source from address(0) so we always deploy a new proxy.
-                bytes4(0),
-                proxyDeployArgs,
-                "DelayedWETH",
-                extraInstructions
-            )
-        );
+        // Reuse the existing DelayedWETH from chainSystemConfigs[0] rather than deploying a
+        // new one. The migrated chains share a SystemConfig, and by extension share its
+        // DelayedWETH. Deploying a new one would create a divergence — SystemConfig would
+        // still point to the old one, and future upgrades (which load DelayedWETH from
+        // SystemConfig) would reference a different DelayedWETH than the shared DGF games.
+        IDelayedWETH delayedWETH = IDelayedWETH(payable(_input.chainSystemConfigs[0].delayedWETH()));
 
         // Separate context to avoid stack too deep (isolate the implementations variable).
         {
@@ -156,6 +168,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
 
             // Initialize the new ETHLockbox.
+            // NOTE: Shared contracts (ETHLockbox, AnchorStateRegistry, DelayedWETH) are
+            // intentionally initialized with chainSystemConfigs[0]. All chains are validated to
+            // share the same ProxyAdmin owner and SuperchainConfig, so the first chain's
+            // SystemConfig is used as the canonical governance reference for shared contracts.
             _upgrade(
                 proxyDeployArgs.proxyAdmin,
                 address(ethLockbox),
@@ -187,14 +203,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 )
             );
 
-            // Initialize the new DelayedWETH.
-            _upgrade(
-                proxyDeployArgs.proxyAdmin,
-                address(delayedWETH),
-                impls.delayedWETHImpl,
-                abi.encodeCall(IDelayedWETH.initialize, (_input.chainSystemConfigs[0]))
-            );
-
             // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.
             for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
                 _migratePortal(_input.chainSystemConfigs[i], ethLockbox, anchorStateRegistry);
@@ -202,6 +210,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
 
         // Set up the dispute games in the new DisputeGameFactory.
+        // NOTE: Unlike deploy/upgrade, migration does not perform full game config
+        // validation. This is intentional:
+        // 1. Migration is a privileged, one-off admin action by the ProxyAdmin owner
+        // 2. getGameImpl() rejects unrecognized game types
+        // 3. Only super game types are meaningful here — non-super types would have
+        //    l2ChainId=0, causing FaultDisputeGame to revert on chain ID mismatch
+        // 4. All supplied configs are registered regardless of the enabled flag —
+        //    callers must only include configs they want active
         for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
             disputeGameFactory.setImplementation(
                 _input.disputeGameConfigs[i].gameType,
@@ -238,7 +254,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         existingLockbox.migrateLiquidity(_newLockbox);
 
         // Clear out any implementations that might exist in the old DisputeGameFactory proxy.
-        // We clear out all potential game types to be safe.
+        // We clear out all potential game types to be safe. These game types are intentionally
+        // hardcoded rather than sourced from a shared utility. When new game types are added,
+        // this list and the corresponding list in OPCMv2's _assertValidFullConfig must both
+        // be updated.
         existingDGF.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");

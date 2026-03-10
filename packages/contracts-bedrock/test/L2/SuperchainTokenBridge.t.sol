@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 // Testing
 import { Test } from "test/setup/Test.sol";
+import { MockHelper } from "test/utils/MockHelper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -18,7 +19,7 @@ import { MockSuperchainERC20Implementation } from "test/mocks/SuperchainERC20Imp
 
 /// @title SuperchainTokenBridge_TestInit
 /// @notice Reusable test initialization for `SuperchainTokenBridge` tests.
-abstract contract SuperchainTokenBridge_TestInit is Test {
+abstract contract SuperchainTokenBridge_TestInit is Test, MockHelper {
     address internal constant ZERO_ADDRESS = address(0);
     string internal constant NAME = "SuperchainERC20";
     string internal constant SYMBOL = "OSE";
@@ -47,12 +48,6 @@ abstract contract SuperchainTokenBridge_TestInit is Test {
         //         REMOTE_TOKEN, NAME, SYMBOL, 18
         //     )
         // );
-    }
-
-    /// @notice Helper function to setup a mock and expect a call to it.
-    function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
-        vm.mockCall(_receiver, _calldata, _returned);
-        vm.expectCall(_receiver, _calldata);
     }
 }
 
