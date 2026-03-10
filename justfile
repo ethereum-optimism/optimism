@@ -352,7 +352,7 @@ build-rust-release:
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
 
-# Updates the NUT bundle for a fork. Generates fresh bundle from contracts and snapshots it.
+# Snapshots current-upgrade-bundle.json as a fork's NUT bundle and updates the lock file.
 update-nuts fork:
   go run ./ops/scripts/update-nuts {{fork}}
 

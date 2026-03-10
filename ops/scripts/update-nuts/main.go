@@ -44,22 +44,12 @@ func run(fork forks.Name) error {
 		return fmt.Errorf("finding monorepo root: %w", err)
 	}
 
-	// Generate fresh bundle from contracts.
-	fmt.Println("Generating NUT bundle...")
-	contractsDir := filepath.Join(root, "packages", "contracts-bedrock")
-	cmd := exec.Command("just", "generate-nut-bundle")
-	cmd.Dir = contractsDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("generating NUT bundle: %w", err)
-	}
-
 	// Copy current-upgrade-bundle.json → <fork>_nut_bundle.json.
-	srcPath := filepath.Join(contractsDir, "snapshots", "upgrades", "current-upgrade-bundle.json")
+	// The caller is responsible for running `just generate-nut-bundle` first if needed.
+	srcPath := filepath.Join(root, "packages", "contracts-bedrock", "snapshots", "upgrades", "current-upgrade-bundle.json")
 	content, err := os.ReadFile(srcPath)
 	if err != nil {
-		return fmt.Errorf("reading generated bundle: %w", err)
+		return fmt.Errorf("reading bundle (run 'just generate-nut-bundle' in packages/contracts-bedrock/ first): %w", err)
 	}
 
 	bundleRel := filepath.Join("op-node", "rollup", "derive", string(fork)+"_nut_bundle.json")
