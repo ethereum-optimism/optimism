@@ -173,7 +173,7 @@ func main() {
 							verifyCmd := exec.Command("bash", "-c", e.cat.VerifyCommand)
 							verifyCmd.Dir = "."
 							verifyCmd.Env = os.Environ()
-							_, verifyErr := verifyCmd.CombinedOutput()
+							verifyOut, verifyErr := verifyCmd.CombinedOutput()
 							verifyDur := time.Since(start)
 
 							if verifyErr == nil {
@@ -185,6 +185,19 @@ func main() {
 								return
 							}
 							fmt.Printf("--- %s: CACHE STALE (key=%s matched, restored, but verify failed in %s) ---\n", e.name, res.CacheKey, verifyDur.Round(time.Millisecond))
+							if len(verifyOut) > 0 {
+								fmt.Printf("    verify output: %s\n", strings.TrimSpace(string(verifyOut)))
+							}
+							for _, wp := range e.cat.WorkspacePaths {
+								if info, statErr := os.Stat(wp); statErr != nil {
+									fmt.Printf("    DEBUG: %s: %v\n", wp, statErr)
+								} else if info.IsDir() {
+									entries, _ := os.ReadDir(wp)
+									fmt.Printf("    DEBUG: %s: dir with %d entries\n", wp, len(entries))
+								} else {
+									fmt.Printf("    DEBUG: %s: file (%d bytes)\n", wp, info.Size())
+								}
+							}
 							fmt.Printf("    WARNING: cache key was insufficient — rebuilding\n")
 							warnPath := filepath.Join(*resultsDir, e.name+"-cache-verify-failed.json")
 							warnJSON, _ := json.Marshal(map[string]string{
