@@ -25,7 +25,6 @@ var mainlinePRJobs = map[string]string{
 	"go_fuzz":             "fuzz-golang-*",
 	"cannon_prestate":     "cannon-prestate",
 	"cannon_tests":        "cannon-go-lint-and-test",
-	"go_binaries_for_sysgo": "go-binaries-for-sysgo",
 	"acceptance_tests":    "memory-all (op-acceptance-tests)",
 	"generated_mocks":     "check-generated-mocks-*",
 	"shell_check":         "shell-check",
