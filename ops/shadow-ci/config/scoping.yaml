@@ -83,12 +83,10 @@ job_categories:
       - "cannon/"
       - "op-program/"
     always_on_develop: true
-    depends_on: ["contracts_build"]
+    depends_on: ["contracts_build", "cannon_prestate"]
     command: |
       make op-program cannon
     workspace_paths:
-      - "op-program/bin"
-      - "cannon/bin"
       - ".devnet"
     cache_inputs:
       - "cannon/"
