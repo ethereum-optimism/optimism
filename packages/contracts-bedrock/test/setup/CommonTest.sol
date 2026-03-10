@@ -131,13 +131,24 @@ abstract contract CommonTest is Test, Setup, Events {
         excludeContract(address(deploy));
         excludeContract(address(deploy.cfg()));
 
-        // Deploy L1
-        Setup.L1();
-        // Deploy L2
-        Setup.L2();
+        // L1 setup only for non-L2-fork tests
+        if (!isL2ForkTest()) {
+            Setup.L1();
+        }
+
+        // L2 setup: use fork or genesis
+        if (isL2ForkTest()) {
+            Setup.L2Fork();
+        } else if (!isForkTest()) {
+            Setup.L2();
+        }
 
         // Call bridge initializer setup function
-        bridgeInitializerSetUp();
+        if (isL2ForkTest()) {
+            console.log("CommonTest: L2 fork test detected, skipping bridge initializer setup");
+        } else {
+            bridgeInitializerSetUp();
+        }
     }
 
     function bridgeInitializerSetUp() public {

@@ -205,6 +205,20 @@ coverage-lcov-all *ARGS:
   just coverage-lcov-upgrade --match-contract "OPContractsManager.*_Upgrade_Test" {{ARGS}} && \
   lcov -a lcov.info -a lcov-upgrade.info -o lcov-all.info
 
+# Runs L2 fork upgrade tests against a specified L2 chain.
+# Usage: just test-l2-fork-upgrade <L2_RPC_URL> <BLOCK_NUMBER> [ARGS]
+test-l2-fork-upgrade L2_RPC BLOCK *ARGS: build-go-ffi
+  #!/bin/bash
+  set -euo pipefail
+  # Generate NUT bundle
+  forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig "run()" 1
+  # Run L2 fork upgrade test
+  L2_FORK_TEST=true \
+  L2_FORK_RPC_URL={{L2_RPC}} \
+  L2_FORK_BLOCK_NUMBER={{BLOCK}} \
+  DEV_FEATURE__L2CM=true \
+  forge test --match-contract L2ForkUpgrade {{ARGS}}
+
 ########################################################
 #                        DEPLOY                        #
 ########################################################

@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Contracts
 import { L2ProxyAdmin } from "src/L2/L2ProxyAdmin.sol";
@@ -67,7 +68,7 @@ library L2ContractsManagerUtils {
         config_ = L2ContractsManagerTypes.FeeVaultConfig({
             recipient: feeVault.RECIPIENT(),
             minWithdrawalAmount: feeVault.MIN_WITHDRAWAL_AMOUNT(),
-            withdrawalNetwork: feeVault.WITHDRAWAL_NETWORK()
+            withdrawalNetwork: Types.WithdrawalNetwork.L2
         });
     }
 

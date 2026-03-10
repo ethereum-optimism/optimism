@@ -288,6 +288,26 @@ library Config {
         return vm.envOr("FORK_TEST", false);
     }
 
+    /// @notice Returns true if this is an L2 fork test.
+    function l2ForkTest() internal view returns (bool) {
+        return vm.envOr("L2_FORK_TEST", false);
+    }
+
+    /// @notice Returns the L2 RPC URL for forking.
+    function l2ForkRpcUrl() internal view returns (string memory) {
+        return vm.envString("L2_FORK_RPC_URL");
+    }
+
+    /// @notice Returns the L2 block number to fork at.
+    function l2ForkBlockNumber() internal view returns (uint256) {
+        return vm.envUint("L2_FORK_BLOCK_NUMBER");
+    }
+
+    /// @notice Returns the L2 chain identifier (e.g., "op", "base", "mode").
+    function l2ForkChain() internal view returns (string memory) {
+        return vm.envOr("L2_FORK_CHAIN", string("op"));
+    }
+
     /// @notice Returns true if the development feature interop is enabled.
     function devFeatureInterop() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);

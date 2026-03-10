@@ -31,10 +31,10 @@ library UpgradeUtils {
     uint256 internal constant IMPLEMENTATION_COUNT = 28;
 
     /// @notice The default gas limit for a deployment transaction.
-    uint64 internal constant DEFAULT_DEPLOYMENT_GAS = 375_000;
+    uint64 internal constant DEFAULT_DEPLOYMENT_GAS = 1_000_000_000;
 
     /// @notice The default gas limit for an upgrade transaction.
-    uint64 internal constant DEFAULT_UPGRADE_GAS = 50_000;
+    uint64 internal constant DEFAULT_UPGRADE_GAS = 1_000_000;
 
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
