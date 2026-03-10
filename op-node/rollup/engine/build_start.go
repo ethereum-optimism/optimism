@@ -19,6 +19,10 @@ func (ev BuildStartEvent) String() string {
 }
 
 func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent) {
+	// Store the attributes so they can be carried through to deposits-only requests,
+	// surviving any pipeline resets that may occur between build start and payload processing.
+	e.lastBuildAttribs = ev.Attributes
+
 	rpcCtx, cancel := context.WithTimeout(e.ctx, buildStartTimeout)
 	defer cancel()
 

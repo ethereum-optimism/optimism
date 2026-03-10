@@ -91,9 +91,12 @@ func (ev PipelineStepEvent) String() string {
 // DepositsOnlyPayloadAttributesRequestEvent requests a deposits-only version of the attributes from
 // the pipeline. It is sent by the engine deriver and received by the PipelineDeriver.
 // This event got introduced with Holocene.
+// Attributes carries the original payload attributes so the handler does not depend on
+// mutable pipeline state (lastAttribs) which can be cleared by an interleaving reset.
 type DepositsOnlyPayloadAttributesRequestEvent struct {
 	Parent      eth.BlockID
 	DerivedFrom eth.L1BlockRef
+	Attributes  *AttributesWithParent
 }
 
 func (ev DepositsOnlyPayloadAttributesRequestEvent) String() string {
@@ -177,14 +180,22 @@ func (d *PipelineDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.needAttributesConfirmation = false
 	case DepositsOnlyPayloadAttributesRequestEvent:
 		d.pipeline.log.Warn("Deriving deposits-only attributes", "origin", d.pipeline.Origin())
-		attrib, err := d.pipeline.DepositsOnlyAttributes(x.Parent, x.DerivedFrom)
-		if err != nil {
-			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-				Err: fmt.Errorf("deriving deposits-only attributes: %w", err),
-			})
-			return true
+		if x.Attributes != nil {
+			// Use the attributes carried in the event, avoiding dependence on
+			// pipeline state (lastAttribs) which may have been cleared by a reset.
+			attrib := d.pipeline.ApplyDepositsOnly(x.Attributes)
+			d.emitDerivedAttributesEvent(ctx, attrib)
+		} else {
+			// Fallback for callers that don't yet provide attributes in the event.
+			attrib, err := d.pipeline.DepositsOnlyAttributes(x.Parent, x.DerivedFrom)
+			if err != nil {
+				d.emitter.Emit(ctx, rollup.ResetEvent{
+					Err: fmt.Errorf("deriving deposits-only attributes: %w", err),
+				})
+				return true
+			}
+			d.emitDerivedAttributesEvent(ctx, attrib)
 		}
-		d.emitDerivedAttributesEvent(ctx, attrib)
 	case ProvideL1Traversal:
 		if l1t, ok := d.pipeline.traversal.(ManagedL1Traversal); ok {
 			if err := l1t.ProvideNextL1(d.ctx, x.NextL1); err != nil {

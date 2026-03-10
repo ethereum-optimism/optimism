@@ -168,6 +168,11 @@ type EngineController struct {
 	superAuthority rollup.SuperAuthority
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
+
+	// lastBuildAttribs stores the attributes from the most recent BuildStartEvent.
+	// Used to carry attributes through to DepositsOnlyPayloadAttributesRequestEvent
+	// so the handler does not depend on pipeline state that may be cleared by a reset.
+	lastBuildAttribs *derive.AttributesWithParent
 }
 
 var _ event.Deriver = (*EngineController)(nil)

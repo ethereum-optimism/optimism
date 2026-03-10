@@ -44,7 +44,7 @@ func (e *EngineController) onBuildInvalid(ctx context.Context, ev BuildInvalidEv
 	}
 
 	if ev.Attributes.IsDerived() && e.rollupCfg.IsHolocene(ev.Attributes.DerivedFrom.Time) {
-		e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom)
+		e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom, ev.Attributes)
 		return
 	}
 
@@ -63,11 +63,12 @@ func (e *EngineController) onBuildInvalid(ctx context.Context, ev BuildInvalidEv
 	e.emitter.Emit(ctx, InvalidPayloadAttributesEvent(ev))
 }
 
-func (e *EngineController) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef) {
+func (e *EngineController) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef, attribs *derive.AttributesWithParent) {
 	e.log.Warn("Holocene active, requesting deposits-only attributes", "parent", parent, "derived_from", derivedFrom)
-	// request deposits-only version
+	// request deposits-only version, carrying the attributes to avoid dependence on pipeline state
 	e.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
 		Parent:      parent,
 		DerivedFrom: derivedFrom,
+		Attributes:  attribs,
 	})
 }

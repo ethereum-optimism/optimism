@@ -147,6 +147,17 @@ func (aq *AttributesQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.Sy
 	return io.EOF
 }
 
+// ApplyDepositsOnly transforms the provided attributes to deposits-only,
+// flushes channel data, and updates lastAttribs.
+// This is used when the caller already has the attributes (carried in the event)
+// and does not need to read them from pipeline state.
+func (aq *AttributesQueue) ApplyDepositsOnly(attribs *AttributesWithParent) *AttributesWithParent {
+	aq.prev.FlushChannel()
+	attrs := attribs.WithDepositsOnly()
+	aq.lastAttribs = attrs
+	return attrs
+}
+
 func (aq *AttributesQueue) DepositsOnlyAttributes(parent eth.BlockID, derivedFrom eth.L1BlockRef) (*AttributesWithParent, error) {
 	// Sanity checks - these cannot happen with correct deriver implementations.
 	if aq.batch != nil {

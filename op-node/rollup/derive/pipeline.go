@@ -155,6 +155,13 @@ func (dp *DerivationPipeline) DepositsOnlyAttributes(parent eth.BlockID, derived
 	return dp.attrib.DepositsOnlyAttributes(parent, derivedFrom)
 }
 
+// ApplyDepositsOnly transforms the given attributes to deposits-only,
+// flushes channel data, and updates pipeline state.
+// Unlike DepositsOnlyAttributes, this does not depend on lastAttribs being populated.
+func (dp *DerivationPipeline) ApplyDepositsOnly(attribs *AttributesWithParent) *AttributesWithParent {
+	return dp.attrib.ApplyDepositsOnly(attribs)
+}
+
 // Origin is the L1 block of the inner-most stage of the derivation pipeline,
 // i.e. the L1 chain up to and including this point included and/or produced all the safe L2 blocks.
 func (dp *DerivationPipeline) Origin() eth.L1BlockRef {

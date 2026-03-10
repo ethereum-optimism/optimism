@@ -43,7 +43,7 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 				"blockNumber", payload.BlockNumber,
 				"blockHash", payload.BlockHash,
 			)
-			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
+			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom, e.lastBuildAttribs)
 			return
 		}
 	}
@@ -62,7 +62,7 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 		// Depending on execution engine, not all block-validity checks run immediately on build-start
 		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
 		if ev.DerivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(ev.DerivedFrom.Time) {
-			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
+			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom, e.lastBuildAttribs)
 			return
 		}
 
