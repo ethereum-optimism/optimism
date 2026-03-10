@@ -193,7 +193,7 @@ func TestResolve_CacheHit_NoVerify(t *testing.T) {
 	}
 }
 
-func TestResolve_CacheHit_VerifyPass(t *testing.T) {
+func TestResolve_CacheHit_WithVerifyCommand(t *testing.T) {
 	repo := initGitRepo(t)
 	cacheDir := t.TempDir()
 	r := NewResolver(repo, cacheDir)
@@ -201,7 +201,7 @@ func TestResolve_CacheHit_VerifyPass(t *testing.T) {
 	cat := model.JobCategoryConfig{
 		CacheInputs:    []string{"src/"},
 		WorkspacePaths: []string{"build/"},
-		VerifyCommand:  "true", // always passes
+		VerifyCommand:  "true", // has a verify command
 	}
 
 	key, _ := r.ComputeKey("test", cat)
@@ -214,37 +214,46 @@ func TestResolve_CacheHit_VerifyPass(t *testing.T) {
 		t.Fatalf("Resolve: %v", err)
 	}
 
-	if !res.Hit || !res.Verified {
-		t.Errorf("expected hit+verified, got hit=%v verified=%v", res.Hit, res.Verified)
-	}
-}
-
-func TestResolve_CacheHit_VerifyFail(t *testing.T) {
-	repo := initGitRepo(t)
-	cacheDir := t.TempDir()
-	r := NewResolver(repo, cacheDir)
-
-	cat := model.JobCategoryConfig{
-		CacheInputs:    []string{"src/"},
-		WorkspacePaths: []string{"build/"},
-		VerifyCommand:  "false", // always fails
-	}
-
-	key, _ := r.ComputeKey("test", cat)
-	catDir := filepath.Join(cacheDir, "test")
-	os.MkdirAll(catDir, 0o755)
-	os.WriteFile(filepath.Join(catDir, "cache.key"), []byte(key), 0o644)
-
-	res, err := r.Resolve("test", cat)
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-
+	// Resolve returns Hit=true but Verified=false when verify_command exists.
+	// The caller restores artifacts first, then runs verify.
 	if !res.Hit {
 		t.Error("expected cache hit")
 	}
 	if res.Verified {
-		t.Error("expected verify to fail")
+		t.Error("expected Verified=false (caller runs verify after restore)")
+	}
+}
+
+func TestResolve_CacheHit_VerifyDeferred(t *testing.T) {
+	repo := initGitRepo(t)
+	cacheDir := t.TempDir()
+	r := NewResolver(repo, cacheDir)
+
+	// Both "true" and "false" verify commands produce the same Resolve result:
+	// Hit=true, Verified=false. Verify runs after restore, not in Resolve.
+	for _, cmd := range []string{"true", "false"} {
+		cat := model.JobCategoryConfig{
+			CacheInputs:    []string{"src/"},
+			WorkspacePaths: []string{"build/"},
+			VerifyCommand:  cmd,
+		}
+
+		key, _ := r.ComputeKey("test", cat)
+		catDir := filepath.Join(cacheDir, "test")
+		os.MkdirAll(catDir, 0o755)
+		os.WriteFile(filepath.Join(catDir, "cache.key"), []byte(key), 0o644)
+
+		res, err := r.Resolve("test", cat)
+		if err != nil {
+			t.Fatalf("Resolve (cmd=%s): %v", cmd, err)
+		}
+
+		if !res.Hit {
+			t.Errorf("cmd=%s: expected cache hit", cmd)
+		}
+		if res.Verified {
+			t.Errorf("cmd=%s: expected Verified=false (deferred to caller)", cmd)
+		}
 	}
 }
 

@@ -145,6 +145,7 @@ func main() {
 			}
 
 			// Cache resolution for categories with workspace outputs.
+			// Flow: check key → restore → verify → use or rebuild.
 			if resolver != nil && len(e.cat.WorkspacePaths) > 0 {
 				if *dryRun {
 					if key, keyErr := resolver.ComputeKey(e.name, e.cat); keyErr == nil {
@@ -154,28 +155,44 @@ func main() {
 					res, resolveErr := resolver.Resolve(e.name, e.cat)
 					if resolveErr != nil {
 						fmt.Printf("--- %s: cache key error: %v, proceeding with full build ---\n", e.name, resolveErr)
-					} else if res.Hit && res.Verified {
-						// Cache hit — restore artifacts and skip build.
+					} else if res.Hit {
+						// Key matched — restore artifacts first, then verify.
 						if restoreErr := resolver.Restore(e.name, e.cat); restoreErr != nil {
 							fmt.Printf("--- %s: cache restore failed: %v, proceeding with full build ---\n", e.name, restoreErr)
-						} else {
-							fmt.Printf("--- %s: CACHED (key=%s, verified in %s) ---\n\n", e.name, res.CacheKey, res.Duration.Round(time.Millisecond))
+						} else if res.Verified {
+							// No verify_command or it already passed — done.
+							fmt.Printf("--- %s: CACHED (key=%s) ---\n\n", e.name, res.CacheKey)
 							mu.Lock()
-							results = append(results, result{Category: e.name, Status: "cached", Duration: res.Duration})
+							results = append(results, result{Category: e.name, Status: "cached"})
 							mu.Unlock()
 							close(done[e.name])
 							return
+						} else {
+							// Verify after restore to check artifacts in place.
+							start := time.Now()
+							verifyCmd := exec.Command("bash", "-c", e.cat.VerifyCommand)
+							verifyCmd.Dir = "."
+							verifyCmd.Env = os.Environ()
+							_, verifyErr := verifyCmd.CombinedOutput()
+							verifyDur := time.Since(start)
+
+							if verifyErr == nil {
+								fmt.Printf("--- %s: CACHED (key=%s, verified in %s) ---\n\n", e.name, res.CacheKey, verifyDur.Round(time.Millisecond))
+								mu.Lock()
+								results = append(results, result{Category: e.name, Status: "cached", Duration: verifyDur})
+								mu.Unlock()
+								close(done[e.name])
+								return
+							}
+							fmt.Printf("--- %s: CACHE STALE (key=%s matched, restored, but verify failed in %s) ---\n", e.name, res.CacheKey, verifyDur.Round(time.Millisecond))
+							fmt.Printf("    WARNING: cache key was insufficient — rebuilding\n")
+							warnPath := filepath.Join(*resultsDir, e.name+"-cache-verify-failed.json")
+							warnJSON, _ := json.Marshal(map[string]string{
+								"category": e.name, "cache_key": res.CacheKey,
+								"event": "cache.verify_failed",
+							})
+							os.WriteFile(warnPath, warnJSON, 0o644)
 						}
-					} else if res.Hit && !res.Verified {
-						fmt.Printf("--- %s: CACHE STALE (key=%s matched but verify failed in %s) ---\n", e.name, res.CacheKey, res.Duration.Round(time.Millisecond))
-						fmt.Printf("    WARNING: cache key was insufficient — rebuilding\n")
-						// Write warning to results dir for observability.
-						warnPath := filepath.Join(*resultsDir, e.name+"-cache-verify-failed.json")
-						warnJSON, _ := json.Marshal(map[string]string{
-							"category": e.name, "cache_key": res.CacheKey,
-							"event": "cache.verify_failed",
-						})
-						os.WriteFile(warnPath, warnJSON, 0o644)
 					} else {
 						fmt.Printf("--- %s: cache miss (key=%s) ---\n", e.name, res.CacheKey)
 					}

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 )
@@ -18,10 +17,9 @@ import (
 type Resolution struct {
 	Category string
 	CacheKey string
-	Hit      bool          // cache directory exists with matching key
-	Verified bool          // verify_command passed (only meaningful if Hit)
-	CacheDir string        // path to cached artifacts (empty if miss)
-	Duration time.Duration // time spent on verify
+	Hit      bool   // cache directory exists with matching key
+	Verified bool   // true if no verify_command configured (caller verifies after restore)
+	CacheDir string // path to cached artifacts (empty if miss)
 }
 
 // Resolver computes cache keys and manages the build cache directory.
@@ -71,7 +69,9 @@ func (r *Resolver) ComputeKey(category string, cat model.JobCategoryConfig) (str
 	return fmt.Sprintf("%x", h.Sum(nil))[:16], nil
 }
 
-// Resolve checks if a category has a valid cache hit.
+// Resolve checks if a category has a cache key match.
+// It does NOT run verify_command — the caller should restore first, then verify,
+// since verify checks artifacts that only exist after restore.
 func (r *Resolver) Resolve(category string, cat model.JobCategoryConfig) (*Resolution, error) {
 	key, err := r.ComputeKey(category, cat)
 	if err != nil {
@@ -91,19 +91,9 @@ func (r *Resolver) Resolve(category string, cat model.JobCategoryConfig) (*Resol
 	res.Hit = true
 	res.CacheDir = catCacheDir
 
-	if cat.VerifyCommand == "" {
-		res.Verified = true
-		return res, nil
-	}
-
-	start := time.Now()
-	cmd := exec.Command("bash", "-c", cat.VerifyCommand)
-	cmd.Dir = r.repoRoot
-	cmd.Env = os.Environ()
-	_, err = cmd.CombinedOutput()
-	res.Duration = time.Since(start)
-
-	res.Verified = err == nil
+	// Mark as verified if no verify_command is configured.
+	// When verify_command exists, the caller runs it after Restore.
+	res.Verified = cat.VerifyCommand == ""
 	return res, nil
 }
 
