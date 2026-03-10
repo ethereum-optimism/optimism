@@ -201,6 +201,159 @@ fn test_span_batch_submission() {
     assert_eq!(root1, root2, "super root should be deterministic after span batch submission");
 }
 
+#[test]
+fn test_single_transfer() {
+    use alloy_consensus::{SignableTransaction, TxEip1559};
+    use alloy_primitives::{Address, TxKind, U256};
+    use alloy_signer::SignerSync;
+    use op_alloy_consensus::OpTxEnvelope;
+
+    let mut test = DerivationTest::new();
+
+    // Build L1 genesis epoch
+    test.l1.emit_empty_block(); // block 1
+    test.l1.emit_empty_block(); // block 2
+
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+
+    // Sign a transfer tx from the prefunded account
+    let signer = helpers::funded_signer();
+    let recipient = Address::with_last_byte(0x99);
+    let tx = TxEip1559 {
+        chain_id: test.config.l2_chain_id,
+        nonce: 0,
+        gas_limit: 21_000,
+        max_fee_per_gas: 0,
+        max_priority_fee_per_gas: 0,
+        to: TxKind::Call(recipient),
+        value: U256::from(1_000_000_000_000_000_000u64), // 1 ETH
+        ..Default::default()
+    };
+    let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing works");
+    let signed = tx.into_signed(sig);
+    let eth_envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
+    let op_tx = OpTxEnvelope::try_from_eth_envelope(eth_envelope)
+        .expect("should convert ETH envelope to OP envelope");
+
+    // Build L2 block with the transfer
+    let block_ref = test.l2.build_block(vec![op_tx]).unwrap();
+
+    // Encode as a singular batch and submit to L1
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
+    test.l1.emit_block_with_batches(vec![batch]);
+
+    // Super root is deterministic
+    let root1 = test.expected_super_root();
+    let root2 = test.expected_super_root();
+    assert_eq!(root1, root2, "super root should be deterministic with a transfer");
+
+    // Super root differs from an empty-blocks-only chain
+    let empty_test = build_empty_blocks_test(1);
+    let empty_root = empty_test.expected_super_root();
+    assert_ne!(root1, empty_root, "transfer should produce a different super root than empty blocks");
+}
+
+#[test]
+fn test_blob_batch() {
+    let mut test = DerivationTest::new();
+
+    test.l1.emit_empty_block(); // block 1
+    test.l1.emit_empty_block(); // block 2
+
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+
+    let mut block_refs = Vec::new();
+    for _ in 0..3 {
+        block_refs.push(test.l2.build_empty_block().unwrap());
+    }
+
+    // Encode as a blob span batch
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.blob_span_batch(&block_refs, &l1_origin);
+    test.l1.emit_block_with_batches(vec![batch]);
+
+    // Super root is deterministic
+    let root1 = test.expected_super_root();
+    let root2 = test.expected_super_root();
+    assert_eq!(root1, root2, "super root should be deterministic after blob batch");
+}
+
+#[tokio::test]
+async fn test_blob_batch_beacon_endpoint() {
+    let mut test = DerivationTest::new();
+
+    test.l1.emit_empty_block(); // block 1
+    test.l1.emit_empty_block(); // block 2
+
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+
+    let block_ref = test.l2.build_empty_block().unwrap();
+
+    // Encode as a blob and submit
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.blob_span_batch(&[block_ref], &l1_origin);
+    test.l1.emit_block_with_batches(vec![batch]);
+
+    let servers = test.serve().await.unwrap();
+    let client = reqwest::Client::new();
+
+    // The blob was submitted on the block after the two empty blocks (block 3).
+    // Slot = (timestamp - genesis_timestamp) / seconds_per_slot
+    let blob_block = test.l1.block_at(3).unwrap();
+    let slot = test.l1.timestamp_to_slot(blob_block.header.inner().timestamp);
+
+    let resp: serde_json::Value = client
+        .get(format!("{}/eth/v1/beacon/blobs/{}", servers.beacon_url(), slot))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    let data = resp["data"].as_array().expect("beacon blobs should have data array");
+    assert!(!data.is_empty(), "blob slot should have blob data");
+
+    servers.stop();
+}
+
+#[test]
+fn test_system_config_update() {
+    use derivation_tests::l1::SystemConfigUpdate;
+    use kona_genesis::{CONFIG_UPDATE_EVENT_VERSION_0, CONFIG_UPDATE_TOPIC};
+
+    let mut test = DerivationTest::new();
+
+    let new_batcher = alloy_primitives::address!("0xDEAD000000000000000000000000000000000001");
+    test.l1.emit_block_with_system_config_update(SystemConfigUpdate::BatcherAddress(new_batcher));
+
+    let block = test.l1.block_at(1).unwrap();
+
+    // Block should have a receipt with a log
+    assert_eq!(block.receipts.len(), 1, "should have one receipt");
+
+    // Extract the log from the receipt
+    let receipt = &block.receipts[0];
+    let logs: Vec<_> = match receipt {
+        alloy_consensus::ReceiptEnvelope::Eip1559(rwb) => rwb.receipt.logs.clone(),
+        _ => panic!("expected EIP-1559 receipt"),
+    };
+    assert_eq!(logs.len(), 1, "should have one log");
+
+    let log = &logs[0];
+    assert_eq!(log.address, test.config.system_config, "log should be from system config address");
+    assert_eq!(log.data.topics().len(), 3, "should have 3 topics");
+    assert_eq!(log.data.topics()[0], CONFIG_UPDATE_TOPIC, "topic[0] should be ConfigUpdate");
+    assert_eq!(
+        log.data.topics()[1], CONFIG_UPDATE_EVENT_VERSION_0,
+        "topic[1] should be version 0"
+    );
+}
+
 /// Integration test that requires op-program binary.
 /// Run with: OP_PROGRAM_PATH=/path/to/op-program cargo test --ignored
 #[test]
@@ -297,6 +450,42 @@ async fn test_l2_rpc_get_proof() {
     assert!(result["address"].is_string(), "proof should have address field");
     assert!(result["accountProof"].is_array(), "proof should have accountProof");
     assert!(result["storageProof"].is_array(), "proof should have storageProof");
+
+    servers.stop();
+}
+
+#[tokio::test]
+async fn test_debug_db_get() {
+    let test = build_empty_blocks_test(1);
+    let servers = test.serve().await.unwrap();
+
+    let client = reqwest::Client::new();
+
+    // The state root of the latest L2 block is a known trie node key.
+    let state_root = test.l2.head().header.inner().state_root;
+
+    let resp: serde_json::Value = client
+        .post(servers.l2_rpc_url())
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "debug_dbGet",
+            "params": [format!("{state_root:?}")],
+            "id": 1
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    // The state root should be a known trie node, so the result should be non-null
+    assert!(
+        resp["result"].is_string(),
+        "debug_dbGet should return data for the state root trie node, got: {resp}"
+    );
+    let result_hex = resp["result"].as_str().unwrap();
+    assert!(result_hex.len() > 2, "result should be non-empty hex data");
 
     servers.stop();
 }
