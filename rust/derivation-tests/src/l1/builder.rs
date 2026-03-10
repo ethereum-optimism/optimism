@@ -1,8 +1,10 @@
 //! L1 chain builder for constructing deterministic L1 blocks.
 
-use alloy_consensus::{Header, Receipt, ReceiptEnvelope, ReceiptWithBloom};
+use alloy_consensus::{Header, Receipt, ReceiptEnvelope, ReceiptWithBloom, SignableTransaction, TxEip1559};
 use alloy_eips::Encodable2718;
-use alloy_primitives::{Bloom, Bytes, Log, LogData, Sealable};
+use alloy_primitives::{Bloom, Bytes, Log, LogData, Sealable, TxKind};
+use alloy_signer::SignerSync;
+use alloy_signer_local::PrivateKeySigner;
 use kona_genesis::{CONFIG_UPDATE_EVENT_VERSION_0, CONFIG_UPDATE_TOPIC};
 use std::collections::BTreeMap;
 
@@ -17,6 +19,8 @@ pub struct L1ChainBuilder {
     blocks: Vec<L1Block>,
     /// Blobs indexed by (slot, `versioned_hash`).
     blobs: BTreeMap<u64, Vec<BlobWithCommitment>>,
+    /// Batcher transaction nonce counter.
+    batcher_nonce: u64,
 }
 
 impl L1ChainBuilder {
@@ -28,6 +32,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
             gas_limit: 30_000_000,
             ..Default::default()
         };
@@ -35,7 +40,12 @@ impl L1ChainBuilder {
 
         let genesis_block = L1Block { header: sealed, transactions: vec![], receipts: vec![] };
 
-        Self { config: config.clone(), blocks: vec![genesis_block], blobs: BTreeMap::new() }
+        Self {
+            config: config.clone(),
+            blocks: vec![genesis_block],
+            blobs: BTreeMap::new(),
+            batcher_nonce: 0,
+        }
     }
 
     /// Emit an empty L1 block with no transactions.
@@ -48,6 +58,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
             gas_limit: 30_000_000,
             ..Default::default()
         };
@@ -58,8 +69,12 @@ impl L1ChainBuilder {
     /// Emit an L1 block containing batch submissions.
     pub fn emit_block_with_batches(&mut self, batches: Vec<BatchSubmission>) {
         let prev = self.blocks.last().expect("always have genesis");
+        let parent_hash = prev.header.hash();
         let block_num = prev.header.inner().number + 1;
         let timestamp = prev.header.inner().timestamp + self.config.l1_block_time;
+
+        let signer = PrivateKeySigner::from_bytes(&self.config.batcher_key)
+            .expect("valid batcher key");
 
         let mut transactions = Vec::new();
         let mut receipts = Vec::new();
@@ -67,13 +82,17 @@ impl L1ChainBuilder {
         for batch in batches {
             match batch {
                 BatchSubmission::Calldata(data) => {
-                    transactions.push(data);
+                    let signed_tx = self.sign_batcher_tx(&signer, data);
+                    transactions.push(signed_tx);
                     receipts.push(success_receipt(receipts.len() as u64));
                 }
                 BatchSubmission::Blob(blob_data) => {
                     let slot = self.timestamp_to_slot(timestamp);
                     self.blobs.entry(slot).or_default().push(blob_data.clone());
-                    transactions.push(Bytes::new());
+                    // Blob txs still need a signed envelope on L1, but the data is in the blob.
+                    // Create a signed tx with empty calldata for the blob case.
+                    let signed_tx = self.sign_batcher_tx(&signer, Bytes::new());
+                    transactions.push(signed_tx);
                     receipts.push(success_receipt(receipts.len() as u64));
                 }
             }
@@ -83,12 +102,13 @@ impl L1ChainBuilder {
         let receipts_root = compute_l1_receipts_root(&receipts);
 
         let header = Header {
-            parent_hash: prev.header.hash(),
+            parent_hash,
             number: block_num,
             timestamp,
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
             gas_limit: 30_000_000,
             ..Default::default()
         };
@@ -112,6 +132,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
             gas_limit: 30_000_000,
             ..Default::default()
         };
@@ -152,12 +173,37 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
             gas_limit: 30_000_000,
             ..Default::default()
         };
         let sealed = header.seal_slow();
 
         self.blocks.push(L1Block { header: sealed, transactions, receipts });
+    }
+
+    /// Sign a batcher transaction with the batcher key, returning RLP-encoded signed tx bytes.
+    fn sign_batcher_tx(&mut self, signer: &PrivateKeySigner, calldata: Bytes) -> Bytes {
+        let tx = TxEip1559 {
+            chain_id: self.config.l1_chain_id,
+            nonce: self.batcher_nonce,
+            gas_limit: 1_000_000,
+            max_fee_per_gas: 0,
+            max_priority_fee_per_gas: 0,
+            to: TxKind::Call(self.config.batch_inbox),
+            value: alloy_primitives::U256::ZERO,
+            input: calldata,
+            ..Default::default()
+        };
+        self.batcher_nonce += 1;
+
+        let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing should not fail");
+        let signed = tx.into_signed(sig);
+        let envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
+
+        let mut buf = Vec::new();
+        envelope.encode_2718(&mut buf);
+        Bytes::from(buf)
     }
 
     /// Get all blocks.

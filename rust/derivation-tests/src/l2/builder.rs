@@ -499,17 +499,17 @@ mod tests {
         // but since we use kona's L1BlockInfoTx the exact encoding is complex.
         // Instead, we verify timestamps are consistent: block 3 was built after
         // epoch change, and timestamps still increment by L2 block time.
-        for i in 1..blocks.len() {
+        for window in blocks.windows(2) {
             assert_eq!(
-                blocks[i].header.inner().timestamp,
-                blocks[i - 1].header.inner().timestamp + config.l2_block_time,
+                window[1].header.inner().timestamp,
+                window[0].header.inner().timestamp + config.l2_block_time,
             );
         }
 
         // Each non-genesis block should have at least one deposit tx
-        for i in 1..blocks.len() {
+        for (i, block) in blocks.iter().enumerate().skip(1) {
             assert!(
-                blocks[i].transactions.iter().any(|tx| matches!(tx, OpTxEnvelope::Deposit(_))),
+                block.transactions.iter().any(|tx| matches!(tx, OpTxEnvelope::Deposit(_))),
                 "block {i} should have a deposit tx"
             );
         }

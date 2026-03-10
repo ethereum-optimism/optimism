@@ -1,5 +1,7 @@
 //! L1 JSON-RPC server implementation.
 
+use alloy_consensus::{Transaction, transaction::SignerRecoverable};
+use alloy_eips::{Decodable2718, Typed2718};
 use alloy_primitives::{B256, Bytes, keccak256};
 use alloy_rlp::Encodable;
 use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
@@ -73,8 +75,11 @@ impl L1RpcImpl {
 
         let mut tx_index = HashMap::new();
         for (block_idx, block) in blocks.iter().enumerate() {
-            for tx_idx in 0..block.transactions.len() {
-                let hash = fake_tx_hash(block.header.hash(), tx_idx);
+            for (tx_idx, tx_bytes) in block.transactions.iter().enumerate() {
+                // Try to get real tx hash from decoded envelope, fall back to fake hash
+                let hash = alloy_consensus::TxEnvelope::decode_2718(&mut tx_bytes.as_ref())
+                    .map(|env| *env.tx_hash())
+                    .unwrap_or_else(|_| fake_tx_hash(block.header.hash(), tx_idx));
                 tx_index.insert(hash, (block_idx, tx_idx));
             }
         }
@@ -93,7 +98,7 @@ impl L1RpcImpl {
         }
     }
 
-    fn block_to_json(&self, block: &L1Block, _full_txs: bool) -> Value {
+    fn block_to_json(&self, block: &L1Block, full_txs: bool) -> Value {
         let header = block.header.inner();
         serde_json::json!({
             "hash": block.header.hash(),
@@ -115,13 +120,53 @@ impl L1RpcImpl {
             "logsBloom": header.logs_bloom,
             "size": "0x0",
             "mixHash": header.mix_hash,
+            "withdrawalsRoot": header.withdrawals_root.unwrap_or(crate::state::roots::EMPTY_ROOT_HASH),
+            "withdrawals": [],
             "blobGasUsed": format!("0x{:x}", header.blob_gas_used.unwrap_or(0)),
             "excessBlobGas": format!("0x{:x}", header.excess_blob_gas.unwrap_or(0)),
-            "transactions": block.transactions.iter().enumerate().map(|(i, _)| {
-                fake_tx_hash(block.header.hash(), i)
+            "transactions": block.transactions.iter().enumerate().map(|(i, tx_bytes)| {
+                if full_txs {
+                    tx_to_json(block.header.hash(), block.header.inner().number, i, tx_bytes)
+                } else {
+                    let hash = alloy_consensus::TxEnvelope::decode_2718(&mut tx_bytes.as_ref())
+                        .map(|env| *env.tx_hash())
+                        .unwrap_or_else(|_| fake_tx_hash(block.header.hash(), i));
+                    serde_json::json!(hash)
+                }
             }).collect::<Vec<_>>(),
         })
     }
+}
+
+/// Build a JSON representation of a signed L1 transaction for `full_txs` responses.
+fn tx_to_json(block_hash: B256, block_number: u64, tx_index: usize, tx_bytes: &Bytes) -> Value {
+    // Try to decode as a signed transaction envelope
+    if let Ok(envelope) = alloy_consensus::TxEnvelope::decode_2718(&mut tx_bytes.as_ref()) {
+        let tx_hash = *envelope.tx_hash();
+        let from = envelope.recover_signer().unwrap_or_default();
+        let to = envelope.to();
+        let nonce = envelope.nonce();
+        let value = envelope.value();
+        let gas_limit = envelope.gas_limit();
+        let input = envelope.input().clone();
+
+        return serde_json::json!({
+            "hash": tx_hash,
+            "blockHash": block_hash,
+            "blockNumber": format!("0x{:x}", block_number),
+            "transactionIndex": format!("0x{:x}", tx_index),
+            "from": from,
+            "to": to,
+            "nonce": format!("0x{:x}", nonce),
+            "value": format!("0x{:x}", value),
+            "gas": format!("0x{:x}", gas_limit),
+            "input": input,
+            "type": format!("0x{:x}", envelope.ty()),
+        });
+    }
+
+    // Fallback: raw data with fake hash
+    serde_json::json!(fake_tx_hash(block_hash, tx_index))
 }
 
 impl L1RpcServer for L1RpcImpl {
