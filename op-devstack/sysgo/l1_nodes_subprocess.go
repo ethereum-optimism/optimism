@@ -87,7 +87,7 @@ func (n *ExternalL1Geth) Start() {
 		n.p.Cleanup(func() {
 			n.userProxy.Close()
 		})
-		n.userRPC = "ws://" + n.userProxy.Addr()
+		n.userRPC = "http://" + n.userProxy.Addr()
 	}
 	logOut := logpipe.ToLogger(n.p.Logger().New("src", "stdout"))
 	logErr := logpipe.ToLogger(n.p.Logger().New("src", "stderr"))
@@ -95,15 +95,16 @@ func (n *ExternalL1Geth) Start() {
 	authRPC := make(chan string, 1)
 	onLogEntry := func(e logpipe.LogEntry) {
 		switch e.LogMessage() {
-		case "WebSocket enabled":
-			select {
-			case userRPC <- e.FieldValue("url").(string):
-			default:
-			}
 		case "HTTP server started":
-			if e.FieldValue("auth").(bool) {
+			auth, _ := e.FieldValue("auth").(bool)
+			if auth {
 				select {
 				case authRPC <- "http://" + e.FieldValue("endpoint").(string):
+				default:
+				}
+			} else {
+				select {
+				case userRPC <- "http://" + e.FieldValue("endpoint").(string):
 				default:
 				}
 			}
@@ -182,7 +183,7 @@ func WithL1NodesSubprocess(id stack.ComponentID, clID stack.ComponentID) stack.O
 		args := []string{
 			"--log.format", "json",
 			"--datadir", dataDirPath,
-			"--ws", "--ws.addr", "127.0.0.1", "--ws.port", "0", "--ws.origins", "*", "--ws.api", "admin,debug,eth,net,txpool",
+			"--http", "--http.addr", "127.0.0.1", "--http.port", "0", "--http.api", "admin,debug,eth,net,txpool",
 			"--authrpc.addr", "127.0.0.1", "--authrpc.port", "0", "--authrpc.jwtsecret", jwtPath,
 			"--ipcdisable",
 			"--port", "0",

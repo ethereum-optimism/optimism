@@ -409,6 +409,7 @@ commands:
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export OP_RETH_EXEC_PATH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
 
@@ -1912,6 +1913,14 @@ jobs:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
         default: ""
+      l2_cl_kind:
+        description: "L2 consensus layer client (op-node or kona)"
+        type: string
+        default: "op-node"
+      l2_el_kind:
+        description: "L2 execution layer client (op-geth or op-reth)"
+        type: string
+        default: "op-geth"
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -1954,6 +1963,11 @@ jobs:
           command: |
             echo 'export CIRCLECI_PIPELINE_SCHEDULE_NAME="<< pipeline.schedule.name >>"' >> $BASH_ENV
             echo 'export CIRCLECI_PARAMETERS_SYNC_TEST_OP_NODE_DISPATCH="<< pipeline.parameters.c-sync_test_op_node_dispatch >>"' >> $BASH_ENV
+      - run:
+          name: Configure L2 stack
+          command: |
+            echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
+            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Run the acceptance tests
       - run:
           name: Run acceptance tests (gate=<<parameters.gate>>)
@@ -2020,6 +2034,14 @@ jobs:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
         default: ""
+      l2_cl_kind:
+        description: "L2 consensus layer client (op-node or kona)"
+        type: string
+        default: "op-node"
+      l2_el_kind:
+        description: "L2 execution layer client (op-geth or op-reth)"
+        type: string
+        default: "op-geth"
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -2039,9 +2061,16 @@ jobs:
           command: |
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export OP_RETH_EXEC_PATH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+      - run:
+          name: Configure L2 stack
+          command: |
+            echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
+            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -2127,6 +2156,14 @@ jobs:
       gate:
         type: string
         default: "flake-shake"
+      l2_cl_kind:
+        description: "L2 consensus layer client (op-node or kona)"
+        type: string
+        default: "op-node"
+      l2_el_kind:
+        description: "L2 execution layer client (op-geth or op-reth)"
+        type: string
+        default: "op-geth"
     machine:
       image: ubuntu-2404:current
     resource_class: xlarge
@@ -2143,8 +2180,14 @@ jobs:
             ROOT_DIR="$(pwd)"
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
             echo "export RUST_BINARY_PATH_KONA_NODE=$BIN_DIR/kona-node" >> "$BASH_ENV"
+            echo "export OP_RETH_EXEC_PATH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+      - run:
+          name: Configure L2 stack
+          command: |
+            echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
+            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
@@ -2360,6 +2403,16 @@ jobs:
             - "op-program/bin/prestate*"
             - "op-program/bin/meta*"
             - "rust/kona/prestate-artifacts-*/"
+
+  # Aggregator job - allows downstream jobs to depend on a single memory-all job.
+  memory-all:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - run:
+          name: All memory-all tests passed
+          command: echo "All memory-all acceptance test variants passed"
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
   rust-binaries-for-sysgo:
@@ -3129,11 +3182,11 @@ workflows:
           ignore-dirs: ./packages/contracts-bedrock/lib
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &kona-build-release
-          name: kona-build-release
+      # Acceptance test jobs (formerly in separate acceptance-tests workflow)
+      - rust-build-binary:
+          name: rust-workspace-binaries
           directory: rust
           profile: "release"
-          features: "default"
           save_cache: true
           persist_to_workspace: true
           context:
@@ -3155,15 +3208,15 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - rust-binaries-for-sysgo:
           requires:
-            - kona-build-release
+            - rust-workspace-binaries
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
       - go-binaries-for-sysgo:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # IN-MEMORY (all)
+      # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
-          name: memory-all
+          name: memory-all-opn-op-geth
           gate: "" # Empty gate = gateless mode
           no_output_timeout: 120m # Allow longer runs for memory-all gate
           context:
@@ -3175,6 +3228,43 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
+      # IN-MEMORY (all) - op-node/op-reth
+      - op-acceptance-tests:
+          name: memory-all-opn-op-reth
+          gate: "base"
+          l2_el_kind: op-reth
+          no_output_timeout: 120m # Allow longer runs for memory-all gate
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate
+            - rust-binaries-for-sysgo
+            - go-binaries-for-sysgo
+      # IN-MEMORY (all) - kona/op-reth
+      - op-acceptance-tests:
+          name: memory-all-kona-op-reth
+          gate: "base"
+          l2_cl_kind: kona
+          l2_el_kind: op-reth
+          no_output_timeout: 120m # Allow longer runs for memory-all gate
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate
+            - rust-binaries-for-sysgo
+            - go-binaries-for-sysgo
+      # Aggregator for all memory-all acceptance test variants
+      - memory-all:
+          requires:
+            - memory-all-opn-op-geth
+            - memory-all-opn-op-reth
+            - memory-all-kona-op-reth
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
