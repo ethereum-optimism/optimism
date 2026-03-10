@@ -49,6 +49,9 @@ members = [
 
   # Alloy OP Hardforks
   "alloy-op-hardforks/",
+
+  # Derivation test framework
+  "derivation-tests/",
 ]
 default-members = [
   "kona/bin/host",
