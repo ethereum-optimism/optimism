@@ -361,6 +361,16 @@ jobs:
 {{ if eq .Name "build" }}      - restore_cache:
           keys:
             - shadow-ci-build-v1-
+      - run:
+          name: Debug cache contents
+          command: |
+            echo "=== Cache directory ==="
+            ls -la /tmp/shadow-ci-cache/ 2>/dev/null || echo "No cache dir"
+            for cat in /tmp/shadow-ci-cache/*/; do
+              echo "--- $(basename $cat) ---"
+              cat "${cat}cache.key" 2>/dev/null || echo "no key"
+              find "${cat}artifacts" -type f 2>/dev/null | head -20
+            done
 {{ end }}{{ if ne .Name "build" }}      - run:
           name: Restore build artifacts
           command: |
