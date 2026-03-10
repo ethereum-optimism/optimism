@@ -50,10 +50,10 @@ struct TrieAccount {
 
 impl Encodable for TrieAccount {
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
-        let payload_len = self.nonce.length()
-            + self.balance.length()
-            + self.storage_root.length()
-            + self.code_hash.length();
+        let payload_len = self.nonce.length() +
+            self.balance.length() +
+            self.storage_root.length() +
+            self.code_hash.length();
         alloy_rlp::Header { list: true, payload_length: payload_len }.encode(out);
         self.nonce.encode(out);
         self.balance.encode(out);
@@ -62,10 +62,10 @@ impl Encodable for TrieAccount {
     }
 
     fn length(&self) -> usize {
-        let payload_len = self.nonce.length()
-            + self.balance.length()
-            + self.storage_root.length()
-            + self.code_hash.length();
+        let payload_len = self.nonce.length() +
+            self.balance.length() +
+            self.storage_root.length() +
+            self.code_hash.length();
         payload_len + alloy_rlp::length_of_length(payload_len)
     }
 }

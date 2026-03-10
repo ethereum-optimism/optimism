@@ -7,11 +7,9 @@ use axum::{
     routing::get,
 };
 use serde::Deserialize;
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use crate::config::DeterministicConfig;
-use crate::l1::BlobWithCommitment;
+use crate::{config::DeterministicConfig, l1::BlobWithCommitment};
 
 /// Shared state for the beacon API server.
 pub(crate) struct BeaconState {

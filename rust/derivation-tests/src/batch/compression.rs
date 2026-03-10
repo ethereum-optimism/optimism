@@ -14,10 +14,7 @@ pub enum CompressionAlgo {
 /// Compress data using the specified algorithm.
 pub(super) fn compress(data: &[u8], algo: CompressionAlgo) -> Vec<u8> {
     match algo {
-        CompressionAlgo::Zlib => {
-            
-            miniz_oxide::deflate::compress_to_vec_zlib(data, 6)
-        }
+        CompressionAlgo::Zlib => miniz_oxide::deflate::compress_to_vec_zlib(data, 6),
         CompressionAlgo::Brotli => {
             // Brotli channel data has a 0x01 prefix byte (channel_version_brotli)
             let mut output = vec![0x01];

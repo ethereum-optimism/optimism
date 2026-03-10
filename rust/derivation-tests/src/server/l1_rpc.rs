@@ -2,8 +2,7 @@
 
 use alloy_primitives::{B256, Bytes};
 use alloy_rlp::Encodable;
-use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::ErrorObjectOwned;
+use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
 use serde_json::Value;
 use std::collections::HashMap;
 

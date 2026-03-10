@@ -5,10 +5,7 @@ use crate::harness::test::DerivationTest;
 /// Assert the total number of L2 blocks (including genesis).
 pub fn assert_l2_block_count(test: &DerivationTest, expected: usize) {
     let actual = test.l2.blocks().len();
-    assert_eq!(
-        actual, expected,
-        "expected {expected} L2 blocks (including genesis), got {actual}"
-    );
+    assert_eq!(actual, expected, "expected {expected} L2 blocks (including genesis), got {actual}");
 }
 
 /// Assert that a block has only deposit transactions (no user txs).

@@ -4,7 +4,7 @@
 //! always produces the same L1/L2 chains and super roots.
 
 use alloy_genesis::GenesisAccount;
-use alloy_primitives::{address, b256, Address, B256, U256};
+use alloy_primitives::{Address, B256, U256, address, b256};
 use kona_genesis::{HardForkConfig, RollupConfig};
 use std::collections::BTreeMap;
 
@@ -40,15 +40,13 @@ pub const SEQUENCER_ADDRESS: Address = address!("0x32000000000000000000000000000
 pub const FEE_RECIPIENT: Address = address!("0x4200000000000000000000000000000000000011");
 
 /// `L2ToL1MessagePasser` predeploy address.
-pub const L2_TO_L1_MESSAGE_PASSER: Address =
-    address!("0x4200000000000000000000000000000000000016");
+pub const L2_TO_L1_MESSAGE_PASSER: Address = address!("0x4200000000000000000000000000000000000016");
 
 /// `L1Block` predeploy address.
 pub const L1_BLOCK_ADDRESS: Address = address!("0x4200000000000000000000000000000000000015");
 
 /// `SystemConfig` proxy address on L1.
-pub const SYSTEM_CONFIG_ADDRESS: Address =
-    address!("0x6900000000000000000000000000000000000001");
+pub const SYSTEM_CONFIG_ADDRESS: Address = address!("0x6900000000000000000000000000000000000001");
 
 /// Deterministic batcher private key (NOT secret — test-only).
 pub const BATCHER_PRIVATE_KEY: B256 =
@@ -144,10 +142,7 @@ impl Default for DeterministicConfig {
 impl DeterministicConfig {
     /// Create a config with specific hardfork settings.
     pub fn with_hardforks(hardforks: HardForkConfig) -> Self {
-        Self {
-            hardforks,
-            ..Self::default()
-        }
+        Self { hardforks, ..Self::default() }
     }
 
     /// Build the L2 genesis account allocations.
@@ -157,22 +152,13 @@ impl DeterministicConfig {
         let mut allocs = BTreeMap::new();
 
         // Pre-funded test account
-        allocs.insert(
-            PREFUNDED_ACCOUNT,
-            GenesisAccount::default().with_balance(PREFUNDED_BALANCE),
-        );
+        allocs.insert(PREFUNDED_ACCOUNT, GenesisAccount::default().with_balance(PREFUNDED_BALANCE));
 
         // L2ToL1MessagePasser predeploy — empty contract with storage
-        allocs.insert(
-            L2_TO_L1_MESSAGE_PASSER,
-            GenesisAccount::default().with_balance(U256::ZERO),
-        );
+        allocs.insert(L2_TO_L1_MESSAGE_PASSER, GenesisAccount::default().with_balance(U256::ZERO));
 
         // L1Block predeploy — empty contract
-        allocs.insert(
-            L1_BLOCK_ADDRESS,
-            GenesisAccount::default().with_balance(U256::ZERO),
-        );
+        allocs.insert(L1_BLOCK_ADDRESS, GenesisAccount::default().with_balance(U256::ZERO));
 
         allocs
     }
