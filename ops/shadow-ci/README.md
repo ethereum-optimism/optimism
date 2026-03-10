@@ -1,44 +1,119 @@
 # Shadow CI
 
-A parallel CI system that proves itself against the existing CI before replacing it.
+An adaptive CI system that runs alongside the existing CI, proves itself by
+comparing results, and progressively takes over as confidence grows.
+
+## How It Works
+
+Shadow CI replaces the monolithic "run everything" approach with a targeted one:
+
+1. **Decide** — `affected` computes what changed, walks dependency graphs per language,
+   and produces a per-category run/skip decision.
+2. **Execute** — `execute` runs needed categories in parallel within each group,
+   with DAG-based dependency scheduling and content-addressed build caching.
+3. **Compare** — `compare` checks shadow results against mainline CI to measure
+   catch rate and surface false negatives.
+4. **Learn** — Flake reactor tracks flaky tests through a lifecycle (suspected →
+   quarantined → fixed). Placement optimizer uses historical data to move tests
+   to the cheapest stage that still catches failures.
 
 ## Architecture
 
 ```
-Layer 5: Agents           — Flake Investigator, Graph Maintainer, Config Verifier, Report Analyst
-Layer 4: Data Layer       — Unified Event Store, Aggregator, Dashboard
-Layer 3: Platform Adapter — CircleCI (renders TestPlans to YAML, fetches results via API)
-Layer 2: Core Engine      — AffectedComputer, Planner, Executor, Classifier, Fingerprinter, ComparisonEngine
+Layer 5: Feedback Loop    — Comparison Engine, Placement Optimizer, Flake Reactor
+Layer 4: Data Layer       — Unified Event Store, Aggregator
+Layer 3: Execution        — Parallel Executor (DAG scheduling), Build Cache (content-addressed)
+Layer 2: Decision Engine  — Affected Computer, Scoping Rules, Stage Placement
 Layer 1: Language Adapters — Go (go list), Solidity (import parsing), Rust (cargo metadata)
 ```
 
+### Why groups, not per-target jobs
+
+The original design (planner → render → runner) generated a CircleCI job per test
+target. This hit practical limits: CircleCI has continuation YAML size caps, each
+job has fixed overhead (environment spin-up, checkout, workspace attach), and a
+pipeline with hundreds of tiny jobs is slower than a few large ones.
+
+The current design uses **static group jobs** (build, go, sol, rust, misc) checked
+into the repo. Each group job runs `execute`, which handles per-category parallelism
+internally via goroutines and channel-based dependency resolution. CircleCI manages
+8 jobs; the executor manages the categories within each.
+
+The planner/render/runner binaries still exist for potential future use (e.g., if
+CircleCI raises continuation limits or we move to a platform with cheaper job overhead).
+
+## CI Pipeline
+
+```
+shadow-ci-setup          Build binaries, compute decision, update flake state
+     │
+     ├── shadow-ci-verify    Coherence check against mainline
+     ├── shadow-ci-tests     Unit tests + YAML staleness check
+     │
+     └── shadow-ci-build     Build categories (contracts, cannon, go binaries, rust)
+              │                 Content-addressed cache: restore → verify → use or rebuild
+              │
+              ├── shadow-ci-go      Go tests, fuzz, lint, acceptance tests
+              ├── shadow-ci-sol     Solidity tests, upgrades, checks
+              ├── shadow-ci-rust    Rust CI, e2e tests
+              └── shadow-ci-misc   Semgrep, shellcheck, TODOs
+```
+
+Build artifacts pass downstream via CircleCI workspace. Build cache persists
+across pipelines via CircleCI `save_cache`/`restore_cache`.
+
 ## CLI Tools
 
-| Binary | Purpose | When |
-|--------|---------|------|
-| `affected` | Compute dependency graphs, output affected targets | Setup phase |
-| `planner` | Take affected targets, produce a test plan | Setup phase |
-| `render` | Take test plan, produce CircleCI YAML | Setup phase |
-| `runner` | Wrap test execution with retry + classification | Test jobs |
-| `compare` | Compare shadow vs main CI, emit events | After all test jobs |
-| `aggregate` | Read events, produce reports + dashboard | Daily cron |
+| Binary | Purpose | Pipeline Phase |
+|--------|---------|----------------|
+| `affected` | Dependency graphs → per-category run/skip decision | Setup |
+| `execute` | Run categories for a group with DAG scheduling + caching | Group jobs |
+| `flake-reactor` | Update flake state from recent events | Setup |
+| `coherence` | Verify decision is consistent with mainline CI | Verify |
+| `compare` | Compare shadow vs mainline results, measure catch rate | Post-test |
+| `generate-ci` | Render shadow-ci.yml from scoping.yaml | Development |
+| `validate` | Validate generated CircleCI YAML for structural errors | Development |
+| `optimize` | Suggest stage placement changes from historical data | Periodic |
+| `aggregate` | Read events, produce reports | Periodic |
+| `auto-revert` | Evaluate whether to revert based on test failures | Future |
+
+Legacy binaries (exist but not used in current pipeline):
+
+| Binary | Original Purpose | Why Unused |
+|--------|-----------------|------------|
+| `planner` | Affected targets → test plan | Replaced by scoping.yaml categories |
+| `render` | Test plan → per-target CircleCI YAML | Replaced by generate-ci groups |
+| `runner` | Wrap single test with retry + classification | Replaced by execute |
+
+## Build Cache
+
+The build group uses content-addressed caching to skip rebuilds when inputs
+haven't changed:
+
+1. **Key**: `sha256(git tree hashes of cache_inputs + mise.toml)`
+2. **Restore**: Copy cached artifacts from `/tmp/shadow-ci-cache` to repo
+3. **Verify**: Run `verify_command` to confirm artifacts are valid post-restore
+4. **Use or rebuild**: If verify passes, skip build. If not, full rebuild + save.
+
+Each build category in `scoping.yaml` declares:
+- `cache_inputs` — source paths that determine the build output
+- `workspace_paths` — output paths to cache
+- `verify_command` — cheap check that cached outputs are valid
+
+The system is fail-open: any error falls through to a full build.
 
 ## Observability
 
-Every component emits structured events to the unified event store. Events are the
-primary observability mechanism — they answer:
+Every component emits structured events to the unified event store:
 
-- **Is it catching everything?** `comparison.complete` events track catch rate per pipeline.
-  A false negative emits `false_negative.detected` AND `graph.gap_detected`.
-- **Is it faster?** Every `comparison.complete` includes wall time and compute reduction.
-- **Are flakes being handled?** `flake.detected` events include fingerprints for clustering.
-  The aggregator builds a flake leaderboard ranked by frequency.
-- **Is the graph accurate?** `targets.computed` events show skip rate per language.
-  `confidence.changed` tracks graph confidence over time.
-- **What did each pipeline do?** `plan.created`, `job.started`, `job.completed`,
-  `test.passed`, `test.failed`, `test.retried` — full audit trail.
+- **Catch rate**: `comparison.complete` — are we catching everything mainline catches?
+- **False negatives**: `false_negative.detected` — tests we missed
+- **Flake lifecycle**: `flake.detected`, `flake.quarantined`, `flake.restored`
+- **Cache effectiveness**: `cache.hit`, `cache.miss`, `cache.verify_failed`
+- **Skip rate**: `targets.computed` — how much work are we avoiding?
+- **Pipeline audit**: `plan.created`, `job.started`, `job.completed`
 
-### Key Metrics (from events)
+### Key Metrics
 
 | Metric | Source Event | Target |
 |--------|-------------|--------|
@@ -55,26 +130,29 @@ primary observability mechanism — they answer:
 
 All config in `config/`:
 
+- `scoping.yaml` — Job categories, trigger paths, always-run lists, activation mode
 - `adapters.yaml` — Language adapter settings (paths, features, special paths)
-- `scoping.yaml` — Always-run lists, confidence thresholds, activation controls
 - `platform.yaml` — CircleCI runner mapping, concurrency limits, event store
 
 ## Activation Phases
 
-The architecture is complete. Activation is controlled by `scoping.yaml`:
+Shadow CI progresses through three modes:
+
+| Mode | Behavior | Exit Criteria |
+|------|----------|---------------|
+| **shadow** | Runs alongside mainline, compares results, no gate | 100% catch rate for 4 weeks |
+| **belt-and-suspenders** | Both run, shadow failures block merge | 0 false negatives for 4 weeks |
+| **primary** | Shadow becomes the CI, mainline decommissioned | — |
+
+Current mode is controlled in `scoping.yaml`:
 
 ```yaml
 activation:
-  mode: shadow  # shadow → belt-and-suspenders → primary
+  mode: shadow
   languages:
     go: true
     sol: true
     rust: true
-  agents:
-    flake_investigator: true
-    graph_maintainer: true
-  comparison:
-    required: false  # true in belt-and-suspenders mode
 ```
 
 ## Development
@@ -84,4 +162,10 @@ cd ops/shadow-ci
 go test ./...     # run all tests
 go build ./...    # build all packages
 go vet ./...      # static analysis
+
+# Regenerate CI YAML after config changes:
+go run ./cmd/generate-ci --config config --output ../../.circleci/continue/shadow-ci.yml
+
+# Check YAML is not stale:
+go run ./cmd/generate-ci --config config --check ../../.circleci/continue/shadow-ci.yml
 ```
