@@ -9,16 +9,7 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
-type Result struct {
-	Statuses              map[eth.ChainID]eth.SyncStatus
-	ChainIDs              []eth.ChainID
-	MinCurrentL1          eth.BlockID
-	MinSafeTimestamp      uint64
-	MinLocalSafeTimestamp uint64
-	MinFinalizedTimestamp uint64
-}
-
-func Aggregate(ctx context.Context, log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer) (Result, error) {
+func Aggregate(ctx context.Context, log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer) (eth.SuperNodeSyncStatusResponse, error) {
 	var (
 		statuses              map[eth.ChainID]eth.SyncStatus
 		minCurrentL1          eth.BlockID
@@ -30,12 +21,14 @@ func Aggregate(ctx context.Context, log gethlog.Logger, chains map[eth.ChainID]c
 		finalizedInitialized  bool
 	)
 	statuses = make(map[eth.ChainID]eth.SyncStatus, len(chains))
+	chainIDs := make([]eth.ChainID, 0, len(chains))
 
 	for chainID, chain := range chains {
+		chainIDs = append(chainIDs, chainID)
 		status, err := chain.SyncStatus(ctx)
 		if err != nil {
 			log.Warn("failed to get sync status", "chain_id", chainID.String(), "err", err)
-			return Result{}, err
+			return eth.SuperNodeSyncStatusResponse{}, err
 		}
 		if status == nil {
 			status = &eth.SyncStatus{}
@@ -60,8 +53,6 @@ func Aggregate(ctx context.Context, log gethlog.Logger, chains map[eth.ChainID]c
 		if !localSafeInitialized {
 			minLocalSafeTimestamp = status.LocalSafeL2.Time
 			localSafeInitialized = true
-		} else if minLocalSafeTimestamp == 0 || status.LocalSafeL2.Time == 0 {
-			minLocalSafeTimestamp = 0
 		} else if status.LocalSafeL2.Time < minLocalSafeTimestamp {
 			minLocalSafeTimestamp = status.LocalSafeL2.Time
 		}
@@ -69,8 +60,6 @@ func Aggregate(ctx context.Context, log gethlog.Logger, chains map[eth.ChainID]c
 		if !safeInitialized {
 			minSafeTimestamp = status.SafeL2.Time
 			safeInitialized = true
-		} else if minSafeTimestamp == 0 || status.SafeL2.Time == 0 {
-			minSafeTimestamp = 0
 		} else if status.SafeL2.Time < minSafeTimestamp {
 			minSafeTimestamp = status.SafeL2.Time
 		}
@@ -78,25 +67,19 @@ func Aggregate(ctx context.Context, log gethlog.Logger, chains map[eth.ChainID]c
 		if !finalizedInitialized {
 			minFinalizedTimestamp = status.FinalizedL2.Time
 			finalizedInitialized = true
-		} else if minFinalizedTimestamp == 0 || status.FinalizedL2.Time == 0 {
-			minFinalizedTimestamp = 0
 		} else if status.FinalizedL2.Time < minFinalizedTimestamp {
 			minFinalizedTimestamp = status.FinalizedL2.Time
 		}
 	}
 
-	chainIDs := make([]eth.ChainID, 0, len(statuses))
-	for chainID := range statuses {
-		chainIDs = append(chainIDs, chainID)
-	}
 	slices.SortFunc(chainIDs, func(a, b eth.ChainID) int { return a.Cmp(b) })
 
-	return Result{
-		Statuses:              statuses,
-		ChainIDs:              chainIDs,
-		MinCurrentL1:          minCurrentL1,
-		MinSafeTimestamp:      minSafeTimestamp,
-		MinLocalSafeTimestamp: minLocalSafeTimestamp,
-		MinFinalizedTimestamp: minFinalizedTimestamp,
+	return eth.SuperNodeSyncStatusResponse{
+		Chains:             statuses,
+		ChainIDs:           chainIDs,
+		CurrentL1:          minCurrentL1,
+		SafeTimestamp:      minSafeTimestamp,
+		LocalSafeTimestamp: minLocalSafeTimestamp,
+		FinalizedTimestamp: minFinalizedTimestamp,
 	}, nil
 }

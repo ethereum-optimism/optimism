@@ -41,17 +41,5 @@ func (api *api) SyncStatus(ctx context.Context) (eth.SuperNodeSyncStatusResponse
 }
 
 func (a *Activity) syncStatus(ctx context.Context) (eth.SuperNodeSyncStatusResponse, error) {
-	aggregate, err := syncstatus.Aggregate(ctx, a.log, a.chains)
-	if err != nil {
-		return eth.SuperNodeSyncStatusResponse{}, err
-	}
-
-	return eth.SuperNodeSyncStatusResponse{
-		Chains:             aggregate.Statuses,
-		ChainIDs:           aggregate.ChainIDs,
-		CurrentL1:          aggregate.MinCurrentL1,
-		SafeTimestamp:      aggregate.MinSafeTimestamp,
-		LocalSafeTimestamp: aggregate.MinLocalSafeTimestamp,
-		FinalizedTimestamp: aggregate.MinFinalizedTimestamp,
-	}, nil
+	return syncstatus.Aggregate(ctx, a.log, a.chains)
 }
