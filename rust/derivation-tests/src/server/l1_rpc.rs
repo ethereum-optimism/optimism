@@ -55,16 +55,9 @@ pub(crate) struct L1RpcImpl {
 impl L1RpcImpl {
     /// Create from a list of L1 blocks.
     pub(crate) fn new(blocks: Vec<L1Block>, chain_id: u64) -> Self {
-        let by_hash: HashMap<B256, usize> = blocks
-            .iter()
-            .enumerate()
-            .map(|(i, b)| (b.header.hash(), i))
-            .collect();
-        Self {
-            blocks,
-            by_hash,
-            chain_id,
-        }
+        let by_hash: HashMap<B256, usize> =
+            blocks.iter().enumerate().map(|(i, b)| (b.header.hash(), i)).collect();
+        Self { blocks, by_hash, chain_id }
     }
 
     fn resolve_block_number(&self, number: &str) -> Option<usize> {
@@ -119,10 +112,7 @@ impl L1RpcServer for L1RpcImpl {
         hash: B256,
         full_txs: bool,
     ) -> Result<Option<Value>, ErrorObjectOwned> {
-        Ok(self
-            .by_hash
-            .get(&hash)
-            .map(|&i| self.block_to_json(&self.blocks[i], full_txs)))
+        Ok(self.by_hash.get(&hash).map(|&i| self.block_to_json(&self.blocks[i], full_txs)))
     }
 
     fn get_block_by_number(
@@ -138,30 +128,29 @@ impl L1RpcServer for L1RpcImpl {
     fn get_block_receipts(&self, hash: B256) -> Result<Option<Value>, ErrorObjectOwned> {
         Ok(self.by_hash.get(&hash).map(|&i| {
             let block = &self.blocks[i];
-            serde_json::json!(block
-                .receipts
-                .iter()
-                .enumerate()
-                .map(|(j, _r)| {
-                    serde_json::json!({
-                        "status": "0x1",
-                        "cumulativeGasUsed": format!("0x{:x}", j * 21_000),
-                        "logs": [],
-                        "transactionIndex": format!("0x{:x}", j),
-                        "blockHash": hash,
-                        "blockNumber": format!("0x{:x}", block.header.inner().number),
+            serde_json::json!(
+                block
+                    .receipts
+                    .iter()
+                    .enumerate()
+                    .map(|(j, _r)| {
+                        serde_json::json!({
+                            "status": "0x1",
+                            "cumulativeGasUsed": format!("0x{:x}", j * 21_000),
+                            "logs": [],
+                            "transactionIndex": format!("0x{:x}", j),
+                            "blockHash": hash,
+                            "blockNumber": format!("0x{:x}", block.header.inner().number),
+                        })
                     })
-                })
-                .collect::<Vec<_>>())
+                    .collect::<Vec<_>>()
+            )
         }))
     }
 
     fn get_raw_header(&self, hash: B256) -> Result<Bytes, ErrorObjectOwned> {
-        let block = self
-            .by_hash
-            .get(&hash)
-            .map(|&i| &self.blocks[i])
-            .ok_or_else(|| {
+        let block =
+            self.by_hash.get(&hash).map(|&i| &self.blocks[i]).ok_or_else(|| {
                 ErrorObjectOwned::owned(-32602, "block not found", None::<String>)
             })?;
         let mut buf = Vec::new();
@@ -170,11 +159,8 @@ impl L1RpcServer for L1RpcImpl {
     }
 
     fn get_raw_receipts(&self, hash: B256) -> Result<Vec<Bytes>, ErrorObjectOwned> {
-        let block = self
-            .by_hash
-            .get(&hash)
-            .map(|&i| &self.blocks[i])
-            .ok_or_else(|| {
+        let block =
+            self.by_hash.get(&hash).map(|&i| &self.blocks[i]).ok_or_else(|| {
                 ErrorObjectOwned::owned(-32602, "block not found", None::<String>)
             })?;
 
