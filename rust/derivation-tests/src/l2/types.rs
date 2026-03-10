@@ -1,7 +1,7 @@
 //! L2 block and reference types.
 
 use alloy_consensus::Header;
-use alloy_primitives::Sealed;
+use alloy_primitives::{B256, Sealed};
 use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope};
 
 /// A fully constructed L2 block with header, transactions, and receipts.
@@ -13,6 +13,8 @@ pub struct L2Block {
     pub transactions: Vec<OpTxEnvelope>,
     /// Execution receipts.
     pub receipts: Vec<OpReceiptEnvelope>,
+    /// Withdrawals root (present for Isthmus+).
+    pub withdrawals_root: Option<B256>,
 }
 
 /// Lightweight reference to an L2 block by index.
