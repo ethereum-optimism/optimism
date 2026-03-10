@@ -38,12 +38,7 @@ impl DerivationTest {
     pub fn with_config(config: DeterministicConfig) -> Self {
         let l1 = L1ChainBuilder::new(&config);
         let l2 = L2ChainBuilder::new(&config);
-        Self {
-            config,
-            l1,
-            l2,
-            channel_counter: 0,
-        }
+        Self { config, l1, l2, channel_counter: 0 }
     }
 
     /// Compute the expected output root for the current L2 head.
@@ -66,10 +61,7 @@ impl DerivationTest {
     }
 
     /// Encode L2 blocks as a singular batch in calldata.
-    pub fn singular_batch_calldata(
-        &mut self,
-        block_refs: &[L2BlockRef],
-    ) -> BatchSubmission {
+    pub fn singular_batch_calldata(&mut self, block_refs: &[L2BlockRef]) -> BatchSubmission {
         let rollup_config = self.config.rollup_config();
         let channel_id = self.next_channel_id();
 

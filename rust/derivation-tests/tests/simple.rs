@@ -134,10 +134,7 @@ fn test_l1_chain_structure() {
 
     // Check parent chain
     for i in 1..blocks.len() {
-        assert_eq!(
-            blocks[i].header.inner().parent_hash,
-            blocks[i - 1].header.hash(),
-        );
+        assert_eq!(blocks[i].header.inner().parent_hash, blocks[i - 1].header.hash(),);
     }
 
     // Check timestamps

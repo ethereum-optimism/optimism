@@ -72,9 +72,9 @@ async fn beacon_blobs(
                 .iter()
                 .enumerate()
                 .filter(|(_, blob)| {
-                    filter_hashes.as_ref().is_none_or(|hashes| {
-                        hashes.contains(&format!("{:?}", blob.versioned_hash))
-                    })
+                    filter_hashes
+                        .as_ref()
+                        .is_none_or(|hashes| hashes.contains(&format!("{:?}", blob.versioned_hash)))
                 })
                 .map(|(i, blob)| {
                     serde_json::json!({

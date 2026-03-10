@@ -31,7 +31,6 @@ alloy-genesis = { workspace = true, features = ["std"] }
 
 # Alloy RPC types (for server responses)
 alloy-rpc-types-eth = { workspace = true, features = ["std", "serde"] }
-alloy-rpc-types-beacon = { workspace = true }
 alloy-serde = { workspace = true }
 
 # OP-specific types
@@ -42,8 +41,6 @@ op-alloy-rpc-types-engine = { workspace = true, features = ["std", "serde"] }
 revm = { workspace = true, features = ["std"] }
 revm-database = { workspace = true, features = ["std"] }
 op-revm = { workspace = true, features = ["std"] }
-alloy-op-evm = { workspace = true, features = ["std"] }
-alloy-evm = { workspace = true, features = ["std"] }
 
 # RPC server
 jsonrpsee = { workspace = true, features = ["server"] }

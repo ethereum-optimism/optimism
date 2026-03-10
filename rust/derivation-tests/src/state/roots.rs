@@ -1,6 +1,6 @@
 //! State root, storage root, and proof computation using `alloy-trie`.
 
-use alloy_primitives::{keccak256, Address, B256, Bytes, U256, KECCAK256_EMPTY};
+use alloy_primitives::{Address, B256, Bytes, KECCAK256_EMPTY, U256, keccak256};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_eth::{EIP1186AccountProofResponse, EIP1186StorageProof};
 use alloy_trie::{
@@ -54,11 +54,7 @@ impl Encodable for TrieAccount {
             + self.balance.length()
             + self.storage_root.length()
             + self.code_hash.length();
-        alloy_rlp::Header {
-            list: true,
-            payload_length: payload_len,
-        }
-        .encode(out);
+        alloy_rlp::Header { list: true, payload_length: payload_len }.encode(out);
         self.nonce.encode(out);
         self.balance.encode(out);
         self.storage_root.encode(out);
@@ -207,8 +203,7 @@ pub fn generate_account_proof(
     }
     sorted_accounts.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let mut hb =
-        HashBuilder::default().with_proof_retainer(ProofRetainer::new(vec![target_key]));
+    let mut hb = HashBuilder::default().with_proof_retainer(ProofRetainer::new(vec![target_key]));
     for (key, value) in &sorted_accounts {
         hb.add_leaf(*key, value);
     }
@@ -225,10 +220,7 @@ pub fn generate_account_proof(
         .iter()
         .map(|key| {
             let slot = U256::from_be_bytes(key.0);
-            let value = account_storage
-                .and_then(|s| s.get(&slot))
-                .copied()
-                .unwrap_or(U256::ZERO);
+            let value = account_storage.and_then(|s| s.get(&slot)).copied().unwrap_or(U256::ZERO);
 
             let hashed_key = Nibbles::unpack(keccak256(key));
 
@@ -267,9 +259,7 @@ pub fn generate_account_proof(
     EIP1186AccountProofResponse {
         address,
         balance: account_state.map(|a| a.balance).unwrap_or(U256::ZERO),
-        code_hash: account_state
-            .map(|a| a.code_hash)
-            .unwrap_or(KECCAK256_EMPTY),
+        code_hash: account_state.map(|a| a.code_hash).unwrap_or(KECCAK256_EMPTY),
         nonce: account_state.map(|a| a.nonce).unwrap_or(0),
         storage_hash: storage_root,
         account_proof,
@@ -277,7 +267,7 @@ pub fn generate_account_proof(
     }
 }
 
-/// Convert proof nodes to a Vec<Bytes> for the target key path.
+/// Convert proof nodes to a `Vec<Bytes>` for the target key path.
 fn proof_nodes_to_vec(proof_nodes: &ProofNodes, _target: &Nibbles) -> Vec<Bytes> {
     // ProofNodes contains all nodes along the path. We return them sorted.
     let nodes = proof_nodes.nodes_sorted();
