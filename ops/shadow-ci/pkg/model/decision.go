@@ -48,7 +48,8 @@ type JobCategoryConfig struct {
 
 	// Dependency and build fields for dynamic pipeline generation.
 	DependsOn      []string `yaml:"depends_on" json:"depends_on,omitempty"`       // categories this one requires
-	Command        string   `yaml:"command" json:"command,omitempty"`             // build/test command to execute
+	Command        string   `yaml:"command" json:"command,omitempty"`             // full command (used when targets empty or force-all)
+	TargetCommand  string   `yaml:"target_command" json:"target_command,omitempty"` // targeted command; {{targets}} replaced with affected targets
 	WorkspacePaths []string `yaml:"workspace_paths" json:"workspace_paths,omitempty"` // paths to persist in workspace
 	RunnerClass    string   `yaml:"runner" json:"runner,omitempty"`               // resource class override
 

@@ -134,7 +134,7 @@ func main() {
 				}
 			}
 
-			command := strings.TrimSpace(e.cat.Command)
+			command := resolveCommand(e.cat, e.cd)
 			if command == "" {
 				fmt.Printf("--- %s: no command configured, skipping execution ---\n", e.name)
 				mu.Lock()
@@ -199,7 +199,12 @@ func main() {
 				}
 			}
 
-			fmt.Printf("--- %s: executing ---\n", e.name)
+			isTargeted := strings.TrimSpace(e.cat.TargetCommand) != "" && len(e.cd.Targets) > 0
+			if isTargeted {
+				fmt.Printf("--- %s: executing (targeted, %d targets) ---\n", e.name, len(e.cd.Targets))
+			} else {
+				fmt.Printf("--- %s: executing ---\n", e.name)
+			}
 			fmt.Printf("Command: %s\n", command)
 
 			if *dryRun {
@@ -294,6 +299,36 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("\nPASS: all %d categories succeeded\n", len(results))
+}
+
+// resolveCommand picks the right command for a category:
+// - If target_command is set AND the decision has targets, substitute and use it.
+// - Otherwise, fall back to the static command.
+//
+// Placeholders in target_command:
+//
+//	{{targets}}       — space-separated target list
+//	{{targets_csv}}   — comma-separated target list
+//	{{targets_glob}}  — brace glob: {a,b,c} (single target returned bare)
+func resolveCommand(cat model.JobCategoryConfig, cd *model.CategoryDecision) string {
+	targetCmd := strings.TrimSpace(cat.TargetCommand)
+	if targetCmd != "" && len(cd.Targets) > 0 {
+		space := strings.Join(cd.Targets, " ")
+		csv := strings.Join(cd.Targets, ",")
+		var glob string
+		if len(cd.Targets) == 1 {
+			glob = cd.Targets[0]
+		} else {
+			glob = "{" + csv + "}"
+		}
+
+		resolved := targetCmd
+		resolved = strings.ReplaceAll(resolved, "{{targets}}", space)
+		resolved = strings.ReplaceAll(resolved, "{{targets_csv}}", csv)
+		resolved = strings.ReplaceAll(resolved, "{{targets_glob}}", glob)
+		return resolved
+	}
+	return strings.TrimSpace(cat.Command)
 }
 
 func printLogTail(path string, lines int) {

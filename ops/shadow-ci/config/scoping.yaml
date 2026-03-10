@@ -155,6 +155,16 @@ job_categories:
     depends_on: ["contracts_build"]
     command: |
       make go-tests-short-ci
+    target_command: |
+      make cannon-elf
+      mkdir -p ./tmp/test-results ./tmp/testlogs
+      gotestsum --format=testname \
+        --junitfile=./tmp/test-results/results.xml \
+        --jsonfile=./tmp/testlogs/log.json \
+        --rerun-fails=3 \
+        --rerun-fails-max-failures=50 \
+        --packages="{{targets}}" \
+        -- -parallel=$(nproc 2>/dev/null || echo 4) -short -count=1 -timeout=10m -tags="ci"
     description: "Go unit tests (gotestsum, 12-node PR / 16-node develop)"
 
   go_fuzz:
@@ -232,6 +242,8 @@ job_categories:
       develop: ci
     command: |
       cd packages/contracts-bedrock && just build-go-ffi && FOUNDRY_PROFILE=liteci forge test
+    target_command: |
+      cd packages/contracts-bedrock && just build-go-ffi && FOUNDRY_PROFILE=liteci forge test --match-path "{{targets_glob}}"
     description: "Solidity tests with feature matrix"
 
   sol_upgrade:
