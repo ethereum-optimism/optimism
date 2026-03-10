@@ -67,3 +67,6 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }
+alloy-signer = { workspace = true }
+alloy-signer-local = { workspace = true, features = ["keystore"] }
+reqwest = { workspace = true, features = ["json"] }

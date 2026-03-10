@@ -1,4 +1,15 @@
 //! Beacon API server for serving blob data.
+//!
+//! Note: We use hand-crafted `serde_json::json!()` responses instead of
+//! `alloy_rpc_types_beacon` typed responses (e.g. `BlobData`, `GetBlobsResponse`).
+//! The typed responses require fields we don't have in our test context:
+//! - `BlobData` requires `kzg_commitment_inclusion_proof` (Merkle proof into the beacon block)
+//!   and a full `BeaconBlockHeader` with `proposer_index`, `parent_root`, `state_root`, `body_root`
+//! - `GetBlobsResponse` requires `execution_optimistic` and `finalized` boolean fields
+//!
+//! Fabricating these would add complexity without improving correctness, since
+//! the OP Stack derivation pipeline only reads `index`, `blob`, `kzg_commitment`,
+//! `kzg_proof`, and `signed_block_header.message.slot` from the response.
 
 use axum::{
     Router,

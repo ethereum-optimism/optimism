@@ -317,6 +317,28 @@ mod tests {
     }
 
     #[test]
+    fn state_root_after_transfer() {
+        let config = crate::config::DeterministicConfig::default();
+        let mut l2 = crate::l2::L2ChainBuilder::new(&config);
+
+        let genesis_root = l2.head_snapshot().state_root;
+        assert_ne!(genesis_root, EMPTY_ROOT_HASH, "genesis state root should not be empty");
+
+        // Build an L1 block to serve as epoch
+        let mut l1 = crate::l1::L1ChainBuilder::new(&config);
+        l1.emit_empty_block();
+        let l1_block = l1.block_at(1).unwrap().clone();
+        l2.set_epoch(&l1_block);
+
+        // Build a block with the L1 info deposit tx (modifies state)
+        l2.build_empty_block().unwrap();
+
+        let post_root = l2.head_snapshot().state_root;
+        assert_ne!(post_root, genesis_root, "state root should change after executing deposit tx");
+        assert_ne!(post_root, EMPTY_ROOT_HASH);
+    }
+
+    #[test]
     fn storage_root_ordering_deterministic() {
         let mut store = TrieNodeStore::new();
 

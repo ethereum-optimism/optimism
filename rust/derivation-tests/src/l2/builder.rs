@@ -397,3 +397,121 @@ fn receipts_bloom(receipts: &[OpReceiptEnvelope]) -> Bloom {
 fn cumulative_gas_from_receipts(receipts: &[OpReceiptEnvelope]) -> u64 {
     receipts.last().map_or(0, |r| r.cumulative_gas_used())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::{DeterministicConfig, PREFUNDED_ACCOUNT, PREFUNDED_ACCOUNT_KEY},
+        l1::L1ChainBuilder,
+        state::roots::EMPTY_ROOT_HASH,
+    };
+    use alloy_primitives::B256;
+
+    fn setup_builder() -> (DeterministicConfig, L1ChainBuilder, L2ChainBuilder) {
+        let config = DeterministicConfig::default();
+        let l1 = L1ChainBuilder::new(&config);
+        let l2 = L2ChainBuilder::new(&config);
+        (config, l1, l2)
+    }
+
+    #[test]
+    fn genesis_block_properties() {
+        let (_config, _l1, l2) = setup_builder();
+        let genesis = l2.head();
+
+        assert_eq!(genesis.header.inner().number, 0);
+        assert_ne!(genesis.header.inner().state_root, B256::ZERO);
+        assert_ne!(genesis.header.inner().state_root, EMPTY_ROOT_HASH);
+        // Genesis has no parent, so parent_hash is zero
+        assert_eq!(genesis.header.inner().parent_hash, B256::ZERO);
+        assert!(genesis.transactions.is_empty(), "genesis should have no transactions");
+    }
+
+    #[test]
+    fn block_with_transfer() {
+        use alloy_consensus::{SignableTransaction, TxEip1559};
+        use alloy_primitives::{Address, TxKind};
+        use alloy_signer::SignerSync;
+        use alloy_signer_local::PrivateKeySigner;
+
+        let (config, mut l1, mut l2) = setup_builder();
+        l1.emit_empty_block();
+        let l1_block = l1.block_at(1).unwrap().clone();
+        l2.set_epoch(&l1_block);
+
+        let genesis_root = l2.head_snapshot().state_root;
+
+        let signer = PrivateKeySigner::from_bytes(&PREFUNDED_ACCOUNT_KEY).expect("valid key");
+        assert_eq!(signer.address(), PREFUNDED_ACCOUNT);
+
+        // The deposit tx in build_block will bump the nonce for the L1 info depositor,
+        // but the prefunded account starts at nonce 0.
+        let tx = TxEip1559 {
+            chain_id: config.l2_chain_id,
+            nonce: 0,
+            gas_limit: 21_000,
+            max_fee_per_gas: 0,
+            max_priority_fee_per_gas: 0,
+            to: TxKind::Call(Address::with_last_byte(0x42)),
+            value: U256::from(1u64),
+            ..Default::default()
+        };
+
+        let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing works");
+        let signed = tx.into_signed(sig);
+        let eth_envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
+        let op_tx = OpTxEnvelope::try_from_eth_envelope(eth_envelope)
+            .expect("should convert ETH envelope to OP envelope");
+
+        l2.build_block(vec![op_tx]).unwrap();
+
+        let post_root = l2.head_snapshot().state_root;
+        assert_ne!(post_root, genesis_root, "state root should change after transfer");
+    }
+
+    #[test]
+    fn epoch_change() {
+        let (config, mut l1, mut l2) = setup_builder();
+
+        // Create two L1 blocks for two epochs
+        l1.emit_empty_block(); // block 1
+        l1.emit_empty_block(); // block 2
+
+        let l1_block_1 = l1.block_at(1).unwrap().clone();
+        let l1_block_2 = l1.block_at(2).unwrap().clone();
+
+        // Build blocks in epoch 1
+        l2.set_epoch(&l1_block_1);
+        l2.build_empty_block().unwrap();
+        l2.build_empty_block().unwrap();
+
+        // Switch to epoch 2
+        l2.set_epoch(&l1_block_2);
+        l2.build_empty_block().unwrap();
+
+        let blocks = l2.blocks();
+        // 4 blocks total: genesis + 3 built
+        assert_eq!(blocks.len(), 4);
+
+        // The deposit tx in block 3 (index 3) should reference L1 block 2.
+        // Deposit txs contain the L1 origin info encoded in the input data,
+        // but since we use kona's L1BlockInfoTx the exact encoding is complex.
+        // Instead, we verify timestamps are consistent: block 3 was built after
+        // epoch change, and timestamps still increment by L2 block time.
+        for i in 1..blocks.len() {
+            assert_eq!(
+                blocks[i].header.inner().timestamp,
+                blocks[i - 1].header.inner().timestamp + config.l2_block_time,
+            );
+        }
+
+        // Each non-genesis block should have at least one deposit tx
+        for i in 1..blocks.len() {
+            assert!(
+                blocks[i].transactions.iter().any(|tx| matches!(tx, OpTxEnvelope::Deposit(_))),
+                "block {i} should have a deposit tx"
+            );
+        }
+    }
+}

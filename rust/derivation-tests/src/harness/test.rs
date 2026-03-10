@@ -1,12 +1,13 @@
 //! The main `DerivationTest` entry point.
 
-use alloy_primitives::B256;
+use alloy_eips::eip4844::{self, BlobTransactionSidecar};
+use alloy_primitives::{B256, Bytes};
 use kona_protocol::ChannelId;
 
 use crate::{
-    batch::{ChannelOut, CompressionAlgo, L1Origin, block_to_singular_batch},
+    batch::{ChannelOut, CompressionAlgo, L1Origin, block_to_singular_batch, build_span_batch},
     config::DeterministicConfig,
-    l1::{BatchSubmission, L1ChainBuilder, L1Block},
+    l1::{BatchSubmission, BlobWithCommitment, L1Block, L1ChainBuilder},
     l2::{L2BlockRef, L2ChainBuilder},
     roots::{compute_output_root_from_state, compute_single_chain_super_root},
     server::TestServers,
@@ -91,6 +92,74 @@ impl DerivationTest {
         BatchSubmission::Calldata(calldata.into_iter().next().unwrap())
     }
 
+    /// Encode L2 blocks as a span batch in a channel with zlib compression, returned as calldata.
+    pub fn span_batch_calldata(
+        &mut self,
+        block_refs: &[L2BlockRef],
+        l1_origin: &L1Block,
+    ) -> BatchSubmission {
+        let rollup_config = self.config.rollup_config();
+        let channel_id = self.next_channel_id();
+        let origin = L1Origin {
+            number: l1_origin.header.inner().number,
+            hash: l1_origin.header.hash(),
+        };
+
+        let blocks: Vec<_> = block_refs.iter().map(|r| self.l2.block(*r)).collect();
+        let span_batch = build_span_batch(&blocks, origin, &rollup_config);
+
+        let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
+        channel.add_span_batch(&span_batch).expect("add span batch failed");
+        channel.close().expect("close channel failed");
+
+        let calldata = channel.to_calldata(100_000);
+        assert!(!calldata.is_empty(), "expected at least one frame");
+        BatchSubmission::Calldata(calldata.into_iter().next().unwrap())
+    }
+
+    /// Encode L2 blocks as a span batch in a channel with zlib compression, returned as a blob.
+    pub fn blob_span_batch(
+        &mut self,
+        block_refs: &[L2BlockRef],
+        l1_origin: &L1Block,
+    ) -> BatchSubmission {
+        let rollup_config = self.config.rollup_config();
+        let channel_id = self.next_channel_id();
+        let origin = L1Origin {
+            number: l1_origin.header.inner().number,
+            hash: l1_origin.header.hash(),
+        };
+
+        let blocks: Vec<_> = block_refs.iter().map(|r| self.l2.block(*r)).collect();
+        let span_batch = build_span_batch(&blocks, origin, &rollup_config);
+
+        let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
+        channel.add_span_batch(&span_batch).expect("add span batch failed");
+        channel.close().expect("close channel failed");
+
+        let calldata = channel.to_calldata(100_000);
+        assert!(!calldata.is_empty(), "expected at least one frame");
+        let frame_data = calldata.into_iter().next().unwrap();
+
+        let builder = eip4844::builder::SidecarBuilder::<eip4844::builder::SimpleCoder>::from_slice(&frame_data);
+        let sidecar: BlobTransactionSidecar =
+            builder.build_4844().expect("blob sidecar construction failed");
+
+        let blob = sidecar.blobs[0];
+        let versioned_hash = eip4844::kzg_to_versioned_hash(sidecar.commitments[0].as_slice());
+
+        BatchSubmission::Blob(BlobWithCommitment {
+            blob: Box::new(blob),
+            commitment: sidecar,
+            versioned_hash,
+        })
+    }
+
+    /// Create a batch submission from raw invalid data (for negative tests).
+    pub const fn invalid_batch(data: Bytes) -> BatchSubmission {
+        BatchSubmission::Calldata(data)
+    }
+
     /// Start RPC servers for the built chains.
     pub async fn serve(&self) -> Result<TestServers, Box<dyn std::error::Error>> {
         TestServers::start(&self.config, &self.l1, &self.l2).await
@@ -102,5 +171,40 @@ impl DerivationTest {
         id[1] = self.channel_counter as u8;
         self.channel_counter += 1;
         id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn run_config_fields() {
+        let mut test = DerivationTest::new();
+
+        // Build a minimal chain so we have non-genesis state
+        test.l1.emit_empty_block();
+        let l1_block = test.l1.block_at(1).unwrap().clone();
+        test.l2.set_epoch(&l1_block);
+        test.l2.build_empty_block().unwrap();
+
+        let l1_origin = test.l1.block_at(1).unwrap().clone();
+        let block_ref = crate::l2::L2BlockRef { index: 1 };
+        let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
+        test.l1.emit_block_with_batches(vec![batch]);
+
+        let servers = test.serve().await.unwrap();
+        let run_config = crate::harness::run_config_from_test(&test, &servers);
+
+        assert_ne!(run_config.l1_head, B256::ZERO, "l1_head should be non-zero");
+        assert_ne!(run_config.l2_head, B256::ZERO, "l2_head should be non-zero");
+        assert_ne!(run_config.expected_claim, B256::ZERO, "expected_claim should be non-zero");
+        assert_ne!(run_config.l2_output_root, B256::ZERO, "l2_output_root should be non-zero");
+        assert!(run_config.l2_block_number > 0, "l2_block_number should be > 0");
+        assert!(!run_config.l1_rpc.is_empty());
+        assert!(!run_config.l2_rpc.is_empty());
+        assert!(!run_config.beacon_url.is_empty());
+
+        servers.stop();
     }
 }
