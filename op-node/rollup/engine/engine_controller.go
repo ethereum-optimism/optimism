@@ -173,6 +173,15 @@ type EngineController struct {
 	// Used to carry attributes through to DepositsOnlyPayloadAttributesRequestEvent
 	// so the handler does not depend on pipeline state that may be cleared by a reset.
 	lastBuildAttribs *derive.AttributesWithParent
+
+	// buildInProgress tracks whether a payload build is currently in flight.
+	// Set true when onBuildStart succeeds (startPayload returns a payload ID),
+	// cleared when the build reaches a terminal state.
+	buildInProgress bool
+
+	// pendingInteropInvalidation stores an InteropInvalidateBlockEvent that arrived
+	// while a build was in progress. It is replayed when the build completes.
+	pendingInteropInvalidation *InteropInvalidateBlockEvent
 }
 
 var _ event.Deriver = (*EngineController)(nil)
@@ -816,7 +825,13 @@ func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 			e.PromoteSafe(ctx, x.Ref, x.Source)
 		}
 	case InteropInvalidateBlockEvent:
-		e.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
+		if e.buildInProgress {
+			e.log.Warn("Deferring interop block invalidation until current build completes",
+				"invalidated", x.Invalidated)
+			e.pendingInteropInvalidation = &x
+		} else {
+			e.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
+		}
 	case BuildStartEvent:
 		e.onBuildStart(ctx, x)
 	case BuildStartedEvent:
@@ -843,6 +858,20 @@ func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		return false
 	}
 	return true
+}
+
+// clearBuildInProgress marks the current build as complete.
+// If an InteropInvalidateBlockEvent was deferred, it is re-emitted for processing.
+func (e *EngineController) clearBuildInProgress(ctx context.Context) {
+	e.buildInProgress = false
+	if pending := e.pendingInteropInvalidation; pending != nil {
+		e.pendingInteropInvalidation = nil
+		e.log.Info("Replaying deferred interop block invalidation", "invalidated", pending.Invalidated)
+		e.emitter.Emit(ctx, InteropInvalidateBlockEvent{
+			Invalidated: pending.Invalidated,
+			Attributes:  pending.Attributes,
+		})
+	}
 }
 
 func (e *EngineController) RequestPendingSafeUpdate(ctx context.Context) {

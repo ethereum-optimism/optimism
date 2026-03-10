@@ -25,6 +25,11 @@ func (ev PayloadProcessEvent) String() string {
 }
 
 func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProcessEvent) {
+	// Capture lastBuildAttribs before clearing build state, since we may need it
+	// for deposits-only fallback requests below.
+	attribs := e.lastBuildAttribs
+	defer e.clearBuildInProgress(ctx)
+
 	rpcCtx, cancel := context.WithTimeout(e.ctx, payloadProcessTimeout)
 	defer cancel()
 
@@ -43,7 +48,7 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 				"blockNumber", payload.BlockNumber,
 				"blockHash", payload.BlockHash,
 			)
-			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom, e.lastBuildAttribs)
+			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom, attribs)
 			return
 		}
 	}
@@ -62,7 +67,7 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 		// Depending on execution engine, not all block-validity checks run immediately on build-start
 		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
 		if ev.DerivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(ev.DerivedFrom.Time) {
-			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom, e.lastBuildAttribs)
+			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom, attribs)
 			return
 		}
 

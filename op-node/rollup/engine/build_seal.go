@@ -73,6 +73,7 @@ func (e *EngineController) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
 		// So the user (attributes-handler or sequencer) should be able to re-attempt the exact
 		// same attributes with a new block-building job from here to recover from this error.
 		// We name it "expired", as this generally identifies a timeout, unknown job, or otherwise invalidated work.
+		e.clearBuildInProgress(ctx)
 		e.emitter.Emit(ctx, PayloadSealExpiredErrorEvent{
 			Info:        ev.Info,
 			Err:         fmt.Errorf("failed to seal execution payload (ID: %s): %w", ev.Info.ID, err),
@@ -83,6 +84,7 @@ func (e *EngineController) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
 	}
 
 	if err := sanityCheckPayload(envelope.ExecutionPayload); err != nil {
+		e.clearBuildInProgress(ctx)
 		e.emitter.Emit(ctx, PayloadSealInvalidEvent{
 			Info: ev.Info,
 			Err: fmt.Errorf("failed sanity-check of execution payload contents (ID: %s, blockhash: %s): %w",
@@ -95,6 +97,7 @@ func (e *EngineController) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
 
 	ref, err := derive.PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
 	if err != nil {
+		e.clearBuildInProgress(ctx)
 		e.emitter.Emit(ctx, PayloadSealInvalidEvent{
 			Info:        ev.Info,
 			Err:         fmt.Errorf("failed to decode L2 block ref from payload: %w", err),

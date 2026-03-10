@@ -73,6 +73,7 @@ func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent)
 			return
 		}
 	}
+	e.buildInProgress = true
 	e.emitter.Emit(ctx, fcEvent)
 
 	e.emitter.Emit(ctx, BuildStartedEvent{

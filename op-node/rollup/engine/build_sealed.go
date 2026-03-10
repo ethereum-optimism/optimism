@@ -35,5 +35,9 @@ func (e *EngineController) onBuildSealed(ctx context.Context, ev BuildSealedEven
 			Ref:          ev.Ref,
 			BuildStarted: ev.BuildStarted,
 		})
+	} else {
+		// Sequencer blocks don't go through PayloadProcessEvent,
+		// so the build is complete from EngineController's perspective.
+		e.clearBuildInProgress(ctx)
 	}
 }

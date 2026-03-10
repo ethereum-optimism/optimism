@@ -20,6 +20,7 @@ func (ev BuildCancelEvent) String() string {
 }
 
 func (e *EngineController) onBuildCancel(ctx context.Context, ev BuildCancelEvent) {
+	e.clearBuildInProgress(ctx)
 	rpcCtx, cancel := context.WithTimeout(e.ctx, buildCancelTimeout)
 	defer cancel()
 	// the building job gets wrapped up as soon as the payload is retrieved, there's no explicit cancel in the Engine API
