@@ -9,9 +9,11 @@ use alloy_op_hardforks::{
 };
 use alloy_primitives::{address, b256, uint};
 use kona_genesis::{
-    ChainGenesis, DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW, FJORD_MAX_SEQUENCER_DRIFT, HardForkConfig,
+    ChainGenesis, DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW, HardForkConfig,
     OP_MAINNET_BASE_FEE_CONFIG, RollupConfig, SystemConfig,
 };
+#[cfg(feature = "rollup_config_override")]
+use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
 
 /// The [`RollupConfig`] for OP Mainnet.
 pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {

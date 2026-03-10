@@ -10,8 +10,10 @@ use alloy_op_hardforks::{
 use alloy_primitives::{address, b256, uint};
 use kona_genesis::{
     BASE_SEPOLIA_BASE_FEE_CONFIG, ChainGenesis, DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
-    FJORD_MAX_SEQUENCER_DRIFT, HardForkConfig, RollupConfig, SystemConfig,
+    HardForkConfig, RollupConfig, SystemConfig,
 };
+#[cfg(feature = "rollup_config_override")]
+use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
 
 /// The [`RollupConfig`] for Base Sepolia.
 pub const BASE_SEPOLIA_CONFIG: RollupConfig = RollupConfig {

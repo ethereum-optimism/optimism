@@ -47,6 +47,7 @@ alloy-eips.workspace = true
 
 [features]
 default = []
+rollup_config_override = ["kona-genesis/rollup_config_override"]
 tabled = [ "dep:tabled", "std" ]
 std = [
 	"alloy-chains/std",
