@@ -19,13 +19,7 @@ pub struct ChannelOut {
 impl ChannelOut {
     /// Create a new channel encoder.
     pub const fn new(channel_id: ChannelId, compression: CompressionAlgo) -> Self {
-        Self {
-            channel_id,
-            compression,
-            uncompressed: Vec::new(),
-            closed: false,
-            compressed: None,
-        }
+        Self { channel_id, compression, uncompressed: Vec::new(), closed: false, compressed: None }
     }
 
     /// Add a singular batch to the channel.
@@ -58,12 +52,7 @@ impl ChannelOut {
         let mut frames = Vec::new();
 
         if compressed.is_empty() {
-            frames.push(Frame {
-                id: self.channel_id,
-                number: 0,
-                data: Vec::new(),
-                is_last: true,
-            });
+            frames.push(Frame { id: self.channel_id, number: 0, data: Vec::new(), is_last: true });
             return frames;
         }
 
@@ -101,7 +90,6 @@ impl ChannelOut {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::Bytes;
 
     #[test]
     fn singular_batch_roundtrip() {

@@ -2,8 +2,8 @@
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, U256};
-use revm::database::{CacheDB, EmptyDB};
 use revm::DatabaseCommit;
+use revm::database::{CacheDB, EmptyDB};
 use revm::state::{AccountInfo, Bytecode};
 use std::collections::BTreeMap;
 
@@ -74,11 +74,8 @@ impl TestStateDb {
 
         for (address, account) in allocs {
             let code = account.code.as_ref().map(|c| c.to_vec()).unwrap_or_default();
-            let code_hash = if code.is_empty() {
-                alloy_primitives::KECCAK256_EMPTY
-            } else {
-                keccak256(&code)
-            };
+            let code_hash =
+                if code.is_empty() { alloy_primitives::KECCAK256_EMPTY } else { keccak256(&code) };
 
             let info = AccountInfo {
                 balance: account.balance,
@@ -123,10 +120,7 @@ impl TestStateDb {
     }
 
     /// Apply execution results from revm's `BundleState` to the tracked state.
-    pub fn apply_evm_result(
-        &mut self,
-        result: &revm::state::EvmState,
-    ) {
+    pub fn apply_evm_result(&mut self, result: &revm::state::EvmState) {
         for (address, account) in result {
             if account.is_selfdestructed() {
                 self.accounts.remove(address);
@@ -139,11 +133,7 @@ impl TestStateDb {
 
             self.accounts.insert(
                 *address,
-                AccountState {
-                    nonce: info.nonce,
-                    balance: info.balance,
-                    code_hash,
-                },
+                AccountState { nonce: info.nonce, balance: info.balance, code_hash },
             );
 
             // Store code if present
