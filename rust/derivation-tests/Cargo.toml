@@ -1,0 +1,72 @@
+[package]
+name = "derivation-tests"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+description = "Cross-implementation derivation pipeline test framework for the OP Stack"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Kona protocol crates
+kona-protocol = { workspace = true, features = ["std", "serde", "test-utils"] }
+kona-interop = { workspace = true, features = ["std", "serde"] }
+kona-genesis = { workspace = true, features = ["std", "serde"] }
+kona-mpt = { workspace = true, features = ["serde"] }
+
+# Alloy core types
+alloy-chains = { workspace = true }
+alloy-primitives = { workspace = true, features = ["std", "serde", "map-fxhash"] }
+alloy-consensus = { workspace = true, features = ["std", "serde"] }
+alloy-trie = { workspace = true, features = ["std", "serde"] }
+alloy-rlp = { workspace = true, features = ["std"] }
+alloy-eips = { workspace = true, features = ["std", "serde", "kzg"] }
+alloy-genesis = { workspace = true, features = ["std"] }
+
+# Alloy RPC types (for server responses)
+alloy-rpc-types-eth = { workspace = true, features = ["std", "serde"] }
+alloy-rpc-types-beacon = { workspace = true }
+alloy-serde = { workspace = true }
+
+# OP-specific types
+op-alloy-consensus = { workspace = true, features = ["std", "serde"] }
+op-alloy-rpc-types-engine = { workspace = true, features = ["std", "serde"] }
+
+# EVM execution
+revm = { workspace = true, features = ["std"] }
+revm-database = { workspace = true, features = ["std"] }
+op-revm = { workspace = true, features = ["std"] }
+alloy-op-evm = { workspace = true, features = ["std"] }
+alloy-evm = { workspace = true, features = ["std"] }
+
+# RPC server
+jsonrpsee = { workspace = true, features = ["server"] }
+axum = "0.8"
+
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+
+# Compression
+brotli = { workspace = true }
+miniz_oxide = { workspace = true }
+
+# Serialization
+serde = { workspace = true, features = ["std", "derive"] }
+serde_json = { workspace = true, features = ["std"] }
+
+# Crypto
+c-kzg = { workspace = true }
+
+# Utilities
+tempfile = { workspace = true }
+tracing = { workspace = true }
+thiserror = "2"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
