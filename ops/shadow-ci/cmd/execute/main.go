@@ -5,14 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"sort"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/cache"
+	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/executor"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 )
 
@@ -49,290 +44,41 @@ func main() {
 
 	os.MkdirAll(*resultsDir, 0o755)
 
-	// Create cache resolver if caching is enabled.
-	var resolver *cache.Resolver
+	// Build the executor with real implementations.
+	var cacheResolver executor.CacheResolver
 	if *cacheDir != "" {
-		resolver = cache.NewResolver(".", *cacheDir)
+		resolver := cache.NewResolver(".", *cacheDir)
+		cacheResolver = executor.NewCacheAdapter(resolver, ".")
 	}
 
-	// Collect categories for this group.
-	type catEntry struct {
-		name string
-		cat  model.JobCategoryConfig
-		cd   *model.CategoryDecision
-	}
-	var entries []catEntry
-	for name, cat := range cfg.Scoping.JobCategories {
-		if cat.Group != *group {
-			continue
-		}
-		cd, ok := decision.Categories[name]
-		if !ok {
-			fmt.Printf("  SKIP  %-30s not in decision\n", name)
-			continue
-		}
-		if !cd.Needed || cd.Skipped {
-			fmt.Printf("  SKIP  %-30s %s\n", name, cd.SkipWhy)
-			continue
-		}
-		entries = append(entries, catEntry{name: name, cat: cat, cd: cd})
-	}
-
-	if len(entries) == 0 {
-		fmt.Printf("No categories to execute for group %q\n", *group)
-		os.Exit(0)
-	}
-
-	// Sort for deterministic display.
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].name < entries[j].name
-	})
-
-	fmt.Printf("=== Shadow CI Execute: group=%s, %d categories ===\n", *group, len(entries))
-	for _, e := range entries {
-		fmt.Printf("  RUN   %-30s %s\n", e.name, e.cd.Reason)
-	}
-	fmt.Println()
-
-	type result struct {
-		Category string        `json:"category"`
-		Status   string        `json:"status"`
-		Duration time.Duration `json:"duration_ms"`
-		Output   string        `json:"output,omitempty"`
-	}
-
-	// Build the set of categories in this group for dep resolution.
-	inGroup := make(map[string]bool)
-	for _, e := range entries {
-		inGroup[e.name] = true
-	}
-
-	// Build dependency graph: for each category, track which in-group deps
-	// must complete before it can start. Out-of-group deps (e.g. build deps
-	// from another group) are assumed already satisfied.
-	done := make(map[string]chan struct{})
-	for _, e := range entries {
-		done[e.name] = make(chan struct{})
-	}
-
-	var (
-		mu       sync.Mutex
-		results  []result
-		failures int
+	exec := executor.New(
+		executor.Config{
+			Group:      *group,
+			DryRun:     *dryRun,
+			ResultsDir: *resultsDir,
+		},
+		&executor.ShellRunner{},
+		cacheResolver,
+		&cfg.Scoping,
+		&decision,
 	)
 
-	var wg sync.WaitGroup
-	for _, e := range entries {
-		wg.Add(1)
-		go func(e catEntry) {
-			defer wg.Done()
-
-			// Wait for in-group dependencies.
-			for _, dep := range e.cat.DependsOn {
-				if ch, ok := done[dep]; ok {
-					<-ch
-				}
-			}
-
-			command := resolveCommand(e.cat, e.cd)
-			if command == "" {
-				fmt.Printf("--- %s: no command configured, skipping execution ---\n", e.name)
-				mu.Lock()
-				results = append(results, result{Category: e.name, Status: "no_command"})
-				mu.Unlock()
-				close(done[e.name])
-				return
-			}
-
-			// Cache resolution for categories with workspace outputs.
-			// Flow: check key → restore → verify → use or rebuild.
-			if resolver != nil && len(e.cat.WorkspacePaths) > 0 {
-				if *dryRun {
-					if key, keyErr := resolver.ComputeKey(e.name, e.cat); keyErr == nil {
-						fmt.Printf("--- %s: DRY RUN cache key=%s ---\n", e.name, key)
-					}
-				} else {
-					res, resolveErr := resolver.Resolve(e.name, e.cat)
-					if resolveErr != nil {
-						fmt.Printf("--- %s: cache key error: %v, proceeding with full build ---\n", e.name, resolveErr)
-					} else if res.Hit {
-						// Key matched — restore artifacts first, then verify.
-						if restoreErr := resolver.Restore(e.name, e.cat); restoreErr != nil {
-							fmt.Printf("--- %s: cache restore failed: %v, proceeding with full build ---\n", e.name, restoreErr)
-						} else {
-							// Verify restored artifacts exist.
-							start := time.Now()
-							verifyErr := cache.Verify(".", e.cat)
-							verifyDur := time.Since(start)
-							if verifyErr == nil {
-								fmt.Printf("--- %s: CACHED (key=%s, verified in %s) ---\n\n", e.name, res.CacheKey, verifyDur.Round(time.Millisecond))
-								mu.Lock()
-								results = append(results, result{Category: e.name, Status: "cached", Duration: verifyDur})
-								mu.Unlock()
-								close(done[e.name])
-								return
-							}
-							fmt.Printf("--- %s: CACHE STALE (key=%s matched, restored, but verify failed in %s) ---\n", e.name, res.CacheKey, verifyDur.Round(time.Millisecond))
-							fmt.Printf("    verify error: %v\n", verifyErr)
-							fmt.Printf("    WARNING: cache key was insufficient — rebuilding\n")
-							warnPath := filepath.Join(*resultsDir, e.name+"-cache-verify-failed.json")
-							warnJSON, _ := json.Marshal(map[string]string{
-								"category": e.name, "cache_key": res.CacheKey,
-								"event": "cache.verify_failed",
-							})
-							os.WriteFile(warnPath, warnJSON, 0o644)
-						}
-					} else {
-						fmt.Printf("--- %s: cache miss (key=%s) ---\n", e.name, res.CacheKey)
-					}
-				}
-			}
-
-			isTargeted := strings.TrimSpace(e.cat.TargetCommand) != "" && len(e.cd.Targets) > 0
-			if isTargeted {
-				fmt.Printf("--- %s: executing (targeted, %d targets) ---\n", e.name, len(e.cd.Targets))
-			} else {
-				fmt.Printf("--- %s: executing ---\n", e.name)
-			}
-			fmt.Printf("Command: %s\n", command)
-
-			if *dryRun {
-				fmt.Printf("DRY RUN: would execute %q\n\n", command)
-				mu.Lock()
-				results = append(results, result{Category: e.name, Status: "dry_run"})
-				mu.Unlock()
-				close(done[e.name])
-				return
-			}
-
-			// Each category captures output to its own log file to avoid
-			// interleaved parallel output. On completion, the tail of the
-			// log is printed for visibility.
-			logPath := filepath.Join(*resultsDir, e.name+".log")
-			logFile, err := os.Create(logPath)
-			if err != nil {
-				fatal("creating log file for %s: %v", e.name, err)
-			}
-
-			start := time.Now()
-			cmd := exec.Command("bash", "-c", command)
-			cmd.Stdout = logFile
-			cmd.Stderr = logFile
-			cmd.Env = os.Environ()
-
-			runErr := cmd.Run()
-			duration := time.Since(start)
-			logFile.Close()
-
-			status := "pass"
-			if runErr != nil {
-				status = "fail"
-				mu.Lock()
-				failures++
-				mu.Unlock()
-				fmt.Printf("--- %s: FAILED in %s: %v ---\n", e.name, duration.Round(time.Second), runErr)
-				// Print tail of log for debugging.
-				printLogTail(logPath, 30)
-				fmt.Println()
-			} else {
-				fmt.Printf("--- %s: PASSED in %s ---\n\n", e.name, duration.Round(time.Second))
-				// Save to cache after successful build.
-				if resolver != nil && len(e.cat.WorkspacePaths) > 0 {
-					if key, keyErr := resolver.ComputeKey(e.name, e.cat); keyErr == nil {
-						if saveErr := resolver.Save(e.name, e.cat, key); saveErr != nil {
-							fmt.Printf("    warning: cache save failed: %v\n", saveErr)
-						} else {
-							fmt.Printf("    cached artifacts for key=%s\n", key)
-						}
-					}
-				}
-			}
-
-			mu.Lock()
-			results = append(results, result{Category: e.name, Status: status, Duration: duration})
-			mu.Unlock()
-
-			// Signal completion so dependents can start, even on failure
-			// (let them fail too rather than hang).
-			close(done[e.name])
-		}(e)
+	results, err := exec.Execute()
+	if err != nil {
+		fatal("execute: %v", err)
 	}
 
-	wg.Wait()
-
-	// Sort results for deterministic output.
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Category < results[j].Category
-	})
-
-	fmt.Printf("\n=== Shadow CI Execute Summary (group=%s) ===\n", *group)
-	for _, r := range results {
-		emoji := "✓"
-		if r.Status == "fail" {
-			emoji = "✗"
-		} else if r.Status == "no_command" || r.Status == "dry_run" {
-			emoji = "-"
-		} else if r.Status == "cached" {
-			emoji = "⚡"
-		}
-		fmt.Printf("  %s %-30s %s (%s)\n", emoji, r.Category, r.Status, r.Duration.Round(time.Millisecond))
-	}
-
+	// Write results JSON.
 	resultsJSON, _ := json.MarshalIndent(results, "", "  ")
 	resultPath := fmt.Sprintf("%s/%s-results.json", *resultsDir, *group)
 	os.WriteFile(resultPath, resultsJSON, 0o644)
 	fmt.Printf("\nWrote results to %s\n", resultPath)
 
-	if failures > 0 {
-		fmt.Printf("\nFAIL: %d/%d categories failed\n", failures, len(results))
-		os.Exit(1)
-	}
-	fmt.Printf("\nPASS: all %d categories succeeded\n", len(results))
-}
-
-// resolveCommand picks the right command for a category:
-// - If target_command is set AND the decision has targets, substitute and use it.
-// - Otherwise, fall back to the static command.
-//
-// Placeholders in target_command:
-//
-//	{{targets}}       — space-separated target list
-//	{{targets_csv}}   — comma-separated target list
-//	{{targets_glob}}  — brace glob: {a,b,c} (single target returned bare)
-func resolveCommand(cat model.JobCategoryConfig, cd *model.CategoryDecision) string {
-	targetCmd := strings.TrimSpace(cat.TargetCommand)
-	if targetCmd != "" && len(cd.Targets) > 0 {
-		space := strings.Join(cd.Targets, " ")
-		csv := strings.Join(cd.Targets, ",")
-		var glob string
-		if len(cd.Targets) == 1 {
-			glob = cd.Targets[0]
-		} else {
-			glob = "{" + csv + "}"
+	// Exit non-zero if any failures.
+	for _, r := range results {
+		if r.Status == "fail" {
+			os.Exit(1)
 		}
-
-		resolved := targetCmd
-		resolved = strings.ReplaceAll(resolved, "{{targets}}", space)
-		resolved = strings.ReplaceAll(resolved, "{{targets_csv}}", csv)
-		resolved = strings.ReplaceAll(resolved, "{{targets_glob}}", glob)
-		return resolved
-	}
-	return strings.TrimSpace(cat.Command)
-}
-
-func printLogTail(path string, lines int) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return
-	}
-	all := strings.Split(string(data), "\n")
-	start := 0
-	if len(all) > lines {
-		start = len(all) - lines
-		fmt.Printf("  ... (%d lines omitted, see %s)\n", start, path)
-	}
-	for _, line := range all[start:] {
-		fmt.Printf("  | %s\n", line)
 	}
 }
 
