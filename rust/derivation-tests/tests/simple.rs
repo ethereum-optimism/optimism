@@ -1,6 +1,43 @@
 //! Simple derivation test scenarios exercising the full framework.
+//!
+//! # Golden super root values
+//!
+//! Tests pin expected super root hashes as hardcoded constants. This catches silent
+//! regressions in batch encoding, block execution, state root computation, or output
+//! root calculation — a consistently wrong root would pass a pure determinism check.
+//!
+//! ## Updating golden values
+//!
+//! When an intentional change modifies the derivation output (e.g. a new hardfork,
+//! changed genesis config, or updated deposit tx encoding):
+//!
+//! 1. Run: `cargo test -p derivation-tests -- --nocapture 2>&1 | grep "super root"`
+//! 2. Each test prints its computed super root to stderr before asserting.
+//! 3. Copy the new values into the `EXPECTED_*` constants below.
+//! 4. Re-run to confirm all tests pass.
+//!
+//! The golden values are framework-internal — they are NOT cross-checked against Go
+//! implementations yet. That validation happens via the `#[ignore]` integration tests
+//! that run op-program and kona-host against the same chains.
 
+use alloy_primitives::b256;
 use derivation_tests::{config::DeterministicConfig, harness::DerivationTest};
+
+/// Expected super root for 3 empty L2 blocks (deposit-only) derived from empty L1 blocks.
+const EXPECTED_EMPTY_BLOCKS_ROOT: alloy_primitives::B256 =
+    b256!("48b8e9775b5a4a4245d029b49c37e3a75cd8c14b1568ea755c7b2fb7db0ff6e3");
+
+/// Expected super root for 1 empty L2 block submitted as a singular batch.
+const EXPECTED_SINGLE_BATCH_ROOT: alloy_primitives::B256 =
+    b256!("c6d451da74b2c28fe9ab55d8a192b999daa24d9b4f5cd26de41065e464e6ea52");
+
+/// Expected super root for 1 L2 block containing a 1 ETH transfer.
+const EXPECTED_SINGLE_TRANSFER_ROOT: alloy_primitives::B256 =
+    b256!("d3b829e421e999530af0fa50e7071d0da2499f1253f3e87fa8be5146cd2b82a6");
+
+/// Expected super root for 6 empty L2 blocks (one full epoch).
+const EXPECTED_MULTI_BLOCK_ROOT: alloy_primitives::B256 =
+    b256!("83dc212c8b1ee1112539eeed21c338ce548d4c85c175ecd5fee69d3a33f4bda4");
 
 /// Build a test with N empty L2 blocks derived from N empty L1 blocks.
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {
@@ -31,6 +68,10 @@ fn test_empty_blocks_deterministic() {
     let root2 = test2.expected_super_root();
 
     assert_eq!(root1, root2, "same inputs should produce same super root");
+    assert_eq!(
+        root1, EXPECTED_EMPTY_BLOCKS_ROOT,
+        "super root mismatch — update EXPECTED_EMPTY_BLOCKS_ROOT if this is an intentional change"
+    );
 }
 
 #[test]
@@ -83,10 +124,14 @@ fn test_single_batch_submission() {
     // Submit batch on L1
     test.l1.emit_block_with_batches(vec![batch]);
 
-    // Verify the super root is deterministic
+    // Verify the super root is deterministic and matches expected value
     let root1 = test.expected_super_root();
     let root2 = test.expected_super_root();
     assert_eq!(root1, root2);
+    assert_eq!(
+        root1, EXPECTED_SINGLE_BATCH_ROOT,
+        "super root mismatch — update EXPECTED_SINGLE_BATCH_ROOT if this is an intentional change"
+    );
 }
 
 #[test]
@@ -115,8 +160,12 @@ fn test_multiple_l2_blocks() {
     // 7 blocks total: genesis + 6 built
     assert_eq!(test.l2.blocks().len(), 7);
 
-    // Super root is computable
-    let _root = test.expected_super_root();
+    // Super root matches expected golden value
+    let root = test.expected_super_root();
+    assert_eq!(
+        root, EXPECTED_MULTI_BLOCK_ROOT,
+        "super root mismatch — update EXPECTED_MULTI_BLOCK_ROOT if this is an intentional change"
+    );
 }
 
 #[test]
@@ -244,10 +293,14 @@ fn test_single_transfer() {
     let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
     test.l1.emit_block_with_batches(vec![batch]);
 
-    // Super root is deterministic
+    // Super root matches expected golden value
     let root1 = test.expected_super_root();
     let root2 = test.expected_super_root();
     assert_eq!(root1, root2, "super root should be deterministic with a transfer");
+    assert_eq!(
+        root1, EXPECTED_SINGLE_TRANSFER_ROOT,
+        "super root mismatch — update EXPECTED_SINGLE_TRANSFER_ROOT if this is an intentional change"
+    );
 
     // Super root differs from an empty-blocks-only chain
     let empty_test = build_empty_blocks_test(1);
