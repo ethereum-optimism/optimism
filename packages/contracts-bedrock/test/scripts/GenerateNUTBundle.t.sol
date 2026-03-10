@@ -30,7 +30,7 @@ contract GenerateNUTBundleTest is Test {
 
         // Verify artifact written correctly
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns =
-            NetworkUpgradeTxns.readArtifact(script.upgradeBundlePath());
+            NetworkUpgradeTxns.readArtifact(script.CURRENT_BUNDLE_PATH());
         assertEq(readTxns.length, output.txns.length, "Transaction count mismatch");
         for (uint256 i = 0; i < readTxns.length; i++) {
             assertEq(readTxns[i].intent, output.txns[i].intent, "Intent mismatch");

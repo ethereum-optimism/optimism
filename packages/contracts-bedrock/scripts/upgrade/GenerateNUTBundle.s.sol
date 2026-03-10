@@ -30,6 +30,9 @@ contract GenerateNUTBundle is Script {
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
 
+    /// @notice Current bundle artifact path.
+    string public constant CURRENT_BUNDLE_PATH = "snapshots/upgrades/current-upgrade-bundle.json";
+
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
     struct Output {
@@ -118,7 +121,7 @@ contract GenerateNUTBundle is Script {
         // Write transactions to artifact with metadata
         NetworkUpgradeTxns.BundleMetadata memory metadata =
             NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
-        NetworkUpgradeTxns.writeArtifact(txns, metadata, upgradeBundlePath());
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, CURRENT_BUNDLE_PATH);
     }
 
     /// @notice Asserts the output is valid.
@@ -305,11 +308,6 @@ contract GenerateNUTBundle is Script {
     // ========================================
     // HELPERS
     // ========================================
-
-    /// @notice Returns the path to the upgrade bundle.
-    function upgradeBundlePath() public pure returns (string memory) {
-        return string.concat("snapshots/upgrades/current-upgrade-bundle.json");
-    }
 
     /// @notice Retrieves all expected implementation addresses for the upgrade.
     /// @dev All addresses are looked up from the implementationConfigs mapping, which contains
