@@ -149,6 +149,57 @@ mod tests {
     }
 
     #[test]
+    fn singular_batch_decode_roundtrip() {
+        use alloy_primitives::B256;
+        use kona_protocol::Batch;
+
+        let epoch_num = 42u64;
+        let epoch_hash = B256::from([0xABu8; 32]);
+        let timestamp = 1_700_001_000u64;
+
+        let batch = SingleBatch {
+            parent_hash: B256::from([0x11u8; 32]),
+            epoch_num,
+            epoch_hash,
+            timestamp,
+            transactions: vec![Bytes::from(vec![0xDE, 0xAD])],
+        };
+
+        let channel_id: ChannelId = [0x10u8; 16];
+        let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
+        channel.add_singular_batch(&batch).unwrap();
+        channel.close().unwrap();
+
+        // Reassemble compressed data from frames
+        let frames = channel.output_frames(1_000_000);
+        let mut compressed = Vec::new();
+        for frame in &frames {
+            compressed.extend_from_slice(&frame.data);
+        }
+
+        // Decompress the zlib data to get the raw batch bytes
+        let decompressed = miniz_oxide::inflate::decompress_to_vec_zlib(&compressed)
+            .expect("zlib decompression");
+
+        // ChannelOut writes: batch_type_prefix (0x00) + RLP(SingleBatch).
+        // Batch::decode expects the same format.
+        let rollup_config = crate::config::DeterministicConfig::default().rollup_config();
+        let decoded =
+            Batch::decode(&mut decompressed.as_slice(), &rollup_config).expect("batch decode");
+
+        match decoded {
+            Batch::Single(single) => {
+                assert_eq!(single.epoch_num, epoch_num);
+                assert_eq!(single.epoch_hash, epoch_hash);
+                assert_eq!(single.timestamp, timestamp);
+                assert_eq!(single.transactions.len(), 1);
+                assert_eq!(single.transactions[0].as_ref(), &[0xDE, 0xAD]);
+            }
+            Batch::Span(_) => panic!("expected a singular batch, got span batch"),
+        }
+    }
+
+    #[test]
     fn test_frame_splitting() {
         // Create many batches with varied data that doesn't compress well,
         // forcing the compressed output to be large enough for multiple frames.

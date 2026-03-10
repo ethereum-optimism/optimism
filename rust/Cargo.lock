@@ -762,6 +762,7 @@ dependencies = [
  "async-trait",
  "coins-bip32",
  "coins-bip39",
+ "eth-keystore",
  "k256",
  "rand 0.8.5",
  "thiserror 2.0.18",
@@ -2521,7 +2522,7 @@ dependencies = [
  "libc",
  "serde",
  "serde_json",
- "uuid",
+ "uuid 1.21.0",
 ]
 
 [[package]]
@@ -2588,7 +2589,7 @@ dependencies = [
  "coins-bip32",
  "hmac",
  "once_cell",
- "pbkdf2",
+ "pbkdf2 0.12.2",
  "rand 0.8.5",
  "sha2",
  "thiserror 1.0.69",
@@ -3199,6 +3200,8 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types-eth",
  "alloy-serde",
+ "alloy-signer",
+ "alloy-signer-local",
  "alloy-trie",
  "axum 0.8.8",
  "brotli",
@@ -3212,6 +3215,7 @@ dependencies = [
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "op-revm",
+ "reqwest 0.13.2",
  "revm",
  "revm-database",
  "serde",
@@ -3667,6 +3671,28 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "eth-keystore"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fda3bf123be441da5260717e0661c25a2fd9cb2b2c1d20bf2e05580047158ab"
+dependencies = [
+ "aes",
+ "ctr",
+ "digest 0.10.7",
+ "hex",
+ "hmac",
+ "pbkdf2 0.11.0",
+ "rand 0.8.5",
+ "scrypt",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sha3",
+ "thiserror 1.0.69",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -7368,7 +7394,7 @@ dependencies = [
  "portable-atomic",
  "smallvec",
  "tagptr",
- "uuid",
+ "uuid 1.21.0",
 ]
 
 [[package]]
@@ -8316,6 +8342,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a97453bc21a968f722df730bfe11bd08745cb50d1300b0df2bda131dece136"
 dependencies = [
  "smallvec",
+]
+
+[[package]]
+name = "pbkdf2"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83a0692ec44e4cf1ef28ca317f14f8f07da2d95ec3fa01f86e4467b725e60917"
+dependencies = [
+ "digest 0.10.7",
 ]
 
 [[package]]
@@ -9347,6 +9382,8 @@ dependencies = [
  "log",
  "percent-encoding",
  "pin-project-lite",
+ "serde",
+ "serde_json",
  "sync_wrapper",
  "tokio",
  "tower 0.5.3",
@@ -12907,7 +12944,7 @@ dependencies = [
  "rend",
  "rkyv_derive",
  "tinyvec",
- "uuid",
+ "uuid 1.21.0",
 ]
 
 [[package]]
@@ -13042,7 +13079,7 @@ dependencies = [
  "tracing-opentelemetry 0.29.0",
  "tracing-subscriber 0.3.22",
  "url",
- "uuid",
+ "uuid 1.21.0",
  "vergen",
  "vergen-git2",
 ]
@@ -13346,6 +13383,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd29631678d6fb0903b69223673e122c32e9ae559d0960a38d574695ebc0ea15"
 
 [[package]]
+name = "salsa20"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97a22f5af31f73a954c10289c93e8a50cc23d971e80ee446f1f6f7137a088213"
+dependencies = [
+ "cipher",
+]
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13418,6 +13464,18 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "scrypt"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f9e24d2b632954ded8ab2ef9fea0a0c769ea56ea98bddbafbad22caeeadf45d"
+dependencies = [
+ "hmac",
+ "pbkdf2 0.11.0",
+ "salsa20",
+ "sha2",
+]
 
 [[package]]
 name = "sdd"
@@ -14737,7 +14795,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
- "uuid",
+ "uuid 1.21.0",
 ]
 
 [[package]]
@@ -15201,6 +15259,16 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+
+[[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom 0.2.17",
+ "serde",
+]
 
 [[package]]
 name = "uuid"

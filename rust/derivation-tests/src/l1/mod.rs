@@ -4,4 +4,4 @@ mod builder;
 mod types;
 
 pub use builder::L1ChainBuilder;
-pub use types::{BatchSubmission, BlobWithCommitment, L1Block};
+pub use types::{BatchSubmission, BlobWithCommitment, L1Block, SystemConfigUpdate};
