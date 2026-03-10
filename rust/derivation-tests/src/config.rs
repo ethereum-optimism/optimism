@@ -5,7 +5,7 @@
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, U256, address, b256};
-use kona_genesis::{HardForkConfig, RollupConfig};
+use kona_genesis::{ChainGenesis, HardForkConfig, RollupConfig, SystemConfig};
 use std::collections::BTreeMap;
 
 /// Fixed L1 chain ID for test chains.
@@ -164,8 +164,57 @@ impl DeterministicConfig {
     }
 
     /// Build the OP Stack `RollupConfig` from this deterministic config.
+    ///
+    /// Genesis L1/L2 block references are computed deterministically from the config
+    /// so they match the blocks produced by `L1ChainBuilder` and `L2ChainBuilder`.
     pub fn rollup_config(&self) -> RollupConfig {
+        use alloy_consensus::Header;
+        use alloy_eips::eip1898::BlockNumHash;
+        use alloy_primitives::Sealable;
+
+        use crate::state::roots::EMPTY_ROOT_HASH;
+
+        // Compute the L1 genesis block hash deterministically (must match L1ChainBuilder::new)
+        let l1_genesis_header = Header {
+            number: 0,
+            timestamp: self.genesis_timestamp,
+            state_root: EMPTY_ROOT_HASH,
+            transactions_root: EMPTY_ROOT_HASH,
+            receipts_root: EMPTY_ROOT_HASH,
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
+            gas_limit: 30_000_000,
+            ..Default::default()
+        };
+        let l1_genesis_hash = l1_genesis_header.seal_slow().hash();
+
+        // Compute the L2 genesis state root and block hash deterministically
+        // (must match L2ChainBuilder::new)
+        let mut state = crate::state::TestStateDb::new();
+        state.init_genesis(&self.l2_genesis_allocs());
+        let genesis_state_root = state.snapshot().state_root;
+
+        let l2_genesis_header = Header {
+            number: 0,
+            timestamp: self.genesis_timestamp,
+            state_root: genesis_state_root,
+            transactions_root: EMPTY_ROOT_HASH,
+            receipts_root: EMPTY_ROOT_HASH,
+            gas_limit: 30_000_000,
+            ..Default::default()
+        };
+        let l2_genesis_hash = l2_genesis_header.seal_slow().hash();
+
         RollupConfig {
+            genesis: ChainGenesis {
+                l1: BlockNumHash { number: 0, hash: l1_genesis_hash },
+                l2: BlockNumHash { number: 0, hash: l2_genesis_hash },
+                l2_time: self.genesis_timestamp,
+                system_config: Some(SystemConfig {
+                    batcher_address: self.batcher,
+                    gas_limit: 30_000_000,
+                    ..Default::default()
+                }),
+            },
             l1_chain_id: self.l1_chain_id,
             l2_chain_id: alloy_chains::Chain::from_id(self.l2_chain_id),
             block_time: self.l2_block_time,
@@ -173,7 +222,19 @@ impl DeterministicConfig {
             max_sequencer_drift: 600,
             channel_timeout: 300,
             batch_inbox_address: self.batch_inbox,
+            l1_system_config_address: self.system_config,
             hardforks: self.hardforks,
+            ..Default::default()
+        }
+    }
+
+    /// Build an L1 chain config (alloy `ChainConfig`) for kona-host's `--l1-config-path`.
+    pub fn l1_chain_config(&self) -> alloy_genesis::ChainConfig {
+        alloy_genesis::ChainConfig {
+            chain_id: self.l1_chain_id,
+            // Enable post-merge (Shanghai+) so withdrawals_root is expected
+            shanghai_time: Some(0),
+            cancun_time: Some(0),
             ..Default::default()
         }
     }

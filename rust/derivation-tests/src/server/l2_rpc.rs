@@ -109,6 +109,8 @@ impl L2RpcImpl {
             "sha3Uncles": header.ommers_hash,
             "logsBloom": header.logs_bloom,
             "size": "0x0",
+            "withdrawalsRoot": header.withdrawals_root.unwrap_or(crate::state::roots::EMPTY_ROOT_HASH),
+            "withdrawals": [],
             "mixHash": header.mix_hash,
             "transactions": block.transactions.iter().enumerate().map(|(i, _)| {
                 format!("0x{:064x}", i)
