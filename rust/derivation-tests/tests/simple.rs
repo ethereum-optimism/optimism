@@ -77,7 +77,8 @@ fn test_single_batch_submission() {
     let block_ref = test.l2.build_empty_block().unwrap();
 
     // Encode as a singular batch
-    let batch = test.singular_batch_calldata(&[block_ref]);
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
 
     // Submit batch on L1
     test.l1.emit_block_with_batches(vec![batch]);
@@ -107,7 +108,8 @@ fn test_multiple_l2_blocks() {
     }
 
     // Encode all blocks as batches and submit
-    let batch = test.singular_batch_calldata(&block_refs);
+    let l1_origin = test.l1.block_at(1).unwrap().clone();
+    let batch = test.singular_batch_calldata(&block_refs, &l1_origin);
     test.l1.emit_block_with_batches(vec![batch]);
 
     // 7 blocks total: genesis + 6 built
@@ -142,6 +144,61 @@ fn test_l1_chain_structure() {
             blocks[i - 1].header.inner().timestamp + config.l1_block_time,
         );
     }
+}
+
+#[test]
+fn test_span_batch_submission() {
+    use derivation_tests::batch::{ChannelOut, CompressionAlgo, build_span_batch, L1Origin};
+
+    let mut test = DerivationTest::new();
+
+    // Build L1 blocks
+    test.l1.emit_empty_block(); // block 1
+    test.l1.emit_empty_block(); // block 2
+
+    // Build multiple L2 blocks in the same epoch
+    let l1_block = test.l1.block_at(1).unwrap().clone();
+    test.l2.set_epoch(&l1_block);
+
+    let mut block_refs = Vec::new();
+    for _ in 0..3 {
+        block_refs.push(test.l2.build_empty_block().unwrap());
+    }
+
+    // Collect block references for span batch construction
+    let blocks: Vec<&_> = block_refs.iter().map(|r| test.l2.block(*r)).collect();
+
+    let l1_origin = L1Origin {
+        number: l1_block.header.inner().number,
+        hash: l1_block.header.hash(),
+    };
+    let rollup_config = test.config.rollup_config();
+
+    // Build span batch
+    let span_batch = build_span_batch(&blocks, l1_origin, &rollup_config);
+    assert_eq!(span_batch.batches.len(), 3);
+
+    // Encode into channel and produce calldata
+    let channel_id = [0xFFu8; 16];
+    let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
+    channel.add_span_batch(&span_batch).unwrap();
+    channel.close().unwrap();
+
+    let calldata = channel.to_calldata(100_000);
+    assert!(!calldata.is_empty(), "expected at least one frame of calldata");
+
+    // First byte is DerivationVersion0
+    assert_eq!(calldata[0][0], 0x00);
+
+    // Submit as batch on L1
+    let batch_submission =
+        derivation_tests::l1::BatchSubmission::Calldata(calldata.into_iter().next().unwrap());
+    test.l1.emit_block_with_batches(vec![batch_submission]);
+
+    // Verify super root is still computable and deterministic
+    let root1 = test.expected_super_root();
+    let root2 = test.expected_super_root();
+    assert_eq!(root1, root2, "super root should be deterministic after span batch submission");
 }
 
 /// Integration test that requires op-program binary.

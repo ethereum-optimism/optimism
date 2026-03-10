@@ -180,19 +180,20 @@ impl L2RpcServer for L2RpcImpl {
             .last()
             .ok_or_else(|| ErrorObjectOwned::owned(-32603, "no state available", None::<String>))?;
 
-        // Try direct hash lookup
+        // kona-host convention: 0x63 prefix + 32-byte code hash → contract code lookup
+        if key.len() == 33 && key[0] == 0x63 {
+            let code_hash = B256::from_slice(&key[1..]);
+            if let Some(code) = snapshot.code.get(&code_hash) {
+                return Ok(Bytes::from(code.clone()));
+            }
+            return Err(ErrorObjectOwned::owned(-32602, "code not found", None::<String>));
+        }
+
+        // Try direct hash lookup for trie nodes
         if key.len() == 32 {
             let hash = B256::from_slice(&key);
             if let Some(data) = snapshot.node_store.get(&hash) {
                 return Ok(data.clone());
-            }
-        }
-
-        // Try as code lookup (kona convention: code is stored by code_hash)
-        if key.len() == 32 {
-            let hash = B256::from_slice(&key);
-            if let Some(code) = snapshot.code.get(&hash) {
-                return Ok(Bytes::from(code.clone()));
             }
         }
 

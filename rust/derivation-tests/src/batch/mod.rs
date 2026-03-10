@@ -5,7 +5,9 @@
 mod channel_out;
 mod compression;
 mod singular;
+mod span;
 
 pub use channel_out::ChannelOut;
 pub use compression::CompressionAlgo;
-pub use singular::block_to_singular_batch;
+pub use singular::{L1Origin, block_to_singular_batch};
+pub use span::build_span_batch;

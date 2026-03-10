@@ -1,6 +1,7 @@
 //! L1 chain builder for constructing deterministic L1 blocks.
 
 use alloy_consensus::{Header, Receipt, ReceiptEnvelope, ReceiptWithBloom};
+use alloy_eips::Encodable2718;
 use alloy_primitives::{Bloom, Bytes, Sealable};
 use std::collections::BTreeMap;
 
@@ -50,7 +51,6 @@ impl L1ChainBuilder {
             ..Default::default()
         };
         let sealed = header.seal_slow();
-
         self.blocks.push(L1Block { header: sealed, transactions: vec![], receipts: vec![] });
     }
 
@@ -78,13 +78,16 @@ impl L1ChainBuilder {
             }
         }
 
+        let transactions_root = compute_raw_transactions_root(&transactions);
+        let receipts_root = compute_l1_receipts_root(&receipts);
+
         let header = Header {
             parent_hash: prev.header.hash(),
             number: block_num,
             timestamp,
             state_root: EMPTY_ROOT_HASH,
-            transactions_root: EMPTY_ROOT_HASH,
-            receipts_root: EMPTY_ROOT_HASH,
+            transactions_root,
+            receipts_root,
             gas_limit: 30_000_000,
             ..Default::default()
         };
@@ -96,19 +99,22 @@ impl L1ChainBuilder {
     /// Emit an L1 block with raw transaction data.
     pub fn emit_block_with_raw_txs(&mut self, txs: Vec<Bytes>) {
         let prev = self.blocks.last().expect("always have genesis");
+
+        let receipts: Vec<_> = (0..txs.len()).map(|i| success_receipt(i as u64)).collect();
+        let transactions_root = compute_raw_transactions_root(&txs);
+        let receipts_root = compute_l1_receipts_root(&receipts);
+
         let header = Header {
             parent_hash: prev.header.hash(),
             number: prev.header.inner().number + 1,
             timestamp: prev.header.inner().timestamp + self.config.l1_block_time,
             state_root: EMPTY_ROOT_HASH,
-            transactions_root: EMPTY_ROOT_HASH,
-            receipts_root: EMPTY_ROOT_HASH,
+            transactions_root,
+            receipts_root,
             gas_limit: 30_000_000,
             ..Default::default()
         };
         let sealed = header.seal_slow();
-
-        let receipts: Vec<_> = (0..txs.len()).map(|i| success_receipt(i as u64)).collect();
 
         self.blocks.push(L1Block { header: sealed, transactions: txs, receipts });
     }
@@ -138,6 +144,11 @@ impl L1ChainBuilder {
         (timestamp - self.config.genesis_timestamp) / self.config.seconds_per_slot
     }
 
+    /// Get all blobs indexed by slot.
+    pub const fn blobs(&self) -> &BTreeMap<u64, Vec<BlobWithCommitment>> {
+        &self.blobs
+    }
+
     /// Get the config.
     pub const fn config(&self) -> &DeterministicConfig {
         &self.config
@@ -152,4 +163,21 @@ fn success_receipt(cumulative_gas: u64) -> ReceiptEnvelope {
         logs: vec![],
     };
     ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(receipt, Bloom::default()))
+}
+
+/// Compute the transactions trie root from raw RLP-encoded transaction bytes.
+fn compute_raw_transactions_root(txs: &[Bytes]) -> alloy_primitives::B256 {
+    if txs.is_empty() {
+        return EMPTY_ROOT_HASH;
+    }
+    // Raw tx bytes are already in the correct encoding for the trie — just write them as-is.
+    kona_mpt::ordered_trie_with_encoder(txs, |tx, buf| buf.put_slice(tx)).root()
+}
+
+/// Compute the receipts trie root from L1 receipt envelopes.
+fn compute_l1_receipts_root(receipts: &[ReceiptEnvelope]) -> alloy_primitives::B256 {
+    if receipts.is_empty() {
+        return EMPTY_ROOT_HASH;
+    }
+    kona_mpt::ordered_trie_with_encoder(receipts, |r, buf| r.encode_2718(buf)).root()
 }
