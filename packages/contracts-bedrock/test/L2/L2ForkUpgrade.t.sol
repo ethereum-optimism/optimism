@@ -9,33 +9,18 @@ import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Types } from "src/libraries/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
-import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
-import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
-import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
-import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
-import { ICrossL2Inbox } from "interfaces/L2/ICrossL2Inbox.sol";
-import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
-import { IOptimismSuperchainERC20Factory } from "interfaces/L2/IOptimismSuperchainERC20Factory.sol";
-import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
-import { ISuperchainTokenBridge } from "interfaces/L2/ISuperchainTokenBridge.sol";
-import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
-import { INativeAssetLiquidity } from "interfaces/L2/INativeAssetLiquidity.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 
 /// @title L2ForkUpgrade_Test
 /// @notice Integration test for L2 fork upgrades using NUT bundles.
@@ -166,8 +151,8 @@ contract L2ForkUpgrade_Test is CommonTest {
 
     /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
     function _getVersion(address _contract) internal view returns (string memory) {
-        try ISemver(_contract).version() returns (string memory ver) {
-            return ver;
+        try ISemver(_contract).version() returns (string memory ver_) {
+            return ver_;
         } catch {
             return "0.0.0";
         }
