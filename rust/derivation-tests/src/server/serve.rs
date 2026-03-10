@@ -54,7 +54,7 @@ impl TestServers {
         let beacon_addr = beacon_listener.local_addr()?;
         let beacon_state = Arc::new(BeaconState {
             config: config.clone(),
-            blobs: std::collections::BTreeMap::new(), // TODO: extract from L1 builder
+            blobs: l1.blobs().clone(),
         });
         let beacon_app = beacon::beacon_router(beacon_state);
         let beacon_handle = tokio::spawn(async move {
