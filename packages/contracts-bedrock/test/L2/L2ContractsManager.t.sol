@@ -43,21 +43,26 @@ import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Bea
 import { NativeAssetLiquidity } from "src/L2/NativeAssetLiquidity.sol";
 import { LiquidityController } from "src/L2/LiquidityController.sol";
 
-/// @title L2ContractsManager_FullConfigExposer_Harness
+/// @title L2ContractsManager_FunctionsExposer_Harness
 /// @notice Harness contract that exposes internal functions for testing.
-contract L2ContractsManager_FullConfigExposer_Harness is L2ContractsManager {
+contract L2ContractsManager_FunctionsExposer_Harness is L2ContractsManager {
     constructor(L2ContractsManagerTypes.Implementations memory _implementations) L2ContractsManager(_implementations) { }
 
     /// @notice Returns the full configuration for the L2 predeploys.
     function loadFullConfig() external view returns (L2ContractsManagerTypes.FullConfig memory) {
         return _loadFullConfig();
     }
+
+    /// @notice Returns true if _feature is enabled and false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool) {
+        return _isDevFeatureEnabled(_feature);
+    }
 }
 
 /// @title L2ContractsManager_Upgrade_Test
 /// @notice Test contract for the L2ContractsManager contract, testing the upgrade path.
 contract L2ContractsManager_Upgrade_Test is CommonTest {
-    L2ContractsManager_FullConfigExposer_Harness internal l2cm;
+    L2ContractsManager_FunctionsExposer_Harness internal l2cm;
     L2ContractsManagerTypes.Implementations internal implementations;
 
     /// @notice Struct to capture the post-upgrade state for comparison.
@@ -147,7 +152,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
 
     /// @notice Deploys the L2ContractsManager with the loaded implementations.
     function _deployL2CM() internal {
-        l2cm = new L2ContractsManager_FullConfigExposer_Harness(implementations);
+        l2cm = new L2ContractsManager_FunctionsExposer_Harness(implementations);
         vm.label(address(l2cm), "L2ContractsManager");
     }
 
@@ -992,5 +997,93 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         vm.expectCall(Predeploys.NATIVE_ASSET_LIQUIDITY, abi.encodeWithSelector(IProxy.upgradeTo.selector));
 
         _executeUpgrade();
+    }
+}
+
+/// @title L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test
+/// @notice Tests the upgrade process when the L2DevFeatureFlags
+///         implementation has no code, simulating existing chains where the predeploy was
+///         never deployed.
+contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager_Upgrade_Test {
+    /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags has not been deployed by:
+    ///         1. Etching the current implementation to have no code.
+    ///         2. Pointing implementations.l2DevFeatureFlagsImpl to a fresh address with no code,
+    ///            so that after the upgrade sets the new impl pointer, the null-safe guard in
+    ///            _isDevFeatureEnabled fires and returns false.
+    function _simulateNoFlagsImpl() internal {
+        address currentImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
+        vm.etch(currentImpl, bytes(""));
+
+        implementations.l2DevFeatureFlagsImpl = makeAddr("emptyFlagsImpl");
+        _deployL2CM();
+    }
+
+    /// @notice Tests that _isDevFeatureEnabled returns false when the flags implementation has no code.
+    function testFuzz_isDevFeatureEnabled_returnsFalse_whenFlagsImplHasNoCode(bytes32 _feature) public {
+        _simulateNoFlagsImpl();
+        assertFalse(l2cm.isDevFeatureEnabled(_feature));
+    }
+
+    /// @notice Tests that the upgrade does not revert when L2DevFeatureFlags implementation has no code.
+    function test_upgrade_doesNotRevert_whenFlagsImplHasNoCode() public {
+        _simulateNoFlagsImpl();
+        _executeUpgrade();
+    }
+
+    /// @notice Tests that all 7 interop predeploys retain their pre-upgrade implementations
+    ///         when the flags implementation has no code.
+    function test_upgrade_skipsInteropPredeploys_whenFlagsImplHasNoCode() public {
+        address[] memory interopPredeploys = new address[](7);
+        interopPredeploys[0] = Predeploys.CROSS_L2_INBOX;
+        interopPredeploys[1] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+        interopPredeploys[2] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
+        interopPredeploys[3] = Predeploys.ETH_LIQUIDITY;
+        interopPredeploys[4] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
+        interopPredeploys[5] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+        interopPredeploys[6] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
+
+        address[] memory preUpgradeImpls = new address[](7);
+        for (uint256 i = 0; i < interopPredeploys.length; i++) {
+            preUpgradeImpls[i] = EIP1967Helper.getImplementation(interopPredeploys[i]);
+        }
+
+        _simulateNoFlagsImpl();
+        _executeUpgrade();
+
+        for (uint256 i = 0; i < interopPredeploys.length; i++) {
+            assertEq(
+                EIP1967Helper.getImplementation(interopPredeploys[i]),
+                preUpgradeImpls[i],
+                "Interop predeploy should not be upgraded when flags impl has no code"
+            );
+        }
+    }
+
+    /// @notice Tests that non-interop predeploys are still upgraded when L2DevFeatureFlags
+    ///         implementation has no code.
+    function test_upgrade_upgradesNonInteropPredeploys_whenFlagsImplHasNoCode() public {
+        _simulateNoFlagsImpl();
+        _executeUpgrade();
+
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            implementations.l2CrossDomainMessengerImpl,
+            "L2CrossDomainMessenger should be upgraded"
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.GAS_PRICE_ORACLE),
+            implementations.gasPriceOracleImpl,
+            "GasPriceOracle should be upgraded"
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.L1_BLOCK_ATTRIBUTES),
+            implementations.l1BlockImpl,
+            "L1Block should be upgraded"
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.L2_STANDARD_BRIDGE),
+            implementations.l2StandardBridgeImpl,
+            "L2StandardBridge should be upgraded"
+        );
     }
 }

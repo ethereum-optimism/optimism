@@ -15,6 +15,7 @@ import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.s
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -377,6 +378,7 @@ contract L2ContractsManager is ISemver {
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
+
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
         if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
@@ -399,9 +401,14 @@ contract L2ContractsManager is ISemver {
     }
 
     /// @notice Checks if a development feature is enabled by reading from the L2DevFeatureFlags predeploy.
+    ///         If the L2DevFeatureFlags Predeploy is not available on-chain, i.e. it has no implementation,
+    ///         it defaults to false.
     /// @param _feature The feature to check.
-    /// @return True if the feature is enabled, false otherwise.
+    /// @return True if the L2DevFeatureFlags is available and _feature is enabled, false otherwise.
     function _isDevFeatureEnabled(bytes32 _feature) internal view returns (bool) {
+        address flagsImpl =
+            IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
+        if (flagsImpl.code.length == 0) return false;
         return IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).isDevFeatureEnabled(_feature);
     }
 
