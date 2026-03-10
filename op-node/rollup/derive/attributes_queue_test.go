@@ -93,8 +93,8 @@ type mockSingularBatchProvider struct {
 	flushed bool
 }
 
-func (m *mockSingularBatchProvider) FlushChannel()                                        { m.flushed = true }
-func (m *mockSingularBatchProvider) Origin() eth.L1BlockRef                               { return eth.L1BlockRef{} }
+func (m *mockSingularBatchProvider) FlushChannel()          { m.flushed = true }
+func (m *mockSingularBatchProvider) Origin() eth.L1BlockRef { return eth.L1BlockRef{} }
 func (m *mockSingularBatchProvider) NextBatch(context.Context, eth.L2BlockRef) (*SingularBatch, bool, error) {
 	return nil, false, nil
 }
