@@ -24,7 +24,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 			CommonConfig: commonConfig,
 			ChainConfig:  env.Env.L1.Config,
 		},
-		ID: stack.L1NetworkID(l1ID),
+		ID: stack.NewL1NetworkID(l1ID),
 	})
 
 	opts := []client.RPCOption{}

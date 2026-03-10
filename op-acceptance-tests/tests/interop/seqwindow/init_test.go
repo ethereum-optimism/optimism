@@ -16,7 +16,7 @@ func TestMain(m *testing.M) {
 		// Short enough that we can run the test,
 		// long enough that the batcher can still submit something before we make things expire.
 		presets.WithSequencingWindow(10, 30),
-		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
+		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
 			// Span-batches during recovery don't appear to align well with the starting-point.
 			// It can be off by ~6 L2 blocks, possibly due to off-by-one
 			// in L1 block sync considerations in batcher stop or start.

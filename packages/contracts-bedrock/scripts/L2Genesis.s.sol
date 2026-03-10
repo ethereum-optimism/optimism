@@ -283,19 +283,21 @@ contract L2Genesis is Script {
 
     function setInteropPredeployProxies() internal { }
 
+    /// @notice This predeploy is following the safety invariant #2.
+    ///         Follows invariant #2 since the constructor transfers ownership to the input owner,
+    ///         and therefore requires setting the storage manually here.
     function setL2ProxyAdmin(Input memory _input) internal {
         // Note the L2ProxyAdmin implementation itself is behind a proxy that owns itself.
-        address impl = _setImplementationCode(Predeploys.PROXY_ADMIN);
+        _setImplementationCode(Predeploys.PROXY_ADMIN);
 
         bytes32 _ownerSlot = bytes32(0);
 
         // TODO(#19182): Remove this once the L2ProxyAdmin is initializable.
         // there is no initialize() function, so we just set the storage manually.
         vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
-        // update the proxy to not be uninitialized (although not standard initialize pattern)
-        vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }
 
+    /// @notice This predeploy is following the safety invariant #1.
     function setL2ToL1MessagePasser(bool _useCustomGasToken) internal {
         if (_useCustomGasToken) {
             string memory cname = "L2ToL1MessagePasserCGT";
@@ -337,7 +339,7 @@ contract L2Genesis is Script {
         IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize({ _l1ERC721Bridge: payable(_l1ERC721BridgeProxy) });
     }
 
-    /// @notice This predeploy is following the safety invariant #2,
+    /// @notice This predeploy is following the safety invariant #1.
     function setSequencerFeeVault(Input memory _input) internal {
         _setFeeVault({
             _vaultAddr: Predeploys.SEQUENCER_FEE_WALLET,
@@ -360,25 +362,16 @@ contract L2Genesis is Script {
         });
     }
 
-    /// @notice This predeploy is following the safety invariant #2,
+    /// @notice This predeploy is following the safety invariant #1.
     function setOptimismMintableERC721Factory(Input memory _input) internal {
-        IOptimismMintableERC721Factory factory = IOptimismMintableERC721Factory(
-            DeployUtils.create1({
-                _name: "OptimismMintableERC721Factory",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOptimismMintableERC721Factory.__constructor__, (Predeploys.L2_ERC721_BRIDGE, _input.l1ChainID)
-                    )
-                )
-            })
-        );
+        address impl = _setImplementationCode(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
 
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
-        vm.etch(impl, address(factory).code);
+        IOptimismMintableERC721Factory(impl).initialize({ _bridge: address(0), _remoteChainID: 0 });
 
-        /// Reset so its not included state dump
-        vm.etch(address(factory), "");
-        vm.resetNonce(address(factory));
+        IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).initialize({
+            _bridge: Predeploys.L2_ERC721_BRIDGE,
+            _remoteChainID: _input.l1ChainID
+        });
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -425,7 +418,7 @@ contract L2Genesis is Script {
         _setImplementationCode(Predeploys.LEGACY_MESSAGE_PASSER);
     }
 
-    /// @notice This predeploy is following the safety invariant #2.
+    /// @notice This predeploy is following the safety invariant #1.
     function setBaseFeeVault(Input memory _input) internal {
         _setFeeVault({
             _vaultAddr: Predeploys.BASE_FEE_VAULT,
@@ -437,7 +430,7 @@ contract L2Genesis is Script {
         });
     }
 
-    /// @notice This predeploy is following the safety invariant #2.
+    /// @notice This predeploy is following the safety invariant #1.
     function setL1FeeVault(Input memory _input) internal {
         _setFeeVault({
             _vaultAddr: Predeploys.L1_FEE_VAULT,
@@ -449,7 +442,7 @@ contract L2Genesis is Script {
         });
     }
 
-    /// @notice This predeploy is following the safety invariant #2.
+    /// @notice This predeploy is following the safety invariant #1.
     function setOperatorFeeVault(Input memory _input) internal {
         _setFeeVault({
             _vaultAddr: Predeploys.OPERATOR_FEE_VAULT,
@@ -707,7 +700,7 @@ contract L2Genesis is Script {
     }
 
     /// @notice Helper function to set up a fee vault predeploy with revenue sharing support.
-    ///         This follows safety invariant #2 (initializable contracts).
+    ///         This follows safety invariant #1.
     /// @param _vaultAddr The predeploy address of the fee vault.
     /// @param _useRevenueShare Whether revenue sharing is enabled.
     /// @param _recipient The recipient address (ignored if revenue sharing is enabled).

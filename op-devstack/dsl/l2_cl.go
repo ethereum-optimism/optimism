@@ -32,7 +32,7 @@ func NewL2CLNode(inner stack.L2CLNode, control stack.ControlPlane) *L2CLNode {
 	}
 }
 
-func (cl *L2CLNode) ID() stack.L2CLNodeID {
+func (cl *L2CLNode) ID() stack.ComponentID {
 	return cl.inner.ID()
 }
 
@@ -166,6 +166,25 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 		logger.Info("Chain not advanced")
 		return nil
 	}
+}
+
+// awaitSafeHeadsStalled waits until every node's safe head has stopped advancing
+// for at least 10 seconds.
+func (cl *L2CLNode) WaitForStall(lvl types.SafetyLevel) {
+	var last eth.BlockID
+	var stableSince time.Time
+	cl.require.Eventuallyf(func() bool {
+		cur := cl.HeadBlockRef(lvl).ID()
+		if cur == last {
+			if stableSince.IsZero() {
+				stableSince = time.Now()
+			}
+			return time.Since(stableSince) >= 10*time.Second
+		}
+		last = cur
+		stableSince = time.Time{}
+		return false
+	}, 2*time.Minute, 2*time.Second, "expected %v head to stall", lvl)
 }
 
 // ReachedFn returns a lambda that checks the L2CL chain head with given safety level reaches the target block number

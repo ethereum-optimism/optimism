@@ -6,12 +6,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/locks"
 )
 
 type L2NetworkConfig struct {
 	NetworkConfig
-	ID           stack.L2NetworkID
+	ID           stack.ComponentID
 	RollupConfig *rollup.Config
 	Deployment   stack.L2Deployment
 	Keys         stack.Keys
@@ -23,7 +22,7 @@ type L2NetworkConfig struct {
 
 type presetL2Network struct {
 	presetNetwork
-	id stack.L2NetworkID
+	id stack.ComponentID
 
 	rollupCfg  *rollup.Config
 	deployment stack.L2Deployment
@@ -32,17 +31,6 @@ type presetL2Network struct {
 	superchain stack.Superchain
 	l1         stack.L1Network
 	cluster    stack.Cluster
-
-	batchers    locks.RWMap[stack.L2BatcherID, stack.L2Batcher]
-	proposers   locks.RWMap[stack.L2ProposerID, stack.L2Proposer]
-	challengers locks.RWMap[stack.L2ChallengerID, stack.L2Challenger]
-
-	els locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
-	cls locks.RWMap[stack.L2CLNodeID, stack.L2CLNode]
-
-	conductors       locks.RWMap[stack.ConductorID, stack.Conductor]
-	rollupBoostNodes locks.RWMap[stack.RollupBoostNodeID, stack.RollupBoostNode]
-	oprBuilderNodes  locks.RWMap[stack.OPRBuilderNodeID, stack.OPRBuilderNode]
 }
 
 var _ stack.L2Network = (*presetL2Network)(nil)
@@ -65,7 +53,7 @@ func NewL2Network(cfg L2NetworkConfig) stack.ExtensibleL2Network {
 	}
 }
 
-func (p *presetL2Network) ID() stack.L2NetworkID {
+func (p *presetL2Network) ID() stack.ComponentID {
 	return p.id
 }
 
@@ -100,7 +88,14 @@ func (p *presetL2Network) Cluster() stack.Cluster {
 }
 
 func (p *presetL2Network) L2Batcher(m stack.L2BatcherMatcher) stack.L2Batcher {
-	v, ok := findMatch(m, p.batchers.Get, p.L2Batchers)
+	getter := func(id stack.ComponentID) (stack.L2Batcher, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.L2Batcher), true
+	}
+	v, ok := findMatch(m, getter, p.L2Batchers)
 	p.require().True(ok, "must find L2 batcher %s", m)
 	return v
 }
@@ -108,26 +103,40 @@ func (p *presetL2Network) L2Batcher(m stack.L2BatcherMatcher) stack.L2Batcher {
 func (p *presetL2Network) AddL2Batcher(v stack.L2Batcher) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 batcher %s must be on chain %s", id, p.chainID)
-	p.require().True(p.batchers.SetIfMissing(id, v), "l2 batcher %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertL2BatcherID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "l2 batcher %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetL2Network) Conductor(m stack.ConductorMatcher) stack.Conductor {
-	v, ok := findMatch(m, p.conductors.Get, p.Conductors)
+	getter := func(id stack.ComponentID) (stack.Conductor, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.Conductor), true
+	}
+	v, ok := findMatch(m, getter, p.Conductors)
 	p.require().True(ok, "must find L2 conductor %s", m)
 	return v
 }
 
 func (p *presetL2Network) AddConductor(v stack.Conductor) {
 	id := v.ID()
-	p.require().True(p.conductors.SetIfMissing(id, v), "conductor %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertConductorID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "conductor %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer {
-	v, ok := findMatch(m, p.proposers.Get, p.L2Proposers)
+	getter := func(id stack.ComponentID) (stack.L2Proposer, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.L2Proposer), true
+	}
+	v, ok := findMatch(m, getter, p.L2Proposers)
 	p.require().True(ok, "must find L2 proposer %s", m)
 	return v
 }
@@ -135,26 +144,40 @@ func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer
 func (p *presetL2Network) AddL2Proposer(v stack.L2Proposer) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 proposer %s must be on chain %s", id, p.chainID)
-	p.require().True(p.proposers.SetIfMissing(id, v), "l2 proposer %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertL2ProposerID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "l2 proposer %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetL2Network) L2Challenger(m stack.L2ChallengerMatcher) stack.L2Challenger {
-	v, ok := findMatch(m, p.challengers.Get, p.L2Challengers)
+	getter := func(id stack.ComponentID) (stack.L2Challenger, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.L2Challenger), true
+	}
+	v, ok := findMatch(m, getter, p.L2Challengers)
 	p.require().True(ok, "must find L2 challenger %s", m)
 	return v
 }
 
 func (p *presetL2Network) AddL2Challenger(v stack.L2Challenger) {
 	id := v.ID()
-	p.require().True(p.challengers.SetIfMissing(id, v), "l2 challenger %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertL2ChallengerID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "l2 challenger %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetL2Network) L2CLNode(m stack.L2CLMatcher) stack.L2CLNode {
-	v, ok := findMatch(m, p.cls.Get, p.L2CLNodes)
+	getter := func(id stack.ComponentID) (stack.L2CLNode, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.L2CLNode), true
+	}
+	v, ok := findMatch(m, getter, p.L2CLNodes)
 	p.require().True(ok, "must find L2 CL %s", m)
 	return v
 }
@@ -162,13 +185,20 @@ func (p *presetL2Network) L2CLNode(m stack.L2CLMatcher) stack.L2CLNode {
 func (p *presetL2Network) AddL2CLNode(v stack.L2CLNode) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 CL node %s must be on chain %s", id, p.chainID)
-	p.require().True(p.cls.SetIfMissing(id, v), "l2 CL node %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertL2CLNodeID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "l2 CL node %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetL2Network) L2ELNode(m stack.L2ELMatcher) stack.L2ELNode {
-	v, ok := findMatch(m, p.els.Get, p.L2ELNodes)
+	getter := func(id stack.ComponentID) (stack.L2ELNode, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.L2ELNode), true
+	}
+	v, ok := findMatch(m, getter, p.L2ELNodes)
 	p.require().True(ok, "must find L2 EL %s", m)
 	return v
 }
@@ -176,85 +206,155 @@ func (p *presetL2Network) L2ELNode(m stack.L2ELMatcher) stack.L2ELNode {
 func (p *presetL2Network) AddL2ELNode(v stack.L2ELNode) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 EL node %s must be on chain %s", id, p.chainID)
-	p.require().True(p.els.SetIfMissing(id, v), "l2 EL node %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertL2ELNodeID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "l2 EL node %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
-func (p *presetL2Network) L2BatcherIDs() []stack.L2BatcherID {
-	return stack.SortL2BatcherIDs(p.batchers.Keys())
+func (p *presetL2Network) L2BatcherIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindL2Batcher))
 }
 
 func (p *presetL2Network) L2Batchers() []stack.L2Batcher {
-	return stack.SortL2Batchers(p.batchers.Values())
+	ids := p.registry.IDsByKind(stack.KindL2Batcher)
+	result := make([]stack.L2Batcher, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.L2Batcher))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
-func (p *presetL2Network) L2ProposerIDs() []stack.L2ProposerID {
-	return stack.SortL2ProposerIDs(p.proposers.Keys())
+func (p *presetL2Network) L2ProposerIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindL2Proposer))
 }
 
 func (p *presetL2Network) L2Proposers() []stack.L2Proposer {
-	return stack.SortL2Proposers(p.proposers.Values())
+	ids := p.registry.IDsByKind(stack.KindL2Proposer)
+	result := make([]stack.L2Proposer, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.L2Proposer))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
-func (p *presetL2Network) L2ChallengerIDs() []stack.L2ChallengerID {
-	return stack.SortL2ChallengerIDs(p.challengers.Keys())
+func (p *presetL2Network) L2ChallengerIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindL2Challenger))
 }
 
 func (p *presetL2Network) L2Challengers() []stack.L2Challenger {
-	return stack.SortL2Challengers(p.challengers.Values())
+	ids := p.registry.IDsByKind(stack.KindL2Challenger)
+	result := make([]stack.L2Challenger, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.L2Challenger))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
 func (p *presetL2Network) Conductors() []stack.Conductor {
-	return stack.SortConductors(p.conductors.Values())
+	ids := p.registry.IDsByKind(stack.KindConductor)
+	result := make([]stack.Conductor, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.Conductor))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
-func (p *presetL2Network) L2CLNodeIDs() []stack.L2CLNodeID {
-	return stack.SortL2CLNodeIDs(p.cls.Keys())
+func (p *presetL2Network) L2CLNodeIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindL2CLNode))
 }
 
 func (p *presetL2Network) L2CLNodes() []stack.L2CLNode {
-	return stack.SortL2CLNodes(p.cls.Values())
+	ids := p.registry.IDsByKind(stack.KindL2CLNode)
+	result := make([]stack.L2CLNode, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.L2CLNode))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
-func (p *presetL2Network) L2ELNodeIDs() []stack.L2ELNodeID {
-	return stack.SortL2ELNodeIDs(p.els.Keys())
+func (p *presetL2Network) L2ELNodeIDs() []stack.ComponentID {
+	return sortByID(p.registry.IDsByKind(stack.KindL2ELNode))
 }
 
 func (p *presetL2Network) L2ELNodes() []stack.L2ELNode {
-	return stack.SortL2ELNodes(p.els.Values())
+	ids := p.registry.IDsByKind(stack.KindL2ELNode)
+	result := make([]stack.L2ELNode, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.L2ELNode))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
 func (p *presetL2Network) RollupBoostNodes() []stack.RollupBoostNode {
-	return stack.SortRollupBoostNodes(p.rollupBoostNodes.Values())
+	ids := p.registry.IDsByKind(stack.KindRollupBoostNode)
+	result := make([]stack.RollupBoostNode, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.RollupBoostNode))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
 func (p *presetL2Network) OPRBuilderNodes() []stack.OPRBuilderNode {
-	return stack.SortOPRBuilderNodes(p.oprBuilderNodes.Values())
+	ids := p.registry.IDsByKind(stack.KindOPRBuilderNode)
+	result := make([]stack.OPRBuilderNode, 0, len(ids))
+	for _, id := range ids {
+		if v, ok := p.registry.Get(id); ok {
+			result = append(result, v.(stack.OPRBuilderNode))
+		}
+	}
+	return sortByIDFunc(result)
 }
 
 func (p *presetL2Network) AddRollupBoostNode(v stack.RollupBoostNode) {
 	id := v.ID()
-	p.require().True(p.rollupBoostNodes.SetIfMissing(id, v), "rollup boost node %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertRollupBoostNodeID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "rollup boost node %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetL2Network) AddOPRBuilderNode(v stack.OPRBuilderNode) {
 	id := v.ID()
-	p.require().True(p.oprBuilderNodes.SetIfMissing(id, v), "OPR builder node %s must not already exist", id)
-	// Also register in unified registry
-	p.registry.Register(stack.ConvertOPRBuilderNodeID(id).ComponentID, v)
+	_, exists := p.registry.Get(id)
+	p.require().False(exists, "OPR builder node %s must not already exist", id)
+	p.registry.Register(id, v)
 }
 
 func (p *presetL2Network) OPRBuilderNode(m stack.OPRBuilderNodeMatcher) stack.OPRBuilderNode {
-	v, ok := findMatch(m, p.oprBuilderNodes.Get, p.OPRBuilderNodes)
+	getter := func(id stack.ComponentID) (stack.OPRBuilderNode, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.OPRBuilderNode), true
+	}
+	v, ok := findMatch(m, getter, p.OPRBuilderNodes)
 	p.require().True(ok, "must find OPR builder node %s", m)
 	return v
 }
 
 func (p *presetL2Network) RollupBoostNode(m stack.RollupBoostNodeMatcher) stack.RollupBoostNode {
-	v, ok := findMatch(m, p.rollupBoostNodes.Get, p.RollupBoostNodes)
+	getter := func(id stack.ComponentID) (stack.RollupBoostNode, bool) {
+		v, ok := p.registry.Get(id)
+		if !ok {
+			return nil, false
+		}
+		return v.(stack.RollupBoostNode), true
+	}
+	v, ok := findMatch(m, getter, p.RollupBoostNodes)
 	p.require().True(ok, "must find rollup boost node %s", m)
 	return v
 }

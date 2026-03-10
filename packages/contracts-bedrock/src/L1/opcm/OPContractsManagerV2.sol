@@ -153,9 +153,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.10
+    /// @custom:semver 7.0.11
     function version() public pure returns (string memory) {
-        return "7.0.10";
+        return "7.0.11";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -677,7 +677,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
     function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
-        // Start validating the dispute game configs. Put allowed game types here.
+        // Start validating the dispute game configs. Put allowed game types here. Note that
+        // these game types are intentionally hardcoded rather than sourced from a shared utility.
+        // When new game types are added, this list and the corresponding list in the Migrator's
+        // _migratePortal function must both be updated.
         GameType[] memory validGameTypes = new GameType[](3);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;

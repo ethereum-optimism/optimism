@@ -14,27 +14,27 @@ var (
 )
 
 type DefaultMinimalSystemIDs struct {
-	L1   stack.L1NetworkID
-	L1EL stack.L1ELNodeID
-	L1CL stack.L1CLNodeID
+	L1   stack.ComponentID
+	L1EL stack.ComponentID
+	L1CL stack.ComponentID
 
-	L2   stack.L2NetworkID
-	L2CL stack.L2CLNodeID
-	L2EL stack.L2ELNodeID
+	L2   stack.ComponentID
+	L2CL stack.ComponentID
+	L2EL stack.ComponentID
 
-	L2Batcher    stack.L2BatcherID
-	L2Proposer   stack.L2ProposerID
-	L2Challenger stack.L2ChallengerID
+	L2Batcher    stack.ComponentID
+	L2Proposer   stack.ComponentID
+	L2Challenger stack.ComponentID
 
-	TestSequencer stack.TestSequencerID
+	TestSequencer stack.ComponentID
 }
 
 func NewDefaultMinimalSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemIDs {
 	ids := DefaultMinimalSystemIDs{
-		L1:            stack.L1NetworkID(l1ID),
+		L1:            stack.NewL1NetworkID(l1ID),
 		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
 		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
-		L2:            stack.L2NetworkID(l2ID),
+		L2:            stack.NewL2NetworkID(l2ID),
 		L2CL:          stack.NewL2CLNodeID("sequencer", l2ID),
 		L2EL:          stack.NewL2ELNodeID("sequencer", l2ID),
 		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
@@ -74,11 +74,11 @@ func defaultMinimalSystemOpts(ids *DefaultMinimalSystemIDs, dest *DefaultMinimal
 	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
 	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2EL}))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
 
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.ComponentID{
 		ids.L2EL,
 	}))
 
@@ -95,35 +95,35 @@ func defaultMinimalSystemOpts(ids *DefaultMinimalSystemIDs, dest *DefaultMinimal
 // without interop or supervisor: both L2s get their own ELs, and we attach L2CL nodes
 // via the default L2CL selector (which can be set to supernode to share a single process).
 type DefaultTwoL2SystemIDs struct {
-	L1   stack.L1NetworkID
-	L1EL stack.L1ELNodeID
-	L1CL stack.L1CLNodeID
+	L1   stack.ComponentID
+	L1EL stack.ComponentID
+	L1CL stack.ComponentID
 
-	L2A   stack.L2NetworkID
-	L2ACL stack.L2CLNodeID
-	L2AEL stack.L2ELNodeID
+	L2A   stack.ComponentID
+	L2ACL stack.ComponentID
+	L2AEL stack.ComponentID
 
-	L2B   stack.L2NetworkID
-	L2BCL stack.L2CLNodeID
-	L2BEL stack.L2ELNodeID
+	L2B   stack.ComponentID
+	L2BCL stack.ComponentID
+	L2BEL stack.ComponentID
 
 	Supernode     stack.SupernodeID
-	TestSequencer stack.TestSequencerID
-	L2ABatcher    stack.L2BatcherID
-	L2AProposer   stack.L2ProposerID
-	L2BBatcher    stack.L2BatcherID
-	L2BProposer   stack.L2ProposerID
+	TestSequencer stack.ComponentID
+	L2ABatcher    stack.ComponentID
+	L2AProposer   stack.ComponentID
+	L2BBatcher    stack.ComponentID
+	L2BProposer   stack.ComponentID
 }
 
 func NewDefaultTwoL2SystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultTwoL2SystemIDs {
 	return DefaultTwoL2SystemIDs{
-		L1:            stack.L1NetworkID(l1ID),
+		L1:            stack.NewL1NetworkID(l1ID),
 		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
 		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
-		L2A:           stack.L2NetworkID(l2AID),
+		L2A:           stack.NewL2NetworkID(l2AID),
 		L2ACL:         stack.NewL2CLNodeID("sequencer", l2AID),
 		L2AEL:         stack.NewL2ELNodeID("sequencer", l2AID),
-		L2B:           stack.L2NetworkID(l2BID),
+		L2B:           stack.NewL2NetworkID(l2BID),
 		L2BCL:         stack.NewL2CLNodeID("sequencer", l2BID),
 		L2BEL:         stack.NewL2ELNodeID("sequencer", l2BID),
 		Supernode:     stack.NewSupernodeID("supernode-two-l2-system", l2AID, l2BID),
@@ -167,7 +167,7 @@ func DefaultTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orchestrator]
 	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
 	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL, ids.L2BEL}))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -212,7 +212,7 @@ func DefaultSupernodeTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orch
 	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
 	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL, ids.L2BEL}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
@@ -266,7 +266,7 @@ func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySecond
 	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
 	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL, ids.L2BEL}))
 
 	// Test sequencer for deterministic block building on both L2 chains
 	opt.Add(WithTestSequencer2L2(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L2BCL, ids.L1EL, ids.L2AEL, ids.L2BEL))
@@ -281,7 +281,7 @@ func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySecond
 type DefaultMinimalSystemWithSyncTesterIDs struct {
 	DefaultMinimalSystemIDs
 
-	SyncTester stack.SyncTesterID
+	SyncTester stack.ComponentID
 }
 
 func NewDefaultMinimalSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemWithSyncTesterIDs {
@@ -320,15 +320,15 @@ func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTester
 	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
 	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2EL}))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
 
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.ComponentID{
 		ids.L2EL,
 	}))
 
-	opt.Add(WithSyncTester(ids.SyncTester, []stack.L2ELNodeID{ids.L2EL}))
+	opt.Add(WithSyncTester(ids.SyncTester, []stack.ComponentID{ids.L2EL}))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -340,35 +340,35 @@ func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTester
 }
 
 type DefaultSingleChainInteropSystemIDs struct {
-	L1   stack.L1NetworkID
-	L1EL stack.L1ELNodeID
-	L1CL stack.L1CLNodeID
+	L1   stack.ComponentID
+	L1EL stack.ComponentID
+	L1CL stack.ComponentID
 
-	Superchain stack.SuperchainID
-	Cluster    stack.ClusterID
+	Superchain stack.ComponentID
+	Cluster    stack.ComponentID
 
-	Supervisor    stack.SupervisorID
-	TestSequencer stack.TestSequencerID
+	Supervisor    stack.ComponentID
+	TestSequencer stack.ComponentID
 
-	L2A   stack.L2NetworkID
-	L2ACL stack.L2CLNodeID
-	L2AEL stack.L2ELNodeID
+	L2A   stack.ComponentID
+	L2ACL stack.ComponentID
+	L2AEL stack.ComponentID
 
-	L2ABatcher    stack.L2BatcherID
-	L2AProposer   stack.L2ProposerID
-	L2ChallengerA stack.L2ChallengerID
+	L2ABatcher    stack.ComponentID
+	L2AProposer   stack.ComponentID
+	L2ChallengerA stack.ComponentID
 }
 
 func NewDefaultSingleChainInteropSystemIDs(l1ID, l2AID eth.ChainID) DefaultSingleChainInteropSystemIDs {
 	ids := DefaultSingleChainInteropSystemIDs{
-		L1:            stack.L1NetworkID(l1ID),
+		L1:            stack.NewL1NetworkID(l1ID),
 		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
 		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
-		Superchain:    "main", // TODO(#15244): hardcoded to match the deployer default ID
-		Cluster:       stack.ClusterID("main"),
-		Supervisor:    "1-primary", // prefix with number for ordering of supervisors
+		Superchain:    stack.NewSuperchainID("main"), // TODO(#15244): hardcoded to match the deployer default ID
+		Cluster:       stack.NewClusterID("main"),
+		Supervisor:    stack.NewSupervisorID("1-primary"), // prefix with number for ordering of supervisors
 		TestSequencer: stack.NewTestSequencerID("dev"),
-		L2A:           stack.L2NetworkID(l2AID),
+		L2A:           stack.NewL2NetworkID(l2AID),
 		L2ACL:         stack.NewL2CLNodeID("sequencer", l2AID),
 		L2AEL:         stack.NewL2ELNodeID("sequencer", l2AID),
 		L2ABatcher:    stack.NewL2BatcherID("main", l2AID),
@@ -383,11 +383,11 @@ func DefaultSingleChainInteropSystem(dest *DefaultSingleChainInteropSystemIDs) s
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(baseInteropSystem(&ids))
 
-	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.ComponentID{
 		ids.L2AEL,
 	}))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL}))
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
@@ -428,7 +428,7 @@ func DefaultMinimalInteropSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Or
 	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
 	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2EL}))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -483,19 +483,19 @@ func baseInteropSystem(ids *DefaultSingleChainInteropSystemIDs) stack.Option[*Or
 type DefaultInteropSystemIDs struct {
 	DefaultSingleChainInteropSystemIDs
 
-	L2B   stack.L2NetworkID
-	L2BCL stack.L2CLNodeID
-	L2BEL stack.L2ELNodeID
+	L2B   stack.ComponentID
+	L2BCL stack.ComponentID
+	L2BEL stack.ComponentID
 
-	L2BBatcher    stack.L2BatcherID
-	L2BProposer   stack.L2ProposerID
-	L2ChallengerB stack.L2ChallengerID
+	L2BBatcher    stack.ComponentID
+	L2BProposer   stack.ComponentID
+	L2ChallengerB stack.ComponentID
 }
 
 func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSystemIDs {
 	ids := DefaultInteropSystemIDs{
 		DefaultSingleChainInteropSystemIDs: NewDefaultSingleChainInteropSystemIDs(l1ID, l2AID),
-		L2B:                                stack.L2NetworkID(l2BID),
+		L2B:                                stack.NewL2NetworkID(l2BID),
 		L2BCL:                              stack.NewL2CLNodeID("sequencer", l2BID),
 		L2BEL:                              stack.NewL2ELNodeID("sequencer", l2BID),
 		L2BBatcher:                         stack.NewL2BatcherID("main", l2BID),
@@ -528,14 +528,14 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 
 	// Deploy separate challengers for each chain.  Can be reduced to a single challenger when the DisputeGameFactory
 	// is actually shared.
-	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.ComponentID{
 		ids.L2AEL, ids.L2BEL,
 	}))
-	opt.Add(WithL2Challenger(ids.L2ChallengerB, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2BCL, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2ChallengerB, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2BCL, []stack.ComponentID{
 		ids.L2BEL, ids.L2AEL,
 	}))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL, ids.L2BEL}))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -616,17 +616,17 @@ func defaultSupernodeSuperProofsSystem(dest *DefaultSupernodeInteropProofsSystem
 	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
 
 	// Run super roots migration using supernode as super root source
-	opt.Add(WithSuperRootsFromSupernode(ids.L1.ChainID(), ids.L1EL, []stack.L2CLNodeID{ids.L2ACL, ids.L2BCL}, ids.Supernode, ids.L2A.ChainID()))
+	opt.Add(WithSuperRootsFromSupernode(ids.L1.ChainID(), ids.L1EL, []stack.ComponentID{ids.L2ACL, ids.L2BCL}, ids.Supernode, ids.L2A.ChainID()))
 
 	// Start challenger after migration; use supernode RPCs as super-roots source.
-	opt.Add(WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.L2ELNodeID{
+	opt.Add(WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.ComponentID{
 		ids.L2BEL, ids.L2AEL,
 	}))
 
 	// Start proposer after migration; use supernode RPCs as proposal source.
 	opt.Add(WithSupernodeProposer(ids.L2AProposer, ids.L1EL, &ids.Supernode))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL, ids.L2BEL}))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -697,17 +697,17 @@ func defaultSingleChainSupernodeSuperProofsSystem(dest *DefaultSingleChainSupern
 	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 
 	// Run super roots migration using supernode as super root source
-	opt.Add(WithSuperRootsFromSupernode(ids.L1.ChainID(), ids.L1EL, []stack.L2CLNodeID{ids.L2ACL}, ids.Supernode, ids.L2A.ChainID()))
+	opt.Add(WithSuperRootsFromSupernode(ids.L1.ChainID(), ids.L1EL, []stack.ComponentID{ids.L2ACL}, ids.Supernode, ids.L2A.ChainID()))
 
 	// Start challenger after migration; use supernode RPCs as super-roots source.
-	opt.Add(WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.L2ELNodeID{
+	opt.Add(WithSupernodeL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supernode, &ids.Cluster, []stack.ComponentID{
 		ids.L2AEL,
 	}))
 
 	// Start proposer after migration; use supernode RPCs as proposal source.
 	opt.Add(WithSupernodeProposer(ids.L2AProposer, ids.L1EL, &ids.Supernode))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL}))
 
 	opt.Add(WithL2MetricsDashboard())
 
@@ -755,13 +755,13 @@ func defaultSuperProofsSystem(dest *DefaultInteropSystemIDs, deployerOpts ...Dep
 	opt.Add(WithManagedBySupervisor(ids.L2ACL, ids.Supervisor))
 	opt.Add(WithManagedBySupervisor(ids.L2BCL, ids.Supervisor))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL, ids.L2BEL}))
 
-	opt.Add(WithSuperRoots(ids.L1.ChainID(), ids.L1EL, []stack.L2CLNodeID{ids.L2ACL, ids.L2BCL}, ids.Supervisor, ids.L2A.ChainID()))
+	opt.Add(WithSuperRoots(ids.L1.ChainID(), ids.L1EL, []stack.ComponentID{ids.L2ACL, ids.L2BCL}, ids.Supervisor, ids.L2A.ChainID()))
 
 	opt.Add(WithSuperProposer(ids.L2AProposer, ids.L1EL, &ids.Supervisor))
 
-	opt.Add(WithSuperL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, []stack.L2ELNodeID{
+	opt.Add(WithSuperL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, []stack.ComponentID{
 		ids.L2BEL, ids.L2AEL,
 	}))
 
@@ -780,18 +780,18 @@ type MultiSupervisorInteropSystemIDs struct {
 	DefaultInteropSystemIDs
 
 	// Supervisor does not support multinode so need a additional supervisor for verifier nodes
-	SupervisorSecondary stack.SupervisorID
+	SupervisorSecondary stack.ComponentID
 
-	L2A2CL stack.L2CLNodeID
-	L2A2EL stack.L2ELNodeID
-	L2B2CL stack.L2CLNodeID
-	L2B2EL stack.L2ELNodeID
+	L2A2CL stack.ComponentID
+	L2A2EL stack.ComponentID
+	L2B2CL stack.ComponentID
+	L2B2EL stack.ComponentID
 }
 
 func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.Option[*Orchestrator] {
 	ids := MultiSupervisorInteropSystemIDs{
 		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID),
-		SupervisorSecondary:     "2-secondary", // prefix with number for ordering of supervisors
+		SupervisorSecondary:     stack.NewSupervisorID("2-secondary"), // prefix with number for ordering of supervisors
 		L2A2CL:                  stack.NewL2CLNodeID("verifier", DefaultL2AID),
 		L2A2EL:                  stack.NewL2ELNodeID("verifier", DefaultL2AID),
 		L2B2CL:                  stack.NewL2CLNodeID("verifier", DefaultL2BID),
@@ -841,29 +841,29 @@ func ProofSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
 }
 
 type SingleChainSystemWithFlashblocksIDs struct {
-	L1   stack.L1NetworkID
-	L1EL stack.L1ELNodeID
-	L1CL stack.L1CLNodeID
+	L1   stack.ComponentID
+	L1EL stack.ComponentID
+	L1CL stack.ComponentID
 
-	L2            stack.L2NetworkID
-	L2CL          stack.L2CLNodeID
-	L2EL          stack.L2ELNodeID
-	L2Builder     stack.OPRBuilderNodeID
-	L2RollupBoost stack.RollupBoostNodeID
+	L2            stack.ComponentID
+	L2CL          stack.ComponentID
+	L2EL          stack.ComponentID
+	L2Builder     stack.ComponentID
+	L2RollupBoost stack.ComponentID
 
-	L2Batcher    stack.L2BatcherID
-	L2Proposer   stack.L2ProposerID
-	L2Challenger stack.L2ChallengerID
+	L2Batcher    stack.ComponentID
+	L2Proposer   stack.ComponentID
+	L2Challenger stack.ComponentID
 
-	TestSequencer stack.TestSequencerID
+	TestSequencer stack.ComponentID
 }
 
 func NewDefaultSingleChainSystemWithFlashblocksIDs(l1ID, l2ID eth.ChainID) SingleChainSystemWithFlashblocksIDs {
 	ids := SingleChainSystemWithFlashblocksIDs{
-		L1:            stack.L1NetworkID(l1ID),
+		L1:            stack.NewL1NetworkID(l1ID),
 		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
 		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
-		L2:            stack.L2NetworkID(l2ID),
+		L2:            stack.NewL2NetworkID(l2ID),
 		L2CL:          stack.NewL2CLNodeID("sequencer", l2ID),
 		L2EL:          stack.NewL2ELNodeID("sequencer", l2ID),
 		L2Builder:     stack.NewOPRBuilderNodeID("sequencer-builder", l2ID),
@@ -906,21 +906,21 @@ func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksI
 	opt.Add(WithL2ELNode(ids.L2EL, L2ELWithP2PConfig("127.0.0.1", seqID.Port, seqID.KeyHex(), nil, nil)))
 	opt.Add(WithOPRBuilderNode(ids.L2Builder, OPRBuilderWithNodeIdentity(builderID, "127.0.0.1", nil, nil)))
 	// Sequencer adds builder as regular static peer (not trusted)
-	opt.Add(WithL2ELP2PConnection(ids.L2EL, stack.L2ELNodeID(ids.L2Builder), false))
+	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2Builder, false))
 	// Builder adds sequencer as trusted peer
-	opt.Add(WithL2ELP2PConnection(stack.L2ELNodeID(ids.L2Builder), ids.L2EL, true))
+	opt.Add(WithL2ELP2PConnection(ids.L2Builder, ids.L2EL, true))
 	opt.Add(WithRollupBoost(ids.L2RollupBoost, ids.L2EL, RollupBoostWithBuilderNode(ids.L2Builder)))
 
-	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, stack.L2ELNodeID(ids.L2RollupBoost), L2CLSequencer()))
+	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2RollupBoost, L2CLSequencer()))
 
 	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
 	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
 
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+	opt.Add(WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2EL}))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
 
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.ComponentID{
 		ids.L2EL,
 	}))
 

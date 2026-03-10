@@ -8,7 +8,7 @@ import (
 )
 
 type L1Network struct {
-	id        stack.L1NetworkID
+	id        stack.ComponentID
 	genesis   *core.Genesis
 	blockTime uint64
 }

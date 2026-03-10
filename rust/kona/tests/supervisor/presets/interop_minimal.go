@@ -38,7 +38,7 @@ func DefaultMinimalInteropSystem(dest *sysgo.DefaultInteropSystemIDs) stack.Opti
 	// Since we may create an interop infra-setup, before interop is even scheduled to run.
 	opt.Add(sysgo.WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, &ids.Supervisor))
 
-	opt.Add(sysgo.WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+	opt.Add(sysgo.WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2AEL, ids.L2BEL}))
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.

@@ -16,8 +16,8 @@ import (
 //
 // Either assumption being false could result in false positives or false negatives. Note that
 // there is also a race condition where assumption (2) becomes true after the function returns.
-func WithArchive(ctx context.Context) stack.Matcher[stack.L2ELNodeID, stack.L2ELNode] {
-	return MatchElemFn[stack.L2ELNodeID, stack.L2ELNode](func(elem stack.L2ELNode) bool {
+func WithArchive(ctx context.Context) stack.Matcher[stack.L2ELNode] {
+	return MatchElemFn[stack.L2ELNode](func(elem stack.L2ELNode) bool {
 		if _, err := elem.L2EthClient().BlockRefByNumber(ctx, 1); err != nil {
 			// The devnet is fresh. This is almost guaranteed to be a devnet created by sysgo,
 			// which always uses archive mode.

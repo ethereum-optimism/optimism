@@ -52,7 +52,11 @@ func NewSingleChainWithFlashblocks(t devtest.T) *SingleChainWithFlashblocks {
 	l1Net := system.L1Network(match.FirstL1Network)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
 	sequencerCL := l2.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
-	sequencerEL := l2.L2ELNode(match.Assume(t, match.EngineFor(sequencerCL)))
+	sequencerEL := l2.L2ELNode(match.Assume(t, match.MatchElemFn[stack.L2ELNode](func(el stack.L2ELNode) bool {
+		// In flashblocks topologies the active CL may be linked through rollup-boost.
+		// Selecting by sequencer key keeps us on the sequencer EL in both direct and proxied setups.
+		return el.ID().Key() == sequencerCL.ID().Key()
+	})))
 	var challengerCfg *challengerConfig.Config
 	if len(l2.L2Challengers()) > 0 {
 		challengerCfg = l2.L2Challengers()[0].Config()

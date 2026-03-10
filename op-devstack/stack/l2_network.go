@@ -2,63 +2,12 @@ package stack
 
 import (
 	"crypto/ecdsa"
-	"log/slog"
 
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
-
-// L2NetworkID identifies a L2Network by name and chainID, is type-safe, and can be value-copied and used as map key.
-type L2NetworkID idOnlyChainID
-
-var _ IDOnlyChainID = (*L2NetworkID)(nil)
-
-const L2NetworkKind Kind = "L2Network"
-
-func (id L2NetworkID) ChainID() eth.ChainID {
-	return eth.ChainID(id)
-}
-
-func (id L2NetworkID) Kind() Kind {
-	return L2NetworkKind
-}
-
-func (id L2NetworkID) String() string {
-	return idOnlyChainID(id).string(L2NetworkKind)
-}
-
-func (id L2NetworkID) LogValue() slog.Value {
-	return slog.StringValue(id.String())
-}
-
-func (id L2NetworkID) MarshalText() ([]byte, error) {
-	return idOnlyChainID(id).marshalText(L2NetworkKind)
-}
-
-func (id *L2NetworkID) UnmarshalText(data []byte) error {
-	return (*idOnlyChainID)(id).unmarshalText(L2NetworkKind, data)
-}
-
-func SortL2NetworkIDs(ids []L2NetworkID) []L2NetworkID {
-	return copyAndSort(ids, func(a, b L2NetworkID) bool {
-		return lessIDOnlyChainID(idOnlyChainID(a), idOnlyChainID(b))
-	})
-}
-
-func SortL2Networks(elems []L2Network) []L2Network {
-	return copyAndSort(elems, func(a, b L2Network) bool {
-		return lessIDOnlyChainID(idOnlyChainID(a.ID()), idOnlyChainID(b.ID()))
-	})
-}
-
-var _ L2NetworkMatcher = L2NetworkID{}
-
-func (id L2NetworkID) Match(elems []L2Network) []L2Network {
-	return findByID(id, elems)
-}
 
 type L2Deployment interface {
 	SystemConfigProxyAddr() common.Address
@@ -76,7 +25,7 @@ type Keys interface {
 // There is an extension-interface ExtensibleL2Network for adding new components to the chain.
 type L2Network interface {
 	Network
-	ID() L2NetworkID
+	ID() ComponentID
 	RollupConfig() *rollup.Config
 	Deployment() L2Deployment
 	Keys() Keys
@@ -94,11 +43,11 @@ type L2Network interface {
 	RollupBoostNode(m RollupBoostNodeMatcher) RollupBoostNode
 	OPRBuilderNode(m OPRBuilderNodeMatcher) OPRBuilderNode
 
-	L2BatcherIDs() []L2BatcherID
-	L2ProposerIDs() []L2ProposerID
-	L2ChallengerIDs() []L2ChallengerID
-	L2CLNodeIDs() []L2CLNodeID
-	L2ELNodeIDs() []L2ELNodeID
+	L2BatcherIDs() []ComponentID
+	L2ProposerIDs() []ComponentID
+	L2ChallengerIDs() []ComponentID
+	L2CLNodeIDs() []ComponentID
+	L2ELNodeIDs() []ComponentID
 
 	L2Batchers() []L2Batcher
 	L2Proposers() []L2Proposer

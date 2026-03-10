@@ -5,8 +5,8 @@ DEFAULT_OP_PACKAGE_PATH := "github.com/ethpandaops/optimism-package@998796c0f3bb
 
 build-devnet BINARY:
     #!/usr/bin/env bash
-    if [ {{BINARY}} != "node" ] && [ {{BINARY}} != "supervisor" ]; then
-        echo "Invalid binary specified. Must be either 'node' or 'supervisor'."
+    if [ {{BINARY}} != "node" ]; then
+        echo "Invalid binary specified. Must be 'node'."
         exit 1
     fi
 
@@ -65,9 +65,6 @@ test-e2e-sysgo BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILT
       just build-kona
       echo "Building op-reth..."
       just build-reth
-    elif [ "{{BINARY}}" = "supervisor" ]; then
-      echo "Building supervisor..."
-      cd {{SOURCE}}/.. && just build-supervisor
     fi
 
     just test-e2e-sysgo-run {{BINARY}} {{GO_PKG_NAME}} {{DEVNET}} {{FILTER}}
@@ -88,11 +85,8 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         if [ $OP_RETH_EXEC_PATH == "" ]; then
           export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
         fi
-    elif [ "{{BINARY}}" = "supervisor" ]; then
-        export DEVSTACK_SUPERVISOR_KIND=kona
-        export KONA_SUPERVISOR_EXEC_PATH="{{SOURCE}}/../target/release/kona-supervisor"
     else
-        echo "Invalid BINARY specified. Must be either 'node' or 'supervisor'."
+        echo "Invalid BINARY specified. Must be 'node'."
         exit 1
     fi
 

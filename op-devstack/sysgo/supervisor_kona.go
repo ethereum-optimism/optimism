@@ -17,7 +17,7 @@ import (
 type KonaSupervisor struct {
 	mu sync.Mutex
 
-	id      stack.SupervisorID
+	id      stack.ComponentID
 	userRPC string
 
 	userProxy *tcpproxy.Proxy
@@ -114,18 +114,16 @@ func (s *KonaSupervisor) Stop() {
 	s.sub = nil
 }
 
-func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
+func WithKonaSupervisor(supervisorID stack.ComponentID, clusterID stack.ComponentID, l1ELID stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
 		require := p.Require()
 
-		l1ELComponent, ok := orch.registry.Get(stack.ConvertL1ELNodeID(l1ELID).ComponentID)
+		l1EL, ok := orch.GetL1EL(l1ELID)
 		require.True(ok, "need L1 EL node to connect supervisor to")
-		l1EL := l1ELComponent.(L1ELNode)
 
-		clusterComponent, ok := orch.registry.Get(stack.ConvertClusterID(clusterID).ComponentID)
+		cluster, ok := orch.GetCluster(clusterID)
 		require.True(ok, "need cluster to determine dependency set")
-		cluster := clusterComponent.(*Cluster)
 
 		require.NotNil(cluster.cfgset, "need a full config set")
 		require.NoError(cluster.cfgset.CheckChains(), "config set must be valid")
@@ -141,8 +139,8 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 
 		rollupCfgPath := cfgDir + "/rollup-config-*.json"
 		for _, l2NetID := range orch.registry.IDsByKind(stack.KindL2Network) {
-			l2NetComponent, _ := orch.registry.Get(l2NetID)
-			l2Net := l2NetComponent.(*L2Network)
+			l2Net, ok := orch.GetL2Network(l2NetID)
+			require.True(ok, "need l2 network")
 			chainID := l2Net.id.ChainID()
 			rollupData, err := json.Marshal(l2Net.rollupCfg)
 			require.NoError(err, "failed to marshal rollup config")
@@ -178,7 +176,7 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 			env:      envVars,
 			p:        p,
 		}
-		orch.registry.Register(stack.ConvertSupervisorID(supervisorID).ComponentID, konaSupervisor)
+		orch.registry.Register(supervisorID, konaSupervisor)
 		p.Logger().Info("Starting kona-supervisor")
 		konaSupervisor.Start()
 		p.Cleanup(konaSupervisor.Stop)

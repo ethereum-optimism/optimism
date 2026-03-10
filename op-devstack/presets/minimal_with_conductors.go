@@ -14,7 +14,7 @@ import (
 type MinimalWithConductors struct {
 	*Minimal
 
-	ConductorSets map[stack.L2NetworkID]dsl.ConductorSet
+	ConductorSets map[stack.ComponentID]dsl.ConductorSet
 }
 
 // TODO(#16418): shift this to a different sysgo constructor once the sysgo implementation supports conductors
@@ -34,7 +34,7 @@ func NewMinimalWithConductors(t devtest.T) *MinimalWithConductors {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 	chains := system.L2Networks()
-	conductorSets := make(map[stack.L2NetworkID]dsl.ConductorSet)
+	conductorSets := make(map[stack.ComponentID]dsl.ConductorSet)
 	for _, chain := range chains {
 		chainMatcher := match.L2ChainById(chain.ID())
 		l2 := system.L2Network(match.Assume(t, chainMatcher))

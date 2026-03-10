@@ -13,7 +13,7 @@ import (
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithMultiSupervisorInterop(),
 		presets.WithLogFilter(logfilter.DefaultMute(
-			stack.KindSelector(stack.SupervisorKind).And(logfilter.Level(log.LevelInfo)).Show(),
+			stack.KindSelector(stack.KindSupervisor).And(logfilter.Level(log.LevelInfo)).Show(),
 			logfilter.Level(log.LevelError).Show(),
 		)))
 }

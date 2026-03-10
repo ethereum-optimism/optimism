@@ -57,10 +57,8 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		finalizedInitialized  bool
 		chainOutputs          = make([]eth.ChainIDAndOutput, 0, len(s.chains))
 	)
-	// Get current l1s
-	// this informs callers that the chains local views have considered at least up to this L1 block
-	// TODO(#18651): Currently there are no verifiers to consider, but once there are, this needs to be updated to consider if
-	// they have also processed the L1 data.
+	// Get current L1s — the minimum L1 block that all derivation pipelines and verifiers have processed.
+	// This informs callers that the chains' local views have considered at least up to this L1 block.
 	for chainID, chain := range s.chains {
 		status, err := chain.SyncStatus(ctx)
 		if err != nil {
@@ -74,6 +72,12 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		currentL1 := status.CurrentL1.ID()
 		if currentL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
 			minCurrentL1 = currentL1
+		}
+		// Also consider the L1 progress of any registered verifiers.
+		for _, verifierL1 := range chain.VerifierCurrentL1s() {
+			if verifierL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
+				minCurrentL1 = verifierL1
+			}
 		}
 		// Conservative aggregation across chains: take the minimum timestamps.
 		// If any chain has a zero timestamp (not initialized), the aggregate is zero.
@@ -98,18 +102,19 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 
 	notFound := false
 	chainIDs := make([]eth.ChainID, 0, len(s.chains))
-	// collect verified and optimistic L2 and L1 blocks at the given timestamp
+	// Collect verified L2 and L1 blocks at the given timestamp
 	for chainID, chain := range s.chains {
 		chainIDs = append(chainIDs, chainID)
 		// verifiedAt returns the L2 block which is fully verified at the given timestamp, and the minimum L1 block at which verification is possible
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
 		if errors.Is(err, ethereum.NotFound) {
 			notFound = true
-			continue // To allow other chains to populate unverified blocks
+			continue
 		} else if err != nil {
 			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
 		}
+		// Verified data is available: update min required L1 and collect the output root
 		if verifiedL1.Number < minVerifiedRequiredL1.Number || minVerifiedRequiredL1 == (eth.BlockID{}) {
 			minVerifiedRequiredL1 = verifiedL1
 		}
@@ -120,15 +125,23 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to compute output root at L2 block %d for chain ID %v: %w", verifiedL2.Number, chainID, err)
 		}
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
-		// Optimistic output is the full output at the optimistic L2 block for the timestamp
+	}
+
+	// Collect optimistic data for all chains regardless of whether verified data is available.
+	for chainID, chain := range s.chains {
 		optimisticOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
-		if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			// If optimistic data is also absent, the chain is simply excluded from OptimisticAtTimestamp.
+			continue
+		} else if err != nil {
 			s.log.Warn("failed to get optimistic block", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get optimistic block at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
 		}
 		// Also include the source L1 for context
 		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
-		if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			continue
+		} else if err != nil {
 			s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get optimistic source L1 at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
 		}

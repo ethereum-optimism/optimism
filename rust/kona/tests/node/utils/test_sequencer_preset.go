@@ -44,7 +44,7 @@ func NewMixedOpKonaWithTestSequencer(t devtest.T) *MinimalWithTestSequencersPres
 
 type DefaultMinimalWithTestSequencerIds struct {
 	DefaultMixedOpKonaSystemIDs DefaultMixedOpKonaSystemIDs
-	TestSequencerId             stack.TestSequencerID
+	TestSequencerId             stack.ComponentID
 }
 
 func NewDefaultMinimalWithTestSequencerIds(l2Config L2NodeConfig) DefaultMinimalWithTestSequencerIds {
@@ -57,7 +57,7 @@ func NewDefaultMinimalWithTestSequencerIds(l2Config L2NodeConfig) DefaultMinimal
 			KonaNodesWithGeth:        l2Config.KonaNodesWithGeth,
 			KonaNodesWithReth:        l2Config.KonaNodesWithReth,
 		}),
-		TestSequencerId: "test-sequencer",
+		TestSequencerId: stack.NewTestSequencerID("test-sequencer"),
 	}
 }
 

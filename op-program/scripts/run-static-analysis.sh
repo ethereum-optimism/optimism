@@ -57,6 +57,10 @@ ISSUE_COUNT=$(jq 'length' "$OUTPUT_FILE")
 if [ "$ISSUE_COUNT" -gt 0 ]; then
   echo "❌ Analysis found $ISSUE_COUNT issues!"
   cat "$OUTPUT_FILE"
+  if [ -n "$FINDINGS_OUTPUT_PATH" ]; then
+    cp "$OUTPUT_FILE" "$FINDINGS_OUTPUT_PATH"
+    echo "Findings written to $FINDINGS_OUTPUT_PATH"
+  fi
   rm -f "$OUTPUT_FILE"
   exit 1
 else

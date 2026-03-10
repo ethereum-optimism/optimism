@@ -7,25 +7,25 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 )
 
-func First[I comparable, E stack.Identifiable[I]]() stack.Matcher[I, E] {
-	return ByIndex[I, E](0)
+func First[E stack.Identifiable]() stack.Matcher[E] {
+	return ByIndex[E](0)
 }
 
-func Second[I comparable, E stack.Identifiable[I]]() stack.Matcher[I, E] {
-	return ByIndex[I, E](1)
+func Second[E stack.Identifiable]() stack.Matcher[E] {
+	return ByIndex[E](1)
 }
 
-func byID[I comparable, E stack.Identifiable[I]](id I) stack.Matcher[I, E] {
-	return MatchElemFn[I, E](func(elem E) bool {
+func byID[E stack.Identifiable](id stack.ComponentID) stack.Matcher[E] {
+	return MatchElemFn[E](func(elem E) bool {
 		return elem.ID() == id
 	})
 }
 
-type byIndexMatcher[I comparable, E stack.Identifiable[I]] struct {
+type byIndexMatcher[E stack.Identifiable] struct {
 	index int
 }
 
-func (ma byIndexMatcher[I, E]) Match(elems []E) []E {
+func (ma byIndexMatcher[E]) Match(elems []E) []E {
 	if ma.index < 0 {
 		return nil
 	}
@@ -35,78 +35,78 @@ func (ma byIndexMatcher[I, E]) Match(elems []E) []E {
 	return elems[ma.index : ma.index+1]
 }
 
-func (ma byIndexMatcher[I, E]) String() string {
+func (ma byIndexMatcher[E]) String() string {
 	return fmt.Sprintf("ByIndex(%d)", ma.index)
 }
 
 // ByIndex matches element i (zero-indexed).
-func ByIndex[I comparable, E stack.Identifiable[I]](index int) stack.Matcher[I, E] {
-	return byIndexMatcher[I, E]{index: index}
+func ByIndex[E stack.Identifiable](index int) stack.Matcher[E] {
+	return byIndexMatcher[E]{index: index}
 }
 
-type lastMatcher[I comparable, E stack.Identifiable[I]] struct{}
+type lastMatcher[E stack.Identifiable] struct{}
 
-func (ma lastMatcher[I, E]) Match(elems []E) []E {
+func (ma lastMatcher[E]) Match(elems []E) []E {
 	if len(elems) == 0 {
 		return nil
 	}
 	return elems[len(elems)-1:]
 }
 
-func (ma lastMatcher[I, E]) String() string {
+func (ma lastMatcher[E]) String() string {
 	return "Last"
 }
 
 // Last matches the last element.
-func Last[I comparable, E stack.Identifiable[I]]() stack.Matcher[I, E] {
-	return lastMatcher[I, E]{}
+func Last[E stack.Identifiable]() stack.Matcher[E] {
+	return lastMatcher[E]{}
 }
 
-type onlyMatcher[I comparable, E stack.Identifiable[I]] struct{}
+type onlyMatcher[E stack.Identifiable] struct{}
 
-func (ma onlyMatcher[I, E]) Match(elems []E) []E {
+func (ma onlyMatcher[E]) Match(elems []E) []E {
 	if len(elems) != 1 {
 		return nil
 	}
 	return elems
 }
 
-func (ma onlyMatcher[I, E]) String() string {
+func (ma onlyMatcher[E]) String() string {
 	return "Only"
 }
 
 // Only matches the only value. If there are none, or more than one, then no value is matched.
-func Only[I comparable, E stack.Identifiable[I]]() stack.Matcher[I, E] {
-	return onlyMatcher[I, E]{}
+func Only[E stack.Identifiable]() stack.Matcher[E] {
+	return onlyMatcher[E]{}
 }
 
-type andMatcher[I comparable, E stack.Identifiable[I]] struct {
-	inner []stack.Matcher[I, E]
+type andMatcher[E stack.Identifiable] struct {
+	inner []stack.Matcher[E]
 }
 
-func (ma andMatcher[I, E]) Match(elems []E) []E {
+func (ma andMatcher[E]) Match(elems []E) []E {
 	for _, matcher := range ma.inner {
 		elems = matcher.Match(elems)
 	}
 	return elems
 }
 
-func (ma andMatcher[I, E]) String() string {
+func (ma andMatcher[E]) String() string {
 	return fmt.Sprintf("And(%s)", joinStr(ma.inner))
 }
 
 // And combines all the matchers, by running them all, narrowing down the set with each application.
 // If none are provided, all inputs are matched.
-func And[I comparable, E stack.Identifiable[I]](matchers ...stack.Matcher[I, E]) stack.Matcher[I, E] {
-	return andMatcher[I, E]{inner: matchers}
+func And[E stack.Identifiable](matchers ...stack.Matcher[E]) stack.Matcher[E] {
+	return andMatcher[E]{inner: matchers}
 }
 
-type orMatcher[I comparable, E stack.Identifiable[I]] struct {
-	inner []stack.Matcher[I, E]
+type orMatcher[E stack.Identifiable] struct {
+	inner []stack.Matcher[E]
 }
 
-func (ma orMatcher[I, E]) Match(elems []E) []E {
-	seen := make(map[I]struct{})
+func (ma orMatcher[E]) Match(elems []E) []E {
+	seen := make(map[stack.ComponentID]struct{})
 	for _, matcher := range ma.inner {
 		for _, elem := range matcher.Match(elems) {
 			seen[elem.ID()] = struct{}{}
@@ -122,7 +122,7 @@ func (ma orMatcher[I, E]) Match(elems []E) []E {
 	return out
 }
 
-func (ma orMatcher[I, E]) String() string {
+func (ma orMatcher[E]) String() string {
 	return fmt.Sprintf("Or(%s)", joinStr(ma.inner))
 }
 
@@ -139,16 +139,16 @@ func joinStr[V fmt.Stringer](elems []V) string {
 
 // Or returns each of the inputs that have a match with any of the matchers.
 // All inputs are applied to all matchers, even if matched previously.
-func Or[I comparable, E stack.Identifiable[I]](matchers ...stack.Matcher[I, E]) stack.Matcher[I, E] {
-	return orMatcher[I, E]{inner: matchers}
+func Or[E stack.Identifiable](matchers ...stack.Matcher[E]) stack.Matcher[E] {
+	return orMatcher[E]{inner: matchers}
 }
 
-type notMatcher[I comparable, E stack.Identifiable[I]] struct {
-	inner stack.Matcher[I, E]
+type notMatcher[E stack.Identifiable] struct {
+	inner stack.Matcher[E]
 }
 
-func (ma notMatcher[I, E]) Match(elems []E) []E {
-	matched := make(map[I]struct{})
+func (ma notMatcher[E]) Match(elems []E) []E {
+	matched := make(map[stack.ComponentID]struct{})
 	for _, elem := range ma.inner.Match(elems) {
 		matched[elem.ID()] = struct{}{}
 	}
@@ -161,11 +161,11 @@ func (ma notMatcher[I, E]) Match(elems []E) []E {
 	return out
 }
 
-func (ma notMatcher[I, E]) String() string {
+func (ma notMatcher[E]) String() string {
 	return fmt.Sprintf("Not(%s)", ma.inner)
 }
 
 // Not matches the elements that do not match the given matcher.
-func Not[I comparable, E stack.Identifiable[I]](matcher stack.Matcher[I, E]) stack.Matcher[I, E] {
-	return notMatcher[I, E]{inner: matcher}
+func Not[E stack.Identifiable](matcher stack.Matcher[E]) stack.Matcher[E] {
+	return notMatcher[E]{inner: matcher}
 }

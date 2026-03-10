@@ -71,6 +71,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      migrating a subset of chains that share a lockbox), re-migration of already-migrated
     ///      chains, or any other migration scenario. Re-calling this function on already-migrated
     ///      portals will corrupt the shared DisputeGameFactory used by all migrated chains.
+    /// @dev NOTE: Unlike deploy/upgrade, this function does not enforce a SuperchainConfig
+    ///      version floor. The caller is responsible for ensuring the SuperchainConfig is
+    ///      upgraded to the current OPCM release version before calling migrate.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
         // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
@@ -152,16 +155,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             )
         );
 
-        // Deploy the new DelayedWETH.
-        IDelayedWETH delayedWETH = IDelayedWETH(
-            _loadOrDeployProxy(
-                address(0), // Source from address(0) so we always deploy a new proxy.
-                bytes4(0),
-                proxyDeployArgs,
-                "DelayedWETH",
-                extraInstructions
-            )
-        );
+        // Reuse the existing DelayedWETH from chainSystemConfigs[0] rather than deploying a
+        // new one. The migrated chains share a SystemConfig, and by extension share its
+        // DelayedWETH. Deploying a new one would create a divergence — SystemConfig would
+        // still point to the old one, and future upgrades (which load DelayedWETH from
+        // SystemConfig) would reference a different DelayedWETH than the shared DGF games.
+        IDelayedWETH delayedWETH = IDelayedWETH(payable(_input.chainSystemConfigs[0].delayedWETH()));
 
         // Separate context to avoid stack too deep (isolate the implementations variable).
         {
@@ -204,14 +203,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 )
             );
 
-            // Initialize the new DelayedWETH.
-            _upgrade(
-                proxyDeployArgs.proxyAdmin,
-                address(delayedWETH),
-                impls.delayedWETHImpl,
-                abi.encodeCall(IDelayedWETH.initialize, (_input.chainSystemConfigs[0]))
-            );
-
             // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.
             for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
                 _migratePortal(_input.chainSystemConfigs[i], ethLockbox, anchorStateRegistry);
@@ -219,6 +210,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
 
         // Set up the dispute games in the new DisputeGameFactory.
+        // NOTE: Unlike deploy/upgrade, migration does not perform full game config
+        // validation. This is intentional:
+        // 1. Migration is a privileged, one-off admin action by the ProxyAdmin owner
+        // 2. getGameImpl() rejects unrecognized game types
+        // 3. Only super game types are meaningful here — non-super types would have
+        //    l2ChainId=0, causing FaultDisputeGame to revert on chain ID mismatch
+        // 4. All supplied configs are registered regardless of the enabled flag —
+        //    callers must only include configs they want active
         for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
             disputeGameFactory.setImplementation(
                 _input.disputeGameConfigs[i].gameType,
@@ -255,7 +254,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         existingLockbox.migrateLiquidity(_newLockbox);
 
         // Clear out any implementations that might exist in the old DisputeGameFactory proxy.
-        // We clear out all potential game types to be safe.
+        // We clear out all potential game types to be safe. These game types are intentionally
+        // hardcoded rather than sourced from a shared utility. When new game types are added,
+        // this list and the corresponding list in OPCMv2's _assertValidFullConfig must both
+        // be updated.
         existingDGF.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");

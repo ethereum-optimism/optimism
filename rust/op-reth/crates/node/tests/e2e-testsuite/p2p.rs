@@ -3,6 +3,9 @@ use reth_optimism_node::utils::{advance_chain, setup};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+// TODO(#19298): re-enable once reth releases a version including
+// https://github.com/paradigmxyz/reth/pull/22505
+#[ignore]
 #[tokio::test]
 async fn can_sync() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();

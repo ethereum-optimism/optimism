@@ -9,14 +9,14 @@ import (
 type ClusterConfig struct {
 	CommonConfig
 	DependencySet depset.DependencySet
-	ID            stack.ClusterID
+	ID            stack.ComponentID
 }
 
 // presetCluster implements Cluster with preset values
 type presetCluster struct {
 	commonImpl
 	depSet depset.DependencySet
-	id     stack.ClusterID
+	id     stack.ComponentID
 }
 
 var _ stack.Cluster = (*presetCluster)(nil)
@@ -30,7 +30,7 @@ func NewCluster(cfg ClusterConfig) stack.Cluster {
 	}
 }
 
-func (p *presetCluster) ID() stack.ClusterID {
+func (p *presetCluster) ID() stack.ComponentID {
 	return p.id
 }
 
