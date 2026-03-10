@@ -43,19 +43,13 @@ pub struct ChainConfig {
     #[cfg_attr(feature = "serde", serde(rename = "PublicRPC", alias = "public_rpc"))]
     pub public_rpc: String,
     /// Chain sequencer RPC endpoint
-    #[cfg_attr(
-        feature = "serde",
-        serde(rename = "SequencerRPC", alias = "sequencer_rpc")
-    )]
+    #[cfg_attr(feature = "serde", serde(rename = "SequencerRPC", alias = "sequencer_rpc"))]
     pub sequencer_rpc: String,
     /// Chain explorer HTTP endpoint
     #[cfg_attr(feature = "serde", serde(rename = "Explorer", alias = "explorer"))]
     pub explorer: String,
     /// Level of integration with the superchain.
-    #[cfg_attr(
-        feature = "serde",
-        serde(rename = "SuperchainLevel", alias = "superchain_level")
-    )]
+    #[cfg_attr(feature = "serde", serde(rename = "SuperchainLevel", alias = "superchain_level"))]
     pub superchain_level: SuperchainLevel,
     /// Whether the chain is governed by optimism.
     #[cfg_attr(
@@ -67,10 +61,7 @@ pub struct ChainConfig {
     /// Time of when a given chain is opted in to the Superchain.
     /// If set, hardforks times after the superchain time
     /// will be inherited from the superchain-wide config.
-    #[cfg_attr(
-        feature = "serde",
-        serde(rename = "SuperchainTime", alias = "superchain_time")
-    )]
+    #[cfg_attr(feature = "serde", serde(rename = "SuperchainTime", alias = "superchain_time"))]
     pub superchain_time: Option<u64>,
     /// Data availability type.
     #[cfg_attr(
@@ -98,16 +89,10 @@ pub struct ChainConfig {
     #[cfg_attr(feature = "serde", serde(rename = "max_sequencer_drift"))]
     pub max_sequencer_drift: u64,
     /// Gas paying token metadata. Not consumed by downstream `OPStack` components.
-    #[cfg_attr(
-        feature = "serde",
-        serde(rename = "GasPayingToken", alias = "gas_paying_token")
-    )]
+    #[cfg_attr(feature = "serde", serde(rename = "GasPayingToken", alias = "gas_paying_token"))]
     pub gas_paying_token: Option<Address>,
     /// Hardfork Config. These values may override the superchain-wide defaults.
-    #[cfg_attr(
-        feature = "serde",
-        serde(rename = "hardfork_configuration", alias = "hardforks")
-    )]
+    #[cfg_attr(feature = "serde", serde(rename = "hardfork_configuration", alias = "hardforks"))]
     pub hardfork_config: HardForkConfig,
     /// Optimism configuration
     #[cfg_attr(feature = "serde", serde(rename = "optimism"))]
@@ -144,10 +129,7 @@ impl ChainConfig {
 
     /// Returns the base fee config for the chain.
     pub fn base_fee_config(&self) -> BaseFeeConfig {
-        self.optimism
-            .as_ref()
-            .map(|op| *op)
-            .unwrap_or_else(|| base_fee_config(self.chain_id))
+        self.optimism.as_ref().map(|op| *op).unwrap_or_else(|| base_fee_config(self.chain_id))
     }
 
     /// Loads the rollup config for the OP-Stack chain given the chain config and address list.
@@ -198,7 +180,6 @@ impl ChainConfig {
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
             #[cfg(feature = "rollup_config_override")]
             fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
-            interop_message_expiry_window: DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
             chain_op_config: self.base_fee_config(),
             alt_da_config: self.alt_da.clone(),
         }
