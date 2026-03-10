@@ -156,9 +156,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.12
+    /// @custom:semver 7.0.13
     function version() public pure returns (string memory) {
-        return "7.0.12";
+        return "7.0.13";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -686,69 +686,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         });
     }
 
-    /// @notice Validates the deployment/upgrade config.
-    /// @param _cfg The full config.
-    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
-        // Start validating the dispute game configs. Put allowed game types here. Note that
-        // these game types are intentionally hardcoded rather than sourced from a shared utility.
-        // When new game types are added, this list and the corresponding list in the Migrator's
-        // _migratePortal function must both be updated.
-        GameType[] memory validGameTypes = new GameType[](3);
-        validGameTypes[0] = GameTypes.CANNON;
-        validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-        validGameTypes[2] = GameTypes.CANNON_KONA;
-
-        // We must have a config for each valid game type.
-        if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
-        }
-
-        // Simplest possible check, iterate over each provided config and confirm that it matches
-        // the game type array. This places a requirement on the user to order the configs properly
-        // but that's probably a good thing, keeps the config consistent.
-        for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
-            if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
-            // If the game is disabled, we must have a 0 init bond.
-            if (!_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond != 0) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
-            // During initial deployment, only PERMISSIONED_CANNON can be enabled, because no prestate exists for
-            // permissionless games.
-            if (
-                _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.PERMISSIONED_CANNON.raw())
-                    && _cfg.disputeGameConfigs[i].enabled
-            ) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-        }
-
-        // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
-        // remove this check at some point in the future if we stop making this assumption, but for
-        // now we explicitly assert that it is enabled.
-        if (!_cfg.disputeGameConfigs[1].enabled) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
-        }
-
-        // Validate that the starting respected game type corresponds to an enabled game config.
-        bool startingGameTypeFound = false;
-        for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
-            if (
-                _cfg.disputeGameConfigs[i].gameType.raw() == _cfg.startingRespectedGameType.raw()
-                    && _cfg.disputeGameConfigs[i].enabled
-            ) {
-                startingGameTypeFound = true;
-                break;
-            }
-        }
-        if (!startingGameTypeFound) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
-        }
-    }
-
     /// @notice Executes the deployment/upgrade action.
     /// @param _cfg The full config.
     /// @param _cts The chain contracts.
@@ -784,7 +721,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cts.anchorStateRegistry
             );
         } else {
-            _assertValidFullConfig(_cfg, _isInitialDeployment);
+            _assertValidStandardGameConfigs(
+                _cfg.disputeGameConfigs, _cfg.startingRespectedGameType, _isInitialDeployment
+            );
         }
 
         // Load the implementations.
@@ -949,7 +888,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the DisputeGame config and implementations.
-        // NOTE: We assert in _assertValidFullConfig that we have a configuration for all valid game
+        // NOTE: We assert in assertValidStandardGameConfigs that we have a configuration for all valid game
         // types so we can be confident that we're setting/unsetting everything we care about.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             // Game implementation and arguments default to empty values. If the game is disabled,
