@@ -17,13 +17,13 @@ workspace = true
 # Kona protocol crates
 kona-protocol = { workspace = true, features = ["std", "serde", "test-utils"] }
 kona-interop = { workspace = true, features = ["std", "serde"] }
-kona-genesis = { workspace = true, features = ["std", "serde"] }
+kona-genesis = { workspace = true, features = ["std", "serde", "revm"] }
 kona-mpt = { workspace = true, features = ["serde"] }
 
 # Alloy core types
 alloy-chains = { workspace = true }
 alloy-primitives = { workspace = true, features = ["std", "serde", "map-fxhash"] }
-alloy-consensus = { workspace = true, features = ["std", "serde"] }
+alloy-consensus = { workspace = true, features = ["std", "serde", "k256"] }
 alloy-trie = { workspace = true, features = ["std", "serde"] }
 alloy-rlp = { workspace = true, features = ["std"] }
 alloy-eips = { workspace = true, features = ["std", "serde", "kzg"] }
@@ -34,7 +34,7 @@ alloy-rpc-types-eth = { workspace = true, features = ["std", "serde"] }
 alloy-serde = { workspace = true }
 
 # OP-specific types
-op-alloy-consensus = { workspace = true, features = ["std", "serde"] }
+op-alloy-consensus = { workspace = true, features = ["std", "serde", "k256"] }
 op-alloy-rpc-types-engine = { workspace = true, features = ["std", "serde"] }
 
 # EVM execution

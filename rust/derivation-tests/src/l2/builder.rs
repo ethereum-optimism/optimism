@@ -1,8 +1,22 @@
-//! L2 chain builder that constructs valid OP Stack L2 blocks.
+//! L2 chain builder that constructs valid OP Stack L2 blocks with real EVM execution.
 
-use alloy_consensus::Header;
-use alloy_primitives::{Bloom, Sealable};
-use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope};
+use alloy_consensus::{
+    Header, Receipt, ReceiptWithBloom, Transaction as _,
+    transaction::SignerRecoverable,
+};
+use alloy_eips::{Encodable2718, Typed2718 as _};
+use alloy_primitives::{Bloom, Bytes, Log, Sealable, U256};
+use op_alloy_consensus::{OpDepositReceipt, OpReceiptEnvelope, OpTxEnvelope};
+use op_revm::{
+    L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
+    transaction::deposit::DepositTransactionParts,
+};
+use revm::{
+    Context, ExecuteEvm, Journal,
+    context::{BlockEnv, CfgEnv, TxEnv},
+    context_interface::result::ExecutionResult,
+    database::CacheDB,
+};
 
 use crate::{
     config::DeterministicConfig,
@@ -15,7 +29,7 @@ use super::{
     types::{L2Block, L2BlockRef},
 };
 
-/// Builds a deterministic L2 chain block by block.
+/// Builds a deterministic L2 chain block by block with real EVM execution.
 #[allow(missing_debug_implementations)]
 pub struct L2ChainBuilder {
     config: DeterministicConfig,
@@ -42,7 +56,6 @@ impl L2ChainBuilder {
         let genesis_snapshot = state.snapshot();
         let genesis_state_root = genesis_snapshot.state_root;
 
-        // Build genesis L2 block
         let genesis_header = Header {
             number: 0,
             timestamp: config.genesis_timestamp,
@@ -54,7 +67,12 @@ impl L2ChainBuilder {
         };
         let sealed = genesis_header.seal_slow();
 
-        let genesis_block = L2Block { header: sealed, transactions: vec![], receipts: vec![] };
+        let genesis_block = L2Block {
+            header: sealed,
+            transactions: vec![],
+            receipts: vec![],
+            withdrawals_root: None,
+        };
 
         Self {
             config: config.clone(),
@@ -78,6 +96,10 @@ impl L2ChainBuilder {
     }
 
     /// Build the next L2 block with the given user transactions.
+    ///
+    /// Executes all transactions through the OP Stack EVM, collecting real receipts,
+    /// computing state/transactions/receipts roots from execution results, and applying
+    /// state changes to the underlying database.
     pub fn build_block(
         &mut self,
         user_txs: Vec<OpTxEnvelope>,
@@ -96,16 +118,41 @@ impl L2ChainBuilder {
         let mut all_txs = vec![deposit_tx];
         all_txs.extend(user_txs);
 
-        // Build receipts (deposit tx always succeeds with empty receipt)
-        let receipts: Vec<OpReceiptEnvelope> =
-            all_txs.iter().enumerate().map(|(i, tx)| build_receipt(tx, i as u64)).collect();
+        // Determine spec ID from rollup config
+        let spec_id = self.config.rollup_config().spec_id(timestamp);
 
+        let block_env = BlockEnv {
+            number: U256::from(block_num),
+            beneficiary: self.config.fee_recipient,
+            timestamp: U256::from(timestamp),
+            gas_limit: 30_000_000,
+            basefee: 0,
+            ..Default::default()
+        };
+
+        // Execute all transactions through the EVM
+        let (receipts, evm_state) = self.execute_transactions(&all_txs, spec_id, block_env)?;
+
+        // Apply state changes to our tracked state
+        self.state.apply_evm_result(&evm_state);
+
+        // Compute roots from real execution results
         let transactions_root = compute_transactions_root(&all_txs);
         let receipts_root = compute_receipts_root(&receipts);
+        let logs_bloom = receipts_bloom(&receipts);
+        let gas_used = cumulative_gas_from_receipts(&receipts);
 
-        // Take a snapshot for state root
+        // Snapshot state after applying changes (for state root)
         let snapshot = self.state.snapshot();
         let state_root = snapshot.state_root;
+
+        // Withdrawals root for Isthmus+ (empty list)
+        let withdrawals_root = self
+            .config
+            .hardforks
+            .isthmus_time
+            .filter(|&t| timestamp >= t)
+            .map(|_| crate::state::roots::EMPTY_ROOT_HASH);
 
         let header = Header {
             parent_hash: prev.header.hash(),
@@ -114,17 +161,77 @@ impl L2ChainBuilder {
             state_root,
             transactions_root,
             receipts_root,
+            logs_bloom,
+            gas_used,
             gas_limit: 30_000_000,
+            withdrawals_root,
             ..Default::default()
         };
         let sealed = header.seal_slow();
 
-        let block = L2Block { header: sealed, transactions: all_txs, receipts };
+        let block = L2Block {
+            header: sealed,
+            transactions: all_txs,
+            receipts,
+            withdrawals_root,
+        };
 
         self.blocks.push(block);
         self.snapshots.push(snapshot);
 
         Ok(L2BlockRef { index: self.blocks.len() - 1 })
+    }
+
+    /// Execute all transactions through the OP Stack EVM.
+    fn execute_transactions(
+        &self,
+        txs: &[OpTxEnvelope],
+        spec_id: OpSpecId,
+        block_env: BlockEnv,
+    ) -> Result<(Vec<OpReceiptEnvelope>, revm::state::EvmState), Box<dyn std::error::Error>> {
+        let cfg_env: CfgEnv<OpSpecId> = CfgEnv::new()
+            .with_chain_id(self.config.l2_chain_id)
+            .with_spec_and_mainnet_gas_params(spec_id);
+
+        let default_tx = OpTransaction::builder().build_fill();
+        let db = self.state.db.clone();
+
+        type EvmDb = CacheDB<revm::database::EmptyDB>;
+        let base_ctx: Context<BlockEnv, TxEnv, CfgEnv<OpSpecId>, EvmDb, Journal<EvmDb>, ()> =
+            Context::new(db, spec_id);
+
+        let ctx = base_ctx
+            .with_block(block_env)
+            .with_cfg(cfg_env)
+            .with_tx(default_tx)
+            .with_chain(L1BlockInfo::default());
+
+        let mut evm = ctx.build_op();
+
+        let mut receipts = Vec::with_capacity(txs.len());
+        let mut cumulative_gas_used: u64 = 0;
+
+        for (i, tx) in txs.iter().enumerate() {
+            let op_tx = envelope_to_op_transaction(tx)?;
+
+            let result = evm.transact_one(op_tx).map_err(|e| format!("EVM error tx {i}: {e:?}"))?;
+
+            let (gas_used, logs, success) = match &result {
+                ExecutionResult::Success { gas_used, logs, .. } => (*gas_used, logs.clone(), true),
+                ExecutionResult::Revert { gas_used, .. }
+                | ExecutionResult::Halt { gas_used, .. } => (*gas_used, vec![], false),
+            };
+
+            cumulative_gas_used += gas_used;
+
+            let receipt =
+                build_execution_receipt(tx, success, cumulative_gas_used, logs, i as u64);
+            receipts.push(receipt);
+        }
+
+        let evm_state = evm.finalize();
+
+        Ok((receipts, evm_state))
     }
 
     /// Build N empty (deposit-only) L2 blocks.
@@ -175,31 +282,118 @@ impl L2ChainBuilder {
     }
 }
 
-/// Build a minimal receipt for a transaction.
-fn build_receipt(tx: &OpTxEnvelope, _index: u64) -> OpReceiptEnvelope {
-    use alloy_consensus::{Eip658Value, Receipt, ReceiptWithBloom};
-    use op_alloy_consensus::OpDepositReceipt;
+/// Convert an `OpTxEnvelope` to an `OpTransaction<TxEnv>` for revm execution.
+fn envelope_to_op_transaction(
+    tx: &OpTxEnvelope,
+) -> Result<OpTransaction<TxEnv>, Box<dyn std::error::Error>> {
+    match tx {
+        OpTxEnvelope::Deposit(sealed_deposit) => {
+            let deposit = sealed_deposit.inner();
+            let base = TxEnv {
+                tx_type: 0x7E,
+                caller: deposit.from,
+                gas_limit: deposit.gas_limit,
+                gas_price: 0,
+                kind: deposit.to,
+                value: deposit.value,
+                data: deposit.input.clone(),
+                nonce: 0,
+                chain_id: None,
+                gas_priority_fee: None,
+                ..Default::default()
+            };
+
+            Ok(OpTransaction {
+                base,
+                enveloped_tx: None,
+                deposit: DepositTransactionParts {
+                    source_hash: deposit.source_hash,
+                    mint: (deposit.mint > 0).then_some(deposit.mint),
+                    is_system_transaction: deposit.is_system_transaction,
+                },
+            })
+        }
+        _ => {
+            let sender = tx.recover_signer()?;
+
+            // Encode the transaction envelope for L1 cost calculation
+            let mut encoded = Vec::new();
+            tx.encode_2718(&mut encoded);
+
+            let base = TxEnv {
+                tx_type: tx.ty(),
+                caller: sender,
+                gas_limit: tx.gas_limit(),
+                gas_price: tx.max_fee_per_gas(),
+                kind: tx.kind(),
+                value: tx.value(),
+                data: tx.input().clone(),
+                nonce: tx.nonce(),
+                chain_id: tx.chain_id(),
+                gas_priority_fee: tx.max_priority_fee_per_gas(),
+                ..Default::default()
+            };
+
+            Ok(OpTransaction {
+                base,
+                enveloped_tx: Some(Bytes::from(encoded)),
+                deposit: DepositTransactionParts::default(),
+            })
+        }
+    }
+}
+
+/// Build a receipt from EVM execution results.
+fn build_execution_receipt(
+    tx: &OpTxEnvelope,
+    success: bool,
+    cumulative_gas_used: u64,
+    logs: Vec<Log>,
+    _index: u64,
+) -> OpReceiptEnvelope {
+    use alloy_consensus::Eip658Value;
+
+    let bloom = alloy_primitives::logs_bloom(logs.iter());
+    let status = Eip658Value::Eip658(success);
 
     match tx {
         OpTxEnvelope::Deposit(_) => {
             let receipt = OpDepositReceipt {
-                inner: Receipt {
-                    status: Eip658Value::Eip658(true),
-                    cumulative_gas_used: 0,
-                    logs: vec![],
-                },
+                inner: Receipt { status, cumulative_gas_used, logs },
                 deposit_nonce: Some(0),
                 deposit_receipt_version: Some(1),
             };
-            OpReceiptEnvelope::Deposit(ReceiptWithBloom::new(receipt, Bloom::default()))
+            OpReceiptEnvelope::Deposit(ReceiptWithBloom::new(receipt, bloom))
         }
-        _ => {
-            let receipt = Receipt {
-                status: Eip658Value::Eip658(true),
-                cumulative_gas_used: 21_000,
-                logs: vec![],
-            };
-            OpReceiptEnvelope::Eip1559(ReceiptWithBloom::new(receipt, Bloom::default()))
+        OpTxEnvelope::Legacy(_) => {
+            let receipt = Receipt { status, cumulative_gas_used, logs };
+            OpReceiptEnvelope::Legacy(ReceiptWithBloom::new(receipt, bloom))
+        }
+        OpTxEnvelope::Eip2930(_) => {
+            let receipt = Receipt { status, cumulative_gas_used, logs };
+            OpReceiptEnvelope::Eip2930(ReceiptWithBloom::new(receipt, bloom))
+        }
+        OpTxEnvelope::Eip1559(_) => {
+            let receipt = Receipt { status, cumulative_gas_used, logs };
+            OpReceiptEnvelope::Eip1559(ReceiptWithBloom::new(receipt, bloom))
+        }
+        OpTxEnvelope::Eip7702(_) => {
+            let receipt = Receipt { status, cumulative_gas_used, logs };
+            OpReceiptEnvelope::Eip7702(ReceiptWithBloom::new(receipt, bloom))
         }
     }
+}
+
+/// Compute the aggregate logs bloom from all receipts.
+fn receipts_bloom(receipts: &[OpReceiptEnvelope]) -> Bloom {
+    let mut bloom = Bloom::default();
+    for receipt in receipts {
+        bloom.accrue_bloom(receipt.logs_bloom());
+    }
+    bloom
+}
+
+/// Get the cumulative gas used from the last receipt.
+fn cumulative_gas_from_receipts(receipts: &[OpReceiptEnvelope]) -> u64 {
+    receipts.last().map_or(0, |r| r.cumulative_gas_used())
 }
