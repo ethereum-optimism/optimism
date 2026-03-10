@@ -92,13 +92,12 @@ haven't changed:
 
 1. **Key**: `sha256(git tree hashes of cache_inputs + mise.toml)`
 2. **Restore**: Copy cached artifacts from `/tmp/shadow-ci-cache` to repo
-3. **Verify**: Run `verify_command` to confirm artifacts are valid post-restore
+3. **Verify**: Framework checks all `workspace_paths` exist after restore
 4. **Use or rebuild**: If verify passes, skip build. If not, full rebuild + save.
 
 Each build category in `scoping.yaml` declares:
-- `cache_inputs` — source paths that determine the build output
-- `workspace_paths` — output paths to cache
-- `verify_command` — cheap check that cached outputs are valid
+- `workspace_paths` — output paths to cache (verification auto-generated from these)
+- `cache_inputs` (optional) — source paths for cache key (defaults to `trigger_paths`)
 
 The system is fail-open: any error falls through to a full build.
 

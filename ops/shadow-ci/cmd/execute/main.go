@@ -159,23 +159,11 @@ func main() {
 						// Key matched — restore artifacts first, then verify.
 						if restoreErr := resolver.Restore(e.name, e.cat); restoreErr != nil {
 							fmt.Printf("--- %s: cache restore failed: %v, proceeding with full build ---\n", e.name, restoreErr)
-						} else if res.Verified {
-							// No verify_command or it already passed — done.
-							fmt.Printf("--- %s: CACHED (key=%s) ---\n\n", e.name, res.CacheKey)
-							mu.Lock()
-							results = append(results, result{Category: e.name, Status: "cached"})
-							mu.Unlock()
-							close(done[e.name])
-							return
 						} else {
-							// Verify after restore to check artifacts in place.
+							// Verify restored artifacts exist.
 							start := time.Now()
-							verifyCmd := exec.Command("bash", "-c", e.cat.VerifyCommand)
-							verifyCmd.Dir = "."
-							verifyCmd.Env = os.Environ()
-							verifyOut, verifyErr := verifyCmd.CombinedOutput()
+							verifyErr := cache.Verify(".", e.cat)
 							verifyDur := time.Since(start)
-
 							if verifyErr == nil {
 								fmt.Printf("--- %s: CACHED (key=%s, verified in %s) ---\n\n", e.name, res.CacheKey, verifyDur.Round(time.Millisecond))
 								mu.Lock()
@@ -185,19 +173,7 @@ func main() {
 								return
 							}
 							fmt.Printf("--- %s: CACHE STALE (key=%s matched, restored, but verify failed in %s) ---\n", e.name, res.CacheKey, verifyDur.Round(time.Millisecond))
-							if len(verifyOut) > 0 {
-								fmt.Printf("    verify output: %s\n", strings.TrimSpace(string(verifyOut)))
-							}
-							for _, wp := range e.cat.WorkspacePaths {
-								if info, statErr := os.Stat(wp); statErr != nil {
-									fmt.Printf("    DEBUG: %s: %v\n", wp, statErr)
-								} else if info.IsDir() {
-									entries, _ := os.ReadDir(wp)
-									fmt.Printf("    DEBUG: %s: dir with %d entries\n", wp, len(entries))
-								} else {
-									fmt.Printf("    DEBUG: %s: file (%d bytes)\n", wp, info.Size())
-								}
-							}
+							fmt.Printf("    verify error: %v\n", verifyErr)
 							fmt.Printf("    WARNING: cache key was insufficient — rebuilding\n")
 							warnPath := filepath.Join(*resultsDir, e.name+"-cache-verify-failed.json")
 							warnJSON, _ := json.Marshal(map[string]string{

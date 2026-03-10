@@ -18,7 +18,6 @@ type Resolution struct {
 	Category string
 	CacheKey string
 	Hit      bool   // cache directory exists with matching key
-	Verified bool   // true if no verify_command configured (caller verifies after restore)
 	CacheDir string // path to cached artifacts (empty if miss)
 }
 
@@ -70,8 +69,7 @@ func (r *Resolver) ComputeKey(category string, cat model.JobCategoryConfig) (str
 }
 
 // Resolve checks if a category has a cache key match.
-// It does NOT run verify_command — the caller should restore first, then verify,
-// since verify checks artifacts that only exist after restore.
+// On a hit, the caller should Restore, then Verify workspace_paths exist.
 func (r *Resolver) Resolve(category string, cat model.JobCategoryConfig) (*Resolution, error) {
 	key, err := r.ComputeKey(category, cat)
 	if err != nil {
@@ -90,10 +88,6 @@ func (r *Resolver) Resolve(category string, cat model.JobCategoryConfig) (*Resol
 
 	res.Hit = true
 	res.CacheDir = catCacheDir
-
-	// Mark as verified if no verify_command is configured.
-	// When verify_command exists, the caller runs it after Restore.
-	res.Verified = cat.VerifyCommand == ""
 	return res, nil
 }
 
@@ -137,6 +131,19 @@ func (r *Resolver) Save(category string, cat model.JobCategoryConfig, key string
 	}
 
 	return os.WriteFile(filepath.Join(catCacheDir, "cache.key"), []byte(key), 0o644)
+}
+
+// Verify checks that all workspace_paths exist after a cache restore.
+// This replaces the hand-written verify_command field — the framework
+// knows what it cached and can check for itself.
+func Verify(repoRoot string, cat model.JobCategoryConfig) error {
+	for _, wsPath := range cat.WorkspacePaths {
+		fullPath := filepath.Join(repoRoot, wsPath)
+		if _, err := os.Stat(fullPath); err != nil {
+			return fmt.Errorf("workspace path %s: %w", wsPath, err)
+		}
+	}
+	return nil
 }
 
 // gitTreeHash returns the git tree hash for a path (file or directory).

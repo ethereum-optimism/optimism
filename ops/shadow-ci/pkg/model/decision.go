@@ -54,8 +54,7 @@ type JobCategoryConfig struct {
 	RunnerClass    string   `yaml:"runner" json:"runner,omitempty"`               // resource class override
 
 	// Content-addressed build cache fields.
-	CacheInputs   []string `yaml:"cache_inputs" json:"cache_inputs,omitempty"`       // paths hashed for cache key (defaults to trigger_paths)
-	VerifyCommand string   `yaml:"verify_command" json:"verify_command,omitempty"`   // shell command that exits 0 if cached outputs are valid
+	CacheInputs []string `yaml:"cache_inputs" json:"cache_inputs,omitempty"` // paths hashed for cache key (defaults to trigger_paths)
 }
 
 // FuzzPackage maps a fuzz package to its trigger paths.

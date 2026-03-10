@@ -164,7 +164,7 @@ func TestResolve_CacheMiss(t *testing.T) {
 	}
 }
 
-func TestResolve_CacheHit_NoVerify(t *testing.T) {
+func TestResolve_CacheHit(t *testing.T) {
 	repo := initGitRepo(t)
 	cacheDir := t.TempDir()
 	r := NewResolver(repo, cacheDir)
@@ -187,73 +187,6 @@ func TestResolve_CacheHit_NoVerify(t *testing.T) {
 
 	if !res.Hit {
 		t.Error("expected cache hit")
-	}
-	if !res.Verified {
-		t.Error("expected verified (no verify_command)")
-	}
-}
-
-func TestResolve_CacheHit_WithVerifyCommand(t *testing.T) {
-	repo := initGitRepo(t)
-	cacheDir := t.TempDir()
-	r := NewResolver(repo, cacheDir)
-
-	cat := model.JobCategoryConfig{
-		CacheInputs:    []string{"src/"},
-		WorkspacePaths: []string{"build/"},
-		VerifyCommand:  "true", // has a verify command
-	}
-
-	key, _ := r.ComputeKey("test", cat)
-	catDir := filepath.Join(cacheDir, "test")
-	os.MkdirAll(catDir, 0o755)
-	os.WriteFile(filepath.Join(catDir, "cache.key"), []byte(key), 0o644)
-
-	res, err := r.Resolve("test", cat)
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-
-	// Resolve returns Hit=true but Verified=false when verify_command exists.
-	// The caller restores artifacts first, then runs verify.
-	if !res.Hit {
-		t.Error("expected cache hit")
-	}
-	if res.Verified {
-		t.Error("expected Verified=false (caller runs verify after restore)")
-	}
-}
-
-func TestResolve_CacheHit_VerifyDeferred(t *testing.T) {
-	repo := initGitRepo(t)
-	cacheDir := t.TempDir()
-	r := NewResolver(repo, cacheDir)
-
-	// Both "true" and "false" verify commands produce the same Resolve result:
-	// Hit=true, Verified=false. Verify runs after restore, not in Resolve.
-	for _, cmd := range []string{"true", "false"} {
-		cat := model.JobCategoryConfig{
-			CacheInputs:    []string{"src/"},
-			WorkspacePaths: []string{"build/"},
-			VerifyCommand:  cmd,
-		}
-
-		key, _ := r.ComputeKey("test", cat)
-		catDir := filepath.Join(cacheDir, "test")
-		os.MkdirAll(catDir, 0o755)
-		os.WriteFile(filepath.Join(catDir, "cache.key"), []byte(key), 0o644)
-
-		res, err := r.Resolve("test", cat)
-		if err != nil {
-			t.Fatalf("Resolve (cmd=%s): %v", cmd, err)
-		}
-
-		if !res.Hit {
-			t.Errorf("cmd=%s: expected cache hit", cmd)
-		}
-		if res.Verified {
-			t.Errorf("cmd=%s: expected Verified=false (deferred to caller)", cmd)
-		}
 	}
 }
 
@@ -364,4 +297,60 @@ func TestComputeKey_NoInputs(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for category with no inputs")
 	}
+}
+
+func TestVerify_AllPathsExist(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "build/output"), 0o755)
+	os.MkdirAll(filepath.Join(dir, "dist"), 0o755)
+
+	cat := model.JobCategoryConfig{
+		WorkspacePaths: []string{"build/output", "dist"},
+	}
+
+	if err := Verify(dir, cat); err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+}
+
+func TestVerify_MissingPath(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "build/output"), 0o755)
+	// "dist" does not exist
+
+	cat := model.JobCategoryConfig{
+		WorkspacePaths: []string{"build/output", "dist"},
+	}
+
+	err := Verify(dir, cat)
+	if err == nil {
+		t.Fatal("expected error for missing workspace path")
+	}
+	if !contains(err.Error(), "dist") {
+		t.Errorf("error should name the missing path, got: %v", err)
+	}
+}
+
+func TestVerify_EmptyWorkspacePaths(t *testing.T) {
+	dir := t.TempDir()
+	cat := model.JobCategoryConfig{
+		WorkspacePaths: nil,
+	}
+
+	if err := Verify(dir, cat); err != nil {
+		t.Errorf("expected no error for empty workspace_paths, got: %v", err)
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
