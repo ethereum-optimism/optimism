@@ -1,0 +1,77 @@
+import '../justfiles/default.just'
+
+num_cores := num_cpus()
+
+JUNIT_FILE := env('JUNIT_FILE', '')
+JSON_LOG_FILE := env('JSON_LOG_FILE', '')
+
+_go_test := if JUNIT_FILE != "" {
+    "OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false gotestsum --format=testname --junitfile=" + JUNIT_FILE + " --jsonfile=" + JSON_LOG_FILE + " -- -failfast"
+} else {
+    "go test"
+}
+
+_go_test_flags := if JUNIT_FILE != "" {
+    "-timeout=60m -parallel=" + num_cores
+} else {
+    "-v"
+}
+
+# Run all tests
+test: pre-test test-ws
+
+# Run tests for an external L2
+test-external NAME: pre-test
+    #!/usr/bin/env bash
+    set -euo pipefail
+    make -C ./external_{{NAME}}/
+    {{_go_test}} {{_go_test_flags}} --externalL2 ./external_{{NAME}}/
+
+# Run workspace tests
+test-ws: pre-test
+    {{_go_test}} {{_go_test_flags}} ./system/... ./e2eutils/... ./opgeth/... ./interop/...
+
+# Run action tests
+test-actions: pre-test
+    {{_go_test}} {{_go_test_flags}} ./actions/...
+
+# Run tests over HTTP
+test-http: pre-test
+    OP_E2E_USE_HTTP=true {{_go_test}} {{_go_test_flags}} ./system/... ./e2eutils/... ./opgeth/... ./interop/...
+
+# Run cannon tests
+test-cannon: pre-test
+    OP_E2E_CANNON_ENABLED=true {{_go_test}} {{_go_test_flags}} ./faultproofs
+
+# Run fault proof tests
+test-fault-proofs: pre-test
+    {{_go_test}} {{_go_test_flags}} ./faultproofs
+
+# Build cannon prestates
+cannon-prestates:
+    make -C .. cannon-prestates
+
+# Pre-test setup
+pre-test: pre-test-cannon
+
+[private]
+pre-test-cannon:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -e ../op-program/bin ]; then
+        just cannon-prestates
+    fi
+
+# Clean build artifacts
+clean:
+    rm -rf ../.devnet
+    rm -rf ../op-program/bin
+
+# Run fuzz tests
+fuzz:
+    parallel --tag -N1 "go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
+
+# Generate contract bindings
+gen-binding CONTRACT:
+    cd ../packages/contracts-bedrock && just build
+    ./scripts/gen-binding.sh {{CONTRACT}}
