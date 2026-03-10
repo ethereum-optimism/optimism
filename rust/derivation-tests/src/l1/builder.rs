@@ -4,8 +4,7 @@ use alloy_consensus::{Header, Receipt, ReceiptEnvelope, ReceiptWithBloom};
 use alloy_primitives::{Bloom, Bytes, Sealable};
 use std::collections::BTreeMap;
 
-use crate::config::DeterministicConfig;
-use crate::state::roots::EMPTY_ROOT_HASH;
+use crate::{config::DeterministicConfig, state::roots::EMPTY_ROOT_HASH};
 
 use super::types::{BatchSubmission, BlobWithCommitment, L1Block};
 
@@ -32,17 +31,9 @@ impl L1ChainBuilder {
         };
         let sealed = genesis_header.seal_slow();
 
-        let genesis_block = L1Block {
-            header: sealed,
-            transactions: vec![],
-            receipts: vec![],
-        };
+        let genesis_block = L1Block { header: sealed, transactions: vec![], receipts: vec![] };
 
-        Self {
-            config: config.clone(),
-            blocks: vec![genesis_block],
-            blobs: BTreeMap::new(),
-        }
+        Self { config: config.clone(), blocks: vec![genesis_block], blobs: BTreeMap::new() }
     }
 
     /// Emit an empty L1 block with no transactions.
@@ -60,11 +51,7 @@ impl L1ChainBuilder {
         };
         let sealed = header.seal_slow();
 
-        self.blocks.push(L1Block {
-            header: sealed,
-            transactions: vec![],
-            receipts: vec![],
-        });
+        self.blocks.push(L1Block { header: sealed, transactions: vec![], receipts: vec![] });
     }
 
     /// Emit an L1 block containing batch submissions.
@@ -84,10 +71,7 @@ impl L1ChainBuilder {
                 }
                 BatchSubmission::Blob(blob_data) => {
                     let slot = self.timestamp_to_slot(timestamp);
-                    self.blobs
-                        .entry(slot)
-                        .or_default()
-                        .push(blob_data.clone());
+                    self.blobs.entry(slot).or_default().push(blob_data.clone());
                     transactions.push(Bytes::new());
                     receipts.push(success_receipt(receipts.len() as u64));
                 }
@@ -106,11 +90,7 @@ impl L1ChainBuilder {
         };
         let sealed = header.seal_slow();
 
-        self.blocks.push(L1Block {
-            header: sealed,
-            transactions,
-            receipts,
-        });
+        self.blocks.push(L1Block { header: sealed, transactions, receipts });
     }
 
     /// Emit an L1 block with raw transaction data.
@@ -128,15 +108,9 @@ impl L1ChainBuilder {
         };
         let sealed = header.seal_slow();
 
-        let receipts: Vec<_> = (0..txs.len())
-            .map(|i| success_receipt(i as u64))
-            .collect();
+        let receipts: Vec<_> = (0..txs.len()).map(|i| success_receipt(i as u64)).collect();
 
-        self.blocks.push(L1Block {
-            header: sealed,
-            transactions: txs,
-            receipts,
-        });
+        self.blocks.push(L1Block { header: sealed, transactions: txs, receipts });
     }
 
     /// Get all blocks.

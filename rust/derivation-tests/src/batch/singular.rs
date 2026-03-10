@@ -25,7 +25,7 @@ pub fn block_to_singular_batch(block: &L2Block, _rollup_config: &RollupConfig) -
 
     SingleBatch {
         parent_hash: block.header.inner().parent_hash,
-        epoch_num: 0, // Set by caller based on L1 origin
+        epoch_num: 0,                   // Set by caller based on L1 origin
         epoch_hash: Default::default(), // Set by caller
         timestamp: block.header.inner().timestamp,
         transactions,

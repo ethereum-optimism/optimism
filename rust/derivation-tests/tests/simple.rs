@@ -1,8 +1,6 @@
 //! Simple derivation test scenarios exercising the full framework.
 
-use derivation_tests::config::DeterministicConfig;
-use derivation_tests::harness::DerivationTest;
-use derivation_tests::l1::BatchSubmission;
+use derivation_tests::{config::DeterministicConfig, harness::DerivationTest, l1::BatchSubmission};
 
 /// Build a test with N empty L2 blocks derived from N empty L1 blocks.
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {

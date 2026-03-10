@@ -2,9 +2,11 @@
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, U256};
-use revm::DatabaseCommit;
-use revm::database::{CacheDB, EmptyDB};
-use revm::state::{AccountInfo, Bytecode};
+use revm::{
+    DatabaseCommit,
+    database::{CacheDB, EmptyDB},
+    state::{AccountInfo, Bytecode},
+};
 use std::collections::BTreeMap;
 
 use super::roots::{TrieNodeStore, compute_state_root, compute_storage_root};

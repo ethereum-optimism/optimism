@@ -7,8 +7,7 @@ use kona_genesis::SystemConfig;
 use kona_protocol::L1BlockInfoTx;
 use op_alloy_consensus::OpTxEnvelope;
 
-use crate::config::DeterministicConfig;
-use crate::l1::L1Block;
+use crate::{config::DeterministicConfig, l1::L1Block};
 
 /// Construct the L1 info deposit transaction for an L2 block.
 ///

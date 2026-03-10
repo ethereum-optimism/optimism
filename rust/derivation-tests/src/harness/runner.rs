@@ -45,9 +45,10 @@ pub fn run_config_from_test(test: &DerivationTest, servers: &TestServers) -> Run
 ///
 /// Requires `OP_PROGRAM_PATH` environment variable.
 #[allow(dead_code)]
-pub(super) async fn run_op_program(config: &RunConfig) -> Result<ExitStatus, Box<dyn std::error::Error>> {
-    let program_path =
-        std::env::var("OP_PROGRAM_PATH").map_err(|_| "OP_PROGRAM_PATH not set")?;
+pub(super) async fn run_op_program(
+    config: &RunConfig,
+) -> Result<ExitStatus, Box<dyn std::error::Error>> {
+    let program_path = std::env::var("OP_PROGRAM_PATH").map_err(|_| "OP_PROGRAM_PATH not set")?;
 
     let status = tokio::process::Command::new(&program_path)
         .arg("--l1")

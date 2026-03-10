@@ -3,12 +3,14 @@
 use alloy_primitives::B256;
 use kona_protocol::ChannelId;
 
-use crate::batch::{ChannelOut, CompressionAlgo, block_to_singular_batch};
-use crate::config::DeterministicConfig;
-use crate::l1::{BatchSubmission, L1ChainBuilder};
-use crate::l2::{L2BlockRef, L2ChainBuilder};
-use crate::roots::{compute_output_root_from_state, compute_single_chain_super_root};
-use crate::server::TestServers;
+use crate::{
+    batch::{ChannelOut, CompressionAlgo, block_to_singular_batch},
+    config::DeterministicConfig,
+    l1::{BatchSubmission, L1ChainBuilder},
+    l2::{L2BlockRef, L2ChainBuilder},
+    roots::{compute_output_root_from_state, compute_single_chain_super_root},
+    server::TestServers,
+};
 
 /// High-level test entry point that ties together L1 builder, L2 builder, and verification.
 #[allow(missing_debug_implementations)]

@@ -6,9 +6,7 @@ use alloy_primitives::B256;
 use kona_interop::{OutputRootWithChain, SuperRoot};
 use kona_protocol::OutputRoot;
 
-use crate::config::L2_TO_L1_MESSAGE_PASSER;
-use crate::l2::L2Block;
-use crate::state::StateSnapshot;
+use crate::{config::L2_TO_L1_MESSAGE_PASSER, l2::L2Block, state::StateSnapshot};
 
 /// Compute the output root (V0) for an L2 block.
 ///
@@ -33,7 +31,8 @@ pub fn compute_super_root(timestamp: u64, chains: Vec<(u64, B256)>) -> B256 {
     SuperRoot::new(timestamp, output_roots).hash()
 }
 
-/// Compute the output root from a state snapshot, extracting the `L2ToL1MessagePasser` storage root.
+/// Compute the output root from a state snapshot, extracting the `L2ToL1MessagePasser` storage
+/// root.
 pub fn compute_output_root_from_state(block: &L2Block, snapshot: &StateSnapshot) -> B256 {
     use crate::state::roots::{EMPTY_ROOT_HASH, TrieNodeStore, compute_storage_root};
 

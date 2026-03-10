@@ -4,13 +4,13 @@ use jsonrpsee::server::ServerHandle;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
-use crate::config::DeterministicConfig;
-use crate::l1::L1ChainBuilder;
-use crate::l2::L2ChainBuilder;
+use crate::{config::DeterministicConfig, l1::L1ChainBuilder, l2::L2ChainBuilder};
 
-use super::beacon::{self, BeaconState};
-use super::l1_rpc::{L1RpcImpl, L1RpcServer};
-use super::l2_rpc::{L2RpcImpl, L2RpcServer};
+use super::{
+    beacon::{self, BeaconState},
+    l1_rpc::{L1RpcImpl, L1RpcServer},
+    l2_rpc::{L2RpcImpl, L2RpcServer},
+};
 
 /// Running test servers for L1 RPC, L2 RPC, and beacon API.
 #[allow(missing_debug_implementations)]
@@ -31,25 +31,19 @@ impl TestServers {
         l2: &L2ChainBuilder,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         // Start L1 RPC server
-        let l1_server = jsonrpsee::server::ServerBuilder::default()
-            .build("127.0.0.1:0")
-            .await?;
+        let l1_server = jsonrpsee::server::ServerBuilder::default().build("127.0.0.1:0").await?;
         let l1_addr = l1_server.local_addr()?;
         let l1_impl = L1RpcImpl::new(l1.blocks().to_vec(), config.l1_chain_id);
         let l1_handle = l1_server.start(l1_impl.into_rpc());
 
         // Start L2 RPC server
-        let l2_server = jsonrpsee::server::ServerBuilder::default()
-            .build("127.0.0.1:0")
-            .await?;
+        let l2_server = jsonrpsee::server::ServerBuilder::default().build("127.0.0.1:0").await?;
         let l2_addr = l2_server.local_addr()?;
         let l2_impl = L2RpcImpl::new(
             l2.blocks().to_vec(),
             // Collect snapshots
             (0..l2.blocks().len())
-                .map(|i| {
-                    l2.snapshot_at(crate::l2::L2BlockRef { index: i }).clone()
-                })
+                .map(|i| l2.snapshot_at(crate::l2::L2BlockRef { index: i }).clone())
                 .collect(),
             config.l2_chain_id,
         );
@@ -64,9 +58,7 @@ impl TestServers {
         });
         let beacon_app = beacon::beacon_router(beacon_state);
         let beacon_handle = tokio::spawn(async move {
-            axum::serve(beacon_listener, beacon_app)
-                .await
-                .expect("beacon server failed");
+            axum::serve(beacon_listener, beacon_app).await.expect("beacon server failed");
         });
 
         Ok(Self {
