@@ -386,6 +386,7 @@ jobs:
               --cache-dir /tmp/shadow-ci-cache{{ end }}
 {{ if eq .Name "build" }}      - run:
           name: Stage build artifacts for downstream groups
+          when: always
           command: |
             mkdir -p /tmp/shadow-ci-workspace/build-artifacts
             for path in packages/contracts-bedrock/forge-artifacts packages/contracts-bedrock/cache packages/contracts-bedrock/artifacts op-deployer/pkg/deployer/artifacts/forge-artifacts op-program/bin cannon/bin .devnet rust/target/release; do
@@ -395,6 +396,7 @@ jobs:
               fi
             done
       - save_cache:
+          when: always
           key: shadow-ci-build-v1-{{ "{{" }} epoch {{ "}}" }}
           paths:
             - /tmp/shadow-ci-cache

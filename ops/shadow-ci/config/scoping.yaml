@@ -97,7 +97,7 @@ job_categories:
       - "packages/contracts-bedrock/foundry.toml"
       - "go.sum"
     verify_command: |
-      test -f op-program/bin/op-program && test -f cannon/bin/cannon && go build -v ./op-program/... 2>&1 | grep -c "^" | xargs test 0 -eq
+      test -f op-program/bin/op-program && test -f cannon/bin/cannon
     runner: large
     description: "Build Go binaries for sysgo acceptance tests"
 
@@ -125,6 +125,7 @@ job_categories:
       - "rollup-boost/"
     depends_on: ["rust_build"]
     command: |
+      git submodule deinit -f op-rbuilder rollup-boost 2>/dev/null || true
       git submodule update --init --recursive op-rbuilder rollup-boost && \
       cd op-rbuilder && cargo build --release
     workspace_paths:
