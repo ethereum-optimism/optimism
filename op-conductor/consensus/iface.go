@@ -4,6 +4,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// ConsensusMetrics defines metrics for consensus commit operations.
+// This is intentionally minimal so that the consensus layer does not
+// depend on the full metrics.Metricer interface.
+type ConsensusMetrics interface {
+	RecordCommitDuration(marshalSec, raftApplySec float64)
+	RecordCommitPayloadSize(payloadBytes float64)
+	RecordFSMApplyDuration(seconds float64)
+}
+
 // ServerSuffrage determines whether a Server in a Configuration gets a vote.
 type ServerSuffrage int
 

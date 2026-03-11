@@ -36,6 +36,7 @@ func TestUnsafeHeadTracker(t *testing.T) {
 	tracker := &unsafeHeadTracker{
 		log:        testlog.Logger(t, log.LevelDebug),
 		unsafeHead: createPayloadEnvelope(222),
+		metrics:    nil,
 	}
 
 	t.Run("Apply", func(t *testing.T) {

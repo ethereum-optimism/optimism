@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
+	"github.com/klauspost/compress/s2"
 	"github.com/pkg/errors"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -25,6 +26,7 @@ var _ Consensus = (*RaftConsensus)(nil)
 type RaftConsensus struct {
 	log       log.Logger
 	rollupCfg *rollup.Config
+	metrics   ConsensusMetrics
 
 	serverID raft.ServerID
 	r        *raft.Raft
@@ -35,6 +37,8 @@ type RaftConsensus struct {
 	advertisedAddr string
 
 	unsafeTracker *unsafeHeadTracker
+
+	compressPayload bool
 }
 
 type RaftConsensusConfig struct {
@@ -61,6 +65,20 @@ type RaftConsensusConfig struct {
 	TrailingLogs       uint64
 	HeartbeatTimeout   time.Duration
 	LeaderLeaseTimeout time.Duration
+
+	// Metrics collects sub-operation timing data for the commit path.
+	// If nil, no metrics are recorded (safe for tests).
+	Metrics ConsensusMetrics
+
+	// Transport allows injecting a custom raft.NetworkTransport (e.g. for benchmarks).
+	// If nil, a default TCP transport is created.
+	Transport *raft.NetworkTransport
+
+	// CompressPayload enables compression of SSZ-encoded payloads before
+	// passing them to raft Apply. Followers always attempt decompression
+	// regardless of this flag, so it is safe to enable after all nodes
+	// are upgraded.
+	CompressPayload bool
 }
 
 // checkTCPPortOpen attempts to connect to the specified address and returns an error if the connection fails.
@@ -121,20 +139,26 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 			"adIP", x.IP, "adPort", x.Port, "adZone", x.Zone)
 	}
 
-	bindAddr := fmt.Sprintf("%s:%d", cfg.ListenAddr, cfg.ListenPort)
-	log.Info("Binding raft server to network transport", "listenAddr", bindAddr)
+	var transport *raft.NetworkTransport
+	if cfg.Transport != nil {
+		transport = cfg.Transport
+		log.Info("Using injected raft transport", "addr", transport.LocalAddr())
+	} else {
+		bindAddr := fmt.Sprintf("%s:%d", cfg.ListenAddr, cfg.ListenPort)
+		log.Info("Binding raft server to network transport", "listenAddr", bindAddr)
 
-	maxConnPool := 10
-	timeout := 5 * time.Second
+		maxConnPool := 10
+		timeout := 5 * time.Second
 
-	// When advertiseAddr == nil, the transport will use the local address that it is bound to.
-	transport, err := raft.NewTCPTransportWithLogger(bindAddr, advertiseAddr, maxConnPool, timeout, rc.Logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create raft tcp transport")
+		// When advertiseAddr == nil, the transport will use the local address that it is bound to.
+		transport, err = raft.NewTCPTransportWithLogger(bindAddr, advertiseAddr, maxConnPool, timeout, rc.Logger)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create raft tcp transport")
+		}
+		log.Info("Raft server network transport is up", "addr", transport.LocalAddr())
 	}
-	log.Info("Raft server network transport is up", "addr", transport.LocalAddr())
 
-	fsm := NewUnsafeHeadTracker(log)
+	fsm := NewUnsafeHeadTracker(log, cfg.Metrics)
 
 	r, err := raft.NewRaft(rc, fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
@@ -175,12 +199,14 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	}
 
 	return &RaftConsensus{
-		log:           log,
-		r:             r,
-		serverID:      raft.ServerID(cfg.ServerID),
-		unsafeTracker: fsm,
-		rollupCfg:     cfg.RollupCfg,
-		transport:     transport,
+		log:             log,
+		r:               r,
+		serverID:        raft.ServerID(cfg.ServerID),
+		unsafeTracker:   fsm,
+		rollupCfg:       cfg.RollupCfg,
+		transport:       transport,
+		metrics:         cfg.Metrics,
+		compressPayload: cfg.CompressPayload,
 	}, err
 }
 
@@ -297,18 +323,36 @@ func (rc *RaftConsensus) Shutdown() error {
 
 // CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM in a strongly consistent fashion.
 func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error {
-	rc.log.Debug("committing unsafe payload", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash.Hex())
+	rc.log.Debug("committing unsafe payload", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash)
 
 	var buf bytes.Buffer
+
+	marshalStart := time.Now()
 	if _, err := payload.MarshalSSZ(&buf); err != nil {
 		return errors.Wrap(err, "failed to marshal payload envelope")
 	}
+	marshalDur := time.Since(marshalStart)
 
-	f := rc.r.Apply(buf.Bytes(), defaultTimeout)
+	data := buf.Bytes()
+	payloadSize := float64(len(data))
+
+	if rc.compressPayload {
+		data = s2.Encode(nil, data)
+	}
+
+	applyStart := time.Now()
+	f := rc.r.Apply(data, defaultTimeout)
 	if err := f.Error(); err != nil {
 		return errors.Wrap(err, "failed to apply payload envelope")
 	}
-	rc.log.Debug("unsafe payload committed", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash.Hex())
+	applyDur := time.Since(applyStart)
+
+	if rc.metrics != nil {
+		rc.metrics.RecordCommitDuration(marshalDur.Seconds(), applyDur.Seconds())
+		rc.metrics.RecordCommitPayloadSize(payloadSize)
+	}
+
+	rc.log.Debug("unsafe payload committed", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash)
 
 	return nil
 }

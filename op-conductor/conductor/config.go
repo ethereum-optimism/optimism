@@ -57,6 +57,10 @@ type Config struct {
 	// If the leader reaches this timeout without contacts to followers, it resigns.
 	RaftLeaderLeaseTimeout time.Duration
 
+	// RaftCompressPayload enables S2 compression of SSZ payloads before raft Apply.
+	// Only enable after all nodes in the cluster are upgraded to support decompression.
+	RaftCompressPayload bool
+
 	// NodeRPC is the HTTP provider URL for op-node.
 	NodeRPC string
 
@@ -185,6 +189,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RaftTrailingLogs:              ctx.Uint64(flags.RaftTrailingLogs.Name),
 		RaftHeartbeatTimeout:          ctx.Duration(flags.RaftHeartbeatTimeout.Name),
 		RaftLeaderLeaseTimeout:        ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
+		RaftCompressPayload:           ctx.Bool(flags.RaftCompressPayload.Name),
 		NodeRPC:                       ctx.String(flags.NodeRPC.Name),
 		ExecutionRPC:                  ctx.String(flags.ExecutionRPC.Name),
 		SupervisorRPC:                 ctx.String(flags.SupervisorRPC.Name),

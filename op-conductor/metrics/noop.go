@@ -18,3 +18,6 @@ func (*NoopMetricsImpl) RecordHealthCheck(success bool, err error)              
 func (*NoopMetricsImpl) RecordLoopExecutionTime(duration float64)                        {}
 func (*NoopMetricsImpl) RecordRollupBoostConnectionAttempts(success bool, source string) {}
 func (*NoopMetricsImpl) RecordWebSocketClientCount(count int)                            {}
+func (*NoopMetricsImpl) RecordCommitDuration(marshalSec, raftApplySec float64)           {}
+func (*NoopMetricsImpl) RecordCommitPayloadSize(payloadBytes float64)                    {}
+func (*NoopMetricsImpl) RecordFSMApplyDuration(seconds float64)                          {}

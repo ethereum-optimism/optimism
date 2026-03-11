@@ -81,6 +81,12 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RAFT_LEASE_TIMEOUT"),
 		Value:   500 * time.Millisecond,
 	}
+	RaftCompressPayload = &cli.BoolFlag{
+		Name:    "raft.compress-payload",
+		Usage:   "Enable S2 compression of SSZ payloads before raft Apply. Only enable after all cluster nodes are upgraded.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RAFT_COMPRESS_PAYLOAD"),
+		Value:   false,
+	}
 	NodeRPC = &cli.StringFlag{
 		Name:    "node.rpc",
 		Usage:   "HTTP provider URL for op-node",
@@ -227,6 +233,7 @@ var optionalFlags = []cli.Flag{
 	RaftTrailingLogs,
 	RaftHeartbeatTimeout,
 	RaftLeaderLeaseTimeout,
+	RaftCompressPayload,
 	SupervisorRPC,
 	RollupBoostEnabled,
 	RollupBoostHealthcheckTimeout,
