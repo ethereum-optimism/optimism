@@ -356,10 +356,8 @@ pub enum ResetError {
     /// The blob provider returned fewer blobs than expected (under-fill).
     #[error("Blob provider under-fill: {0}")]
     BlobsUnderFill(BlobProviderError),
-    /// The blob provider returned more blobs than were requested (over-fill). This matches the
-    /// check in `fillBlobPointers` in `blob_data_source.go` which returns
-    /// `fmt.Errorf("got too many blobs")` wrapped as `NewResetError`. Can occur with buggy blob
-    /// providers or in rare L1 reorg scenarios.
+    /// The blob provider returned more blobs than were requested (over-fill).
+    /// Can occur with buggy blob providers or in rare L1 reorg scenarios.
     #[error(
         "Blob provider over-fill: filled {filled} blob placeholders but provider returned {returned} blobs"
     )]

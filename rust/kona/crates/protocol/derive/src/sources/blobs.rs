@@ -175,9 +175,7 @@ where
 
         // Post-loop over-fill check: if the provider returned more blobs than were
         // requested, the pipeline state is inconsistent. Reset so the pipeline retries
-        // from a clean state. Matches the check in `fillBlobPointers` in
-        // blob_data_source.go which returns `fmt.Errorf("got too many blobs")`
-        // wrapped as `NewResetError`.
+        // from a clean state.
         if filled_blobs < blobs.len() {
             return Err(
                 ResetError::BlobsOverFill { filled: filled_blobs, returned: blobs.len() }.reset()
@@ -501,8 +499,7 @@ pub(crate) mod tests {
 
     /// Regression test: when the blob provider returns more blobs than were requested
     /// (over-fill), `load_blobs` must return `PipelineErrorKind::Reset` rather than
-    /// silently discarding the extra blobs. This matches the check in `fillBlobPointers`
-    /// in `blob_data_source.go` which returns `NewResetError("got too many blobs")`.
+    /// silently discarding the extra blobs.
     /// Over-fill can occur with buggy providers or in rare L1 reorg scenarios.
     #[tokio::test]
     async fn test_load_blobs_overfill_triggers_reset() {
