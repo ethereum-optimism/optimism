@@ -53,3 +53,4 @@ crytic-export
 .tool-versions
 
 .context
+.kaas-cli.toml
