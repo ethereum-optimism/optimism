@@ -8,11 +8,13 @@ import (
 type Option interface {
 	applyConfig(cfg *sysgo.PresetConfig)
 	applyPreset(target any)
+	optionKinds() optionKinds
 }
 
 type option struct {
 	applyFn       func(cfg *sysgo.PresetConfig)
 	applyPresetFn func(target any)
+	kinds         optionKinds
 }
 
 func (o option) applyConfig(cfg *sysgo.PresetConfig) {
@@ -26,6 +28,10 @@ func (o option) applyPreset(target any) {
 	if o.applyPresetFn != nil {
 		o.applyPresetFn(target)
 	}
+}
+
+func (o option) optionKinds() optionKinds {
+	return o.kinds
 }
 
 type CombinedOption []Option
@@ -52,8 +58,23 @@ func (c CombinedOption) applyPreset(target any) {
 	}
 }
 
+func (c CombinedOption) optionKinds() optionKinds {
+	var kinds optionKinds
+	for _, opt := range c {
+		if opt == nil {
+			continue
+		}
+		kinds |= opt.optionKinds()
+	}
+	return kinds
+}
+
 func AfterBuild(fn func(target any)) Option {
-	return option{applyPresetFn: fn}
+	var kinds optionKinds
+	if fn != nil {
+		kinds = optionKindAfterBuild
+	}
+	return option{applyPresetFn: fn, kinds: kinds}
 }
 
 func collectPresetConfig(opts []Option) (sysgo.PresetConfig, CombinedOption) {
@@ -64,7 +85,15 @@ func collectPresetConfig(opts []Option) (sysgo.PresetConfig, CombinedOption) {
 }
 
 func WithDeployerOptions(opts ...sysgo.DeployerOption) Option {
+	var kinds optionKinds
+	for _, opt := range opts {
+		if opt != nil {
+			kinds = optionKindDeployer
+			break
+		}
+	}
 	return option{
+		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.DeployerOptions = append(cfg.DeployerOptions, opts...)
 		},
@@ -72,7 +101,12 @@ func WithDeployerOptions(opts ...sysgo.DeployerOption) Option {
 }
 
 func WithBatcherOption(opt sysgo.BatcherOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindBatcher
+	}
 	return option{
+		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			if opt == nil {
 				return
@@ -83,7 +117,12 @@ func WithBatcherOption(opt sysgo.BatcherOption) Option {
 }
 
 func WithGlobalL2CLOption(opt sysgo.L2CLOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindGlobalL2CL
+	}
 	return option{
+		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			if opt == nil {
 				return
@@ -94,7 +133,12 @@ func WithGlobalL2CLOption(opt sysgo.L2CLOption) Option {
 }
 
 func WithGlobalSyncTesterELOption(opt sysgo.SyncTesterELOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindGlobalSyncTesterEL
+	}
 	return option{
+		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			if opt == nil {
 				return
@@ -105,7 +149,12 @@ func WithGlobalSyncTesterELOption(opt sysgo.SyncTesterELOption) Option {
 }
 
 func WithProposerOption(opt sysgo.ProposerOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindProposer
+	}
 	return option{
+		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			if opt == nil {
 				return
@@ -116,7 +165,12 @@ func WithProposerOption(opt sysgo.ProposerOption) Option {
 }
 
 func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindOPRBuilder
+	}
 	return option{
+		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			if opt == nil {
 				return
@@ -128,6 +182,7 @@ func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
 
 func WithGameTypeAdded(gameType gameTypes.GameType) Option {
 	return option{
+		kinds: optionKindAddedGameType,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameType)
 		},
@@ -136,6 +191,7 @@ func WithGameTypeAdded(gameType gameTypes.GameType) Option {
 
 func WithRespectedGameTypeOverride(gameType gameTypes.GameType) Option {
 	return option{
+		kinds: optionKindRespectedGameType,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.RespectedGameTypes = append(cfg.RespectedGameTypes, gameType)
 		},
@@ -144,6 +200,7 @@ func WithRespectedGameTypeOverride(gameType gameTypes.GameType) Option {
 
 func WithCannonKonaGameTypeAdded() Option {
 	return option{
+		kinds: optionKindAddedGameType | optionKindChallengerCannonKona,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.EnableCannonKonaForChall = true
 			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.CannonKonaGameType)
@@ -153,6 +210,7 @@ func WithCannonKonaGameTypeAdded() Option {
 
 func WithChallengerCannonKonaEnabled() Option {
 	return option{
+		kinds: optionKindChallengerCannonKona,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.EnableCannonKonaForChall = true
 		},
@@ -161,6 +219,7 @@ func WithChallengerCannonKonaEnabled() Option {
 
 func WithTimeTravelEnabled() Option {
 	return option{
+		kinds: optionKindTimeTravel,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.EnableTimeTravel = true
 		},
@@ -169,6 +228,7 @@ func WithTimeTravelEnabled() Option {
 
 func WithMaxSequencingWindow(max uint64) Option {
 	return option{
+		kinds: optionKindMaxSequencingWindow,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			v := max
 			cfg.MaxSequencingWindow = &v
@@ -178,6 +238,7 @@ func WithMaxSequencingWindow(max uint64) Option {
 
 func WithRequireInteropNotAtGenesis() Option {
 	return option{
+		kinds: optionKindRequireInteropNotAtGen,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.RequireInteropNotAtGen = true
 		},

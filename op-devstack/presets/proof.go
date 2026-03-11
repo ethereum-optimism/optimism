@@ -16,14 +16,24 @@ type proofValidationTarget interface {
 }
 
 func afterBuildProofValidation(fn func(t devtest.T, elNode *dsl.L1ELNode, l2Networks []*dsl.L2Network)) Option {
-	return AfterBuild(func(target any) {
-		proofTarget, ok := target.(proofValidationTarget)
-		if !ok {
-			return
-		}
-		t, elNode, l2Networks := proofTarget.proofValidationContext()
-		fn(t, elNode, l2Networks)
-	})
+	var kinds optionKinds
+	if fn != nil {
+		kinds = optionKindAfterBuild | optionKindProofValidation
+	}
+	return option{
+		kinds: kinds,
+		applyPresetFn: func(target any) {
+			if fn == nil {
+				return
+			}
+			proofTarget, ok := target.(proofValidationTarget)
+			if !ok {
+				return
+			}
+			t, elNode, l2Networks := proofTarget.proofValidationContext()
+			fn(t, elNode, l2Networks)
+		},
+	}
 }
 
 func WithRespectedGameType(gameType gameTypes.GameType) Option {

@@ -20,7 +20,7 @@ type SimpleWithSyncTester struct {
 //
 // The target is created from the runtime plus any additional preset options.
 func NewSimpleWithSyncTester(t devtest.T, opts ...Option) *SimpleWithSyncTester {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSimpleWithSyncTester", opts, simpleWithSyncTesterPresetSupportedOptionKinds)
 	out := simpleWithSyncTesterFromRuntime(t, sysgo.NewSimpleWithSyncTesterRuntimeWithConfig(t, presetCfg))
 	presetOpts.applyPreset(out)
 	return out

@@ -49,7 +49,7 @@ type SingleChainInterop struct {
 //
 // The target is created from the single-chain interop runtime plus any additional preset options.
 func NewSingleChainInterop(t devtest.T, opts ...Option) *SingleChainInterop {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainInterop", opts, singleChainInteropPresetSupportedOptionKinds)
 	out := singleChainInteropFromRuntime(t, sysgo.NewSingleChainInteropRuntimeWithConfig(t, presetCfg))
 	presetOpts.applyPreset(out)
 	return out
@@ -101,59 +101,38 @@ func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.Standar
 	return dsl.NewStandardBridge(s.T, l2Chain, s.L1EL)
 }
 
-func requireSupportedSuperProofsPresetConfig(t devtest.T, cfg sysgo.PresetConfig) {
-	t.Require().Empty(cfg.AddedGameTypes, "super proofs presets do not support added game-type adapters")
-	t.Require().Empty(cfg.RespectedGameTypes, "super proofs presets do not support respected game-type adapters")
-}
-
-func requireSupportedSupernodeProofsPresetConfig(t devtest.T, cfg sysgo.PresetConfig) {
-	requireSupportedSuperProofsPresetConfig(t, cfg)
-	t.Require().Empty(cfg.DeployerOptions, "supernode proofs presets do not support deployer option adapters")
-	t.Require().Empty(cfg.BatcherOptions, "supernode proofs presets do not support batcher option adapters")
-	t.Require().Empty(cfg.ProposerOptions, "supernode proofs presets do not support proposer option adapters")
-	t.Require().Empty(cfg.GlobalL2CLOptions, "supernode proofs presets do not support L2 CL option adapters")
-	t.Require().Nil(cfg.MaxSequencingWindow, "supernode proofs presets do not support sequencing window adapters")
-	t.Require().False(cfg.RequireInteropNotAtGen, "supernode proofs presets do not support interop-not-at-genesis adapters")
-	t.Require().False(cfg.EnableTimeTravel, "supernode proofs presets do not support time-travel adapters")
-}
-
 // NewSimpleInteropSuperProofs creates a fresh SimpleInterop target for the current test
 // using the default super-root proofs system.
 func NewSimpleInteropSuperProofs(t devtest.T, opts ...Option) *SimpleInterop {
-	presetCfg, _ := collectPresetConfig(opts)
-	requireSupportedSuperProofsPresetConfig(t, presetCfg)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropSuperProofs", opts, simpleInteropSuperProofsPresetSupportedOptionKinds)
 	return simpleInteropFromRuntime(t, sysgo.NewSimpleInteropSuperProofsRuntimeWithConfig(t, presetCfg))
 }
 
 // NewSimpleInteropSupernodeProofs creates a fresh SimpleInterop target for the current
 // test using the super-root proofs system backed by op-supernode.
 func NewSimpleInteropSupernodeProofs(t devtest.T, opts ...Option) *SimpleInterop {
-	presetCfg, _ := collectPresetConfig(opts)
-	requireSupportedSupernodeProofsPresetConfig(t, presetCfg)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropSupernodeProofs", opts, supernodeProofsPresetSupportedOptionKinds)
 	return simpleInteropFromSupernodeProofsRuntime(t, sysgo.NewTwoL2SupernodeProofsRuntimeWithConfig(t, true, presetCfg))
 }
 
 // NewSingleChainInteropSupernodeProofs creates a fresh SingleChainInterop target for the
 // current test using the single-chain super-root proofs system backed by op-supernode.
 func NewSingleChainInteropSupernodeProofs(t devtest.T, opts ...Option) *SingleChainInterop {
-	presetCfg, _ := collectPresetConfig(opts)
-	requireSupportedSupernodeProofsPresetConfig(t, presetCfg)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropSupernodeProofs", opts, supernodeProofsPresetSupportedOptionKinds)
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, true, presetCfg))
 }
 
 // NewSimpleInteropIsthmusSuper creates a fresh SimpleInterop target for the current test
 // using the Isthmus super-root system backed by op-supernode.
 func NewSimpleInteropIsthmusSuper(t devtest.T, opts ...Option) *SimpleInterop {
-	presetCfg, _ := collectPresetConfig(opts)
-	requireSupportedSupernodeProofsPresetConfig(t, presetCfg)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropIsthmusSuper", opts, supernodeProofsPresetSupportedOptionKinds)
 	return simpleInteropFromSupernodeProofsRuntime(t, sysgo.NewTwoL2SupernodeProofsRuntimeWithConfig(t, false, presetCfg))
 }
 
 // NewSingleChainInteropIsthmusSuper creates a fresh SingleChainInterop target for the
 // current test using the single-chain Isthmus super-root system backed by op-supernode.
 func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChainInterop {
-	presetCfg, _ := collectPresetConfig(opts)
-	requireSupportedSupernodeProofsPresetConfig(t, presetCfg)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropIsthmusSuper", opts, supernodeProofsPresetSupportedOptionKinds)
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, false, presetCfg))
 }
 
@@ -161,7 +140,7 @@ func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChain
 //
 // The target is created from the interop runtime plus any additional preset options.
 func NewSimpleInterop(t devtest.T, opts ...Option) *SimpleInterop {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSimpleInterop", opts, singleChainInteropPresetSupportedOptionKinds)
 	out := simpleInteropFromRuntime(t, sysgo.NewSimpleInteropRuntimeWithConfig(t, presetCfg))
 	presetOpts.applyPreset(out)
 	return out
@@ -184,6 +163,7 @@ func WithSuggestedInteropActivationOffset(offset uint64) Option {
 // This is applied to runtime deployment/config validation.
 func WithSequencingWindow(suggestedSequencingWindow uint64, maxSequencingWindow uint64) Option {
 	return option{
+		kinds: optionKindDeployer | optionKindMaxSequencingWindow,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.DeployerOptions = append(cfg.DeployerOptions, sysgo.WithSequencingWindow(suggestedSequencingWindow))
 			v := maxSequencingWindow
@@ -213,9 +193,7 @@ type MultiSupervisorInterop struct {
 // NewMultiSupervisorInterop initializes a fresh multi-supervisor interop target for the
 // current test.
 func NewMultiSupervisorInterop(t devtest.T, opts ...Option) *MultiSupervisorInterop {
-	if len(opts) > 0 {
-		t.Require().FailNow("NewMultiSupervisorInterop does not support preset options")
-	}
+	_, _ = collectSupportedPresetConfig(t, "NewMultiSupervisorInterop", opts, 0)
 	return multiSupervisorInteropFromRuntime(t, sysgo.NewMultiSupervisorInteropRuntime(t))
 }
 
@@ -228,9 +206,7 @@ type MinimalInteropNoSupervisor struct {
 // NewMinimalInteropNoSupervisor creates a fresh MinimalInteropNoSupervisor target for the
 // current test.
 func NewMinimalInteropNoSupervisor(t devtest.T, opts ...Option) *MinimalInteropNoSupervisor {
-	if len(opts) > 0 {
-		t.Require().FailNow("NewMinimalInteropNoSupervisor does not support preset options")
-	}
+	_, _ = collectSupportedPresetConfig(t, "NewMinimalInteropNoSupervisor", opts, 0)
 	return &MinimalInteropNoSupervisor{
 		Minimal: *minimalFromRuntime(t, sysgo.NewMinimalInteropNoSupervisorRuntime(t)),
 	}

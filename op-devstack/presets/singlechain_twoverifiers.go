@@ -20,7 +20,7 @@ type SingleChainTwoVerifiers struct {
 //
 // The target is created from the runtime plus any additional preset options.
 func NewSingleChainTwoVerifiersWithoutCheck(t devtest.T, opts ...Option) *SingleChainTwoVerifiers {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainTwoVerifiersWithoutCheck", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainTwoVerifiersFromRuntime(t, sysgo.NewSingleChainTwoVerifiersRuntimeWithConfig(t, presetCfg))
 	presetOpts.applyPreset(out)
 	return out

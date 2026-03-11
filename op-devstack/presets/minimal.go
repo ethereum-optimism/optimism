@@ -65,7 +65,7 @@ func (m *Minimal) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2N
 //
 // The target is created from the minimal runtime plus any additional preset options.
 func NewMinimal(t devtest.T, opts ...Option) *Minimal {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewMinimal", opts, minimalPresetSupportedOptionKinds)
 	out := minimalFromRuntime(t, sysgo.NewMinimalRuntimeWithConfig(t, presetCfg))
 	presetOpts.applyPreset(out)
 	return out

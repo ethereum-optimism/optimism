@@ -18,7 +18,7 @@ type SingleChainMultiNode struct {
 //
 // The target is created from the runtime plus any additional preset options.
 func NewSingleChainMultiNode(t devtest.T, opts ...Option) *SingleChainMultiNode {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNode", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeRuntimeWithConfig(t, true, presetCfg), true)
 	presetOpts.applyPreset(out)
 	return out
@@ -29,7 +29,7 @@ func NewSingleChainMultiNode(t devtest.T, opts ...Option) *SingleChainMultiNode 
 //
 // The target is created from the runtime plus any additional preset options.
 func NewSingleChainMultiNodeWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeWithoutCheck", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeRuntimeWithConfig(t, true, presetCfg), false)
 	presetOpts.applyPreset(out)
 	return out
@@ -41,7 +41,7 @@ func NewSingleChainMultiNodeWithoutCheck(t devtest.T, opts ...Option) *SingleCha
 //
 // The target is created from the runtime plus any additional preset options.
 func NewSingleChainMultiNodeWithoutP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeWithoutP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeRuntimeWithConfig(t, false, presetCfg), false)
 	presetOpts.applyPreset(out)
 	return out
@@ -58,7 +58,7 @@ type SingleChainMultiNodeWithTestSeq struct {
 //
 // The target is created from the runtime plus any additional preset options.
 func NewSingleChainMultiNodeWithTestSeq(t devtest.T, opts ...Option) *SingleChainMultiNodeWithTestSeq {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeWithTestSeq", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainMultiNodeWithTestSeqFromRuntime(t, sysgo.NewSingleChainMultiNodeRuntimeWithConfig(t, true, presetCfg))
 	presetOpts.applyPreset(out)
 	return out

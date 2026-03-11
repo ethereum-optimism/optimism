@@ -39,18 +39,7 @@ func (m *SingleChainWithFlashblocks) AdvanceTime(amount time.Duration) {
 }
 
 func NewSingleChainWithFlashblocks(t devtest.T, opts ...Option) *SingleChainWithFlashblocks {
-	presetCfg, _ := collectPresetConfig(opts)
-	t.Require().Empty(presetCfg.DeployerOptions, "NewSingleChainWithFlashblocks does not support deployer option adapters")
-	t.Require().Empty(presetCfg.BatcherOptions, "NewSingleChainWithFlashblocks does not support batcher option adapters")
-	t.Require().Empty(presetCfg.ProposerOptions, "NewSingleChainWithFlashblocks does not support proposer option adapters")
-	t.Require().Empty(presetCfg.GlobalL2CLOptions, "NewSingleChainWithFlashblocks does not support L2 CL option adapters")
-	t.Require().Empty(presetCfg.GlobalSyncTesterELOptions, "NewSingleChainWithFlashblocks does not support sync tester EL option adapters")
-	t.Require().Empty(presetCfg.AddedGameTypes, "NewSingleChainWithFlashblocks does not support game-type adapters")
-	t.Require().Empty(presetCfg.RespectedGameTypes, "NewSingleChainWithFlashblocks does not support respected game-type adapters")
-	t.Require().False(presetCfg.EnableCannonKonaForChall, "NewSingleChainWithFlashblocks does not support challenger cannon-kona adapters")
-	t.Require().False(presetCfg.EnableTimeTravel, "NewSingleChainWithFlashblocks does not support time-travel adapters")
-	t.Require().Nil(presetCfg.MaxSequencingWindow, "NewSingleChainWithFlashblocks does not support sequencing window adapters")
-	t.Require().False(presetCfg.RequireInteropNotAtGen, "NewSingleChainWithFlashblocks does not support interop-not-at-genesis adapters")
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainWithFlashblocks", opts, singleChainWithFlashblocksPresetSupportedOptionKinds)
 	runtime := sysgo.NewFlashblocksRuntimeWithConfig(t, presetCfg)
 	return singleChainWithFlashblocksFromRuntime(t, runtime)
 }

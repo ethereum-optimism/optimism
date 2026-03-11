@@ -18,7 +18,7 @@ type MinimalWithConductors struct {
 //
 // The target is created from the runtime plus any additional preset options.
 func NewMinimalWithConductors(t devtest.T, opts ...Option) *MinimalWithConductors {
-	presetCfg, presetOpts := collectPresetConfig(opts)
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewMinimalWithConductors", opts, minimalWithConductorsPresetSupportedOptionKinds)
 	out := minimalWithConductorsFromRuntime(t, sysgo.NewMinimalWithConductorsRuntimeWithConfig(t, presetCfg))
 	presetOpts.applyPreset(out)
 	return out

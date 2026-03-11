@@ -35,22 +35,22 @@ func TestCLELDivergence(gt *testing.T) {
 
 	for _, delta := range []uint64{3, 4, 5} {
 		targetNumber := startNum + delta
+		targetBlock := sys.L2EL.BlockRefByNumber(targetNumber)
+
 		l.Info("Sending payload ", "target", targetNumber, "startNum", startNum)
 		sys.L2CLB.SignalTarget(sys.L2EL, targetNumber)
 
 		// Canonical unsafe head never advances because of the gap
 		require.Equal(startNum+1, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
 
-		// Unsafe head on CL advanced, but on EL we cannot fetch state for the unsafe block hash yet
-		targetBlock := sys.L2EL.BlockRefByNumber(targetNumber)
-
-		// The admin payload post returns before SyncStatus necessarily reflects the
-		// newest unsafe ref, so wait for the CL view to catch up.
+		// EL-sync can quickly reset the status tracker after exposing the posted
+		// unsafe head, so poll tightly and without extra RPCs between the post and
+		// the SyncStatus check.
 		var ss *eth.SyncStatus
 		require.Eventually(func() bool {
 			ss = sys.L2CLB.SyncStatus()
 			return ss.UnsafeL2.Number == targetNumber && ss.UnsafeL2.Hash == targetBlock.Hash
-		}, 10*time.Second, 250*time.Millisecond, "L2CLB unsafe head did not advance to target block")
+		}, 2*time.Second, 10*time.Millisecond, "L2CLB unsafe head did not expose target block")
 
 		// Confirm that L2ELB cannot fetch the block by hash yet, because the block is not canonicalized, even though the CL reference is set to it.
 		_, err := sys.L2ELB.Escape().L2EthClient().L2BlockRefByHash(t.Ctx(), ss.UnsafeL2.Hash)

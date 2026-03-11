@@ -33,23 +33,10 @@ type TwoL2 struct {
 	L2BCL *dsl.L2CLNode
 }
 
-func requireSupportedTwoL2SupernodePresetConfig(t devtest.T, cfg sysgo.PresetConfig) {
-	t.Require().Empty(cfg.BatcherOptions, "two-L2 supernode presets do not support batcher option adapters")
-	t.Require().Empty(cfg.ProposerOptions, "two-L2 supernode presets do not support proposer option adapters")
-	t.Require().Empty(cfg.GlobalL2CLOptions, "two-L2 supernode presets do not support L2 CL option adapters")
-	t.Require().Empty(cfg.AddedGameTypes, "two-L2 supernode presets do not support added game-type adapters")
-	t.Require().Empty(cfg.RespectedGameTypes, "two-L2 supernode presets do not support respected game-type adapters")
-	t.Require().False(cfg.EnableCannonKonaForChall, "two-L2 supernode presets do not support challenger cannon-kona adapters")
-	t.Require().Nil(cfg.MaxSequencingWindow, "two-L2 supernode presets do not support sequencing window adapters")
-	t.Require().False(cfg.RequireInteropNotAtGen, "two-L2 supernode presets do not support interop-not-at-genesis adapters")
-}
-
 // NewTwoL2Supernode creates a fresh TwoL2 target backed by a shared supernode for the
 // current test.
 func NewTwoL2Supernode(t devtest.T, opts ...Option) *TwoL2 {
-	presetCfg, _ := collectPresetConfig(opts)
-	requireSupportedTwoL2SupernodePresetConfig(t, presetCfg)
-	t.Require().False(presetCfg.EnableTimeTravel, "NewTwoL2Supernode does not support time-travel adapters")
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2Supernode", opts, twoL2SupernodePresetSupportedOptionKinds)
 	return twoL2SupernodeFromRuntime(t, sysgo.NewTwoL2SupernodeRuntimeWithConfig(t, presetCfg))
 }
 
@@ -113,8 +100,7 @@ func (s *TwoL2SupernodeInterop) SuperNodeClient() apis.SupernodeQueryAPI {
 // NewTwoL2SupernodeInterop creates a fresh TwoL2SupernodeInterop target for the current
 // test.
 func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
-	presetCfg, _ := collectPresetConfig(opts)
-	requireSupportedTwoL2SupernodePresetConfig(t, presetCfg)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeInterop", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 }
 
