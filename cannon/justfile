@@ -14,6 +14,10 @@ UNSUPPORTED_OPCODES := "(dclo|dclz|madd|maddu|seb|seh|wsbh|dsbh|dshd|ins|dins|di
 
 CANNON64_FUZZTIME := "20s"
 
+# Build cannon binary (default target — must remain first recipe)
+cannon: cannon-embeds
+    env GO111MODULE=on GOOS={{TARGETOS}} GOARCH={{TARGETARCH}} go build -v -ldflags {{_LDFLAGSSTRING}} -o ./bin/cannon ./multicannon/
+
 # Build cannon64-impl binary (note: does NOT use CGO_ENABLED=0)
 cannon64-impl:
     env GO111MODULE=on GOOS={{TARGETOS}} GOARCH={{TARGETARCH}} go build -v -ldflags {{_LDFLAGSSTRING}} -o ./bin/cannon64-impl .
@@ -22,11 +26,6 @@ cannon64-impl:
 # Each embed is suffixed with the latest StateVersion number for the target VM and architecture
 cannon-embeds: cannon64-impl
     @cp bin/cannon64-impl ./multicannon/embeds/cannon-8
-
-# Build cannon binary (default target)
-[default]
-cannon: cannon-embeds
-    env GO111MODULE=on GOOS={{TARGETOS}} GOARCH={{TARGETARCH}} go build -v -ldflags {{_LDFLAGSSTRING}} -o ./bin/cannon ./multicannon/
 
 # Clean build artifacts
 clean:
