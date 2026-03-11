@@ -23,29 +23,38 @@ impl ChannelOut {
     }
 
     /// Add a singular batch to the channel.
+    ///
+    /// Go's `BatchData.EncodeRLP` wraps `[batch_type ++ inner_rlp]` in an outer RLP byte
+    /// string. We must produce the same wire format so that Go's `rlp.Stream.Bytes()`
+    /// can unwrap it during decoding.
     pub fn add_singular_batch(&mut self, batch: &SingleBatch) -> Result<(), String> {
         if self.closed {
             return Err("channel already closed".into());
         }
-        // Batch type prefix: 0x00 = SingularBatch (per derivation spec)
-        self.uncompressed.push(0x00);
-        // RLP-encode the singular batch
-        batch.encode(&mut self.uncompressed);
+        // Build the inner payload: batch_type_byte ++ RLP(singular_batch)
+        let mut inner = Vec::new();
+        inner.push(0x00); // SingularBatchType
+        batch.encode(&mut inner);
+        // Wrap in an outer RLP byte string (matches Go's rlp.Encode(w, buf.Bytes()))
+        Encodable::encode(&inner.as_slice(), &mut self.uncompressed);
         Ok(())
     }
 
     /// Add a span batch to the channel.
     ///
     /// Converts the span batch to its raw encoding and writes the batch type prefix (0x01)
-    /// followed by the encoded raw span batch.
+    /// followed by the encoded raw span batch, all wrapped in an outer RLP byte string.
     pub fn add_span_batch(&mut self, batch: &SpanBatch) -> Result<(), String> {
         if self.closed {
             return Err("channel already closed".into());
         }
         let raw = batch.to_raw_span_batch().map_err(|e: SpanBatchError| e.to_string())?;
-        // Batch type prefix: 0x01 = SpanBatch (per derivation spec)
-        self.uncompressed.push(0x01);
-        raw.encode(&mut self.uncompressed).map_err(|e: SpanBatchError| e.to_string())?;
+        // Build the inner payload: batch_type_byte ++ encoded_span_batch
+        let mut inner = Vec::new();
+        inner.push(0x01); // SpanBatchType
+        raw.encode(&mut inner).map_err(|e: SpanBatchError| e.to_string())?;
+        // Wrap in an outer RLP byte string
+        Encodable::encode(&inner.as_slice(), &mut self.uncompressed);
         Ok(())
     }
 
@@ -177,15 +186,18 @@ mod tests {
             compressed.extend_from_slice(&frame.data);
         }
 
-        // Decompress the zlib data to get the raw batch bytes
-        let decompressed = miniz_oxide::inflate::decompress_to_vec_zlib(&compressed)
-            .expect("zlib decompression");
+        // Decompress the zlib data to get the RLP stream
+        let decompressed =
+            miniz_oxide::inflate::decompress_to_vec_zlib(&compressed).expect("zlib decompression");
 
-        // ChannelOut writes: batch_type_prefix (0x00) + RLP(SingleBatch).
-        // Batch::decode expects the same format.
+        // ChannelOut wraps [batch_type ++ RLP(SingleBatch)] in an outer RLP byte string
+        // (matching Go's BatchData.EncodeRLP). Unwrap the outer RLP first, then decode.
+        use alloy_rlp::Decodable;
+        let inner = alloy_primitives::Bytes::decode(&mut decompressed.as_slice())
+            .expect("outer RLP decode");
+
         let rollup_config = crate::config::DeterministicConfig::default().rollup_config();
-        let decoded =
-            Batch::decode(&mut decompressed.as_slice(), &rollup_config).expect("batch decode");
+        let decoded = Batch::decode(&mut inner.as_ref(), &rollup_config).expect("batch decode");
 
         match decoded {
             Batch::Single(single) => {
@@ -208,7 +220,8 @@ mod tests {
 
         for i in 0u8..20 {
             // Use pseudo-random bytes that resist compression
-            let tx_data: Vec<u8> = (0..500).map(|j| i.wrapping_mul(37).wrapping_add(j as u8)).collect();
+            let tx_data: Vec<u8> =
+                (0..500).map(|j| i.wrapping_mul(37).wrapping_add(j as u8)).collect();
             let batch = SingleBatch {
                 parent_hash: Default::default(),
                 epoch_num: (i as u64) + 1,

@@ -124,6 +124,7 @@ impl L1RpcImpl {
             "withdrawals": [],
             "blobGasUsed": format!("0x{:x}", header.blob_gas_used.unwrap_or(0)),
             "excessBlobGas": format!("0x{:x}", header.excess_blob_gas.unwrap_or(0)),
+            "parentBeaconBlockRoot": header.parent_beacon_block_root.unwrap_or(alloy_primitives::B256::ZERO),
             "transactions": block.transactions.iter().enumerate().map(|(i, tx_bytes)| {
                 if full_txs {
                     tx_to_json(block.header.hash(), block.header.inner().number, i, tx_bytes)
@@ -150,6 +151,15 @@ fn tx_to_json(block_hash: B256, block_number: u64, tx_index: usize, tx_bytes: &B
         let gas_limit = envelope.gas_limit();
         let input = envelope.input().clone();
 
+        let chain_id = match &envelope {
+            alloy_consensus::TxEnvelope::Eip1559(tx) => Some(tx.tx().chain_id),
+            alloy_consensus::TxEnvelope::Eip2930(tx) => Some(tx.tx().chain_id),
+            alloy_consensus::TxEnvelope::Eip4844(tx) => Some(tx.tx().tx().chain_id),
+            _ => None,
+        };
+
+        let sig = envelope.signature();
+
         return serde_json::json!({
             "hash": tx_hash,
             "blockHash": block_hash,
@@ -162,6 +172,13 @@ fn tx_to_json(block_hash: B256, block_number: u64, tx_index: usize, tx_bytes: &B
             "gas": format!("0x{:x}", gas_limit),
             "input": input,
             "type": format!("0x{:x}", envelope.ty()),
+            "chainId": format!("0x{:x}", chain_id.unwrap_or(0)),
+            "v": format!("0x{:x}", sig.v() as u64),
+            "r": format!("0x{:x}", sig.r()),
+            "s": format!("0x{:x}", sig.s()),
+            "maxFeePerGas": format!("0x{:x}", envelope.max_fee_per_gas()),
+            "maxPriorityFeePerGas": format!("0x{:x}", envelope.max_priority_fee_per_gas().unwrap_or(0)),
+            "gasPrice": format!("0x{:x}", envelope.max_fee_per_gas()),
         });
     }
 

@@ -30,11 +30,11 @@ pub const SECONDS_PER_SLOT: u64 = 12;
 /// Batch inbox address where batcher submits batches.
 pub const BATCH_INBOX_ADDRESS: Address = address!("0xff00000000000000000000000000000000000901");
 
-/// Batcher address (sender of batch transactions).
-pub const BATCHER_ADDRESS: Address = address!("0x3100000000000000000000000000000000000001");
+/// Batcher address — derived from `BATCHER_PRIVATE_KEY` (Hardhat account #1).
+pub const BATCHER_ADDRESS: Address = address!("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
 
-/// Sequencer address (block builder / fee recipient).
-pub const SEQUENCER_ADDRESS: Address = address!("0x3200000000000000000000000000000000000001");
+/// Sequencer address — derived from `SEQUENCER_PRIVATE_KEY` (Hardhat account #2).
+pub const SEQUENCER_ADDRESS: Address = address!("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC");
 
 /// Fee recipient for L2 blocks.
 pub const FEE_RECIPIENT: Address = address!("0x4200000000000000000000000000000000000011");
@@ -45,16 +45,26 @@ pub const L2_TO_L1_MESSAGE_PASSER: Address = address!("0x42000000000000000000000
 /// `L1Block` predeploy address.
 pub const L1_BLOCK_ADDRESS: Address = address!("0x4200000000000000000000000000000000000015");
 
+/// EIP-4788 beacon block root storage address (Cancun system contract).
+pub const BEACON_ROOTS_ADDRESS: Address = address!("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02");
+
+/// EIP-2935 history storage address (Prague system contract).
+pub const HISTORY_STORAGE_ADDRESS: Address = address!("0x0000F90827F1C53a10cb7A02335B175320002935");
+
+/// `OptimismPortal` (deposit contract) proxy address on L1.
+pub const DEPOSIT_CONTRACT_ADDRESS: Address =
+    address!("0x6900000000000000000000000000000000000002");
+
 /// `SystemConfig` proxy address on L1.
 pub const SYSTEM_CONFIG_ADDRESS: Address = address!("0x6900000000000000000000000000000000000001");
 
-/// Deterministic batcher private key (NOT secret — test-only).
+/// Deterministic batcher private key (NOT secret — test-only, Hardhat account #1).
 pub const BATCHER_PRIVATE_KEY: B256 =
-    b256!("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-
-/// Deterministic sequencer private key (NOT secret — test-only).
-pub const SEQUENCER_PRIVATE_KEY: B256 =
     b256!("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
+
+/// Deterministic sequencer private key (NOT secret — test-only, Hardhat account #2).
+pub const SEQUENCER_PRIVATE_KEY: B256 =
+    b256!("0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a");
 
 /// Pre-funded test account address.
 pub const PREFUNDED_ACCOUNT: Address = address!("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
@@ -71,6 +81,23 @@ pub const PREFUNDED_BALANCE: U256 = U256::from_limbs([
     0,
     0,
 ]);
+
+/// EIP-1559 denominator for Holocene blocks.
+pub const EIP1559_DENOMINATOR: u32 = 250;
+
+/// EIP-1559 elasticity multiplier for Holocene blocks.
+pub const EIP1559_ELASTICITY: u32 = 6;
+
+/// Build Holocene-formatted extra data for L2 block headers.
+///
+/// Format: `[version_byte, denominator_be32, elasticity_be32]` (9 bytes total).
+/// Go's `DecodeHoloceneExtraData` requires exactly 9 bytes.
+pub fn holocene_extra_data() -> alloy_primitives::Bytes {
+    let mut extra = [0u8; 9];
+    extra[1..5].copy_from_slice(&EIP1559_DENOMINATOR.to_be_bytes());
+    extra[5..9].copy_from_slice(&EIP1559_ELASTICITY.to_be_bytes());
+    alloy_primitives::Bytes::from(extra.to_vec())
+}
 
 /// Fully deterministic test configuration.
 ///
@@ -102,6 +129,8 @@ pub struct DeterministicConfig {
     pub sequencer_key: B256,
     /// Fee recipient for L2 blocks.
     pub fee_recipient: Address,
+    /// `OptimismPortal` (deposit contract) proxy address on L1.
+    pub deposit_contract: Address,
     /// `SystemConfig` proxy address on L1.
     pub system_config: Address,
     /// Hardfork activation config.
@@ -123,6 +152,7 @@ impl Default for DeterministicConfig {
             sequencer: SEQUENCER_ADDRESS,
             sequencer_key: SEQUENCER_PRIVATE_KEY,
             fee_recipient: FEE_RECIPIENT,
+            deposit_contract: DEPOSIT_CONTRACT_ADDRESS,
             system_config: SYSTEM_CONFIG_ADDRESS,
             hardforks: HardForkConfig {
                 regolith_time: Some(0),
@@ -160,6 +190,24 @@ impl DeterministicConfig {
         // L1Block predeploy — empty contract
         allocs.insert(L1_BLOCK_ADDRESS, GenesisAccount::default().with_balance(U256::ZERO));
 
+        // EIP-4788 beacon block root storage (required for Cancun+)
+        allocs.insert(
+            BEACON_ROOTS_ADDRESS,
+            GenesisAccount {
+                code: Some(alloy_primitives::hex!("3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500").into()),
+                ..GenesisAccount::default()
+            },
+        );
+
+        // EIP-2935 history storage (required for Prague+)
+        allocs.insert(
+            HISTORY_STORAGE_ADDRESS,
+            GenesisAccount {
+                code: Some(alloy_primitives::hex!("3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f35600143038111604257611fff81430311604257611fff9006545f5260205ff35b5f5ffd5b5f35611fff60014303065500").into()),
+                ..GenesisAccount::default()
+            },
+        );
+
         allocs
     }
 
@@ -174,7 +222,9 @@ impl DeterministicConfig {
 
         use crate::state::roots::EMPTY_ROOT_HASH;
 
-        // Compute the L1 genesis block hash deterministically (must match L1ChainBuilder::new)
+        // Compute the L1 genesis block hash deterministically (must match L1ChainBuilder::new).
+        // Post-Cancun headers need base_fee_per_gas, blob_gas_used, excess_blob_gas,
+        // and parent_beacon_block_root to produce correct RLP hashes.
         let l1_genesis_header = Header {
             number: 0,
             timestamp: self.genesis_timestamp,
@@ -182,6 +232,10 @@ impl DeterministicConfig {
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
             withdrawals_root: Some(EMPTY_ROOT_HASH),
+            base_fee_per_gas: Some(1),
+            blob_gas_used: Some(0),
+            excess_blob_gas: Some(0),
+            parent_beacon_block_root: Some(B256::ZERO),
             gas_limit: 30_000_000,
             ..Default::default()
         };
@@ -200,6 +254,14 @@ impl DeterministicConfig {
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
             gas_limit: 30_000_000,
+            // Post-Shanghai/Cancun fields (must match L2ChainBuilder::new)
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
+            base_fee_per_gas: Some(1),
+            blob_gas_used: Some(0),
+            excess_blob_gas: Some(0),
+            parent_beacon_block_root: Some(B256::ZERO),
+            // Holocene EIP-1559 params (must match L2ChainBuilder::new)
+            extra_data: holocene_extra_data(),
             ..Default::default()
         };
         let l2_genesis_hash = l2_genesis_header.seal_slow().hash();
@@ -212,6 +274,21 @@ impl DeterministicConfig {
                 system_config: Some(SystemConfig {
                     batcher_address: self.batcher,
                     gas_limit: 30_000_000,
+                    // Ecotone scalar format (big-endian U256):
+                    //   byte[0] = 0x01 (Ecotone version)
+                    //   bytes[24:28] = blobBaseFeeScalar
+                    //   bytes[28:32] = baseFeeScalar
+                    // Non-zero scalar is required by op-program validation.
+                    scalar: U256::from_be_bytes({
+                        let mut s = [0u8; 32];
+                        s[0] = 0x01; // Ecotone version
+                        s[31] = 0x01; // baseFeeScalar = 1
+                        s
+                    }),
+                    // Holocene EIP-1559 parameters — must be non-zero to avoid
+                    // divide-by-zero in Go's CalcBaseFee when Holocene is active.
+                    eip1559_denominator: Some(EIP1559_DENOMINATOR),
+                    eip1559_elasticity: Some(EIP1559_ELASTICITY),
                     ..Default::default()
                 }),
             },
@@ -222,6 +299,7 @@ impl DeterministicConfig {
             max_sequencer_drift: 600,
             channel_timeout: 300,
             batch_inbox_address: self.batch_inbox,
+            deposit_contract_address: self.deposit_contract,
             l1_system_config_address: self.system_config,
             hardforks: self.hardforks,
             ..Default::default()

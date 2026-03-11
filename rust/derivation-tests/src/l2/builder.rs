@@ -1,15 +1,13 @@
 //! L2 chain builder that constructs valid OP Stack L2 blocks with real EVM execution.
 
 use alloy_consensus::{
-    Header, Receipt, ReceiptWithBloom, Transaction as _,
-    transaction::SignerRecoverable,
+    Header, Receipt, ReceiptWithBloom, Transaction as _, transaction::SignerRecoverable,
 };
 use alloy_eips::{Encodable2718, Typed2718 as _};
 use alloy_primitives::{Bloom, Bytes, Log, Sealable, U256};
 use op_alloy_consensus::{OpDepositReceipt, OpReceiptEnvelope, OpTxEnvelope};
 use op_revm::{
-    L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
-    transaction::deposit::DepositTransactionParts,
+    L1BlockInfo, OpBuilder, OpSpecId, OpTransaction, transaction::deposit::DepositTransactionParts,
 };
 use revm::{
     Context, ExecuteEvm, Journal,
@@ -63,6 +61,14 @@ impl L2ChainBuilder {
             transactions_root: crate::state::roots::EMPTY_ROOT_HASH,
             receipts_root: crate::state::roots::EMPTY_ROOT_HASH,
             gas_limit: 30_000_000,
+            // Post-Shanghai/Cancun fields required for correct RLP hashing
+            withdrawals_root: Some(crate::state::roots::EMPTY_ROOT_HASH),
+            base_fee_per_gas: Some(1),
+            blob_gas_used: Some(0),
+            excess_blob_gas: Some(0),
+            parent_beacon_block_root: Some(alloy_primitives::B256::ZERO),
+            // Holocene EIP-1559 params in extra data: [version, denom_be32, elasticity_be32]
+            extra_data: crate::config::holocene_extra_data(),
             ..Default::default()
         };
         let sealed = genesis_header.seal_slow();
@@ -165,16 +171,18 @@ impl L2ChainBuilder {
             gas_used,
             gas_limit: 30_000_000,
             withdrawals_root,
+            // Post-Cancun fields required for correct RLP hashing
+            base_fee_per_gas: Some(1),
+            blob_gas_used: Some(0),
+            excess_blob_gas: Some(0),
+            parent_beacon_block_root: Some(alloy_primitives::B256::ZERO),
+            // Holocene EIP-1559 params in extra data
+            extra_data: crate::config::holocene_extra_data(),
             ..Default::default()
         };
         let sealed = header.seal_slow();
 
-        let block = L2Block {
-            header: sealed,
-            transactions: all_txs,
-            receipts,
-            withdrawals_root,
-        };
+        let block = L2Block { header: sealed, transactions: all_txs, receipts, withdrawals_root };
 
         self.blocks.push(block);
         self.snapshots.push(snapshot);
@@ -218,14 +226,13 @@ impl L2ChainBuilder {
 
             let (gas_used, logs, success) = match &result {
                 ExecutionResult::Success { gas_used, logs, .. } => (*gas_used, logs.clone(), true),
-                ExecutionResult::Revert { gas_used, .. }
-                | ExecutionResult::Halt { gas_used, .. } => (*gas_used, vec![], false),
+                ExecutionResult::Revert { gas_used, .. } |
+                ExecutionResult::Halt { gas_used, .. } => (*gas_used, vec![], false),
             };
 
             cumulative_gas_used += gas_used;
 
-            let receipt =
-                build_execution_receipt(tx, success, cumulative_gas_used, logs, i as u64);
+            let receipt = build_execution_receipt(tx, success, cumulative_gas_used, logs, i as u64);
             receipts.push(receipt);
         }
 
@@ -426,6 +433,20 @@ mod tests {
         // Genesis has no parent, so parent_hash is zero
         assert_eq!(genesis.header.inner().parent_hash, B256::ZERO);
         assert!(genesis.transactions.is_empty(), "genesis should have no transactions");
+        // Holocene extra data should be set
+        assert_eq!(genesis.header.inner().extra_data.len(), 9);
+    }
+
+    #[test]
+    fn genesis_hash_matches_rollup_config() {
+        let (config, _l1, l2) = setup_builder();
+        let rollup = config.rollup_config();
+        let builder_hash = l2.head().header.hash();
+        let config_hash = rollup.genesis.l2.hash;
+        eprintln!("Builder genesis hash: {:?}", builder_hash);
+        eprintln!("Config genesis hash:  {:?}", config_hash);
+        eprintln!("Builder extra_data:   {:?}", l2.head().header.inner().extra_data);
+        assert_eq!(builder_hash, config_hash, "Genesis hash from builder must match rollup config");
     }
 
     #[test]

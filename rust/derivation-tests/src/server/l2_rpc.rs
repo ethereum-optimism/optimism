@@ -104,7 +104,7 @@ impl L2RpcImpl {
             "baseFeePerGas": format!("0x{:x}", header.base_fee_per_gas.unwrap_or(0)),
             "difficulty": "0x0",
             "miner": header.beneficiary,
-            "extraData": "0x",
+            "extraData": header.extra_data,
             "nonce": "0x0000000000000000",
             "sha3Uncles": header.ommers_hash,
             "logsBloom": header.logs_bloom,
@@ -112,6 +112,9 @@ impl L2RpcImpl {
             "withdrawalsRoot": header.withdrawals_root.unwrap_or(crate::state::roots::EMPTY_ROOT_HASH),
             "withdrawals": [],
             "mixHash": header.mix_hash,
+            "blobGasUsed": format!("0x{:x}", header.blob_gas_used.unwrap_or(0)),
+            "excessBlobGas": format!("0x{:x}", header.excess_blob_gas.unwrap_or(0)),
+            "parentBeaconBlockRoot": header.parent_beacon_block_root.unwrap_or(alloy_primitives::B256::ZERO),
             "transactions": block.transactions.iter().enumerate().map(|(i, _)| {
                 format!("0x{:064x}", i)
             }).collect::<Vec<_>>(),
@@ -176,26 +179,30 @@ impl L2RpcServer for L2RpcImpl {
     }
 
     fn db_get(&self, key: Bytes) -> Result<Bytes, ErrorObjectOwned> {
-        // Look up in the latest snapshot's node store
-        let snapshot = self
-            .snapshots
-            .last()
-            .ok_or_else(|| ErrorObjectOwned::owned(-32603, "no state available", None::<String>))?;
+        if self.snapshots.is_empty() {
+            return Err(ErrorObjectOwned::owned(-32603, "no state available", None::<String>));
+        }
 
         // kona-host convention: 0x63 prefix + 32-byte code hash → contract code lookup
         if key.len() == 33 && key[0] == 0x63 {
             let code_hash = B256::from_slice(&key[1..]);
-            if let Some(code) = snapshot.code.get(&code_hash) {
-                return Ok(Bytes::from(code.clone()));
+            for snapshot in &self.snapshots {
+                if let Some(code) = snapshot.code.get(&code_hash) {
+                    return Ok(Bytes::from(code.clone()));
+                }
             }
             return Err(ErrorObjectOwned::owned(-32602, "code not found", None::<String>));
         }
 
-        // Try direct hash lookup for trie nodes
+        // Try hash lookup for trie nodes across all snapshots.
+        // Op-program may request nodes from any historical state (e.g. the agreed
+        // L2 head at genesis), not just the latest block's state.
         if key.len() == 32 {
             let hash = B256::from_slice(&key);
-            if let Some(data) = snapshot.node_store.get(&hash) {
-                return Ok(data.clone());
+            for snapshot in &self.snapshots {
+                if let Some(data) = snapshot.node_store.get(&hash) {
+                    return Ok(data.clone());
+                }
             }
         }
 
