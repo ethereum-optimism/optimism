@@ -175,9 +175,7 @@ contract Deploy is Deployer {
             cfg.setUseCustomGasToken(true);
         }
 
-        deployImplementations({
-            _isInterop: DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP)
-        });
+        deployImplementations();
 
         // Deploy Current OPChain Contracts
         if (!DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
@@ -268,14 +266,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy all of the implementations
-    /// @param _isInterop Whether to use interop
-    function deployImplementations(bool _isInterop) public {
-        // TODO _isInterop is no longer being used in DeployImplementations, this might no longer be necessary
-        require(
-            _isInterop == DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP),
-            "Deploy: Interop setting mismatch."
-        );
-
+    function deployImplementations() public {
         console.log("Deploying implementations");
 
         DeployImplementations di = new DeployImplementations();
