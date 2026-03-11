@@ -108,7 +108,7 @@ You must install all of the required [Software Dependencies](#software-dependenc
 Optimism Monorepo. Once you've done so, run the following command to build:
 
 ```bash
-make build
+just build
 ```
 
 Packages built on one branch may not be compatible with packages on a different branch.
