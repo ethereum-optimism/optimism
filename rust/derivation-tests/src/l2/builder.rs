@@ -4,7 +4,7 @@ use alloy_consensus::{
     Header, Receipt, ReceiptWithBloom, Transaction as _, transaction::SignerRecoverable,
 };
 use alloy_eips::{Encodable2718, Typed2718 as _};
-use alloy_primitives::{Bloom, Bytes, Log, Sealable, U256};
+use alloy_primitives::{B256, Bloom, Bytes, Log, Sealable, U256};
 use op_alloy_consensus::{OpDepositReceipt, OpReceiptEnvelope, OpTxEnvelope};
 use op_revm::{
     L1BlockInfo, OpBuilder, OpSpecId, OpTransaction, transaction::deposit::DepositTransactionParts,
@@ -14,6 +14,7 @@ use revm::{
     context::{BlockEnv, CfgEnv, TxEnv},
     context_interface::result::ExecutionResult,
     database::CacheDB,
+    handler::system_call::SystemCallEvm,
 };
 
 use crate::{
@@ -136,8 +137,18 @@ impl L2ChainBuilder {
             ..Default::default()
         };
 
-        // Execute all transactions through the EVM
-        let (receipts, evm_state) = self.execute_transactions(&all_txs, spec_id, block_env)?;
+        let parent_hash = prev.header.hash();
+        let parent_beacon_block_root = prev.header.inner().parent_beacon_block_root;
+
+        // Execute all transactions through the EVM (including pre-block system calls)
+        let (receipts, evm_state) = self.execute_transactions(
+            &all_txs,
+            spec_id,
+            block_env,
+            block_num,
+            parent_hash,
+            parent_beacon_block_root,
+        )?;
 
         // Apply state changes to our tracked state
         self.state.apply_evm_result(&evm_state);
@@ -191,11 +202,17 @@ impl L2ChainBuilder {
     }
 
     /// Execute all transactions through the OP Stack EVM.
+    ///
+    /// Applies EIP-4788 (beacon block root) and EIP-2935 (block hash history) system
+    /// calls before processing transactions, matching go-ethereum's block processing.
     fn execute_transactions(
         &self,
         txs: &[OpTxEnvelope],
         spec_id: OpSpecId,
         block_env: BlockEnv,
+        block_num: u64,
+        parent_hash: B256,
+        parent_beacon_block_root: Option<B256>,
     ) -> Result<(Vec<OpReceiptEnvelope>, revm::state::EvmState), Box<dyn std::error::Error>> {
         let cfg_env: CfgEnv<OpSpecId> = CfgEnv::new()
             .with_chain_id(self.config.l2_chain_id)
@@ -215,6 +232,22 @@ impl L2ChainBuilder {
             .with_chain(L1BlockInfo::default());
 
         let mut evm = ctx.build_op();
+
+        // Pre-block system calls (skip genesis block per EIP specs)
+        if block_num > 0 {
+            // EIP-4788: store parent beacon block root (Cancun+)
+            if let Some(beacon_root) = parent_beacon_block_root {
+                evm.system_call_one(
+                    alloy_eips::eip4788::BEACON_ROOTS_ADDRESS,
+                    beacon_root.0.into(),
+                )
+                .map_err(|e| format!("EIP-4788 system call failed: {e:?}"))?;
+            }
+
+            // EIP-2935: store parent block hash (Prague+)
+            evm.system_call_one(alloy_eips::eip2935::HISTORY_STORAGE_ADDRESS, parent_hash.0.into())
+                .map_err(|e| format!("EIP-2935 system call failed: {e:?}"))?;
+        }
 
         let mut receipts = Vec::with_capacity(txs.len());
         let mut cumulative_gas_used: u64 = 0;
