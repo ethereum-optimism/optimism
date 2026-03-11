@@ -521,3 +521,54 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         assertEq(initializingValue, 0, string.concat(_name, " should not be mid-initialization (OZ v5)"));
     }
 }
+
+/// @title L2ForkUpgrade_Implementations_Test
+/// @notice Tests that all predeploy implementations are correctly upgraded.
+contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
+    /// @notice EIP-1967 implementation storage slot.
+    bytes32 internal constant IMPLEMENTATION_SLOT = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
+
+    /// @notice Tests that all predeploy implementations match expected addresses and have code.
+    function test_l2ForkUpgrade_implementationsMatch_succeeds() public {
+        // Execute upgrade
+        executeScript.execute();
+
+        // Get all upgradeable predeploys
+        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+
+        // Verify each predeploy's implementation
+        for (uint256 i = 0; i < predeploys.length; i++) {
+            address predeploy = predeploys[i];
+
+            // Skip CGT-only predeploys on non-CGT chains
+            if (!commonState.isCustomGasToken) {
+                if (predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY || predeploy == Predeploys.LIQUIDITY_CONTROLLER) {
+                    continue;
+                }
+            }
+
+            // Get predeploy name
+            string memory name = Predeploys.getName(predeploy);
+
+            // Get expected implementation from config
+            (address expectedImpl,,,) = generateScript.implementationConfigs(name);
+
+            // Get actual implementation from proxy
+            address actualImpl = address(uint160(uint256(vm.load(predeploy, IMPLEMENTATION_SLOT))));
+
+            // Verify implementation matches
+            assertEq(
+                actualImpl,
+                expectedImpl,
+                string.concat("Implementation mismatch for ", name, ": ", vm.toString(predeploy))
+            );
+
+            // Verify implementation has code
+            assertGt(
+                actualImpl.code.length,
+                0,
+                string.concat("Implementation has no code for ", name, ": ", vm.toString(actualImpl))
+            );
+        }
+    }
+}

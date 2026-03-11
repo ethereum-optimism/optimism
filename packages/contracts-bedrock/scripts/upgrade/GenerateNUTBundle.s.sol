@@ -59,7 +59,7 @@ contract GenerateNUTBundle is Script {
     L2ContractsManagerTypes.Implementations internal implementations;
 
     /// @notice Implementation configurations.
-    mapping(string => ImplementationConfig) internal implementationConfigs;
+    mapping(string => ImplementationConfig) public implementationConfigs;
 
     /// @notice Array of generated transactions.
     NetworkUpgradeTxns.NetworkUpgradeTxn[] internal txns;
