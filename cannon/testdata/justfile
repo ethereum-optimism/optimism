@@ -1,0 +1,15 @@
+# Build all ELF test binaries
+elf: go1-24 go1-25
+
+# Build go-1-24 ELF binaries
+go1-24:
+    just ./go-1-24/elf
+
+# Build go-1-25 ELF binaries
+go1-25:
+    just ./go-1-25/elf
+
+# Clean all build artifacts
+clean:
+    just ./go-1-24/clean
+    just ./go-1-25/clean

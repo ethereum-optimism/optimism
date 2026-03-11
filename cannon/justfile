@@ -33,11 +33,11 @@ clean:
 
 # Build ELF test binaries
 elf:
-    make -C ./testdata elf
+    just ./testdata/elf
 
 # Build ELF test binaries for current Go version
 elf-go-current:
-    make -C ./testdata/go-1-24 elf
+    just ./testdata/go-1-24/elf
 
 # Check guest program for unsupported MIPS instructions
 sanitize-program:

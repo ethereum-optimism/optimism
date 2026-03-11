@@ -1,0 +1,28 @@
+# Build all 64-bit ELF test binaries
+elf64: elf
+
+# Build all 64-bit ELF test binaries
+[script('bash')]
+elf:
+    set -euo pipefail
+    mkdir -p bin
+    for mod in */go.mod; do
+        name=$(dirname "$mod")
+        echo "Building bin/${name}.64.elf"
+        (cd "$name" && GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -o "../bin/${name}.64.elf" .)
+    done
+
+# Dump all ELF binaries
+[script('bash')]
+dump:
+    set -euo pipefail
+    mkdir -p bin
+    for elf in bin/*.64.elf; do
+        dump="${elf%.elf}.dump"
+        echo "Dumping $elf -> $dump"
+        mipsel-linux-gnu-objdump -D --disassembler-options=no-aliases --wide --source -m mips:3000 -EB "$elf" > "$dump"
+    done
+
+# Clean build artifacts
+clean:
+    @[ -d bin ] && find bin -maxdepth 1 -type f -delete || true
