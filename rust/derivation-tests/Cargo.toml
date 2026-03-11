@@ -65,6 +65,7 @@ alloy-signer = { workspace = true }
 alloy-signer-local = { workspace = true, features = ["keystore"] }
 
 # Utilities
+either = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

@@ -186,6 +186,47 @@ fn tx_to_json(block_hash: B256, block_number: u64, tx_index: usize, tx_bytes: &B
     serde_json::json!(fake_tx_hash(block_hash, tx_index))
 }
 
+/// Serialize a receipt envelope to JSON, including its logs.
+fn receipt_to_json(
+    receipt: &alloy_consensus::ReceiptEnvelope,
+    block_hash: B256,
+    block_number: u64,
+    tx_idx: usize,
+    tx_hash: B256,
+    log_index_offset: usize,
+) -> Value {
+    let logs: Vec<Value> = receipt
+        .logs()
+        .iter()
+        .enumerate()
+        .map(|(li, log)| {
+            serde_json::json!({
+                "address": log.address,
+                "topics": log.topics(),
+                "data": log.data.data,
+                "blockHash": block_hash,
+                "blockNumber": format!("0x{:x}", block_number),
+                "transactionHash": tx_hash,
+                "transactionIndex": format!("0x{:x}", tx_idx),
+                "logIndex": format!("0x{:x}", log_index_offset + li),
+                "removed": false,
+            })
+        })
+        .collect();
+
+    serde_json::json!({
+        "status": format!("0x{:x}", receipt.status() as u8),
+        "cumulativeGasUsed": format!("0x{:x}", receipt.cumulative_gas_used()),
+        "logs": logs,
+        "logsBloom": receipt.logs_bloom(),
+        "transactionHash": tx_hash,
+        "transactionIndex": format!("0x{:x}", tx_idx),
+        "blockHash": block_hash,
+        "blockNumber": format!("0x{:x}", block_number),
+        "type": format!("0x{:x}", receipt.ty()),
+    })
+}
+
 impl L1RpcServer for L1RpcImpl {
     fn chain_id(&self) -> Result<String, ErrorObjectOwned> {
         Ok(format!("0x{:x}", self.chain_id))
@@ -212,24 +253,25 @@ impl L1RpcServer for L1RpcImpl {
     fn get_block_receipts(&self, hash: B256) -> Result<Option<Value>, ErrorObjectOwned> {
         Ok(self.by_hash.get(&hash).map(|&i| {
             let block = &self.blocks[i];
-            serde_json::json!(
-                block
-                    .receipts
-                    .iter()
-                    .enumerate()
-                    .map(|(j, _r)| {
-                        serde_json::json!({
-                            "status": "0x1",
-                            "cumulativeGasUsed": format!("0x{:x}", j * 21_000),
-                            "logs": [],
-                            "transactionHash": fake_tx_hash(hash, j),
-                            "transactionIndex": format!("0x{:x}", j),
-                            "blockHash": hash,
-                            "blockNumber": format!("0x{:x}", block.header.inner().number),
-                        })
-                    })
-                    .collect::<Vec<_>>()
-            )
+            let block_number = block.header.inner().number;
+            let mut log_index_offset = 0;
+            let receipts: Vec<Value> = block
+                .receipts
+                .iter()
+                .enumerate()
+                .map(|(j, r)| {
+                    let tx_hash = alloy_consensus::TxEnvelope::decode_2718(
+                        &mut block.transactions.get(j).map(|b| b.as_ref()).unwrap_or(&[]),
+                    )
+                    .map(|env| *env.tx_hash())
+                    .unwrap_or_else(|_| fake_tx_hash(hash, j));
+                    let json =
+                        receipt_to_json(r, hash, block_number, j, tx_hash, log_index_offset);
+                    log_index_offset += r.logs().len();
+                    json
+                })
+                .collect();
+            serde_json::json!(receipts)
         }))
     }
 
@@ -266,17 +308,11 @@ impl L1RpcServer for L1RpcImpl {
             let block = &self.blocks[block_idx];
             let block_hash = block.header.hash();
             let block_number = block.header.inner().number;
-            let cumulative_gas = tx_idx as u64 * 21_000;
+            let receipt = &block.receipts[tx_idx];
+            let log_index_offset: usize =
+                block.receipts[..tx_idx].iter().map(|r| r.logs().len()).sum();
 
-            serde_json::json!({
-                "status": "0x1",
-                "cumulativeGasUsed": format!("0x{:x}", cumulative_gas),
-                "logs": [],
-                "transactionHash": tx_hash,
-                "transactionIndex": format!("0x{:x}", tx_idx),
-                "blockHash": block_hash,
-                "blockNumber": format!("0x{:x}", block_number),
-            })
+            receipt_to_json(receipt, block_hash, block_number, tx_idx, tx_hash, log_index_offset)
         }))
     }
 }

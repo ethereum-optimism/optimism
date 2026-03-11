@@ -4,7 +4,7 @@ use alloy_primitives::{Address, B256, Bytes, KECCAK256_EMPTY, U256, keccak256};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_eth::{EIP1186AccountProofResponse, EIP1186StorageProof};
 use alloy_trie::{
-    HashBuilder, Nibbles,
+    HashBuilder, Nibbles, TrieAccount,
     proof::{ProofNodes, ProofRetainer},
 };
 use op_alloy_consensus::OpTxEnvelope;
@@ -39,40 +39,7 @@ impl TrieNodeStore {
     }
 }
 
-/// RLP-encodable trie account (nonce, balance, `storage_root`, `code_hash`).
-#[derive(Debug)]
-struct TrieAccount {
-    nonce: u64,
-    balance: U256,
-    storage_root: B256,
-    code_hash: B256,
-}
-
-impl Encodable for TrieAccount {
-    fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
-        let payload_len = self.nonce.length() +
-            self.balance.length() +
-            self.storage_root.length() +
-            self.code_hash.length();
-        alloy_rlp::Header { list: true, payload_length: payload_len }.encode(out);
-        self.nonce.encode(out);
-        self.balance.encode(out);
-        self.storage_root.encode(out);
-        self.code_hash.encode(out);
-    }
-
-    fn length(&self) -> usize {
-        let payload_len = self.nonce.length() +
-            self.balance.length() +
-            self.storage_root.length() +
-            self.code_hash.length();
-        payload_len + alloy_rlp::length_of_length(payload_len)
-    }
-}
-
-/// The empty trie root hash (keccak256 of RLP-encoded empty string).
-pub(crate) const EMPTY_ROOT_HASH: B256 =
-    alloy_primitives::b256!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421");
+pub(crate) use alloy_trie::EMPTY_ROOT_HASH;
 
 /// Compute the state root from account data.
 pub fn compute_state_root(
