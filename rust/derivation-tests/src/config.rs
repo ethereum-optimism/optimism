@@ -313,6 +313,7 @@ impl DeterministicConfig {
             // Enable post-merge (Shanghai+) so withdrawals_root is expected
             shanghai_time: Some(0),
             cancun_time: Some(0),
+            prague_time: Some(0),
             ..Default::default()
         }
     }
