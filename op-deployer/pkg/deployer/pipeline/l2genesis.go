@@ -207,8 +207,11 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 // bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
 func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 	var devFeatureBitmap common.Hash
-	if bitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
-		devFeatureBitmap = bitmap
+	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
+	case common.Hash:
+		devFeatureBitmap = v
+	case string:
+		devFeatureBitmap = common.HexToHash(v)
 	}
 
 	// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.

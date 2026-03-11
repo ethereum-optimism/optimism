@@ -21,14 +21,16 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 	tests := []struct {
 		name       string
 		useInterop bool
-		bitmap     common.Hash
+		bitmap     any
 		wantError  bool
+		wantBitmap common.Hash
 	}{
 		{
 			name:       "UseInterop=true, interop bit set: interop enabled",
 			useInterop: true,
 			bitmap:     interopBit,
 			wantError:  false,
+			wantBitmap: interopBit,
 		},
 		{
 			name:       "UseInterop=true, interop bit not set: interop not enabled",
@@ -47,6 +49,21 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 			useInterop: false,
 			bitmap:     common.Hash{},
 			wantError:  false,
+			wantBitmap: common.Hash{},
+		},
+		{
+			name:       "UseInterop=true, interop bit set (using hex string): interop enabled",
+			useInterop: true,
+			bitmap:     interopBit.Hex(),
+			wantError:  false,
+			wantBitmap: interopBit,
+		},
+		{
+			name:       "UseInterop=false, interop bit not set (using hex string): no-op",
+			useInterop: false,
+			bitmap:     common.Hash{}.Hex(),
+			wantError:  false,
+			wantBitmap: common.Hash{},
 		},
 	}
 	for _, tt := range tests {
@@ -61,7 +78,7 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.bitmap, result)
+				require.Equal(t, tt.wantBitmap, result)
 			}
 		})
 	}
