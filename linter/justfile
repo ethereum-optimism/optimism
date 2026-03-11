@@ -7,12 +7,9 @@ build:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p bin
-    if [[ -f "{{BIN}}" ]]; then
-        newer=$(find analyzers -type f -newer "{{BIN}}" -print -quit 2>/dev/null)
-        if [[ -z "$newer" ]] && [[ "{{BIN}}" -nt .custom-gcl.yml ]]; then
-            echo "{{BIN}} is up to date"
-            exit 0
-        fi
+    if ../justfiles/uptodate.sh "{{BIN}}" analyzers .custom-gcl.yml; then
+        echo "{{BIN}} is up to date"
+        exit 0
     fi
     golangci-lint custom -v
 
