@@ -26,11 +26,8 @@ func FuzzDenyListAddContains(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, seed int64) {
 		rng := rand.New(rand.NewSource(seed))
-		dir := t.TempDir()
 
-		dl, err := OpenDenyList(dir)
-		require.NoError(t, err)
-		defer dl.Close()
+		dl := NewMemoryDenyList()
 
 		// Track all adds in-memory for verification
 		added := make(map[uint64]map[common.Hash]bool)
@@ -152,11 +149,8 @@ func FuzzDenyListConcurrent(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, seed int64) {
 		rng := rand.New(rand.NewSource(seed))
-		dir := t.TempDir()
 
-		dl, err := OpenDenyList(dir)
-		require.NoError(t, err)
-		defer dl.Close()
+		dl := NewMemoryDenyList()
 
 		numWorkers := 2 + rng.Intn(6) // 2-7 workers
 		opsPerWorker := 10 + rng.Intn(40)
