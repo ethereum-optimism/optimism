@@ -469,6 +469,8 @@ func TestCLIMigrateV2(t *testing.T) {
 	intent.GlobalDeployOverrides = map[string]any{
 		"devFeatureBitmap": devFeatureBitmap,
 	}
+	// Since we are enabling Interop in the bitmap we enable the UseInterop flag
+	intent.UseInterop = true
 
 	require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
 
