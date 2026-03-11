@@ -78,7 +78,7 @@ contract AccessManager is Ownable {
     /// @return The last proposal timestamp.
     function getLastProposalTimestamp() public view returns (uint256) {
         // Get the latest game to check its timestamp.
-        GameType gameType = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
+        GameType gameType = GameTypes.ZK_DISPUTE_GAME;
         uint256 numGames = DISPUTE_GAME_FACTORY.gameCount();
 
         // Early return if no games exist.

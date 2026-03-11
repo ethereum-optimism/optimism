@@ -14,13 +14,13 @@ import {
     Proposal
 } from "src/dispute/lib/Types.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
+import { IZKVerifier } from "src/dispute/zk/IZKVerifier.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { AccessManager } from "src/dispute/zk/AccessManager.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
-/// @title IOptimisticZkGame
-/// @notice Interface for the OptimisticZkGame contract.
-interface IOptimisticZkGame is IDisputeGame, ISemver {
+/// @title IZKDisputeGame
+/// @notice Interface for the ZKDisputeGame contract.
+interface IZKDisputeGame is IDisputeGame, ISemver {
     enum ProposalStatus {
         Unchallenged,
         Challenged,
@@ -55,12 +55,15 @@ interface IOptimisticZkGame is IDisputeGame, ISemver {
     function normalModeCredit(address) external view returns (uint256);
     function refundModeCredit(address) external view returns (uint256);
     function startingProposal() external view returns (Proposal memory);
-    function wasRespectedGameTypeWhenCreated() external view returns (bool);
     function bondDistributionMode() external view returns (BondDistributionMode);
+    function hasUnlockedCredit(address) external view returns (bool);
+    function disputeGameFactory() external view returns (IDisputeGameFactory);
+    function totalBonds() external view returns (uint256);
 
     function initialize() external payable;
     function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function parentIndex() external pure returns (uint32 parentIndex_);
+    function absolutePrestate() external pure returns (bytes32 absolutePrestate_);
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_);
     function startingRootHash() external view returns (Hash startingRootHash_);
     function challenge() external payable returns (ProposalStatus);
@@ -69,22 +72,19 @@ interface IOptimisticZkGame is IDisputeGame, ISemver {
     function claimCredit(address _recipient) external;
     function closeGame() external;
     function gameOver() external view returns (bool gameOver_);
-    function gameType() external view returns (GameType gameType_);
+    function gameType() external pure returns (GameType gameType_);
     function gameCreator() external pure returns (address creator_);
     function rootClaim() external pure returns (Claim rootClaim_);
     function rootClaimByChainId(uint256) external pure returns (Claim rootClaim_);
     function l1Head() external pure returns (Hash l1Head_);
     function extraData() external pure returns (bytes memory extraData_);
-    function gameData() external view returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_);
+    function gameData() external pure returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_);
     function credit(address _recipient) external view returns (uint256 credit_);
-    function maxChallengeDuration() external view returns (Duration maxChallengeDuration_);
-    function maxProveDuration() external view returns (Duration maxProveDuration_);
-    function disputeGameFactory() external view returns (IDisputeGameFactory disputeGameFactory_);
-    function sp1Verifier() external view returns (ISP1Verifier verifier_);
-    function rollupConfigHash() external view returns (bytes32 rollupConfigHash_);
-    function aggregationVkey() external view returns (bytes32 aggregationVkey_);
-    function rangeVkeyCommitment() external view returns (bytes32 rangeVkeyCommitment_);
-    function challengerBond() external view returns (uint256 challengerBond_);
-    function anchorStateRegistry() external view returns (IAnchorStateRegistry registry_);
-    function accessManager() external view returns (AccessManager accessManager_);
+    function maxChallengeDuration() external pure returns (Duration maxChallengeDuration_);
+    function maxProveDuration() external pure returns (Duration maxProveDuration_);
+    function verifier() external pure returns (IZKVerifier verifier_);
+    function challengerBond() external pure returns (uint256 challengerBond_);
+    function anchorStateRegistry() external pure returns (IAnchorStateRegistry registry_);
+    function weth() external pure returns (IDelayedWETH weth_);
+    function l2ChainId() external pure returns (uint256 l2ChainId_);
 }
