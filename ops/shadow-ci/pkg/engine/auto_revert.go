@@ -5,12 +5,18 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 )
 
+// Notifier sends alerts about revert decisions.
+type Notifier interface {
+	NotifyRevert(decision *RevertDecision) error
+}
+
 // AutoReverter monitors post-merge test failures and creates revert decisions.
 type AutoReverter struct {
-	store   events.Store
-	flakeDB *model.FlakeDB
-	emitter *events.Emitter
-	config  AutoRevertConfig
+	store    events.Store
+	flakeDB  *model.FlakeDB
+	emitter  *events.Emitter
+	config   AutoRevertConfig
+	notifier Notifier // nil = no notifications
 }
 
 // AutoRevertConfig controls auto-revert behavior.
@@ -42,12 +48,13 @@ type RevertDecision struct {
 }
 
 // NewAutoReverter creates a new AutoReverter.
-func NewAutoReverter(store events.Store, flakeDB *model.FlakeDB, emitter *events.Emitter, config AutoRevertConfig) *AutoReverter {
+func NewAutoReverter(store events.Store, flakeDB *model.FlakeDB, emitter *events.Emitter, config AutoRevertConfig, notifier Notifier) *AutoReverter {
 	return &AutoReverter{
-		store:   store,
-		flakeDB: flakeDB,
-		emitter: emitter,
-		config:  config,
+		store:    store,
+		flakeDB:  flakeDB,
+		emitter:  emitter,
+		config:   config,
+		notifier: notifier,
 	}
 }
 
@@ -87,6 +94,18 @@ func (ar *AutoReverter) Evaluate(failedTests []string, commit string, pr int) *R
 			ar.emitter.Emit(model.EventAutoRevertSkipped, decision)
 		} else {
 			ar.emitter.Emit(model.EventAutoRevertTriggered, decision)
+		}
+	}
+
+	// Send notification if configured.
+	if ar.notifier != nil {
+		if err := ar.notifier.NotifyRevert(decision); err != nil {
+			if ar.emitter != nil {
+				ar.emitter.Emit(model.EventAutoRevertSkipped, map[string]any{
+					"reason": "notification failed",
+					"error":  err.Error(),
+				})
+			}
 		}
 	}
 

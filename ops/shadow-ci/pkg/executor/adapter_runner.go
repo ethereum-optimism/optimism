@@ -41,6 +41,11 @@ func (a *AdapterRunner) Run(ctx RunContext) error {
 
 	a.lastResults = result.Results
 
+	// Annotate shadow deferral on results.
+	if ctx.TestFilter != nil && ctx.TestFilter.ShadowMode {
+		annotateShadowDeferral(ctx.TestFilter, ctx.Decision, result.Results)
+	}
+
 	// Write summary to log file for compatibility with shell runner output.
 	if ctx.LogPath != "" {
 		writeSummaryLog(ctx.LogPath, result)
@@ -92,6 +97,11 @@ func buildPlannedJob(ctx RunContext) model.PlannedJob {
 			Language: ctx.Cat.Language,
 			Scope:    model.ScopeAlways,
 		}}
+	}
+
+	// Build test run filter from test filter.
+	if ctx.TestFilter != nil && len(ctx.TestFilter.IncludeTests) > 0 && !ctx.TestFilter.ShadowMode {
+		job.TestRunFilter = buildTestRunFilter(ctx.TestFilter.IncludeTests)
 	}
 
 	// Build configurations from features (sol matrix) or default.
@@ -150,6 +160,43 @@ func writeSummaryLog(logPath string, result *engine.JobResult) {
 	if len(failures) > 0 {
 		fmt.Fprintf(f, "=== Failures ===\n")
 		fmt.Fprint(f, strings.Join(failures, "\n---\n"))
+	}
+}
+
+// buildTestRunFilter creates a regex pattern for --run / --match-test from test keys.
+// Test keys are like "pkg/foo/TestBar", so we extract the test name (last segment).
+func buildTestRunFilter(testKeys []string) string {
+	names := make([]string, 0, len(testKeys))
+	for _, key := range testKeys {
+		// Extract test name from key (last "/" segment).
+		parts := strings.Split(key, "/")
+		if len(parts) > 0 {
+			names = append(names, parts[len(parts)-1])
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	return "^(" + strings.Join(names, "|") + ")$"
+}
+
+// annotateShadowDeferral marks test results with shadow deferral info from the decision.
+func annotateShadowDeferral(filter *TestFilter, decision *model.CategoryDecision, results []model.TestResult) {
+	if decision == nil {
+		return
+	}
+	deferMap := make(map[string]model.TestPlacement)
+	for _, t := range decision.Tests {
+		if t.WouldDefer {
+			deferMap[t.TestKey] = t
+		}
+	}
+	for i := range results {
+		key := results[i].Test.Key()
+		if placement, ok := deferMap[key]; ok {
+			results[i].WouldDefer = true
+			results[i].DeferTo = string(placement.DeferTo)
+		}
 	}
 }
 

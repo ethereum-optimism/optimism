@@ -21,11 +21,18 @@ import (
 
 // RunContext provides execution context for a category run.
 type RunContext struct {
-	Category string
-	Command  string                    // resolved command (ShellRunner uses this)
-	LogPath  string
-	Cat      model.JobCategoryConfig   // full category config
-	Decision *model.CategoryDecision   // targets, features, configs
+	Category   string
+	Command    string                    // resolved command (ShellRunner uses this)
+	LogPath    string
+	Cat        model.JobCategoryConfig   // full category config
+	Decision   *model.CategoryDecision   // targets, features, configs
+	TestFilter *TestFilter               // nil = run all tests in the category
+}
+
+// TestFilter controls which tests are included in a category run.
+type TestFilter struct {
+	IncludeTests []string // test keys to include (empty = all)
+	ShadowMode   bool     // if true, run all but annotate deferred ones
 }
 
 // Runner executes a category. Implementations control where output goes
@@ -285,6 +292,12 @@ func (e *Executor) executeCategory(ent catEntry) Result {
 
 	logPath := filepath.Join(e.cfg.ResultsDir, ent.name+".log")
 
+	// Build test filter from per-test placements.
+	var testFilter *TestFilter
+	if len(ent.cd.Tests) > 0 && !e.decision.ForceAll {
+		testFilter = buildTestFilter(ent.cd.Tests, e.decision.Stage)
+	}
+
 	// Dispatch to adapter runner for language-backed test categories.
 	useAdapter := ent.cat.Language != "" && e.adapterRunner != nil && !isFuzzCategory(ent.cat)
 
@@ -292,10 +305,11 @@ func (e *Executor) executeCategory(ent catEntry) Result {
 	var runErr error
 	if useAdapter {
 		runErr = e.adapterRunner.Run(RunContext{
-			Category: ent.name,
-			LogPath:  logPath,
-			Cat:      ent.cat,
-			Decision: ent.cd,
+			Category:   ent.name,
+			LogPath:    logPath,
+			Cat:        ent.cat,
+			Decision:   ent.cd,
+			TestFilter: testFilter,
 		})
 	} else {
 		runErr = e.runner.Run(RunContext{
@@ -424,6 +438,39 @@ func ResolveCommand(cat model.JobCategoryConfig, cd *model.CategoryDecision) str
 		return resolved
 	}
 	return strings.TrimSpace(cat.Command)
+}
+
+// buildTestFilter creates a TestFilter from per-test placements.
+// Tests assigned to the current stage or earlier are included.
+// If any test has WouldDefer set, the filter operates in shadow mode
+// (run all tests but annotate deferred ones).
+func buildTestFilter(tests []model.TestPlacement, currentStage model.Stage) *TestFilter {
+	var include []string
+	shadowMode := false
+
+	for _, t := range tests {
+		if t.WouldDefer {
+			shadowMode = true
+		}
+		if model.StageIndex(t.AssignedStage) <= model.StageIndex(currentStage) {
+			include = append(include, t.TestKey)
+		}
+	}
+
+	// In shadow mode, include all tests (we run them all but annotate).
+	if shadowMode {
+		include = nil
+		for _, t := range tests {
+			include = append(include, t.TestKey)
+		}
+		return &TestFilter{IncludeTests: include, ShadowMode: true}
+	}
+
+	if len(include) == 0 {
+		return nil // no tests to run
+	}
+
+	return &TestFilter{IncludeTests: include}
 }
 
 func printLogTail(path string, lines int) {

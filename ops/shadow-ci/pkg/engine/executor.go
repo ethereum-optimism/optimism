@@ -54,6 +54,7 @@ func (e *TestExecutor) Execute(job model.PlannedJob) (*JobResult, error) {
 		results, err := adapter.Runner.Run(job.Targets, config, adapters.RunOptions{
 			Timeout:     int(job.Resources.Timeout.Seconds()),
 			Parallelism: job.Resources.Parallelism,
+			TestFilter:  job.TestRunFilter,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("running %s tests: %w", job.Language, err)

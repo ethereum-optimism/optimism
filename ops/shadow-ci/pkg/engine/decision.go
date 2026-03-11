@@ -10,21 +10,23 @@ import (
 
 // DecisionEngine produces a PipelineDecision covering every job category.
 type DecisionEngine struct {
-	scoping   model.ScopingConfig
-	placement model.PlacementConfig
-	flakeDB   *model.FlakeDB
-	affected  *AffectedResult
-	emitter   *events.Emitter
+	scoping    model.ScopingConfig
+	placement  model.PlacementConfig
+	flakeDB    *model.FlakeDB
+	affected   *AffectedResult
+	emitter    *events.Emitter
+	testPlacer *TestPlacer // nil = no per-test placement (backward-compatible)
 }
 
 // NewDecisionEngine creates a new DecisionEngine.
-func NewDecisionEngine(scoping model.ScopingConfig, placement model.PlacementConfig, flakeDB *model.FlakeDB, affected *AffectedResult, emitter *events.Emitter) *DecisionEngine {
+func NewDecisionEngine(scoping model.ScopingConfig, placement model.PlacementConfig, flakeDB *model.FlakeDB, affected *AffectedResult, emitter *events.Emitter, testPlacer *TestPlacer) *DecisionEngine {
 	return &DecisionEngine{
-		scoping:   scoping,
-		placement: placement,
-		flakeDB:   flakeDB,
-		affected:  affected,
-		emitter:   emitter,
+		scoping:    scoping,
+		placement:  placement,
+		flakeDB:    flakeDB,
+		affected:   affected,
+		emitter:    emitter,
+		testPlacer: testPlacer,
 	}
 }
 
@@ -43,7 +45,7 @@ func (de *DecisionEngine) Decide(changedFiles []string, branch string, isSchedul
 	}
 
 	for name, cat := range de.scoping.JobCategories {
-		cd := de.evaluateCategory(name, cat, changedFiles, isDevelop, isSchedule)
+		cd := de.evaluateCategory(name, cat, changedFiles, isDevelop, isSchedule, stage)
 
 		// Apply stage-based filtering: if the category is placed at a later
 		// stage than the current run, skip it (unless it was already skipped
@@ -62,6 +64,22 @@ func (de *DecisionEngine) Decide(changedFiles []string, branch string, isSchedul
 		decision.Categories[name] = cd
 	}
 
+	// Resolve required builds from test selection (demand-driven builds).
+	if !decision.ForceAll {
+		resolver := NewBuildResolver(de.scoping)
+		decision.RequiredBuilds = resolver.Resolve(decision.Categories)
+
+		// Mark unrequired build categories as skipped.
+		for name, cd := range decision.Categories {
+			cat := de.scoping.JobCategories[name]
+			if cat.Group == "build" && !contains(decision.RequiredBuilds, name) && !cd.Skipped {
+				cd.Needed = false
+				cd.Skipped = true
+				cd.SkipWhy = "not required by any selected test category"
+			}
+		}
+	}
+
 	if de.emitter != nil {
 		de.emitter.Emit(model.EventPipelineDecision, decision)
 	}
@@ -74,6 +92,7 @@ func (de *DecisionEngine) evaluateCategory(
 	cat model.JobCategoryConfig,
 	changedFiles []string,
 	isDevelop, isSchedule bool,
+	stage model.Stage,
 ) *model.CategoryDecision {
 	cd := &model.CategoryDecision{}
 
@@ -121,7 +140,7 @@ func (de *DecisionEngine) evaluateCategory(
 
 	// Graph-based categories delegate to the affected result.
 	if cat.UseGraph && cat.Language != "" {
-		return de.evaluateGraphCategory(name, cat)
+		return de.evaluateGraphCategory(name, cat, stage)
 	}
 
 	// Fuzz packages: check each package's trigger paths individually.
@@ -156,7 +175,7 @@ func (de *DecisionEngine) evaluateCategory(
 	return cd
 }
 
-func (de *DecisionEngine) evaluateGraphCategory(name string, cat model.JobCategoryConfig) *model.CategoryDecision {
+func (de *DecisionEngine) evaluateGraphCategory(name string, cat model.JobCategoryConfig, stage model.Stage) *model.CategoryDecision {
 	cd := &model.CategoryDecision{}
 	lr, ok := de.affected.ByLanguage[cat.Language]
 	if !ok || lr.SelectedTargets == 0 {
@@ -173,6 +192,33 @@ func (de *DecisionEngine) evaluateGraphCategory(name string, cat model.JobCatego
 		targets[i] = t.ID
 	}
 	cd.Targets = targets
+
+	// Per-test placement: if a testPlacer is configured, compute per-test placements.
+	if de.testPlacer != nil {
+		placements := de.testPlacer.PlaceTests(targets, stage)
+		cd.Tests = placements
+
+		// Compute shadow deferral summary.
+		deferCount := 0
+		var estSavingsMs int64
+		totalMissRisk := 0.0
+		for _, p := range placements {
+			if p.WouldDefer {
+				deferCount++
+				if stats, ok := de.testPlacer.testStats[p.TestKey]; ok {
+					estSavingsMs += stats.MeanDuration.Milliseconds()
+				}
+				totalMissRisk += 1.0 - p.Confidence
+			}
+		}
+		if deferCount > 0 {
+			cd.ShadowDeferral = &model.ShadowDeferralSummary{
+				WouldDefer: deferCount,
+				EstSavings: estSavingsMs,
+				MissRisk:   totalMissRisk,
+			}
+		}
+	}
 
 	// For sol, include feature matrix if configured.
 	if len(cat.FeatureMatrix) > 0 {

@@ -71,10 +71,19 @@ type ComparisonConfig struct {
 
 // PlatformConfig configures the CI platform.
 type PlatformConfig struct {
-	Platform string           `yaml:"platform" json:"platform"`
-	CircleCI CircleCIConfig   `yaml:"circleci" json:"circleci"`
-	Events   EventStoreConfig `yaml:"events" json:"events"`
-	State    StateStoreConfig `yaml:"state" json:"state"`
+	Platform   string           `yaml:"platform" json:"platform"`
+	CircleCI   CircleCIConfig   `yaml:"circleci" json:"circleci"`
+	Events     EventStoreConfig `yaml:"events" json:"events"`
+	State      StateStoreConfig `yaml:"state" json:"state"`
+	LLMAdvisor LLMAdvisorConfig `yaml:"llm_advisor" json:"llm_advisor"`
+}
+
+// LLMAdvisorConfig configures the LLM placement advisor.
+type LLMAdvisorConfig struct {
+	Enabled    bool   `yaml:"enabled" json:"enabled"`
+	Model      string `yaml:"model" json:"model"`
+	MaxTokens  int    `yaml:"max_tokens" json:"max_tokens"`
+	TimeoutSec int    `yaml:"timeout_sec" json:"timeout_sec"`
 }
 
 // CircleCIConfig configures CircleCI-specific settings.

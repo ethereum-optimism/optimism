@@ -57,6 +57,9 @@ const (
 	EventAutoRevertTriggered EventType = "auto_revert.triggered"
 	EventAutoRevertSkipped   EventType = "auto_revert.skipped"
 
+	// Shadow deferral events.
+	EventShadowDeferralReport EventType = "shadow_deferral.report"
+
 	// Cache events.
 	EventCacheHit          EventType = "cache.hit"
 	EventCacheMiss         EventType = "cache.miss"

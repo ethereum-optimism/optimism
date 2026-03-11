@@ -285,6 +285,7 @@ jobs:
             CGO_ENABLED=0 go build -o bin/auto-revert ./cmd/auto-revert
             CGO_ENABLED=0 go build -o bin/coherence ./cmd/coherence
             CGO_ENABLED=0 go build -o bin/execute ./cmd/execute
+            CGO_ENABLED=0 go build -o bin/import-history ./cmd/import-history
             CGO_ENABLED=0 go build -o bin/generate-ci ./cmd/generate-ci
       - run:
           name: Update flake state

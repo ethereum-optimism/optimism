@@ -114,16 +114,17 @@ func (c *Client) GetWorkflowJobs(workflowID string) ([]jobItem, error) {
 
 // jobArtifacts represents the response from the artifacts endpoint.
 type jobArtifacts struct {
-	Items []artifactItem `json:"items"`
+	Items []ArtifactItem `json:"items"`
 }
 
-type artifactItem struct {
+// ArtifactItem represents a CircleCI job artifact.
+type ArtifactItem struct {
 	Path string `json:"path"`
 	URL  string `json:"url"`
 }
 
 // GetJobArtifacts returns all artifacts for a job.
-func (c *Client) GetJobArtifacts(projectSlug string, jobNumber int) ([]artifactItem, error) {
+func (c *Client) GetJobArtifacts(projectSlug string, jobNumber int) ([]ArtifactItem, error) {
 	data, err := c.get(fmt.Sprintf("/project/%s/%d/artifacts", projectSlug, jobNumber))
 	if err != nil {
 		return nil, err
@@ -134,6 +135,44 @@ func (c *Client) GetJobArtifacts(projectSlug string, jobNumber int) ([]artifactI
 		return nil, err
 	}
 	return resp.Items, nil
+}
+
+// Pipeline represents a CircleCI pipeline.
+type Pipeline struct {
+	ID        string `json:"id"`
+	Number    int    `json:"number"`
+	Branch    string `json:"vcs,omitempty"`
+	CreatedAt string `json:"created_at"`
+}
+
+// pipelineResponse is the API response for pipeline listing.
+type pipelineResponse struct {
+	Items         []Pipeline `json:"items"`
+	NextPageToken string     `json:"next_page_token"`
+}
+
+// ListPipelines lists recent pipelines for the project.
+func (c *Client) ListPipelines(branch string, limit int) ([]Pipeline, error) {
+	path := fmt.Sprintf("/project/%s/pipeline?page-token=", c.project)
+	if branch != "" {
+		path += "&branch=" + branch
+	}
+
+	data, err := c.get(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp pipelineResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
+
+	result := resp.Items
+	if limit > 0 && len(result) > limit {
+		result = result[:limit]
+	}
+	return result, nil
 }
 
 // DownloadArtifact downloads an artifact by its URL.

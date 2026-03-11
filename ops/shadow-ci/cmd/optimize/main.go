@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -27,14 +28,34 @@ func main() {
 	}
 
 	store := events.NewLocalStore(*eventsDir)
+
+	// Compute stats and correlations from the event store.
+	start := time.Now().Add(-time.Duration(*lookbackDays) * 24 * time.Hour)
+	end := time.Now()
+
+	aggregator := engine.NewStatsAggregator(store)
+	testStats, err := aggregator.ComputeTestStats(start, end)
+	if err != nil {
+		fatal("computing test stats: %v", err)
+	}
+	fmt.Printf("Computed stats for %d tests\n", len(testStats))
+
+	categoryStats, err := aggregator.ComputeCategoryStats(testStats, cfg.Scoping)
+	if err != nil {
+		fatal("computing category stats: %v", err)
+	}
+	fmt.Printf("Computed stats for %d categories\n", len(categoryStats))
+
+	corrEngine := engine.NewCorrelationEngine(store)
+	corrMatrix, err := corrEngine.Compute(start, end, engine.DefaultCorrelationConfig())
+	if err != nil {
+		fatal("computing correlations: %v", err)
+	}
+	fmt.Printf("Computed %d correlations from %d pipelines\n", len(corrMatrix.Correlations), corrMatrix.PipelinesAnalyzed)
+
 	config := engine.DefaultPlacementOptimizerConfig()
 	optimizer := engine.NewPlacementOptimizer(store, config)
-
-	// For now, pass nil correlations and empty stats.
-	// In production, these would be computed from the event store.
-	_ = lookbackDays
-	stats := make(map[string]*engine.CategoryStats)
-	recs := optimizer.Optimize(cfg.Placement, nil, stats)
+	recs := optimizer.Optimize(cfg.Placement, corrMatrix, categoryStats)
 
 	fmt.Printf("Placement optimizer: %d recommendations\n", len(recs))
 	for _, rec := range recs {

@@ -87,7 +87,7 @@ func main() {
 	}
 
 	// Phase 2: produce pipeline decision covering ALL job categories.
-	de := engine.NewDecisionEngine(cfg.Scoping, cfg.Placement, flakeDB, affected, emitter)
+	de := engine.NewDecisionEngine(cfg.Scoping, cfg.Placement, flakeDB, affected, emitter, nil)
 	decision := de.Decide(changedFiles, *branch, *schedule)
 
 	// Print decision summary.

@@ -49,6 +49,10 @@ type TestResult struct {
 	// Set by the core Fingerprinter, not the adapter.
 	Fingerprint string `json:"fingerprint,omitempty"`
 
+	// Shadow deferral annotations.
+	WouldDefer bool   `json:"would_defer,omitempty"` // test would have been deferred
+	DeferTo    string `json:"defer_to,omitempty"`     // stage it would be deferred to
+
 	// Retry chain.
 	RetryOf   *TestResult `json:"retry_of,omitempty"`
 	RetriedBy *TestResult `json:"retried_by,omitempty"`

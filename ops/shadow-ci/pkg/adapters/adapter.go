@@ -23,6 +23,7 @@ type RunOptions struct {
 	Parallelism int
 	WorkDir     string
 	ExtraEnv    map[string]string
+	TestFilter  string            // regex/filter expression for test selection (--run for Go, --match-test for Sol)
 }
 
 // Adapter bundles a dependency graph and test runner for a language.

@@ -41,6 +41,10 @@ type PlannedJob struct {
 
 	// Why these targets were selected.
 	SelectionReason string `json:"selection_reason"`
+
+	// TestRunFilter is a regex for --run (Go) / --match-test (Sol) / --filter (Rust).
+	// Set by the executor when per-test filtering is active.
+	TestRunFilter string `json:"test_run_filter,omitempty"`
 }
 
 // Resources describes the compute requirements for a job.

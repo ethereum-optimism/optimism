@@ -34,7 +34,16 @@ func main() {
 
 	config := engine.DefaultAutoRevertConfig()
 	config.DryRun = *dryRun
-	reverter := engine.NewAutoReverter(store, db, emitter, config)
+
+	// Configure notifier: Slack if webhook is set, otherwise log-only.
+	var notifier engine.Notifier
+	if webhookURL := os.Getenv("SLACK_WEBHOOK_URL"); webhookURL != "" {
+		notifier = engine.NewSlackNotifier(webhookURL, os.Getenv("SLACK_CHANNEL"))
+	} else {
+		notifier = &engine.LogNotifier{}
+	}
+
+	reverter := engine.NewAutoReverter(store, db, emitter, config, notifier)
 
 	decision := reverter.Evaluate(failedTests, *commit, *pr)
 

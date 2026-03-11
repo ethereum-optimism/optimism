@@ -11,7 +11,7 @@ func TestAutoRevert_RealFailure_Reverts(t *testing.T) {
 	db := model.NewFlakeDB()
 	config := DefaultAutoRevertConfig()
 	config.DryRun = false
-	ar := NewAutoReverter(nil, db, nil, config)
+	ar := NewAutoReverter(nil, db, nil, config, nil)
 
 	decision := ar.Evaluate([]string{"pkg/foo/TestBroken"}, "abc123", 42)
 	assert.True(t, decision.ShouldRevert)
@@ -28,7 +28,7 @@ func TestAutoRevert_KnownFlake_Skips(t *testing.T) {
 	}
 
 	config := DefaultAutoRevertConfig()
-	ar := NewAutoReverter(nil, db, nil, config)
+	ar := NewAutoReverter(nil, db, nil, config, nil)
 
 	decision := ar.Evaluate([]string{"pkg/foo/TestFlaky"}, "abc123", 42)
 	assert.False(t, decision.ShouldRevert)
@@ -38,7 +38,7 @@ func TestAutoRevert_KnownFlake_Skips(t *testing.T) {
 func TestAutoRevert_NoFailures_Skips(t *testing.T) {
 	db := model.NewFlakeDB()
 	config := DefaultAutoRevertConfig()
-	ar := NewAutoReverter(nil, db, nil, config)
+	ar := NewAutoReverter(nil, db, nil, config, nil)
 
 	decision := ar.Evaluate(nil, "abc123", 42)
 	assert.False(t, decision.ShouldRevert)
@@ -52,7 +52,7 @@ func TestAutoRevert_MixedFlakesAndReal(t *testing.T) {
 	}
 
 	config := DefaultAutoRevertConfig()
-	ar := NewAutoReverter(nil, db, nil, config)
+	ar := NewAutoReverter(nil, db, nil, config, nil)
 
 	decision := ar.Evaluate([]string{"pkg/foo/TestFlaky", "pkg/bar/TestReal"}, "abc123", 42)
 	assert.True(t, decision.ShouldRevert)
@@ -63,7 +63,7 @@ func TestAutoRevert_DryRun(t *testing.T) {
 	db := model.NewFlakeDB()
 	config := DefaultAutoRevertConfig()
 	config.DryRun = true
-	ar := NewAutoReverter(nil, db, nil, config)
+	ar := NewAutoReverter(nil, db, nil, config, nil)
 
 	decision := ar.Evaluate([]string{"pkg/foo/TestBroken"}, "abc123", 42)
 	assert.True(t, decision.ShouldRevert)
