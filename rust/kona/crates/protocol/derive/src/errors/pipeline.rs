@@ -1,6 +1,6 @@
 //! This module contains derivation errors thrown within the pipeline.
 
-use crate::BuilderError;
+use crate::{BlobProviderError, BuilderError};
 use alloc::string::String;
 use alloy_eips::BlockId;
 use alloy_primitives::B256;
@@ -354,8 +354,8 @@ pub enum ResetError {
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
     /// The blob provider returned fewer blobs than expected (under-fill).
-    #[error("Blob provider under-fill: expected blob at index {0} but only {1} blobs returned")]
-    BlobsUnderFill(usize, usize),
+    #[error("Blob provider under-fill: {0}")]
+    BlobsUnderFill(BlobProviderError),
 }
 
 impl ResetError {
@@ -445,7 +445,10 @@ mod tests {
             ResetError::HoloceneActivation,
             ResetError::BlobsUnavailable(0),
             ResetError::BlockNotFound(B256::default().into()),
-            ResetError::BlobsUnderFill(0, 0),
+            ResetError::BlobsUnderFill(BlobProviderError::NotEnoughBlobs {
+                expected: 0,
+                actual: 0,
+            }),
         ];
         for error in reset_errors {
             let expected = PipelineErrorKind::Reset(error.clone());

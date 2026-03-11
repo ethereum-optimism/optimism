@@ -165,8 +165,7 @@ where
         // Fill the blob pointers.
         let mut blob_index = 0;
         for blob in &mut data {
-            let should_increment =
-                blob.fill(&blobs, blob_index).map_err(Into::<PipelineErrorKind>::into)?;
+            let should_increment = blob.fill(&blobs, blob_index)?;
             if should_increment {
                 blob_index += 1;
             }

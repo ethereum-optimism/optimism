@@ -153,7 +153,7 @@ impl BlobData {
         }
 
         if index >= blobs.len() {
-            return Err(BlobProviderError::NotEnoughBlobs(index, blobs.len()));
+            return Err(BlobProviderError::NotEnoughBlobs { expected: index, actual: blobs.len() });
         }
 
         if blobs[index].is_empty() {
@@ -190,7 +190,10 @@ mod tests {
     fn test_fill_oob_index() {
         let mut blob_data = BlobData::default();
         let blobs = vec![Box::new(Blob::with_last_byte(1u8))];
-        assert_eq!(blob_data.fill(&blobs, 1), Err(BlobProviderError::NotEnoughBlobs(1, 1)));
+        assert_eq!(
+            blob_data.fill(&blobs, 1),
+            Err(BlobProviderError::NotEnoughBlobs { expected: 1, actual: 1 })
+        );
     }
 
     #[test]
