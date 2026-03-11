@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { Vm } from "forge-std/Vm.sol";
 
 // Scripts
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
@@ -569,6 +570,110 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
                 0,
                 string.concat("Implementation has no code for ", name, ": ", vm.toString(actualImpl))
             );
+        }
+    }
+}
+
+/// @title L2ForkUpgrade_Events_Test
+/// @notice Tests that all predeploy proxies emit the Upgraded event during the L2 fork upgrade.
+contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
+    /// @notice EIP-1967 Upgraded event topic.
+    /// @dev keccak256("Upgraded(address)")
+    bytes32 internal constant UPGRADED_EVENT_TOPIC = 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b;
+
+    /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
+    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
+        // Get StorageSetter implementation to filter out intermediate upgrade events
+        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
+
+        // Start recording logs
+        vm.recordLogs();
+
+        // Execute upgrade bundle
+        executeScript.execute();
+
+        // Get all recorded logs
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // Get all upgradeable predeploys
+        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+
+        // Verify each predeploy emitted the Upgraded event
+        for (uint256 i = 0; i < predeploys.length; i++) {
+            address predeploy = predeploys[i];
+
+            // Skip CGT-only predeploys on non-CGT chains
+            if (!commonState.isCustomGasToken) {
+                if (predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY || predeploy == Predeploys.LIQUIDITY_CONTROLLER) {
+                    continue;
+                }
+            }
+
+            // Get predeploy name
+            string memory name = Predeploys.getName(predeploy);
+
+            // Get expected implementation from config
+            address expectedImpl = _getExpectedImplementation(predeploy, name);
+
+            // Find the Upgraded event for this predeploy (skip StorageSetter events)
+            bool foundEvent = false;
+            for (uint256 j = 0; j < logs.length; j++) {
+                // Check if this log is an Upgraded event from the current predeploy
+                if (logs[j].emitter == predeploy && logs[j].topics.length > 0 && logs[j].topics[0] == UPGRADED_EVENT_TOPIC)
+                {
+                    // Decode the implementation address from the event
+                    address emittedImpl = address(uint160(uint256(logs[j].topics[1])));
+
+                    // Skip StorageSetter upgrade events (intermediate step for initializable contracts)
+                    if (emittedImpl == storageSetterImpl) {
+                        continue;
+                    }
+
+                    foundEvent = true;
+
+                    // Verify the implementation matches expected
+                    assertEq(
+                        emittedImpl,
+                        expectedImpl,
+                        string.concat("Upgraded event implementation mismatch for ", name, ": ", vm.toString(predeploy))
+                    );
+
+                    break;
+                }
+            }
+
+            // Verify the event was found
+            assertTrue(
+                foundEvent, string.concat("Upgraded event not found for ", name, ": ", vm.toString(predeploy))
+            );
+        }
+    }
+
+    /// @notice Helper to get the expected implementation address for a predeploy.
+    /// @dev Handles feature-specific implementations (CGT variants).
+    /// @param _predeploy The predeploy address.
+    /// @param _name The predeploy name.
+    /// @return expectedImpl_ The expected implementation address.
+    function _getExpectedImplementation(
+        address _predeploy,
+        string memory _name
+    )
+        internal
+        view
+        returns (address expectedImpl_)
+    {
+        // Handle feature-specific implementations
+        if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
+            // L1Block uses CGT variant on custom gas token networks
+            string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
+            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
+        } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
+            // L2ToL1MessagePasser uses CGT variant on custom gas token networks
+            string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
+            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
+        } else {
+            // Standard implementation lookup
+            (expectedImpl_,,,) = generateScript.implementationConfigs(_name);
         }
     }
 }
