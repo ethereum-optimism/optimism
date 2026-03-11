@@ -5884,6 +5884,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-karst-derive"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "kona-derive",
+ "kona-genesis",
+ "kona-protocol",
+ "tracing",
+]
+
+[[package]]
 name = "kona-macros"
 version = "0.1.2"
 

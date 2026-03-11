@@ -1,0 +1,32 @@
+[package]
+name = "kona-karst-derive"
+version = "0.1.0"
+description = "Flat, inlined OP Stack derivation pipeline (Holocene+ only)"
+
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Protocol
+kona-genesis.workspace = true
+kona-protocol.workspace = true
+kona-derive.workspace = true
+
+# Alloy
+alloy-primitives.workspace = true
+
+# General
+tracing.workspace = true
+
+[dev-dependencies]
+
+[features]
+default = []

@@ -237,6 +237,7 @@ kona-genesis = { path = "kona/crates/protocol/genesis", version = "0.4.5", defau
 kona-protocol = { path = "kona/crates/protocol/protocol", version = "0.4.5", default-features = false }
 kona-registry = { path = "kona/crates/protocol/registry", version = "0.4.5", default-features = false }
 kona-hardforks = { path = "kona/crates/protocol/hardforks", version = "0.4.5", default-features = false }
+kona-karst-derive = { path = "kona/crates/protocol/karst-derive", version = "0.1.0", default-features = false }
 
 # Node
 kona-rpc = { path = "kona/crates/node/rpc", version = "0.3.2", default-features = false }
