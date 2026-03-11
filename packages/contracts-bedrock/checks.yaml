@@ -85,6 +85,9 @@ phases:
       - name: opcm-upgrade-checks
         description: Check OPCM upgrade methods
         command: go run ./scripts/checks/opcm-upgrade-checks/
+      - name: nut-bundle-check
+        description: Check the generated Network Upgrade Transaction bundle is up to date
+        command: go run ./scripts/checks/nut-bundle-check
 
   # Phase 4: Dev build checks - needs test artifacts
   - name: dev
