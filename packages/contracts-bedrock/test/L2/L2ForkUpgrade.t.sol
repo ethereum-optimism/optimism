@@ -27,26 +27,131 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 
-/// @title L2ForkUpgrade_Test
-/// @notice Integration test for L2 fork upgrades using NUT bundles.
-///         Tests the complete workflow: Fork → Execute → Verify.
-contract L2ForkUpgrade_Test is CommonTest {
-    /// @notice Struct to capture predeploy state for comparison.
-    struct PredeployState {
-        address predeploy;
-        string version;
-    }
-
+/// @title L2ForkUpgrade_TestInit
+/// @notice Reusable test initialization for L2 fork upgrade tests.
+///         Contains setup, helper functions, and verification logic.
+contract L2ForkUpgrade_TestInit is CommonTest {
     /// @notice Script used for bundle execution.
     ExecuteNUTBundle executeScript;
 
     /// @notice Script used for bundle generation.
     GenerateNUTBundle generateScript;
 
-    /// @notice Struct to capture pre-upgrade state for comparison.
-    struct PreUpgradeState {
-        // Versions
+    /// @notice Common state
+    CommonState commonState;
+
+    /// @notice Common state
+    struct CommonState {
+        bool isInteropEnabled;
+        bool isCustomGasToken;
+    }
+
+    function setUp() public override {
+        super.setUp();
+
+        // Skip if not L2 fork test
+        skipIfNotL2ForkTest("requires L2 fork");
+
+        // Skip if L2CM dev feature is not enabled
+        skipIfDevFeatureDisabled(DevFeatures.L2CM);
+
+        // Initialize scripts
+        executeScript = new ExecuteNUTBundle();
+        generateScript = new GenerateNUTBundle();
+
+        // Generate bundle
+        generateScript.run();
+
+        // Capture feature flags
+        commonState.isInteropEnabled = forkL2Live.isInteropEnabled();
+        commonState.isCustomGasToken = forkL2Live.isCustomGasToken();
+    }
+}
+
+/// @title L2ForkUpgrade_Versions_Test
+/// @notice Tests that all predeploy versions are updated after the L2 fork upgrade.
+contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
+    /// @notice Struct to capture predeploy state for comparison.
+    struct PredeployState {
+        address predeploy;
+        string version;
+    }
+
+    /// @notice Struct to capture pre-upgrade version state for comparison.
+    struct PreUpgradeVersionState {
+        // Predeploy versions
         PredeployState[] preUpgradePredeploys;
+    }
+
+    /// @notice Tests that all predeploy versions are updated after upgrade.
+    function test_l2ForkUpgrade_versionsUpdated_succeeds() public {
+        // Capture pre-upgrade version state
+        PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
+
+        // Execute bundle on forked L2
+        executeScript.execute();
+
+        // Verify all versions were updated
+        _verifyAllVersionsUpdated(preState);
+    }
+
+    /// @notice Captures the version state before upgrade for comparison.
+    function _capturePreUpgradeVersionState() internal view returns (PreUpgradeVersionState memory state_) {
+        state_.preUpgradePredeploys = _getPreUpgradePredeploys();
+    }
+
+    /// @notice Verifies that all contract versions were updated.
+    function _verifyAllVersionsUpdated(PreUpgradeVersionState memory _preState) internal view {
+        uint256 length = _preState.preUpgradePredeploys.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (!commonState.isCustomGasToken) {
+                if (
+                    Predeploys.getUpgradeablePredeploys()[i] == Predeploys.NATIVE_ASSET_LIQUIDITY
+                        || Predeploys.getUpgradeablePredeploys()[i] == Predeploys.LIQUIDITY_CONTROLLER
+                ) {
+                    continue;
+                }
+            }
+            string memory newVersion = _getVersion(_preState.preUpgradePredeploys[i].predeploy);
+            string memory oldVersion = _preState.preUpgradePredeploys[i].version;
+            assertTrue(
+                SemverComp.gte(newVersion, oldVersion) && !SemverComp.eq(newVersion, "0.0.0"),
+                string.concat(
+                    "Predeploy version not updated: ",
+                    Predeploys.getName(_preState.preUpgradePredeploys[i].predeploy),
+                    " old=",
+                    oldVersion,
+                    " new=",
+                    newVersion
+                )
+            );
+        }
+    }
+
+    /// @notice Helper to get pre-upgrade predeploy state.
+    function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
+        predeploys_ = new PredeployState[](Predeploys.getUpgradeablePredeploys().length);
+        for (uint256 i = 0; i < Predeploys.getUpgradeablePredeploys().length; i++) {
+            predeploys_[i].predeploy = Predeploys.getUpgradeablePredeploys()[i];
+            predeploys_[i].version = _getVersion(Predeploys.getUpgradeablePredeploys()[i]);
+        }
+    }
+
+    /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
+    function _getVersion(address _contract) internal view returns (string memory) {
+        try ISemver(_contract).version() returns (string memory ver_) {
+            return ver_;
+        } catch {
+            return "0.0.0";
+        }
+    }
+}
+
+/// @title L2ForkUpgrade_Initialization_Test
+/// @notice Tests that all initialization configurations are preserved after the L2 fork upgrade.
+contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
+    /// @notice Struct to capture pre-upgrade initialization state for comparison.
+    struct PreUpgradeInitializationState {
         // Bridge configuration
         address l2CrossDomainMessengerOtherMessenger;
         address l2StandardBridgeOtherBridge;
@@ -75,51 +180,26 @@ contract L2ForkUpgrade_Test is CommonTest {
         Types.WithdrawalNetwork operatorFeeVaultWithdrawalNetwork;
         // ProxyAdmin ownership
         address proxyAdminOwner;
-        // Feature flags
-        bool isInteropEnabled;
-        bool isCustomGasToken;
     }
 
-    function setUp() public override {
-        super.setUp();
-
-        // Skip if not L2 fork test
-        skipIfNotL2ForkTest("requires L2 fork");
-
-        // Skip if L2CM dev feature is not enabled
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
-
-        // Initialize scripts
-        executeScript = new ExecuteNUTBundle();
-        generateScript = new GenerateNUTBundle();
-    }
-
-    /// @notice Tests the complete L2 fork upgrade workflow.
-    ///         Executes upgrade and verifies all aspects: implementations, versions, and configurations.
-    function test_l2ForkUpgrade_completeUpgrade_succeeds() public {
-        // Capture pre-upgrade state
-        PreUpgradeState memory preState = _capturePreUpgradeState();
-
-        // Generate bundle
-        generateScript.run();
+    /// @notice Tests that all initialization configurations are preserved after upgrade.
+    function test_l2ForkUpgrade_initializationPreserved_succeeds() public {
+        // Capture pre-upgrade initialization state
+        PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
         // Execute bundle on forked L2
         executeScript.execute();
 
-        // Verify all aspects of the upgrade
-        _verifyAllVersionsUpdated(preState);
+        // Verify initialization state was preserved
         _verifyInitializationState(preState);
     }
 
-    /// @notice Captures the current state before upgrade for comparison.
-    function _capturePreUpgradeState() internal view returns (PreUpgradeState memory state_) {
-        // Capture feature flags
-        state_.isInteropEnabled = forkL2Live.isInteropEnabled();
-        state_.isCustomGasToken = forkL2Live.isCustomGasToken();
-
-        // Capture versions
-        state_.preUpgradePredeploys = _getPreUpgradePredeploys();
-
+    /// @notice Captures the initialization state before upgrade for comparison.
+    function _capturePreUpgradeInitializationState()
+        internal
+        view
+        returns (PreUpgradeInitializationState memory state_)
+    {
         // Capture bridge configuration
         state_.l2CrossDomainMessengerOtherMessenger =
             address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).OTHER_MESSENGER());
@@ -134,7 +214,7 @@ contract L2ForkUpgrade_Test is CommonTest {
             IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).REMOTE_CHAIN_ID();
 
         // Capture LiquidityController configuration (only on CGT networks)
-        if (state_.isCustomGasToken) {
+        if (commonState.isCustomGasToken) {
             ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
             state_.liquidityControllerOwner = liquidityController.owner();
             state_.liquidityControllerGasPayingTokenName = liquidityController.gasPayingTokenName();
@@ -201,54 +281,43 @@ contract L2ForkUpgrade_Test is CommonTest {
         state_.proxyAdminOwner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
     }
 
-    /// @notice Helper to get pre-upgrade predeploy state.
-    function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
-        predeploys_ = new PredeployState[](Predeploys.getUpgradeablePredeploys().length);
-        for (uint256 i = 0; i < Predeploys.getUpgradeablePredeploys().length; i++) {
-            predeploys_[i].predeploy = Predeploys.getUpgradeablePredeploys()[i];
-            predeploys_[i].version = _getVersion(Predeploys.getUpgradeablePredeploys()[i]);
-        }
-    }
+    /// @notice Verifies that all initializable predeploys are properly initialized after upgrade.
+    ///         This ensures no predeploy is left in an uninitialized or partially initialized state.
+    function _verifyInitializationState(PreUpgradeInitializationState memory _preState) internal view {
+        // Verify configuration preservation and initialization
+        _verifyBridgeConfigurations(_preState);
+        _verifyFeeVaultConfigurations(_preState);
+        _verifyFactoryConfigurations(_preState);
+        _verifyLiquidityControllerConfiguration(_preState);
+        _verifyFeeSplitterConfiguration(_preState);
+        _verifyProxyAdminOwnership(_preState);
 
-    /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
-    function _getVersion(address _contract) internal view returns (string memory) {
-        try ISemver(_contract).version() returns (string memory ver_) {
-            return ver_;
-        } catch {
-            return "0.0.0";
-        }
-    }
+        // OpenZeppelin v4 Initializable contracts - slot varies by contract
+        _verifyOZv4Initialization(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bytes32(0), 20, "L2CrossDomainMessenger");
+        _verifyOZv4Initialization(Predeploys.L2_STANDARD_BRIDGE, bytes32(0), 0, "L2StandardBridge");
+        _verifyOZv4Initialization(Predeploys.L2_ERC721_BRIDGE, bytes32(0), 0, "L2ERC721Bridge");
+        _verifyOZv4Initialization(
+            Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, bytes32(0), 0, "OptimismMintableERC20Factory"
+        );
+        _verifyOZv4Initialization(
+            Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1)), 0, "OptimismMintableERC721Factory"
+        );
+        _verifyOZv4Initialization(Predeploys.FEE_SPLITTER, bytes32(0), 0, "FeeSplitter");
 
-    /// @notice Verifies that all contract versions were updated.
-    function _verifyAllVersionsUpdated(PreUpgradeState memory _preState) internal view {
-        uint256 length = _preState.preUpgradePredeploys.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (!_preState.isCustomGasToken) {
-                if (
-                    Predeploys.getUpgradeablePredeploys()[i] == Predeploys.NATIVE_ASSET_LIQUIDITY
-                        || Predeploys.getUpgradeablePredeploys()[i] == Predeploys.LIQUIDITY_CONTROLLER
-                ) {
-                    continue;
-                }
-            }
-            string memory newVersion = _getVersion(_preState.preUpgradePredeploys[i].predeploy);
-            string memory oldVersion = _preState.preUpgradePredeploys[i].version;
-            assertTrue(
-                SemverComp.gte(newVersion, oldVersion) && !SemverComp.eq(newVersion, "0.0.0"),
-                string.concat(
-                    "Predeploy version not updated: ",
-                    Predeploys.getName(_preState.preUpgradePredeploys[i].predeploy),
-                    " old=",
-                    oldVersion,
-                    " new=",
-                    newVersion
-                )
-            );
+        // LiquidityController (only on custom gas token networks)
+        if (commonState.isCustomGasToken) {
+            _verifyOZv4Initialization(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), 0, "LiquidityController");
         }
+
+        // OpenZeppelin v5 Initializable contracts - ERC-7201 slot
+        _verifyOZv5Initialization(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
+        _verifyOZv5Initialization(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
+        _verifyOZv5Initialization(Predeploys.L1_FEE_VAULT, "L1FeeVault");
+        _verifyOZv5Initialization(Predeploys.OPERATOR_FEE_VAULT, "OperatorFeeVault");
     }
 
     /// @notice Verifies that bridge configurations were preserved.
-    function _verifyBridgeConfigurations(PreUpgradeState memory _preState) internal view {
+    function _verifyBridgeConfigurations(PreUpgradeInitializationState memory _preState) internal view {
         // Verify L2CrossDomainMessenger configuration
         assertEq(
             address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).OTHER_MESSENGER()),
@@ -272,7 +341,7 @@ contract L2ForkUpgrade_Test is CommonTest {
     }
 
     /// @notice Verifies that fee vault configurations were preserved.
-    function _verifyFeeVaultConfigurations(PreUpgradeState memory _preState) internal view {
+    function _verifyFeeVaultConfigurations(PreUpgradeInitializationState memory _preState) internal view {
         // SequencerFeeVault
         assertEq(
             IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).RECIPIENT(),
@@ -343,7 +412,7 @@ contract L2ForkUpgrade_Test is CommonTest {
     }
 
     /// @notice Verifies that factory configurations were preserved.
-    function _verifyFactoryConfigurations(PreUpgradeState memory _preState) internal view {
+    function _verifyFactoryConfigurations(PreUpgradeInitializationState memory _preState) internal view {
         // Verify OptimismMintableERC20Factory configuration
         assertEq(
             address(IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).BRIDGE()),
@@ -365,8 +434,8 @@ contract L2ForkUpgrade_Test is CommonTest {
     }
 
     /// @notice Verifies that LiquidityController configuration was preserved.
-    function _verifyLiquidityControllerConfiguration(PreUpgradeState memory _preState) internal view {
-        if (!_preState.isCustomGasToken) return;
+    function _verifyLiquidityControllerConfiguration(PreUpgradeInitializationState memory _preState) internal view {
+        if (!commonState.isCustomGasToken) return;
 
         ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
         assertEq(
@@ -385,7 +454,7 @@ contract L2ForkUpgrade_Test is CommonTest {
     }
 
     /// @notice Verifies that FeeSplitter configuration was preserved.
-    function _verifyFeeSplitterConfiguration(PreUpgradeState memory _preState) internal view {
+    function _verifyFeeSplitterConfiguration(PreUpgradeInitializationState memory _preState) internal view {
         assertEq(
             address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
             _preState.feeSplitterSharesCalculator,
@@ -394,47 +463,12 @@ contract L2ForkUpgrade_Test is CommonTest {
     }
 
     /// @notice Verifies that ProxyAdmin ownership was preserved.
-    function _verifyProxyAdminOwnership(PreUpgradeState memory _preState) internal view {
+    function _verifyProxyAdminOwnership(PreUpgradeInitializationState memory _preState) internal view {
         assertEq(
             IProxyAdmin(Predeploys.PROXY_ADMIN).owner(),
             _preState.proxyAdminOwner,
             "ProxyAdmin ownership should be preserved"
         );
-    }
-
-    /// @notice Verifies that all initializable predeploys are properly initialized after upgrade.
-    ///         This ensures no predeploy is left in an uninitialized or partially initialized state.
-    function _verifyInitializationState(PreUpgradeState memory _preState) internal view {
-        // Verify configuration preservation and initialization
-        _verifyBridgeConfigurations(_preState);
-        _verifyFeeVaultConfigurations(_preState);
-        _verifyFactoryConfigurations(_preState);
-        _verifyLiquidityControllerConfiguration(_preState);
-        _verifyFeeSplitterConfiguration(_preState);
-        _verifyProxyAdminOwnership(_preState);
-
-        // OpenZeppelin v4 Initializable contracts - slot varies by contract
-        _verifyOZv4Initialization(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bytes32(0), 20, "L2CrossDomainMessenger");
-        _verifyOZv4Initialization(Predeploys.L2_STANDARD_BRIDGE, bytes32(0), 0, "L2StandardBridge");
-        _verifyOZv4Initialization(Predeploys.L2_ERC721_BRIDGE, bytes32(0), 0, "L2ERC721Bridge");
-        _verifyOZv4Initialization(
-            Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, bytes32(0), 0, "OptimismMintableERC20Factory"
-        );
-        _verifyOZv4Initialization(
-            Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1)), 0, "OptimismMintableERC721Factory"
-        );
-        _verifyOZv4Initialization(Predeploys.FEE_SPLITTER, bytes32(0), 0, "FeeSplitter");
-
-        // LiquidityController (only on custom gas token networks)
-        if (_preState.isCustomGasToken) {
-            _verifyOZv4Initialization(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), 0, "LiquidityController");
-        }
-
-        // OpenZeppelin v5 Initializable contracts - ERC-7201 slot
-        _verifyOZv5Initialization(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
-        _verifyOZv5Initialization(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
-        _verifyOZv5Initialization(Predeploys.L1_FEE_VAULT, "L1FeeVault");
-        _verifyOZv5Initialization(Predeploys.OPERATOR_FEE_VAULT, "OperatorFeeVault");
     }
 
     /// @notice Helper to verify OpenZeppelin v4 initialization state.
