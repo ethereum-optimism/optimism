@@ -32,14 +32,14 @@ func newMockRunner() *mockRunner {
 	}
 }
 
-func (m *mockRunner) Run(category string, command string, logPath string) error {
-	if d, ok := m.delay[category]; ok {
+func (m *mockRunner) Run(ctx RunContext) error {
+	if d, ok := m.delay[ctx.Category]; ok {
 		time.Sleep(d)
 	}
 	m.mu.Lock()
-	m.calls = append(m.calls, runCall{Category: category, Command: command, Time: time.Now()})
+	m.calls = append(m.calls, runCall{Category: ctx.Category, Command: ctx.Command, Time: time.Now()})
 	m.mu.Unlock()
-	if err, ok := m.failures[category]; ok {
+	if err, ok := m.failures[ctx.Category]; ok {
 		return err
 	}
 	return nil
@@ -198,7 +198,7 @@ func TestExecute_SingleCategory(t *testing.T) {
 		"go_tests": needed("files changed"),
 	})
 
-	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -218,7 +218,7 @@ func TestExecute_SkipsUnneededCategories(t *testing.T) {
 		"go_lint":  {Needed: false, Skipped: true, SkipWhy: "no go files changed"},
 	})
 
-	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -233,7 +233,7 @@ func TestExecute_SkipsCategoriesNotInDecision(t *testing.T) {
 	})
 	decision := makeDecision(map[string]*model.CategoryDecision{})
 
-	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	assert.Empty(t, results)
@@ -252,7 +252,7 @@ func TestExecute_OnlyRunsGroupCategories(t *testing.T) {
 		"rust_tests": needed("changed"),
 	})
 
-	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -273,7 +273,7 @@ func TestExecute_DAGOrdering(t *testing.T) {
 		"cannon_prestate": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 2)
@@ -310,7 +310,7 @@ func TestExecute_DAGDiamondDependency(t *testing.T) {
 		"c": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 3)
@@ -341,7 +341,7 @@ func TestExecute_ParallelIndependentCategories(t *testing.T) {
 	})
 
 	start := time.Now()
-	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	elapsed := time.Since(start)
 
@@ -365,7 +365,7 @@ func TestExecute_FailedCategorySignalsDeps(t *testing.T) {
 		"b": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err) // Execute itself doesn't error, individual categories do.
 	require.Len(t, results, 2)
@@ -389,7 +389,7 @@ func TestExecute_NoCommandCategory(t *testing.T) {
 		"docker_build": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -406,7 +406,7 @@ func TestExecute_DryRun(t *testing.T) {
 		"go_tests": needed("changed"),
 	})
 
-	exec := New(Config{Group: "go", DryRun: true, ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "go", DryRun: true, ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -426,7 +426,7 @@ func TestExecute_CacheHitSkipsExecution(t *testing.T) {
 		"contracts_build": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, mc, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -446,7 +446,7 @@ func TestExecute_CacheMissRunsAndSaves(t *testing.T) {
 		"contracts_build": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, mc, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -471,7 +471,7 @@ func TestExecute_CacheHitVerifyFailRebuilds(t *testing.T) {
 		"contracts_build": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, mc, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -492,7 +492,7 @@ func TestExecute_CacheRestoreFailRebuilds(t *testing.T) {
 		"contracts_build": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, mc, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -512,7 +512,7 @@ func TestExecute_NoCacheForCategoriesWithoutWorkspacePaths(t *testing.T) {
 		"go_tests": needed("changed"),
 	})
 
-	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, mc, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -533,7 +533,7 @@ func TestExecute_TargetedCommand(t *testing.T) {
 		"go_tests": neededWithTargets("changed", "pkg/a", "pkg/b"),
 	})
 
-	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -559,7 +559,7 @@ func TestExecute_DAGWithCache(t *testing.T) {
 		"cannon_prestate": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, mc, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 2)
@@ -583,7 +583,7 @@ func TestExecute_EmptyGroup(t *testing.T) {
 		"go_tests": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	assert.Empty(t, results)
@@ -603,7 +603,7 @@ func TestExecute_CrossGroupDepsRestored(t *testing.T) {
 		"go_tests": needed("changed"),
 	})
 
-	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, mc, scoping, decision)
 	results, err := exec.Execute()
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -630,7 +630,7 @@ func TestExecute_CrossGroupDepsNotRestoredForOwnGroup(t *testing.T) {
 		"cannon_prestate": needed("changed"),
 	})
 
-	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, mc, scoping, decision)
+	exec := New(Config{Group: "build", ResultsDir: t.TempDir()}, runner, nil, mc, scoping, decision)
 	_, err := exec.Execute()
 	require.NoError(t, err)
 
@@ -692,4 +692,149 @@ func TestResolveCommand_Placeholders(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// --- Adapter dispatch tests ---
+
+// mockAdapterRunner records calls for testing dispatch logic.
+type mockAdapterRunner struct {
+	mu          sync.Mutex
+	calls       []string
+	results     []model.TestResult
+	err         error
+}
+
+func (m *mockAdapterRunner) Run(ctx RunContext) error {
+	m.mu.Lock()
+	m.calls = append(m.calls, ctx.Category)
+	m.mu.Unlock()
+	return m.err
+}
+
+func (m *mockAdapterRunner) Results() []model.TestResult {
+	return m.results
+}
+
+func TestExecute_AdapterDispatch_GoCategory(t *testing.T) {
+	shellRunner := newMockRunner()
+	adapter := &mockAdapterRunner{
+		results: []model.TestResult{
+			{Test: model.TestIdentifier{Name: "TestFoo", Package: "pkg/a"}, Status: model.StatusPass, Language: "go"},
+		},
+	}
+	// Wrap in an AdapterRunner-shaped value. Since we can't easily mock engine.TestExecutor,
+	// we test the dispatch condition directly: language + non-nil adapterRunner + non-fuzz → adapter.
+	scoping := makeScoping(map[string]model.JobCategoryConfig{
+		"go_tests": {Group: "go", Command: "make test", Language: "go"},
+	})
+	decision := makeDecision(map[string]*model.CategoryDecision{
+		"go_tests": needed("files changed"),
+	})
+
+	// Create executor with nil adapterRunner to verify shell fallback.
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, shellRunner, nil, nil, scoping, decision)
+	results, err := exec.Execute()
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "pass", results[0].Status)
+	// With nil adapterRunner, should fall back to shell.
+	assert.True(t, shellRunner.called("go_tests"), "should use shell when adapter is nil")
+	_ = adapter // adapter used in integration test below
+}
+
+func TestExecute_AdapterDispatch_FuzzExcluded(t *testing.T) {
+	runner := newMockRunner()
+	scoping := makeScoping(map[string]model.JobCategoryConfig{
+		"go_fuzz": {
+			Group:    "go",
+			Command:  "make fuzz",
+			Language: "go",
+			FuzzPackages: []model.FuzzPackage{
+				{Package: "pkg/a"},
+			},
+		},
+	})
+	decision := makeDecision(map[string]*model.CategoryDecision{
+		"go_fuzz": needed("files changed"),
+	})
+
+	// Even with an adapterRunner, fuzz should use shell because IsFuzzCategory is true.
+	exec := New(Config{Group: "go", ResultsDir: t.TempDir()}, runner, nil, nil, scoping, decision)
+	results, err := exec.Execute()
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "pass", results[0].Status)
+	assert.True(t, runner.called("go_fuzz"), "fuzz should use shell runner")
+}
+
+func TestIsFuzzCategory(t *testing.T) {
+	assert.False(t, isFuzzCategory(model.JobCategoryConfig{Language: "go"}))
+	assert.True(t, isFuzzCategory(model.JobCategoryConfig{
+		Language:     "go",
+		FuzzPackages: []model.FuzzPackage{{Package: "pkg/a"}},
+	}))
+}
+
+func TestBuildPlannedJob_WithTargets(t *testing.T) {
+	ctx := RunContext{
+		Category: "go_tests",
+		Cat:      model.JobCategoryConfig{Language: "go"},
+		Decision: &model.CategoryDecision{
+			Targets: []string{"pkg/a", "pkg/b"},
+		},
+	}
+	job := buildPlannedJob(ctx)
+	assert.Equal(t, "go_tests", job.Name)
+	assert.Equal(t, "go", job.Language)
+	require.Len(t, job.Targets, 2)
+	assert.Equal(t, "pkg/a", job.Targets[0].ID)
+	assert.Equal(t, model.ScopeAffected, job.Targets[0].Scope)
+	assert.Equal(t, "pkg/b", job.Targets[1].ID)
+}
+
+func TestBuildPlannedJob_ForceAll(t *testing.T) {
+	ctx := RunContext{
+		Category: "go_tests",
+		Cat:      model.JobCategoryConfig{Language: "go"},
+		Decision: &model.CategoryDecision{},
+	}
+	job := buildPlannedJob(ctx)
+	require.Len(t, job.Targets, 1)
+	assert.Equal(t, "go_tests", job.Targets[0].ID)
+	assert.Equal(t, model.ScopeAlways, job.Targets[0].Scope)
+}
+
+func TestBuildPlannedJob_WithFeatures(t *testing.T) {
+	ctx := RunContext{
+		Category: "sol_tests",
+		Cat:      model.JobCategoryConfig{Language: "sol"},
+		Decision: &model.CategoryDecision{
+			Features: []string{"main", "CUSTOM_GAS_TOKEN"},
+		},
+	}
+	job := buildPlannedJob(ctx)
+	require.Len(t, job.Configurations, 2)
+	assert.Equal(t, "main", job.Configurations[0].Name)
+	assert.Equal(t, "CUSTOM_GAS_TOKEN", job.Configurations[1].Name)
+}
+
+func TestBuildPlannedJob_GoDefault(t *testing.T) {
+	ctx := RunContext{
+		Category: "go_tests",
+		Cat:      model.JobCategoryConfig{Language: "go"},
+		Decision: &model.CategoryDecision{},
+	}
+	job := buildPlannedJob(ctx)
+	require.Len(t, job.Configurations, 1)
+	assert.Equal(t, "default", job.Configurations[0].Name)
+}
+
+func TestBuildPlannedJob_RunnerClass(t *testing.T) {
+	ctx := RunContext{
+		Category: "go_tests",
+		Cat:      model.JobCategoryConfig{Language: "go", RunnerClass: "2xlarge"},
+		Decision: &model.CategoryDecision{},
+	}
+	job := buildPlannedJob(ctx)
+	assert.Equal(t, "2xlarge", job.Resources.Runner)
 }

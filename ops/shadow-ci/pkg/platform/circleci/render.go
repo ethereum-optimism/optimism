@@ -368,11 +368,10 @@ jobs:
           name: Run {{ .Language }} tests ({{ .Config | yamlSafe }})
           no_output_timeout: {{ .Timeout }}
           command: |
-            ops/shadow-ci/bin/runner \
-              --language={{ .Language | yamlSafe }} \
-              --targets={{ .Targets | yamlSafe }} \
-              --config={{ .Config | yamlSafe }} \
-              --reason={{ .Reason | yamlSafe }}
+            ops/shadow-ci/bin/execute \
+              --group={{ .Language | yamlSafe }} \
+              --config=ops/shadow-ci/config \
+              --events-dir=/tmp/shadow-ci-events
 {{- range $k, $v := .Env }}
           environment:
             {{ $k | yamlSafe }}: {{ $v | yamlSafe }}
@@ -451,11 +450,10 @@ jobs:
           name: Run {{ .Language }} tests ({{ .Config | yamlSafe }})
           no_output_timeout: {{ .Timeout }}
           command: |
-            ops/shadow-ci/bin/runner \
-              --language={{ .Language | yamlSafe }} \
-              --targets={{ .Targets | yamlSafe }} \
-              --config={{ .Config | yamlSafe }} \
-              --reason={{ .Reason | yamlSafe }}
+            ops/shadow-ci/bin/execute \
+              --group={{ .Language | yamlSafe }} \
+              --config=ops/shadow-ci/config \
+              --events-dir=/tmp/shadow-ci-events
 {{- range $k, $v := .Env }}
           environment:
             {{ $k | yamlSafe }}: {{ $v | yamlSafe }}

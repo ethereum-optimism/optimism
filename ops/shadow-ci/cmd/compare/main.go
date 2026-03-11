@@ -109,11 +109,20 @@ func loadShadowResults(dir string) ([]model.TestResult, error) {
 			continue
 		}
 
+		// Try engine.JobResult format first (legacy).
 		var jobResult engine.JobResult
-		if err := json.Unmarshal(data, &jobResult); err != nil {
+		if err := json.Unmarshal(data, &jobResult); err == nil && len(jobResult.Results) > 0 {
+			allResults = append(allResults, jobResult.Results...)
 			continue
 		}
-		allResults = append(allResults, jobResult.Results...)
+
+		// Try []model.TestResult format (new per-test JSON from adapter runner).
+		var testResults []model.TestResult
+		if err := json.Unmarshal(data, &testResults); err == nil && len(testResults) > 0 {
+			allResults = append(allResults, testResults...)
+			continue
+		}
+		// Skip unrecognized files (group-results.json, etc.)
 	}
 
 	return allResults, nil

@@ -19,10 +19,19 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 )
 
-// Runner executes a shell command for a category. Implementations control
-// where output goes (file, buffer, stdout).
+// RunContext provides execution context for a category run.
+type RunContext struct {
+	Category string
+	Command  string                    // resolved command (ShellRunner uses this)
+	LogPath  string
+	Cat      model.JobCategoryConfig   // full category config
+	Decision *model.CategoryDecision   // targets, features, configs
+}
+
+// Runner executes a category. Implementations control where output goes
+// (file, buffer, stdout) and how execution happens (shell, adapter).
 type Runner interface {
-	Run(category string, command string, logPath string) error
+	Run(ctx RunContext) error
 }
 
 // CacheResolver handles content-addressed build cache operations.
@@ -42,9 +51,10 @@ type CacheResolution struct {
 
 // Result is the outcome of executing a single category.
 type Result struct {
-	Category string        `json:"category"`
-	Status   string        `json:"status"` // pass, fail, cached, no_command, dry_run, skipped
-	Duration time.Duration `json:"duration_ms"`
+	Category    string             `json:"category"`
+	Status      string             `json:"status"` // pass, fail, cached, no_command, dry_run, skipped
+	Duration    time.Duration      `json:"duration_ms"`
+	TestResults []model.TestResult `json:"test_results,omitempty"`
 }
 
 // Config controls executor behavior.
@@ -56,22 +66,31 @@ type Config struct {
 
 // Executor runs categories for a group with DAG scheduling and caching.
 type Executor struct {
-	cfg      Config
-	runner   Runner
-	cache    CacheResolver // nil disables caching
-	scoping  *model.ScopingConfig
-	decision *model.PipelineDecision
+	cfg           Config
+	runner        Runner          // shell runner (always present)
+	adapterRunner *AdapterRunner  // nil disables adapter dispatch
+	cache         CacheResolver   // nil disables caching
+	scoping       *model.ScopingConfig
+	decision      *model.PipelineDecision
 }
 
-// New creates an executor. Pass nil for cache to disable caching.
-func New(cfg Config, runner Runner, cache CacheResolver, scoping *model.ScopingConfig, decision *model.PipelineDecision) *Executor {
+// New creates an executor. Pass nil for adapterRunner to disable adapter dispatch,
+// nil for cache to disable caching.
+func New(cfg Config, runner Runner, adapterRunner *AdapterRunner, cache CacheResolver, scoping *model.ScopingConfig, decision *model.PipelineDecision) *Executor {
 	return &Executor{
-		cfg:      cfg,
-		runner:   runner,
-		cache:    cache,
-		scoping:  scoping,
-		decision: decision,
+		cfg:           cfg,
+		runner:        runner,
+		adapterRunner: adapterRunner,
+		cache:         cache,
+		scoping:       scoping,
+		decision:      decision,
 	}
+}
+
+// isFuzzCategory returns true if the category has fuzz packages, indicating
+// fuzz execution semantics that differ from standard test adapters.
+func isFuzzCategory(cat model.JobCategoryConfig) bool {
+	return len(cat.FuzzPackages) > 0
 }
 
 // catEntry pairs a category name with its config and decision.
@@ -266,8 +285,27 @@ func (e *Executor) executeCategory(ent catEntry) Result {
 
 	logPath := filepath.Join(e.cfg.ResultsDir, ent.name+".log")
 
+	// Dispatch to adapter runner for language-backed test categories.
+	useAdapter := ent.cat.Language != "" && e.adapterRunner != nil && !isFuzzCategory(ent.cat)
+
 	start := time.Now()
-	runErr := e.runner.Run(ent.name, command, logPath)
+	var runErr error
+	if useAdapter {
+		runErr = e.adapterRunner.Run(RunContext{
+			Category: ent.name,
+			LogPath:  logPath,
+			Cat:      ent.cat,
+			Decision: ent.cd,
+		})
+	} else {
+		runErr = e.runner.Run(RunContext{
+			Category: ent.name,
+			Command:  command,
+			LogPath:  logPath,
+			Cat:      ent.cat,
+			Decision: ent.cd,
+		})
+	}
 	duration := time.Since(start)
 
 	if runErr != nil {
@@ -278,6 +316,18 @@ func (e *Executor) executeCategory(ent catEntry) Result {
 	}
 
 	fmt.Printf("--- %s: PASSED in %s ---\n\n", ent.name, duration.Round(time.Second))
+
+	// Collect test results from adapter runner.
+	r := Result{Category: ent.name, Status: "pass", Duration: duration}
+	if useAdapter {
+		testResults := e.adapterRunner.Results()
+		if len(testResults) > 0 {
+			r.TestResults = testResults
+			testJSON, _ := json.MarshalIndent(testResults, "", "  ")
+			os.WriteFile(filepath.Join(e.cfg.ResultsDir, ent.name+"-tests.json"), testJSON, 0o644)
+			fmt.Printf("    %d test results written\n", len(testResults))
+		}
+	}
 
 	// Save to cache after successful build.
 	if e.cache != nil && len(ent.cat.WorkspacePaths) > 0 {
@@ -290,7 +340,7 @@ func (e *Executor) executeCategory(ent catEntry) Result {
 		}
 	}
 
-	return Result{Category: ent.name, Status: "pass", Duration: duration}
+	return r
 }
 
 // tryCacheRestore attempts cache restore and verification. Returns (result, true)

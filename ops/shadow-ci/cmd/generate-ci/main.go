@@ -277,7 +277,7 @@ jobs:
             mkdir -p bin
             CGO_ENABLED=0 go build -o bin/affected ./cmd/affected
             CGO_ENABLED=0 go build -o bin/flake-reactor ./cmd/flake-reactor
-            CGO_ENABLED=0 go build -o bin/runner ./cmd/runner
+
             CGO_ENABLED=0 go build -o bin/compare ./cmd/compare
             CGO_ENABLED=0 go build -o bin/aggregate ./cmd/aggregate
             CGO_ENABLED=0 go build -o bin/validate ./cmd/validate

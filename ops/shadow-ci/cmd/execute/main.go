@@ -6,7 +6,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/adapters"
+	goAdapter "github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/adapters/golang"
+	rustAdapter "github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/adapters/rust"
+	solAdapter "github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/adapters/sol"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/cache"
+	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/events"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/executor"
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/model"
 )
@@ -22,6 +27,8 @@ func main() {
 	resultsDir := flag.String("results-dir", "/tmp/shadow-ci-test-results", "Results output directory")
 	dryRun := flag.Bool("dry-run", false, "Print what would run without executing")
 	cacheDir := flag.String("cache-dir", "", "Build cache directory (empty disables caching)")
+	eventsDir := flag.String("events-dir", "/tmp/shadow-ci-events", "Events directory")
+	pipelineID := flag.String("pipeline-id", os.Getenv("CIRCLE_PIPELINE_ID"), "Pipeline ID")
 	flag.Parse()
 
 	if *group == "" {
@@ -51,6 +58,15 @@ func main() {
 		cacheResolver = executor.NewCacheAdapter(resolver, ".")
 	}
 
+	// Build adapter runner for language-native test execution.
+	registry := buildRegistry(cfg)
+	var store events.Store
+	if *eventsDir != "" {
+		store = events.NewLocalStore(*eventsDir)
+	}
+	emitter := events.NewEmitter(store, *pipelineID, 0, "", "")
+	adapterRunner := executor.NewAdapterRunner(registry, emitter)
+
 	exec := executor.New(
 		executor.Config{
 			Group:      *group,
@@ -58,6 +74,7 @@ func main() {
 			ResultsDir: *resultsDir,
 		},
 		&executor.ShellRunner{},
+		adapterRunner,
 		cacheResolver,
 		&cfg.Scoping,
 		&decision,
@@ -74,12 +91,54 @@ func main() {
 	os.WriteFile(resultPath, resultsJSON, 0o644)
 	fmt.Printf("\nWrote results to %s\n", resultPath)
 
+	// Write combined test results from adapter-backed categories.
+	var allTestResults []model.TestResult
+	for _, r := range results {
+		allTestResults = append(allTestResults, r.TestResults...)
+	}
+	if len(allTestResults) > 0 {
+		trJSON, _ := json.MarshalIndent(allTestResults, "", "  ")
+		trPath := fmt.Sprintf("%s/%s-test-results.json", *resultsDir, *group)
+		os.WriteFile(trPath, trJSON, 0o644)
+		fmt.Printf("Wrote %d test results to %s\n", len(allTestResults), trPath)
+	}
+
 	// Exit non-zero if any failures.
 	for _, r := range results {
 		if r.Status == "fail" {
 			os.Exit(1)
 		}
 	}
+}
+
+func buildRegistry(cfg *model.Config) *adapters.Registry {
+	registry := adapters.NewRegistry()
+
+	if cfg.Adapters.Go != nil && cfg.Adapters.Go.Enabled {
+		g := goAdapter.NewGraph(cfg.Adapters.Go.Root, cfg.Adapters.Go.SpecialPaths)
+		r := goAdapter.NewRunner(cfg.Adapters.Go.Root)
+		registry.Register("go", adapters.Adapter{Graph: g, Runner: r})
+	}
+
+	if cfg.Adapters.Sol != nil && cfg.Adapters.Sol.Enabled {
+		g := solAdapter.NewGraph(
+			cfg.Adapters.Sol.Root,
+			cfg.Adapters.Sol.SourceDirs,
+			cfg.Adapters.Sol.RemappingsFile,
+			cfg.Adapters.Sol.SpecialPaths,
+			cfg.Adapters.Sol.Features,
+		)
+		r := solAdapter.NewRunner(cfg.Adapters.Sol.Root)
+		registry.Register("sol", adapters.Adapter{Graph: g, Runner: r})
+	}
+
+	if cfg.Adapters.Rust != nil && cfg.Adapters.Rust.Enabled {
+		g := rustAdapter.NewGraph(cfg.Adapters.Rust.Root, cfg.Adapters.Rust.SpecialPaths)
+		r := rustAdapter.NewRunner(cfg.Adapters.Rust.Root)
+		registry.Register("rust", adapters.Adapter{Graph: g, Runner: r})
+	}
+
+	return registry
 }
 
 func fatal(format string, args ...any) {
