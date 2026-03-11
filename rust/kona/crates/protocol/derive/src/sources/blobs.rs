@@ -163,13 +163,13 @@ where
             })?;
 
         // Fill the blob pointers.
-        let mut blob_index = 0;
+        let mut filled_blobs = 0;
         for blob in &mut data {
             let should_increment = blob
-                .fill(&blobs, blob_index)
+                .fill(&blobs, filled_blobs)
                 .map_err(|e| -> PipelineErrorKind { BlobProviderError::from(e).into() })?;
             if should_increment {
-                blob_index += 1;
+                filled_blobs += 1;
             }
         }
 
@@ -178,9 +178,9 @@ where
         // from a clean state. Matches the check in `fillBlobPointers` in
         // blob_data_source.go which returns `fmt.Errorf("got too many blobs")`
         // wrapped as `NewResetError`.
-        if blob_index < blobs.len() {
+        if filled_blobs < blobs.len() {
             return Err(
-                ResetError::BlobsOverFill { filled: blob_index, returned: blobs.len() }.reset()
+                ResetError::BlobsOverFill { filled: filled_blobs, returned: blobs.len() }.reset()
             );
         }
 
