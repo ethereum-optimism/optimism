@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type KonaSupervisor struct {
@@ -56,8 +57,8 @@ func (s *KonaSupervisor) Start() {
 	// Create the sub-process.
 	// We pipe sub-process logs to the test-logger.
 	// And inspect them along the way, to get the RPC server address.
-	logOut := logpipe.ToLogger(s.p.Logger().New("src", "stdout"))
-	logErr := logpipe.ToLogger(s.p.Logger().New("src", "stderr"))
+	logOut := logpipe.ToLoggerWithMinLevel(s.p.Logger().New("src", "stdout"), log.LevelWarn)
+	logErr := logpipe.ToLoggerWithMinLevel(s.p.Logger().New("src", "stderr"), log.LevelWarn)
 	userRPC := make(chan string, 1)
 	onLogEntry := func(e logpipe.LogEntry) {
 		switch e.LogMessage() {

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type OpReth struct {
@@ -63,8 +64,8 @@ func (n *OpReth) Start() {
 		})
 		n.userRPC = "ws://" + n.userProxy.Addr()
 	}
-	logOut := logpipe.ToLogger(n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID))
-	logErr := logpipe.ToLogger(n.p.Logger().New("component", "op-reth", "src", "stderr", "name", n.name, "chain", n.chainID))
+	logOut := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID), log.LevelWarn)
+	logErr := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stderr", "name", n.name, "chain", n.chainID), log.LevelWarn)
 
 	authRPCChan := make(chan string, 1)
 	defer close(authRPCChan)
