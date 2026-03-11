@@ -22,11 +22,11 @@ For more information, see [Docs](./docs/README.md).
 ```shell
 # Build op-program server-mode and MIPS-client binaries.
 cd ../op-program
-make op-program # build
+just op-program # build
 
 # Switch back to cannon, and build the CLI
 cd ../cannon
-make cannon
+just cannon
 
 # Transform MIPS op-program client binary into first VM state.
 # This outputs state.bin.gz (VM state) and meta.json (for debug symbols).
