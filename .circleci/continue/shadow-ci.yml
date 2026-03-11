@@ -343,7 +343,7 @@ jobs:
             mise install rust just
             sudo apt-get update -qq && sudo apt-get install -y -qq libclang-dev
             curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-            cargo binstall --no-confirm cargo-nextest
+            cargo binstall --no-confirm --no-symlinks cargo-nextest || cargo install --locked cargo-nextest
       - run:
           name: Execute rust categories
           no_output_timeout: 45m

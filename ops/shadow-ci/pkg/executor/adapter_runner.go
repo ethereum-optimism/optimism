@@ -16,6 +16,7 @@ import (
 // AdapterRunner implements Runner by delegating to language-native test adapters
 // via engine.TestExecutor. Produces per-test TestResult with classification.
 type AdapterRunner struct {
+	registry    *adapters.Registry
 	executor    *engine.TestExecutor
 	lastResults []model.TestResult
 }
@@ -25,8 +26,18 @@ func NewAdapterRunner(registry *adapters.Registry, emitter *events.Emitter) *Ada
 	classifier := engine.NewClassifier()
 	fingerprinter := engine.NewFingerprinter()
 	return &AdapterRunner{
+		registry: registry,
 		executor: engine.NewTestExecutor(registry, classifier, fingerprinter, emitter),
 	}
+}
+
+// SupportsLanguage returns true if the adapter registry has a runner for the given language.
+func (a *AdapterRunner) SupportsLanguage(lang string) bool {
+	if a.registry == nil {
+		return false
+	}
+	_, ok := a.registry.Get(lang)
+	return ok
 }
 
 // Run executes tests via the language adapter, producing per-test results.

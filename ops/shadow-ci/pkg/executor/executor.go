@@ -299,7 +299,12 @@ func (e *Executor) executeCategory(ent catEntry) Result {
 	}
 
 	// Dispatch to adapter runner for language-backed test categories.
-	useAdapter := ent.cat.Language != "" && e.adapterRunner != nil && !isFuzzCategory(ent.cat)
+	// Only use the adapter if the registry actually has the language registered
+	// AND the category has no shell command (adapter-only execution).
+	// Categories with shell commands use the shell runner — the adapter's role
+	// in those cases is limited to graph-based target selection (handled by cmd/affected).
+	useAdapter := ent.cat.Language != "" && e.adapterRunner != nil && !isFuzzCategory(ent.cat) &&
+		e.adapterRunner.SupportsLanguage(ent.cat.Language) && command == ""
 
 	start := time.Now()
 	var runErr error

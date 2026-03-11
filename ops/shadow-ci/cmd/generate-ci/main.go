@@ -130,7 +130,7 @@ func renderShadowCIYAML(cfg *model.Config) ([]byte, error) {
 			ResourceClass: "2xlarge",
 			SetupSteps: toolsRestore + "\n            " + rustInstall + `
             curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-            cargo binstall --no-confirm cargo-nextest`,
+            cargo binstall --no-confirm --no-symlinks cargo-nextest || cargo install --locked cargo-nextest`,
 			Categories: groupCats["rust"],
 		},
 		{
