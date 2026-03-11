@@ -71,5 +71,6 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+paste = { workspace = true }
 tokio = { workspace = true, features = ["full", "test-util"] }
 reqwest = { workspace = true, features = ["json"] }

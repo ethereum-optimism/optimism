@@ -3216,6 +3216,7 @@ dependencies = [
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "op-revm",
+ "paste",
  "reqwest 0.13.2",
  "revm",
  "revm-database",
