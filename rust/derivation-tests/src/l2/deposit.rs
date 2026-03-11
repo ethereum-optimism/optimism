@@ -19,15 +19,20 @@ pub fn l1_info_deposit_tx(
 ) -> Result<OpTxEnvelope, Box<dyn std::error::Error>> {
     let rollup_config = config.rollup_config();
 
-    // Build the L1 chain config (Ethereum mainnet-like config for tests)
-    let l1_config = alloy_genesis::ChainConfig::default();
+    // Build the L1 chain config
+    let l1_config = config.l1_chain_config();
 
-    // Build a minimal system config
-    let system_config = SystemConfig {
-        batcher_address: config.batcher,
-        gas_limit: 30_000_000,
-        ..Default::default()
-    };
+    // Use the system config from the rollup config genesis — must match what
+    // op-program derives so that deposit tx calldata (and thus gas) is identical.
+    let system_config = rollup_config
+        .genesis
+        .system_config
+        .clone()
+        .unwrap_or_else(|| SystemConfig {
+            batcher_address: config.batcher,
+            gas_limit: 30_000_000,
+            ..Default::default()
+        });
 
     let (_info, sealed_deposit) = L1BlockInfoTx::try_new_with_deposit_tx(
         &rollup_config,

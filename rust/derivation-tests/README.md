@@ -27,7 +27,7 @@ just test-derivation-op-program
 just test-derivation-kona-host
 ```
 
-Integration tests assert exit code 0 (exact claim match). The framework executes EIP-4788 and EIP-2935 system calls during L2 block building, so output roots match op-program and kona-host exactly.
+Integration tests verify that derivation completes and validates the claim. The framework executes EIP-4788 and EIP-2935 system calls during L2 block building. Output roots may not yet match op-program exactly due to deposit tx encoding differences between kona-protocol and op-node (tracked as a known issue).
 
 ## Authoring tests
 
