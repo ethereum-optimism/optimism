@@ -145,22 +145,22 @@ impl BlobData {
     pub(crate) fn fill(
         &mut self,
         blobs: &[Box<Blob>],
-        index: usize,
+        expected_blobs: usize,
     ) -> Result<bool, BlobDecodingError> {
         // Do not fill if there is calldata here
         if self.calldata.is_some() {
             return Ok(false);
         }
 
-        if index >= blobs.len() {
+        if expected_blobs >= blobs.len() {
             return Err(BlobDecodingError::InvalidLength);
         }
 
-        if blobs[index].is_empty() {
+        if blobs[expected_blobs].is_empty() {
             return Err(BlobDecodingError::MissingData);
         }
 
-        self.data = Some(Bytes::from(*blobs[index]));
+        self.data = Some(Bytes::from(*blobs[expected_blobs]));
         Ok(true)
     }
 }
