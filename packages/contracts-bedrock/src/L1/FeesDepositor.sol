@@ -50,8 +50,8 @@ contract FeesDepositor is ProxyAdminOwnedBase, Initializable, ReinitializableBas
     event GasLimitUpdated(uint32 oldGasLimit, uint32 newGasLimit);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Constructs the FeesDepositor contract.
     constructor() ReinitializableBase(1) {
