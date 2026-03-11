@@ -30,8 +30,5 @@ pub fn assert_l2_block_contains_tx(test: &DerivationTest, block_num: u64, tx_has
     let blocks = test.l2.blocks();
     let block = &blocks[block_num as usize];
     let found = block.transactions.iter().any(|tx| tx.tx_hash() == tx_hash);
-    assert!(
-        found,
-        "block {block_num} does not contain tx {tx_hash:?}"
-    );
+    assert!(found, "block {block_num} does not contain tx {tx_hash:?}");
 }

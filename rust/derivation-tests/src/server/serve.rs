@@ -52,10 +52,8 @@ impl TestServers {
         // Start beacon API server
         let beacon_listener = TcpListener::bind("127.0.0.1:0").await?;
         let beacon_addr = beacon_listener.local_addr()?;
-        let beacon_state = Arc::new(BeaconState {
-            config: config.clone(),
-            blobs: l1.blobs().clone(),
-        });
+        let beacon_state =
+            Arc::new(BeaconState { config: config.clone(), blobs: l1.blobs().clone() });
         let beacon_app = beacon::beacon_router(beacon_state);
         let beacon_handle = tokio::spawn(async move {
             axum::serve(beacon_listener, beacon_app).await.expect("beacon server failed");

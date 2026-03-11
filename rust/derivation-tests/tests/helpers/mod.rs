@@ -20,9 +20,7 @@ pub(crate) fn funded_signer() -> PrivateKeySigner {
 macro_rules! skip_without_programs {
     () => {
         if std::env::var("OP_PROGRAM_PATH").is_err() || std::env::var("KONA_HOST_PATH").is_err() {
-            eprintln!(
-                "SKIP: OP_PROGRAM_PATH and/or KONA_HOST_PATH not set, skipping program test"
-            );
+            eprintln!("SKIP: OP_PROGRAM_PATH and/or KONA_HOST_PATH not set, skipping program test");
             return;
         }
     };

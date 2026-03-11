@@ -81,10 +81,8 @@ fn test_future_timestamp_batch() {
 
     // Manually construct a SingleBatch with a timestamp far in the future
     let l1_origin = test.l1.block_at(1).unwrap();
-    let origin = L1Origin {
-        number: l1_origin.header.inner().number,
-        hash: l1_origin.header.hash(),
-    };
+    let origin =
+        L1Origin { number: l1_origin.header.inner().number, hash: l1_origin.header.hash() };
 
     let future_batch = SingleBatch {
         parent_hash: test.l2.head().header.hash(),

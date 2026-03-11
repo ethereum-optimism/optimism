@@ -1,8 +1,10 @@
 //! L1 chain builder for constructing deterministic L1 blocks.
 
-use alloy_consensus::{Header, Receipt, ReceiptEnvelope, ReceiptWithBloom, SignableTransaction, TxEip1559};
+use alloy_consensus::{
+    Header, Receipt, ReceiptEnvelope, ReceiptWithBloom, SignableTransaction, TxEip1559,
+};
 use alloy_eips::Encodable2718;
-use alloy_primitives::{Bloom, Bytes, Log, LogData, Sealable, TxKind};
+use alloy_primitives::{B256, Bloom, Bytes, Log, LogData, Sealable, TxKind};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use kona_genesis::{CONFIG_UPDATE_EVENT_VERSION_0, CONFIG_UPDATE_TOPIC};
@@ -11,6 +13,23 @@ use std::collections::BTreeMap;
 use crate::{config::DeterministicConfig, state::roots::EMPTY_ROOT_HASH};
 
 use super::types::{BatchSubmission, BlobWithCommitment, L1Block, SystemConfigUpdate};
+
+/// Shared defaults for post-Cancun L1 block headers.
+///
+/// Our test L1 chain has Shanghai+Cancun active from genesis, so every header
+/// must include `base_fee_per_gas`, `blob_gas_used`, `excess_blob_gas`, and
+/// `parent_beacon_block_root` to produce the same RLP hash that Go computes.
+fn cancun_header_defaults() -> Header {
+    Header {
+        base_fee_per_gas: Some(1),
+        blob_gas_used: Some(0),
+        excess_blob_gas: Some(0),
+        parent_beacon_block_root: Some(B256::ZERO),
+        withdrawals_root: Some(EMPTY_ROOT_HASH),
+        gas_limit: 30_000_000,
+        ..Default::default()
+    }
+}
 
 /// Builds a deterministic L1 chain block by block.
 #[allow(missing_debug_implementations)]
@@ -32,9 +51,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
-            withdrawals_root: Some(EMPTY_ROOT_HASH),
-            gas_limit: 30_000_000,
-            ..Default::default()
+            ..cancun_header_defaults()
         };
         let sealed = genesis_header.seal_slow();
 
@@ -58,9 +75,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
-            withdrawals_root: Some(EMPTY_ROOT_HASH),
-            gas_limit: 30_000_000,
-            ..Default::default()
+            ..cancun_header_defaults()
         };
         let sealed = header.seal_slow();
         self.blocks.push(L1Block { header: sealed, transactions: vec![], receipts: vec![] });
@@ -73,8 +88,8 @@ impl L1ChainBuilder {
         let block_num = prev.header.inner().number + 1;
         let timestamp = prev.header.inner().timestamp + self.config.l1_block_time;
 
-        let signer = PrivateKeySigner::from_bytes(&self.config.batcher_key)
-            .expect("valid batcher key");
+        let signer =
+            PrivateKeySigner::from_bytes(&self.config.batcher_key).expect("valid batcher key");
 
         let mut transactions = Vec::new();
         let mut receipts = Vec::new();
@@ -108,9 +123,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            withdrawals_root: Some(EMPTY_ROOT_HASH),
-            gas_limit: 30_000_000,
-            ..Default::default()
+            ..cancun_header_defaults()
         };
         let sealed = header.seal_slow();
 
@@ -132,9 +145,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            withdrawals_root: Some(EMPTY_ROOT_HASH),
-            gas_limit: 30_000_000,
-            ..Default::default()
+            ..cancun_header_defaults()
         };
         let sealed = header.seal_slow();
 
@@ -156,10 +167,8 @@ impl L1ChainBuilder {
             cumulative_gas_used: 21_000,
             logs: vec![log],
         };
-        let receipt_envelope = ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(
-            receipt,
-            Bloom::default(),
-        ));
+        let receipt_envelope =
+            ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(receipt, Bloom::default()));
 
         let transactions = vec![Bytes::new()];
         let receipts = vec![receipt_envelope];
@@ -173,9 +182,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            withdrawals_root: Some(EMPTY_ROOT_HASH),
-            gas_limit: 30_000_000,
-            ..Default::default()
+            ..cancun_header_defaults()
         };
         let sealed = header.seal_slow();
 
@@ -264,9 +271,9 @@ fn compute_raw_transactions_root(txs: &[Bytes]) -> alloy_primitives::B256 {
 /// Build a log event for a system config update.
 ///
 /// The log format follows the OP Stack spec:
-/// - topic[0]: `CONFIG_UPDATE_TOPIC` (`keccak256("ConfigUpdate(uint256,uint8,bytes)")`)
-/// - topic[1]: `CONFIG_UPDATE_EVENT_VERSION_0` (`B256::ZERO`)
-/// - topic[2]: update type (0 = batcher address, 1 = gas config)
+/// - topic\[0\]: `CONFIG_UPDATE_TOPIC` (`keccak256("ConfigUpdate(uint256,uint8,bytes)")`)
+/// - topic\[1\]: `CONFIG_UPDATE_EVENT_VERSION_0` (`B256::ZERO`)
+/// - topic\[2\]: update type (0 = batcher address, 1 = gas config)
 /// - data: ABI-encoded update payload
 fn system_config_update_log(
     system_config_address: alloy_primitives::Address,
