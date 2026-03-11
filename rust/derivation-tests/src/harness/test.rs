@@ -87,10 +87,8 @@ impl DerivationTest {
     ) -> BatchSubmission {
         let rollup_config = self.config.rollup_config();
         let channel_id = self.next_channel_id();
-        let origin = L1Origin {
-            number: l1_origin.header.inner().number,
-            hash: l1_origin.header.hash(),
-        };
+        let origin =
+            L1Origin { number: l1_origin.header.inner().number, hash: l1_origin.header.hash() };
 
         let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
         for block_ref in block_refs {
@@ -114,10 +112,8 @@ impl DerivationTest {
     ) -> BatchSubmission {
         let rollup_config = self.config.rollup_config();
         let channel_id = self.next_channel_id();
-        let origin = L1Origin {
-            number: l1_origin.header.inner().number,
-            hash: l1_origin.header.hash(),
-        };
+        let origin =
+            L1Origin { number: l1_origin.header.inner().number, hash: l1_origin.header.hash() };
 
         let blocks: Vec<_> = block_refs.iter().map(|r| self.l2.block(*r)).collect();
         let span_batch = build_span_batch(&blocks, origin, &rollup_config);
@@ -139,10 +135,8 @@ impl DerivationTest {
     ) -> BatchSubmission {
         let rollup_config = self.config.rollup_config();
         let channel_id = self.next_channel_id();
-        let origin = L1Origin {
-            number: l1_origin.header.inner().number,
-            hash: l1_origin.header.hash(),
-        };
+        let origin =
+            L1Origin { number: l1_origin.header.inner().number, hash: l1_origin.header.hash() };
 
         let blocks: Vec<_> = block_refs.iter().map(|r| self.l2.block(*r)).collect();
         let span_batch = build_span_batch(&blocks, origin, &rollup_config);
@@ -155,7 +149,9 @@ impl DerivationTest {
         assert!(!calldata.is_empty(), "expected at least one frame");
         let frame_data = calldata.into_iter().next().unwrap();
 
-        let builder = eip4844::builder::SidecarBuilder::<eip4844::builder::SimpleCoder>::from_slice(&frame_data);
+        let builder = eip4844::builder::SidecarBuilder::<eip4844::builder::SimpleCoder>::from_slice(
+            &frame_data,
+        );
         let sidecar: BlobTransactionSidecar =
             builder.build_4844().expect("blob sidecar construction failed");
 
@@ -216,7 +212,11 @@ mod tests {
                 assert_eq!(blob_data.commitment.proofs.len(), 1, "expected one proof");
 
                 // Versioned hash should be non-zero
-                assert_ne!(blob_data.versioned_hash, B256::ZERO, "versioned hash should be non-zero");
+                assert_ne!(
+                    blob_data.versioned_hash,
+                    B256::ZERO,
+                    "versioned hash should be non-zero"
+                );
 
                 // Versioned hash should start with 0x01 (VERSIONED_HASH_VERSION_KZG)
                 assert_eq!(
@@ -252,7 +252,10 @@ mod tests {
 
         // l2_output_root should be the output root at genesis
         let genesis_output_root = test.output_root_at(crate::l2::L2BlockRef { index: 0 });
-        assert_eq!(run_config.l2_output_root, genesis_output_root, "l2_output_root should match genesis");
+        assert_eq!(
+            run_config.l2_output_root, genesis_output_root,
+            "l2_output_root should match genesis"
+        );
 
         // l2_block_number should be the target (head) block number
         assert_eq!(
@@ -263,10 +266,18 @@ mod tests {
         assert!(run_config.l2_block_number > 0, "l2_block_number should be > 0");
 
         // l1_head should be the latest L1 block
-        assert_eq!(run_config.l1_head, test.l1.head().header.hash(), "l1_head should be latest L1 block");
+        assert_eq!(
+            run_config.l1_head,
+            test.l1.head().header.hash(),
+            "l1_head should be latest L1 block"
+        );
 
-        // expected_claim should be the super root at the head
-        assert_eq!(run_config.expected_claim, test.expected_super_root(), "expected_claim should match super root");
+        // expected_claim should be the output root at the head
+        assert_eq!(
+            run_config.expected_claim,
+            test.expected_output_root(),
+            "expected_claim should match output root"
+        );
 
         assert_ne!(run_config.l1_head, B256::ZERO, "l1_head should be non-zero");
         assert_ne!(run_config.l2_head, B256::ZERO, "l2_head should be non-zero");
