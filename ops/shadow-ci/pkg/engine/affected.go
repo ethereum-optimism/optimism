@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"fmt"
+	"log"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/shadow-ci/pkg/adapters"
@@ -62,7 +62,11 @@ func (ac *AffectedComputer) Compute(changedFiles []string, emitter *events.Emitt
 		// Build or load cached graph.
 		g, err := adapter.Graph.Build(ac.repoRoot)
 		if err != nil {
-			return nil, fmt.Errorf("building %s graph: %w", lang, err)
+			// Gracefully degrade: if the toolchain isn't available (e.g., cargo
+			// not installed in the setup job), skip graph-based analysis for this
+			// language. Categories will fall back to path-based matching.
+			log.Printf("WARNING: skipping %s graph (toolchain unavailable): %v", lang, err)
+			continue
 		}
 
 		// Compute affected targets.
