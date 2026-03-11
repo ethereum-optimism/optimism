@@ -25,9 +25,6 @@ op-program-client-mips:
     #!/bin/bash
     cd ../op-program
     make op-program-client-mips \
-        GOOS=linux \
-        GOARCH=mips \
-        GOMIPS=softfloat \
         GITCOMMIT={{GIT_COMMIT}} \
         GITDATE={{GIT_DATE}} \
         VERSION={{OP_PROGRAM_VERSION}}
