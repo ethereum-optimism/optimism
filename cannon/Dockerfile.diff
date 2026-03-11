@@ -1,7 +1,6 @@
 FROM golang:1.24.10-alpine3.21 AS builder
 
-RUN apk add --no-cache make bash
-RUN curl -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+RUN apk add --no-cache bash just
 
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
