@@ -91,6 +91,10 @@ diff-cannon VM: cannon elf-go-current
 cannon-stf-verify:
     @docker build --progress plain -f Dockerfile.diff ../
 
+# Lint (cannon is linted via the root lint-go target; this is a CI compatibility stub)
+lint:
+    @echo "cannon lint is handled by the root lint-go target"
+
 # Run fuzz tests in parallel
 fuzz:
     #!/usr/bin/env bash
