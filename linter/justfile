@@ -2,9 +2,18 @@ import '../justfiles/go.just'
 
 BIN := "bin/op-golangci-lint"
 
-# Build the custom linter
+# Build the custom linter (only if sources changed)
 build:
+    #!/usr/bin/env bash
+    set -euo pipefail
     mkdir -p bin
+    if [[ -f "{{BIN}}" ]]; then
+        newer=$(find analyzers -type f -newer "{{BIN}}" -print -quit 2>/dev/null)
+        if [[ -z "$newer" ]] && [[ "{{BIN}}" -nt .custom-gcl.yml ]]; then
+            echo "{{BIN}} is up to date"
+            exit 0
+        fi
+    fi
     golangci-lint custom -v
 
 # Run tests
