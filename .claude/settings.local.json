@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build:*)",
+      "Bash(jq:*)",
+      "Bash(cannon/bin/cannon load-elf:*)",
+      "Bash(make cannon-prestates:*)",
+      "Bash(cannon/bin/cannon list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh api:*)",
+      "mcp__notion__notion-search",
+      "mcp__notion__notion-fetch",
+      "mcp__notion__notion-query-data-sources",
+      "WebFetch(domain:circleci.com)",
+      "WebFetch(domain:app.circleci.com)",
+      "mcp__gopls__go_diagnostics",
+      "WebFetch(domain:output.circle-artifacts.com)",
+      "mcp__gopls__go_workspace"
+    ]
+  }
+}

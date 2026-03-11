@@ -138,7 +138,9 @@ impl L2ChainBuilder {
         };
 
         let parent_hash = prev.header.hash();
-        let parent_beacon_block_root = prev.header.inner().parent_beacon_block_root;
+
+        // In OP Stack, the L2 block's parent_beacon_block_root comes from the L1 origin
+        let parent_beacon_block_root = epoch.l1_block.header.inner().parent_beacon_block_root;
 
         // Execute all transactions through the EVM (including pre-block system calls)
         let (receipts, evm_state) = self.execute_transactions(
@@ -186,7 +188,7 @@ impl L2ChainBuilder {
             base_fee_per_gas: Some(1),
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
-            parent_beacon_block_root: Some(alloy_primitives::B256::ZERO),
+            parent_beacon_block_root,
             // Holocene EIP-1559 params in extra data
             extra_data: crate::config::holocene_extra_data(),
             ..Default::default()
