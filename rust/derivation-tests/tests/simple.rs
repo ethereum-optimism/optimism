@@ -1,24 +1,6 @@
 //! Simple derivation test scenarios exercising the full framework.
 //!
-//! # Golden super root values
-//!
-//! Tests pin expected super root hashes as hardcoded constants. This catches silent
-//! regressions in batch encoding, block execution, state root computation, or output
-//! root calculation — a consistently wrong root would pass a pure determinism check.
-//!
-//! ## Updating golden values
-//!
-//! When an intentional change modifies the derivation output (e.g. a new hardfork,
-//! changed genesis config, or updated deposit tx encoding):
-//!
-//! 1. Run: `cargo test -p derivation-tests -- --nocapture 2>&1 | grep "super root"`
-//! 2. Each test prints its computed super root to stderr before asserting.
-//! 3. Copy the new values into the `EXPECTED_*` constants below.
-//! 4. Re-run to confirm all tests pass.
-//!
-//! The golden values are framework-internal — they are NOT cross-checked against Go
-//! implementations yet. That validation happens via the `#[ignore]` integration tests
-//! that run op-program and kona-host against the same chains.
+//! See the crate README for instructions on updating golden super root values.
 
 use alloy_primitives::b256;
 use derivation_tests::{config::DeterministicConfig, harness::DerivationTest};
