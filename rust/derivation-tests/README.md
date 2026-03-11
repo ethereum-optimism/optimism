@@ -27,7 +27,7 @@ just test-derivation-op-program
 just test-derivation-kona-host
 ```
 
-Integration tests accept exit code 1 (claim mismatch) because the Rust framework doesn't replicate EIP-4788/EIP-2935 system contract state changes during block execution. The important thing is that derivation completes without crashing.
+Integration tests assert exit code 0 (exact claim match). The framework executes EIP-4788 and EIP-2935 system calls during L2 block building, so output roots match op-program and kona-host exactly.
 
 ## Authoring tests
 
@@ -70,7 +70,7 @@ assert_ne!(root, alloy_primitives::B256::ZERO);
 2. Assert the super root against a golden hash constant (see below).
 3. Optionally add an `#[ignore]` integration test that runs the scenario through op-program or kona-host.
 
-See `tests/simple.rs` for examples covering empty blocks, singular batches, blob batches, user transfers, multi-block epochs, and system config updates.
+See `tests/simple.rs` for examples covering empty blocks, singular batches, blob batches, user transfers, multi-block epochs, and system config updates. Integration tests live in `tests/integration.rs` and server tests in `tests/server.rs`.
 
 ## Golden super root values
 
@@ -90,6 +90,12 @@ When an intentional change modifies the derivation output (e.g. a new hardfork, 
 ## Architecture
 
 ```
+tests/
+├── simple.rs        Derivation correctness (golden hash assertions)
+├── integration.rs   op-program and kona-host end-to-end tests (#[ignore])
+├── server.rs        L1 RPC, L2 RPC, and Beacon API server tests
+└── helpers/         Shared test helpers (funded signer, etc.)
+
 src/
 ├── config.rs        Deterministic test configuration (chain IDs, keys, hardforks)
 ├── harness/         Test runner, assertions, op-program/kona-host integration
