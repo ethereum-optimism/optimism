@@ -28,13 +28,14 @@ jobs:
       - run:
           name: Install tools (cache miss only)
           command: |
-            if [ -d "$HOME/.local/share/mise/installs" ] && [ -n "$(ls -A $HOME/.local/share/mise/installs 2>/dev/null)" ]; then
-              echo "Tools restored from cache"
-              exit 0
-            fi
-            curl -sSf https://mise.run | sh
+            [ -f "$HOME/.local/bin/mise" ] || curl -sSf https://mise.run | sh
             echo 'export PATH=$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH' >> $BASH_ENV
             source $BASH_ENV
+            if [ -d "$HOME/.local/share/mise/installs" ] && [ -n "$(ls -A $HOME/.local/share/mise/installs 2>/dev/null)" ]; then
+              echo "Tools restored from cache — reshimming"
+              mise reshim
+              exit 0
+            fi
             mise install go forge cast anvil just make gotestsum golangci-lint mockery
       - save_cache:
           key: shadow-ci-mise-v1-{{ checksum "mise.toml" }}
