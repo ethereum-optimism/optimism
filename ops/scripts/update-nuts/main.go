@@ -9,17 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/BurntSushi/toml"
-
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/nuts"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
-
-type forkLockEntry struct {
-	Bundle string `toml:"bundle"`
-	Hash   string `toml:"hash"`
-	Commit string `toml:"commit,omitempty"`
-}
 
 func main() {
 	if len(os.Args) != 2 {
@@ -73,41 +66,22 @@ func run(fork forks.Name) error {
 	commit := strings.TrimSpace(string(commitOut))
 
 	// Read existing fork_lock.toml, update the entry, write back.
-	lockPath := filepath.Join(root, "op-core", "nuts", "fork_lock.toml")
-	var locks map[string]forkLockEntry
-	if _, err := toml.DecodeFile(lockPath, &locks); err != nil {
-		return fmt.Errorf("reading fork lock file: %w", err)
+	locks, lockPath, err := nuts.ReadLockFile(".")
+	if err != nil {
+		return err
 	}
 	if locks == nil {
-		locks = make(map[string]forkLockEntry)
+		locks = make(nuts.ForkLock)
 	}
 
-	locks[string(fork)] = forkLockEntry{
+	locks[string(fork)] = nuts.ForkLockEntry{
 		Bundle: bundleRel,
 		Hash:   hashStr,
 		Commit: commit,
 	}
 
-	f, err := os.Create(lockPath)
-	if err != nil {
-		return fmt.Errorf("opening fork lock file for writing: %w", err)
-	}
-	defer f.Close()
-
-	// Write header comment.
-	if _, err := fmt.Fprintln(f, "# NUT Bundle Fork Lock"); err != nil {
+	if err := nuts.WriteLockFile(lockPath, locks); err != nil {
 		return err
-	}
-	if _, err := fmt.Fprintln(f, "# To update a locked bundle, run: just update-nuts <fork>"); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(f); err != nil {
-		return err
-	}
-
-	enc := toml.NewEncoder(f)
-	if err := enc.Encode(locks); err != nil {
-		return fmt.Errorf("writing fork lock file: %w", err)
 	}
 
 	fmt.Printf("Updated fork_lock.toml: fork=%s hash=%s commit=%s\n", fork, hashStr, commit[:12])

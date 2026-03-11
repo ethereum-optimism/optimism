@@ -8,8 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/BurntSushi/toml"
-
+	"github.com/ethereum-optimism/optimism/op-core/nuts"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
@@ -44,11 +43,6 @@ func checkAllBundlesLocked(root string, lockedBundles map[string]bool) error {
 	return nil
 }
 
-type forkLockEntry struct {
-	Bundle string `toml:"bundle"`
-	Hash   string `toml:"hash"`
-}
-
 func main() {
 	if err := run("."); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -62,10 +56,9 @@ func run(dir string) error {
 		return fmt.Errorf("finding monorepo root: %w", err)
 	}
 
-	lockPath := filepath.Join(root, "op-core", "nuts", "fork_lock.toml")
-	var locks map[string]forkLockEntry
-	if _, err := toml.DecodeFile(lockPath, &locks); err != nil {
-		return fmt.Errorf("reading fork lock file: %w", err)
+	locks, _, err := nuts.ReadLockFile(dir)
+	if err != nil {
+		return err
 	}
 
 	lockedBundles := make(map[string]bool)
