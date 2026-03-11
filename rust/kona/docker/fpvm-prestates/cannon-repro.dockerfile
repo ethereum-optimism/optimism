@@ -25,12 +25,12 @@ COPY --from=monorepo op-service/ /optimism/op-service/
 COPY --from=monorepo op-preimage/ /optimism/op-preimage/
 COPY --from=monorepo justfiles/ /optimism/justfiles/
 
-# Install just (needed by the Make-to-just migration shim)
+# Install just
 RUN curl -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
 
 # Build cannon from local source
 RUN cd /optimism/cannon && \
-  make && \
+  just cannon && \
   cp bin/cannon /cannon-bin
 
 ################################################################
