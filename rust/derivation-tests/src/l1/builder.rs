@@ -1,9 +1,11 @@
 //! L1 chain builder for constructing deterministic L1 blocks.
 
 use alloy_consensus::{
-    Header, Receipt, ReceiptEnvelope, ReceiptWithBloom, SignableTransaction, TxEip1559,
+    Header, Receipt, ReceiptEnvelope, ReceiptWithBloom, SignableTransaction, TxEip1559, TxEip4844,
 };
 use alloy_eips::Encodable2718;
+use alloy_eips::eip4844::DATA_GAS_PER_BLOB;
+use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{B256, Bloom, Bytes, Log, LogData, Sealable, TxKind};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
@@ -14,18 +16,20 @@ use crate::{config::DeterministicConfig, state::roots::EMPTY_ROOT_HASH};
 
 use super::types::{BatchSubmission, BlobWithCommitment, L1Block, SystemConfigUpdate};
 
-/// Shared defaults for post-Cancun L1 block headers.
+/// Shared defaults for post-Prague L1 block headers.
 ///
-/// Our test L1 chain has Shanghai+Cancun active from genesis, so every header
-/// must include `base_fee_per_gas`, `blob_gas_used`, `excess_blob_gas`, and
-/// `parent_beacon_block_root` to produce the same RLP hash that Go computes.
-fn cancun_header_defaults() -> Header {
+/// Our test L1 chain has Shanghai+Cancun+Prague active from genesis, so every
+/// header must include `base_fee_per_gas`, `blob_gas_used`, `excess_blob_gas`,
+/// `parent_beacon_block_root`, and `requests_hash` to produce the same RLP
+/// hash that Go computes.
+fn prague_header_defaults() -> Header {
     Header {
         base_fee_per_gas: Some(1),
         blob_gas_used: Some(0),
         excess_blob_gas: Some(0),
         parent_beacon_block_root: Some(B256::ZERO),
         withdrawals_root: Some(EMPTY_ROOT_HASH),
+        requests_hash: Some(EMPTY_REQUESTS_HASH),
         gas_limit: 30_000_000,
         ..Default::default()
     }
@@ -51,7 +55,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
-            ..cancun_header_defaults()
+            ..prague_header_defaults()
         };
         let sealed = genesis_header.seal_slow();
 
@@ -75,7 +79,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
-            ..cancun_header_defaults()
+            ..prague_header_defaults()
         };
         let sealed = header.seal_slow();
         self.blocks.push(L1Block { header: sealed, transactions: vec![], receipts: vec![] });
@@ -93,6 +97,7 @@ impl L1ChainBuilder {
 
         let mut transactions = Vec::new();
         let mut receipts = Vec::new();
+        let mut total_blob_count: u64 = 0;
 
         for batch in batches {
             match batch {
@@ -103,11 +108,14 @@ impl L1ChainBuilder {
                 }
                 BatchSubmission::Blob(blob_data) => {
                     let slot = self.timestamp_to_slot(timestamp);
-                    self.blobs.entry(slot).or_default().push(blob_data.clone());
-                    // Blob txs still need a signed envelope on L1, but the data is in the blob.
-                    // Create a signed tx with empty calldata for the blob case.
-                    let signed_tx = self.sign_batcher_tx(&signer, Bytes::new());
+                    let versioned_hash = blob_data.versioned_hash;
+                    self.blobs.entry(slot).or_default().push(blob_data);
+                    let signed_tx = self.sign_blob_tx(
+                        &signer,
+                        vec![versioned_hash],
+                    );
                     transactions.push(signed_tx);
+                    total_blob_count += 1;
                     receipts.push(success_receipt(receipts.len() as u64));
                 }
             }
@@ -116,15 +124,18 @@ impl L1ChainBuilder {
         let transactions_root = compute_raw_transactions_root(&transactions);
         let receipts_root = compute_l1_receipts_root(&receipts);
 
-        let header = Header {
+        let mut header = Header {
             parent_hash,
             number: block_num,
             timestamp,
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            ..cancun_header_defaults()
+            ..prague_header_defaults()
         };
+        if total_blob_count > 0 {
+            header.blob_gas_used = Some(total_blob_count * DATA_GAS_PER_BLOB);
+        }
         let sealed = header.seal_slow();
 
         self.blocks.push(L1Block { header: sealed, transactions, receipts });
@@ -145,7 +156,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            ..cancun_header_defaults()
+            ..prague_header_defaults()
         };
         let sealed = header.seal_slow();
 
@@ -182,7 +193,7 @@ impl L1ChainBuilder {
             state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            ..cancun_header_defaults()
+            ..prague_header_defaults()
         };
         let sealed = header.seal_slow();
 
@@ -207,6 +218,36 @@ impl L1ChainBuilder {
         let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing should not fail");
         let signed = tx.into_signed(sig);
         let envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
+
+        let mut buf = Vec::new();
+        envelope.encode_2718(&mut buf);
+        Bytes::from(buf)
+    }
+
+    /// Sign an EIP-4844 blob transaction with the batcher key, returning encoded signed tx bytes.
+    fn sign_blob_tx(
+        &mut self,
+        signer: &PrivateKeySigner,
+        blob_versioned_hashes: Vec<B256>,
+    ) -> Bytes {
+        let tx = TxEip4844 {
+            chain_id: self.config.l1_chain_id,
+            nonce: self.batcher_nonce,
+            gas_limit: 1_000_000,
+            max_fee_per_gas: 0,
+            max_priority_fee_per_gas: 0,
+            to: self.config.batch_inbox,
+            value: alloy_primitives::U256::ZERO,
+            input: Bytes::new(),
+            blob_versioned_hashes,
+            max_fee_per_blob_gas: 0,
+            access_list: Default::default(),
+        };
+        self.batcher_nonce += 1;
+
+        let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing should not fail");
+        let signed = tx.into_signed(sig);
+        let envelope: alloy_consensus::TxEnvelope = signed.into();
 
         let mut buf = Vec::new();
         envelope.encode_2718(&mut buf);
@@ -253,7 +294,7 @@ impl L1ChainBuilder {
 fn success_receipt(cumulative_gas: u64) -> ReceiptEnvelope {
     let receipt = Receipt {
         status: alloy_consensus::Eip658Value::Eip658(true),
-        cumulative_gas_used: cumulative_gas * 21_000,
+        cumulative_gas_used: (cumulative_gas + 1) * 21_000,
         logs: vec![],
     };
     ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(receipt, Bloom::default()))

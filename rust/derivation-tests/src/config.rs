@@ -163,6 +163,7 @@ impl Default for DeterministicConfig {
                 granite_time: Some(0),
                 holocene_time: Some(0),
                 isthmus_time: Some(0),
+                jovian_time: Some(0),
                 ..Default::default()
             },
         }
@@ -236,6 +237,7 @@ impl DeterministicConfig {
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
             parent_beacon_block_root: Some(B256::ZERO),
+            requests_hash: Some(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
             gas_limit: 30_000_000,
             ..Default::default()
         };
@@ -247,6 +249,26 @@ impl DeterministicConfig {
         state.init_genesis(&self.l2_genesis_allocs());
         let genesis_state_root = state.snapshot().state_root;
 
+        // Isthmus requires requests_hash per EIP-7685 (must match L2ChainBuilder::new)
+        let requests_hash = self
+            .hardforks
+            .isthmus_time
+            .filter(|&t| self.genesis_timestamp >= t)
+            .map(|_| alloy_eips::eip7685::EMPTY_REQUESTS_HASH);
+
+        // Three-way withdrawals_root per OP Stack spec (must match L2ChainBuilder::new):
+        // - Isthmus active: L2ToL1MessagePasser storage root (empty at genesis)
+        // - Canyon active (pre-Isthmus): EMPTY_ROOT_HASH
+        // - Pre-Canyon: None
+        let withdrawals_root = if self.hardforks.isthmus_time.is_some_and(|t| self.genesis_timestamp >= t) {
+            // At genesis, no messages have been sent, so the storage root is EMPTY_ROOT_HASH
+            Some(EMPTY_ROOT_HASH)
+        } else if self.hardforks.canyon_time.is_some_and(|t| self.genesis_timestamp >= t) {
+            Some(EMPTY_ROOT_HASH)
+        } else {
+            None
+        };
+
         let l2_genesis_header = Header {
             number: 0,
             timestamp: self.genesis_timestamp,
@@ -255,13 +277,14 @@ impl DeterministicConfig {
             receipts_root: EMPTY_ROOT_HASH,
             gas_limit: 30_000_000,
             // Post-Shanghai/Cancun fields (must match L2ChainBuilder::new)
-            withdrawals_root: Some(EMPTY_ROOT_HASH),
+            withdrawals_root,
             base_fee_per_gas: Some(1),
             blob_gas_used: Some(0),
             excess_blob_gas: Some(0),
             parent_beacon_block_root: Some(B256::ZERO),
             // Holocene EIP-1559 params (must match L2ChainBuilder::new)
             extra_data: holocene_extra_data(),
+            requests_hash,
             ..Default::default()
         };
         let l2_genesis_hash = l2_genesis_header.seal_slow().hash();

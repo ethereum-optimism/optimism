@@ -7,19 +7,19 @@ use derivation_tests::{config::DeterministicConfig, harness::DerivationTest};
 
 /// Expected super root for 3 empty L2 blocks (deposit-only) derived from empty L1 blocks.
 const EXPECTED_EMPTY_BLOCKS_ROOT: alloy_primitives::B256 =
-    b256!("9b13732b1c8fc19e249b350a60faf002fa417aa3aa22790ebffef2064c8dc40f");
+    b256!("f0277b490aec5a41b13ef80a938ab574af63eb4f80f90b55e5f99405f8755381");
 
 /// Expected super root for 1 empty L2 block submitted as a singular batch.
 const EXPECTED_SINGLE_BATCH_ROOT: alloy_primitives::B256 =
-    b256!("d36afcb6c296b61b50ed4196f14e2ea393119fd8c0f5e3eedb8cc0e2360a3744");
+    b256!("9bb376dbdb60ffe00c281b31a8fbff93f9d9b83b370e82218286420addcd1838");
 
 /// Expected super root for 1 L2 block containing a 1 ETH transfer.
 const EXPECTED_SINGLE_TRANSFER_ROOT: alloy_primitives::B256 =
-    b256!("afe013fa522f2234caed4a819f7f9a790a7c166ed7d241ea93444cca39d9acfc");
+    b256!("c7698300b8c4dea3d6c2024af5ccd7a099899a6559011c4ca88c8237a547f823");
 
 /// Expected super root for 6 empty L2 blocks (one full epoch).
 const EXPECTED_MULTI_BLOCK_ROOT: alloy_primitives::B256 =
-    b256!("860a4446c5053fc33934d38831409803152118838c24337ba0fd7182e7bf2f70");
+    b256!("276f9f2f6cb69638c404acf4340aaa4a18c4c5c898ebe407cce36762d366f0fa");
 
 /// Build a test with N empty L2 blocks derived from N empty L1 blocks.
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {
@@ -253,7 +253,7 @@ fn test_single_transfer() {
         chain_id: test.config.l2_chain_id,
         nonce: 0,
         gas_limit: 21_000,
-        max_fee_per_gas: 0,
+        max_fee_per_gas: 1,
         max_priority_fee_per_gas: 0,
         to: TxKind::Call(recipient),
         value: U256::from(1_000_000_000_000_000_000u64), // 1 ETH

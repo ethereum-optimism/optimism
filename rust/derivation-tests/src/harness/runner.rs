@@ -155,17 +155,30 @@ fn go_compatible_l1_genesis_json(chain_config: &alloy_genesis::ChainConfig) -> s
     }
 
     // Go requires a blobSchedule config when Cancun is active.
-    // Use Cancun defaults: target=3, max=6, baseFeeUpdateFraction=3338477.
+    // Each active fork needs its own entry with the correct blob parameters.
     if chain_config.cancun_time.is_some() {
+        let mut blob_schedule = serde_json::Map::new();
+        blob_schedule.insert(
+            "cancun".to_string(),
+            serde_json::json!({
+                "target": 3,
+                "max": 6,
+                "baseFeeUpdateFraction": 3338477
+            }),
+        );
+        if chain_config.prague_time.is_some() {
+            blob_schedule.insert(
+                "prague".to_string(),
+                serde_json::json!({
+                    "target": 6,
+                    "max": 9,
+                    "baseFeeUpdateFraction": 5225352
+                }),
+            );
+        }
         config.insert(
             "blobSchedule".to_string(),
-            serde_json::json!({
-                "cancun": {
-                    "target": 3,
-                    "max": 6,
-                    "baseFeeUpdateFraction": 3338477
-                }
-            }),
+            serde_json::Value::Object(blob_schedule),
         );
     }
 
@@ -222,6 +235,7 @@ pub async fn run_op_program(
             "graniteTime": 0,
             "holoceneTime": 0,
             "isthmusTime": 0,
+            "jovianTime": 0,
             "optimism": {
                 "eip1559Elasticity": 6,
                 "eip1559Denominator": 50,

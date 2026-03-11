@@ -3206,6 +3206,7 @@ dependencies = [
  "axum 0.8.8",
  "brotli",
  "c-kzg",
+ "either",
  "jsonrpsee",
  "kona-genesis",
  "kona-interop",

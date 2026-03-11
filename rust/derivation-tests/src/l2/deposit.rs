@@ -24,6 +24,15 @@ pub fn l1_info_deposit_tx(
 
     // Use the system config from the rollup config genesis — must match what
     // op-program derives so that deposit tx calldata (and thus gas) is identical.
+    //
+    // LIMITATION: This always uses the genesis system config and does not track
+    // updates from SystemConfigUpdate events on L1. If the test framework is
+    // extended to include L1 blocks that emit SystemConfigUpdate events (e.g.,
+    // changing the batcher address, gas limit, or fee scalars), this function
+    // must be updated to accept the current system config as a parameter rather
+    // than reading it from genesis. Without that change, deposit transactions
+    // would be constructed with stale values, causing state root mismatches
+    // when verified against op-program/kona-host.
     let system_config = rollup_config
         .genesis
         .system_config
