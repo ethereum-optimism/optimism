@@ -941,7 +941,7 @@ jobs:
       - run:
           name: Cannon Go lint
           command: |
-            make lint
+            just lint
           working_directory: cannon
       - run:
           name: Cannon Go 64-bit tests
@@ -1804,7 +1804,7 @@ jobs:
       - run:
           name: run Go linter
           command: |
-            make lint-go
+            just lint-go
       - save_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
           paths:
@@ -1822,7 +1822,7 @@ jobs:
           namespace: sysgo-go-binaries
       - run:
           name: Build Go binaries for sysgo
-          command: make cannon op-program
+          command: just cannon op-program
       - go-save-cache:
           namespace: sysgo-go-binaries
       - persist_to_workspace:
@@ -1843,7 +1843,7 @@ jobs:
       - run:
           name: check op-geth version
           command: |
-            make check-op-geth-version
+            just check-op-geth-version
 
   check-nut-locks:
     docker:
@@ -1902,7 +1902,7 @@ jobs:
       - restore_cache:
           key: go-tests-v2-{{ checksum "go.mod" }}
       - run:
-          name: Run Go tests via Makefile
+          name: Run Go tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
             <<parameters.environment_overrides>>
@@ -1910,7 +1910,7 @@ jobs:
             # set to less than number CPUs (xlarge Docker is 16 CPU) so there's some buffer for things
             # like Geth
             export PARALLEL=12
-            make <<parameters.rule>>
+            just <<parameters.rule>>
       - save_cache:
           key: go-tests-v2-{{ checksum "go.mod" }}
           paths:
@@ -1977,22 +1977,22 @@ jobs:
           at: .
       - run:
           name: build op-program-client
-          command: make op-program-client
+          command: just op-program-client
           working_directory: op-program
       - run:
           name: build op-program-host
-          command: make op-program-host
+          command: just op-program-host
           working_directory: op-program
       - run:
           name: build cannon
-          command: make cannon
+          command: just cannon
       - run:
           name: run tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
-            make go-tests-fraud-proofs-ci
+            just go-tests-fraud-proofs-ci
       - codecov/upload:
           disable_search: true
           files: ./coverage.out
@@ -2365,13 +2365,13 @@ jobs:
             sudo apt-get install -y binutils-mips-linux-gnu
       - run:
           name: Build cannon
-          command: make cannon
+          command: just cannon
       - run:
           name: Build op-program
-          command: make op-program
+          command: just op-program
       - run:
           name: Sanitize op-program client
-          command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client64.elf
+          command: GUEST_PROGRAM=../op-program/bin/op-program-client64.elf just sanitize-program
           working_directory: cannon
 
   cannon-prestate:
@@ -2383,7 +2383,7 @@ jobs:
           enable-mise-cache: true
       - run:
           name: Build prestates
-          command: make -j reproducible-prestate
+          command: just reproducible-prestate
       - persist_to_workspace:
           root: .
           paths:
@@ -2485,7 +2485,8 @@ jobs:
           enable-mise-cache: true
       - run:
           name: Verify reproducibility
-          command: make -C op-program verify-reproducibility
+          command: just verify-reproducibility
+          working_directory: op-program
       - store_artifacts:
           path: ./op-program/temp/logs
           when: always
@@ -2502,10 +2503,11 @@ jobs:
       - setup_remote_docker
       - run:
           name: Build cannon
-          command: make cannon
+          command: just cannon
       - run:
           name: Verify the Cannon STF
-          command: make -C ./cannon cannon-stf-verify
+          command: just cannon-stf-verify
+          working_directory: cannon
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
@@ -2572,7 +2574,7 @@ jobs:
       - run:
           name: Run Analyzer
           command: |
-            make run-vm-compat
+            just run-vm-compat
           working_directory: op-program
       - store_artifacts:
           path: op-program/bin/vm-compat-output/vm-compat-findings.json
@@ -2590,7 +2592,7 @@ jobs:
       - run:
           name: Verify Compatibility
           command: |
-            make verify-compat
+            just verify-compat
           working_directory: op-program
 
   check-generated-mocks-op-node:
@@ -2605,7 +2607,7 @@ jobs:
           patterns: op-node
       - run:
           name: check-generated-mocks
-          command: make generate-mocks-op-node && git diff --exit-code
+          command: just generate-mocks-op-node && git diff --exit-code
 
   check-generated-mocks-op-service:
     docker:
@@ -2619,7 +2621,7 @@ jobs:
           patterns: op-service
       - run:
           name: check-generated-mocks
-          command: make generate-mocks-op-service && git diff --exit-code
+          command: just generate-mocks-op-service && git diff --exit-code
 
   op-deployer-forge-version:
     docker:
