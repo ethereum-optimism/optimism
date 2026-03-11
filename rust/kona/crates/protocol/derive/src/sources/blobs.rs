@@ -1,8 +1,8 @@
 //! Blob Data Source
 
 use crate::{
-    BlobData, BlobProvider, BlobProviderError, ChainProvider, DataAvailabilityProvider,
-    PipelineError, PipelineErrorKind, PipelineResult, ResetError,
+    BlobData, BlobProvider, ChainProvider, DataAvailabilityProvider, PipelineError,
+    PipelineErrorKind, PipelineResult, ResetError,
 };
 use alloc::{boxed::Box, vec::Vec};
 use alloy_consensus::{
@@ -165,9 +165,7 @@ where
         // Fill the blob pointers.
         let mut filled_blobs = 0;
         for blob in &mut data {
-            let should_increment = blob
-                .fill(&blobs, filled_blobs)
-                .map_err(|e| -> PipelineErrorKind { BlobProviderError::from(e).into() })?;
+            let should_increment = blob.fill(&blobs, filled_blobs)?;
             if should_increment {
                 filled_blobs += 1;
             }
