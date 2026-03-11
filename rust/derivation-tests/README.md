@@ -6,25 +6,25 @@ Constructs deterministic L1 and L2 chains in-process, serves them over JSON-RPC 
 
 ## Running tests
 
+All commands are run from the `rust/` directory.
+
 Unit tests (no external binaries required):
 
 ```sh
-cargo test -p derivation-tests
+just test-derivation
 ```
 
-Integration tests require building op-program and/or kona-host first:
+Integration tests automatically build op-program and kona-host before running:
 
 ```sh
-# Build op-program
-cd op-program && make op-program-host && cd ..
+# Run all integration tests (op-program + kona-host)
+just test-derivation-integration
 
-# Build kona-host
-cd rust && cargo build -p kona-host && cd ..
+# Run only op-program integration tests
+just test-derivation-op-program
 
-# Run integration tests
-OP_PROGRAM_PATH=./op-program/bin/op-program \
-KONA_HOST_PATH=./rust/target/debug/kona-host \
-  cargo test -p derivation-tests -- --ignored
+# Run only kona-host integration tests
+just test-derivation-kona-host
 ```
 
 Integration tests accept exit code 1 (claim mismatch) because the Rust framework doesn't replicate EIP-4788/EIP-2935 system contract state changes during block execution. The important thing is that derivation completes without crashing.
@@ -54,15 +54,15 @@ assert_ne!(root, alloy_primitives::B256::ZERO);
 
 ### Key concepts
 
-**DeterministicConfig** — every field is pinned (chain IDs, keys, timestamps, hardforks). The same config always produces identical chains. All OP Stack hardforks are active from genesis (time 0).
+**DeterministicConfig** -- every field is pinned (chain IDs, keys, timestamps, hardforks). The same config always produces identical chains. All OP Stack hardforks are active from genesis (time 0).
 
-**L1ChainBuilder** — produces L1 blocks containing batch submissions (calldata or blobs) and system config update events.
+**L1ChainBuilder** -- produces L1 blocks containing batch submissions (calldata or blobs) and system config update events.
 
-**L2ChainBuilder** — executes L2 blocks via revm with real state transitions, including deposit transactions derived from L1.
+**L2ChainBuilder** -- executes L2 blocks via revm with real state transitions, including deposit transactions derived from L1.
 
-**Batch encoding** — supports singular batches (`singular_batch_calldata`) and span batches (`blob_span_batch`), with channel compression (zlib/brotli) and frame splitting.
+**Batch encoding** -- supports singular batches (`singular_batch_calldata`) and span batches (`blob_span_batch`), with channel compression (zlib/brotli) and frame splitting.
 
-**TestServers** — starts L1 RPC, L2 RPC, and Beacon API servers on ephemeral ports. Required for op-program and kona-host integration tests.
+**TestServers** -- starts L1 RPC, L2 RPC, and Beacon API servers on ephemeral ports. Required for op-program and kona-host integration tests.
 
 ### Adding a new scenario
 
@@ -74,7 +74,7 @@ See `tests/simple.rs` for examples covering empty blocks, singular batches, blob
 
 ## Golden super root values
 
-Tests pin expected super root hashes as hardcoded constants in `tests/simple.rs`. This catches silent regressions in batch encoding, block execution, state root computation, or output root calculation — a consistently wrong root would pass a pure determinism check.
+Tests pin expected super root hashes as hardcoded constants in `tests/simple.rs`. This catches silent regressions in batch encoding, block execution, state root computation, or output root calculation -- a consistently wrong root would pass a pure determinism check.
 
 The golden values are framework-internal. Cross-implementation validation happens via the `#[ignore]` integration tests that run op-program and kona-host against the same chains.
 
@@ -82,10 +82,10 @@ The golden values are framework-internal. Cross-implementation validation happen
 
 When an intentional change modifies the derivation output (e.g. a new hardfork, changed genesis config, or updated deposit tx encoding):
 
-1. Run: `cargo test -p derivation-tests -- --nocapture 2>&1 | grep "super root"`
+1. Run: `just test-derivation -- --nocapture 2>&1 | grep "super root"`
 2. Each test prints its computed super root to stderr before asserting.
 3. Copy the new values into the `EXPECTED_*` constants in `tests/simple.rs`.
-4. Re-run to confirm all tests pass.
+4. Re-run `just test-derivation` to confirm all tests pass.
 
 ## Architecture
 
