@@ -6,7 +6,7 @@
 #
 # Based on https://depot.dev/blog/rust-dockerfile-best-practices
 #
-FROM rust:1.88.0 AS base
+FROM rust:1.94.0-bookworm AS base
 
 ARG FEATURES
 ARG RELEASE=true
@@ -42,8 +42,11 @@ WORKDIR /app
 # Default binary filename
 ARG SERVICE_NAME="rollup-boost"
 COPY --from=planner /app/recipe.json recipe.json
+COPY --from=planner /app/Cargo.lock .
 
-RUN --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     PROFILE_FLAG=$([ "$RELEASE" = "true" ] && echo "--release" || echo "") && \
     cargo chef cook $PROFILE_FLAG --recipe-path recipe.json
 
