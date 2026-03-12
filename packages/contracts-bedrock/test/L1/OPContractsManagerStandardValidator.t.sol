@@ -11,6 +11,7 @@ import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -152,6 +153,10 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
+        // Standard validator tests use standard game configs incompatible with migration mode.
+        if (Config.devFeatureSuperRootGamesMigration()) {
+            vm.skip(true, "Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION");
+        }
         super.setUp();
 
         // Grab the deploy input for later use.

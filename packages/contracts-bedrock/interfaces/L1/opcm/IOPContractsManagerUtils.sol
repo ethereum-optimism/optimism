@@ -168,5 +168,13 @@ interface IOPContractsManagerUtils {
         external
         pure;
 
+    function assertValidSuperRootDeployConfigs(
+        DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _startingRespectedGameType,
+        bool _isInitialDeployment
+    )
+        external
+        pure;
+
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }

@@ -617,4 +617,65 @@ contract OPContractsManagerUtils {
             revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
         }
     }
+
+    /// @notice Validates the super root deploy game configs (initial deployment with migration flag).
+    /// @dev Mirrors assertValidStandardGameConfigs but with SUPER_ game types.
+    /// @param _disputeGameConfigs The dispute game configs.
+    /// @param _startingRespectedGameType The starting respected game type.
+    /// @param _isInitialDeployment Whether or not this is an initial deployment.
+    function assertValidSuperRootDeployConfigs(
+        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _startingRespectedGameType,
+        bool _isInitialDeployment
+    )
+        external
+        pure
+    {
+        GameType[] memory validGameTypes = new GameType[](3);
+        validGameTypes[0] = GameTypes.SUPER_CANNON;
+        validGameTypes[1] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        validGameTypes[2] = GameTypes.SUPER_CANNON_KONA;
+
+        if (_disputeGameConfigs.length != validGameTypes.length) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        for (uint256 i = 0; i < _disputeGameConfigs.length; i++) {
+            if (_disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            if (!_disputeGameConfigs[i].enabled && _disputeGameConfigs[i].initBond != 0) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // During initial deployment, only SUPER_PERMISSIONED_CANNON can be enabled.
+            if (
+                _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw())
+                    && _disputeGameConfigs[i].enabled
+            ) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+        }
+
+        // SUPER_PERMISSIONED_CANNON must be enabled.
+        if (!_disputeGameConfigs[1].enabled) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Validate that the starting respected game type corresponds to an enabled game config.
+        bool startingGameTypeFound = false;
+        for (uint256 i = 0; i < _disputeGameConfigs.length; i++) {
+            if (
+                _disputeGameConfigs[i].gameType.raw() == _startingRespectedGameType.raw()
+                    && _disputeGameConfigs[i].enabled
+            ) {
+                startingGameTypeFound = true;
+                break;
+            }
+        }
+        if (!startingGameTypeFound) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+        }
+    }
 }

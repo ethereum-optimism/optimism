@@ -181,9 +181,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         // Check dispute game deployments
         // Validate permissionedDisputeGame (PDG) address
+        GameType permGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            : GameTypes.PERMISSIONED_CANNON;
         IOPContractsManager.Implementations memory impls = IOPContractsManager(opcmAddr).implementations();
         address expectedPDGAddress = impls.permissionedDisputeGameImpl;
-        address actualPDGAddress = address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        address actualPDGAddress = address(doo.disputeGameFactoryProxy.gameImpls(permGameType));
         assertNotEq(actualPDGAddress, address(0), "PDG address should be non-zero");
         assertEq(actualPDGAddress, expectedPDGAddress, "PDG address should match expected address");
 
@@ -230,7 +233,10 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         view
         returns (IPermissionedDisputeGame)
     {
-        return IPermissionedDisputeGame(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)));
+        GameType permGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            : GameTypes.PERMISSIONED_CANNON;
+        return IPermissionedDisputeGame(address(doo.disputeGameFactoryProxy.gameImpls(permGameType)));
     }
 
     function test_runWithBytes_succeeds() public {
@@ -305,26 +311,27 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         // OPCM v2 specific assertions
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            // PERMISSIONED_CANNON must always be enabled with DEFAULT_INIT_BOND init bond
-            assertEq(
-                doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON), deployOPChain.DEFAULT_INIT_BOND()
-            );
-            assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)), address(0));
+            bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+            GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+            GameType cannonType = isSuperRoot ? GameTypes.SUPER_CANNON : GameTypes.CANNON;
+            GameType konaType = isSuperRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
 
-            // CANNON must be disabled for initial deployment
-            assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond should be 0");
+            // Permissioned game must always be enabled with DEFAULT_INIT_BOND init bond
+            assertEq(doo.disputeGameFactoryProxy.initBonds(permType), deployOPChain.DEFAULT_INIT_BOND());
+            assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(permType)), address(0));
+
+            // Cannon must be disabled for initial deployment
+            assertEq(doo.disputeGameFactoryProxy.initBonds(cannonType), 0, "CANNON init bond should be 0");
             assertEq(
-                address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)),
+                address(doo.disputeGameFactoryProxy.gameImpls(cannonType)),
                 address(0),
                 "CANNON impl should be the zero address"
             );
 
-            // CANNON_KONA must be disabled for initial deployment
+            // Kona must be disabled for initial deployment
+            assertEq(doo.disputeGameFactoryProxy.initBonds(konaType), 0, "CANNON_KONA init bond should be 0");
             assertEq(
-                doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA), 0, "CANNON_KONA init bond should be 0"
-            );
-            assertEq(
-                address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)),
+                address(doo.disputeGameFactoryProxy.gameImpls(konaType)),
                 address(0),
                 "CANNON_KONA impl should be the zero address"
             );

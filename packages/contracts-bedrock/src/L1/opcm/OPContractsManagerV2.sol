@@ -156,9 +156,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.13
+    /// @custom:semver 7.0.14
     function version() public pure returns (string memory) {
-        return "7.0.13";
+        return "7.0.14";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -707,13 +707,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_IncompatibleDevFeatures();
         }
 
-        // Migration flag cannot be used for fresh deploys.
-        if (_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            revert OPContractsManagerV2_InvalidUpgradeInput();
-        }
-
-        // Validate the config.
-        if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+        // Validate the config based on mode.
+        if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION) && _isInitialDeployment) {
+            // Initial deploy with migration flag: validate SUPER_ game types.
+            _assertValidSuperRootDeployConfigs(
+                _cfg.disputeGameConfigs, _cfg.startingRespectedGameType, _isInitialDeployment
+            );
+        } else if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            // Upgrade with migration flag: validate migration-specific config.
             _assertValidSuperRootMigrationConfig(
                 _cfg.disputeGameConfigs,
                 _cfg.startingRespectedGameType,
@@ -853,8 +854,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Update the AnchorStateRegistry.
-        if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            // Migration path: use 5-param initialize to clear anchor game.
+        if (!_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            // Migration upgrade path: use 5-param initialize to clear anchor game.
             // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
             // nosemgrep: sol-style-use-abi-encodecall
             _upgrade(

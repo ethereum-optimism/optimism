@@ -263,6 +263,26 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
+    /// @notice Validates the super root deploy game configs (initial deployment with migration flag).
+    /// @param _disputeGameConfigs The dispute game configs.
+    /// @param _startingRespectedGameType The starting respected game type.
+    /// @param _isInitialDeployment Whether or not this is an initial deployment.
+    function _assertValidSuperRootDeployConfigs(
+        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _startingRespectedGameType,
+        bool _isInitialDeployment
+    )
+        internal
+        view
+    {
+        _staticcall(
+            abi.encodeCall(
+                IOPContractsManagerUtils.assertValidSuperRootDeployConfigs,
+                (_disputeGameConfigs, _startingRespectedGameType, _isInitialDeployment)
+            )
+        );
+    }
+
     /// @notice Helper for creating game constructor arguments.
     /// @param _l2ChainId The L2 chain ID.
     /// @param _anchorStateRegistry The AnchorStateRegistry to use for dispute games.
