@@ -13,12 +13,15 @@ elf:
     done
 
 # Dump all ELF binaries
+# TODO: currently have the little-endian toolchain, but should use the big-endian one. The -EB compat flag works though.
 [script('bash')]
 dump:
     set -euo pipefail
     mkdir -p bin
-    for elf in bin/*.64.elf; do
-        dump="${elf%.elf}.dump"
+    for mod in */go.mod; do
+        name=$(dirname "$mod")
+        elf="bin/${name}.64.elf"
+        dump="bin/${name}.64.dump"
         echo "Dumping $elf -> $dump"
         mipsel-linux-gnu-objdump -D --disassembler-options=no-aliases --wide --source -m mips:3000 -EB "$elf" > "$dump"
     done
