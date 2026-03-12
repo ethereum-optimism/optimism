@@ -39,10 +39,7 @@ pub struct RollupArgs {
     pub enable_tx_conditional: bool,
 
     /// HTTP endpoint for the supervisor. When not set, interop transaction validation is disabled.
-    #[arg(
-        long = "rollup.supervisor-http",
-        value_name = "SUPERVISOR_HTTP_URL",
-    )]
+    #[arg(long = "rollup.supervisor-http", value_name = "SUPERVISOR_HTTP_URL")]
     pub supervisor_http: Option<String>,
 
     /// Safety level for the supervisor

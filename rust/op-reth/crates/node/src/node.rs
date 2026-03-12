@@ -51,10 +51,7 @@ use reth_optimism_rpc::{
     witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
-use reth_optimism_txpool::{
-    OpPooledTx,
-    supervisor::SupervisorClient,
-};
+use reth_optimism_txpool::{OpPooledTx, supervisor::SupervisorClient};
 use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
 use reth_rpc_api::{DebugApiServer, L2EthApiExtServer, eth::RpcTypes};
 use reth_rpc_server_types::RethRpcModule;
@@ -1029,7 +1026,8 @@ where
         info!(target: "reth::cli", "Transaction pool initialized");
         debug!(target: "reth::cli", "Spawned txpool maintenance task");
 
-        // The Op txpool maintenance task is only spawned when interop is active and a supervisor is configured
+        // The Op txpool maintenance task is only spawned when interop is active and a supervisor is
+        // configured
         if ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) {
             if let Some(supervisor) = supervisor_client {
                 // spawn the Op txpool maintenance task
