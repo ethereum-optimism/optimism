@@ -442,14 +442,18 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
         console.log("ForkL1Live: Saving newly deployed contracts");
 
-        // A new ASR and new dispute games were deployed, so we need to update them
+        // A new ASR and new dispute games were deployed, so we need to update them.
+        // With super root migration, standard game types are zeroed; read from SUPER_ variants.
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        GameType permGameType = Config.devFeatureSuperRootGamesMigration()
+            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            : GameTypes.PERMISSIONED_CANNON;
+        address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
         IAnchorStateRegistry newAnchorStateRegistry = IAnchorStateRegistry(
-            LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).anchorStateRegistry
+            LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry
         );
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
@@ -460,7 +464,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
         IDelayedWETH newDelayedWeth =
-            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).weth));
+            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).weth));
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }
