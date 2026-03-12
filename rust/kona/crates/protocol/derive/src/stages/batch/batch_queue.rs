@@ -2,7 +2,7 @@
 
 use super::NextBatchProvider;
 use crate::{
-    errors::{PipelineEncodingError, PipelineError, PipelineErrorKind, ResetError},
+    errors::{PipelineError, PipelineErrorKind, ResetError},
     traits::{AttributesProvider, L2ChainProvider, OriginAdvancer, OriginProvider, SignalReceiver},
     types::{PipelineResult, ResetSignal, Signal},
 };
@@ -385,12 +385,12 @@ where
         match batch {
             Batch::Single(sb) => Ok(sb),
             Batch::Span(sb) => {
-                let batches = match sb.get_singular_batches(&self.l1_blocks, parent).map_err(|e| {
-                    PipelineError::BadEncoding(PipelineEncodingError::SpanBatchError(e)).crit()
-                }) {
+                let batches = match sb.get_singular_batches(&self.l1_blocks, parent) {
                     Ok(b) => b,
                     Err(e) => {
-                        return Err(e);
+                        warn!(target: "batch_queue", "Failed to extract singular batches from span batch, flushing: {}", e);
+                        self.prev.flush();
+                        return Err(PipelineError::NotEnoughData.temp());
                     }
                 };
                 self.next_spans = batches;
