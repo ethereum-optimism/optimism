@@ -4,14 +4,8 @@ use derivation_tests::{config::DeterministicConfig, harness::DerivationTest};
 
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {
     let mut test = DerivationTest::new();
-    for _ in 0..l2_count {
-        test.l1.emit_empty_block();
-    }
-    let l1_block = test.l1.block_at(1).unwrap().clone();
-    test.l2.set_epoch(&l1_block);
-    for _ in 0..l2_count {
-        test.l2.build_empty_block().unwrap();
-    }
+    test.advance_l1(l2_count);
+    test.derive_empty_l2_blocks(l2_count);
     test
 }
 

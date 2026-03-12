@@ -107,9 +107,9 @@ fn go_compatible_rollup_config_json(
     .into_iter()
     .collect();
 
-    if let Some(genesis) = val.get_mut("genesis") &&
-        let Some(sys_config) = genesis.get_mut("system_config") &&
-        let Some(obj) = sys_config.as_object_mut()
+    if let Some(genesis) = val.get_mut("genesis")
+        && let Some(sys_config) = genesis.get_mut("system_config")
+        && let Some(obj) = sys_config.as_object_mut()
     {
         // Pack eip1559Denominator + eip1559Elasticity into eip1559Params (B64).
         // Go expects a single packed field: [denominator_be32 ++ elasticity_be32].
@@ -284,10 +284,10 @@ pub async fn run_op_program(
     // Print op-program output for debugging
     eprintln!("--- op-program output ---");
     for line in combined.lines() {
-        if line.contains("lvl=info") ||
-            line.contains("lvl=warn") ||
-            line.contains("lvl=crit") ||
-            line.contains("DEBUG")
+        if line.contains("lvl=info")
+            || line.contains("lvl=warn")
+            || line.contains("lvl=crit")
+            || line.contains("DEBUG")
         {
             eprintln!("{line}");
         }

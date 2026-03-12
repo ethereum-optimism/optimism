@@ -14,6 +14,10 @@ use crate::{
 };
 
 /// High-level test entry point that ties together L1 builder, L2 builder, and verification.
+///
+/// Provides both a low-level API (`self.l1`, `self.l2`) and a scenario-oriented DSL
+/// (`advance_l1`, `derive_empty_l2_block`, `submit_batch`, `finalize`). The DSL methods
+/// wrap the low-level API with sensible defaults — tests can freely mix both.
 #[allow(missing_debug_implementations)]
 pub struct DerivationTest {
     /// Deterministic config.
@@ -23,6 +27,10 @@ pub struct DerivationTest {
     /// L2 chain builder.
     pub l2: L2ChainBuilder,
     channel_counter: u16,
+    // DSL state
+    dsl_epoch_block: Option<L1Block>,
+    pub(crate) pending_l2_blocks: Vec<L2BlockRef>,
+    pub(crate) prefunded_nonce: u64,
 }
 
 impl Default for DerivationTest {
@@ -41,7 +49,15 @@ impl DerivationTest {
     pub fn with_config(config: DeterministicConfig) -> Self {
         let l1 = L1ChainBuilder::new(&config);
         let l2 = L2ChainBuilder::new(&config);
-        Self { config, l1, l2, channel_counter: 0 }
+        Self {
+            config,
+            l1,
+            l2,
+            channel_counter: 0,
+            dsl_epoch_block: None,
+            pending_l2_blocks: Vec::new(),
+            prefunded_nonce: 0,
+        }
     }
 
     /// Compute the expected output root for the current L2 head.
@@ -173,6 +189,109 @@ impl DerivationTest {
     /// Start RPC servers for the built chains.
     pub async fn serve(&self) -> Result<TestServers, Box<dyn std::error::Error>> {
         TestServers::start(&self.config, &self.l1, &self.l2).await
+    }
+
+    // --- Scenario DSL ---------------------------------------------------------
+
+    /// Emit `count` empty L1 blocks.
+    pub fn advance_l1(&mut self, count: usize) {
+        for _ in 0..count {
+            self.l1.emit_empty_block();
+        }
+    }
+
+    /// Advance the L2 epoch to the latest L1 block.
+    ///
+    /// Call this between `derive_*` calls to switch the L1 origin for
+    /// subsequent L2 blocks. Automatically called by the first `derive_*`
+    /// call (sets epoch to L1 genesis).
+    pub fn advance_epoch(&mut self) {
+        let head = self.l1.head().clone();
+        self.l2.set_epoch(&head);
+        self.dsl_epoch_block = Some(head);
+    }
+
+    /// Build one empty (deposit-only) L2 block.
+    ///
+    /// Auto-sets the epoch to L1 genesis on the first call.
+    pub fn derive_empty_l2_block(&mut self) {
+        self.ensure_epoch();
+        let block_ref = self.l2.build_empty_block().expect("failed to build L2 block");
+        self.pending_l2_blocks.push(block_ref);
+    }
+
+    /// Build `count` empty (deposit-only) L2 blocks.
+    pub fn derive_empty_l2_blocks(&mut self, count: usize) {
+        self.ensure_epoch();
+        for _ in 0..count {
+            let block_ref = self.l2.build_empty_block().expect("failed to build L2 block");
+            self.pending_l2_blocks.push(block_ref);
+        }
+    }
+
+    /// Start building an L2 block with user transactions.
+    ///
+    /// Returns a [`BlockBuilder`] that collects transactions and builds the
+    /// block on [`.build()`](super::BlockBuilder::build).
+    pub fn derive_l2_block(&mut self) -> super::BlockBuilder<'_> {
+        self.ensure_epoch();
+        super::BlockBuilder::new(self)
+    }
+
+    /// Encode all pending L2 blocks as a batch and submit on L1.
+    ///
+    /// Uses the default batch config (span batch via blobs).
+    pub fn submit_batch(&mut self) {
+        self.submit_batch_with(super::BatchConfig::default());
+    }
+
+    /// Encode all pending L2 blocks as a batch and submit on L1.
+    pub fn submit_batch_with(&mut self, config: super::BatchConfig) {
+        use super::dsl::{BatchEncoding, BatchSubmissionType};
+
+        let refs: Vec<L2BlockRef> = self.pending_l2_blocks.drain(..).collect();
+        assert!(
+            !refs.is_empty(),
+            "no pending L2 blocks to submit — call derive_empty_l2_block() first"
+        );
+
+        let epoch =
+            self.dsl_epoch_block.clone().expect("epoch must be set before submitting a batch");
+
+        let batch = match (config.encoding, config.submission) {
+            (BatchEncoding::SpanBatch, BatchSubmissionType::Blobs) => {
+                self.blob_span_batch(&refs, &epoch)
+            }
+            (BatchEncoding::SpanBatch, BatchSubmissionType::Calldata) => {
+                self.span_batch_calldata(&refs, &epoch)
+            }
+            (BatchEncoding::Singular, BatchSubmissionType::Calldata) => {
+                self.singular_batch_calldata(&refs, &epoch)
+            }
+            (BatchEncoding::Singular, BatchSubmissionType::Blobs) => {
+                panic!("singular batch via blobs is not supported");
+            }
+        };
+
+        self.l1.emit_block_with_batches(vec![batch]);
+    }
+
+    /// Seal the L1 chain and compute the super root.
+    ///
+    /// Emits a trailing L1 empty block (needed for the derivation pipeline
+    /// to advance its safe head) and returns the expected super root.
+    pub fn finalize(&mut self) -> B256 {
+        self.l1.emit_empty_block();
+        self.expected_super_root()
+    }
+
+    /// Set epoch to L1 genesis on first call. No-op on subsequent calls.
+    fn ensure_epoch(&mut self) {
+        if self.dsl_epoch_block.is_none() {
+            let genesis = self.l1.block_at(0).expect("L1 must have a genesis block").clone();
+            self.l2.set_epoch(&genesis);
+            self.dsl_epoch_block = Some(genesis);
+        }
     }
 
     const fn next_channel_id(&mut self) -> ChannelId {

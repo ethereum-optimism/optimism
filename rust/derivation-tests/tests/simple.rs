@@ -3,41 +3,32 @@
 //! See the crate README for instructions on updating golden super root values.
 
 use alloy_primitives::b256;
-use derivation_tests::{config::DeterministicConfig, harness::DerivationTest};
+use derivation_tests::{
+    config::DeterministicConfig,
+    harness::{BatchConfig, DerivationTest},
+};
 
 /// Expected super root for 3 empty L2 blocks (deposit-only) derived from empty L1 blocks.
 const EXPECTED_EMPTY_BLOCKS_ROOT: alloy_primitives::B256 =
-    b256!("f0277b490aec5a41b13ef80a938ab574af63eb4f80f90b55e5f99405f8755381");
+    b256!("7cf5f5dc26908cbf2552e939379a9fd31ae57988770be2d3116bdec9f04001b1");
 
 /// Expected super root for 1 empty L2 block submitted as a singular batch.
 const EXPECTED_SINGLE_BATCH_ROOT: alloy_primitives::B256 =
-    b256!("9bb376dbdb60ffe00c281b31a8fbff93f9d9b83b370e82218286420addcd1838");
+    b256!("3d7d6559d172c568ca2efbb41873a1a5950fc8bfb039fef03a19baabe10580c6");
 
 /// Expected super root for 1 L2 block containing a 1 ETH transfer.
 const EXPECTED_SINGLE_TRANSFER_ROOT: alloy_primitives::B256 =
-    b256!("c7698300b8c4dea3d6c2024af5ccd7a099899a6559011c4ca88c8237a547f823");
+    b256!("c63880c5eb0e7bae454b8585ea863ec61840656a729f89eeb950f5f0c3745ac7");
 
 /// Expected super root for 6 empty L2 blocks (one full epoch).
 const EXPECTED_MULTI_BLOCK_ROOT: alloy_primitives::B256 =
-    b256!("276f9f2f6cb69638c404acf4340aaa4a18c4c5c898ebe407cce36762d366f0fa");
+    b256!("7176a1aac0ccd87bb985c4a98652cc9dc3b14698f4a20882f687cc098f8f11ce");
 
 /// Build a test with N empty L2 blocks derived from N empty L1 blocks.
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {
     let mut test = DerivationTest::new();
-
-    // Emit L1 blocks to serve as epochs
-    for _ in 0..l2_count {
-        test.l1.emit_empty_block();
-    }
-
-    // Set epoch to the first L1 block and build L2 blocks
-    let l1_block = test.l1.block_at(1).unwrap().clone();
-    test.l2.set_epoch(&l1_block);
-
-    for _ in 0..l2_count {
-        test.l2.build_empty_block().unwrap();
-    }
-
+    test.advance_l1(l2_count);
+    test.derive_empty_l2_blocks(l2_count);
     test
 }
 
@@ -89,24 +80,10 @@ fn test_empty_blocks_structure() {
 #[test]
 fn test_single_batch_submission() {
     let mut test = DerivationTest::new();
+    test.advance_l1(2);
+    test.derive_empty_l2_block();
+    test.submit_batch_with(BatchConfig::singular_calldata());
 
-    // Build L1 blocks
-    test.l1.emit_empty_block(); // block 1
-    test.l1.emit_empty_block(); // block 2
-
-    // Build L2 blocks
-    let l1_block = test.l1.block_at(1).unwrap().clone();
-    test.l2.set_epoch(&l1_block);
-    let block_ref = test.l2.build_empty_block().unwrap();
-
-    // Encode as a singular batch
-    let l1_origin = test.l1.block_at(1).unwrap().clone();
-    let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
-
-    // Submit batch on L1
-    test.l1.emit_block_with_batches(vec![batch]);
-
-    // Verify the super root is deterministic and matches expected value
     let root1 = test.expected_super_root();
     let root2 = test.expected_super_root();
     assert_eq!(root1, root2);
@@ -119,30 +96,13 @@ fn test_single_batch_submission() {
 #[test]
 fn test_multiple_l2_blocks() {
     let mut test = DerivationTest::new();
-
-    // Build L1 blocks
-    for _ in 0..5 {
-        test.l1.emit_empty_block();
-    }
-
-    // Build 6 L2 blocks per L1 block (2s L2 / 12s L1 = 6 blocks per epoch)
-    let l1_block = test.l1.block_at(1).unwrap().clone();
-    test.l2.set_epoch(&l1_block);
-
-    let mut block_refs = Vec::new();
-    for _ in 0..6 {
-        block_refs.push(test.l2.build_empty_block().unwrap());
-    }
-
-    // Encode all blocks as batches and submit
-    let l1_origin = test.l1.block_at(1).unwrap().clone();
-    let batch = test.singular_batch_calldata(&block_refs, &l1_origin);
-    test.l1.emit_block_with_batches(vec![batch]);
+    test.advance_l1(5);
+    test.derive_empty_l2_blocks(6);
+    test.submit_batch_with(BatchConfig::singular_calldata());
 
     // 7 blocks total: genesis + 6 built
     assert_eq!(test.l2.blocks().len(), 7);
 
-    // Super root matches expected golden value
     let root = test.expected_super_root();
     assert_eq!(
         root, EXPECTED_MULTI_BLOCK_ROOT,
@@ -232,48 +192,18 @@ fn test_span_batch_submission() {
 
 #[test]
 fn test_single_transfer() {
-    use alloy_consensus::{SignableTransaction, TxEip1559};
-    use alloy_primitives::{Address, TxKind, U256};
-    use alloy_signer::SignerSync;
-    use op_alloy_consensus::OpTxEnvelope;
+    use alloy_primitives::{Address, U256};
 
     let mut test = DerivationTest::new();
+    test.advance_l1(2);
+    test.derive_l2_block()
+        .with_funded_transfer(
+            Address::with_last_byte(0x99),
+            U256::from(1_000_000_000_000_000_000u64),
+        )
+        .build();
+    test.submit_batch_with(BatchConfig::singular_calldata());
 
-    // Build L1 genesis epoch
-    test.l1.emit_empty_block(); // block 1
-    test.l1.emit_empty_block(); // block 2
-
-    let l1_block = test.l1.block_at(1).unwrap().clone();
-    test.l2.set_epoch(&l1_block);
-
-    // Sign a transfer tx from the prefunded account
-    let signer = helpers::funded_signer();
-    let recipient = Address::with_last_byte(0x99);
-    let tx = TxEip1559 {
-        chain_id: test.config.l2_chain_id,
-        nonce: 0,
-        gas_limit: 21_000,
-        max_fee_per_gas: 1,
-        max_priority_fee_per_gas: 0,
-        to: TxKind::Call(recipient),
-        value: U256::from(1_000_000_000_000_000_000u64), // 1 ETH
-        ..Default::default()
-    };
-    let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing works");
-    let signed = tx.into_signed(sig);
-    let eth_envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
-    let op_tx = OpTxEnvelope::try_from_eth_envelope(eth_envelope)
-        .expect("should convert ETH envelope to OP envelope");
-
-    // Build L2 block with the transfer
-    let block_ref = test.l2.build_block(vec![op_tx]).unwrap();
-
-    // Encode as a singular batch and submit to L1
-    let l1_origin = test.l1.block_at(1).unwrap().clone();
-    let batch = test.singular_batch_calldata(&[block_ref], &l1_origin);
-    test.l1.emit_block_with_batches(vec![batch]);
-
-    // Super root matches expected golden value
     let root1 = test.expected_super_root();
     let root2 = test.expected_super_root();
     assert_eq!(root1, root2, "super root should be deterministic with a transfer");
@@ -294,24 +224,10 @@ fn test_single_transfer() {
 #[test]
 fn test_blob_batch() {
     let mut test = DerivationTest::new();
+    test.advance_l1(2);
+    test.derive_empty_l2_blocks(3);
+    test.submit_batch();
 
-    test.l1.emit_empty_block(); // block 1
-    test.l1.emit_empty_block(); // block 2
-
-    let l1_block = test.l1.block_at(1).unwrap().clone();
-    test.l2.set_epoch(&l1_block);
-
-    let mut block_refs = Vec::new();
-    for _ in 0..3 {
-        block_refs.push(test.l2.build_empty_block().unwrap());
-    }
-
-    // Encode as a blob span batch
-    let l1_origin = test.l1.block_at(1).unwrap().clone();
-    let batch = test.blob_span_batch(&block_refs, &l1_origin);
-    test.l1.emit_block_with_batches(vec![batch]);
-
-    // Super root is deterministic
     let root1 = test.expected_super_root();
     let root2 = test.expected_super_root();
     assert_eq!(root1, root2, "super root should be deterministic after blob batch");
@@ -320,19 +236,9 @@ fn test_blob_batch() {
 #[tokio::test]
 async fn test_blob_batch_beacon_endpoint() {
     let mut test = DerivationTest::new();
-
-    test.l1.emit_empty_block(); // block 1
-    test.l1.emit_empty_block(); // block 2
-
-    let l1_block = test.l1.block_at(1).unwrap().clone();
-    test.l2.set_epoch(&l1_block);
-
-    let block_ref = test.l2.build_empty_block().unwrap();
-
-    // Encode as a blob and submit
-    let l1_origin = test.l1.block_at(1).unwrap().clone();
-    let batch = test.blob_span_batch(&[block_ref], &l1_origin);
-    test.l1.emit_block_with_batches(vec![batch]);
+    test.advance_l1(2);
+    test.derive_empty_l2_block();
+    test.submit_batch();
 
     let servers = test.serve().await.unwrap();
     let client = reqwest::Client::new();
@@ -386,5 +292,3 @@ fn test_system_config_update() {
     assert_eq!(log.data.topics()[0], CONFIG_UPDATE_TOPIC, "topic[0] should be ConfigUpdate");
     assert_eq!(log.data.topics()[1], CONFIG_UPDATE_EVENT_VERSION_0, "topic[1] should be version 0");
 }
-
-mod helpers;

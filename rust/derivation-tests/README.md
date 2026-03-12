@@ -31,26 +31,29 @@ Integration tests verify that derivation completes and validates the claim. The 
 
 ## Authoring tests
 
-Tests use a builder API centered on `DerivationTest`:
+Tests use a scenario-oriented DSL centered on `DerivationTest`:
 
 ```rust
-use derivation_tests::harness::DerivationTest;
+use derivation_tests::harness::{DerivationTest, BatchConfig};
 
 let mut test = DerivationTest::new();
-
-// Build L1 and L2 blocks
-let l1_ref = test.l1.emit_empty_block();
-test.l2.set_epoch(&test.l1.block(l1_ref));
-let l2_ref = test.l2.build_empty_block();
-
-// Encode as a batch and submit on L1
-let batch = test.singular_batch_calldata(&[l2_ref], &l1_ref.into());
-test.l1.emit_block_with_batches(vec![batch]);
-
-// Verify the output root
-let root = test.expected_super_root();
+test.advance_l1(2);
+test.derive_empty_l2_block();
+test.submit_batch_with(BatchConfig::singular_calldata());
+let root = test.finalize();
 assert_ne!(root, alloy_primitives::B256::ZERO);
 ```
+
+The DSL methods (`advance_l1`, `derive_empty_l2_block`, `submit_batch`, `finalize`) describe the scenario at a high level. For tests that need fine-grained control (adversarial batches, manual encoding), the low-level API (`test.l1`, `test.l2`) remains public.
+
+### DSL methods
+
+- `advance_l1(count)` -- emit empty L1 blocks
+- `advance_epoch()` -- advance the L2 epoch to the latest L1 block
+- `derive_empty_l2_block()` / `derive_empty_l2_blocks(count)` -- build deposit-only L2 blocks
+- `derive_l2_block()` -- returns a `BlockBuilder` for L2 blocks with user transactions
+- `submit_batch()` / `submit_batch_with(config)` -- encode pending L2 blocks and submit on L1
+- `finalize()` -- seal the L1 chain and return the expected super root
 
 ### Key concepts
 
@@ -60,9 +63,13 @@ assert_ne!(root, alloy_primitives::B256::ZERO);
 
 **L2ChainBuilder** -- executes L2 blocks via revm with real state transitions, including deposit transactions derived from L1.
 
-**Batch encoding** -- supports singular batches (`singular_batch_calldata`) and span batches (`blob_span_batch`), with channel compression (zlib/brotli) and frame splitting.
+**BatchConfig** -- controls batch encoding (`Singular` or `SpanBatch`) and submission type (`Calldata` or `Blobs`). Defaults to span batch via blobs.
+
+**BlockBuilder** -- fluent builder for L2 blocks with user transactions. Created by `derive_l2_block()`, supports `with_funded_transfer(to, value)` for simple transfers and `with_tx(op_tx)` for pre-signed transactions.
 
 **TestServers** -- starts L1 RPC, L2 RPC, and Beacon API servers on ephemeral ports. Required for op-program and kona-host integration tests.
+
+For principles and conventions on writing and extending the DSL, see [DSL_STYLE_GUIDE.md](DSL_STYLE_GUIDE.md).
 
 ### Adding a new scenario
 
@@ -93,12 +100,12 @@ When an intentional change modifies the derivation output (e.g. a new hardfork, 
 tests/
 ├── simple.rs        Derivation correctness (golden hash assertions)
 ├── integration.rs   op-program and kona-host end-to-end tests
-├── server.rs        L1 RPC, L2 RPC, and Beacon API server tests
-└── helpers/         Shared test helpers (funded signer, etc.)
+├── invalid.rs       Adversarial/invalid batch scenarios
+└── server.rs        L1 RPC, L2 RPC, and Beacon API server tests
 
 src/
 ├── config.rs        Deterministic test configuration (chain IDs, keys, hardforks)
-├── harness/         Test runner, assertions, op-program/kona-host integration
+├── harness/         Test runner, DSL, assertions, op-program/kona-host integration
 ├── l1/              L1 chain construction (blocks, batch submissions, blobs)
 ├── l2/              L2 chain construction with EVM execution (revm)
 ├── batch/           Batch encoding (singular, span), channel compression, framing

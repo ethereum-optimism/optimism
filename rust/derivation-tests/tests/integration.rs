@@ -8,28 +8,27 @@
 //! Run with: `just test-derivation-integration` (from rust/)
 //! Run a single program: `just test-derivation-op-program` or `just test-derivation-kona-host`
 
-mod helpers;
-
 use std::{future::Future, pin::Pin, process::ExitStatus};
 
+use alloy_primitives::{Address, U256};
 use derivation_tests::harness::{
-    DerivationTest, RunConfig, run_config_from_test, run_kona_host, run_op_program,
+    BatchConfig, DerivationTest, RunConfig, run_config_from_test, run_kona_host, run_op_program,
 };
 
 // ---------------------------------------------------------------------------
 // Program abstraction
 // ---------------------------------------------------------------------------
 
+type ProgramRunFn = for<'a> fn(
+    &'a RunConfig,
+    &'a kona_genesis::RollupConfig,
+    &'a alloy_genesis::ChainConfig,
+) -> Pin<Box<dyn Future<Output = Result<ExitStatus, Box<dyn std::error::Error>>> + 'a>>;
+
 struct Program {
     name: &'static str,
     env_var: &'static str,
-    run: for<'a> fn(
-        &'a RunConfig,
-        &'a kona_genesis::RollupConfig,
-        &'a alloy_genesis::ChainConfig,
-    ) -> Pin<
-        Box<dyn Future<Output = Result<ExitStatus, Box<dyn std::error::Error>>> + 'a>,
-    >,
+    run: ProgramRunFn,
 }
 
 const OP_PROGRAM: Program = Program {
@@ -45,12 +44,11 @@ const KONA_HOST: Program = Program {
 };
 
 async fn run_program(build: fn() -> DerivationTest, program: &Program) {
-    if std::env::var(program.env_var).is_err() {
-        panic!(
-            "{} not set. Build the binary first (see just test-derivation-integration).",
-            program.env_var
-        );
-    }
+    assert!(
+        std::env::var(program.env_var).is_ok(),
+        "{} not set. Build the binary first (see just test-derivation-integration).",
+        program.env_var
+    );
 
     let test = build();
     let servers = test.serve().await.unwrap();
@@ -93,59 +91,25 @@ macro_rules! run_all_programs {
 /// Empty (deposit-only) L2 blocks derived from empty L1 blocks.
 fn empty_blocks() -> DerivationTest {
     let mut test = DerivationTest::new();
-
-    test.l1.emit_empty_block();
-    test.l1.emit_empty_block();
-
-    let l1_genesis = test.l1.block_at(0).unwrap().clone();
-    test.l2.set_epoch(&l1_genesis);
-    let block_ref = test.l2.build_empty_block().unwrap();
-
-    let batch = test.singular_batch_calldata(&[block_ref], &l1_genesis);
-    test.l1.emit_block_with_batches(vec![batch]);
-    test.l1.emit_empty_block();
-
+    test.advance_l1(2);
+    test.derive_empty_l2_block();
+    test.submit_batch_with(BatchConfig::singular_calldata());
+    test.finalize();
     test
 }
 
 /// A 1 ETH transfer submitted as a singular batch.
 fn with_batch() -> DerivationTest {
-    use alloy_consensus::{SignableTransaction, TxEip1559};
-    use alloy_primitives::{Address, TxKind, U256};
-    use alloy_signer::SignerSync;
-    use op_alloy_consensus::OpTxEnvelope;
-
     let mut test = DerivationTest::new();
-
-    test.l1.emit_empty_block();
-    test.l1.emit_empty_block();
-
-    let l1_genesis = test.l1.block_at(0).unwrap().clone();
-    test.l2.set_epoch(&l1_genesis);
-
-    let signer = helpers::funded_signer();
-    let tx = TxEip1559 {
-        chain_id: test.config.l2_chain_id,
-        nonce: 0,
-        gas_limit: 21_000,
-        max_fee_per_gas: 1,
-        max_priority_fee_per_gas: 0,
-        to: TxKind::Call(Address::with_last_byte(0x99)),
-        value: U256::from(1_000_000_000_000_000_000u64),
-        ..Default::default()
-    };
-    let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing works");
-    let signed = tx.into_signed(sig);
-    let eth_envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
-    let op_tx = OpTxEnvelope::try_from_eth_envelope(eth_envelope)
-        .expect("should convert ETH envelope to OP envelope");
-
-    let block_ref = test.l2.build_block(vec![op_tx]).unwrap();
-
-    let batch = test.singular_batch_calldata(&[block_ref], &l1_genesis);
-    test.l1.emit_block_with_batches(vec![batch]);
-    test.l1.emit_empty_block();
-
+    test.advance_l1(2);
+    test.derive_l2_block()
+        .with_funded_transfer(
+            Address::with_last_byte(0x99),
+            U256::from(1_000_000_000_000_000_000u64),
+        )
+        .build();
+    test.submit_batch_with(BatchConfig::singular_calldata());
+    test.finalize();
     test
 }
 
