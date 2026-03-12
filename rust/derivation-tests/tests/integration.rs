@@ -9,9 +9,7 @@
 
 mod helpers;
 
-use std::future::Future;
-use std::pin::Pin;
-use std::process::ExitStatus;
+use std::{future::Future, pin::Pin, process::ExitStatus};
 
 use derivation_tests::harness::{
     DerivationTest, RunConfig, run_config_from_test, run_kona_host, run_op_program,
@@ -28,7 +26,9 @@ struct Program {
         &'a RunConfig,
         &'a kona_genesis::RollupConfig,
         &'a alloy_genesis::ChainConfig,
-    ) -> Pin<Box<dyn Future<Output = Result<ExitStatus, Box<dyn std::error::Error>>> + 'a>>,
+    ) -> Pin<
+        Box<dyn Future<Output = Result<ExitStatus, Box<dyn std::error::Error>>> + 'a>,
+    >,
 }
 
 const OP_PROGRAM: Program = Program {
@@ -60,11 +60,7 @@ async fn run_program(build: fn() -> DerivationTest, program: &Program) {
         .unwrap_or_else(|e| panic!("{} failed to execute: {e}", program.name));
     servers.stop();
 
-    assert!(
-        status.success(),
-        "{} should exit 0, got: {status}",
-        program.name,
-    );
+    assert!(status.success(), "{} should exit 0, got: {status}", program.name,);
 }
 
 /// Generates one `#[tokio::test] #[ignore]` per program for a given scenario.
@@ -137,9 +133,7 @@ fn with_batch() -> DerivationTest {
         value: U256::from(1_000_000_000_000_000_000u64),
         ..Default::default()
     };
-    let sig = signer
-        .sign_hash_sync(&tx.signature_hash())
-        .expect("signing works");
+    let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing works");
     let signed = tx.into_signed(sig);
     let eth_envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
     let op_tx = OpTxEnvelope::try_from_eth_envelope(eth_envelope)

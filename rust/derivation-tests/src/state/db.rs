@@ -131,9 +131,9 @@ impl TestStateDb {
                 let info = &account.info;
                 // If the account was recreated after self-destruct (e.g. CREATE2 reuse
                 // in the same tx under EIP-6780), preserve the new account state.
-                if info.nonce == 0
-                    && info.balance.is_zero()
-                    && info.code_hash == alloy_primitives::KECCAK256_EMPTY
+                if info.nonce == 0 &&
+                    info.balance.is_zero() &&
+                    info.code_hash == alloy_primitives::KECCAK256_EMPTY
                 {
                     self.accounts.remove(address);
                 } else {
@@ -161,10 +161,10 @@ impl TestStateDb {
 
             // EIP-161: Remove touched-but-empty accounts from state.
             // An account is empty if nonce == 0, balance == 0, and has no code.
-            if account.is_touched()
-                && info.nonce == 0
-                && info.balance.is_zero()
-                && code_hash == alloy_primitives::KECCAK256_EMPTY
+            if account.is_touched() &&
+                info.nonce == 0 &&
+                info.balance.is_zero() &&
+                code_hash == alloy_primitives::KECCAK256_EMPTY
             {
                 self.accounts.remove(address);
                 self.storage.remove(address);

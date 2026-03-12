@@ -265,8 +265,7 @@ impl L1RpcServer for L1RpcImpl {
                     )
                     .map(|env| *env.tx_hash())
                     .unwrap_or_else(|_| fake_tx_hash(hash, j));
-                    let json =
-                        receipt_to_json(r, hash, block_number, j, tx_hash, log_index_offset);
+                    let json = receipt_to_json(r, hash, block_number, j, tx_hash, log_index_offset);
                     log_index_offset += r.logs().len();
                     json
                 })

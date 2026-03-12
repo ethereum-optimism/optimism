@@ -4,9 +4,11 @@ use alloy_consensus::{
     EMPTY_OMMER_ROOT_HASH, Header, Receipt, ReceiptWithBloom, Transaction as _,
     transaction::SignerRecoverable,
 };
-use either::Either;
-use alloy_eips::{Encodable2718, Typed2718 as _, eip1559::BaseFeeParams, eip7685::EMPTY_REQUESTS_HASH};
+use alloy_eips::{
+    Encodable2718, Typed2718 as _, eip1559::BaseFeeParams, eip7685::EMPTY_REQUESTS_HASH,
+};
 use alloy_primitives::{Address, B256, Bloom, Bytes, Log, Sealable, U256};
+use either::Either;
 use op_alloy_consensus::{OpDepositReceipt, OpReceiptEnvelope, OpTxEnvelope};
 use op_revm::{
     L1BlockInfo, OpBuilder, OpSpecId, OpTransaction, transaction::deposit::DepositTransactionParts,
@@ -78,13 +80,14 @@ impl L2ChainBuilder {
         // - Isthmus active: L2ToL1MessagePasser storage root
         // - Canyon active (pre-Isthmus): EMPTY_ROOT_HASH
         // - Pre-Canyon: None
-        let withdrawals_root = if config.hardforks.isthmus_time.is_some_and(|t| config.genesis_timestamp >= t) {
-            Some(message_passer_storage_root_from_snapshot(&genesis_snapshot))
-        } else if config.hardforks.canyon_time.is_some_and(|t| config.genesis_timestamp >= t) {
-            Some(crate::state::roots::EMPTY_ROOT_HASH)
-        } else {
-            None
-        };
+        let withdrawals_root =
+            if config.hardforks.isthmus_time.is_some_and(|t| config.genesis_timestamp >= t) {
+                Some(message_passer_storage_root_from_snapshot(&genesis_snapshot))
+            } else if config.hardforks.canyon_time.is_some_and(|t| config.genesis_timestamp >= t) {
+                Some(crate::state::roots::EMPTY_ROOT_HASH)
+            } else {
+                None
+            };
 
         let genesis_header = Header {
             number: 0,
@@ -216,7 +219,8 @@ impl L2ChainBuilder {
         // - Isthmus active: L2ToL1MessagePasser storage root
         // - Canyon active (pre-Isthmus): EMPTY_ROOT_HASH
         // - Pre-Canyon: None
-        let withdrawals_root = if self.config.hardforks.isthmus_time.is_some_and(|t| timestamp >= t) {
+        let withdrawals_root = if self.config.hardforks.isthmus_time.is_some_and(|t| timestamp >= t)
+        {
             Some(message_passer_storage_root_from_state(&self.state))
         } else if self.config.hardforks.canyon_time.is_some_and(|t| timestamp >= t) {
             Some(crate::state::roots::EMPTY_ROOT_HASH)
@@ -311,8 +315,11 @@ impl L2ChainBuilder {
 
             // EIP-2935: store parent block hash (Prague+ / Isthmus+)
             if spec_id.is_enabled_in(OpSpecId::ISTHMUS) {
-                evm.system_call_one(alloy_eips::eip2935::HISTORY_STORAGE_ADDRESS, parent_hash.0.into())
-                    .map_err(|e| format!("EIP-2935 system call failed: {e:?}"))?;
+                evm.system_call_one(
+                    alloy_eips::eip2935::HISTORY_STORAGE_ADDRESS,
+                    parent_hash.0.into(),
+                )
+                .map_err(|e| format!("EIP-2935 system call failed: {e:?}"))?;
             }
         }
 
@@ -411,7 +418,7 @@ impl L2ChainBuilder {
 }
 
 /// Extract the sender address from a deposit transaction.
-fn deposit_sender(tx: &OpTxEnvelope) -> Option<Address> {
+const fn deposit_sender(tx: &OpTxEnvelope) -> Option<Address> {
     match tx {
         OpTxEnvelope::Deposit(sealed_deposit) => Some(sealed_deposit.inner().from),
         _ => None,
@@ -549,15 +556,13 @@ fn cumulative_gas_from_receipts(receipts: &[OpReceiptEnvelope]) -> u64 {
 /// standard EIP-1559 formula. Falls back to the parent's base fee if params can't be decoded.
 fn next_base_fee(parent: &Header) -> u64 {
     let (elasticity, denominator) =
-        op_alloy_consensus::decode_holocene_extra_data(&parent.extra_data).unwrap_or((
-            crate::config::EIP1559_ELASTICITY,
-            crate::config::EIP1559_DENOMINATOR,
-        ));
+        op_alloy_consensus::decode_holocene_extra_data(&parent.extra_data)
+            .unwrap_or((crate::config::EIP1559_ELASTICITY, crate::config::EIP1559_DENOMINATOR));
     let params = BaseFeeParams::new(denominator as u128, elasticity as u128);
-    parent.next_block_base_fee(params).unwrap_or(parent.base_fee_per_gas.unwrap_or(1))
+    parent.next_block_base_fee(params).unwrap_or_else(|| parent.base_fee_per_gas.unwrap_or(1))
 }
 
-/// Compute the L2ToL1MessagePasser storage root from a state snapshot.
+/// Compute the `L2ToL1MessagePasser` storage root from a state snapshot.
 fn message_passer_storage_root_from_snapshot(snapshot: &StateSnapshot) -> B256 {
     snapshot
         .storage
@@ -569,7 +574,7 @@ fn message_passer_storage_root_from_snapshot(snapshot: &StateSnapshot) -> B256 {
         .unwrap_or(crate::state::roots::EMPTY_ROOT_HASH)
 }
 
-/// Compute the L2ToL1MessagePasser storage root from the current state database.
+/// Compute the `L2ToL1MessagePasser` storage root from the current state database.
 fn message_passer_storage_root_from_state(state: &TestStateDb) -> B256 {
     state
         .account_storage(&crate::config::L2_TO_L1_MESSAGE_PASSER)

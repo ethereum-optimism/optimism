@@ -176,10 +176,7 @@ fn go_compatible_l1_genesis_json(chain_config: &alloy_genesis::ChainConfig) -> s
                 }),
             );
         }
-        config.insert(
-            "blobSchedule".to_string(),
-            serde_json::Value::Object(blob_schedule),
-        );
+        config.insert("blobSchedule".to_string(), serde_json::Value::Object(blob_schedule));
     }
 
     serde_json::json!({ "config": config })

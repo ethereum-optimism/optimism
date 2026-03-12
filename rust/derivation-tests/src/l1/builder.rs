@@ -3,9 +3,7 @@
 use alloy_consensus::{
     Header, Receipt, ReceiptEnvelope, ReceiptWithBloom, SignableTransaction, TxEip1559, TxEip4844,
 };
-use alloy_eips::Encodable2718;
-use alloy_eips::eip4844::DATA_GAS_PER_BLOB;
-use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
+use alloy_eips::{Encodable2718, eip4844::DATA_GAS_PER_BLOB, eip7685::EMPTY_REQUESTS_HASH};
 use alloy_primitives::{B256, Bloom, Bytes, Log, LogData, Sealable, TxKind};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
@@ -110,10 +108,7 @@ impl L1ChainBuilder {
                     let slot = self.timestamp_to_slot(timestamp);
                     let versioned_hash = blob_data.versioned_hash;
                     self.blobs.entry(slot).or_default().push(blob_data);
-                    let signed_tx = self.sign_blob_tx(
-                        &signer,
-                        vec![versioned_hash],
-                    );
+                    let signed_tx = self.sign_blob_tx(&signer, vec![versioned_hash]);
                     transactions.push(signed_tx);
                     total_blob_count += 1;
                     receipts.push(success_receipt(receipts.len() as u64));
