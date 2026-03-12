@@ -434,6 +434,8 @@ type UpgradeScheduleDeployConfig struct {
 	L1BPO3TimeOffset *hexutil.Uint64 `json:"l1BPO3TimeOffset,omitempty"`
 	// When BPO4 activates. Relative to L1 genesis.
 	L1BPO4TimeOffset *hexutil.Uint64 `json:"l1BPO4TimeOffset,omitempty"`
+	// When Amsterdam activates. Relative to L1 genesis.
+	L1AmsterdamTimeOffset *hexutil.Uint64 `json:"l1AmsterdamTimeOffset,omitempty"`
 	// Blob schedule config.
 	L1BlobScheduleConfig *params.BlobScheduleConfig `json:"l1BlobScheduleConfig,omitempty"`
 }

@@ -137,15 +137,16 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, fmt.Errorf("expected non-nil 0 L1 cancun time offset, but got %v", config.L1CancunTimeOffset)
 	}
 	return NewL1GenesisMinimal(&DevL1DeployConfigMinimal{
-		DevL1DeployConfig:  config.DevL1DeployConfig,
-		L1ChainID:          eth.ChainIDFromUInt64(config.L1ChainID),
-		L1PragueTimeOffset: (*uint64)(config.L1PragueTimeOffset),
-		L1OsakaTimeOffset:  (*uint64)(config.L1OsakaTimeOffset),
-		L1BPO1TimeOffset:   (*uint64)(config.L1BPO1TimeOffset),
-		L1BPO2TimeOffset:   (*uint64)(config.L1BPO2TimeOffset),
-		L1BPO3TimeOffset:   (*uint64)(config.L1BPO3TimeOffset),
-		L1BPO4TimeOffset:   (*uint64)(config.L1BPO4TimeOffset),
-		BlobScheduleConfig: config.L1BlobScheduleConfig,
+		DevL1DeployConfig:     config.DevL1DeployConfig,
+		L1ChainID:             eth.ChainIDFromUInt64(config.L1ChainID),
+		L1PragueTimeOffset:    (*uint64)(config.L1PragueTimeOffset),
+		L1OsakaTimeOffset:     (*uint64)(config.L1OsakaTimeOffset),
+		L1BPO1TimeOffset:      (*uint64)(config.L1BPO1TimeOffset),
+		L1BPO2TimeOffset:      (*uint64)(config.L1BPO2TimeOffset),
+		L1BPO3TimeOffset:      (*uint64)(config.L1BPO3TimeOffset),
+		L1BPO4TimeOffset:      (*uint64)(config.L1BPO4TimeOffset),
+		L1AmsterdamTimeOffset: (*uint64)(config.L1AmsterdamTimeOffset),
+		BlobScheduleConfig:    config.L1BlobScheduleConfig,
 	})
 }
 
@@ -165,6 +166,8 @@ type DevL1DeployConfigMinimal struct {
 	L1BPO3TimeOffset *uint64
 	// When BPO4 activates. Relative to L1 genesis.
 	L1BPO4TimeOffset *uint64
+	// When Amsterdam activates. Relative to L1 genesis.
+	L1AmsterdamTimeOffset *uint64
 	// Blob schedule config.
 	BlobScheduleConfig *params.BlobScheduleConfig
 }
@@ -241,6 +244,10 @@ func NewL1GenesisMinimal(config *DevL1DeployConfigMinimal) (*core.Genesis, error
 	if config.L1BPO4TimeOffset != nil {
 		bpo4Time := uint64(timestamp) + uint64(*config.L1BPO4TimeOffset)
 		chainConfig.BPO4Time = &bpo4Time
+	}
+	if config.L1AmsterdamTimeOffset != nil {
+		amsterdamTime := uint64(timestamp) + uint64(*config.L1AmsterdamTimeOffset)
+		chainConfig.AmsterdamTime = &amsterdamTime
 	}
 	if config.BlobScheduleConfig != nil {
 		chainConfig.BlobScheduleConfig = config.BlobScheduleConfig

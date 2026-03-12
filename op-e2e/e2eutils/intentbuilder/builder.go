@@ -349,6 +349,24 @@ func (c *l1Configurator) WithBPO2Offset(v uint64) L1Configurator {
 	return c
 }
 
+func (c *l1Configurator) WithBPO3Offset(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BPO3TimeOffset = &v
+	return c
+}
+
+func (c *l1Configurator) WithBPO4Offset(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BPO4TimeOffset = &v
+	return c
+}
+
+func (c *l1Configurator) WithAmsterdamOffset(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.AmsterdamTimeOffset = &v
+	return c
+}
+
 func (c *l1Configurator) WithL1BlobSchedule(schedule *params.BlobScheduleConfig) L1Configurator {
 	c.initL1DevGenesisParams()
 	c.builder.intent.L1DevGenesisParams.BlobSchedule = schedule
@@ -361,11 +379,18 @@ func (c *l1Configurator) WithPrefundedAccount(addr common.Address, amount uint25
 	return c
 }
 
+// l1Forks lists the L1 forks supported by the intent builder, in activation order.
+// BPO5 is omitted because it is not yet wired through L1 genesis configuration.
+// NOTE: keep this list in sync with WithL1ForkAtOffset.
+var l1Forks = []forks.Fork{
+	forks.Prague, forks.Osaka, forks.BPO1, forks.BPO2,
+	forks.BPO3, forks.BPO4, forks.Amsterdam,
+}
+
 func (c *l1Configurator) WithL1ForkAtGenesis(fork forks.Fork) L1Configurator {
 	c.initL1DevGenesisParams()
 	var future bool
-	// NOTE: keep the start and end forks here in sync with WithL1ForkAtOffset.
-	for f := forks.Prague; f <= forks.BPO2; f++ {
+	for _, f := range l1Forks {
 		if future {
 			c.WithL1ForkAtOffset(f, nil)
 		} else {
@@ -379,7 +404,7 @@ func (c *l1Configurator) WithL1ForkAtGenesis(fork forks.Fork) L1Configurator {
 }
 
 func (c *l1Configurator) WithL1ForkAtOffset(fork forks.Fork, offset *uint64) L1Configurator {
-	// NOTE: Keep the first and last forks listed here in sync with the loop in WithL1ForkAtOffset.
+	// NOTE: keep the cases here in sync with l1Forks.
 	switch fork {
 	case forks.Prague:
 		c.builder.intent.L1DevGenesisParams.PragueTimeOffset = offset
@@ -389,6 +414,12 @@ func (c *l1Configurator) WithL1ForkAtOffset(fork forks.Fork, offset *uint64) L1C
 		c.builder.intent.L1DevGenesisParams.BPO1TimeOffset = offset
 	case forks.BPO2:
 		c.builder.intent.L1DevGenesisParams.BPO2TimeOffset = offset
+	case forks.BPO3:
+		c.builder.intent.L1DevGenesisParams.BPO3TimeOffset = offset
+	case forks.BPO4:
+		c.builder.intent.L1DevGenesisParams.BPO4TimeOffset = offset
+	case forks.Amsterdam:
+		c.builder.intent.L1DevGenesisParams.AmsterdamTimeOffset = offset
 	default:
 		require.Fail(c.t, "unknown fork", fork.String())
 	}
