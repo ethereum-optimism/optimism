@@ -39,8 +39,8 @@ func applyConfigDeployerOptions(t devtest.T, keys devkeys.Keys, builder intentbu
 	}
 }
 
-func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, deployerOpts ...DeployerOption) (*L1Network, *L2Network, depset.DependencySet, depset.FullConfigSetMerged) {
-	_, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, deployerOpts...)
+func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network, depset.DependencySet, depset.FullConfigSetMerged) {
+	_, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, localContractArtifactsPath, deployerOpts...)
 	return l1Net, l2Net, depSet, fullCfgSet
 }
 
@@ -65,9 +65,9 @@ func newInteropMigrationState(wb *worldBuilder) *interopMigrationState {
 	return state
 }
 
-func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, depset.DependencySet, depset.FullConfigSetMerged) {
+func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, depset.DependencySet, depset.FullConfigSetMerged) {
 	wb := newWorldBuilder(t, keys)
-	applyConfigLocalContractSources(t, keys, wb.builder)
+	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
 	if interopAtGenesis {
@@ -104,9 +104,9 @@ func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, in
 	return newInteropMigrationState(wb), l1Net, l2Net, depSet, wb.outFullCfgSet
 }
 
-func buildTwoL2WorldWithState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, *L2Network, depset.FullConfigSetMerged) {
+func buildTwoL2WorldWithState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, *L2Network, depset.FullConfigSetMerged) {
 	wb := newWorldBuilder(t, keys)
-	applyConfigLocalContractSources(t, keys, wb.builder)
+	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2BID, wb.builder)

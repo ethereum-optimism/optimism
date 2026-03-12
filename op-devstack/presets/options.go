@@ -100,6 +100,25 @@ func WithDeployerOptions(opts ...sysgo.DeployerOption) Option {
 	}
 }
 
+// WithLocalContractSourcesAt configures a preset to load local contracts-bedrock
+// artifacts from the supplied directory instead of resolving them relative to
+// the process working directory.
+func WithLocalContractSourcesAt(path string) Option {
+	var kinds optionKinds
+	if path != "" {
+		kinds = optionKindDeployer
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if path == "" {
+				return
+			}
+			cfg.LocalContractArtifactsPath = path
+		},
+	}
+}
+
 func WithBatcherOption(opt sysgo.BatcherOption) Option {
 	var kinds optionKinds
 	if opt != nil {

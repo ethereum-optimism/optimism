@@ -102,7 +102,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, cfg.DeployerOptions...)
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
 	jwtPath, jwtSecret := writeJWTSecret(t)
@@ -156,7 +156,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, cfg.DeployerOptions...)
+	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -241,7 +241,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	}, activationTime
 }
 
-func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
+func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
 	wb := &worldBuilder{
 		p:       t,
 		logger:  t.Logger(),
@@ -250,7 +250,7 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 		builder: intentbuilder.New(),
 	}
 
-	applyConfigLocalContractSources(t, keys, wb.builder)
+	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2BID, wb.builder)

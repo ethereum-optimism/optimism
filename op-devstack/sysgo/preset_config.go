@@ -5,18 +5,19 @@ import gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types
 // PresetConfig captures preset constructor mutations.
 // It is independent from orchestrator lifecycle hooks.
 type PresetConfig struct {
-	DeployerOptions           []DeployerOption
-	BatcherOptions            []BatcherOption
-	ProposerOptions           []ProposerOption
-	OPRBuilderOptions         []OPRBuilderNodeOption
-	GlobalL2CLOptions         []L2CLOption
-	GlobalSyncTesterELOptions []SyncTesterELOption
-	AddedGameTypes            []gameTypes.GameType
-	RespectedGameTypes        []gameTypes.GameType
-	EnableCannonKonaForChall  bool
-	EnableTimeTravel          bool
-	MaxSequencingWindow       *uint64
-	RequireInteropNotAtGen    bool
+	LocalContractArtifactsPath string
+	DeployerOptions            []DeployerOption
+	BatcherOptions             []BatcherOption
+	ProposerOptions            []ProposerOption
+	OPRBuilderOptions          []OPRBuilderNodeOption
+	GlobalL2CLOptions          []L2CLOption
+	GlobalSyncTesterELOptions  []SyncTesterELOption
+	AddedGameTypes             []gameTypes.GameType
+	RespectedGameTypes         []gameTypes.GameType
+	EnableCannonKonaForChall   bool
+	EnableTimeTravel           bool
+	MaxSequencingWindow        *uint64
+	RequireInteropNotAtGen     bool
 }
 
 type PresetOption interface {

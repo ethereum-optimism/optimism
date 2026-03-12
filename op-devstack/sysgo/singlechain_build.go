@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -19,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
@@ -69,7 +66,7 @@ type testSequencer struct {
 	service    *sequencer.Service
 }
 
-func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, deployerOpts ...DeployerOption) (*L1Network, *L2Network) {
+func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network) {
 	wb := &worldBuilder{
 		p:       t,
 		logger:  t.Logger(),
@@ -78,7 +75,7 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, deployerOpts ...Deplo
 		builder: intentbuilder.New(),
 	}
 
-	applyConfigLocalContractSources(t, keys, wb.builder)
+	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
@@ -108,14 +105,8 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, deployerOpts ...Deplo
 	return l1Net, l2Net
 }
 
-func applyConfigLocalContractSources(t devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-	paths, err := contractPaths()
-	t.Require().NoError(err)
-	wd, err := os.Getwd()
-	t.Require().NoError(err)
-	artifactsPath := filepath.Join(wd, paths.FoundryArtifacts)
-	t.Require().NoError(ensureDir(artifactsPath))
-	contractArtifacts, err := artifacts.NewFileLocator(artifactsPath)
+func applyConfigLocalContractSources(t devtest.T, _ devkeys.Keys, builder intentbuilder.Builder, artifactsPath string) {
+	contractArtifacts, err := localContractSourcesLocator(artifactsPath)
 	t.Require().NoError(err)
 	builder.WithL1ContractsLocator(contractArtifacts)
 	builder.WithL2ContractsLocator(contractArtifacts)

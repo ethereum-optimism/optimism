@@ -33,6 +33,7 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 
 	t.Run("nil adapters do not claim support kinds", func(t *testing.T) {
 		require.Zero(t, WithDeployerOptions(nil).optionKinds())
+		require.Zero(t, WithLocalContractSourcesAt("").optionKinds())
 		require.Zero(t, WithBatcherOption(nil).optionKinds())
 		require.Zero(t, WithGlobalL2CLOption(nil).optionKinds())
 		require.Zero(t, WithGlobalSyncTesterELOption(nil).optionKinds())
@@ -40,6 +41,11 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		require.Zero(t, WithOPRBuilderOption(nil).optionKinds())
 		require.Zero(t, AfterBuild(nil).optionKinds())
 	})
+}
+
+func TestWithLocalContractSourcesAt(t *testing.T) {
+	cfg, _ := collectPresetConfig([]Option{WithLocalContractSourcesAt("/tmp/contracts-bedrock")})
+	require.Equal(t, "/tmp/contracts-bedrock", cfg.LocalContractArtifactsPath)
 }
 
 func TestUnsupportedPresetOptionKinds(t *testing.T) {
@@ -67,9 +73,10 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      optionKindChallengerCannonKona,
 		},
 		{
-			name:      "flashblocks only allows builder adapters",
+			name:      "flashblocks allows builder and deployer adapters",
 			supported: singleChainWithFlashblocksPresetSupportedOptionKinds,
 			opts: Combine(
+				WithLocalContractSourcesAt("/tmp/contracts-bedrock"),
 				WithOPRBuilderOption(builderOpt),
 				WithTimeTravelEnabled(),
 			),

@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"math/big"
-	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -147,23 +146,49 @@ var (
 
 func WithEmbeddedContractSources() DeployerOption {
 	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-		builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
-		builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+		setContractLocators(builder, artifacts.EmbeddedLocator)
+	}
+}
+
+func localContractSourcesLocator(artifactsPath string) (*artifacts.Locator, error) {
+	if artifactsPath == "" {
+		paths, err := contractPaths()
+		if err != nil {
+			return nil, err
+		}
+		artifactsPath = paths.FoundryArtifacts
+	}
+	absPath, err := filepath.Abs(artifactsPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureDir(absPath); err != nil {
+		return nil, err
+	}
+	return artifacts.NewFileLocator(absPath)
+}
+
+func setContractLocators(builder intentbuilder.Builder, contractArtifacts *artifacts.Locator) {
+	builder.WithL1ContractsLocator(contractArtifacts)
+	builder.WithL2ContractsLocator(contractArtifacts)
+}
+
+// WithLocalContractSourcesAt configures the deployer to load both L1 and L2
+// contract artifacts from the given local contracts-bedrock checkout or
+// forge-artifacts directory.
+func WithLocalContractSourcesAt(artifactsPath string) DeployerOption {
+	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		contractArtifacts, err := localContractSourcesLocator(artifactsPath)
+		p.Require().NoError(err)
+		setContractLocators(builder, contractArtifacts)
 	}
 }
 
 func WithLocalContractSources() DeployerOption {
-	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
-		paths, err := contractPaths()
+	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		contractArtifacts, err := localContractSourcesLocator("")
 		p.Require().NoError(err)
-		wd, err := os.Getwd()
-		p.Require().NoError(err)
-		artifactsPath := filepath.Join(wd, paths.FoundryArtifacts)
-		p.Require().NoError(ensureDir(artifactsPath))
-		contractArtifacts, err := artifacts.NewFileLocator(artifactsPath)
-		p.Require().NoError(err)
-		builder.WithL1ContractsLocator(contractArtifacts)
-		builder.WithL2ContractsLocator(contractArtifacts)
+		setContractLocators(builder, contractArtifacts)
 	}
 }
 
