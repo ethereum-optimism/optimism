@@ -69,6 +69,8 @@ The DSL methods (`advance_l1`, `derive_empty_l2_block`, `submit_batch`, `finaliz
 
 **TestServers** -- starts L1 RPC, L2 RPC, and Beacon API servers on ephemeral ports. Required for op-program and kona-host integration tests.
 
+For principles and conventions on writing and extending the DSL, see [DSL_STYLE_GUIDE.md](DSL_STYLE_GUIDE.md).
+
 ### Adding a new scenario
 
 1. Create a function that builds a `DerivationTest` with the desired chain structure.
