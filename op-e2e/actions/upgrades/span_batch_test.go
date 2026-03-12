@@ -541,8 +541,9 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 				data := make([]byte, rand.Intn(100))
 				_, err := crand.Read(data[:]) // fill with random bytes
 				require.NoError(t, err)
-				gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
+				intrinsicGasCosts, err := core.IntrinsicGas(data, nil, nil, false, params.Rules{IsHomestead: true, IsIstanbul: true, IsShanghai: true}, 0)
 				require.NoError(t, err)
+				gas := intrinsicGasCosts.RegularGas
 				baseFee := seqEngine.L2Chain().CurrentBlock().BaseFee
 				nonce, err := cl.PendingNonceAt(t.Ctx(), addrs[userIdx])
 				require.NoError(t, err)
@@ -681,8 +682,9 @@ func TestBatchEquivalence(gt *testing.T) {
 			data := make([]byte, rand.Intn(100))
 			_, err := crand.Read(data[:]) // fill with random bytes
 			require.NoError(t, err)
-			gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
+			intrinsicGasCosts, err := core.IntrinsicGas(data, nil, nil, false, params.Rules{IsHomestead: true, IsIstanbul: true, IsShanghai: true}, 0)
 			require.NoError(t, err)
+			gas := intrinsicGasCosts.RegularGas
 			baseFee := seqEngine.L2Chain().CurrentBlock().BaseFee
 			nonce, err := seqEngCl.PendingNonceAt(t.Ctx(), addrs[userIdx])
 			require.NoError(t, err)

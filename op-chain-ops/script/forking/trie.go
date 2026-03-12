@@ -172,6 +172,24 @@ func (f *ForkedAccountsTrie) UpdateAccount(address common.Address, account *type
 	return nil
 }
 
+func (f *ForkedAccountsTrie) UpdateAccountBatch(addresses []common.Address, accounts []*types.StateAccount, _ []int) error {
+	for i, addr := range addresses {
+		if err := f.UpdateAccount(addr, accounts[i], 0); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f *ForkedAccountsTrie) UpdateStorageBatch(addr common.Address, keys [][]byte, values [][]byte) error {
+	for i, key := range keys {
+		if err := f.UpdateStorage(addr, key, values[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *ForkedAccountsTrie) UpdateStorage(addr common.Address, key, value []byte) error {
 	diffAcc, ok := f.diff.Account[addr]
 	if !ok {
@@ -229,4 +247,29 @@ func (f *ForkedAccountsTrie) Prove(key []byte, proofDb ethdb.KeyValueWriter) err
 
 func (f *ForkedAccountsTrie) IsVerkle() bool {
 	return false
+}
+
+// forkedStorageTrie wraps ForkedAccountsTrie for use as a per-account storage trie.
+// The state.Trie interface defines UpdateStorageBatch with _ common.Address (callers may
+// pass common.Address{}), so we capture the account address at open-time and inject it
+// into every storage mutation, keeping the diff correctly keyed by account.
+type forkedStorageTrie struct {
+	addr common.Address
+	*ForkedAccountsTrie
+}
+
+func (f *forkedStorageTrie) GetStorage(_ common.Address, key []byte) ([]byte, error) {
+	return f.ForkedAccountsTrie.GetStorage(f.addr, key)
+}
+
+func (f *forkedStorageTrie) UpdateStorage(_ common.Address, key, value []byte) error {
+	return f.ForkedAccountsTrie.UpdateStorage(f.addr, key, value)
+}
+
+func (f *forkedStorageTrie) UpdateStorageBatch(_ common.Address, keys [][]byte, values [][]byte) error {
+	return f.ForkedAccountsTrie.UpdateStorageBatch(f.addr, keys, values)
+}
+
+func (f *forkedStorageTrie) DeleteStorage(_ common.Address, key []byte) error {
+	return f.ForkedAccountsTrie.DeleteStorage(f.addr, key)
 }

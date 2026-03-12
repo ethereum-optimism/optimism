@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 func setupAliceAccount(t *testing.T, cfg e2esys.SystemConfig, sys *e2esys.System, ethPrivKey *ecdsa.PrivateKey) {
@@ -87,8 +88,9 @@ func TestBrotliBatcherFjord(t *testing.T) {
 		opts.Value = big.NewInt(1_000_000_000)
 		opts.Nonce = 1 // Already have deposit
 		opts.ToAddr = &common.Address{0xff, 0xff}
-		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, nil, false, true, true, false)
+		intrinsicGasCosts, err := core.IntrinsicGas(opts.Data, nil, nil, false, params.Rules{IsHomestead: true, IsIstanbul: true, IsShanghai: true}, 0)
 		require.NoError(t, err)
+		opts.Gas = intrinsicGasCosts.RegularGas
 		opts.VerifyOnClients(l2Verif)
 	})
 

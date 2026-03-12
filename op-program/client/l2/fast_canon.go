@@ -129,7 +129,7 @@ func (o *FastCanonicalBlockHeaderOracle) getHistoricalBlockHash(head *types.Head
 	gas := uint64(1000000)
 	var input [32]byte
 	binary.BigEndian.PutUint64(input[24:], n)
-	ret, _, err := vmenv.StaticCall(caller, params.HistoryStorageAddress, input[:], gas)
+	ret, _, _, err := vmenv.StaticCall(caller, params.HistoryStorageAddress, input[:], vm.GasCosts{RegularGas: gas})
 	if err != nil {
 		panic(fmt.Errorf("failed to get history block hash: %w", err))
 	}

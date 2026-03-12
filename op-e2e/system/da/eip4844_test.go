@@ -142,8 +142,9 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 		opts.ToAddr = &common.Address{0xff, 0xff}
 		// put some random data in the tx to make it fill up maxBlobsPerBlock blobs (multi-blob case)
 		opts.Data = testutils.RandomData(rand.New(rand.NewSource(420)), 400)
-		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, nil, false, true, true, false)
+		intrinsicGasCosts, err := core.IntrinsicGas(opts.Data, nil, nil, false, params.Rules{IsHomestead: true, IsIstanbul: true, IsShanghai: true}, 0)
 		require.NoError(t, err)
+		opts.Gas = intrinsicGasCosts.RegularGas
 		opts.VerifyOnClients(l2Verif)
 	})
 

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/bal"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -43,6 +44,11 @@ type ForkableState struct {
 }
 
 var _ VMStateDB = (*ForkableState)(nil)
+
+// EmitLogsForBurnAccounts implements [VMStateDB].
+func (fst *ForkableState) EmitLogsForBurnAccounts() {
+	panic("unimplemented")
+}
 
 func NewForkableState(base VMStateDB) *ForkableState {
 	return &ForkableState{
@@ -242,8 +248,8 @@ func (fst *ForkableState) stateFor(addr common.Address) VMStateDB {
 //
 // The changes will be flushed to the underlying DB.
 // A *ForkDB if the state is currently forked.
-func (fst *ForkableState) Finalise(deleteEmptyObjects bool) {
-	fst.selected.Finalise(deleteEmptyObjects)
+func (fst *ForkableState) Finalise(deleteEmptyObjects bool) bal.StateMutations {
+	return fst.selected.Finalise(deleteEmptyObjects)
 }
 
 func (fst *ForkableState) CreateAccount(address common.Address) {

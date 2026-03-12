@@ -119,6 +119,11 @@ func (b *batch) Reset() {
 	b.size = 0
 }
 
+func (b *batch) Close() {
+	b.writes = nil
+	b.size = 0
+}
+
 func (b *batch) Replay(w ethdb.KeyValueWriter) error {
 	for _, keyvalue := range b.writes {
 		if err := w.Put(keyvalue.key, keyvalue.value); err != nil {

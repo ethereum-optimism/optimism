@@ -97,13 +97,13 @@ func (m *MIPSEVM) Step(t testing.TB, stepWitness *mipsevm.StepWitness, step uint
 		poInput, err := m.encodePreimageOracleInput(t, stepWitness.PreimageKey, stepWitness.PreimageValue, stepWitness.PreimageOffset, mipsevm.LocalContext{})
 		m.lastPreimageOracleInput = poInput
 		require.NoError(t, err, "encode preimage oracle input")
-		_, leftOverGas, err := m.env.Call(m.sender, m.addrs.Oracle, poInput, m.startingGas, common.U2560)
-		require.NoErrorf(t, err, "evm should not fail, took %d gas", m.startingGas-leftOverGas)
+		_, _, gasUsed, err := m.env.Call(m.sender, m.addrs.Oracle, poInput, vm.GasCosts{RegularGas: m.startingGas}, common.U2560)
+		require.NoErrorf(t, err, "evm should not fail, took %d gas", gasUsed)
 	}
 
 	input := EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, m.artifacts.MIPS)
 	m.lastStepInput = input
-	ret, leftOverGas, err := m.env.Call(m.sender, m.addrs.MIPS, input, m.startingGas, common.U2560)
+	ret, _, gasUsed, err := m.env.Call(m.sender, m.addrs.MIPS, input, vm.GasCosts{RegularGas: m.startingGas}, common.U2560)
 	require.NoError(t, err, "evm should not fail, but got %v with return value 0x%x", err, ret)
 	require.Len(t, ret, 32, "expecting 32-byte state hash")
 	// remember state hash, to check it against state
@@ -118,7 +118,7 @@ func (m *MIPSEVM) Step(t testing.TB, stepWitness *mipsevm.StepWitness, step uint
 
 	m.env.StateDB.RevertToSnapshot(snap)
 	if step%100_000 == 0 {
-		t.Logf("EVM step %d took %d gas, and returned stateHash %s", step, m.startingGas-leftOverGas, postHash)
+		t.Logf("EVM step %d took %d gas, and returned stateHash %s", step, gasUsed, postHash)
 	}
 	return evmPost
 }
@@ -186,7 +186,7 @@ func (m *MIPSEVM) encodePreimageOracleInput(t require.TestingT, preimageKey [32]
 func (m *MIPSEVM) assertPreimageOracleReverts(t require.TestingT, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word) {
 	poInput, err := m.encodePreimageOracleInput(t, preimageKey, preimageValue, preimageOffset, mipsevm.LocalContext{})
 	require.NoError(t, err, "encode preimage oracle input")
-	_, _, evmErr := m.env.Call(m.sender, m.addrs.Oracle, poInput, m.startingGas, common.U2560)
+	_, _, _, evmErr := m.env.Call(m.sender, m.addrs.Oracle, poInput, vm.GasCosts{RegularGas: m.startingGas}, common.U2560)
 
 	require.ErrorContains(t, evmErr, "execution reverted")
 }
@@ -262,7 +262,7 @@ func AssertEVMReverts(t testing.TB, state mipsevm.FPVMState, contracts *Contract
 	env, evmState := NewEVMEnv(t, contracts)
 	env.Config.Tracer = tracer
 	sender := common.Address{0x13, 0x37}
-	ret, _, err := env.Call(sender, contracts.Addresses.MIPS, input, startingGas, common.U2560)
+	ret, _, _, err := env.Call(sender, contracts.Addresses.MIPS, input, vm.GasCosts{RegularGas: startingGas}, common.U2560)
 
 	require.EqualValues(t, err, vm.ErrExecutionReverted)
 	matcher(t, ret)

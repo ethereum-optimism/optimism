@@ -472,8 +472,9 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			data := make([]byte, 120_000) // very large L2 txs, as large as the tx-pool will accept
 			_, err := rng.Read(data[:])   // fill with random bytes, to make compression ineffective
 			require.NoError(t, err)
-			gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
+			intrinsicGasCosts, err := core.IntrinsicGas(data, nil, nil, false, params.Rules{IsHomestead: true, IsIstanbul: true, IsShanghai: true}, 0)
 			require.NoError(t, err)
+			gas := intrinsicGasCosts.RegularGas
 			if gas > engine.EngineApi.RemainingBlockGas() {
 				break
 			}

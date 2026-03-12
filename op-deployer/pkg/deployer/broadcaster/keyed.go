@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -230,7 +231,12 @@ func asTxCandidate(bcast script.Broadcast, blockGasLimit uint64) txmgr.TxCandida
 // is clamped to the block gas limit since Geth will reject transactions that exceed it before letting them
 // into the mempool.
 func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint64) uint64 {
-	intrinsicGas, err := core.IntrinsicGas(data, nil, nil, creation, true, true, false)
+	rules := params.Rules{
+		IsHomestead: true,
+		IsIstanbul:  true,
+		IsShanghai:  true,
+	}
+	intrinsicGasCosts, err := core.IntrinsicGas(data, nil, nil, creation, rules, 0)
 	// This method never errors - we should look into it if it does.
 	if err != nil {
 		panic(err)
@@ -242,7 +248,7 @@ func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint6
 		panic(err)
 	}
 
-	gas := intrinsicGas + gasUsed
+	gas := intrinsicGasCosts.RegularGas + gasUsed
 	if floorDataGas > gas {
 		gas = floorDataGas
 	}

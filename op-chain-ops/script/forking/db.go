@@ -21,6 +21,11 @@ type ForkDB struct {
 	active *ForkedAccountsTrie
 }
 
+// Commit implements [state.Database].
+func (f *ForkDB) Commit(update *state.StateUpdate) error {
+	panic("unimplemented")
+}
+
 // Reader for read-only access to a known state. All cold reads go through this.
 // So the state-DB creates one initially, and then holds on to it.
 // The diff will be overlaid on the reader still. To get rid of the diff, it has to be explicitly cleared.
@@ -73,7 +78,10 @@ func (f *ForkDB) OpenStorageTrie(stateRoot common.Hash, address common.Address, 
 	if root != fakeRoot && root != types.EmptyRootHash {
 		return nil, fmt.Errorf("ForkDB unexpectedly was queried with real looking storage root: %s", root)
 	}
-	return f.active, nil
+	// The state.Trie interface defines UpdateStorageBatch with _ common.Address,
+	// meaning callers may pass a zero address. Wrap the trie with the account address
+	// so storage mutations are attributed to the correct account in the diff.
+	return &forkedStorageTrie{addr: address, ForkedAccountsTrie: f.active}, nil
 }
 
 func (f *ForkDB) CopyTrie(trie state.Trie) state.Trie {
