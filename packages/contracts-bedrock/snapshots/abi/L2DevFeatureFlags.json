@@ -59,7 +59,7 @@
   },
   {
     "inputs": [],
-    "name": "L2DevFeatureFlags__Unauthorized",
+    "name": "L2DevFeatureFlags_Unauthorized",
     "type": "error"
   }
 ]

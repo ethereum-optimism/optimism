@@ -43,7 +43,7 @@ contract L2DevFeatureFlags_SetDevFeatureBitmap_Test is L2DevFeatureFlags_TestIni
     function testFuzz_setDevFeatureBitmap_unauthorizedCaller_reverts(address _caller, bytes32 _bitmap) public {
         vm.assume(_caller != Constants.DEPOSITOR_ACCOUNT);
 
-        vm.expectRevert(L2DevFeatureFlags.L2DevFeatureFlags__Unauthorized.selector);
+        vm.expectRevert(L2DevFeatureFlags.L2DevFeatureFlags_Unauthorized.selector);
         vm.prank(_caller);
         l2DevFeatureFlags.setDevFeatureBitmap(_bitmap);
     }

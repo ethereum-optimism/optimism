@@ -12,7 +12,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @custom:predeploy 0x420000000000000000000000000000000000002D
 contract L2DevFeatureFlags is ISemver {
     /// @notice Thrown when the caller is not the depositor account.
-    error L2DevFeatureFlags__Unauthorized();
+    error L2DevFeatureFlags_Unauthorized();
 
     /// @dev bytes32(uint256(keccak256("l2devfeatureflags.bitmap")) - 1)
     bytes32 private constant BITMAP_SLOT = 0xc8bc8f9195cfb2d040744aac63412d02ffc186ea9bd519039edc4666ee9032bc;
@@ -24,7 +24,7 @@ contract L2DevFeatureFlags is ISemver {
     /// @notice Sets the development feature bitmap. Only callable by the DEPOSITOR_ACCOUNT.
     /// @param _bitmap The new development feature bitmap.
     function setDevFeatureBitmap(bytes32 _bitmap) external {
-        if (msg.sender != Constants.DEPOSITOR_ACCOUNT) revert L2DevFeatureFlags__Unauthorized();
+        if (msg.sender != Constants.DEPOSITOR_ACCOUNT) revert L2DevFeatureFlags_Unauthorized();
 
         assembly {
             sstore(BITMAP_SLOT, _bitmap)
