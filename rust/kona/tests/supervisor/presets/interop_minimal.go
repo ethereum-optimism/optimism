@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -27,6 +28,7 @@ func DefaultMinimalInteropSystem(dest *sysgo.DefaultInteropSystemIDs) stack.Opti
 	opt.Add(sysgo.WithDeployerOptions(
 		sysgo.WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
 		sysgo.WithInteropAtGenesis(), // this can be overridden by later options
+		sysgo.WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
 	))
 	opt.Add(sysgo.WithL2ELNode(ids.L2BEL, sysgo.L2ELWithSupervisor(ids.Supervisor)))
 	opt.Add(sysgo.WithL2CLNode(ids.L2BCL, ids.L1CL, ids.L1EL, ids.L2BEL, sysgo.L2CLSequencer(), sysgo.L2CLIndexing()))

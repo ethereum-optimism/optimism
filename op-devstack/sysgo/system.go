@@ -244,6 +244,7 @@ func DefaultSupernodeInteropTwoL2System(dest *DefaultTwoL2SystemIDs, delaySecond
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
 			WithInteropAtGenesis(), // Enable interop contracts
+			WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
 		),
 	)
 
@@ -416,6 +417,7 @@ func DefaultMinimalInteropSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Or
 			WithCommons(ids.L1.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
 			WithInteropAtGenesis(),
+			WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
 		),
 	)
 
@@ -456,6 +458,7 @@ func baseInteropSystem(ids *DefaultSingleChainInteropSystemIDs) stack.Option[*Or
 			WithCommons(ids.L1.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
 			WithInteropAtGenesis(), // this can be overridden by later options
+			WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
 		),
 	)
 
@@ -515,6 +518,7 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	opt.Add(WithDeployerOptions(
 		WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
 		WithInteropAtGenesis(), // this can be overridden by later options
+		WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
 	))
 	opt.Add(WithL2ELNode(ids.L2BEL, L2ELWithSupervisor(ids.Supervisor)))
 	opt.Add(WithL2CLNode(ids.L2BCL, ids.L1CL, ids.L1EL, ids.L2BEL, L2CLSequencer(), L2CLIndexing()))
