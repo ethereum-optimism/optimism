@@ -111,13 +111,13 @@ where
                 derive_deposits(epoch.hash, &receipts, self.rollup_cfg.deposit_contract_address)
                     .await
                     .map_err(|e| PipelineError::BadEncoding(e).crit())?;
-            sys_config
-                .update_with_receipts(
-                    &receipts,
-                    self.rollup_cfg.l1_system_config_address,
-                    self.rollup_cfg.is_ecotone_active(header.timestamp),
-                )
-                .map_err(|e| PipelineError::SystemConfigUpdate(e).crit())?;
+            if let Err(e) = sys_config.update_with_receipts(
+                &receipts,
+                self.rollup_cfg.l1_system_config_address,
+                self.rollup_cfg.is_ecotone_active(header.timestamp),
+            ) {
+                warn!(target: "attributes_builder", ?e, "Failed to update system config from L1 receipts, ignoring");
+            }
             l1_header = header;
             deposit_transactions = deposits;
             0
