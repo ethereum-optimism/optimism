@@ -346,8 +346,8 @@ impl L2ChainBuilder {
 
             let (gas_used, logs, success) = match &result {
                 ExecutionResult::Success { gas_used, logs, .. } => (*gas_used, logs.clone(), true),
-                ExecutionResult::Revert { gas_used, .. } |
-                ExecutionResult::Halt { gas_used, .. } => (*gas_used, vec![], false),
+                ExecutionResult::Revert { gas_used, .. }
+                | ExecutionResult::Halt { gas_used, .. } => (*gas_used, vec![], false),
             };
 
             cumulative_gas_used += gas_used;

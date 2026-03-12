@@ -71,9 +71,9 @@ impl L2RpcImpl {
 
     fn resolve_block(&self, block_id: &str) -> Option<usize> {
         // Try as hash first
-        if block_id.starts_with("0x") &&
-            block_id.len() == 66 &&
-            let Ok(hash) = block_id.parse::<B256>()
+        if block_id.starts_with("0x")
+            && block_id.len() == 66
+            && let Ok(hash) = block_id.parse::<B256>()
         {
             return self.by_hash.get(&hash).copied();
         }
