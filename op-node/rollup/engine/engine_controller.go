@@ -226,7 +226,12 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, fvshid.Hash)
 		if err != nil {
-			panic("superAuthority supplied an identifier for the safe head which is not known to the engine")
+			// The super authority's verified safe head may point to a block that was
+			// reorganized away. Fall back to the local safe head until the super authority
+			// updates its state after the reorg.
+			e.log.Warn("super authority safe head not found in engine, falling back to local safe head",
+				"fvshid", fvshid, "local_safe", e.localSafeHead, "err", err)
+			return e.localSafeHead
 		}
 		return br
 	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
