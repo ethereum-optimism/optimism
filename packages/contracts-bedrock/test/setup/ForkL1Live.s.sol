@@ -452,9 +452,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
-        IAnchorStateRegistry newAnchorStateRegistry = IAnchorStateRegistry(
-            LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry
-        );
+        IAnchorStateRegistry newAnchorStateRegistry =
+            IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
