@@ -17,7 +17,7 @@ func NewL2Proposer(inner stack.L2Proposer) *L2Proposer {
 }
 
 func (p *L2Proposer) String() string {
-	return p.inner.ID().String()
+	return p.inner.Name()
 }
 
 // Escape returns the underlying stack.L2Proposer

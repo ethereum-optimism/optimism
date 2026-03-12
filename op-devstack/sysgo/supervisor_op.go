@@ -4,31 +4,24 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 )
 
 type OpSupervisor struct {
 	mu sync.Mutex
 
-	id      stack.ComponentID
+	name    string
 	userRPC string
 
 	cfg    *supervisorConfig.Config
-	p      devtest.P
+	p      devtest.CommonT
 	logger log.Logger
 
 	service *supervisor.SupervisorService
@@ -37,19 +30,6 @@ type OpSupervisor struct {
 }
 
 var _ stack.Lifecycle = (*OpSupervisor)(nil)
-
-func (s *OpSupervisor) hydrate(sys stack.ExtensibleSystem) {
-	tlog := sys.Logger().New("id", s.id)
-	supClient, err := client.NewRPC(sys.T().Ctx(), tlog, s.userRPC, client.WithLazyDial())
-	sys.T().Require().NoError(err)
-	sys.T().Cleanup(supClient.Close)
-
-	sys.AddSupervisor(shim.NewSupervisor(shim.SupervisorConfig{
-		CommonConfig: shim.NewCommonConfig(sys.T()),
-		ID:           s.id,
-		Client:       supClient,
-	}))
-}
 
 func (s *OpSupervisor) UserRPC() string {
 	return s.userRPC
@@ -97,62 +77,4 @@ func (s *OpSupervisor) Stop() {
 	s.logger.Info("Closed supervisor", "err", closeErr)
 
 	s.service = nil
-}
-
-func WithOPSupervisor(supervisorID stack.ComponentID, clusterID stack.ComponentID, l1ELID stack.ComponentID) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
-		require := p.Require()
-
-		l1EL, ok := orch.GetL1EL(l1ELID)
-		require.True(ok, "need L1 EL node to connect supervisor to")
-
-		cluster, ok := orch.GetCluster(clusterID)
-		require.True(ok, "need cluster to determine dependency set")
-
-		require.NotNil(cluster.cfgset, "need a full config set")
-		require.NoError(cluster.cfgset.CheckChains(), "config set must be valid")
-		cfg := &supervisorConfig.Config{
-			MetricsConfig: metrics.CLIConfig{
-				Enabled: false,
-			},
-			PprofConfig: oppprof.CLIConfig{
-				ListenEnabled: false,
-			},
-			LogConfig: oplog.CLIConfig{ // ignored, logger overrides this
-				Level:  log.LevelDebug,
-				Format: oplog.FormatText,
-			},
-			RPC: oprpc.CLIConfig{
-				ListenAddr: "127.0.0.1",
-				// When supervisor starts, store its RPC port here
-				// given by the os, to reclaim when restart.
-				ListenPort:  0,
-				EnableAdmin: true,
-			},
-			SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources
-			L1RPC:       l1EL.UserRPC(),
-			// Note: datadir is created here,
-			// persistent across stop/start, for the duration of the package execution.
-			Datadir:               orch.p.TempDir(),
-			Version:               "dev",
-			FullConfigSetSource:   cluster.cfgset,
-			MockRun:               false,
-			SynchronousProcessors: false,
-			DatadirSyncEndpoint:   "",
-		}
-
-		plog := p.Logger()
-		supervisorNode := &OpSupervisor{
-			id:      supervisorID,
-			userRPC: "", // set on start
-			cfg:     cfg,
-			p:       p,
-			logger:  plog,
-			service: nil, // set on start
-		}
-		orch.registry.Register(supervisorID, supervisorNode)
-		supervisorNode.Start()
-		orch.p.Cleanup(supervisorNode.Stop)
-	})
 }

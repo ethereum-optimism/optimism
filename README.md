@@ -145,6 +145,33 @@ Some exceptions to this rule exist for cases in which we absolutely must deploy 
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
 Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.
 
+## Downloading & Shallow-Cloning the Monorepo
+
+If you want to use the monorepo as a dependency, e.g. in CI, you can greatly speed up the fetching process by either downloading it directly as an archive from Github instead of cloning as a git repository or shallow-cloning it.
+This avoids downloading the full monorepo git history, which is unfortunately a few GBs in size, but which also isn't needed for many use cases, like CI.
+
+To fetch the monorepo at a specific commit/branch/tag `$REF`, download and unpack with
+```
+curl -L https://github.com/ethereum-optimism/optimism/archive/$REF.tar.gz | tar xz
+```
+Note that if you need any of its submodules, you'd need to manually download those too.
+
+If you want a shallow git clone of latest `develop`, you can just do
+```
+git clone --depth 1 --shallow-submodules https://github.com/ethereum-optimism/optimism.git
+```
+which takes only a few seconds on a good internet connection.
+
+If you want to shallow-checkout a specific branch or tag `$REF`, do
+
+```
+git clone --no-checkout --depth 1 --shallow-submodules https://github.com/ethereum-optimism/optimism.git
+cd optimism
+git fetch --depth 1 origin "$REF"
+git checkout "$REF"
+```
+which should also only take a few seconds.
+
 ## License
 
 All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.

@@ -24,7 +24,7 @@ func TestSyncUnsafeBecomesSafe(gt *testing.T) {
 
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLKonaNodes()
 
@@ -78,7 +78,7 @@ func TestSyncUnsafeBecomesSafe(gt *testing.T) {
 func TestSyncUnsafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLKonaNodes()
 
@@ -102,7 +102,7 @@ func TestSyncUnsafe(gt *testing.T) {
 			// We shouldn't have safe heads reorgs in this very simple testnet because there is only one DA layer node.
 			for _, block := range output {
 				for _, node := range nodes {
-					otherCLNode := node.Escape().ID().Key()
+					otherCLNode := node.Escape().Name()
 					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), types.LocalUnsafe)
 
 					if otherCLSyncStatus.Number < block.Number {
@@ -114,7 +114,7 @@ func TestSyncUnsafe(gt *testing.T) {
 					require.NoError(t, err, "impossible to get block from node %s", otherCLNode)
 
 					// Make sure the blocks match!
-					require.Equal(t, expectedOutputResponse.BlockRef, block, "block mismatch between %s and %s", otherCLNode, node.Escape().ID().Key())
+					require.Equal(t, expectedOutputResponse.BlockRef, block, "block mismatch between %s and %s", otherCLNode, node.Escape().Name())
 				}
 			}
 
@@ -129,7 +129,7 @@ func TestSyncUnsafe(gt *testing.T) {
 func TestSyncSafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLKonaNodes()
 
@@ -145,7 +145,7 @@ func TestSyncSafe(gt *testing.T) {
 		wg.Add(1)
 		go func(node *dsl.L2CLNode) {
 			defer wg.Done()
-			clName := node.Escape().ID().Key()
+			clName := node.Escape().Name()
 
 			output := node_utils.GetKonaWs(t, node, "safe_head", time.After(2*time.Minute))
 
@@ -154,7 +154,7 @@ func TestSyncSafe(gt *testing.T) {
 			// We shouldn't have safe heads reorgs in this very simple testnet because there is only one DA layer node.
 			for _, block := range output {
 				for _, node := range nodes {
-					otherCLNode := node.Escape().ID().Key()
+					otherCLNode := node.Escape().Name()
 					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), types.LocalSafe)
 
 					if otherCLSyncStatus.Number < block.Number {
@@ -181,7 +181,7 @@ func TestSyncSafe(gt *testing.T) {
 func TestSyncFinalized(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLKonaNodes()
 
@@ -190,7 +190,7 @@ func TestSyncFinalized(gt *testing.T) {
 		wg.Add(1)
 		go func(node *dsl.L2CLNode) {
 			defer wg.Done()
-			clName := node.Escape().ID().Key()
+			clName := node.Escape().Name()
 
 			output := node_utils.GetKonaWs(t, node, "finalized_head", time.After(4*time.Minute))
 
@@ -201,7 +201,7 @@ func TestSyncFinalized(gt *testing.T) {
 			// For each block, we check that the block is actually in the chain of the other nodes.
 			for _, block := range output {
 				for _, node := range nodes {
-					otherCLNode := node.Escape().ID().Key()
+					otherCLNode := node.Escape().Name()
 					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), types.Finalized)
 
 					if otherCLSyncStatus.Number < block.Number {

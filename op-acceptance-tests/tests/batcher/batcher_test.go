@@ -5,11 +5,12 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -23,16 +24,36 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 	gt.Skip("Skipping test until we fix nonce too high error: tx: 177 state: 176")
 
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	opts := presets.Combine(
+		// Keep verifier EL-sync behavior and no-discovery from the old package-level TestMain.
+		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.VerifierSyncMode = sync.ELSync
+			cfg.NoDiscovery = true
+		})),
+		// The test advances L1/L2 time aggressively, so enable orchestrator time travel.
+		presets.WithTimeTravelEnabled(),
+		presets.WithBatcherOption(func(id sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+			cfg.Stopped = true
+
+			// Set the blob max size to 40_000 bytes for test purposes.
+			cfg.MaxL1TxSize = 40_000
+			cfg.TestUseMaxTxSizeForBlobs = true
+
+			cfg.PollInterval = 1000 * time.Millisecond
+
+			cfg.MaxChannelDuration = 50
+			cfg.MaxPendingTransactions = 7
+		}),
+	)
+	sys := presets.NewSingleChainMultiNodeWithTestSeq(t, opts...)
+	sys.AdvanceTime(0) // assert time-travel support is available in this constructor path
 	l := t.Logger()
 	ts_L2 := sys.TestSequencer.Escape().ControlAPI(sys.L2EL.ChainID())
 
 	alice := sys.FunderL2.NewFundedEOA(eth.OneWei)
 	cathrine := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 
-	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
-
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Stop)
+	sys.L1CL.Stop()
 
 	latestUnsafe_A := sys.L2CL.StopSequencer()
 	l.Info("Latest unsafe block after stopping the L2 sequencer", "latestUnsafe", latestUnsafe_A)
@@ -61,7 +82,7 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 	sys.L2CL.StartSequencer()
 
 	l.Info("Current L1 unsafe block", "currentL1Unsafe", sys.L1EL.BlockRefByLabel(eth.Unsafe))
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
+	sys.L1CL.Start()
 
 	sys.L2Batcher.Start()
 

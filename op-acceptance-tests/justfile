@@ -6,43 +6,53 @@ ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-ac
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test "" base
+    @just acceptance-test base
 
 jovian:
-    @just acceptance-test jovian jovian
+    @just acceptance-test jovian
 
 interop:
-    @just acceptance-test "" interop
+    @just acceptance-test interop
 
 cgt:
-    @just acceptance-test "" cgt
+    @just acceptance-test cgt
 
+acceptance-test-all:
+    @just _acceptance-test base all
 
 # Run acceptance tests with mise-managed binary
-# Usage: just acceptance-test [devnet] [gate]
+# Usage: just acceptance-test [gate]
 # Examples:
-#   just acceptance-test "" base         # In-process (sysgo) with specific gate
-#   just acceptance-test "" ""           # In-process gateless mode (all tests)
-#   just acceptance-test "simple" base     # External devnet with specific gate
-#   just acceptance-test "simple" ""       # External devnet gateless mode (all tests)
-acceptance-test devnet="" gate="base":
+#   just acceptance-test base            # In-process with specific gate
+#   just acceptance-test-all             # In-process all-tests mode
+acceptance-test gate="base":
+    @just _acceptance-test "{{gate}}" gate
+
+_acceptance-test gate mode:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Determine mode and orchestrator
-    GATELESS_MODE=$([[ "{{gate}}" == "" ]] && echo "true" || echo "false")
-    ORCHESTRATOR=$([[ "{{devnet}}" == "" ]] && echo "sysgo" || echo "sysext")
+    MODE="{{mode}}"
 
-    # Display mode information
-    if [[ "$GATELESS_MODE" == "true" ]]; then
-        echo -e "DEVNET: $([[ "$ORCHESTRATOR" == "sysgo" ]] && echo "in-memory" || echo "{{devnet}}") ($ORCHESTRATOR), MODE: gateless (all tests)\n"
-    else
-        echo -e "DEVNET: $([[ "$ORCHESTRATOR" == "sysgo" ]] && echo "in-memory" || echo "{{devnet}}") ($ORCHESTRATOR), GATE: {{gate}}\n"
+    if [[ "$MODE" != "gate" && "$MODE" != "all" ]]; then
+        echo "error: invalid mode '$MODE' (expected gate|all)." >&2
+        exit 1
     fi
 
-    # Build dependencies for sysgo (in-process) mode if not in CI
+    if [[ "$MODE" == "gate" && "{{gate}}" == "" ]]; then
+        echo "error: gate must be non-empty for gate mode; use 'just acceptance-test-all' for all tests." >&2
+        exit 1
+    fi
+
+    if [[ "$MODE" == "all" ]]; then
+        echo -e "DEVNET: in-memory, MODE: all tests\n"
+    else
+        echo -e "DEVNET: in-memory, GATE: {{gate}}\n"
+    fi
+
+    # Build dependencies for in-process mode if not in CI.
     # In CI jobs already take care of this, so we skip it.
-    if [[ "$ORCHESTRATOR" == "sysgo" && -z "${CIRCLECI:-}" ]]; then
+    if [[ -z "${CIRCLECI:-}" ]]; then
         echo "Building contracts (local build)..."
         cd {{REPO_ROOT}}
         echo " - Updating submodules..."
@@ -70,97 +80,53 @@ acceptance-test devnet="" gate="base":
 
     cd {{REPO_ROOT}}/op-acceptance-tests
 
-    # Check mise installation and fallback to Docker if needed
     if ! command -v mise >/dev/null; then
-        echo "Mise not installed, falling back to Docker..."
-        just acceptance-test-docker {{devnet}} {{gate}}
-        exit 0
+        echo "error: mise is required for acceptance-test runs." >&2
+        exit 1
     fi
 
-    # Install op-acceptor using mise
     if ! mise install op-acceptor; then
-        echo "WARNING: Failed to install op-acceptor with mise, falling back to Docker..."
-        just acceptance-test-docker {{devnet}} {{gate}}
-        exit 0
+        echo "error: failed to install op-acceptor with mise." >&2
+        exit 1
     fi
 
-    # Set binary path and log level
     BINARY_PATH=$(mise which op-acceptor)
     echo "Using mise-managed binary: $BINARY_PATH"
     LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
     echo "LOG_LEVEL: $LOG_LEVEL"
 
-    # Deploy devnet for sysext if it's a simple name
-    if [[ "$ORCHESTRATOR" == "sysext" && ! "{{devnet}}" =~ ^(kt://|ktnative://|/) ]]; then
-        echo "Deploying devnet {{devnet}}..."
-        just {{KURTOSIS_DIR}}/{{devnet}}-devnet || true
-    fi
-
-    # Build command arguments based on mode
-    if [[ "$GATELESS_MODE" == "true" ]]; then
-        # Gateless mode - use binary directly
+    if [[ "$MODE" == "all" ]]; then
         CMD_ARGS=(
             "$BINARY_PATH"
+            "--orchestrator" "sysgo"
             "--testdir" "{{REPO_ROOT}}/op-acceptance-tests/..."
             "--validators" "./acceptance-tests.yaml"
+            "--log.level" "${LOG_LEVEL}"
             "--exclude-gates" "flake-shake"
             "--allow-skips"
             "--timeout" "120m"
-            "--orchestrator" "$ORCHESTRATOR"
             "--show-progress"
         )
     else
-        # Gate mode - use go run with acceptor binary
         CMD_ARGS=(
-            "go" "run" "cmd/main.go"
+            "$BINARY_PATH"
+            "--orchestrator" "sysgo"
             "--gate" "{{gate}}"
             "--testdir" "{{REPO_ROOT}}"
             "--validators" "./acceptance-tests.yaml"
-            "--acceptor" "$BINARY_PATH"
             "--log.level" "${LOG_LEVEL}"
-            "--orchestrator" "$ORCHESTRATOR"
+            "--allow-skips"
             "--show-progress"
         )
+
+        if [[ "{{gate}}" != "flake-shake" ]]; then
+            CMD_ARGS+=("--exclude-gates" "flake-shake")
+        fi
     fi
 
-    # Add sysext-specific arguments
-    if [[ "$ORCHESTRATOR" == "sysext" ]]; then
-        CMD_ARGS+=("--devnet" "{{devnet}}" "--kurtosis-dir" "{{KURTOSIS_DIR}}" "--serial")
-    fi
-
-    # Execute the command
     "${CMD_ARGS[@]}"
 
-
-
-# Run acceptance tests against a devnet using Docker (fallback if needed)
-acceptance-test-docker devnet="simple" gate="base":
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
-
-    # First run the appropriate devnet from the kurtosis-devnet directory if needed.
-    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet
-
-    # Print which image is being used (for debugging)
-    echo "Using acceptor image: {{ACCEPTOR_IMAGE}}"
-
-    # Run op-acceptor with the repository mounted at the correct Go module path
-    docker run \
-        -v "$(pwd)/acceptance-tests.yaml:/acceptance-tests.yaml" \
-        -v "{{REPO_ROOT}}:/go/src/github.com/ethereum-optimism/optimism" \
-        {{ACCEPTOR_IMAGE}} \
-        --testdir "/go/src/github.com/ethereum-optimism/optimism" \
-        --gate {{gate}} \
-        --validators /acceptance-tests.yaml \
-        $( [[ "{{gate}}" != "flake-shake" ]] && echo --exclude-gates flake-shake ) \
-        --log.level debug
-
-
-
 clean:
-    kurtosis clean --all
     rm -rf tests/interop/loadtest/artifacts
 
 

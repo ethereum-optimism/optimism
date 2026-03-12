@@ -4,12 +4,11 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 )
 
 func TestProposer(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := newSimpleInteropPreinterop(t)
 
 	dgf := sys.DisputeGameFactory()
 

@@ -32,7 +32,7 @@ func NewConductor(inner stack.Conductor) *Conductor {
 }
 
 func (c *Conductor) String() string {
-	return c.inner.ID().String()
+	return c.inner.Name()
 }
 
 func (c *Conductor) Escape() stack.Conductor {

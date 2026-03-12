@@ -19,6 +19,82 @@ parameters:
   c-rust_changes_detected:
     type: boolean
     default: false
+  # Passthrough declarations for setup config parameters.
+  # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
+  # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
+  # These are not referenced by any job — the c- prefixed versions above are used instead.
+  default_docker_image:
+    type: string
+    default: cimg/base:2026.03
+  base_image:
+    type: string
+    default: default
+  main_dispatch:
+    type: boolean
+    default: true
+  fault_proofs_dispatch:
+    type: boolean
+    default: false
+  reproducibility_dispatch:
+    type: boolean
+    default: false
+  kontrol_dispatch:
+    type: boolean
+    default: false
+  cannon_full_test_dispatch:
+    type: boolean
+    default: false
+  sdk_dispatch:
+    type: boolean
+    default: false
+  docker_publish_dispatch:
+    type: boolean
+    default: false
+  stale_check_dispatch:
+    type: boolean
+    default: false
+  contracts_coverage_dispatch:
+    type: boolean
+    default: false
+  heavy_fuzz_dispatch:
+    type: boolean
+    default: false
+  sync_test_op_node_dispatch:
+    type: boolean
+    default: false
+  ai_contracts_test_dispatch:
+    type: boolean
+    default: false
+  rust_ci_dispatch:
+    type: boolean
+    default: false
+  rust_e2e_dispatch:
+    type: boolean
+    default: false
+  github-event-type:
+    type: string
+    default: "__not_set__"
+  github-event-action:
+    type: string
+    default: "__not_set__"
+  github-event-base64:
+    type: string
+    default: "__not_set__"
+  devnet-metrics-collect:
+    type: boolean
+    default: false
+  flake-shake-dispatch:
+    type: boolean
+    default: false
+  flake-shake-iterations:
+    type: integer
+    default: 300
+  flake-shake-workers:
+    type: integer
+    default: 50
+  go-cache-version:
+    type: string
+    default: "v0.0"
 
 # Commands used by rust-e2e jobs
 commands:

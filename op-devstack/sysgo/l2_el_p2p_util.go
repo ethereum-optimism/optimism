@@ -10,35 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
-
-func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.ComponentID, trusted bool) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
-
-		l2EL1, ok := orch.GetL2EL(l2EL1ID)
-		require.True(ok, "looking for L2 EL node 1 to connect p2p")
-		l2EL2, ok := orch.GetL2EL(l2EL2ID)
-		require.True(ok, "looking for L2 EL node 2 to connect p2p")
-		require.Equal(l2EL1ID.ChainID(), l2EL2ID.ChainID(), "must be same l2 chain")
-
-		ctx := orch.P().Ctx()
-		logger := orch.P().Logger()
-
-		rpc1, err := dial.DialRPCClientWithTimeout(ctx, logger, l2EL1.UserRPC())
-		require.NoError(err, "failed to connect to el1 rpc")
-		defer rpc1.Close()
-		rpc2, err := dial.DialRPCClientWithTimeout(ctx, logger, l2EL2.UserRPC())
-		require.NoError(err, "failed to connect to el2 rpc")
-		defer rpc2.Close()
-
-		ConnectP2P(orch.P().Ctx(), require, rpc1, rpc2, trusted)
-	})
-}
 
 type RpcCaller interface {
 	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error

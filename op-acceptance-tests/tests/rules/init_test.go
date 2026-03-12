@@ -2,10 +2,9 @@ package rules
 
 import (
 	"os"
-	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -15,13 +14,8 @@ func rulesEnabled() bool {
 	return os.Getenv(RULES_TEST_ENABLE_ENV) == "1"
 }
 
-// TestMain creates the test-setups against the shared backend
-func TestMain(m *testing.M) {
-	options := presets.WithSingleChainSystemWithFlashblocks()
-	if rulesEnabled() {
-		options = stack.Combine(options, presets.WithOPRBuilderRules(TestRulesYAML, TestRefreshInterval))
-	}
-	presets.DoMain(m, options)
+func newRulesSystem(t devtest.T) *presets.SingleChainWithFlashblocks {
+	return presets.NewSingleChainWithFlashblocks(t, presets.WithOPRBuilderRules(TestRulesYAML, TestRefreshInterval))
 }
 
 // BoostedRecipient is the well-known address that receives boosted transactions in tests.

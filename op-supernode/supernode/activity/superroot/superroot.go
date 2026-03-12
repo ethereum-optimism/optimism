@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/internal/syncstatus"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -47,64 +47,20 @@ func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint
 }
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	var (
-		optimistic            = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
-		minCurrentL1          eth.BlockID
-		minVerifiedRequiredL1 eth.BlockID
-		minSafeTimestamp      uint64
-		minFinalizedTimestamp uint64
-		safeInitialized       bool
-		finalizedInitialized  bool
-		chainOutputs          = make([]eth.ChainIDAndOutput, 0, len(s.chains))
-	)
-	// Get current L1s — the minimum L1 block that all derivation pipelines and verifiers have processed.
-	// This informs callers that the chains' local views have considered at least up to this L1 block.
-	for chainID, chain := range s.chains {
-		status, err := chain.SyncStatus(ctx)
-		if err != nil {
-			s.log.Warn("failed to get sync status", "chain_id", chainID.String(), "err", err)
-			return eth.SuperRootAtTimestampResponse{}, err
-		}
-		if status == nil { // defensive
-			status = &eth.SyncStatus{}
-		}
-
-		currentL1 := status.CurrentL1.ID()
-		if currentL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
-			minCurrentL1 = currentL1
-		}
-		// Also consider the L1 progress of any registered verifiers.
-		for _, verifierL1 := range chain.VerifierCurrentL1s() {
-			if verifierL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
-				minCurrentL1 = verifierL1
-			}
-		}
-		// Conservative aggregation across chains: take the minimum timestamps.
-		// If any chain has a zero timestamp (not initialized), the aggregate is zero.
-		if !safeInitialized {
-			minSafeTimestamp = status.LocalSafeL2.Time
-			safeInitialized = true
-		} else if minSafeTimestamp == 0 || status.LocalSafeL2.Time == 0 {
-			minSafeTimestamp = 0
-		} else if status.LocalSafeL2.Time < minSafeTimestamp {
-			minSafeTimestamp = status.LocalSafeL2.Time
-		}
-
-		if !finalizedInitialized {
-			minFinalizedTimestamp = status.FinalizedL2.Time
-			finalizedInitialized = true
-		} else if minFinalizedTimestamp == 0 || status.FinalizedL2.Time == 0 {
-			minFinalizedTimestamp = 0
-		} else if status.FinalizedL2.Time < minFinalizedTimestamp {
-			minFinalizedTimestamp = status.FinalizedL2.Time
-		}
+	aggregate, err := syncstatus.Aggregate(ctx, s.log, s.chains)
+	if err != nil {
+		return eth.SuperRootAtTimestampResponse{}, err
 	}
 
+	var (
+		optimistic            = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
+		minVerifiedRequiredL1 eth.BlockID
+		chainOutputs          = make([]eth.ChainIDAndOutput, 0, len(s.chains))
+	)
+
 	notFound := false
-	chainIDs := make([]eth.ChainID, 0, len(s.chains))
 	// Collect verified L2 and L1 blocks at the given timestamp
 	for chainID, chain := range s.chains {
-		chainIDs = append(chainIDs, chainID)
 		// verifiedAt returns the L2 block which is fully verified at the given timestamp, and the minimum L1 block at which verification is possible
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
 		if errors.Is(err, ethereum.NotFound) {
@@ -151,15 +107,13 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 	}
 
-	slices.SortFunc(chainIDs, func(a, b eth.ChainID) int {
-		return a.Cmp(b)
-	})
 	response := eth.SuperRootAtTimestampResponse{
-		CurrentL1:                 minCurrentL1,
-		CurrentSafeTimestamp:      minSafeTimestamp,
-		CurrentFinalizedTimestamp: minFinalizedTimestamp,
+		CurrentL1:                 aggregate.CurrentL1,
+		CurrentSafeTimestamp:      aggregate.SafeTimestamp,
+		CurrentLocalSafeTimestamp: aggregate.LocalSafeTimestamp,
+		CurrentFinalizedTimestamp: aggregate.FinalizedTimestamp,
 		OptimisticAtTimestamp:     optimistic,
-		ChainIDs:                  chainIDs,
+		ChainIDs:                  aggregate.ChainIDs,
 	}
 	if !notFound {
 		// Build super root from collected outputs

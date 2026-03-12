@@ -18,7 +18,7 @@ use kona_protocol::{BlockInfo, L2BlockInfo, SingleBatch};
 /// When Holocene is active, the [`BatchValidator`] is used.
 ///
 /// When transitioning between the two stages, the mux will reset the active stage, but
-/// retain `l1_blocks`.
+/// retain `l1_blocks` and `origin`.
 #[derive(Debug)]
 pub struct BatchProvider<P, F>
 where
@@ -74,6 +74,7 @@ where
             let batch_queue = self.batch_queue.take().expect("Must have batch queue");
             let mut bv = BatchValidator::new(self.cfg.clone(), batch_queue.prev);
             bv.l1_blocks = batch_queue.l1_blocks;
+            bv.origin = batch_queue.origin;
             self.batch_validator = Some(bv);
         } else if self.batch_validator.is_some() && !self.cfg.is_holocene_active(origin.timestamp) {
             // If the batch validator is active, and Holocene is not active, it indicates an L1
@@ -305,5 +306,60 @@ mod test {
             panic!("Expected BatchValidator");
         };
         assert!(bv.l1_blocks.len() == 1);
+    }
+
+    // On Holocene activation, BatchProvider.attempt_update() must copy BOTH l1_blocks
+    // AND origin from the old BatchQueue to the new BatchValidator.
+    //
+    // Without copying origin, BatchValidator.origin starts as None. The first
+    // update_origins() call always enters the `self.origin != self.prev.origin()` branch
+    // (None != Some(...)), causing either duplicate l1_block insertion (normal case) or
+    // l1_blocks.clear() followed by MissingOrigin.crit() halt (lagging case).
+    #[test]
+    fn test_spec_batch_provider_holocene_transition_origin_transferred() {
+        let provider = TestNextBatchProvider::new(vec![]);
+        let l2_provider = TestL2ChainProvider::default();
+        // Holocene activates at timestamp 2.
+        let cfg = Arc::new(RollupConfig {
+            hardforks: HardForkConfig { holocene_time: Some(2), ..Default::default() },
+            ..Default::default()
+        });
+        let mut batch_provider = BatchProvider::new(cfg, provider, l2_provider);
+
+        // Initialize with BatchQueue (Holocene not yet active at timestamp 0).
+        batch_provider.attempt_update().unwrap();
+        assert!(batch_provider.batch_queue.is_some(), "Expected BatchQueue pre-Holocene");
+
+        // Seed BatchQueue.l1_blocks with two blocks (as would happen during normal derivation).
+        let block_a = BlockInfo { number: 1, timestamp: 0, ..Default::default() };
+        let block_b = BlockInfo { number: 2, timestamp: 2, ..Default::default() };
+        {
+            let bq = batch_provider.batch_queue.as_mut().unwrap();
+            bq.l1_blocks.push(block_a);
+            bq.l1_blocks.push(block_b);
+            bq.origin = Some(block_b); // BatchQueue.origin set to the current L1 head
+            // Advance the mock prev origin to Holocene activation timestamp.
+            bq.prev.origin = Some(block_b);
+        }
+
+        // Trigger Holocene transition via attempt_update().
+        batch_provider.attempt_update().unwrap();
+        assert!(batch_provider.batch_queue.is_none(), "BatchQueue should be gone post-Holocene");
+        assert!(batch_provider.batch_validator.is_some(), "Expected BatchValidator post-Holocene");
+
+        let bv = batch_provider.batch_validator.as_ref().unwrap();
+
+        // Verify l1_blocks were transferred.
+        assert_eq!(bv.l1_blocks.len(), 2, "l1_blocks must be transferred from BatchQueue");
+        assert_eq!(bv.l1_blocks[0], block_a);
+        assert_eq!(bv.l1_blocks[1], block_b);
+
+        // Verify origin was transferred: BatchValidator.origin must equal the
+        // origin from the old BatchQueue, matching Go's TransformHolocene (batch_mux.go:68).
+        assert_eq!(
+            bv.origin,
+            Some(block_b),
+            "BatchValidator.origin must be copied from BatchQueue on Holocene transition"
+        );
     }
 }
