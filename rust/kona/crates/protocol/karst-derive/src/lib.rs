@@ -13,9 +13,8 @@ mod frames;
 mod channel;
 mod reader;
 mod batch;
-mod attributes;
 
-pub use pipeline::{Pipeline, StepResult};
+pub use pipeline::Pipeline;
 
 // Re-export key types and traits from kona-derive that consumers need.
 pub use kona_derive::{

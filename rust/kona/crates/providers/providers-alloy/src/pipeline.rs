@@ -3,11 +3,11 @@
 use crate::{AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider};
 use async_trait::async_trait;
 use core::fmt::Debug;
+use std::vec::Vec;
 use kona_derive::{
     DerivationPipeline, EthereumDataSource, IndexedAttributesQueueStage, L2ChainProvider,
     OriginProvider, Pipeline, PipelineBuilder, PipelineErrorKind, PipelineResult,
     PolledAttributesQueueStage, ResetSignal, Signal, SignalReceiver, StatefulAttributesBuilder,
-    StepResult,
 };
 use kona_genesis::{L1ChainConfig, RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
@@ -180,29 +180,13 @@ impl OriginProvider for OnlinePipeline {
     }
 }
 
-impl Iterator for OnlinePipeline {
-    type Item = OpAttributesWithParent;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::Polled(pipeline) => pipeline.next(),
-            Self::Managed(pipeline) => pipeline.next(),
-        }
-    }
-}
-
 #[async_trait]
 impl Pipeline for OnlinePipeline {
-    /// Peeks at the next [`OpAttributesWithParent`] from the pipeline.
-    fn peek(&self) -> Option<&OpAttributesWithParent> {
-        match self {
-            Self::Polled(pipeline) => pipeline.peek(),
-            Self::Managed(pipeline) => pipeline.peek(),
-        }
-    }
-
     /// Attempts to progress the pipeline.
-    async fn step(&mut self, cursor: L2BlockInfo) -> StepResult {
+    async fn step(
+        &mut self,
+        cursor: L2BlockInfo,
+    ) -> PipelineResult<Vec<OpAttributesWithParent>> {
         match self {
             Self::Polled(pipeline) => pipeline.step(cursor).await,
             Self::Managed(pipeline) => pipeline.step(cursor).await,

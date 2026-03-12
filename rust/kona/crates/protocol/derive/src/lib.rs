@@ -47,7 +47,7 @@ pub use traits::{
 };
 
 mod types;
-pub use types::{ActivationSignal, PipelineResult, ResetSignal, Signal, StepResult};
+pub use types::{ActivationSignal, PipelineResult, ResetSignal, Signal};
 
 mod metrics;
 pub use metrics::Metrics;

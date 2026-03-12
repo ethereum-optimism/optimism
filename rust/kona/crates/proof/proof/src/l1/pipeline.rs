@@ -1,13 +1,13 @@
 //! Contains an oracle-backed pipeline.
 
 use crate::FlushableCache;
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_derive::{
     ChainProvider, DataAvailabilityProvider, DerivationPipeline, L2ChainProvider, OriginProvider,
     Pipeline, PipelineBuilder, PipelineErrorKind, PipelineResult, PolledAttributesQueueStage,
-    ResetSignal, Signal, SignalReceiver, StatefulAttributesBuilder, StepResult,
+    ResetSignal, Signal, SignalReceiver, StatefulAttributesBuilder,
 };
 use kona_driver::{DriverPipeline, PipelineCursor};
 use kona_genesis::{L1ChainConfig, RollupConfig, SystemConfig};
@@ -136,20 +136,6 @@ where
     }
 }
 
-impl<O, L1, L2, DA> Iterator for OraclePipeline<O, L1, L2, DA>
-where
-    O: CommsClient + FlushableCache + Send + Sync + Debug,
-    L1: ChainProvider + Send + Sync + Debug + Clone,
-    L2: L2ChainProvider + Send + Sync + Debug + Clone,
-    DA: DataAvailabilityProvider + Send + Sync + Debug + Clone,
-{
-    type Item = OpAttributesWithParent;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.pipeline.next()
-    }
-}
-
 #[async_trait]
 impl<O, L1, L2, DA> Pipeline for OraclePipeline<O, L1, L2, DA>
 where
@@ -158,13 +144,11 @@ where
     L2: L2ChainProvider + Send + Sync + Debug + Clone,
     DA: DataAvailabilityProvider + Send + Sync + Debug + Clone,
 {
-    /// Peeks at the next [`OpAttributesWithParent`] from the pipeline.
-    fn peek(&self) -> Option<&OpAttributesWithParent> {
-        self.pipeline.peek()
-    }
-
     /// Attempts to progress the pipeline.
-    async fn step(&mut self, cursor: L2BlockInfo) -> StepResult {
+    async fn step(
+        &mut self,
+        cursor: L2BlockInfo,
+    ) -> PipelineResult<Vec<OpAttributesWithParent>> {
         self.pipeline.step(cursor).await
     }
 

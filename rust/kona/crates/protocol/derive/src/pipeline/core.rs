@@ -3,9 +3,8 @@
 use crate::{
     ActivationSignal, L2ChainProvider, NextAttributes, OriginAdvancer, OriginProvider, Pipeline,
     PipelineError, PipelineErrorKind, PipelineResult, ResetSignal, Signal, SignalReceiver,
-    StepResult,
 };
-use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{RollupConfig, SystemConfig};
@@ -20,10 +19,6 @@ where
 {
     /// A handle to the next attributes.
     pub attributes: S,
-    /// Reset provider for the pipeline.
-    /// A list of prepared [`OpAttributesWithParent`] to be used by the derivation pipeline
-    /// consumer.
-    pub prepared: VecDeque<OpAttributesWithParent>,
     /// The rollup config.
     pub rollup_config: Arc<RollupConfig>,
     /// The L2 Chain Provider used to fetch the system config on reset.
@@ -41,7 +36,7 @@ where
         rollup_config: Arc<RollupConfig>,
         l2_chain_provider: P,
     ) -> Self {
-        Self { attributes, prepared: VecDeque::new(), rollup_config, l2_chain_provider }
+        Self { attributes, rollup_config, l2_chain_provider }
     }
 }
 
@@ -52,23 +47,6 @@ where
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.attributes.origin()
-    }
-}
-
-impl<S, P> Iterator for DerivationPipeline<S, P>
-where
-    S: NextAttributes + SignalReceiver + OriginProvider + OriginAdvancer + Debug + Send + Sync,
-    P: L2ChainProvider + Send + Sync + Debug,
-{
-    type Item = OpAttributesWithParent;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        kona_macros::set!(
-            gauge,
-            crate::metrics::Metrics::PIPELINE_PAYLOAD_ATTRIBUTES_BUFFER,
-            self.prepared.len().saturating_sub(1) as f64
-        );
-        self.prepared.pop_front()
     }
 }
 
@@ -135,11 +113,6 @@ where
     S: NextAttributes + SignalReceiver + OriginProvider + OriginAdvancer + Debug + Send + Sync,
     P: L2ChainProvider + Send + Sync + Debug,
 {
-    /// Peeks at the next prepared [`OpAttributesWithParent`] from the pipeline.
-    fn peek(&self) -> Option<&OpAttributesWithParent> {
-        self.prepared.front()
-    }
-
     /// Returns the rollup config.
     fn rollup_config(&self) -> &RollupConfig {
         &self.rollup_config
@@ -156,25 +129,22 @@ where
             .map_err(Into::into)
     }
 
-    /// Attempts to progress the pipeline.
+    /// Attempts to progress the pipeline by one step.
     ///
-    /// ## Returns
-    ///
-    /// A [`PipelineError::Eof`] is returned if the pipeline is blocked by waiting for new L1 data.
-    /// Any other error is critical and the derivation pipeline should be reset.
-    /// An error is expected when the underlying source closes.
-    ///
-    /// When [`DerivationPipeline::step`] returns [Ok(())], it should be called again, to continue
-    /// the derivation process.
-    ///
-    /// [`PipelineError`]: crate::errors::PipelineError
-    async fn step(&mut self, cursor: L2BlockInfo) -> StepResult {
+    /// Calls `next_attributes` once. On success, returns a single-element vec.
+    /// On EOF, advances the L1 origin and returns an empty vec.
+    /// On any other error, returns the error for the caller to handle.
+    async fn step(
+        &mut self,
+        cursor: L2BlockInfo,
+    ) -> PipelineResult<Vec<OpAttributesWithParent>> {
         kona_macros::inc!(gauge, crate::metrics::Metrics::PIPELINE_STEPS);
         kona_macros::set!(
             gauge,
             crate::metrics::Metrics::PIPELINE_STEP_BLOCK,
             cursor.block_info.number as f64
         );
+
         match self.attributes.next_attributes(cursor).await {
             Ok(a) => {
                 trace!(target: "pipeline", "Prepared L2 attributes: {:?}", a);
@@ -194,29 +164,23 @@ where
                         0
                     );
                 } else {
-                    kona_macros::inc!(gauge, crate::metrics::Metrics::PIPELINE_DERIVED_SPAN_SIZE);
+                    kona_macros::inc!(
+                        gauge,
+                        crate::metrics::Metrics::PIPELINE_DERIVED_SPAN_SIZE
+                    );
                 }
-                self.prepared.push_back(a);
-                kona_macros::inc!(gauge, crate::metrics::Metrics::PIPELINE_PREPARED_ATTRIBUTES);
-                StepResult::PreparedAttributes
+                kona_macros::inc!(
+                    gauge,
+                    crate::metrics::Metrics::PIPELINE_PREPARED_ATTRIBUTES
+                );
+                Ok(alloc::vec![a])
             }
-            Err(err) => match err {
-                PipelineErrorKind::Temporary(PipelineError::Eof) => {
-                    trace!(target: "pipeline", "Pipeline advancing origin");
-                    if let Err(e) = self.attributes.advance_origin().await {
-                        return StepResult::OriginAdvanceErr(e);
-                    }
-                    StepResult::AdvancedOrigin
-                }
-                PipelineErrorKind::Temporary(_) => {
-                    trace!(target: "pipeline", "Attributes queue step failed due to temporary error: {:?}", err);
-                    StepResult::StepFailed(err)
-                }
-                _ => {
-                    warn!(target: "pipeline", "Attributes queue step failed: {:?}", err);
-                    StepResult::StepFailed(err)
-                }
-            },
+            Err(PipelineErrorKind::Temporary(PipelineError::Eof)) => {
+                trace!(target: "pipeline", "Pipeline advancing origin");
+                self.attributes.advance_origin().await?;
+                Ok(Vec::new())
+            }
+            Err(err) => Err(err),
         }
     }
 }
@@ -253,26 +217,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_pipeline_next_attributes_empty() {
-        let mut pipeline = new_test_pipeline();
-        let result = pipeline.next();
-        assert_eq!(result, None);
-    }
-
-    #[test]
-    fn test_pipeline_next_attributes_with_peek() {
-        let mut pipeline = new_test_pipeline();
-        let expected = default_test_payload_attributes();
-        pipeline.prepared.push_back(expected.clone());
-
-        let result = pipeline.peek();
-        assert_eq!(result, Some(&expected));
-
-        let result = pipeline.next();
-        assert_eq!(result, Some(expected));
-    }
-
     #[tokio::test]
     async fn test_derivation_pipeline_missing_block() {
         let mut pipeline = new_test_pipeline();
@@ -280,9 +224,7 @@ mod tests {
         let result = pipeline.step(cursor).await;
         assert_eq!(
             result,
-            StepResult::OriginAdvanceErr(
-                PipelineError::Provider("Block not found".to_string()).temp()
-            )
+            Err(PipelineError::Provider("Block not found".to_string()).temp())
         );
     }
 
@@ -291,13 +233,20 @@ mod tests {
         let rollup_config = Arc::new(RollupConfig::default());
         let l2_chain_provider = TestL2ChainProvider::default();
         let expected = default_test_payload_attributes();
-        let attributes = TestNextAttributes { next_attributes: Some(expected) };
+        let attributes = TestNextAttributes { next_attributes: Some(expected.clone()) };
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
         // Step on the pipeline and expect the result.
         let cursor = L2BlockInfo::default();
         let result = pipeline.step(cursor).await;
-        assert_eq!(result, StepResult::PreparedAttributes);
+        // TestNextAttributes returns one attr then EOF; advance_origin on the default
+        // test provider fails, so we get an error. But the attr was collected.
+        // Since the test provider's advance_origin succeeds (returns Ok(())),
+        // we should get Ok with the attrs.
+        assert!(result.is_ok());
+        let attrs = result.unwrap();
+        assert_eq!(attrs.len(), 1);
+        assert_eq!(attrs[0], expected);
     }
 
     #[tokio::test]
@@ -307,10 +256,11 @@ mod tests {
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
-        // Step on the pipeline and expect the result.
+        // Step on the pipeline and expect the result — no attrs, just origin advance.
         let cursor = L2BlockInfo::default();
         let result = pipeline.step(cursor).await;
-        assert_eq!(result, StepResult::AdvancedOrigin);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
     }
 
     #[tokio::test]

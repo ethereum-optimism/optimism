@@ -8,7 +8,7 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal, Signal,
-    SignalReceiver, StepResult,
+    SignalReceiver,
 };
 use kona_protocol::OpAttributesWithParent;
 use thiserror::Error;
@@ -100,99 +100,92 @@ where
         loop {
             match self.pipeline.step(self.derivation_state_machine.last_confirmed_safe_head()).await
             {
-                StepResult::PreparedAttributes => { /* continue; attributes will be sent off. */ }
-                StepResult::AdvancedOrigin => {
+                Ok(mut attrs) if !attrs.is_empty() => {
+                    return Ok(attrs.swap_remove(0));
+                }
+                Ok(_) => {
+                    // Empty vec means origin was advanced, no attrs yet.
                     let origin =
                         self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?.number;
 
                     kona_macros::set!(counter, Metrics::DERIVATION_L1_ORIGIN, origin);
                     debug!(target: "derivation", l1_block = origin, "Advanced L1 origin");
                 }
-                StepResult::OriginAdvanceErr(e) | StepResult::StepFailed(e) => {
-                    match e {
-                        PipelineErrorKind::Temporary(e) => {
-                            // NotEnoughData is transient, and doesn't imply we need to wait for
-                            // more data. We can continue stepping until we receive an Eof.
-                            if matches!(e, PipelineError::NotEnoughData) {
-                                continue;
-                            }
+                Err(PipelineErrorKind::Temporary(PipelineError::NotEnoughData)) => {
+                    // NotEnoughData is transient, and doesn't imply we need to wait for
+                    // more data. We can continue stepping until we receive an Eof.
+                    continue;
+                }
+                Err(PipelineErrorKind::Temporary(_)) => {
+                    debug!(
+                        target: "derivation",
+                        "Exhausted data source for now; Yielding until the chain has extended."
+                    );
+                    return Err(DerivationError::Yield);
+                }
+                Err(PipelineErrorKind::Reset(e)) => {
+                    warn!(target: "derivation", "Derivation pipeline is being reset: {e}");
 
-                            debug!(
+                    let system_config = self
+                        .pipeline
+                        .system_config_by_number(
+                            self.derivation_state_machine
+                                .last_confirmed_safe_head()
+                                .block_info
+                                .number,
+                        )
+                        .await?;
+
+                    if matches!(e, ResetError::HoloceneActivation) {
+                        let l1_origin = self
+                            .pipeline
+                            .origin()
+                            .ok_or(PipelineError::MissingOrigin.crit())?;
+
+                        self.pipeline
+                            .signal(
+                                ActivationSignal {
+                                    l2_safe_head: self
+                                        .derivation_state_machine
+                                        .last_confirmed_safe_head(),
+                                    l1_origin,
+                                    system_config: Some(system_config),
+                                }
+                                .signal(),
+                            )
+                            .await?;
+                    } else {
+                        if let ResetError::ReorgDetected(expected, new) = e {
+                            warn!(
                                 target: "derivation",
-                                "Exhausted data source for now; Yielding until the chain has extended."
+                                "L1 reorg detected! Expected: {expected} | New: {new}"
                             );
-                            return Err(DerivationError::Yield);
+
+                            kona_macros::inc!(counter, Metrics::L1_REORG_COUNT);
                         }
-                        PipelineErrorKind::Reset(e) => {
-                            warn!(target: "derivation", "Derivation pipeline is being reset: {e}");
-
-                            let system_config = self
-                                .pipeline
-                                .system_config_by_number(
-                                    self.derivation_state_machine
-                                        .last_confirmed_safe_head()
-                                        .block_info
-                                        .number,
-                                )
-                                .await?;
-
-                            if matches!(e, ResetError::HoloceneActivation) {
-                                let l1_origin = self
-                                    .pipeline
-                                    .origin()
-                                    .ok_or(PipelineError::MissingOrigin.crit())?;
-
-                                self.pipeline
-                                    .signal(
-                                        ActivationSignal {
-                                            l2_safe_head: self
-                                                .derivation_state_machine
-                                                .last_confirmed_safe_head(),
-                                            l1_origin,
-                                            system_config: Some(system_config),
-                                        }
-                                        .signal(),
-                                    )
-                                    .await?;
-                            } else {
-                                if let ResetError::ReorgDetected(expected, new) = e {
-                                    warn!(
-                                        target: "derivation",
-                                        "L1 reorg detected! Expected: {expected} | New: {new}"
-                                    );
-
-                                    kona_macros::inc!(counter, Metrics::L1_REORG_COUNT);
-                                }
-                                // send the `reset` signal to the engine actor only when interop is
-                                // not active.
-                                if !self.pipeline.rollup_config().is_interop_active(
-                                    self.derivation_state_machine
-                                        .last_confirmed_safe_head()
-                                        .block_info
-                                        .timestamp,
-                                ) {
-                                    self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
-                                        error!(target: "derivation", ?e, "Failed to send reset request");
-                                        DerivationError::Sender(Box::new(e))
-                                    })?;
-                                }
-                                self.derivation_state_machine
-                                    .update(&DerivationStateUpdate::SignalNeeded)?;
-                                return Err(DerivationError::Yield);
-                            }
+                        // send the `reset` signal to the engine actor only when interop is
+                        // not active.
+                        if !self.pipeline.rollup_config().is_interop_active(
+                            self.derivation_state_machine
+                                .last_confirmed_safe_head()
+                                .block_info
+                                .timestamp,
+                        ) {
+                            self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
+                                error!(target: "derivation", ?e, "Failed to send reset request");
+                                DerivationError::Sender(Box::new(e))
+                            })?;
                         }
-                        PipelineErrorKind::Critical(_) => {
-                            error!(target: "derivation", "Critical derivation error: {e}");
-                            kona_macros::inc!(counter, Metrics::DERIVATION_CRITICAL_ERROR);
-                            return Err(e.into());
-                        }
+                        self.derivation_state_machine
+                            .update(&DerivationStateUpdate::SignalNeeded)?;
+                        return Err(DerivationError::Yield);
                     }
                 }
-            }
-
-            // If there are any new attributes, send them to the execution actor.
-            if let Some(attrs) = self.pipeline.next() {
-                return Ok(attrs);
+                Err(e @ PipelineErrorKind::Critical(_)) => {
+                    error!(target: "derivation", "Critical derivation error: {e}");
+                    kona_macros::inc!(counter, Metrics::DERIVATION_CRITICAL_ERROR);
+                    return Err(e.into());
+                }
             }
         }
     }
