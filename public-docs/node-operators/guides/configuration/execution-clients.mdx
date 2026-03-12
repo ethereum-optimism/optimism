@@ -1,0 +1,132 @@
+---
+title: Execution client configuration
+description: Learn how to configure execution clients (op-geth, op-reth, Nethermind) for your OP Stack node.
+---
+
+The execution client provides the EVM execution environment and processes transactions.
+This guide covers configuration for the most popular execution client implementations.
+
+<Info>
+Always run your execution client and consensus client in a one-to-one configuration.
+Don't run multiple execution client instances behind one consensus client, or vice versa.
+</Info>
+
+## Execution clients
+
+Choose the execution client that best fits your needs:
+
+<Tabs>
+  <Tab title="op-geth">
+    ## op-geth configuration
+
+    [op-geth](https://github.com/ethereum-optimism/op-geth) is a minimal fork of go-ethereum optimized for the OP Stack.
+
+    <Info>
+    Although the Docker image is called `op-geth`, the actual binary is still named `geth` to minimize differences from go-ethereum.
+    See the [op-geth diff viewer](https://op-geth.optimism.io/?utm_source=op-docs&utm_medium=docs) for details.
+    </Info>
+
+    ### Minimal configuration
+
+    Minimumal configuration for op-geth:
+
+    ```bash
+    geth \
+      --datadir=/data/optimism \
+      --http \
+      --http.addr=0.0.0.0 \
+      --http.port=8545 \
+      --http.api=eth,net,web3 \
+      --authrpc.jwtsecret=/path/to/jwt-secret.txt \
+      --op-network=op-mainnet \
+      --rollup.sequencerhttp=https://mainnet-sequencer.optimism.io/ \
+      --rollup.disabletxpoolgossip 
+    ```
+
+    This will utilize primarily the default settings i.e. snap sync mode, no WebSocket server, no metrics, etc.
+
+    ### OP Stack specific flags
+
+    - `--rollup.sequencerhttp`: HTTP endpoint of the sequencer for transaction submission
+    - `--rollup.disabletxpoolgossip`: Disables transaction pool gossip (recommended for replica nodes)
+    - `--rollup.historicalrpc`: Enables historical RPC endpoint for upgraded networks (OP Mainnet pre-bedrock archive nodes)
+
+    This file must be identical for both op-geth and your consensus client.
+
+    ### Complete reference
+
+    For all available configuration options, see the [op-geth configuration reference](/node-operators/reference/op-geth-config).
+  </Tab>
+
+  <Tab title="op-reth">
+    ## op-reth configuration
+
+    [op-reth](https://github.com/paradigmxyz/reth) is a Rust-based execution client optimized for performance.
+
+    ### Minimal configuration
+
+    Minimum required flags for op-reth:
+
+    ```bash
+    op-reth node \
+      --chain optimism \
+      --rollup.sequencer https://mainnet-sequencer.optimism.io \
+      --http \
+      --ws \
+      --authrpc.port 9551 \
+      --authrpc.jwtsecret /path/to/jwt.hex
+    ```
+
+    ### Complete reference
+
+    For all available configuration options, see the [op-reth configuration reference](/node-operators/reference/op-reth-config).
+    If you are using the `op-rs` fork for historical proofs, see the [historical proof configuration](/node-operators/reference/op-reth-historical-proof-config).
+
+    ### Additional resources
+
+    For more details on op-reth configuration:
+    - [op-reth documentation](https://reth.rs/run/opstack)
+    - [op-reth configuration documentation](https://reth.rs/run/configuration)
+  </Tab>
+
+  <Tab title="Nethermind">
+    ## Nethermind configuration
+
+    [Nethermind](https://github.com/NethermindEth/nethermind) is a .NET-based execution client with enterprise features.
+
+    ### Installation
+
+    Download Nethermind from the [releases page](https://github.com/NethermindEth/nethermind/releases) or build from source.
+
+    ### Initialization
+
+    Nethermind uses a configuration file approach. Create a configuration file or use command-line flags.
+
+    ### Minimal configuration
+
+    Minimum required flags for Nethermind:
+
+    ```bash
+    nethermind \
+      -c op-mainnet \
+      --data-dir path/to/data/dir \
+      --jsonrpc-jwtsecretfile path/to/jwt.hex
+    ```
+
+    ### Additional resources
+
+    For more details on Nethermind configuration:
+    - [Nethermind documentation](https://docs.nethermind.io/get-started/running-node/l2-networks)
+    - [Nethermind configuration reference](https://docs.nethermind.io/fundamentals/configuration)
+  </Tab>
+</Tabs>
+
+## JWT secret
+
+To communicate with consensus client and enable the Engine API, you'll also need to generate a JWT secret file and enable the execution client's authenticated RPC endpoint.
+To generate the JWT secret file:
+
+```bash
+openssl rand -hex 32 > jwt-secret.txt
+```
+

@@ -1,0 +1,426 @@
+---
+title: Deploy L1 contracts with op-deployer
+description: Install op-deployer, prepare your environment, and deploy the L1 smart contracts for your rollup.
+---
+
+Welcome to the first step of creating your own L2 rollup testnet! In this section, you'll install the op-deployer tool and deploy the necessary L1 smart contracts for your rollup.
+
+<Info>
+  **Step 1 of 5**: This tutorial is designed to be followed step-by-step. Each step builds on the previous one.
+</Info>
+
+<Info>
+  **Quick Setup Available**
+
+  For a complete automated setup that includes op-deployer deployment, check out the [`code/`](https://github.com/ethereum-optimism/docs/tree/main/create-l2-rollup-example/) directory. The automated setup handles all contract deployment and configuration automatically.
+</Info>
+
+## About op-deployer
+
+`op-deployer` simplifies the process of deploying the OP Stack. You define a declarative config file called an "**intent**," then run a command to apply it. `op-deployer` compares your chain's current state against the intent and makes the necessary changes to match.
+
+## Installation
+
+There are a couple of ways to install `op-deployer`:
+
+<Tabs>
+  <Tab title="Use binary">
+    The recommended way to install `op-deployer` is to download the latest release from the monorepo's [release page](https://github.com/ethereum-optimism/optimism/releases).
+
+    <Info>
+      **Quick Setup Available**
+
+      For automated installation, you can use the download script from the [code directory](https://github.com/ethereum-optimism/docs/tree/main/create-l2-rollup-example/). This script automatically downloads the latest version for your system.
+    </Info>
+
+    <Steps>
+    <Step title="Download the correct binary">
+      1.  Go to the [release page](https://github.com/ethereum-optimism/optimism/releases)
+      2.  Find the **latest** release that includes `op-deployer` (look for releases tagged with `op-deployer/v*`)
+      3.  Under **assets**, download the binary that matches your system:
+
+      *   For Linux: `op-deployer-linux-amd64`
+      *   For macOS:
+          *   Apple Silicon (M1/M2): `op-deployer-darwin-arm64`
+          *   Intel processors: `op-deployer-darwin-amd64`
+      *   For Windows: `op-deployer-windows-amd64.exe`
+
+      <Info>
+        **Always download the latest version** to ensure you have the most recent features and bug fixes.
+      </Info>
+
+      <Info>
+        Not sure which macOS version to use?
+
+        *   Open Terminal and run `uname -m`
+        *   If it shows `arm64`, use the arm64 version
+        *   If it shows `x86_64`, use the amd64 version
+      </Info>
+      </Step>
+
+      <Step title="Create deployer directory and install binary">
+
+      1.  Create the rollup directory structure and enter the deployer directory:
+
+      ```bash
+      # Create main rollup directory
+      mkdir rollup && cd rollup
+
+      # Create and enter the deployer directory
+      mkdir deployer && cd deployer
+      ```
+
+      Your directory structure will now look like this:
+      ```bash
+      rollup/
+      └── deployer/    # You are here
+      ```
+
+      2.  Move and rename the downloaded binary:
+
+      <Info>
+        The downloaded file is likely in your Downloads folder:
+
+        *   macOS/Linux: `/Users/YOUR_USERNAME/Downloads`
+        *   Windows WSL: `/mnt/c/Users/YOUR_USERNAME/Downloads`
+      </Info>
+
+      ```bash
+      # Step 1: Extract the downloaded archive in the deployer directory
+      # Replace FILENAME with the actual downloaded file name (includes version and arch)
+      tar -xvzf /Users/USERNAME/Downloads/FILENAME.tar.gz
+
+      # Step 2: Make the binary executable
+      # Replace FILENAME with the extracted binary name
+      chmod +x FILENAME
+
+      # Step 3: Remove macOS quarantine attribute (fixes "can't be opened" warning)
+      sudo xattr -dr com.apple.quarantine FILENAME
+
+      # Step 4: Move the binary to your PATH
+      # For Intel Macs:
+      sudo mv FILENAME /usr/local/bin/op-deployer
+      # For Apple Silicon Macs:
+      sudo mv FILENAME /opt/homebrew/bin/op-deployer
+
+      # Step 5: Verify installation (should print version info)
+      op-deployer --version
+      ```
+
+      <Info>
+        **Pro Tip**: Use the automated download script from the [code directory](https://github.com/ethereum-optimism/docs/tree/main/create-l2-rollup-example/) to avoid manual version management. It automatically detects your platform and downloads the latest version.
+      </Info>
+      </Step>
+    
+    </Steps>
+  </Tab>
+
+  <Tab title="Build from source">
+    To install from source, you will need [Go](https://go.dev/doc/install), `just`, and `git`.
+    After installing all of that, run following:
+
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git # you can skip this if you already have the repo
+    cd optimism/op-deployer
+    just build
+    cp ./bin/op-deployer /usr/local/bin/op-deployer # or any other directory in your $PATH
+
+    # Verify installation
+    op-deployer --version
+    ```
+  </Tab>
+</Tabs>
+
+## L1 network requirements
+
+Before deploying your L1 contracts, you'll need:
+
+**L1 RPC URL**: An Ethereum RPC endpoint for your chosen L1 network
+
+    ```bash
+    # Examples:
+    # Sepolia (recommended for testing)
+    L1_RPC_URL=https://sepolia.infura.io/v3/YOUR-PROJECT-ID
+    # or https://eth-sepolia.g.alchemy.com/v2/YOUR-API-KEY
+
+    # Local network
+    L1_RPC_URL=http://localhost:8545
+    ```
+
+    <Info>
+      For testing, we recommend using Sepolia testnet. You can get free RPC access from:
+
+      *   [Infura](https://infura.io) (create account, get API key)
+      *   [Alchemy](https://alchemy.com) (create account, get API key)
+      *   [Ankr](https://ankr.com) (create account, get API key)
+    </Info>
+
+## Generate deployment addresses
+
+Your rollup needs several addresses for different roles. Let's generate them first:
+
+<Steps>
+<Step title="Create address directory">
+
+  ```bash
+  # Create a address directory inside the deployer directory
+  mkdir -p address
+  cd address
+  ```
+
+  Your directory structure will now look like this:
+  ```bash
+  rollup/
+  └── deployer/
+      └── address/    # You are here
+  ```
+
+      </Step>
+
+      <Step title="Generate address for each role">
+
+  ```bash
+  # Generate 8 new wallet addresses
+  for role in admin base_Fee_Vault_Recipient l1_Fee_Vault_Recipient sequencer_Fee_Vault_Recipient system_config unsafe_block_signer batcher proposer ; do
+      wallet_output=$(cast wallet new)
+      echo "$wallet_output" | grep "Address:" | awk '{print $2}' > ${role}_address.txt
+      echo "Created wallet for $role"
+  done
+  ```
+
+  This will save the various addresses for your intent file into files in your current directory. To view them later you can use `cat *_address.txt`.
+
+      </Step>
+    </Steps>
+
+<Info>
+  **Important**:
+
+  *   Save these address - you'll need them to operate your chain
+  *   You can use any address for the purpose of testing, for production, use proper key management solutions (HSMs, multisigs addresses)
+  
+</Info>
+
+## Create and configure intent file
+
+The intent file defines your chain's configuration.
+
+<Steps>
+<Step title="Initialize intent file">
+
+  Inside the `deployer` folder, run this command:
+
+  ```bash
+  #You can use a 2-7 digit random number for your `<YOUR_CHAIN_ID>` 
+  op-deployer init \
+    --l1-chain-id 11155111 \
+    --l2-chain-ids <YOUR_CHAIN_ID> \
+    --workdir .deployer \
+    --intent-type standard-overrides
+  ```
+
+
+  <Expandable title="Understanding intent types">
+
+    `op-deployer` supports three intent types:
+
+    *   `standard`: Uses default OP Stack configuration, minimal customization
+    *   `standard-overrides`: Recommended. Uses defaults but allows overriding specific values
+    *   `custom`: Full customization, requires manual configuration of all values
+
+    For most users, `standard-overrides` provides the best balance of simplicity and flexibility.
+  </Expandable>
+
+      </Step>
+
+      <Step title="Update the intent file">
+
+  Edit `.deployer/intent.toml` with your generated addresses. The `op-deployer init` command automatically populates this file with sensible defaults. Update the addresses while keeping the auto-generated contract locator values:
+
+  ```toml
+  configType = "standard-overrides"
+  l1ChainID = 11155111  # Sepolia
+  fundDevAccounts = false  # Set to false for production/testnet
+  useInterop = false
+  opcmAddress = "0x3bb6437aba031afbf9cb3538fa064161e2bf2d78"  # OPCM contract address on Sepolia
+
+  # Contract locators - REQUIRED fields, automatically populated by op-deployer init
+  # Keep these default values unless you need specific contract versions (advanced use case)
+  l1ContractsLocator = "tag://op-contracts/v2.0.0"
+  l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
+
+  # Shared contract roles - only define if creating a standalone chain not part of the OP Stack ecosystem
+  # For standard OP Stack deployments, these are predefined and should not be set
+  # [superchainRoles]
+  #   proxyAdminOwner = "0x..."     # admin address
+  #   protocolVersionsOwner = "0x..." # admin address
+  #   guardian = "0x..."            # admin address
+
+  [[chains]]
+    id = "0x000000000000000000000000000000000000000000000000000000000016de8d"
+    baseFeeVaultRecipient = "0x..."    # base_Fee_Vault_Recipient address
+    l1FeeVaultRecipient = "0x..."      # l1_Fee_Vault_Recipient address
+    sequencerFeeVaultRecipient = "0x..." # sequencer_Fee_Vault_Recipient address
+    eip1559DenominatorCanyon = 250
+    eip1559Denominator = 50
+    eip1559Elasticity = 6
+    [chains.roles]
+      l1ProxyAdminOwner = "0x1eb2ffc903729a0f03966b917003800b145f56e2"
+      l2ProxyAdminOwner = "0x2fc3ffc903729a0f03966b917003800b145f67f3"
+      systemConfigOwner = "0x..."      # system_config address
+      unsafeBlockSigner = "0x..."      # unsafe_block_signer address
+      batcher = "0x..."               # batcher address
+      proposer = "0x..."              # proposer address
+      challenger = "0xfd1d2e729ae8eee2e146c033bf4400fe75284301"
+  ```
+
+  <Expandable title="Understanding the configuration values">
+
+    **Global Settings:**
+
+    *   `l1ChainID`: The L1 network ID (11155111 for Sepolia)
+    *   `fundDevAccounts`: Creates test accounts with ETH if true (set to false for production)
+    *   `useInterop`: Enable interoperability features (false for standard deployments)
+    *   `opcmAddress`: OP Contracts Manager (OPCM) contract address on the L1 network (automatically populated for supported networks)
+
+    **Contract Locators (Required):**
+
+    These fields are **required** and automatically populated by `op-deployer init` with default values compatible with your `op-deployer` version.
+    Removing them will cause the error: "Application failed: L1ContractsLocator undefined". 
+    Keep the auto-generated values unless you specifically need different contract versions.
+    For version compatibility details, see the [op-deployer release notes](https://github.com/ethereum-optimism/optimism/releases).
+    
+
+    **Shared Contract Roles (Advanced):**
+
+    These are commented out because for standard OP Stack deployments, shared contract roles are predefined by the protocol. Only uncomment and define custom roles if you're creating a standalone chain not part of the OP Stack ecosystem.
+
+    **Chain Configuration:**
+
+    *   `id`: Unique identifier for your chain
+    *   `*FeeVaultRecipient`: Addresses receiving various protocol fees
+    *   `eip1559*`: Parameters for dynamic gas price calculation
+
+    **Chain Roles:**
+
+    *   `l1ProxyAdminOwner`: Can upgrade L1 contract implementations (usually same as superchain proxyAdminOwner)
+    *   `l2ProxyAdminOwner`: Can upgrade L2 contract implementations
+    *   `systemConfigOwner`: Manages system configuration parameters
+    *   `unsafeBlockSigner`: Signs pre-confirmation blocks (can be same as batcher)
+    *   `batcher`: Submits L2 transaction batches to L1
+    *   `proposer`: Submits L2 state roots to L1 for verification
+    *   `challenger`: Monitors dispute games and defends valid states
+  </Expandable>
+
+      </Step>
+    </Steps>
+
+<Info>
+  Replace all `0x...` with actual addresses from your `addresses.txt` file.
+  Never use the default test mnemonic addresses in production or public testnets!
+</Info>
+
+## Create environment file
+
+Before deploying, create a `.env` file in your `deployer` directory to store your environment variables:
+
+```bash
+# Create .env file
+cat << 'EOF' > .env
+# Your L1 RPC URL (e.g., from Alchemy, Infura)
+L1_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
+
+# Private key for deployment.
+# Get this from your self-custody wallet, like Metamask.
+PRIVATE_KEY=WALLET_PRIVATE_KEY
+EOF
+```
+
+<Info>
+  Never commit your `.env` file to version control. Add it to your `.gitignore`:
+
+  ```bash
+  echo ".env" >> .gitignore
+  ```
+</Info>
+
+Load the environment variables:
+
+```bash
+source .env
+```
+
+## Deploy L1 Contracts
+
+Now that your intent file and environment variables are configured, let's deploy the L1 contracts:
+
+```bash
+op-deployer apply \
+  --workdir .deployer \
+  --l1-rpc-url $L1_RPC_URL \
+  --private-key $PRIVATE_KEY
+```
+
+This will:
+
+1.  Deploy all required L1 contracts
+2.  Configure them according to your intent file
+3.  Save deployment information to `.deployer/state.json`
+
+<Info>
+  The deployment can take 10-15 seconds and requires multiple transactions.
+</Info>
+
+## Generate chain configuration
+
+After successful deployment, generate your chain configuration files:
+
+```bash
+# Generate genesis and rollup configs
+op-deployer inspect genesis --workdir .deployer <YOUR_CHAIN_ID> > .deployer/genesis.json
+op-deployer inspect rollup --workdir .deployer <YOUR_CHAIN_ID> > .deployer/rollup.json
+```
+
+## What's Next?
+
+Great! You've successfully:
+
+1.  Installed `op-deployer` using the `init` and `apply` command.
+2.  Created and configured your intent file
+3.  Deployed L1 smart contracts
+4.  Generated chain artifacts
+
+Your final directory structure should look like this:
+```bash
+rollup/
+└── deployer/
+    ├── .deployer/           # Contains deployment state and configs
+    │   ├── genesis.json     # L2 genesis configuration
+    │   ├── intent.toml      # Your chain configuration
+    │   ├── rollup.json      # Rollup configuration
+    │   └── state.json       # Deployment state
+    ├── .env                 # Environment variables
+    └── address/             # Generated address pairs
+        ├── admin_address.txt
+        ├── base_Fee_Vault_Recipient_address.txt
+        ├── batcher_address.txt
+        ├── l1_Fee_Vault_Recipient_address.txt
+        ├── proposer_address.txt
+        ├── sequencer_Fee_Vault_Recipient_address.txt
+        ├── system_config_address.txt
+        └── unsafe_block_signer_address.txt
+
+```
+
+Now you can move on to setting up your sequencer node.
+
+<Card title="Spin up sequencer →" href="./op-geth-setup">
+  **Next**: Set up op-geth and op-node, essential building blocks of the execution and consensus layers in your rollup.
+</Card>
+
+***
+
+## Need Help?
+
+*   **op-deployer Repository**: [GitHub](https://github.com/ethereum-optimism/optimism/tree/develop/op-deployer/cmd/op-deployer)
+*   **OPCM Documentation**: [OP Contracts Manager](/chain-operators/reference/opcm)

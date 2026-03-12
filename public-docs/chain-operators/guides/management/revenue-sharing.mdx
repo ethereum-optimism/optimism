@@ -1,0 +1,207 @@
+---
+title: Optimism Revenue Sharing
+description: Learn how to configure and implement automated Optimism revenue sharing.
+---
+
+<Info>
+  Optimism Revenue Sharing will become available if and when Optimism Governance approves [Upgrade 19](/notices/upgrade-19).
+</Info>
+
+<Warning>
+
+The most important configuration to take into account to use the current revenue sharing system as is, including the interaction between the `FeeVaults` and `FeeSplitter` is that:
+1. The `FeeVaults` must have set the `minimumWithdrawalAmount` config to zero, 
+2. the recipient must be the `FeeSplitter` address, 
+3. and the `withdrawalNetwork` must be L2.
+
+</Warning>
+
+## At Genesis
+
+You can either enable revenue sharing at chain genesis or opt out. 
+The `useRevenueShare` field controls whether your chain enables the revenue sharing system feature:
+
+- **`useRevenueShare = true`** (default for standard configurations): `FeeVault`s are upgraded and configured to use the `FeeSplitter` contract as the recipient, L2 as the withdrawal network, and `0` as the minimum withdrawal amount. The split logic is calculated using the `SuperchainRevSharesCalculator` contract. The `L1Withdrawer` contract is set to withdraw the OP portion of fees automatically.
+- **`useRevenueShare = false`**: `FeeSplitter` is deployed but initialized with zero address for the `sharesCalculator` field. No deployment is made for the `SuperchainRevSharesCalculator` and `L1Withdrawer` contracts. `FeeVault`s are upgraded but initialized using the custom configuration you provide.
+
+**Configuration Fields**
+
+The following fields are used to configure your [op-deployer](/chain-operators/tools/op-deployer/overview) intent file:
+
+- `useRevenueShare` (optional): Enables or disables the revenue sharing system. Defaults to `true` for standard configurations, `false` for custom.
+- `chainFeesRecipient` (required when `useRevenueShare = true`): Address that receives the chain operator's portion of fee revenue on L2. Must be able to receive ETH.
+
+<Note>
+
+Since `useRevenueShare` defaults to `true` for standard configurations, you must either provide a `chainFeesRecipient` address OR explicitly set `useRevenueShare = false` to opt out. The deployment will fail validation if revenue sharing is enabled without a recipient.
+
+</Note>
+
+### Through Deposit Transactions via superchain-ops (Live Chains)
+
+<Note>
+
+We strongly recommend having the `ProxyAdmin` owner on L1, with a multisig compatible with [superchain-ops](https://github.com/ethereum-optimism/superchain-ops) repo to be able to perform the upgrade altogether in an easier way using an audited contract and a tested script.
+
+As a reference, here is an example task using the `L1PortalExecuteL2Call` template:
+
+```jsx
+templateName = "L1PortalExecuteL2Call"
+
+l2chains = [{name = "OP Mainnet", chainId = 10}]
+
+# L2 call params
+
+l2Target = "0xcDF27F107725988f2261Ce2256bDfCdE8B382B10" # OptimismGovernor Proxy
+l2Data = "0x3659cfe6000000000000000000000000ecbf4ed9f47302f00f0f039a691e7db83bdd2624" # upgradeTo(currentImpl)
+gasLimit = 500000
+isCreation = false
+```
+
+The usage would be very similar to this, but using the correct values as inputs. For instance, the `l2Data` needs to be the function calldata that will be performed.
+
+</Note>
+
+For existing chains that need to enable revenue sharing post-deployment, the upgrade is executed via L1→L2 deposit transactions using the `RevShareContractsUpgrader` contract. This process orchestrates multiple atomic operations across chains through the Safe multisig via delegatecall.
+
+**Two Upgrade Paths:**
+
+1. **`upgradeAndSetupRevShare()`** (For first-time setup): Deploys new contract implementations AND initializes them with revenue sharing configuration in one atomic operation. This is the most efficient path as fee vaults are initialized with the correct recipient (FeeSplitter) from the start, preventing any race conditions.
+2. **`setupRevShare()`** (for already-upgraded contracts): Configures existing upgraded contracts via setter functions. Use this when contracts have already been upgraded to revenue-sharing-compatible implementations but need configuration.
+
+    <Warning>
+
+    The `setupRevShare()` flow needs the proxies to be upgraded first. This might be possible once the L2CM project is shipped.
+
+    </Warning>
+
+
+**Execution Flow (via delegatecall chain):**
+
+```
+Proxy Admin Owner (multisig)
+  ↓ delegatecall via Multicall3DelegateCall
+RevShareUpgradeAndSetup (template)
+  ↓ delegatecall
+RevShareContractsUpgrader
+  ↓ L1 calls via `depositTransaction()`
+OptimismPortal2
+  ↓ Deployments (CREATE2) and setup (upgrades via ProxyAdmin)
+L2
+```
+
+---
+
+## `SuperchainRevSharesCalculator` Configuration
+
+The fee calculation is based on two formulas, where the maximum of the two is used. This means there will be a kink in the function. So the result of the formula can change based on when the underlying vaults are filled in relation to the calls to `disburseFees()`.
+**Recommendation:** Check all the vaults for a period of one day (the default value of `feeDisbursementInterval`). The recommended path is to check that all (major) additions are at least done once during that period. If there are additions that are done with a lower frequency, then consider increasing the `feeDisbursementInterval`.
+
+For instance, if the fees from `L1_FEE_VAULT` compose > 97.5% of the `grossRevenue`, it will likely mean that the chain will end up paying more fees to OP. This is a very unlikely scenario, but this would be an example of it
+
+  ```
+  Example at 98% L1 fees:
+  Gross revenue = $100
+  L1 fees = $98
+  Net revenue = $2
+
+  Shares:
+  Gross share = 2.5% × $100 = $2.50
+  Net share = 15% × $2 = $0.30
+  OP gets: max($2.50, $0.30) = $2.50
+  ```
+
+As we see on the snippet, the net revenue is `$2` and the OP shares is `$2.50`: A `$0.50` loss for the operator.
+
+- The `l1WithdrawerRecipient` needs to be set to the L1 `FeesDepositor` address (still to be deployed).
+- Ensure the `chainFeesRecipient` set can receive Ether.
+
+## New `SharesCalculator`s Implementations
+
+The `*SharesCalculator*` is a key component of the integration with the `FeeSplitter` contract. It is responsible for holding the business logic to properly calculate and divide the amount of fees that each recipient has to receive.
+
+This contract has to be compatible with the `ISharesCalculator` interface:
+
+```solidity
+/// @title ISharesCalculator
+/// @notice Interface for a contract that calculates the recipients and amounts for fee distribution.
+/// @dev Meant to be called by the FeeSplitter contract.
+interface ISharesCalculator {
+    /// @notice Struct to hold the recipient and amount for each fee share.
+    /// @param recipient The address that will receive the fee share
+    /// @param amount The amount of ETH to be sent to the recipient
+    struct ShareInfo {
+        address payable recipient;
+        uint256 amount;
+    }
+
+    /// @notice Returns the recipients and amounts for fee distribution.
+    /// @dev Any implementation MUST return ShareInfo where the sum of all amounts equals
+    /// the total revenue (sum of all vault balances) as it will revert otherwise
+    /// @param _sequencerFeeVaultBalance Balance of the sequencer fee vault.
+    /// @param _baseFeeVaultBalance Balance of the base fee vault.
+    /// @param _operatorFeeVaultBalance Balance of the operator fee vault.
+    /// @param _l1FeeVaultBalance Balance of the L1 fee vault.
+    /// @return shareInfo Array of ShareInfo structs containing recipients and amounts.
+    function getRecipientsAndAmounts(
+        uint256 _sequencerFeeVaultBalance,
+        uint256 _baseFeeVaultBalance,
+        uint256 _operatorFeeVaultBalance,
+        uint256 _l1FeeVaultBalance
+    )
+        external
+        view
+        returns (ShareInfo[] memory shareInfo);
+}
+```
+
+Through this function call, it will receive the revenue per fee vault, and will dictate the recipients and the amount that each one has to receive.
+
+The invariants that should comply with are:
+
+- It MUST NOT return an empty array.
+- The total returned amount to be disbursed by the `FeeSplitter` MUST be equal to the sum of all the vaults' revenue received as input.
+
+Another property that is not purely an invariant of this contract but worth mentioning is that the returned recipient MUST be able to receive ETH or otherwise the whole tx will fail.
+
+The `SuperchainRevSharesCalculator` contract serves as an example of this integration, which implements the interface. 
+Its core business logic involves disbursing the maximum value between 2.5% of gross revenue or 15% of net revenue to OP, with the remainder allocated to the recipient specified by the chain.
+
+[SuperchainRevSharesCalculator source code](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainRevSharesCalculator.sol)
+
+## All Configurations
+
+This section aims to describe other important things to bear in mind, regardless of whether the chain uses the `SuperchainRevSharesCalculator` contract or not.
+
+To update a config on the following contracts, you will need the L2 ProxyAdmin owner role. If this is the aliased L1 ProxyAdmin owner, a deposit transaction will be needed to make this change. The superchain-ops repository has examples on how to do this.
+
+**`FeeVault` Setters:**
+
+- `setMinWithdrawalAmount()`: To update the minimum withdrawal amount
+- `setRecipient()`: To update the recipient of the fees withdrawn from the vaults
+- `setWithdrawalNetwork()`: To update the withdrawal network
+
+**`FeeSplitter` Setters:**
+
+- `setFeeDisbursementInterval()`: To update the disbursement interval
+- `setSharesCalculator()`: To update the shares calculator implementation
+
+**`SuperchainRevSharesCalculator` Setters:**
+
+- **`setShareRecipient()`:** To update the share recipient (default config is OP)
+- **`setRemainderRecipient()`:** To update the remainder recipient (default config is the chain fees recipient)
+
+**`L1Withdrawer` Setters:**
+
+- `setMinWithdrawalAmount()`: Min withdrawal amount needed before initiating the withdrawal
+- `setRecipient()`: Recipient on L1 from the fees (default config is the `FeesDepositor`)
+- `setWithdrawalGasLimit()`: Gas limit for the withdrawal. Bear in mind that if integrating with the `FeesDepositor`, the gas needs will vary depending on if the `FeesDepositor` will initiate a deposit to OP mainnet or not, based on the balance and the threshold. Nevertheless, there is replayability enabled through the CDM in case it fails due to OOG. 
+
+## CGT Chains Integration With Revenue Sharing
+
+Current `L1Withdrawer` is not compatible through CGT chains, provoking revenue sharing to be incompatible with CGT chains as is right now. But, if needed, a new `L1WithdrawerCGT` could be added to satisfy this use case, and that would resolve the issue, given that the system is modular and the rest can function without any modifications.
+
+## L3 Chains Integration With Revenue Sharing
+
+If the chain is going to be a L3, revenue sharing has to be disabled.
+

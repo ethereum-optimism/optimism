@@ -1,0 +1,159 @@
+---
+title: Upgrade 19 - Automated Optimism Revenue Sharing
+description: Learn how to prepare for Upgrade 19.
+---
+
+Upgrade 19 is a proposed network upgrade for OP Stack chains that **automates Optimism revenue collection** using onchain smart contracts.
+
+This upgrade replaces the current manual revenue distribution process with a deterministic, transparent, and configurable contract system that collects fees from L2 vaults, calculates the protocol’s revenue share, and distributes funds automatically between the chain operator and the Optimism Collective.
+
+<Info>
+  Upgrade 19 is a smart contract upgrade. There are no hardforks activating during this upgrade.
+</Info>
+
+## What's included in Upgrade 19
+
+Upgrade 19 introduces an automated revenue-sharing pipeline composed of new and upgraded L1 and L2 contracts. You can find more details on revenue sharing [here](https://docs.optimism.io/chain-operators/guides/management/revenue-sharing).
+
+### Overview of the flow
+
+1. **Fee collection**
+
+   All four L2 fee vaults:
+
+   - `SequencerFeeVault`
+   - `BaseFeeVault`
+   - `L1FeeVault`
+   - `OperatorFeeVault`
+
+   route funds to the `FeeSplitter` predeploy.
+
+2. **Revenue share calculation**
+
+   `SuperchainRevenueShareCalculator` computes the protocol share as:
+
+`
+max(
+2.5% of gross revenue, (sum of all four fee vault balances)
+15% of net revenue (excluding L1 fees)
+)
+`
+
+Gross revenue includes fees from all four vaults, including `OperatorFeeVault`.
+
+3. **Distribution**
+
+- Protocol share → `L1Withdrawer`
+- Remainder → chain operator’s designated recipient
+
+4. **L2 → L1 bridging**
+
+- `L1Withdrawer` accumulates funds until a configurable threshold is met.
+- Once reached, it initiates an L2→L1 withdrawal via `CrossDomainMessenger`.
+- On L1, funds are received by `FeesDepositor`.
+- `FeesDepositor` can bridge funds back to OP Mainnet for operational use when configured thresholds are met.
+
+---
+
+## Contracts introduced or modified
+
+### L2 Contracts (per-chain)
+
+| Contract | Address / Type | Description |
+| --- | --- | --- |
+| `FeeSplitter` | `0x420000000000000000000000000000000000002B` (predeploy) | Receives funds from all fee vaults and distributes shares based on calculator output. |
+| `SuperchainRevenueShareCalculator` | CREATE2 | Implements revenue share formula (`max(2.5% gross, 15% net)`). |
+| `L1Withdrawer` | CREATE2 | Accumulates protocol share and initiates L2→L1 withdrawals. |
+| `SequencerFeeVault` | proxy upgrade | Now configurable via setters (recipient, minWithdrawal, network). |
+| `BaseFeeVault` | proxy upgrade | Same as above. |
+| `L1FeeVault` | proxy upgrade | Same as above. |
+| `OperatorFeeVault` | proxy upgrade | Newly integrated into revenue share calculation. |
+
+All vault implementations maintain backward compatibility while replacing immutables with configurable setters.
+
+### L1 Contracts
+
+| Contract | Description |
+| --- | --- |
+| `RevShareContractsUpgrader` | Orchestrates multi-chain upgrade via L1→L2 deposits through `OptimismPortal2`. |
+| `FeesDepositor` | Receives protocol revenue withdrawals and optionally bridges to OP Mainnet. |
+
+---
+
+## Breaking Changes
+
+### Fee vault routing changes
+
+All four L2 fee vaults will route funds to the `FeeSplitter` instead of directly to recipients.
+
+Operators should ensure:
+
+- Recipient configuration is correct.
+- `FeeSplitter` is initialized before vault reconfiguration (handled automatically by `upgradeAndSetupRevShare()`).
+
+
+## For chain operators
+
+### OP Managed Chains
+
+No action required. 
+
+### Non OP Managed Chains
+
+Chains whose `ProxyAdminOwner` role is self managed:
+
+- Perform the upgrade template themselves.
+- Execute the `upgradeAndSetupRevShare()` or `setupRevShare()` flow.
+- Verify L2 execution post-deposit.
+
+For more details, see the [here](https://docs.optimism.io/chain-operators/guides/management/revenue-sharing).
+
+---
+
+## Deployment Flow
+
+1. `ProxyAdminOwner` multisig executes transaction via delegatecall to `RevShareContractsUpgrader`.
+2. `RevShareContractsUpgrader` deposits L1→L2 messages via `OptimismPortal2`.
+3. On L2:
+- CREATE2 deploys `L1Withdrawer` and `SuperchainRevenueShareCalculator`.
+- `FeeSplitter` proxy is upgraded and initialized.
+- All four fee vault proxies are upgraded and configured:
+  - `recipient = FeeSplitter`
+  - `minWithdrawal = 0`
+  - `network = L2`
+
+No downtime is expected. Execution is asynchronous and non-blocking.
+
+![Pre Rev Share](/public/img/notices/pre-rev-share.png)
+
+![Upgrade Screenshot](/public/img/notices/upgrade-rev-share.png)
+
+![Rev Share](/public/img/notices/rev-share.png)
+
+---
+
+## Execute the L1 Contract Upgrade
+
+The upgrade must be executed via delegatecall from the `ProxyAdminOwner` multisig to the deployed `RevShareContractsUpgrader`.
+
+Please simulate and validate the expected output prior to executing the transaction.
+
+- Simulate the transaction before execution.
+- Verify L2 message execution paths.
+- Confirm `FeeSplitter` initialization precedes vault reconfiguration.
+- Validate post-upgrade revenue routing.
+
+Mainnet and testnet calldata should be validated against expected contract parameters before execution.
+
+<Warning>
+Please simulate and validate all expected state changes prior to execution.
+</Warning>
+
+---
+
+## Technical References
+
+- [Revenue Sharing Design Docs](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/revenue-sharing.md)
+- [Fee Splitter](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/fee-splitter.md)
+- [Revshare Specs](https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/revshare)
+- [Implementation PR #17536](https://github.com/ethereum-optimism/optimism/pull/17536)

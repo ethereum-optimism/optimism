@@ -1,0 +1,440 @@
+---
+title: Interop message passing tutorial
+description: Learn to implement cross-chain communication on OP Stack chains by building a message passing system using the L2ToL2CrossDomainMessenger contract.
+---
+
+<Info>
+  OP Stack interop is in active development. Some features may be experimental.
+</Info>
+## Overview
+
+This tutorial demonstrates how to implement cross-chain communication within the OP Stack ecosystem. You'll build a complete
+message passing system that enables different chains to interact with each other using the `L2ToL2CrossDomainMessenger` contract.
+
+<Expandable title="About this tutorial">
+
+  **Prerequisite technical knowledge**
+
+  * Intermediate Solidity programming
+  * Basic TypeScript knowledge
+  * Understanding of smart contract development
+  * Familiarity with blockchain concepts
+
+  **What you'll learn**
+
+  * How to deploy contracts across different chains
+  * How to implement cross-chain message passing
+  * How to handle sender verification across chains
+  * How to relay messages manually between chains
+
+  **Development environment**
+
+  * Unix-like operating system (Linux, macOS, or WSL for Windows)
+  * Node.js version 16 or higher
+  * Git for version control
+
+  **Required tools**
+
+  The tutorial uses these primary tools:
+
+  * Foundry: For smart contract development
+  * Supersim: For local blockchain simulation (optional)
+  * TypeScript: For offchain code (for relaying messages manually)
+  * Viem: For interactions with the chain from the offchain app
+</Expandable>
+
+### What You'll Build
+
+*   A `Greeter` contract that stores and updates a greeting
+*   A `GreetingSender` contract that sends cross-chain messages to update the greeting
+*   A TypeScript application to relay messages between chains
+
+<Info>
+  This tutorial provides step-by-step instructions for implementing cross-chain messaging.
+  For a conceptual overview,
+  see the [Message Passing Explainer](/app-developers/guides/interoperability/message-passing).
+</Info>
+
+In this tutorial, you will learn how to use the [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol) contract to pass messages between interoperable blockchains.
+
+## Setting up your development environment
+
+<Steps>
+  <Step title="Follow the [Installation Guide](/app-developers/tutorials/development/supersim/installation) to install:">
+    * Foundry for smart contract development (required in all cases)  
+    * Supersim for local blockchain simulation (optional)
+  </Step>
+
+  <Step title="Verify your installation:">
+    ```sh
+    forge --version
+    ./supersim --version
+    ```
+  </Step>
+</Steps>
+
+## Implementing onchain message passing (in Solidity)
+
+The implementation consists of three main components:
+
+1.  **Greeter Contract**: Deployed on `Chain B`, receives and stores messages.
+2.  **GreetingSender Contract**: Deployed on `Chain A`, initiates cross-chain messages.
+
+<Steps>
+  <Step title="Setting up test networks">
+  1.  If you are using [Supersim](/> app-developers/tools/development/supersim), go to the directory where Supersim is installed and start it with autorelay.
+
+        ```sh
+        ./supersim --interop.autorelay
+        ```
+
+        If you are using [the devnets](/app-developers/guides/building-apps), just skip this step.
+
+        <Tabs>
+            <Tab title="Supersim">
+              Supersim creates three `anvil` blockchains:
+
+              | Role     | ChainID | RPC URL                                        |
+              | -------- | ------: | ---------------------------------------------- |
+              | L1       |     900 | [http://127.0.0.1:8545](http://127.0.0.1:8545) |
+              | OPChainA |     901 | [http://127.0.0.1:9545](http://127.0.0.1:9545) |
+              | OPChainB |     902 | [http://127.0.0.1:9546](http://127.0.0.1:9546) |
+            </Tab>
+
+            <Tab title="Devnets">
+              These are the three networks involved in the devnet:
+
+              | Role         |   ChainID | RPC URL                                                                          |
+              | ------------ | --------: | -------------------------------------------------------------------------------- |
+              | L1 (Sepolia) |  11155111 | [https://eth-sepolia.public.blastapi.io](https://eth-sepolia.public.blastapi.io) |
+              | ChainA       | 420120000 | [https://interop-alpha-0.optimism.io](https://interop-alpha-0.optimism.io)       |
+              | ChainB       | 420120001 | [https://interop-alpha-1.optimism.io](https://interop-alpha-1.optimism.io)       |
+            </Tab>
+        </Tabs>
+
+    2.  In a separate shell, store the configuration in environment variables.
+
+        <Tabs>
+            <Tab title="Supersim">
+              Set these parameters for Supersim.
+
+              ```sh
+              PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+              USER_ADDRESS=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+              URL_CHAIN_A=http://127.0.0.1:9545
+              URL_CHAIN_B=http://127.0.0.1:9546
+              INTEROP_BRIDGE=0x4200000000000000000000000000000000000028
+              ```
+            </Tab>
+
+            <Tab title="Devnets">
+              For Devnet, specify in `PRIVATE_KEY` the private key you used for the setup script and then these parameters.
+
+              ```sh
+              USER_ADDRESS=`cast wallet address --private-key $PRIVATE_KEY`
+              URL_CHAIN_A=https://interop-alpha-0.optimism.io
+              URL_CHAIN_B=https://interop-alpha-1.optimism.io
+              INTEROP_BRIDGE=0x4200000000000000000000000000000000000028
+              ```
+            </Tab>
+        </Tabs>
+
+    <Expandable title="Sanity check">
+
+      To verify that the chains are running, check the balance of `$USER_ADDRESS`.
+
+      ```sh
+      cast balance --ether $USER_ADDRESS --rpc-url $URL_CHAIN_A
+      cast balance --ether $USER_ADDRESS --rpc-url $URL_CHAIN_B
+      ```
+    </Expandable>
+  </Step>
+
+  <Step title="Create the contracts">
+  1.  Create a new Foundry project.
+
+        ```sh
+        mkdir onchain-code
+        cd onchain-code
+        forge init
+        ```
+
+    2.  In `src/Greeter.sol` put this file.
+        This is a variation on [Hardhat's Greeter contract](https://github.com/matter-labs/hardhat-zksync/blob/main/examples/upgradable-example/contracts/Greeter.sol).
+
+        ```solidity
+            //SPDX-License-Identifier: MIT
+            pragma solidity ^0.8.0;
+
+            contract Greeter {
+                string greeting;
+
+                event SetGreeting(
+                    address indexed sender,     // msg.sender
+                    string greeting
+                );
+
+                function greet() public view returns (string memory) {
+                    return greeting;
+                }
+
+                function setGreeting(string memory _greeting) public {
+                    greeting = _greeting;
+                    emit SetGreeting(msg.sender, _greeting);
+                }
+            }
+        ```
+
+    3.  Deploy the `Greeter` contract to Chain B and store the resulting contract address in the `GREETER_B_ADDRESS` environment variable.
+
+        ```sh
+        GREETER_B_ADDRESS=`forge create --rpc-url $URL_CHAIN_B --private-key $PRIVATE_KEY Greeter --broadcast | awk '/Deployed to:/ {print $3}'`
+        ```
+
+        <Expandable title="Explanation">
+
+            The command that deploys the contract is:
+
+            ```sh
+            forge create --rpc-url $URL_CHAIN_B --private-key $PRIVATE_KEY Greeter --broadcast
+            ```
+
+            The command output gives us the deployer address, the address of the new contract, and the transaction hash:
+
+            ```
+            Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+            Deployed to: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+            Transaction hash: 0xf155d360ec70ee10fe0e02d99c16fa5d6dc2a0e79b005fec6cbf7925ff547dbf
+            ```
+
+            The [`awk`](https://www.tutorialspoint.com/awk/index.htm) command looks for the line that has `Deployed to:` and writes the third word in that line, which is the address.
+
+            ```sh
+            awk '/Deployed to:/ {print $3}'
+            ```
+
+            Finally, in UNIX (including Linux and macOS) when the command line includes backticks, the shell executes the code between the backticks and puts the output, in this case the contract address, in the command.
+            So we get.
+
+            ```sh
+            GREETER_B_ADDRESS=<the address>
+            ```
+        </Expandable>
+
+    <Expandable title="Sanity check">
+
+      Run these commands to verify the contract works.
+      The first and third commands retrieve the current greeting, while the second command updates it.
+
+      ```sh
+      cast call --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "greet()" | cast --to-ascii
+      cast send --private-key $PRIVATE_KEY --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "setGreeting(string)" Hello$$
+      cast call --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "greet()" | cast --to-ascii
+      ```
+    </Expandable>
+
+    4.  Install the Optimism Solidity libraries into the project.
+
+        ```sh
+        cd lib
+        npm install @eth-optimism/contracts-bedrock
+        cd ..
+        echo @eth-optimism/=lib/node_modules/@eth-optimism/ >> remappings.txt
+        ```
+
+    5.  Create `src/GreetingSender.sol`.
+
+        ```solidity
+            //SPDX-License-Identifier: MIT
+            pragma solidity ^0.8.0;
+
+            import { Predeploys } from "@eth-optimism/contracts-bedrock/src/libraries/Predeploys.sol";
+            import { IL2ToL2CrossDomainMessenger } from "@eth-optimism/contracts-bedrock/src/L2/IL2ToL2CrossDomainMessenger.sol";
+
+            import { Greeter } from "src/Greeter.sol";
+
+            contract GreetingSender {
+                IL2ToL2CrossDomainMessenger public immutable messenger =
+                    IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+                address immutable greeterAddress;
+                uint256 immutable greeterChainId;
+
+                constructor(address _greeterAddress, uint256 _greeterChainId) {
+                    greeterAddress = _greeterAddress;
+                    greeterChainId = _greeterChainId;
+                }
+
+                function setGreeting(string calldata greeting) public {
+                    bytes memory message = abi.encodeCall(
+                        Greeter.setGreeting,
+                        (greeting)
+                    );
+                    messenger.sendMessage(greeterChainId, greeterAddress, message);
+                }
+            }
+        ```
+
+        <Expandable title="Explanation">
+
+           ```solidity
+                function setGreeting(string calldata greeting) public {
+                    bytes memory message = abi.encodeCall(
+                        Greeter.setGreeting,
+                        (greeting)
+                    );
+                    messenger.sendMessage(greeterChainId, greeterAddress, message);
+                }
+            ```
+
+           This function encodes a call to `setGreeting` and sends it to a contract on another chain.
+           `abi.encodeCall(Greeter.setGreeting, (greeting))` constructs the [calldata](https://docs.soliditylang.org/en/latest/internals/layout_in_calldata.html) by encoding the function selector and parameters.
+           The encoded message is then passed to `messenger.sendMessage`, which forwards it to the destination contract (`greeterAddress`) on the specified chain (`greeterChainId`).
+
+           This ensures that `setGreeting` is executed remotely with the provided `greeting` value (as long as there is an executing message to relay it).
+        </Expandable>
+
+    7.  Deploy `GreetingSender` to chain A.
+
+        ```sh
+        CHAIN_ID_B=`cast chain-id --rpc-url $URL_CHAIN_B`
+        GREETER_A_ADDRESS=`forge create --rpc-url $URL_CHAIN_A --private-key $PRIVATE_KEY --broadcast GreetingSender --constructor-args $GREETER_B_ADDRESS $CHAIN_ID_B | awk '/Deployed to:/ {print $3}'`
+        ```
+  </Step>
+
+  <Step title="Send a message">
+  Send a greeting from chain A to chain B.
+
+    ```sh
+    cast call --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "greet()" | cast --to-ascii
+    cast send --private-key $PRIVATE_KEY --rpc-url $URL_CHAIN_A $GREETER_A_ADDRESS "setGreeting(string)" "Hello from chain A"
+    sleep 4
+    cast call --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "greet()" | cast --to-ascii
+    ```
+
+    The `sleep` call is because it can take up to two seconds until the transaction is included in chain A, and then up to two seconds until the relay transaction is included in chain B.
+  </Step>
+</Steps>
+
+## Sender information
+
+Run this command to view the events to see who called `setGreeting`.
+
+```sh
+cast logs --rpc-url $URL_CHAIN_B 'SetGreeting(address,string)'
+```
+
+The sender information is stored in the second event topic.
+However, for cross-chain messages, this value corresponds to the local `L2ToL2CrossDomainMessenger` contract address (`4200000000000000000000000000000000000023`), making it ineffective for identifying the original sender.
+
+In this section we change `Greeter.sol` to emit a separate event in it receives a cross domain message, with the sender's identity (address and chain ID).
+
+<Steps>
+  <Step title="Modify the Greeter contract">
+  1.  Modify `src/Greeter.sol` to this code.
+
+        ```solidity
+            //SPDX-License-Identifier: MIT
+            pragma solidity ^0.8.0;
+
+            import { Predeploys } from "@eth-optimism/contracts-bedrock/src/libraries/Predeploys.sol";
+
+            interface IL2ToL2CrossDomainMessenger {
+                function crossDomainMessageContext() external view returns (address sender_, uint256 source_);
+            }
+
+            contract Greeter {
+
+                IL2ToL2CrossDomainMessenger public immutable messenger =
+                    IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+                string greeting;
+
+                event SetGreeting(
+                    address indexed sender,     // msg.sender
+                    string greeting
+                );
+
+                event CrossDomainSetGreeting(
+                    address indexed sender,   // Sender on the other side
+                    uint256 indexed chainId,  // ChainID of the other side
+                    string greeting
+                );
+
+                function greet() public view returns (string memory) {
+                    return greeting;
+                }
+
+                function setGreeting(string memory _greeting) public {
+                    greeting = _greeting;
+                    emit SetGreeting(msg.sender, _greeting);
+
+                    if (msg.sender == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+                        (address sender, uint256 chainId) =
+                            messenger.crossDomainMessageContext();
+                        emit CrossDomainSetGreeting(sender, chainId, _greeting);
+                    }
+                }
+            }
+        ```
+
+        <Expandable title="Explanation">
+
+            ```solidity
+            interface IL2ToL2CrossDomainMessenger {
+              function crossDomainMessageContext() external view returns (address sender_, uint256 source_);
+            }
+            ```
+
+            This definition isn't part of the [npmjs package](https://www.npmjs.com/package/@eth-optimism/contracts-bedrock) at writing, so we just add it here.
+
+            ```solidity
+                    if (msg.sender == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+                        (address sender, uint256 chainId) =
+                            messenger.crossDomainMessageContext();
+                        emit CrossDomainSetGreeting(sender, chainId, _greeting);
+                    }
+            ```
+
+            If we see that we got a message from `L2ToL2CrossDomainMessenger`, we call [`L2ToL2CrossDomainMessenger.crossDomainMessageContext`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol#L118-L126).
+        </Expandable>
+
+    2.  Redeploy the contracts.
+        Because the address of `Greeter` is immutable in `GreetingSender`, we need to redeploy both contracts.
+
+        ```sh
+        GREETER_B_ADDRESS=`forge create --rpc-url $URL_CHAIN_B --private-key $PRIVATE_KEY Greeter --broadcast | awk '/Deployed to:/ {print $3}'`
+        GREETER_A_ADDRESS=`forge create --rpc-url $URL_CHAIN_A --private-key $PRIVATE_KEY --broadcast GreetingSender --constructor-args $GREETER_B_ADDRESS $CHAIN_ID_B | awk '/Deployed to:/ {print $3}'`
+        ```
+  </Step>
+
+  <Step title="Verify you can see cross chain sender information">
+  1.  Set the greeting through `GreetingSender`.
+
+        ```sh
+        cast call --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "greet()" | cast --to-ascii
+        cast send --private-key $PRIVATE_KEY --rpc-url $URL_CHAIN_A $GREETER_A_ADDRESS "setGreeting(string)" "Hello from chain A, with a CrossDomainSetGreeting event"
+        sleep 4
+        cast call --rpc-url $URL_CHAIN_B $GREETER_B_ADDRESS "greet()" | cast --to-ascii
+        ```
+
+    2.  Read the log entries.
+
+        ```sh
+        cast logs --rpc-url $URL_CHAIN_B 'CrossDomainSetGreeting(address,uint256,string)'
+        echo $GREETER_A_ADDRESS
+        echo 0x385=`echo 0x385 | cast --to-dec`
+        echo 0x190a85c0=`echo 0x190a85c0 | cast --to-dec`
+        ```
+
+        See that the second topic (the first indexed log parameter) is the same as `$GREETER_A_ADDRESS`.
+        The third topic can be either `0x385=901`, which is the chain ID for supersim chain A, or `0x190a85c0=420120000`, which is the chain ID for devnet alpha 0.
+  </Step>
+</Steps>
+
+
+## Next steps
+
+*   Review the [OP Stack Interop Explainer](/> op-stack/interop/explainer) for answers to common questions about interoperability.
+*   Read the [Message Passing Explainer](/app-developers/guides/interoperability/message-passing) to understand what happens "under the hood".
+*   Write a revolutionary app that uses multiple blockchains within the OP Stack ecosystem.

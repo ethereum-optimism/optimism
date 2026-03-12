@@ -1,0 +1,218 @@
+---
+title: 'Fault proof VM: Cannon'
+description: Learn about Cannon and its default operation as part of Optimism's Fault Proof
+  Virtual Machine.
+---
+Cannon is an instance of a Fault Proof Virtual Machine (FPVM) that can be used as part of the Dispute Game for any OP Stack Blockchain.
+The Dispute Game itself is modular, allowing for any FPVM to be used in a dispute.
+However, Cannon is Optimism's default Fault Proof Virtual Machine (FPVM). Cannon has two main components:
+
+*   Onchain `MIPS.sol`: EVM implementation to verify execution of a single MIPS instruction.
+*   Offchain `mipsevm`: Go implementation to produce a proof for any MIPS instruction to verify onchain.
+
+Note that Cannon is just one example of an FPVM that can be used to resolve disputes.
+
+This documentation will go into detail about the subcomponents that make up the offchain Cannon implementation as a whole.
+Additionally, we will explore the differences between Cannon and the onchain `MIPS.sol`. For more information about the onchain
+implementation, please refer to [MIPS reference](/op-stack/fault-proofs/mips).
+Now for simplicity, when referring to Cannon in this documentation, we are referring to the offchain implementation.
+
+## Control flow 
+
+![Fault Proof Control Flow.](/public/img/op-stack/protocol/fault-proof-control-flow.svg)
+
+In the above diagram, recreated from the [OP Fault Proof System video](https://www.youtube.com/watch?v=nIN5sNc6nQM) by Clabby, we can see
+that Cannon interacts with OP-Challenger and OP-Program. However, this diagram is a simplification of the relationship between
+OP-Challenger \<> Cannon, and OP-Program \<> Cannon. In general, Cannon will not be run until an active fault dispute reaches the
+execution trace portion of the bisection game. This does not occur until the participants in the active fault dispute game reach a
+single L2 block state transition that they disagree on.
+
+### OP-Challenger \<> Cannon
+
+Once an active fault dispute game reaches a depth below attacking / defending L2 block state transitions, [OP-Challenger](/op-stack/fault-proofs/challenger) will run
+Cannon to begin processing MIPS instructions within the FPVM. As part of processing MIPS instructions, Cannon will generate state
+witness hashes, which are the commitment to the results of the MIPS instructions' computation within the FPVM. Now, in the bisection game, OP-Challenger will provide the generated hashes
+until a single MIPS instruction is identified as the root disagreement between participants in the active dispute. Cannon will then
+generate the witness proof, which contains all the information required to run the MIPS instruction onchain. Running this single MIPS
+instruction onchain in `MIPS.sol` will be used to definitively prove the correct post state, which will then be used to resolve the fault
+dispute game.
+
+### OP-Program \<> Cannon
+
+Once the execution trace bisection begins and Cannon is run, an Executable and Linkable Format (ELF) binary will be loaded and run within Cannon.
+Within Cannon is the `mipsevm` that is built to handle the MIPS R3000, 32-bit Instruction Set Architecture (ISA). The ELF file contains MIPS instructions,
+where the code that has been compiled into MIPS instructions is OP-Program.
+
+OP-Program is golang code that will be compiled into MIPS instructions and run within the Cannon FPVM. OP-Program, whether run as standalone
+golang code or in Cannon, fetches all necessary data used for deriving the state of the L2. It is built such that the 
+same inputs will produce not only the same outputs, but the same execution trace. This allows all participants in a fault dispute game to run
+OP-Program such that, given the same L2 output root state transition, they can generate the same execution traces. This in turn generates the same
+witness proof for the exact same MIPS instruction that will be run onchain.
+
+## Overview of offchain Cannon components
+
+Now, we will go over each major component that makes up Cannon. Components are grouped by what functionality is being performed for
+Cannon, and may be correlated to one or more Go files. For brevity, each Go file will be explained at a high level, with the
+most important features / considerations highlighted.
+
+![Cannon Components Overview.](/public/img/op-stack/protocol/cannon-internal-overview.svg)
+
+### `mipsevm` state and memory
+
+As mentioned previously, the `mipsevm` is 32-bit, which means the full addressable address range is `[0, 2^32-1]`. The memory layout
+uses the typical monolithic memory structure, and the VM operates as though it were interacting directly with physical memory.
+
+For the `mipsevm`, how memory is stored isn't important, as it can hold the entire monolithic memory within the Go runtime.
+In this way, how memory is represented is abstracted away from the VM itself. However, it is important for memory to be represented
+such that only small portions are needed in order to run a MIPS instruction onchain. This is because it is infeasible to represent the
+entire 32-bit memory space onchain due to cost. Therefore, memory is stored in a binary Merkle tree data structure, with the implementation
+spread across [`memory.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/memory/memory.go) and
+[`page.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/memory/page.go).
+The tree has a fixed-depth of 27 levels, with leaf values of 32 bytes each. This spans the full 32-bit address space: `2**27 * 32 = 2**32`.
+Each leaf contains the memory for that part of the tree.
+
+`memory.go` defines the data structure, `Memory`, which holds pointers to `nodes` and `pages`. A memory `node` holds the calculated Merkle
+root of its parent node within the memory binary Merkle tree, where the 'location' of the node is determined by its generalized index.
+The index calculated for a Merkle root in the nodes mapping follows the
+[generalized Merkle tree index specification](https://github.com/ethereum/consensus-specs/blob/dev/ssz/merkle-proofs.md#generalized-merkle-tree-index).
+
+`page.go`, as the name implies, defines memory pages. Each `Page` is 4096 bytes, which is also specified as the minimum page allocation
+size for the Go runtime. A `Page` represents the lowest depths of the memory binary Merkle tree, and `page.go` performs a similar role
+to `memory.go`, calculating Merkle roots for each level of the tree.
+
+Nodes in this memory tree are combined as: `out = keccak256(left ++ right)`, where `++` is concatenation,
+and `left` and `right` are the 32-byte outputs of the respective subtrees or the leaf values themselves.
+Individual leaf nodes are not hashed.
+
+In both `memory.go` and `page.go`, there are a few optimizations designed to reduce the computationally expensive Merkle root calculations.
+One such optimization is that the Merkle root of zeroed-out regions of memory are calculated for each depth. This means the tree is efficiently allocated,
+since the root of fully zeroed subtrees can be computed without actually creating the full-subtree:
+`zero_hash[d] = hash(zero_hash[d-1], zero_hash[d-1])`, until the base-case of `zero_hash[0] == bytes32(0)`.
+So, pre-calculating zeroed Merkle roots initially allows unused memory regions to be cached. Additionally, non-zero Merkle roots
+are cached in both `memory.go` and `page.go`, and used so long as the memory region the Merkle root covers has not been written to.
+Otherwise, the cache is invalidated, which requires the Merkle root to be calculated over its entire subtree. Another optimization
+specifically in `memory.go` is caching the last two pages that have been used. Two pages are cached because the `mipsevm` uses up
+to two memory addresses per instruction: one address is the `PC`, which contains the instruction to run, and the other address may be the
+target of a load or store instruction.
+
+Another important implementation detail is that the endianness of the `mipsevm`, which is the ordering of bytes in a word, is Big-Endian.
+The assumption of Cannon is that it is operating on a Little-Endian machine, and as such all reads / writes have the endianness swapped
+so that the internal `mipsevm` always handles Big-Endian words and the machine running Cannon always handles Little-Endian words.
+Endianness is also an important factor for the onchain `MIPS.sol`, where the EVM itself is Big-Endian. Therefore, `MIPS.sol` does not have to
+do any endianness swapping and can assume all data uses Big-Endian ordering. This reduces complexity within the smart contract itself.
+
+The last major component is located in [`state.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/state.go).
+The `State` struct in `state.go` holds all the execution state that is required for the `mipsevm`.
+The information stored is largely identical to the [VM execution state](/concepts/architecture/fault-proofs/mips#packed-vm-execution-state) for `MIPS.sol`. The key differences are:
+
+*   Instead of storing just the memory Merkle root, there is a `Memory` Struct pointer for the binary Merkle tree representation of the entire 32-bit memory space.
+*   There is an optional `LastHint` bytes variable, which can be used to communicate a Pre-image hint to avoid having to load in multiple prior Pre-images.
+
+#### Generating the witness proof
+
+Cannon handles two major components in the dispute game: generating state witness hashes for OP-Challenger to post during the execution trace
+bisection game, and generating the witness proof once a single MIPS instruction is reached as the root of disagreement in the fault dispute game.
+The witness proof, as mentioned previously, contains all the necessary information for `MIPS.sol` to be able to run the same instruction onchain,
+and derive the post state that will be used to resolve the fault dispute game. The post state of the instruction run by `MIPS.sol` should be
+exactly the same as the post state generated by the `mipsevm`.
+
+The top-level [`witness.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/cmd/witness.go)
+in `cannon/cmd` initiates the witness proof generation. The internal
+[`witness.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/witness.go) in `cannon/mipsevm` defines the
+struct that holds all the relevant information for the particular MIPS instruction. The information that is encoded for the `MIPS.sol`
+calldata can be seen in the [`MIPS.sol` documentation](/concepts/architecture/fault-proofs/mips#contract-state).
+
+Additionally, if a Pre-image is required for the MIPS
+instruction, `witness.go` will communicate the relevant Pre-image key and offset to OP-Challenger so that it can be posted onchain
+to `PreimageOracle.sol`.
+
+An important note about generating the witness proof: it is imperative that all relevant information about the instruction to be run
+onchain is generated **before** the `mipsevm` execution state changes as a result of processing the MIPS instruction. Otherwise, if the
+witness proof is generated after running the instruction offchain, the state that will be encoded will be the post state.
+
+### Loading the ELF file
+
+Once the execution trace portion of the bisection game begins, the ELF file containing OP-Program compiled into MIPS instructions will
+be run within Cannon. However, getting OP-Program into Cannon so that it can be run requires
+a binary loader. The binary loader is composed of [`load_elf.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/cmd/load_elf.go)
+and [`patch.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/program/patch.go). `load_elf.go` parses
+the top-level arguments and reads, loads, and patches the ELF binary such that it can be run by Cannon.
+
+`patch.go` is responsible for actually parsing the headers of the ELF file, which among other information specifies what programs
+exist within the file and where they are located in memory. The loader uses this information to instantiate the execution state
+for the `mipsevm` and load each program into memory at the expected location. Additionally, as part of instantiating the execution
+state, `patch.go` sets the values of `PC`, `NextPC`, the initial Heap location of `0x20000000`, the initial stack location of `0x7fffd000`,
+and also sets the arguments required for the Go runtime above the stack pointer location.
+
+While loading the ELF file into Cannon, [`metadata.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/program/metadata.go)
+is used to parse all the symbols stored in the ELF file. Understanding which ELF symbols exist and at which regions of memory
+they are located is important for other functionality, such as understanding if the current `PC` is running within a specific function.
+
+Another step that occurs while loading the ELF file is patching the binary of any incompatible functions. This step is crucial, as a key design decision
+in both the onchain and offchain `mipsevm` implementations is that neither implementation
+has access to a kernel. This is primarily due to the limitations within the EVM itself, and since the offchain Cannon
+implementation must match functionality exactly with its onchain counterpart, kernel access is also not available within Cannon. This means that the VMs
+cannot replicate behavior that would otherwise be performed by a kernel 1:1, which primarily impacts system calls (syscalls).
+So features like concurrency, memory management, I/O, etc. are either partially implemented or unimplemented. For the
+unimplemented functionality, any function within the ELF file that would require this functionality is patched out.
+Patching the binary of these functions involves identifying problematic functions, searching for their corresponding symbols
+within the ELF file, and effectively stubbing out the function by returning immediately, and adding a `nop` to the delay slot.
+
+### Instruction stepping
+
+Once the MIPS binary is loaded into Cannon, we can then begin to run MIPS instructions one at a time.
+[`run.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/cmd/run.go) contains the top-level
+code responsible for stepping through MIPS instructions. Additionally, before each MIPS instruction, `run.go` will determine whether
+separate actions need to be performed. The actions to be performed are configured by the user, and can include logging information,
+stopping at a certain instruction, taking a snapshot at a certain instruction, or signaling to the VM to generate the witness proof.
+The action(s) to be performed are instantiated and checked by [`matcher.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/cmd/matcher.go),
+which generates a match function that triggers when the configured regular expression is true.
+
+Within `run.go`, the `StepFn` is the wrapper that initiates the MIPS instruction to be run.
+[`instrumented.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/singlethreaded/instrumented.go) implements `Step` as the
+interface to be initiated for each MIPS instruction. Additionally, `instrumented.go` handles encoding information for the witness proof
+and Pre-image information (if required for the MIPS instruction).
+
+### `mips.go`
+
+[`mips.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/multithreaded/mips.go) implements all the required MIPS
+instructions, and also tracks additional memory access for the instruction currently being run.
+This is important to make sure that the second memory proof is encoded correctly for instructions that use it, such as loads, stores, and
+certain syscalls. The full list of instructions supported can be found [here](/concepts/architecture/fault-proofs/mips#table-of-supported-mips-instructions).
+
+#### `mips.go` vs. `MIPS.sol`
+
+The offchain `mips.go` and the onchain Cannon `MIPS.sol` behave similarly when it comes to executing MIPS32 R1 instructions.
+In fact, they must produce **exactly the same results** given the same instruction, memory, and register state.
+Consequently, the witness data is essential to reproduce the same instruction onchain and offchain.
+However, there are differences between the two:
+
+1.  A single instruction will be run onchain in `MIPS.sol`, whereas the offchain `mips.go` will run all MIPS instructions for all state transitions in the disputed L2 state.
+2.  The `mipsevm` contains the entire 32-bit monolithic memory space, is responsible for maintaining the memory state based on the results of MIPS instructions, and generates the memory binary Merkle tree, Merkle root, and memory Merkle proofs. `MIPS.sol` is mostly stateless, and does not maintain the full memory space. Instead, it only requires the memory Merkle root, and up to two memory Merkle proofs: 1 for the instruction and 1 for potential load, store, or certain syscall instructions.
+3.  Unlike `MIPS.sol`, `mips.go` is responsible for writing Pre-images to the PreimageOracle Server, and optionally writing hints to the Server.
+
+### PreimageOracle interaction
+
+As mentioned previously, Cannon is responsible for setting up all state that may be required to run an instruction in `MIPS.sol`.
+Cannon is also responsible for interacting with the PreimageOracle Server, and directing OP-Challenger to provide Pre-images to
+the onchain `PreimageOracle.sol` if necessary for the instruction that will be run in `MIPS.sol`.
+
+The PreimageOracle Server connection is instantiated in `run.go`, where the server itself is run locally with its own local Key-Value store.
+`mips.go` communicates with the PreimageOracle Server when reading and writing Pre-images as part of MIPS syscall instructions,
+as well as hinting to the PreimageOracle Server.
+
+The OP-stack fault-proof [Pre-image Oracle specs](https://specs.optimism.io/experimental/fault-proof/index.html?utm_source=op-docs&utm_medium=docs#pre-image-oracle)
+define the ABI for communicating pre-images.
+
+This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#io) for more details.
+
+Note that although the oracle provides up to 32 bytes of the pre-image,
+Cannon only supports reading at most 4 bytes at a time, to unify the memory operations with 32-bit load/stores.
+
+## Further Reading
+
+*   [Cannon FPVM Specification](https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)
+*   [Merkle Proofs Specification](https://github.com/ethereum/consensus-specs/blob/dev/ssz/merkle-proofs.md)
+*   [Executable and Linkable Format (ELF)](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)
+*   [Keys in Mordor Summit: Cannon & Fault Proofs](https://www.youtube.com/watch?v=ASLMj70V0Ao)
+*   [MIPS IV ISA Specification](https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf)

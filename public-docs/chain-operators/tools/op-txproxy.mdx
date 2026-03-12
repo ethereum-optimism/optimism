@@ -1,0 +1,81 @@
+---
+title: OP Txproxy
+description: A passthrough proxy service that can apply additional constraints on transactions prior to reaching the sequencer.
+---
+
+A [passthrough proxy](https://github.com/ethereum-optimism/infra/tree/main/op-txproxy) for the execution engine endpoint. This proxy does not forward all RPC traffic and only exposes a specific set of methods. Operationally, the ingress router should only re-route requests for these specific methods.
+
+<Info>
+  [proxyd](./proxyd) as an ingress router supports the mapping of specific methods to unique backends.
+</Info>
+## Methods
+
+### **eth_sendRawTransactionConditional**
+
+To safely expose this endpoint publicly, additional stateless constraints are applied. These constraints help scale validation rules horizontally and preemptively reject conditional transactions before they reach the sequencer.
+
+Various metrics are emitted to guide necessary adjustments.
+#### Runtime shutoff
+
+This service can be configured with a flag or environment variable to reject conditional transactions without needing to interrupt the execution engine. This feature is useful for diagnosing issues.
+
+`--sendRawTxConditional.enabled (default: true) ($OP_TXPROXY_SENDRAWTXCONDITIONAL_ENABLED)`
+
+When disabled, requests will fail with the `-32003` (transaction rejected) json rpc error code with a message stating that the method is disabled.
+#### Rate limits
+
+Even though the op-geth implementation of this endpoint includes rate limits, it is instead applied here to terminate these requests early.
+
+`--sendRawTxConditional.ratelimit (default: 5000) ($OP_TXPROXY_SENDRAWTXCONDITIONAL_RATELIMIT)`
+
+#### Stateless validation
+
+*   Conditional cost is below the max
+*   Conditional values are valid (i.e min \< max)
+*   Transaction targets are only 4337 Entrypoint contracts
+
+<Info>
+  The motivating factor for this endpoint is to enable permissionless 4337 mempools, hence the restricted usage of this method to just [Entrypoint](https://github.com/eth-infinitism/account-abstraction/blob/develop/contracts/core/EntryPoint.sol) transactions.
+
+  Please open up an issue if you'd like this restriction to be optional via configuration to broaden usage of this endpoint.
+</Info>
+
+When the request passes validation, it is passed through to the configured backend URL
+
+`--sendRawTxConditional.backend ($OP_TXPROXY_SENDRAWTXCONDITIONAL_BACKENDS)`
+
+<Info>
+  Per the [specification](/op-stack/features/send-raw-transaction-conditional), conditional transactions are not gossiped between peers. Thus, if you use replicas in an active/passive sequencer setup, this request must be broadcasted to all replicas.
+
+  [proxyd](./proxyd) as an egress router for this method supports this broadcasting functionality.
+</Info>
+
+## How it works
+
+To start using `op-txproxy`, follow these steps:
+
+<Steps>
+  <Step title="Build the binary or pull the Docker image">
+  1.  Run the following command to build the binary
+    ```bash
+    make build
+    ```
+    2.  This will build and output the binary under `/bin/op-txproxy`.
+  
+    The image for this binary is also available as a [docker artifact](https://us-docker.pkg.dev/oplabs-tools-artifacts/images/op-txproxy).
+  </Step>
+
+  <Step title="Configure">
+  The binary accepts configuration through CLI flags, which also settable via environment variables. Either set the flags explicitly when starting the binary or set the environment variables of the host starting the proxy.
+  
+    See [methods](#methods) on the configuration options available for each method.
+  </Step>
+
+  <Step title="Start">
+  start the service with the following command
+  
+    ```bash
+    op-txproxy // ... with flags if env variables are not set
+    ```
+  </Step>
+</Steps>

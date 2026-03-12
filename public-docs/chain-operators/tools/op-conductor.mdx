@@ -1,0 +1,763 @@
+---
+title: OP Conductor
+description: Learn what the op-conductor is and how to use it to create a highly available and reliable sequencer.
+---
+
+This page will teach you what the `op-conductor` service is and how it works on
+a high level. It will also get you started on setting it up in your own
+environment.
+
+## Enhancing sequencer reliability and availability
+
+The [op-conductor](https://github.com/ethereum-optimism/optimism/tree/develop/op-conductor)
+is an auxiliary service designed to enhance the reliability and availability of
+a sequencer within high-availability setups. By minimizing the risks
+associated with a single point of failure, the op-conductor ensures that the
+sequencer remains operational and responsive.
+
+### Assumptions
+
+It is important to note that the `op-conductor` does not incorporate Byzantine
+fault tolerance (BFT). This means the system operates under the assumption that
+all participating nodes are honest and act correctly.
+
+### Summary of guarantees
+
+The design of the `op-conductor` provides the following guarantees:
+
+*   **No Unsafe Reorgs**
+*   **No Unsafe Head Stall During Network Partition**
+*   **100% Uptime with No More Than 1 Node Failure**
+
+## Design
+
+![op-conductor.](/public/img/builders/chain-operators/op-conductor.svg) 
+
+**On a high level, `op-conductor` serves the following functions:**
+
+### Raft consensus layer participation
+
+*   **Leader determination:** Participates in the Raft consensus algorithm to
+    determine the leader among sequencers.
+*   **State management:** Stores the latest unsafe block ensuring consistency
+    across the system.
+
+### RPC request handling
+
+*   **Admin RPC:** Provides administrative RPCs for manual recovery scenarios,
+    including, but not limited to: stopping the leadership vote and removing itself
+    from the cluster.
+*   **Health RPC:** Offers health RPCs for the `op-node` to determine whether it
+    should allow the publishing of transactions and unsafe blocks.
+
+### Sequencer health monitoring
+
+*   Continuously monitors the health of the sequencer (op-node) to ensure
+    optimal performance and reliability.
+
+### Control loop management
+
+*   Implements a control loop to manage the status of the sequencer (op-node),
+    including starting and stopping operations based on different scenarios and
+    health checks.
+
+## Conductor state transition
+
+The following is a state machine diagram of how the op-conductor manages the
+sequencers Raft consensus.
+
+![op-conductor-state-transition.](/public/img/builders/chain-operators/op-conductor-state-transition.svg)
+
+**Helpful tips:** To better understand the graph, focus on one node at a time,
+understand what can be transitioned to this current state and how it can
+transition to other states. This way you could understand how we handle the
+state transitions.
+
+## Setup
+
+At OP Labs, op-conductor is deployed as a kubernetes statefulset because it
+requires a persistent volume to store the raft log. This guide describes
+setting up conductor on an existing network without incurring downtime.
+
+You can utilize the [op-conductor-ops](https://github.com/ethereum-optimism/infra/tree/main/op-conductor-ops) tool to confirm the conductor status between the steps.
+
+### Assumptions
+
+This setup guide has the following assumptions:
+
+*   3 deployed sequencers (sequencer-0, sequencer-1, sequencer-2) that are all
+    in sync and in the same vpc network
+*   sequencer-0 is currently the active sequencer
+*   You can execute a blue/green style sequencer deployment workflow that
+    involves no downtime (described below)
+*   conductor and sequencers are running in k8s or some other container
+    orchestrator (vm-based deployment may be slightly different and not covered
+    here)
+
+### Spin up op-conductor
+
+<Steps>
+  <Step title="Deploy conductor">
+  Deploy a conductor instance per sequencer with sequencer-1 as the raft cluster
+    bootstrap node:
+  
+    *   suggested conductor configs:
+  
+        ```yaml
+        OP_CONDUCTOR_CONSENSUS_ADDR: '0.0.0.0'
+        OP_CONDUCTOR_CONSENSUS_ADVERTISED: '<raft url or ip>'
+        OP_CONDUCTOR_CONSENSUS_PORT: '50050'
+        OP_CONDUCTOR_EXECUTION_RPC: '<op-geth url or ip>:8545'
+        OP_CONDUCTOR_HEALTHCHECK_INTERVAL: '1'
+        OP_CONDUCTOR_HEALTHCHECK_MIN_PEER_COUNT: '2'  # set based on your internal p2p network peer count
+        OP_CONDUCTOR_HEALTHCHECK_UNSAFE_INTERVAL: '5' # recommend a 2-3x multiple of your network block time to account for temporary performance issues
+        OP_CONDUCTOR_LOG_FORMAT: logfmt
+        OP_CONDUCTOR_LOG_LEVEL: info
+        OP_CONDUCTOR_METRICS_ADDR: 0.0.0.0
+        OP_CONDUCTOR_METRICS_ENABLED: 'true'
+        OP_CONDUCTOR_METRICS_PORT: '7300'
+        OP_CONDUCTOR_NETWORK: '<network>'
+        OP_CONDUCTOR_NODE_RPC: '<op-node url or ip>:8545'
+        OP_CONDUCTOR_RAFT_SERVER_ID: 'unique raft server id'
+        OP_CONDUCTOR_RAFT_STORAGE_DIR: /conductor/raft
+        OP_CONDUCTOR_RPC_ADDR: 0.0.0.0
+        OP_CONDUCTOR_RPC_ENABLE_ADMIN: 'true'
+        OP_CONDUCTOR_RPC_ENABLE_PROXY: 'true'
+        OP_CONDUCTOR_RPC_PORT: '8547'
+        ```
+  
+    *   sequencer-1 op-conductor extra config:
+  
+        ```yaml
+        OP_CONDUCTOR_PAUSED: "true"
+        OP_CONDUCTOR_RAFT_BOOTSTRAP: "true"
+        ```
+
+  </Step>
+  
+    <Step title="Pause two conductors">
+      Pause `sequencer-0` &` sequencer-2` conductors with [conductor_pause](#conductor_pause) RPC request.
+    </Step>
+  
+    <Step title="Update op-node configuration and switch the active sequencer">
+        Deploy an `op-node` config update to all sequencers that enables conductor. Use
+        a blue/green style deployment workflow that switches the active sequencer to
+        `sequencer-1`:
+      
+        *   all sequencer op-node configs:
+      
+            ```yaml
+            OP_NODE_CONDUCTOR_ENABLED: "true" # this is what commits unsafe blocks to the raft logs
+            OP_NODE_RPC_ADMIN_STATE: "" # this flag can't be used with conductor
+            ```
+    </Step>
+  
+    <Step title="Confirm sequencer switch was successful">
+        Confirm `sequencer-1` is active and successfully producing unsafe blocks.
+        Because `sequencer-1` was the raft cluster bootstrap node, it is now committing
+        unsafe payloads to the raft log.
+    </Step>
+  
+    <Step title="Add voting nodes">
+      Add voting nodes to cluster using [conductor_AddServerAsVoter](#conductor_addserverasvoter)
+    RPC request to the leader conductor (`sequencer-1`)
+
+  
+    </Step>
+  
+    <Step title="Confirm state">
+    Confirm cluster membership and sequencer state:
+  
+    *   `sequencer-0` and `sequencer-2`:
+        1.  raft cluster follower
+        2.  sequencer is stopped
+        3.  conductor is paused
+        4.  conductor enabled in op-node config
+  
+    *   `sequencer-1`
+        1.  raft cluster leader
+        2.  sequencer is active
+        3.  conductor is paused
+        4.  conductor enabled in op-node config
+
+  
+    </Step>
+  
+    <Step title="Resume conductors">
+      Resume all conductors with [conductor\_resume](#conductor_resume) RPC request to
+    each conductor instance.
+
+  
+    </Step>
+  
+    <Step title="Confirm state">
+      Confirm all conductors successfully resumed with [conductor_paused](#conductor_paused)
+    </Step>
+  
+    <Step title="Transfer leadership">
+      Trigger leadership transfer to `sequencer-0` using [conductor_transferLeaderToServer](#conductor_transferleadertoserver)
+    </Step>
+  
+    <Step title="Confirm state">
+    
+    Confirm cluster membership and sequencer state:
+
+    **`sequencer-1` and `sequencer-2`:**
+    1. raft cluster follower
+    2. sequencer is stopped
+    3. conductor is active
+    4. conductor enabled in op-node config
+
+    **`sequencer-0`:**
+    1. raft cluster leader
+    2. sequencer is active
+    3. conductor is active
+    4. conductor enabled in op-node config
+
+    </Step>
+  
+    <Step title="Update configuration">
+     Deploy a config change to `sequencer-1` conductor to remove the
+    `OP_CONDUCTOR_PAUSED: true` flag and `OP_CONDUCTOR_RAFT_BOOTSTRAP` flag.
+
+    </Step>
+</Steps>
+
+#### Blue/green deployment
+
+In order to ensure there is no downtime when setting up conductor, you need to
+have a deployment script that can update sequencers without network downtime.
+
+An example of this workflow might look like:
+
+1.  Query current state of the network and determine which sequencer is
+    currently active (referred to as "original" sequencer below).
+    From the other available sequencers, choose a candidate sequencer.
+2.  Deploy the change to the candidate sequencer and then wait for it to sync
+    up to the original sequencer's unsafe head. You may want to check peer counts
+    and other important health metrics.
+3.  Stop the original sequencer using `admin_stopSequencer` which returns the
+    last inserted unsafe block hash. Wait for candidate sequencer to sync with
+    this returned hash in case there is a delta.
+4.  Start the candidate sequencer at the original's last inserted unsafe block
+    hash.
+    1.  Here you can also execute additional check for unsafe head progression
+        and decide to roll back the change (stop the candidate sequencer, start the
+        original, rollback deployment of candidate, etc.)
+5.  Deploy the change to the original sequencer, wait for it to sync to the
+    chain head. Execute health checks.
+
+#### Post-conductor launch deployments
+
+After conductor is live, a similar canary style workflow is used to ensure
+minimal downtime in case there is an issue with deployment:
+
+1.  Choose a candidate sequencer from the raft-cluster followers
+2.  Deploy to the candidate sequencer. Run health checks on the candidate.
+3.  Transfer leadership to the candidate sequencer using
+    `conductor_transferLeaderToServer`. Run health checks on the candidate.
+4.  Test if candidate is still the leader using `conductor_leader` after some
+    grace period (ex: 30 seconds)
+    1.  If not, then there is likely an issue with the deployment. Roll back.
+5.  Upgrade the remaining sequencers, run healthchecks.
+
+### Configuration options
+
+It is configured via its [flags / environment variables](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/flags/flags.go)
+
+#### --consensus.addr (`CONSENSUS_ADDR`)
+
+*   **Usage:** Address to listen for consensus connections
+*   **Default Value:** 127.0.0.1
+*   **Required:** yes
+
+#### --consensus.advertised (`CONSENSUS_ADVERTISED`)
+
+*   **Usage:** Address to advertise for consensus connections
+*   **Default Value:** 127.0.0.1
+*   **Required:** yes
+
+#### --consensus.port (`CONSENSUS_PORT`)
+
+*   **Usage:** Port to listen for consensus connections
+*   **Default Value:** 50050
+*   **Required:** yes
+
+#### --raft.bootstrap (`RAFT_BOOTSTRAP`)
+
+<Info>
+  For bootstrapping a new cluster. This should only be used on the sequencer
+  that is currently active and can only be started once with this flag,
+  otherwise the flag has to be removed or the raft log must be deleted before
+  re-bootstrapping the cluster.
+</Info>
+
+*   **Usage:** If this node should bootstrap a new raft cluster
+*   **Default Value:** false
+*   **Required:** no
+
+#### --raft.server.id (`RAFT_SERVER_ID`)
+
+*   **Usage:** Unique ID for this server used by raft consensus
+*   **Default Value:** None specified
+*   **Required:** yes
+
+#### --raft.storage.dir (`RAFT_STORAGE_DIR`)
+
+*   **Usage:** Directory to store raft data
+*   **Default Value:** None specified
+*   **Required:** yes
+
+#### --node.rpc (`NODE_RPC`)
+
+*   **Usage:** HTTP provider URL for op-node
+*   **Default Value:** None specified
+*   **Required:** yes
+
+#### --execution.rpc (`EXECUTION_RPC`)
+
+*   **Usage:** HTTP provider URL for execution layer
+*   **Default Value:** None specified
+*   **Required:** yes
+
+#### --healthcheck.interval (`HEALTHCHECK_INTERVAL`)
+
+*   **Usage:** Interval between health checks
+*   **Default Value:** None specified
+*   **Required:** yes
+
+#### --healthcheck.unsafe-interval (`HEALTHCHECK_UNSAFE_INTERVAL`)
+
+*   **Usage:** Interval allowed between unsafe head and now measured in seconds
+*   **Default Value:** None specified
+*   **Required:** yes
+
+#### --healthcheck.safe-enabled (`HEALTHCHECK_SAFE_ENABLED`)
+
+*   **Usage:** Whether to enable safe head progression checks
+*   **Default Value:** false
+*   **Required:** no
+
+#### --healthcheck.safe-interval (`HEALTHCHECK_SAFE_INTERVAL`)
+
+*   **Usage:** Interval between safe head progression measured in seconds
+*   **Default Value:** 1200
+*   **Required:** no
+
+#### --healthcheck.min-peer-count (`HEALTHCHECK_MIN_PEER_COUNT`)
+
+*   **Usage:** Minimum number of peers required to be considered healthy
+*   **Default Value:** None specified
+*   **Required:** yes
+
+#### --paused (`PAUSED`)
+
+<Info>
+  There is no configuration state, so if you unpause via RPC and then restart,
+  it will start paused again.
+</Info>
+
+*   **Usage:** Whether the conductor is paused
+*   **Default Value:** false
+*   **Required:** no
+
+#### --rpc.enable-proxy (`RPC_ENABLE_PROXY`)
+
+*   **Usage:** Enable the RPC proxy to underlying sequencer services
+*   **Default Value:** true
+*   **Required:** no
+
+### RPCs
+
+Conductor exposes [admin RPCs](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/rpc/api.go#L17)
+on the `conductor` namespace.
+
+#### conductor_overrideLeader
+
+`OverrideLeader` is used to override the leader status, this is only used to
+return true for `Leader()` & `LeaderWithID()` calls. It does not impact the
+actual raft consensus leadership status. It is supposed to be used when the
+cluster is unhealthy and the node is the only one up, to allow batcher to
+be able to connect to the node so that it could download blocks from the
+manually started sequencer.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_overrideLeader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_overrideLeader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_pause
+
+`Pause` pauses op-conductor.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_pause","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_pause --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_resume
+
+`Resume` resumes op-conductor.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_resume","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_resume --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_paused
+
+Paused returns true if the op-conductor is paused.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_paused","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_paused --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_stopped
+
+Stopped returns true if the op-conductor is stopped.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_stopped","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_stopped --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor\_sequencerHealthy
+
+SequencerHealthy returns true if the sequencer is healthy.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_sequencerHealthy","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_sequencerHealthy --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_leader
+
+<Info>
+  API related to consensus.
+</Info>
+
+Leader returns true if the server is the leader.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_leader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_leader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_leaderWithID
+
+<Info>
+  API related to consensus.
+</Info>
+
+LeaderWithID returns the current leader's server info.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_leaderWithID","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_leaderWithID --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_addServerAsVoter
+
+<Info>
+  API related to consensus.
+</Info>
+
+AddServerAsVoter adds a server as a voter to the cluster. 
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_addServerAsVoter","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_addServerAsVoter <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547 
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_addServerAsNonvoter
+
+<Info>
+  API related to consensus.
+</Info>
+
+AddServerAsNonvoter adds a server as a non-voter to the cluster. non-voter
+The non-voter will not participate in the leader election.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_addServerAsNonvoter","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_addServerAsNonvoter <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_removeServer
+
+<Info>
+  API related to consensus.
+</Info>
+
+RemoveServer removes a server from the cluster.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_removeServer","params":[<raft-server-id>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_removeServer <raft-server-id> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_transferLeader
+
+<Info>
+  API related to consensus.
+</Info>
+
+TransferLeader transfers leadership to another server (resigns).
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_transferLeader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_transferLeader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_transferLeaderToServer
+
+<Info>
+  API related to consensus.
+</Info>
+
+TransferLeaderToServer transfers leadership to a specific server.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_transferLeaderToServer","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_transferLeaderToServer <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_clusterMembership
+
+ClusterMembership returns the current cluster membership configuration.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_clusterMembership","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_clusterMembership --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_active
+
+<Info>
+  API called by `op-node`.
+</Info>
+
+Active returns true if the op-conductor is active (not paused or stopped).
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_active","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_active --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+#### conductor_commitUnsafePayload
+
+<Info>
+  API called by `op-node`.
+</Info>
+
+CommitUnsafePayload commits an unsafe payload (latest head) to the consensus
+layer. This method is typically called by the op-node to commit execution payload envelopes.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_commitUnsafePayload","params":[{
+            "executionPayload": {
+                "parentHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "feeRecipient": "0x4200000000000000000000000000000000000019",
+                "stateRoot": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+                "receiptsRoot": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "prevRandao": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "blockNumber": "0x64",
+                "gasLimit": "0x1c9c380",
+                "gasUsed": "0x5208",
+                "timestamp": "0x12345678",
+                "extraData": "0x",
+                "baseFeePerGas": "0x7",
+                "blockHash": "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+                "transactions": []
+            }
+        }],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    # Example with basic payload structure
+    cast rpc conductor_commitUnsafePayload \
+        '{"executionPayload":{"parentHash":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","feeRecipient":"0x4200000000000000000000000000000000000019","stateRoot":"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890","receiptsRoot":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","prevRandao":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","blockNumber":"0x64","gasLimit":"0x1c9c380","gasUsed":"0x5208","timestamp":"0x12345678","extraData":"0x","baseFeePerGas":"0x7","blockHash":"0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba","transactions":[]}}' \
+        --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+## Next steps
+
+*   Checkout [op-conductor-mon](https://github.com/ethereum-optimism/infra):
+    which monitors multiple op-conductor instances and provides a unified interface
+    for reporting metrics.
+*   Get familiar with [op-conductor-ops](https://github.com/ethereum-optimism/infra/tree/main/op-conductor-ops)to interact with op-conductor.

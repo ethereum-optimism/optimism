@@ -1,0 +1,124 @@
+---
+title: Upgrade 13 OPCM and incident response improvements
+description: Learn how to prepare for Isthmus upgrade breaking changes.
+---
+
+<Info>
+  Upgrade execution timelines are being publicly tracked in this [release management project board](https://github.com/orgs/ethereum-optimism/projects/117/views/12). 
+  
+  *   OP Sepolia, Ink Sepolia, and Minato Sepolia are executing their upgrades **March 21st**
+  *   OP Mainnet, Ink Mainnet, and Soneium Mainnet are expected to have Upgrade 13 executed on **April 2nd**. 
+  *   Unichain Sepolia is executing its upgrade on **April 1st**.
+  *   Unichain Mainnet is executing its upgrade on **April 8th**.
+  *   Other Optimism governed chains' upgrades will be tracked in the release management project board.
+</Info>
+
+This page outlines changes related to the Upgrade 13 network upgrade for chain operators, node operators, and users of OP Stack chains. The upgrade proposal is available [here](https://gov.optimism.io/t/upgrade-proposal-13-opcm-and-incident-response-improvements/9739) and the governance vote is available [here](https://vote.optimism.io/proposals/84511922734478887667300419900648701566511387783615524992018614345859900443455).
+
+If you experience difficulty at any stage of this process, please reach out to developer support.
+
+## What's included in Upgrade 13
+
+Upgrade 13 contains three main components:
+
+*   **OP Contracts Manager**: A new system for upgrading L1 contracts across the Superchain, making contract upgrades more scalable, less prone to error, and easier to test.
+*   **Fault Proofs incident response improvements**: Technical improvements to several key contracts to enable more flexible and less disruptive ways to respond to potential incidents in the OP Stack fault proof system.
+*   **`DeputyPauseModule` (Superchain pause improvements)**: A new Safe Module to be installed into the Optimism Foundation Safe to simplify the process of quickly responding to security incidents via the Superchain-wide pause mechanism.
+
+For more information on the Upgrade 13 implementation details, please review the specifications linked in the Technical Details section below.
+
+## Technical details
+
+### OP Contracts Manager
+
+The OP Contracts Manager ([OPCM](/chain-operators/reference/opcm)) is a new system for upgrading L1 contracts across the Superchain. Each release will have its own OPCM that can deploy new proxies and upgrade existing OP Chains.
+
+Key changes:
+
+*   OPCM is not considered part of the protocol and has no special role
+*   In-protocol contract modifications include:
+    *   Stack too deep fixes to enable code coverage measurements
+    *   Updated contracts to call interfaces for external interactions rather than implementations
+    *   Removal of CustomGasToken logic
+    *   Changes to deposit transaction aliasing to ensure compatibility with the L1 Pectra upgrade's introduction of EIP-7702
+
+### Fault Proofs incident response improvements
+
+Several components have been updated to improve incident response capabilities:
+
+**DelayedWETH**
+
+*   `DelayedWETH.hold(...)` now executes an approval and transfer from the target account to the owner account
+*   Added a version of `DelayedWETH.hold(...)` that does not require the owner to specify the target's balance
+
+**OptimismPortal**
+
+*   `OptimismPortal.setRespectedGameType(...)` no longer sets the respected game type and retirement timestamp simultaneously
+*   A special reserved input value can be used to set the retirement timestamp
+*   `OptimismPortal.checkWithdrawal(...)` now asserts that a FaultDisputeGame was the respected game type at the time of creation
+
+**AnchorStateRegistry**
+
+*   `AnchorStateRegistry.tryUpdateAnchorState(...)` is removed
+*   `AnchorStateRegistry.setAnchorState(...)` is repurposed as the primary way for FaultDisputeGame contracts to update the anchor state
+*   Internal anchor state is now unified across all game types
+*   Updates enable all OP Stack chains to share a common AnchorStateRegistry implementation
+
+**FaultDisputeGame**
+
+*   Added support for "bond refunding" to automatically distribute bonds back to their original depositors if the game is invalidated
+
+<Info>
+  If adopted and deployed, this proposal will cause a one-time invalidation of all pending withdrawal proofs created on L1. Users should complete any pending withdrawals before the upgrade is executed and avoid creating new withdrawal proofs that would not become executable in time.
+</Info>
+
+### DeputyPauseModule (Superchain pause improvements)
+
+The `DeputyPauseModule` is a new Safe Module to be installed into the Optimism Foundation Safe that allows:
+
+*   The Optimism Foundation to assign a "Pause Deputy" private key
+*   The Pause Deputy to create signatures that authorize the use of the Superchain-wide pause
+*   The Pause Deputy private key to cause the Optimism Foundation Safe to execute a call to the `DeputyGuardianModule` account ONLY for the purpose of executing the pause function
+
+The Optimism Foundation Safe is expected to rotate the Pause Deputy private key approximately every 3 months.
+
+## For chain operators
+
+If this proposal is accepted, multisig ceremonies will be coordinated to execute upgrade transactions. The following transactions will be executed on the respective chains: `OP Mainnet`, `Soneium Mainnet`, `Ink Mainnet`, `Base Mainnet`, and `Unichain Mainnet`. If your Optimism governed chain is not in this list, please reach out to OP Labs Solutions Engineering to coordinate your upgrade. If your chain is not Optimism governed, we'll be working on providing documentation to upgrade your chain.
+
+As this is an L1 contracts-only upgrade, no action is required to upgrade your node binaries. However, there is a required upgrade to [`op-dispute-mon/v1.4.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.4.0) to remain compatible with the new contract changes.
+
+## For bridges and users
+
+<Info>
+  All withdrawals that are not finalized before the Fault Proofs upgrade executes will need to be reproven after the upgrade is complete. You may want to consider waiting until after the upgrade is complete to begin a withdrawal during this 7-day window.
+</Info>
+
+Users should be aware of the following impacts:
+
+### Withdrawal flow changes
+
+1.  There will be a one-time invalidation of all pending withdrawal proofs created on L1.
+
+2.  Complete any pending withdrawals before the upgrade is executed
+
+3.  Avoid creating new withdrawal proofs that would not become executable in time
+
+4.  If a withdrawal was invalidated, submit a second withdrawal proof transaction on L1
+
+This invalidation does not place any ETH or ERC-20 tokens at risk.
+
+## Audit reports
+
+The code for Upgrade 13 has undergone multiple audits:
+
+*   **Offbeat Labs**: Completed an audit and found 1 Low Severity issue which has been addressed.
+*   **Spearbit**: Completed an audit and found 1 Medium Severity and 2 Low Severity issues. The Medium Severity issue was a design decision that conflicted with updated L2Beat Stage 1 requirements published in January 2025. The design has been modified to satisfy these requirements.
+*   **Radiant Labs**: Completed an audit of the DeputyPauseModule with only Low/informational findings, all of which have been addressed.
+*   **MiloTruck (independent)**: Completed an audit of the DeputyPauseModule with only Low/informational findings, all of which have been addressed.
+
+## Emergency cancellation
+
+If a critical security issue is discovered before upgrading, OP Labs will collaborate with the community to extensively communicate that the upgrade will no longer occur. The Optimism Foundation and Security Council will work to coordinate an emergency cancellation.
+
+For more detailed information, please refer to the full upgrade proposal or reach out to developer support.

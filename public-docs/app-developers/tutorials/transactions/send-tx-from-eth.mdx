@@ -1,0 +1,235 @@
+---
+title: Triggering OP Stack transactions from Ethereum
+description: Learn how to force transaction inclusion without the OP Stack Sequencer using
+  Viem.
+---
+OP Stack currently uses a single-Sequencer block production model.
+This means that there is only one Sequencer active on the network at any given time. Single-Sequencer models are simpler than their highly decentralized counterparts but they are also more vulnerable to potential downtime.
+
+Sequencer downtime must not be able to prevent users from transacting on the network. As a result, OP Stack includes a mechanism for "forcing" transactions to be included in the blockchain. This mechanism involves triggering a transaction on OP Stack by sending a transaction on Ethereum.
+In this tutorial you'll learn how to trigger a transaction on OP Stack from Ethereum using Viem. You'll use the OP Sepolia testnet, but the same logic will apply to OP Stack.
+
+## Dependencies
+
+*   [node](https://nodejs.org/en/)
+*   [pnpm](https://pnpm.io/installation)
+
+## Create a demo project
+
+You're going to use the `viem` package for this tutorial. Since Viem is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
+
+<Steps>
+  <Step title="Make a Project Folder">
+
+  ```bash
+  mkdir trigger-transaction
+  cd trigger-transaction
+  ```
+
+  </Step>
+  <Step title="Initialize the Project">
+
+  ```bash
+  pnpm init
+  ```
+
+  </Step>
+  <Step title="Install Viem">
+
+  ```bash
+  pnpm add viem
+  ```
+  </Step>
+</Steps>
+
+<Info>
+  Want to create a new wallet for this tutorial?
+  If you have [`cast`](https://book.getfoundry.sh/getting-started/installation) installed you can run `cast wallet new` in your terminal to create a new wallet and get the private key.
+</Info>
+
+## Get ETH on Sepolia and OP Sepolia
+
+This tutorial explains how to bridge tokens from Sepolia to OP Sepolia. You will need to get some ETH on both of these testnets.
+
+<Info>
+  You can use [this faucet](https://sepoliafaucet.com) to get ETH on Sepolia.
+  You can use the [Superchain Faucet](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs) to get ETH on OP Sepolia.
+</Info>
+
+## Add a private key to your environment
+
+You need a private key in order to sign transactions.
+Set your private key as an environment variable with the `export` command.
+Make sure this private key corresponds to an address that has ETH on both Sepolia and OP Sepolia.
+
+```bash
+export TUTORIAL_PRIVATE_KEY=0x...
+```
+
+## Start the Node REPL
+
+You're going to use the Node REPL to interact with Viem.
+To start the Node REPL run the following command in your terminal:
+
+```bash
+node
+```
+
+This will bring up a Node REPL prompt that allows you to run JavaScript code.
+
+## Import dependencies
+
+You need to import some dependencies into your Node REPL session.
+
+<Steps>
+  <Step title="Import Viem">
+
+  ```js
+  const { createPublicClient, createWalletClient, http, parseEther, formatEther } = require('viem');
+  const { optimismSepolia, sepolia } = require('viem/chains');
+  const { privateKeyToAccount } = require('viem/accounts');
+  const { publicActionsL2, publicActionsL1, walletActionsL2, walletActionsL1, getL2TransactionHashes } = require ('viem/op-stack')
+```
+  </Step>
+</Steps>
+
+## Set session variables
+
+You'll need a few variables throughout this tutorial. Let's set those up now.
+
+<Steps>
+  <Step title="Load your private key">
+
+  ```js
+  const privateKey = process.env.TUTORIAL_PRIVATE_KEY;
+  const account = privateKeyToAccount(privateKey);
+```
+
+  </Step>
+  <Step title="Create the RPC providers and wallets">
+
+  ```js
+  const l1PublicClient = createPublicClient({ chain: sepolia, transport: http("https://rpc.ankr.com/eth_sepolia") }).extend(publicActionsL1())
+  const l2PublicClient = createPublicClient({ chain: optimismSepolia, transport: http("https://sepolia.optimism.io") }).extend(publicActionsL2());
+  const l1WalletClient = createWalletClient({ chain: sepolia, transport: http("https://rpc.ankr.com/eth_sepolia") }).extend(walletActionsL1());
+```
+  </Step>
+</Steps>
+
+## Check your initial balance
+
+You'll be sending a small amount of ETH as part of this tutorial. Quickly check your balance on OP Sepolia so that you know how much you had at the start of the tutorial.
+
+```js
+  const initialBalance = await l2PublicClient.getBalance({ address });
+  console.log(`Initial balance: ${formatEther(initialBalance)} ETH`);
+```
+
+## Trigger the transaction
+
+Now you'll use the `OptimismPortal` contract to trigger a transaction on OP Sepolia by sending a transaction on Sepolia.
+
+<Steps>
+  <Step title="Create the OptimismPortal object">
+
+  ```js
+  const optimismPortalAbi = [
+      {
+      inputs: [
+          { internalType: 'uint256', name: '_gasLimit', type: 'uint256' },
+          { internalType: 'bytes', name: '_data', type: 'bytes' },
+      ],
+      name: 'depositTransaction',
+      outputs: [],
+      stateMutability: 'payable',
+      type: 'function',
+      },
+  ];
+```
+
+  </Step>
+  <Step title="Estimate the required gas">
+
+  When sending transactions via the `OptimismPortal` contract it's important to always include a gas buffer. This is because the `OptimismPortal` charges a variable amount of gas depending on the current demand for L2 transactions triggered via L1. If you do not include a gas buffer, your transactions may fail.
+
+  ```js
+  const optimismPortalAddress = '0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383';
+  const gasLimit = 100000n;
+  const data = '0x';
+  const value = parseEther('0.000069420');
+  
+  const gasEstimate = await l1PublicClient.estimateContractGas({
+      address: optimismPortalAddress,
+      abi: optimismPortalAbi,
+      functionName: 'depositTransaction',
+      args: [gasLimit, data],
+      value,
+      account: account.address,
+  });
+```
+
+  </Step>
+  <Step title="Send the transaction">
+
+  Now you'll send the transaction. Note that you are including a buffer of 20% on top of the gas estimate.
+
+  ```js
+  const { request } = await l1PublicClient.simulateContract({
+      account,
+      address: optimismPortalAddress,
+      abi: optimismPortalAbi,
+      functionName: 'depositTransaction',
+      args: [gasLimit, data],
+      value,
+      gas: gasEstimate * 120n / 100n, // 20% buffer
+    })
+
+  const l1TxHash = await l1WalletClient.writeContract(request)
+  console.log(`L1 transaction hash: ${l1TxHash}`)
+```
+
+  </Step>
+  <Step title="Wait for the L1 transaction">
+
+  First you'll need to wait for the L1 transaction to be mined.
+
+  ```js
+  const l1TxHash = await l1WalletClient.writeContract(request)
+```
+
+  </Step>
+  <Step title="Wait for the L2 transaction">
+
+  Now you'll need to wait for the corresponding L2 transaction to be included in a block. This transaction is automatically created as a result of your L1 transaction. Here you'll determine the hash of the L2 transaction and then wait for that transaction to be included in the L2 blockchain.
+
+  ```js
+  const [l2Hash] = getL2TransactionHashes(l1TxHash) 
+  console.log(`Corresponding L2 transaction hash: ${l2Hash}`);
+
+  const l2Receipt = await l2PublicClient.waitForTransactionReceipt({
+      hash: l2Hash,
+  }); 
+  console.log('L2 transaction confirmed:', l2Receipt);
+```
+  </Step>
+</Steps>
+
+## Check your updated balance
+
+You should have a little less ETH on OP Sepolia now. Check your balance to confirm.
+
+```js
+  const finalBalance = await l2Wallet.getBalance()
+  console.log(`Final balance: ${formatEther(finalBalance)} ETH`);
+```
+
+Make sure that the difference is equal to the amount you were expecting to send.
+
+```js
+  const difference = initialBalance - finalBalance
+  console.log(`Difference in balance: ${formatEther(difference)} ETH`);
+```
+
+## Next steps
+
+You've successfully triggered a transaction on OP Sepolia by sending a transaction on Sepolia using Viem. Although this tutorial demonstrated the simple example of sending a basic ETH transfer from your L2 address via the OptimismPortal contract, you can use this same technique to trigger any transaction you want. You can trigger smart contracts, send ERC-20 tokens, and more.

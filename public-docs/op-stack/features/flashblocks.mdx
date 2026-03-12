@@ -1,0 +1,216 @@
+---
+title: Flashblocks
+description: Learn how to integrate Flashblocks for lightning-fast transaction confirmations on OP Stack, with pre-confirmations in just 200 milliseconds.
+---
+
+Flashblocks is a block builder sidecar for OP Stack chains that delivers sub-second transaction confirmations - 250 ms on OP Mainnet, configurable down to 200 ms.
+
+By streaming pre-confirmations, "signals" that arrive before the next block is finalized, Flashblocks make OP Stack chains up to 10x faster, unlocking seamless user experiences without compromising security guarantees.
+
+Built for developers who need lightning fast UX, flashblocks are ideal for DeFi apps, payments, games, and real-time interactions where instant is the only answer.
+
+*   **Payments**: Instant payment confirmations
+*   **DeFi**: Swaps and positions that update immediately
+*   **Marketplaces**: Fast, frictionless checkout flows
+*   **Games**: Real-time actions with no waiting between moves
+
+## How it works
+
+By default, blocks are produced every 1–2 seconds.
+Flashblocks break that window into smaller intervals so instead of waiting the full block time to execute all transactions, the execution client continuously creates and broadcasts a "flash" block every few hundred milliseconds.
+
+Each flashblock includes all transactions processed so far, along with updated balances and contract states.
+Apps can query this near-real-time state using RPC providers (Ankr, QuickNode, Alchemy, etc) and deliver the speed their users expect.
+
+## Integrate Flashblocks
+
+Integration is designed to be simple and low-friction. Most apps benefit with minimal code changes.
+
+*   In production, point your app to a Flashblocks‑aware RPC endpoint from your provider of choice. If your provider doesn't support flashblocks yet, let us know on Discord
+    and we'll work with them to get it added.
+*   Alternatively, you can run your own flashblocks-aware node using Base's [reth](https://github.com/base/node-reth) image.
+
+### Supported RPC methods
+
+Developers can access Flashblocks using the same familiar Ethereum JSON-RPC calls.
+The difference is using the "pending" tag to query the pre-confirmed state instead of the last finalized block.
+
+*   **`eth_getBlockByNumber`**: Use the `pending` tag to retrieve the latest flashblock snapshot.
+    <Expandable title="Sample response">
+
+      ```json
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+              "number": "0x1234",
+              "hash": "0x...",
+              "transactions": [...]
+            }
+          }
+      ```
+    </Expandable>
+
+*   **`eth_call`**: Use the `pending` tag to execute calls against the most recent pre-confirmed state.
+
+    <Expandable title="Sample request">
+
+      ```json
+      {
+        "jsonrpc": "2.0",
+        "method": "eth_call",
+        "params": [{"to": "0x...", "data": "0x..."}, "pending"],
+        "id": 1
+      }
+      ```
+    </Expandable>
+
+*   `eth_getBalance` / `eth_getTransactionCount`: Use the `pending` tag to fetch balances or transaction counts as they evolve within the block window.
+
+    <Expandable title="Sample response for `eth_getBalance`">
+
+      ```json
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "0x0234"
+      }
+      ```
+    </Expandable>
+
+    <Expandable title="Sample response for `eth_getTransactionCount`">
+
+      ```json
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": "0x1b" // 27 transactions
+      }
+      ```
+    </Expandable>
+
+    Other methods, like `eth_getTransactionReceipt` and `eth_getTransactionByHash`, return data from pre-confirmed transactions without requiring the `pending` tag.
+    Consult the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html#flashblock-json-rpc-apis) for more details on each of these methods.
+
+## Libraries
+
+You will need a Flashblocks‑aware RPC endpoint to use the following libraries:
+
+### Viem
+
+```ts
+import { createPublicClient, createWalletClient, http, parseEther } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { opSepolia } from 'viem/chains';
+import { publicActionsL2, walletActionsL2 } from 'viem/op-stack';
+
+const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY}`);
+
+const walletClient = createWalletClient({
+  account,
+  chain: opSepolia,
+  transport: http("https://sepolia.optimism.io"),
+}).extend(walletActionsL2());
+
+const publicClient = createPublicClient({
+  chain: opSepolia,
+  transport: http("https://sepolia.optimism.io"),
+}).extend(publicActionsL2());
+
+const submissionTime = new Date();
+const hash = await walletClient.sendTransaction({
+  to: '0x...',
+  value: parseEther('0.0001'),
+});
+
+// Wait for pre-confirmation
+const receipt = await publicClient.waitForTransactionReceipt({ hash });
+const confirmTime = new Date();
+console.log('pre-confirmed in ms:', confirmTime.getTime() - submissionTime.getTime());
+```
+
+### Ethers
+
+```ts
+import { ethers } from 'ethers';
+
+// Here, provider is a Flashblocks-enabled RPC provider
+const provider = new ethers.JsonRpcProvider("https://sepolia.optimism.io");
+const wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string, provider);
+
+const tx = { to: '0x...', value: ethers.parseEther('0.0001') };
+const submission = new Date();
+
+const sent = await wallet.sendTransaction(tx);
+
+await sent.wait(0);
+const confirmed = new Date();
+
+// should represent the transaction (pre)confirmation faster than standard RPC
+console.log('Pre-confirmed in ms:', confirmed.getTime() - submission.getTime()); 
+
+// validates the transaction hash returned by the pre-confirmed transaction above
+const receipt = await provider.getTransactionReceipt(sent.hash);
+console.log('Receipt validated in ms:', validated.getTime() - submission.getTime());
+console.log('Transaction receipt:', receipt); 
+
+```
+
+## Flashblocks FAQ
+
+### Block building and availability
+
+<Expandable title="How often are Flashblocks produced?">
+  The flashblocks target interval is variable.
+  OP Mainnet runs flashblocks at 250ms while Base and Unichain run them at 200ms.
+  A 2-second block at 250 ms produces 9 flashblocks, indexed 0 to 8.
+  The index-0 block contains deposit-only transactions, followed by 8 normal Flashblocks.
+</Expandable>
+
+<Expandable title="Will the number of Flashblocks per block always be the maximum?">
+  Not always. Heavy execution in one interval may reduce time available for subsequent intervals. The FLASHBLOCKS\_TIME setting is a target, not a strict guarantee.
+</Expandable>
+
+<Expandable title="Do large gas transactions get delayed?">
+  High gas transactions can be included in any flashblock with sufficient gas capacity. Placement is optimized by heuristics, but available gas decreases as transactions fill earlier flashblocks.
+</Expandable>
+
+### High availability and safety
+
+<Expandable title="What happens if the flashblocks builder fails?">
+  In a default/non-HA setup, the system falls back to regular block building while preserving pre-confirmations. In an HA setup, `op-conductor` seamlessly transfers leadership to a healthy sequencer without interruption.
+  When leadership changes, streaming continues seamlessly from the new leader so downstream consumers always receive a continuous stream from a single stable endpoint.
+</Expandable>
+
+<Expandable title="How is continuity handled in high availability setups with multiple sequencers?">
+  Only the current leader streams Flashblocks. On leader change, streaming continues from the new leader so downstream consumers see a continuous stream from a single stable endpoint. For details on high-availability sequencer setups, see the [op-conductor documentation](https://docs.optimism.io/operators/chain-operators/tools/op-conductor).
+</Expandable>
+
+<Expandable title="Do flashblocks change the safety model of the chain?">
+  No. Each flashblock is validated by the same execution engine as normal blocks.
+</Expandable>
+
+### Pre-confirmations and reorgs
+
+<Expandable title="Can pre-confirmations be revoked?">
+  Rarely. If the sequencer reorgs, pre-confirmed state may change - but this carries no more risk than the reorg of normal blocks.
+</Expandable>
+
+<Expandable title="Why can a pre-confirmed transaction later disappear?">
+  If the sequencer reorgs, pre-confirmed state can be replaced. This does not add risk beyond the pending state reorg risk that already exists.
+</Expandable>
+
+<Expandable title="Does Flashblocks change liveness or withdrawals?">
+  No. Protocol guarantees remain the same; Flashblocks only speed up transaction confirmation.
+</Expandable>
+
+<Expandable title="What is the structure of a pre-confirmation response?">
+  In pre-confirmation responses, `blockHash`, `stateRoot`, and `receiptsRoot` are the values that represent the cumulative state of all transactions included up to that point in the block. The blockNumber reflects the current pending block number.
+  Each flashblock's view shows the complete state incorporating all transactions processed so far.
+</Expandable>
+
+## Next steps
+
+*   Explore the [high-level guide](/chain-operators/guides/features/flashblocks-guide) for operators.
+*   Review the [technical specs](https://specs.optimism.io/protocol/flashblocks.html) for architecture details.
+*   Join our [community](https://discord.gg/jPQhHTdemH) to share best practices and get support!

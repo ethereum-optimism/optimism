@@ -1,0 +1,34 @@
+---
+title: Using snap sync for chain operators
+description: Learn how to enable snap sync on your OP Stack chain.
+---
+
+Snap sync significantly improves the experience of syncing an OP Stack node. Snap sync is a native feature of go-ethereum that is now optionally enabled on `op-node` & `op-geth`.
+Snap sync works by downloading a snapshot of the state from other nodes on the network and is then able to start executing blocks from the completed state rather than having to re-execute every single block.
+This means that performing a snap sync is significantly faster than performing a full sync.
+
+*   Snap sync enables node operators on your network to sync faster.
+*   Snap sync removes the need for nodes on your post Ecotone network to run a [blob archiver](/node-operators/guides/management/blobs).
+
+## Enable snap sync for chains
+
+To enable snap sync, chain operators need to spin up a node which is exposed to the network and has transaction gossip disabled.
+This node will serve snap sync requests on the execution layer from other nodes on the network.
+
+<Info>
+For snap sync, all `op-geth` nodes should expose port `30303` TCP and `30303` UDP to easily find other `op-geth` nodes to sync from. 
+  *   If you set the port with [`--discovery.port`](/node-operators/reference/op-geth-config#discovery-port), then you must open the port specified for UDP.
+  *   If you set [`--port`](/node-operators/reference/op-geth-config#port), then you must open the port specified for TCP.
+  *   The only exception is for sequencers and transaction ingress nodes.
+</Info>
+
+<Steps>
+  <Step title="Setup a snap sync node">
+  *   Expose port `30303` (`op-geth`'s default discovery port) to the internet on TCP and UDP.
+    *   Disable transaction gossip with the [`--rollup.disabletxpoolgossip`](/node-operators/reference/op-geth-config#rollupdisabletxpoolgossip) flag
+  </Step>
+
+  <Step title="Enable snap sync on your network">
+  *   Follow the [Node operator snap sync guide](/node-operators/guides/management/snap-sync) to enable snap sync for your chain network.
+  </Step>
+</Steps>

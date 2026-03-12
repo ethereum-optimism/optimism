@@ -1,0 +1,141 @@
+---
+title: Legacy Geth configuration
+description: Learn how to configure Legacy Geth for serving historical execution traces on upgraded OP Stack networks.
+---
+
+Legacy Geth (`l2geth`) is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
+If you're running a node that had a chain genesis after the Bedrock upgrade, you do not need Legacy Geth.
+
+## Historical execution vs. historical data routing
+
+Only requests for historical execution will be routed to Legacy Geth.
+Everything else will be served by `op-geth` directly.
+The term *historical execution* refers to RPC methods that need to execute transactions prior to bedrock (not just read data from the database):
+
+*   `eth_call`
+*   `eth_estimateGas`
+*   `debug_traceBlockByNumber`
+*   `debug_traceBlockByHash`
+*   `debug_traceCall`
+*   `debug_traceTransaction`
+
+If you do not need these RPC methods for historical data, then you do not need to run Legacy Geth at all.
+
+## What is Legacy Geth?
+
+Legacy Geth is the old `l2geth` binary running against a preconfigured data directory.
+It serves historical execution data from before the Bedrock upgrade.
+
+## Setup
+
+### 1. Download the preconfigured data directory
+
+Download and extract the Legacy Geth data directory, which is available at [datadirs.optimism.io](https://datadirs.optimism.io).
+
+```bash
+# Download the data directory
+curl -o legacy-geth-datadir.tar -sL <URL-to-legacy-datadir>
+
+# Extract it
+tar -xvf legacy-geth-datadir.tar -C /data/legacy-geth
+```
+
+### 2. Configure Legacy Geth
+
+Run Legacy Geth with the minimum required configuration:
+
+```bash
+USING_OVM=true \
+  ETH1_SYNC_SERVICE_ENABLE=false \
+  RPC_API=eth,rollup,net,web3,debug \
+  RPC_ADDR=0.0.0.0 \
+  RPC_CORS_DOMAIN=* \
+  RPC_ENABLE=true \
+  RPC_PORT=8545 \
+  RPC_VHOSTS=* \
+  geth --datadir /data/legacy-geth
+```
+
+<Warning>
+It is imperative that you specify the `USING_OVM=true` environment variable.
+Failing to specify this will cause `l2geth` to return invalid execution traces or panic at startup.
+</Warning>
+
+### 3. Configure op-geth to route to Legacy Geth
+
+Update your op-geth configuration to route historical requests to Legacy Geth:
+
+```bash
+geth \
+  --datadir=/data/optimism \
+  --rollup.historicalrpc=http://localhost:8545 \
+  # ... other flags
+```
+
+The `--rollup.historicalrpc` flag tells op-geth where to route requests for historical execution.
+
+## Environment variables
+
+Legacy Geth accepts the following environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `USING_OVM` | **Required**. Enables OVM mode | N/A (must be set to `true`) |
+| `ETH1_SYNC_SERVICE_ENABLE` | Enables L1 sync service | `true` (set to `false` for read-only) |
+| `RPC_API` | Enabled RPC APIs | `eth,net,web3` |
+| `RPC_ADDR` | RPC listening address | `localhost` |
+| `RPC_CORS_DOMAIN` | CORS domains | `localhost` |
+| `RPC_ENABLE` | Enable RPC server | `false` |
+| `RPC_PORT` | RPC port | `8545` |
+| `RPC_VHOSTS` | Virtual hosts | `localhost` |
+
+## Historical execution vs. historical data
+
+Only requests for **historical execution** will be routed to Legacy Geth.
+Everything else will be served by op-geth directly.
+
+### Historical execution RPC methods
+
+These methods require transaction execution and are routed to Legacy Geth for pre-Bedrock blocks:
+
+- `eth_call`
+- `eth_estimateGas`
+- `debug_traceBlockByNumber`
+- `debug_traceBlockByHash`
+- `debug_traceCall`
+- `debug_traceTransaction`
+
+### Historical data RPC methods
+
+These methods only read data from the database and are served by op-geth:
+
+- `eth_getBlockByNumber`
+- `eth_getBlockByHash`
+- `eth_getTransactionByHash`
+- `eth_getTransactionReceipt`
+- `eth_getLogs`
+
+## Troubleshooting
+
+<Warning>
+  `l2geth` is based on an old version of geth where trace functionality is unstable. 
+  It is no longer maintained and will not be updated.
+</Warning>
+
+### Legacy Geth won't start
+
+**Problem**: `l2geth` panics or returns errors on startup
+
+**Solution**: Ensure `USING_OVM=true` is set in your environment variables
+
+### Invalid execution traces
+
+**Problem**: Legacy Geth returns invalid or incorrect trace data
+
+**Solution**: Verify that `USING_OVM=true` is set and the data directory is complete and uncorrupted
+
+### op-geth not routing to Legacy Geth
+
+**Problem**: Historical execution requests are not being routed to Legacy Geth
+
+**Solution**: Check that `--rollup.historicalrpc` is set on op-geth with the correct URL to Legacy Geth

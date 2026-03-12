@@ -1,0 +1,220 @@
+---
+title: Switch to Kona Proofs
+description: Learn how to switch your OP Stack chain to use Kona-based fault proofs as the respected game type.
+---
+
+<Note>
+  Kona proofs will become available if and when Optimism Governance approves [Upgrade 18](/notices/upgrade-18).
+  Until then, you can experiment with Kona proofs using [op-deployer/v0.6.0-rc.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer%2Fv0.6.0-rc.2), which allows you to upgrade from `op-contracts/v5.0.0` to `op-contracts/v6.0.0-rc.1`. 
+  This smart contract release candidate will be finalized after governance approval.
+</Note>
+
+## Overview
+
+| Parameter               | Type    | Current (typical) | Target when switching | Notes                                                |
+| ----------------------- | ------- | ----------------- | ---------------------- | ---------------------------------------------------- |
+| Respected game type     | Enum    | `CANNON` (0)      | `CANNON_KONA` (8)      | Determines which game type is used for withdrawals  |
+| `OP_PROPOSER_GAME_TYPE` | Number  | 0                 | 8                      | Proposer game type (must match respected game type) |
+| `cannonPrestate`        | Bytes32 | Set               | Set                    | Must be a valid `cannon64` prestate hash            |
+| `cannonKonaPrestate`    | Bytes32 | Set               | Set                    | Must be a valid `cannon64-kona` prestate hash       |
+
+Kona proofs use the `kona-client` fault proof program, which is a combination of `kona-node` and `op-reth`. This runs alongside the existing `op-program` (a combination of `op-node` and `op-geth`). Both programs:
+
+- Use Cannon as the FPVM, and  
+- Are used by the same dispute game implementation (`FaultDisputeGame.sol`).
+
+After the cannon+kona upgrade is deployed, both game types are available:
+
+- `CANNON` (0) — op-program  
+- `CANNON_KONA` (8) — kona-client  
+
+By default, the respected game type remains `CANNON` (0), meaning only those games are used for withdrawals. This guide explains how to switch your chain so that Kona proofs (`CANNON_KONA`, 8) become the respected game type.
+
+<Warning>
+  This guide assumes you have already completed the cannon+kona upgrade, including setting both `cannonPrestate` and `cannonKonaPrestate` in `OpChainConfig`, and that your fault proof infrastructure is healthy.
+</Warning>
+
+The high-level flow is:
+
+- Verify that cannon+kona support is correctly deployed on-chain.  
+- Confirm that your off-chain infra (especially `op-challenger`) is Kona-ready.  
+- Switch the respected game type to `CANNON_KONA` (8).  
+- Update `op-proposer` to post Kona games.  
+- Monitor the system.
+
+---
+
+## How to Switch to Kona Proofs
+
+<Steps>
+  <Step title="Confirm cannon+kona support is deployed">
+    Before changing the respected game type, verify that your chain has been upgraded to support both `CANNON` and `CANNON_KONA` games.
+
+    <Info>
+      The required upgrade is performed via `OPCM.upgrade` with an `OpChainConfig` that sets both `cannonPrestate` and `cannonKonaPrestate`.
+    </Info>
+
+    1. **Check `OpChainConfig` prestates**
+
+       Ensure that the `OpChainConfig` used in your most recent upgrade included:
+
+       - `cannonPrestate` pointing to a valid `cannon64` prestate.  
+       - `cannonKonaPrestate` pointing to a valid `cannon64-kona` prestate.  
+
+       Both hashes must come from the standard prestates in the superchain registry and must embed an up-to-date chain config for your chain.
+
+    2. **Verify `DisputeGameFactory` implementations**
+
+       After the cannon+kona upgrade, the `DisputeGameFactory` should have:
+
+       - A non-zero implementation for `CANNON` (0), and  
+       - A non-zero implementation for `CANNON_KONA` (8).
+
+       Example (using [cast](https://getfoundry.sh/cast/reference/cast/)):
+
+       ```bash title="cast"
+       # CANNON (0) implementation
+       cast call <DISPUTE_GAME_FACTORY_ADDRESS> "gameImpl(uint8)" 0
+
+       # CANNON_KONA (8) implementation
+       cast call <DISPUTE_GAME_FACTORY_ADDRESS> "gameImpl(uint8)" 8
+       ```
+
+       Both calls should return non-zero addresses.
+  </Step>
+
+  <Step title="Ensure op-challenger is Kona-ready">
+    Your challengers must be able to play both cannon and kona games before you change the respected game type.
+
+    
+    1. **Trace types**
+
+       If you explicitly configure trace types, ensure that `cannon-kona` is included. A typical setting is:
+
+       ```bash
+       OP_CHALLENGER_TRACE_TYPE="cannon,cannon-kona,permissioned"
+       # or
+       --trace-type=cannon,cannon-kona,permissioned
+       ```
+
+    2. **Prestate URLs**
+
+       Make sure `op-challenger` can fetch both cannon and cannon-kona prestates:
+
+       - If they are at the same URL, use:
+
+         ```bash
+         --prestates-url=<PRESTATES_URL>
+         ```
+
+       - If they are at different locations, use:
+
+         ```bash
+         --cannon-prestates-url=<CANNON_PRESTATES_URL>
+         --cannon-kona-prestates-url=<CANNON_KONA_PRESTATES_URL>
+         ```
+
+    3. **Kona host binary**
+
+       For operators not using the standard OP Labs `op-challenger` Docker images, you must also provide:
+
+       ```bash
+       --cannon-kona-server=/path/to/kona-host
+       # or
+       OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+       ```
+
+       The `kona-host` binary is available from the Kona repository (for example under `bin/host`). Build it from the same release as the `cannon-kona` prestate you configured.
+  </Step>
+
+  <Step title="Switch the respected game type to CANNON_KONA">
+    Once both on-chain and off-chain pieces are ready, you can switch the respected game type so that Kona proofs become the canonical path for withdrawals.
+
+    <Warning>
+      Changing the respected game type affects which games can be used to prove withdrawals. Only perform this step once you are confident in your Kona setup.
+    </Warning>
+
+    The respected game type is configured in the `AnchorStateRegistry` contract.
+
+    1. **Encode the calldata**
+
+       Use `cast calldata` to encode a call to `setRespectedGameType(uint32)` with game type `8` (which corresponds to `CANNON_KONA`):
+
+       ```bash title="cast"
+       CALLDATA=$(cast calldata "setRespectedGameType(uint32)" 8)
+       ```
+
+    2. **Send the transaction**
+
+       Send the transaction from the Guardian to the `AnchorStateRegistry`:
+
+       ```bash title="cast"
+       cast send \
+         --rpc-url <L1_RPC_URL> \
+         --private-key <GUARDIAN_PRIVATE_KEY> \
+         <ANCHOR_STATE_REGISTRY_ADDRESS> \
+         "$CALLDATA"
+       ```
+
+    3. **Verify the new respected game type**
+
+       After the transaction confirms, verify that the respected game type is now `8`:
+
+       ```bash title="cast"
+       cast call \
+         --rpc-url <L1_RPC_URL> \
+         <ANCHOR_STATE_REGISTRY_ADDRESS> \
+         "respectedGameType()(uint32)"
+       ```
+
+       The returned value should be `8`, indicating that `CANNON_KONA` is now the respected game type.
+  </Step>
+
+  <Step title="Update op-proposer to use game type 8">
+    With `CANNON_KONA` set as the respected game type, your proposers must create Kona games.
+
+    1. **Update the proposer game type**
+
+       Change your `op-proposer` configuration from game type 0 to 8:
+
+       ```bash
+       # Before
+       OP_PROPOSER_GAME_TYPE=0
+       # or
+       --game-type=0
+
+       # After switching to Kona
+       OP_PROPOSER_GAME_TYPE=8
+       # or
+       --game-type=8
+       ```
+
+       This change is not required as part of the initial cannon+kona upgrade; it is only required when you actually switch the respected game type to `CANNON_KONA`.
+
+    2. **Restart proposers**
+
+       Restart your proposer processes so they pick up the new configuration. Verify in logs and metrics that they are now using game type 8.
+  </Step>
+
+  <Step title="Monitor, and validate">
+    After switching to Kona proofs, closely monitor your chain to ensure everything is functioning as expected.
+
+    1. **Run test withdrawals**
+
+       - Perform a few small test withdrawals and ensure that:
+         - New fault dispute games are created with game type `CANNON_KONA` (8).
+         - Your challengers are responding correctly using `kona-host`.
+
+    2. **Observe metrics and logs**
+
+       - Monitor `op-proposer` and `op-challenger` logs for errors.  
+       - Watch dispute game metrics (for example, game counts and step timings) for anomalies.
+  </Step>
+</Steps>
+
+---
+
+## References
+
+- [OP Stack Fault Proofs Explainer](https://docs.optimism.io/op-stack/fault-proofs/explainer)
+- [Fault Proof Specs](https://specs.optimism.io/fault-proof/index.html)

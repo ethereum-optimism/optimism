@@ -1,0 +1,112 @@
+---
+title: Consensus client configuration
+description: Learn how to configure consensus clients (op-node, kona-node) for your OP Stack node.
+---
+
+The consensus client (also called the rollup node) builds, relays, and verifies the canonical chain of blocks.
+This guide covers configuration for the most popular consensus client implementations.
+
+<Info>
+Always run your consensus client and execution client in a one-to-one configuration.
+Don't run multiple execution client instances behind one consensus client, or vice versa.
+</Info>
+
+## Consensus clients
+
+Choose the consensus client that best fits your needs:
+
+<Tabs>
+  <Tab title="op-node">
+    ## op-node configuration
+
+    [op-node](https://github.com/ethereum-optimism/optimism/tree/develop/op-node) is the reference implementation of the OP Stack consensus client, written in Go.
+
+    ### Minimal configuration
+
+    The minimum required flags for running op-node:
+
+    ```bash
+    op-node \
+      --l1=https://ethereum-rpc-endpoint.example.com \
+      --l1.beacon=https://ethereum-beacon-endpoint.example.com \
+      --l2=http://localhost:8551 \
+      --l2.jwt-secret=/path/to/jwt-secret.txt \
+      --network=op-mainnet \
+      --rpc.addr=0.0.0.0 \
+      --rpc.port=9545
+    ```
+
+    ### Sequencer configuration
+
+    If you're running a sequencer node, use these additional flags:
+
+    ```bash
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9545 \
+    --rpc.enable-admin \
+    --sequencer.enabled \
+    --sequencer.l1-confs=4 \
+    --p2p.sequencer.key=<your-sequencer-private-key>
+    ```
+
+    <Warning>
+    Keep your sequencer private key secure and never commit it to version control.
+    Use environment variables or secure key management systems in production.
+    </Warning>
+
+    ### l2.enginekind 
+
+    The kind of engine client, used to control the behavior of optimism in respect to different types of engine clients. 
+    Supported values are `geth` (default) and `reth`.
+
+    ### Complete reference
+
+    For all available configuration options, see the [op-node configuration reference](/node-operators/reference/op-node-config).
+  </Tab>
+
+  <Tab title="kona-node">
+    ## kona-node configuration
+
+    [kona-node](https://github.com/op-rs/kona/tree/main/bin/node) is an experimental Rust-based implementation of the OP Stack consensus client.
+
+    <Warning>
+    kona-node is experimental and may not be production-ready. Use with caution.
+    </Warning>
+
+    ### Basic configuration
+
+    kona-node follows a similar configuration pattern to op-node:
+
+    ```bash
+    kona-node \
+      --l1-rpc-url=https://ethereum-rpc-endpoint.example.com \
+      --l2-rpc-url=http://localhost:8551 \
+      --jwt-secret=/path/to/jwt-secret.txt \
+      --network=op-mainnet
+    ```
+
+    ### JWT secret
+
+    Generate the JWT secret using:
+
+    ```bash
+    openssl rand -hex 32 > jwt-secret.txt
+    ```
+
+    ### Additional resources
+
+    For more details on kona-node configuration, see:
+    - [kona-node GitHub repository](https://github.com/op-rs/kona/tree/main/bin/node)
+    - [kona documentation](https://op-rs.github.io/kona/)
+  </Tab>
+</Tabs>
+
+## JWT secret
+
+To communicate with execution client and enable the Engine API, you'll also need to generate a JWT secret file and enable the consensus client's authenticated RPC endpoint.
+To generate the JWT secret file:
+
+```bash
+openssl rand -hex 32 > jwt-secret.txt
+```
+

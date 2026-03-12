@@ -1,0 +1,94 @@
+---
+title: Deposit transactions
+description: Learn about using deposit transactions with `supersim`.
+---
+
+Supersim supports [deposit transactions](/op-stack/bridging/deposit-flow). It uses a very lightweight solution without the `op-node` derivation pipeline by listening directly to the `TransactionDeposited` events on the `OptimismPortal` contract and simply forwarding the transaction to the applicable L2.
+
+The execution engine used with Supersim must support the Optimism [deposit transaction type](https://specs.optimism.io/protocol/deposits.html#the-deposited-transaction-type).
+
+## `OptimismPortal`
+
+When starting Supersim, the L1 contracts for each L2 chain are emitted as output to the console. The `L1CrossDomainMessenger`, `L1StandardBridge`, and `OptimismPortal` can be used to initiate deposits in the same manner as one would on a production network like OP Mainnet or Base.
+
+```bash
+Chain Configuration
+-----------------------
+L1: Name: Local  ChainID: 900  RPC: http://127.0.0.1:8545  LogPath: ...
+
+L2: Predeploy Contracts Spec ( https://specs.optimism.io/protocol/predeploys.html )
+
+  * Name: OPChainA  ChainID: 901  RPC: http://127.0.0.1:9545  LogPath: ...
+    L1 Contracts:
+     - OptimismPortal:         0x37a418800d0c812A9dE83Bc80e993A6b76511B57
+     - L1CrossDomainMessenger: 0xcd712b03bc6424BF45cE6C29Fc90FFDece228F6E
+     - L1StandardBridge:       0x8d515eb0e5F293B16B6bBCA8275c060bAe0056B0
+
+  ...
+```
+
+If running Supersim in fork mode, the production contracts will be used for each of the forked networks.
+
+```bash
+Chain Configuration
+-----------------------
+L1: Name: mainnet  ChainID: 1  RPC: http://127.0.0.1:8545  LogPath: ...
+
+L2: Predeploy Contracts Spec ( https://specs.optimism.io/protocol/predeploys.html )
+
+  * Name: op  ChainID: 10  RPC: http://127.0.0.1:9545  LogPath: ...
+    L1 Contracts:
+     - OptimismPortal:         0xbEb5Fc579115071764c7423A4f12eDde41f106Ed
+     - L1CrossDomainMessenger: 0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1
+     - L1StandardBridge:       0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1
+
+  * Name: mode  ChainID: 34443  RPC: http://127.0.0.1:9546  LogPath: ...
+    L1 Contracts:
+     - OptimismPortal:         0x8B34b14c7c7123459Cf3076b8Cb929BE097d0C07
+     - L1CrossDomainMessenger: 0x95bDCA6c8EdEB69C98Bd5bd17660BaCef1298A6f
+     - L1StandardBridge:       0x735aDBbE72226BD52e818E7181953f42E3b0FF21
+
+   ...
+```
+
+## Sample Deposit Flow
+
+We'll run through a sample deposit directly with the `OptimismPortal` using cast.
+
+<Steps>
+  <Step title="Run Supersim">
+  ```bash
+    supersim
+    ```
+  </Step>
+
+  <Step title="Observe OptimismPortal Contract Address">
+  ```bash
+    ...
+    * Name: OPChainA  ChainID: 901 ...
+        L1 Contracts:
+         - OptimismPortal: 0x37a418800d0c812A9dE83Bc80e993A6b76511B57
+    ...
+    ```
+  </Step>
+
+  <Step title="Send Deposit Transaction On L1">
+  We'll be using the first pre-funded account to send this deposit of 1 ether
+  
+    ```bash
+    cast send 0x37a418800d0c812A9dE83Bc80e993A6b76511B57 --value 1ether --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    ```
+  </Step>
+
+  <Step title="Verify With Supersim Logs">
+  ```bash
+    INFO [11-28|13:56:06.756] OptimismPortal#depositTransaction chain.id=901 l2TxHash=0x592d6e13016751332115df1fce59904176bfe447854196ed1b97ee00f14be469
+    ```
+  </Step>
+</Steps>
+
+## Next steps
+
+*   See the [transaction guides](/app-developers/guides/transactions) for more detailed information.
+*   Questions about Interop? Check out collection of [interop guides](/> op-stack/interop/explainer) or check out this [OP Stack interop design video walk-thru](https://www.youtube.com/watch?v=FKc5RgjtGes).
+*   For more info about how OP Stack interoperability works under the hood, [check out the specs](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs).

@@ -1,0 +1,540 @@
+---
+title: Bridging ERC-20 tokens to OP Mainnet
+description: Learn how to use @eth-optimism/viem and viem packages to transfer ERC-20 tokens between Layer 1 (Ethereum or Sepolia) and Layer 2 (OP Mainnet or OP Sepolia).
+---
+
+This tutorial explains how you can use [@eth-optimism/viem](https://www.npmjs.com/package/@eth-optimism/viem) and [viem](https://viem.sh/op-stack) to bridge ERC-20 tokens between L1 (Ethereum or Sepolia) and L2 (OP Mainnet or OP Sepolia).
+The `@eth-optimism/viem` and `viem` packages are an easy way to add bridging functionality to your javascript-based application.
+They also provide some safety rails to prevent common mistakes that could cause tokens to be made inaccessible.
+
+Behind the scenes, `@eth-optimism/viem` package uses the [Standard Bridge](/app-developers/guides/bridging/standard-bridge) contracts to transfer tokens.
+Make sure to check out the [Standard Bridge guide](/app-developers/guides/bridging/standard-bridge) if you want to learn more about how the bridge works under the hood.
+
+<Info>
+  The Standard Bridge **does not** support [**fee on transfer
+  tokens**](https://github.com/d-xo/weird-erc20#fee-on-transfer) or [**rebasing
+  tokens**](https://github.com/d-xo/weird-erc20#balance-modifications-outside-of-transfers-rebasingairdrops)
+  because they can cause bridge accounting errors.
+</Info>
+
+## Supported networks
+
+Viem supports any of the [OP Stack networks](https://viem.sh/op-stack/chains).
+If you want to use a network that isn't included by default, you can add it to Viem's chain [configurations](https://viem.sh/op-stack/chains#configuration).
+
+## Dependencies
+
+*   [node](https://nodejs.org/en/)
+*   [pnpm](https://pnpm.io/installation)
+
+## Create a demo project
+
+You're going to use the `@eth-optimism/viem` package for this tutorial.
+Since the `@eth-optimism/viem` package is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
+
+<Steps>
+  <Step title="Make a Project Folder">
+
+  ```bash
+  mkdir bridging-erc20-tokens
+  cd bridging-erc20-tokens
+  ```
+
+  </Step>
+  <Step title="Initialize the Project">
+
+  ```bash
+  pnpm init
+  ```
+
+  </Step>
+  <Step title="Install the `@eth-optimism/viem`">
+
+  ```bash
+  pnpm add @eth-optimism/viem
+  ```
+
+  </Step>
+  <Step title="Install viem">
+
+  ```bash
+  pnpm add viem
+  ```
+  </Step>
+</Steps>
+
+<Info>
+  Want to create a new wallet for this tutorial? If you have
+  [`cast`](https://book.getfoundry.sh/getting-started/installation) installed
+  you can run `cast wallet new` in your terminal to create a new wallet and get
+  the private key.
+</Info>
+
+## Get ETH on Sepolia and OP Sepolia
+
+This tutorial explains how to bridge tokens from Sepolia to OP Sepolia.
+You will need to get some ETH on both of these testnets.
+
+<Info>
+  You can use [this faucet](https://sepoliafaucet.com) to get ETH on Sepolia.
+  You can use the [Superchain
+  Faucet](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs) to get ETH on OP
+  Sepolia.
+</Info>
+
+## Add a private key to your environment
+
+You need a private key to sign transactions.
+Set your private key as an environment variable with the `export` command.
+Make sure this private key corresponds to an address that has ETH on both Sepolia and OP Sepolia.
+
+```bash
+export TUTORIAL_PRIVATE_KEY=0x...
+```
+
+## Start the Node REPL
+
+You're going to use the Node REPL to interact with the `@eth-optimism/viem`.
+To start the Node REPL, run the following command in your terminal:
+
+```bash
+node
+```
+
+This will bring up a Node REPL prompt that allows you to run javascript code.
+
+## Import dependencies
+
+You need to import some dependencies into your Node REPL session.
+The `@eth-optimism/viem` package uses ESM modules, and to use in the Node.js REPL, you need to use dynamic imports with await.
+Here's how to do it:
+
+<Steps>
+  <Step title="Import the @eth-optimism/viem package">
+
+  ```js
+
+  const viem = await import('viem');
+  const { createPublicClient, createWalletClient, http, formatEther, parseEther} = viem;
+  const accounts = await import('viem/accounts');
+  const { privateKeyToAccount } = accounts;
+  const viemChains = await import('viem/chains');
+  const { optimismSepolia, sepolia } = viemChains;
+  const opActions = await import('@eth-optimism/viem/actions');
+  const { depositERC20, withdrawOptimismERC20 } = opActions;
+```
+  </Step>
+</Steps>
+
+## Set session variables
+
+You'll need a few variables throughout this tutorial.
+Let's set those up now.
+
+<Steps>
+  <Step title="Load your private key">
+
+  This step retrieves your private key from the environment variable you set earlier and converts it into an account object that Viem can use for transaction signing.
+  
+  The private key is essential for authorizing transactions on both L1 and L2 networks.
+  For security reasons, we access it from an environment variable rather than hardcoding it.
+
+  ```js
+  const PRIVATE_KEY = process.env.TUTORIAL_PRIVATE_KEY;
+  const account = privateKeyToAccount(PRIVATE_KEY);
+```
+
+  </Step>
+  <Step title="Create the RPC providers and wallets">
+
+  Here we establish the connections to both networks by creating four different clients:
+
+  1.  L1 Public Client: For reading data from the Sepolia network
+  2.  L1 Wallet Client: For signing and sending transactions on Sepolia
+  3.  L2 Public Client: For reading data from OP Sepolia
+  4.  L2 Wallet Client: For signing and sending transactions on OP Sepolia
+
+  Each client is configured with the appropriate chain information and RPC endpoint.
+  This dual-network setup allows us to seamlessly interact with both layers using the same account.
+  Replace `<YOUR_API_KEY>` with your API key from a RPC provider.
+
+  ```js
+  const L1_RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com';
+  const L2_RPC_URL = 'https://sepolia.optimism.io';
+  
+  const publicClientL1 = createPublicClient({
+    chain: sepolia,
+    transport: http(L1_RPC_URL),
+  });
+  
+  const walletClientL1 = createWalletClient({
+    account,
+    chain: sepolia,
+    transport: http(L1_RPC_URL),
+  });
+  
+  const publicClientL2 = createPublicClient({
+    chain: optimismSepolia,
+    transport: http(L2_RPC_URL),
+  });
+  
+  const walletClientL2 = createWalletClient({
+    account,
+    chain: optimismSepolia,
+    transport: http(L2_RPC_URL),
+  });
+```
+
+  </Step>
+  <Step title="Set the L1 and L2 ERC-20 addresses">
+
+  We define the addresses of the ERC-20 tokens on both networks.
+  These are specially deployed test tokens with corresponding implementations on both L1 (Sepolia) and L2 (OP Sepolia).
+  
+  The L2 token is configured to recognize deposits from its L1 counterpart.
+  We also define a constant `oneToken` representing the full unit (10^18 wei) to simplify our deposit and withdrawal operations.
+
+  ```js
+  const l1Token = "0x5589BB8228C07c4e15558875fAf2B859f678d129";
+  const l2Token = "0xD08a2917653d4E460893203471f0000826fb4034";
+```
+
+  <Info>
+    If you're coming from the [Bridging Your Standard ERC-20 Token to OP Mainnet
+    Using the Standard Bridge](./standard-bridge-standard-token) or [Bridging Your
+    Custom ERC-20 Token to OP Mainnet Using the Standard
+    Bridge](./standard-bridge-custom-token) tutorials, you can use the addresses
+    of your own ERC-20 tokens here instead.
+  </Info>
+  </Step>
+</Steps>
+
+## Get L1 tokens
+
+You're going to need some tokens on L1 that you can bridge to L2.
+The L1 testing token located at [`0x5589BB8228C07c4e15558875fAf2B859f678d129`](https://sepolia.etherscan.io/address/0x5589BB8228C07c4e15558875fAf2B859f678d129) has a `faucet` function that makes it easy to get tokens.
+
+<Steps>
+  <Step title="Set the ERC20 ABI">
+
+  The Application Binary Interface (ABI) defines how to interact with the smart contract functions. This ERC-20 ABI includes several critical functions:
+
+  *   `balanceOf`: Allows us to check token balances for any address
+  *   `faucet`: A special function in this test token that mints new tokens to the caller
+  *   `approve`: Required to grant the bridge permission to transfer tokens on our behalf
+  *   `allowance`: To check how many tokens we've approved for the bridge
+  *   `decimals` and `symbol`: Provide token metadata
+
+  This comprehensive ABI gives us everything we need to manage our tokens across both L1 and L2.
+
+  ```js
+  const erc20ABI = [
+    {
+      inputs: [
+        {
+          internalType: "address",
+          name: "account",
+          type: "address",
+        },
+      ],
+      name: "balanceOf",
+      outputs: [
+        {
+          internalType: "uint256",
+          name: "",
+          type: "uint256",
+        },
+      ],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [],
+      name: "faucet",
+      outputs: [],
+      stateMutability: "nonpayable",
+      type: "function",
+    },
+    {
+      inputs: [
+        {
+          internalType: "address",
+          name: "spender",
+          type: "address"
+        },
+        {
+          internalType: "uint256",
+          name: "value",
+          type: "uint256"
+        }
+      ],
+      name: "approve",
+      outputs: [
+        {
+          internalType: "bool",
+          name: "",
+          type: "bool"
+        }
+      ],
+      stateMutability: "nonpayable",
+      type: "function"
+    },
+  ];
+```
+
+  </Step>
+  <Step title="Request some tokens">
+
+  Now we'll call the `faucet` function on the L1 test token contract to receive free tokens for testing.
+  This transaction will mint new tokens directly to our wallet address. 
+  
+  The function doesn't require any parameters - it simply credits a predetermined amount to whoever calls it.
+  We store the transaction hash for later reference and wait for the transaction to be confirmed.
+
+  ```js
+  console.log('Getting tokens from faucet...');
+  const tx = await walletClientL1.writeContract({
+    address: l1Token,
+    abi: erc20ABI,
+    functionName: 'faucet',
+    account,
+  });
+  console.log('Faucet transaction:', tx);
+```
+
+  </Step>
+  <Step title="Check your token balance">
+
+  After using the faucet, we verify our token balance by calling the `balanceOf` function on the L1 token contract.
+  
+  This step confirms that we've successfully received tokens before proceeding with the bridging process.
+  The balance is returned in the smallest unit (wei), but we format it into a more readable form using the `formatEther` utility function from `viem`, since this token uses 18 decimal places.
+
+  ```js
+  const l1Balance = await publicClientL1.readContract({
+    address: l1Token,
+    abi: erc20ABI,
+    functionName: 'balanceOf',
+    args: [account.address]
+  });
+  console.log(`L1 Balance after receiving faucet: ${formatEther(l1Balance)}`);
+```
+  </Step>
+</Steps>
+
+## Deposit tokens
+
+Now that you have some tokens on L1, you can deposit those tokens into the `L1StandardBridge` contract.
+You'll then receive the same number of tokens on L2 in return.
+
+<Steps>
+  <Step title="Define the amount to deposit">
+
+  We define a variable `oneToken` that represents 1 full token in its base units (wei). 
+  ERC-20 tokens typically use 18 decimal places, so 1 token equals 10^18 wei. 
+  
+  This constant helps us work with precise token amounts in our transactions, avoiding rounding errors and ensuring exact value transfers.
+  We'll use this value for both deposits and withdrawals
+
+  ```js
+  const oneToken = parseEther('1')
+```
+
+  </Step>
+  <Step title="Allow the Standard Bridge to access your tokens">
+
+  ERC-20 tokens require a two-step process for transferring tokens on behalf of a user.
+  First, we must grant permission to the bridge contract to spend our tokens by calling the `approve` function on the token contract.
+  
+  We specify the bridge address from the chain configuration and the exact amount we want to bridge.
+  This approval transaction must be confirmed before the bridge can move our tokens.
+
+  ```js
+  const bridgeAddress = optimismSepolia.contracts.l1StandardBridge[sepolia.id].address;
+  const approveTx = await walletClientL1.writeContract({
+    address: l1Token,
+    abi: erc20ABI,
+    functionName: 'approve',
+    args: [bridgeAddress, oneToken],
+  });
+  console.log('Approval transaction:', approveTx);
+```
+
+  </Step>
+  <Step title="Wait for approval">
+
+  After submitting the approval transaction, we need to wait for it to be confirmed on L1.
+  We use the `waitForTransactionReceipt` function to monitor the transaction until it's included in a block. 
+  
+  The receipt provides confirmation details, including which block includes our transaction.
+  This step ensures our approval is finalized before attempting to bridge tokens.
+
+  ```js
+  await publicClientL1.waitForTransactionReceipt({ hash: approveTx });
+```
+
+  </Step>
+  <Step title="Deposit your tokens">
+
+  Now we can execute the actual bridging operation using the `depositERC20` function from the `@eth-optimism/viem` package. 
+  
+  This function handles all the complex interactions with the `L1StandardBridge` contract for us. 
+  We provide:
+
+  *   The addresses of both the L1 and L2 tokens
+  *   The amount to bridge
+  *   The target chain (OP Sepolia)
+  *   Our wallet address as the recipient on L2
+  *   A minimum gas limit for the L2 transaction
+
+  This streamlined process ensures our tokens are safely transferred to L2.
+
+  ```js
+  console.log('Depositing tokens to L2...');
+  const depositTx = await depositERC20(walletClientL1, {
+    tokenAddress: l1Token,
+    remoteTokenAddress: l2Token,
+    amount: oneToken,
+    targetChain: optimismSepolia,
+    to: account.address,
+    minGasLimit: 200000,
+  });
+  console.log(`Deposit transaction hash: ${depositTx}`);
+```
+
+  <Info>
+    Using a smart contract wallet? As a safety measure, `depositERC20` will fail
+    if you try to deposit ETH from a smart contract wallet without specifying a
+    `recipient`. Add the `recipient` option to the `depositERC20` call to fix
+    this. Check out the [@eth-optimism/viem
+    docs](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem) for
+    more info on the options you can pass to `depositERC20`.
+  </Info>
+
+  </Step>
+  <Step title="Wait for the deposit to be relayed">
+
+  After initiating the deposit, we need to wait for the L1 transaction to be confirmed.
+  This function tracks the transaction until it's included in an L1 block.
+  
+  Note that while this confirms the deposit was accepted on L1, there will still be a short delay (typically a few minutes) before the tokens appear on L2, as the transaction needs to be processed by the Optimism sequencer.
+
+  ```js
+  const depositReceipt = await publicClientL1.waitForTransactionReceipt({ hash: depositTx });
+  console.log(`Deposit confirmed in block ${depositReceipt.blockNumber}`);
+```
+
+  </Step>
+  <Step title="Check your token balance on L1">
+
+  After the deposit transaction is confirmed, we check our token balance on L1 again to verify that the tokens have been deducted.
+  
+  This balance should be lower by the amount we bridged, as those tokens are now escrowed in the `L1StandardBridge` contract.
+  This step helps confirm that the first part of the bridging process completed successfully:
+
+  ```js
+  const l1BalanceAfterDeposit = await publicClientL1.readContract({
+    address: l1Token,
+    abi: erc20ABI,
+    functionName: 'balanceOf',
+    args: [account.address]
+  });
+  console.log(`L1 Balance after deposit: ${formatEther(l1BalanceAfterDeposit)}`);
+```
+
+  </Step>
+  <Step title="Check your token balance on L2">
+
+  After allowing some time for the L2 transaction to be processed, we check our token balance on L2 to verify that we've received the bridged tokens.
+  
+  The newly minted L2 tokens should appear in our wallet at the same address we used on L1.
+  This step confirms the complete success of the bridge operation from L1 to L2.
+
+  ```js
+  const l2Balance = await publicClientL2.readContract({
+    address: l2Token,
+    abi: erc20ABI,
+    functionName: 'balanceOf',
+    args: [account.address]
+  });
+  console.log(`L2 Balance after withdrawal: ${formatEther(l2Balance)}`);
+```
+  </Step>
+</Steps>
+
+## Withdraw tokens
+
+You just bridged some tokens from L1 to L2.
+Nice!
+Now you're going to repeat the process in reverse to bridge some tokens from L2 to L1.
+
+<Steps>
+  <Step title="Initiate the withdrawal">
+
+  To move tokens back to L1, we use the `withdrawOptimismERC20` function from the `@eth-optimism/viem` package.
+  This function interacts with the `L2StandardBridge` contract to initialize the withdrawal process.
+  We specify:
+
+  *   The L2 token address
+  *   The amount to withdraw (we're using half of a token in this tutorial)
+  *   Our address as the recipient on L1
+  *   A minimum gas limit for the transaction
+
+  Unlike deposits, withdrawals from L2 to L1 are not immediate and require a multi-step process including a 7-day challenge period for security reasons.
+
+  ```js
+  console.log('Withdrawing tokens back to L1...');
+  const withdrawTx = await withdrawOptimismERC20(walletClientL2, {
+    tokenAddress: l2Token,
+    amount: oneToken / 2n, 
+    to: account.address,
+    minGasLimit: 200000,
+  });
+  console.log(`Withdrawal transaction hash: ${withdrawTx}`);
+```
+
+  </Step>
+  <Step title="Wait for the transaction receipt">
+
+  Similar to deposits, we wait for the withdrawal transaction to be confirmed on L2.
+  This receipt provides confirmation that the withdrawal has been initiated.
+  
+  The transaction logs contain critical information that will be used later in the withdrawal verification process.
+  This is only the first step in the withdrawal - the tokens are now locked on L2, but not yet available on L1.
+
+  ```js
+  const withdrawReceipt = await publicClientL2.waitForTransactionReceipt({ hash: withdrawTx });
+  console.log(`Withdrawal initiated in L2 block ${withdrawReceipt.blockNumber}`);
+```
+
+  <Info>
+    This step can take a few minutes. Feel free to take a quick break while you
+    wait.
+  </Info>
+
+  </Step>
+  <Step title="Check your token balance on L2">
+
+  After the withdrawal transaction is confirmed, we check our token balance on L2 again to verify that the tokens have been deducted.
+  Our L2 balance should now be lower by the amount we initiated for withdrawal.
+  
+  At this point, the withdrawal process has begun, but the tokens are not yet available on L1 - please refer to [Withdraw ETH](./cross-dom-bridge-eth#withdraw-eth) to continue with the “prove” and “finalize” withdrawal steps.
+
+  ```js
+  const l2Balance = await publicClientL2.readContract({
+    address: l2Token,
+    abi: erc20ABI,
+    functionName: 'balanceOf',
+    args: [account.address]
+  });
+  console.log(`L2 Balance after withdrawal initiation: ${formatEther(l2Balance)}`);
+```
+  </Step>
+</Steps>
+
+## Next steps
+
+Congrats!
+You've just deposited and withdrawn tokens using `@eth-optimism/viem` package.
+You should now be able to write applications that use the `@eth-optimism/viem` package to transfer ERC-20 tokens between L1 and L2.
+Although this tutorial used Sepolia and OP Sepolia, the same process works for Ethereum and OP Mainnet.

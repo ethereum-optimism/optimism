@@ -1,0 +1,89 @@
+---
+title: Forced Transaction
+description: Learn the forced transaction flow during sequencer downtime.
+---
+
+## Forced transaction flow
+
+This guide explains the nuances of forced transactions during sequencer downtime.
+
+In the OP Stack, forced transactions serve as a mechanism to ensure transaction inclusion, even during sequencer downtime.
+Users are able to force-include transactions, which can initiate withdrawals, at any time. 
+However, there are important nuances to understand about the chain derivation pipeline and sequencer behavior.
+
+
+## Key concepts
+
+*   **Sequencing Window**: A 12-hour rolling window to include L2 transactions, including native L2 transactions and deposit transactions.
+*   **Max Time Drift**: 30 minutes, the maximum delay for including a deposit transaction, relative to the L2 chain.
+*   **Sequencer Downtime**: Period when the sequencer is offline or not producing blocks.
+*   **Forced Transactions**: Transactions that users can submit directly to the L1 chain, ensuring their inclusion in the L2 chain without sequencer intervention.
+    This mechanism is crucial during sequencer downtime.
+
+## Normal operation
+
+Under normal circumstances:
+
+1.  Deposit transactions are included within 30 minutes.
+2.  The sequencer processes transactions and produces blocks regularly.
+
+## Forced transaction mechanism
+
+1.  **Submission to L1:**
+    Users can send transactions directly to the `OptimismPortal` contract on L1 Ethereum. This bypasses the sequencer, ensuring that the transaction is recorded on L1.
+
+2.  **Inclusion in L2:**
+    Once submitted to L1, these transactions are automatically included in the L2 chain. The timing of their inclusion depends on the duration of the sequencer's downtime:
+
+    *   **Short Downtime (< 30 minutes):**
+        During short downtime `~ 30 minutes`, transactions may still be included within the usual 30-minute maximum time drift if the sequencer resumes operation within that window.
+
+    *   **Extended Downtime (30 minutes to 12 hours):**
+        During sequencer downtimes lasting between 30 minutes and 12 hours:
+
+        *   Deposit Transactions: Users can submit forced transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209) contract on L1. However, these transactions will only be included in the L2 chain once the sequencer resumes or the 12-hour sequencing window expires.
+            Refer to the [Bypassing the Sequencer](/op-stack/protocol/outages#bypassing-the-sequencer) section for more information about this functionality.
+        *   L2 Chain State: The L2 chain's state remains uncertain until either:
+            The sequencer resumes operations and processes pending transactions, or
+            the 12-hour sequencing window expires (after which nodes begin generating blocks deterministically, incorporating only the forced-included deposit transactions).
+    
+    *   **Sequencer Catch-up Phase:**
+        If the sequencer is offline for more than 30 minutes but less than 12 hours, it enters a **quick catch-up** phase upon restarting. 
+        During this phase:
+        *   The sequencer produces **deposit-only blocks** while moving the L1 origin forward with every block.
+        *   This continues until the L1 origin is back inside the sequencer drift window.
+        *   Normally, L2 blocks are produced at a **6:1 ratio** relative to their L1 origin (12s per L2 block vs. 2s per L1 block). However, during the catch-up phase, this ratio **switches to 1:1**, meaning each L2 block corresponds to a new L1 origin.
+
+    *   **Prolonged Downtime (> 12 hours):**
+        After 12 hours, nodes begin generating blocks deterministically, incorporating only the forced-included transactions. Regular L2 transactions are deferred until the sequencer is back online and has processed enough blocks to be within the last 12 hours of the L1 state.
+
+## Benefits of forced transactions
+
+*   **Mitigate censorship:** Forced transactions act as an alternative mechanism so users can ensure their transactions are processed even if the sequencer attempts to censor them.
+*   **Network Resilience:** The network remains operational, allowing critical transactions to proceed during sequencer downtimes.
+*   **User Autonomy:** Users are not entirely dependent on the sequencer for transaction inclusion, providing an additional layer of trust and reliability.
+
+## Important considerations
+
+*   Forced transactions, through deposits (no need for deposited value), ensure timely execution of actions, mitigating risks like DEX price divergence during sequencer downtime.
+*   Actions remain speculative for up to 12 hours due to the sequencing window.
+*   The 12-hour window is a balance between operational reliability and minimizing potential L2 reorganizations.
+
+## Example scenario
+
+If a deposit is initiated after the 30-minute mark but before the sequencing window expires:
+
+1.  The deposit will be effective when the sequencing window expires (up to \~11 hours later).
+2.  Nodes reading data from L1 will produce a block with the deposit after the sequencing window expires.
+3.  The eventual L2 chain will include the deposit in a block with an onchain timestamp close to the L1 block where the deposit originated.
+
+<Info>
+  The sequencing window is a rolling 12-hour delay from when an L1 block is
+  first known. This design allows the sequencer a grace period to come back
+  online without causing L2 chain reorganizations.
+</Info>
+
+## Conclusion
+
+The forced transaction mechanism on OP Stack chains provides a robust way to handle [sequencer downtime](/op-stack/protocol/outages#sequencer-downtime-outages), ensuring that critical transactions are included in a timely manner. 
+While the 12-hour sequencer window introduces a degree of uncertainty during downtime, the system is designed to guarantee eventual consistency and transaction inclusion.

@@ -1,0 +1,43 @@
+---
+title: Integrating a new DA layer with Alt-DA
+description: Learn how to add support for a new DA Layer within the OP Stack.
+---
+
+<Info>
+  The Alt-DA Mode feature is currently in <strong>Beta</strong>  within the MIT-licensed OP Stack. Beta features are built and reviewed by Optimism Collective core contributors, and provide developers with early access to highly requested configurations.
+  These features may experience stability issues, and we encourage feedback from our early users.
+</Info>
+
+[Alt-DA Mode](/op-stack/features/experimental/alt-da-mode) enables seamless integration of any DA Layer, regardless of their commitment type, into the OP Stack. After a DA Server is built for a DA Layer, any chain operator can launch an OP Stack chain using that DA Layer for sustainably low costs.
+
+## Build your DA server
+
+Our suggestion is for every DA Layer to build and maintain their own DA Server, with support from the OP Labs team along the way. The DA Server will need to be run by every node operator, so we highly recommend making your DA Server open source and MIT licensed.
+
+<Steps>
+  <Step title="Design your commitment binary encoding">
+  *   It must point to the data on your layer (like block height / hash).
+    *   It must be able to validate the data returned from the data (i.e., include a cryptographic commitment to the data like a hash, merkle proof, or polynomial commitment, this could be done against the block hash with a complex proof).
+  
+    <Info>
+      See the [specs](https://specs.optimism.io/experimental/alt-da.html?highlight=input-commitment-submission?utm_source=op-docs&utm_medium=docs#input-commitment-submission) for more info on commitment submission.
+    </Info>
+  </Step>
+
+  <Step title="Claim your da\_layer byte">
+  *   Claim your [byte](https://github.com/ethereum-optimism/specs/discussions/135)
+  </Step>
+
+  <Step title="Implement the DA server">
+  *   Write a simple HTTP server which supports `get` and `put`
+    *   `put` is used by the batcher and can return the commitment to the batcher in the body. It should not return until the data is known to be submitted to your DA layer.
+    *   `get` should fetch the data. If the data is not available, it should return a `404` not found. If there are other errors, a different error should be returned.
+  </Step>
+</Steps>
+
+## Run Alt-DA
+Follow our guide on [how to operate an Alt-DA Mode chain](/chain-operators/guides/features/alt-da-mode-guide), except instead of using the S3 DA server, use the DA server that you built.
+
+## Next steps
+
+*   For more detail on implementing the DA Server, [see the specification](https://specs.optimism.io/experimental/alt-da.html?utm_source=op-docs&utm_medium=docs#da-server).

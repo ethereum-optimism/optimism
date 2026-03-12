@@ -1,0 +1,598 @@
+---
+title: Spin up challenger
+description: Learn how to configure challenger for your OP Stack chain.
+---
+
+After you have spun up your sequencer, batcher, and proposer, the final step is to configure a challenger to monitor and respond to disputes. The challenger is the security component that ensures the integrity of your rollup by monitoring dispute games and responding to invalid claims.
+
+<Info>
+  **Step 5 of 5**: This tutorial is designed to be followed step-by-step.
+  Each step builds on the previous one, and this is the last part of the tutorial.
+</Info>
+
+<Info>
+  **Automated Setup Available**
+
+  For a complete working setup with all components including automated prestate generation, check out the [automated approach](https://github.com/ethereum-optimism/docs/tree/main/create-l2-rollup-example/) in the code directory.
+</Info>
+
+This guide provides step-by-step instructions for setting up the configuration and monitoring options for `op-challenger`. The challenger is a critical fault proofs component that monitors dispute games and challenges invalid claims to protect your OP Stack chain.
+
+See the [OP-Challenger explainer](/op-stack/fault-proofs/challenger) for a general overview of this fault proofs feature.
+
+The challenger is responsible for:
+
+*   Monitoring dispute games created by the fault proof system
+*   Challenging invalid claims in dispute games
+*   Defending valid state transitions
+*   Resolving games when possible
+
+## Prerequisites
+
+### Essential requirements
+
+Before configuring your challenger, complete the following steps:
+
+<Steps>
+<Step title="Deploy OP Stack chain with fault proofs enabled">
+
+<Expandable title="Generate absolute prestate (Required)">
+
+The challenger needs the absolute prestate to participate in dispute games. Here's how to generate it:
+
+1.  **Clone and checkout the correct version**:
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout op-program/v1.6.1  # Use the latest stable version
+    git submodule update --init --recursive
+    ```
+
+2.  **Copy your chain configuration**:
+    ```bash
+    # Assuming you're in rollup/challenger/optimism directory
+    # Replace <YOUR-CHAIN-ID> with your actual L2 chain ID
+    cp ../deployer/.deployer/rollup.json op-program/chainconfig/configs/<YOUR-CHAIN-ID>-rollup.json
+    cp ../deployer/.deployer/genesis.json op-program/chainconfig/configs/<YOUR-CHAIN-ID>-genesis.json
+
+    # Your directory structure should look like:
+    # rollup/
+    # ├── deployer/
+    # │   └── .deployer/
+    # │       ├── rollup.json    # Source file
+    # │       └── genesis.json   # Source file
+    # └── optimism/             # You are here
+    #     └── op-program/
+    #         └── chainconfig/
+    #             └── configs/
+    #                 ├── <YOUR-CHAIN-ID>-rollup.json   # Destination
+    #                 └── <YOUR-CHAIN-ID>-genesis.json  # Destination
+    ```
+
+3.  **Generate the prestate**:
+    ```bash
+    make reproducible-prestate
+    ```
+    You'll see output like:
+    ```bash
+    -------------------- Production Prestates --------------------
+    Cannon64 Absolute prestate hash: 
+    0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+    ```
+
+4.  **Prepare the preimage file**:
+    ```bash
+    cd op-program/bin
+    mv prestate-mt64.bin.gz 0x[CANNON64_PRESTATE_HASH].bin.gz
+    ```
+    Replace `[CANNON64_PRESTATE_HASH]` with the actual hash from step 3.
+
+<Info>
+  *   Use the `Cannon64` hash for production
+  *   Keep this file accessible - you'll need it for the challenger setup
+  *   For Superchain registry chains, you can find official prestates in the [registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)
+</Info>
+</Expandable>
+</Step>
+
+<Step title="Set up required infrastructure access">
+
+*   L1 RPC endpoint (Ethereum, Sepolia, etc.)
+*   L1 Beacon node endpoint (for blob access)
+</Step>
+
+<Step title="Prepare configuration files">
+
+*   `prestate.json` - The absolute prestate file generated in step 1
+*   `rollup.json` - Rollup configuration file from the `op-deployer` guide
+</Step>
+</Steps>
+
+## Software installation
+
+For challenger deployment, we recommend using Docker as it provides a consistent and isolated environment. Building from source is also available for more advanced users.
+
+<Tabs>
+
+    <Tab title="Use docker">
+    ### Docker Setup
+
+    The Docker setup provides a containerized environment for running the challenger. This method uses the official Docker image that includes embedded `op-program` server and Cannon executable.
+
+    <Steps>
+    <Step title="Create challenger directory">
+    
+    ```bash
+    # Create your challenger directory inside rollup
+    cd ../    # Go back to rollup directory if you're in proposer
+    mkdir challenger
+    cd challenger
+    ```
+    </Step>
+
+    <Step title="Create environment file">
+
+    <Info>
+      **OP Stack Standard Variables**
+
+      The challenger uses OP Stack standard environment variables following the OP Stack conventions. These are prefixed with `OP_CHALLENGER_` for challenger-specific settings.
+    </Info>
+
+    ```bash
+    # Create .env file with your actual values
+    cat > .env << 'EOF'
+    # Core configuration (required)
+    OP_CHALLENGER_L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+    OP_CHALLENGER_L1_BEACON_URL=https://ethereum-sepolia-beacon-api.publicnode.com
+    OP_CHALLENGER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+    # L2 Configuration - Replace with your actual node endpoints  
+    OP_CHALLENGER_L2_ETH_RPC=http://op-geth:8545
+    OP_CHALLENGER_ROLLUP_RPC=http://op-node:8547
+
+    # OP Stack challenger configuration (optional - defaults provided)
+    OP_CHALLENGER_GAME_FACTORY_ADDRESS=YOUR_GAME_FACTORY_ADDRESS
+    OP_CHALLENGER_CANNON_L2_GENESIS=/workspace/genesis.json
+    OP_CHALLENGER_CANNON_ROLLUP_CONFIG=/workspace/rollup.json
+
+
+    # Prestate configuration - Replace with the file from 'make reproducible-prestate'
+    OP_CHALLENGER_CANNON_PRESTATE=/workspace/${PRESTATE_HASH}.bin.gz
+    EOF
+    ```
+
+    **Important:** Replace ALL placeholder values (`YOUR_ACTUAL_*`) with your real configuration values.
+    </Step>
+
+    <Step title="Set up Docker Compose">
+
+    Create a `docker-compose.yml` file that defines the challenger service. The file mounts several important files:
+    *   `prestate-proof-mt64.json` and `${PRESTATE_HASH}.bin.gz`: Prestate files required for dispute games (the PRESTATE_HASH comes from running `make reproducible-prestate`), replace `PRESTATE_HASH` with the actual hash
+
+    ```yaml
+    
+    services:
+      challenger:
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.5.1
+        user: "1000"
+        volumes:
+          - ./challenger-data:/data
+          - ./rollup.json:/workspace/rollup.json:ro
+          - ./genesis-l2.json:/workspace/genesis-l2.json:ro
+          - ./prestate-proof-mt64.json:/workspace/prestate-proof.json:ro
+          - ./${PRESTATE_HASH}.bin.gz:/workspace/${PRESTATE_HASH}.bin.gz:ro
+        command: >
+          op-challenger run-trace
+          --trace-type=cannon
+          --datadir=/data
+          --log.level=info
+          --log.format=json
+        restart: unless-stopped
+        networks:
+          - sequencer-node_default
+
+    networks:
+      sequencer-node_default:
+        external: false
+
+
+    ```
+    </Step>
+
+    <Step title="Launch the challenger">
+
+    Start the challenger service and monitor its logs:
+
+    ```bash
+    # Start the challenger service
+    docker-compose up -d
+
+    # View logs
+    docker-compose logs -f challenger
+    ```
+    </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Build from source">
+
+    To ensure you're using the latest compatible versions of OP Stack components, always check the official releases page:
+
+    [OP Stack releases page](https://github.com/ethereum-optimism/optimism/releases)
+
+    Look for the latest `op-challenger/v*` release. The challenger version used in this guide (op-challenger/v1.5.0) is a verified stable version.
+
+    Always check the release notes to ensure you're using compatible versions with your chain's deployment.
+
+    ### Build and Configure
+
+    Building from source gives you full control over the binaries.
+
+    **Clone and build op-challenger**
+
+    ```bash
+    # Clone the optimism monorepo
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+
+    # Check out the latest release of op-challenger
+    git checkout op-challenger/v1.5.0
+
+    # Install dependencies and build
+    just op-challenger
+
+    # Binary will be available at ./op-challenger/bin/op-challenger
+    ```
+
+    ### Verify installation
+
+    Check that you have properly installed the challenger component:
+
+    ```bash
+    # Make sure you're in the optimism directory
+    ./op-challenger/bin/op-challenger --help
+
+    # You should see the challenger help output with available commands and flags
+    ```
+
+    ## Configuration setup
+
+        <Info>
+          The following steps require a Cannon binary and the op-program server. 
+          Ensure these binaries are available at the paths you configure (`CANNON_BIN` and `CANNON_SERVER`). 
+        </Info>
+
+    <Steps>
+    <Step title="Organize your workspace">
+
+    After building the binaries, create your challenger working directory:
+
+    ```bash
+    # Create challenger directory inside rollup
+    cd ../    # Go back to rollup directory
+    mkdir challenger
+    cd challenger
+
+    # Create necessary subdirectories
+    mkdir scripts
+    mkdir challenger-data
+
+    # Verify the optimism directory is accessible
+    # Directory structure should look like:
+    # rollup/
+    # ├── deployer/            (from previous step)
+    # ├── optimism/            (contains the built binaries)
+    # ├── sequencer/           (from previous step)
+    # ├── batcher/            (from previous step)
+    # ├── proposer/          (from previous step)
+    # └── challenger/       (you are here)
+    ```
+    </Step>
+
+    <Step title="Copy configuration files">
+
+    ```bash
+    # Copy configuration files to your challenger directory
+    # Adjust paths based on your deployment setup
+    cp /path/to/your/rollup.json .
+    cp /path/to/your/genesis-l2.json .
+    ```
+    </Step>
+
+    <Step title="Set up environment variables">
+
+    You'll need to gather several pieces of information before creating your configuration. Here's where to get each value:
+
+    **L1 network access:**
+
+    *   L1 RPC URL: Your L1 node endpoint (Infura, Alchemy, or self-hosted)
+    *   L1 Beacon URL: Beacon chain API endpoint for blob access
+
+    **L2 network access:**
+
+    *   L2 RPC URL: Your op-geth archive node endpoint
+    *   Rollup RPC URL: Your op-node endpoint with historical data
+
+    **Challenger wallet:**
+
+    *   Private key for challenger operations (must be funded)
+
+    **Network configuration:**
+
+    *   Game factory address from your contract deployment
+    *   Network identifier (e.g., op-sepolia, op-mainnet, or custom)
+
+    Copy and paste in your terminal, to create your env file.
+
+    ```bash
+    # Create .env file with your actual values
+    cat > .env << 'EOF'
+    # L1 Configuration - Replace with your actual RPC URLs
+    L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+
+    # L2 Configuration - Replace with your actual node endpoints  
+    L2_RPC_URL=http://localhost:8545
+    ROLLUP_RPC_URL=http://localhost:8547
+    L1_BEACON=http://sepolia-cl-1:5051
+
+    # Private key - Replace with your actual private key
+    PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+    # Network configuration
+    NETWORK=op-sepolia
+    GAME_FACTORY_ADDRESS=YOUR_GAME_FACTORY_ADDRESS
+
+    # Trace configuration
+    TRACE_TYPE=permissioned,cannon
+
+    # Data directory
+    DATADIR=./challenger-data
+
+    # Configuration files from your deployment
+    CANNON_ROLLUP_CONFIG=./rollup.json
+    CANNON_L2_GENESIS=./genesis-l2.json
+
+    # Cannon configuration
+    # Prestate file - Generate this using the absolute prestate guide
+    # Run 'make reproducible-prestate' in the optimism repo to generate it
+    # The Cannon binary is a specific hash file that matches your deployment
+    CANNON_BIN=./0x<prestate_hash>.bin.gz
+    # The op-program server binary is built when you run 'just op-challenger'
+    CANNON_SERVER=../../optimism/op-program/bin/op-program
+    CANNON_PRESTATE=../../optimism/op-program/bin/prestate.json
+
+    EOF
+    ```
+
+    **Important:** Replace ALL placeholder values (`YOUR_ACTUAL_*`) with your real configuration values.
+    </Step>
+
+    <Step title="Understanding key configuration flags">
+
+    <Expandable title="--l1-eth-rpc">
+    *   This is the HTTP provider URL for a standard L1 node, can be a full node. `op-challenger` will be sending many requests, so chain operators need a node that is trusted and can easily handle many transactions.
+    *   Note: Challenger has a lot of money, and it will spend it if it needs to interact with games. That might risk not defending games or challenging games correctly, so chain operators should really trust the nodes being pointed at Challenger.
+    </Expandable>
+
+    <Expandable title="--l1-beacon">
+    *   This is needed just to get blobs from.
+    *   In some instances, chain operators might need a blob archiver or L1 consensus node configured not to prune blobs:
+        *   If the chain is proposing regularly, a blob archiver isn't needed. There's only a small window in the blob retention period that games can be played.
+        *   If the chain doesn't post a valid output root in 18 days, then a blob archiver running a challenge game is needed. If the actor gets pushed to the bottom of the game, it could lose if it's the only one protecting the chain.
+    </Expandable>
+
+    <Expandable title="--l2-eth-rpc">
+    *   This needs to be `op-geth` archive node, with `debug` enabled.
+    *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
+    </Expandable>
+
+    <Expandable title="--rollup-rpc">
+    *   This needs to be an `op-node` archive node because challenger needs access to output roots from back when the games start. See below for important configuration details:
+
+    1.  Safe Head Database (SafeDB) Configuration for op-node:
+
+        *   The `op-node` behind the `op-conductor` must have the SafeDB enabled to ensure it is not stateless.
+        *   To enable SafeDB, set the `--safedb.path` value in your configuration. This specifies the file path used to persist safe head update data.
+        *   Example Configuration:
+
+        ```
+        --safedb.path <path-to-safe-head-db>   # Replace <path-to-safe-head-db> with your actual path
+        ```
+
+        <Info>
+          If this path is not set, the SafeDB feature will be disabled.
+        </Info>
+
+    2.  Ensuring Historical Data Availability:
+
+        *   Both `op-node` and `op-geth` must have data from the start of the games to maintain network consistency and allow nodes to reference historical state and transactions.
+        *   For `op-node`: Configure it to maintain a sufficient history of blockchain data locally or use an archive node.
+        *   For `op-geth`: Similarly, configure to store or access historical data.
+        *   Example Configuration:
+
+        ```
+        op-node \
+        --rollup-rpc <op-node-archive-node-url> \
+        --safedb.path <path-to-safe-head-db>
+        ```
+
+        <Info>
+          Replace `<op-node-archive-node-url>` with the URL of your archive node and `<path-to-safe-head-db>` with the desired path for storing SafeDB data.
+        </Info>
+    </Expandable>
+
+    <Expandable title="--private-key">
+    *   Chain operators must specify a private key or use something else (like `op-signer`).
+    *   This uses the same transaction manager arguments as `op-node` , batcher, and proposer, so chain operators can choose one of the following options:
+        *   a mnemonic
+        *   a private key
+        *   `op-signer` endpoints
+    </Expandable>
+
+    <Expandable title="--network">
+    *   This identifies the L2 network `op-challenger` is running for, e.g., `op-sepolia` or `op-mainnet`.
+    *   When using the `--network` flag, the `--game-factory-address` will be automatically pulled from the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json).
+    *   When cannon is executed, challenger needs the roll-up config and the L2 Genesis, which is op-geth's Genesis file. Both files are automatically loaded when Cannon Network is used, but custom networks will need to specify both Cannon L2 Genesis and Cannon rollup config.
+    *   For custom networks not in the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json), the `--game-factory-address` and rollup must be specified, as follows:
+
+        ```
+        --cannon-rollup-config rollup.json  \
+        --cannon-l2-genesis genesis-l2.json \
+        # use this if running challenger outside of the docker image
+        --cannon-server ./op-program/bin/op-program \
+        # json or url, version of op-program deployed on chain
+        # if you use the wrong one, you will lose the game
+        # if you deploy your own contracts, you specify the hash, the root of the json file
+        # op mainnet are tagged versions of op-program
+        # make reproducible prestate
+        # challenger verifies that onchain
+        --cannon-prestate ./op-program/bin/prestate.json \
+        # load the game factory address from system config or superchain registry
+        # point the game factory address at the dispute game factory proxy
+        --game-factory-address
+        ```
+
+    <Info>
+      These options vary based on which `--network` is specified. Chain operators always need to specify a way to load prestates and must also specify the cannon-server whenever the docker image isn't being used.
+    </Info>
+    </Expandable>
+
+    <Expandable title="--datadir">
+    *   This is a directory that `op-challenger` can write to and store whatever data it needs. It will manage this directory to add or remove data as needed under that directory.
+    *   If running in docker, it should point to a docker volume or mount point, so the data isn't lost on every restart. The data can be recreated if needed but particularly if challenger has executed cannon as part of responding to a game it may mean a lot of extra processing.
+    </Expandable>
+
+    <Expandable title="--cannon-prestates-url">
+    The pre-state is effectively the version of `op-program` that is deployed on chain. And chain operators must use the right version. `op-challenger` will refuse to interact with games that have a different absolute prestate hash to avoid making invalid claims. If deploying your own contracts, chain operators must specify an absolute prestate hash taken from the `make reproducible-prestate` command during contract deployment, which will also build the required prestate json file.
+
+    All governance approved releases use a tagged version of `op-program`. These can be rebuilt by checking out the version tag and running `make reproducible-prestate`.
+
+    *   There are two ways to specify the prestate to use:
+        *   `--cannon-prestate`: specifies a path to a single Cannon pre-state Json file
+        *   `--cannon-prestates-url`: specifies a URL to load pre-states from. This enables participating in games that use different prestates, for example due to a network upgrade. The prestates are stored in this directory named by their hash.
+    *   Example final URL for a prestate:
+        *   [https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json](https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json)
+        *   This file contains the cannon memory state.
+
+    <Info>
+      Challenger will refuse to interact with any games if it doesn't have the matching prestate.
+      Check this [guide](/operators/chain-operators/tutorials/absolute-prestate#generating-the-absolute-prestate) on how to generate an absolute prestate.
+    </Info>
+    </Expandable>
+    </Step>
+    </Steps>
+
+    ### Create challenger startup script
+
+    Create `scripts/start-challenger.sh`:
+
+    ```bash
+    #!/bin/bash
+    source .env
+
+    # Path to the challenger binary
+    ../../optimism/op-challenger/bin/op-challenger \
+      --trace-type permissioned,cannon \
+      --l1-eth-rpc=$L1_RPC_URL \
+      --l2-eth-rpc=$L2_RPC_URL \
+      --l1-beacon=$L1_BEACON \
+      --rollup-rpc=$ROLLUP_RPC_URL \
+      --game-factory-address $GAME_FACTORY_ADDRESS \
+      --datadir=$DATADIR \
+      --cannon-bin=$CANNON_BIN \
+      --cannon-rollup-config=$CANNON_ROLLUP_CONFIG \
+      --cannon-l2-genesis=$CANNON_L2_GENESIS \
+      --cannon-server=$CANNON_SERVER \
+      --cannon-prestate=$CANNON_PRESTATE \
+      --private-key="$PRIVATE_KEY" 
+    ```
+    ### Start the challenger
+
+    ```bash
+    # Make sure you're in the rollup/challenger directory
+    cd rollup/challenger
+
+    # Make script executable
+    chmod +x scripts/start-challenger.sh
+
+    # Start challenger
+    ./scripts/start-challenger.sh
+    ```
+
+    ### Verify challenger is running
+
+    Monitor challenger logs to ensure it's operating correctly:
+
+    ```bash
+    # Check challenger logs
+    tail -f challenger-data/challenger.log
+
+    # Or if running in foreground, monitor the output
+    ```
+
+    The challenger should show logs indicating:
+
+    *   Successful connection to L1 and L2 nodes
+    *   Loading of prestates and configuration
+    *   Monitoring of dispute games
+  </Tab>
+  </Tabs>
+
+
+### Monitoring with op-dispute-mon
+
+Consider running [`op-dispute-mon`](/operators/chain-operators/tools/chain-monitoring#dispute-mon) for enhanced security monitoring:
+
+*   Provides visibility into all game statuses for the last 28 days
+*   Essential for production challenger deployments
+
+## Congratulations
+
+You've successfully completed the entire L2 rollup testnet tutorial! Your rollup is now fully operational with all components running:
+
+*   **op-deployer** - L1 contracts deployed
+*   **Sequencer** - Processing transactions
+*   **Batcher** - Publishing data to L1
+*   **Proposer** - Submitting state roots
+*   **Challenger** - Monitoring disputes
+
+## Connect your wallet to your chain
+
+You now have a fully functioning OP Stack Rollup with a Sequencer node running on `http://localhost:8545`. You can connect your wallet to this chain the same way you'd connect your wallet to any other EVM chain.
+
+## Get ETH on your chain
+
+Once you've connected your wallet, you'll probably notice that you don't have any ETH to pay for gas on your chain.
+
+The easiest way to deposit Sepolia ETH into your chain is to send ETH directly to the `L1StandardBridge` contract.
+
+### Get the L1StandardBridge address
+
+The `L1StandardBridge` proxy address can be found in your deployment state file. To get it, run:
+
+```bash
+# From your project root
+jq -r .l1StandardBridgeProxyAddress <PATH_TO_YOUR_OP_DEPLOYER_FOLDER>/.deployer/state.json
+```
+
+This will output the `L1StandardBridge` proxy address that you should use for deposits. Make sure to use the proxy address, not the implementation address.
+
+### Deposit ETH to your L2
+
+Once you have the `L1StandardBridge` address, send a small amount of Sepolia ETH (0.1 or less) to that address from the wallet you want to use on L2.
+This will trigger a deposit that will mint ETH into your wallet on L2.
+
+<Info>
+  It may take up to 5 minutes for the ETH to appear in your wallet on L2.
+  This delay is due to the time needed for the deposit transaction to be processed and finalized.
+</Info>
+
+## See your rollup in action
+
+You can interact with your Rollup the same way you'd interact with any other EVM chain.
+Send some transactions, deploy some contracts, and see what happens!
+
+## Need Help?
+
+*   **OP Challenger Explainer**: [Fault Proofs Overview](/op-stack/fault-proofs/challenger)
+*   **Technical Specs**: [Honest Challenger Specification](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html)

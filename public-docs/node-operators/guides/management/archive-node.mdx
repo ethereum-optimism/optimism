@@ -1,0 +1,118 @@
+---
+title: Running an archive node
+description: Learn how to configure and run an archive node.
+---
+
+This guide shows you how to configure your node to run as an archive node. Archive nodes store the complete history of the blockchain, including all historical states.
+
+## Overview
+
+Archive nodes maintain the entire state history of the blockchain, allowing you to query any historical state at any block height. This is useful for:
+
+*   Block explorers that need to provide historical data
+*   Analytics and data analysis applications
+*   Services that need to query historical state
+*   Debugging and auditing purposes
+
+Archive nodes use execution-layer sync but configure the execution client to retain all historical state data instead of pruning it.
+
+## Requirements
+
+*   **OP Mainnet**: Requires the [bedrock datadir](/node-operators/guides/management/snapshots)
+*   **Other OP Stack networks**: No datadir required
+*   **Storage**: Archive nodes require significantly more disk space than regular nodes (several terabytes for OP Mainnet)
+*   **Sync time**: Archive sync with execution-layer mode is faster than full block-by-block execution
+
+## Configuration
+
+### Configuration for op-node
+
+Set the following flag on `op-node`:
+
+```shell
+--syncmode=execution-layer
+```
+
+<Info>
+  The `--syncmode=execution-layer` flag is not the default setting and must be explicitly configured.
+</Info>
+
+### Configuration for op-geth
+
+Set the following flags on `op-geth`:
+
+```shell
+--syncmode=full
+--gcmode=archive
+```
+
+<Info>
+  Both flags are not the default settings and must be explicitly configured. The `--syncmode=full` flag ensures every block is executed, and `--gcmode=archive` disables state pruning.
+</Info>
+
+### Configuration for Nethermind
+
+Archive sync can be enabled by using the archive configuration for your network (configurations with `_archive` suffix):
+
+```shell
+--config op-mainnet_archive
+```
+
+<Info>
+  Replace `op-mainnet_archive` with the appropriate archive configuration for your network (e.g., `op-sepolia_archive` for OP Sepolia).
+</Info>
+
+## Archive mode with alternative clients
+
+Alternative execution clients such as `reth` and `op-erigon` are designed as archive nodes by default, which means they always maintain the complete history of the chain. When using these clients with execution-layer sync, they will automatically operate in archive mode.
+
+### Configuration for op-node with reth
+
+Set the following flags on `op-node`:
+
+```shell
+--syncmode=execution-layer
+--l2.enginekind=reth
+```
+
+<Info>
+  Both flags are not the default setting and must be explicitly configured on `op-node`. `reth` operates as an archive node by default.
+</Info>
+
+### Configuration for op-node with op-erigon
+
+Set the following flags on `op-node`:
+
+```shell
+--syncmode=execution-layer
+--l2.enginekind=erigon
+```
+
+<Info>
+  Both flags are not the default setting and must be explicitly configured on `op-node`. `op-erigon` operates as an archive node by default.
+</Info>
+
+## How archive sync works
+
+With execution-layer sync mode enabled:
+
+1. **Initial sync**: The node downloads block headers and data through the P2P network
+2. **Block execution**: The node executes every block in the chain to build the complete state history
+3. **State retention**: Unlike regular nodes, archive nodes never prune historical state data
+4. **Faster than legacy**: While still executing all blocks, this is faster than the legacy consensus-layer sync because block data is retrieved via P2P instead of being derived from L1
+
+## Storage considerations
+
+Archive nodes require substantial storage:
+
+*   **OP Mainnet**: Several terabytes and growing
+*   **Other networks**: Varies by network age and activity
+*   **Growth rate**: Storage requirements increase continuously as new blocks are added
+*   **Recommendation**: Use fast SSD storage for optimal performance
+
+## Next steps
+
+*   See the [Snap Sync guide](/node-operators/guides/management/snap-sync) for non-archive node configuration
+*   See the [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients) and [Execution Client Configuration](/node-operators/guides/configuration/execution-clients) guides for additional explanation or customization
+*   See the [Snapshots guide](/node-operators/guides/management/snapshots) for information about downloading the bedrock datadir
+*   If you experience difficulty at any stage of this process, please reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions)

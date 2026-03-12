@@ -1,0 +1,506 @@
+---
+title: Proposer Configuration
+description: Learn the OP Stack proposer configurations.
+---
+
+This page lists all configuration options for op-proposer. The op-proposer posts
+output roots (proposals) to L1, making them available for verifiers. Withdrawals to L1 must reference an output root.
+If the chain is running permissioned fault proofs, only the [designated proposer](/op-stack/protocol/privileged-roles) can submit output roots.
+With [permissionless fault proofs](/op-stack/fault-proofs/explainer), anyone can make a proposal.
+
+## Proposer policy
+
+The proposer policy defines high-level constraints and responsibilities regarding how L2 output roots are posted to L1. Below are the [standard guidelines](/chain-operators/reference/standard-configuration) for configuring the proposer within the OP Stack.
+
+| Parameter        | Description                                                                         | Administrator  | Requirement                                                | Notes                                                           |
+| ---------------- | ----------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| Output Frequency | Defines how frequently L2 output roots are submitted to L1 (via the output oracle). | L1 Proxy Admin | **43,200 L2 blocks** (24 hours at 2s block times) or lower | It cannot be set to 0 (there must be some cadence for outputs). |
+
+### Example configuration
+
+```
+OP_PROPOSER_L1_ETH_RPC: YOUR_L1_RPC_URL_HERE
+OP_PROPOSER_ROLLUP_RPC: YOUR_CHAINS_RPC_URL_HERE
+OP_PROPOSER_GAME_FACTORY_ADDRESS: YOUR_CHAINS_GAME_FACTORY_ADDRESS_HERE
+OP_PROPOSER_PROPOSAL_INTERVAL: 5h
+OP_PROPOSER_WAIT_NODE_SYNC: true
+OP_PROPOSER_ALLOW_NON_FINALIZED: "false"
+OP_PROPOSER_POLL_INTERVAL: "20s"
+OP_PROPOSER_NUM_CONFIRMATIONS: "1"
+OP_PROPOSER_SAFE_ABORT_NONCE_TOO_LOW_COUNT: "3"
+OP_PROPOSER_RESUBMISSION_TIMEOUT: "30s"
+OP_PROPOSER_METRICS_ENABLED: "true"
+OP_PROPOSER_METRICS_ADDR: 0.0.0.0
+OP_PROPOSER_METRICS_PORT: 7300
+```
+
+Higher throughput chains can decrease the `proposal-interval` to allow users submit withdrawals more often.
+
+## All configuration variables
+
+### Output root generation
+
+#### poll-interval
+
+Delay between periodic checks on whether it is time to load an output root and propose it. The default value is 6s.
+
+<Tabs>
+  <Tab title="Syntax">`--poll-interval=<value>`</Tab>
+  <Tab title="Example">`--poll-interval=6s`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_POLL_INTERVAL=6s`</Tab>
+</Tabs>
+
+#### active-sequencer-check-duration
+
+The duration between checks to determine the active sequencer endpoint from which output roots will be derived. The
+default value is `2m0s`.
+
+<Tabs>
+  <Tab title="Syntax">`--active-sequencer-check-duration=<value>`</Tab>
+  <Tab title="Example">`--active-sequencer-check-duration=2m0s`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_ACTIVE_SEQUENCER_CHECK_DURATION=2m0s`</Tab>
+</Tabs>
+
+### Output root submission
+
+#### proposal-interval
+
+Interval between submitting L2 output proposals when the dispute game factory
+address is set. The default value is 0s.
+
+<Tabs>
+  <Tab title="Syntax">`--proposal-interval=<value>`</Tab>
+  <Tab title="Example">`--proposal-interval=0s`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_PROPOSAL_INTERVAL=0s`</Tab>
+</Tabs>
+
+#### allow-non-finalized
+
+Allow the proposer to submit proposals for L2 blocks from non-finalized L1
+blocks. The default value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--allow-non-finalized=<value>`</Tab>
+  <Tab title="Example">`--allow-non-finalized=false`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_ALLOW_NON_FINALIZED=false`</Tab>
+</Tabs>
+
+#### game-factory-address
+
+Address of the DisputeGameFactory contract. This is where the proposer will submit output roots.
+
+<Tabs>
+  <Tab title="Syntax">`--game-factory-address=<value>`</Tab>
+  <Tab title="Example">`--game-factory-address=<value>`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_GAME_FACTORY_ADDRESS=<value>`</Tab>
+</Tabs>
+
+#### game-type
+
+Dispute game type to create via the configured DisputeGameFactory. The default
+value is 0.
+
+<Tabs>
+  <Tab title="Syntax">`--game-type=<value>`</Tab>
+  <Tab title="Example">`--game-type=0`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_GAME_TYPE=0`</Tab>
+</Tabs>
+
+### Proposer startup
+
+#### wait-node-sync
+
+Indicates if, during startup, the proposer should wait for the rollup node to
+sync to the current L1 tip before proceeding with its driver loop. The default
+value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--wait-node-sync=<value>`</Tab>
+  <Tab title="Example">`--wait-node-sync=false`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_WAIT_NODE_SYNC=false`</Tab>
+</Tabs>
+
+### Transaction manager
+
+#### fee-limit-multiplier
+
+The multiplier applied to fee suggestions to limit fee increases. The default
+value is 5.
+
+<Tabs>
+  <Tab title="Syntax">`--fee-limit-multiplier=<value>`</Tab>
+  <Tab title="Example">`--fee-limit-multiplier=5`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_TXMGR_FEE_LIMIT_MULTIPLIER=5`</Tab>
+</Tabs>
+
+#### num-confirmations
+
+Number of confirmations to wait after sending a transaction. The default value
+is 10.
+
+<Tabs>
+  <Tab title="Syntax">`--num-confirmations=<value>`</Tab>
+  <Tab title="Example">`--num-confirmations=10`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_NUM_CONFIRMATIONS=10`</Tab>
+</Tabs>
+
+#### resubmission-timeout
+
+Duration we will wait before resubmitting a transaction to L1. The default
+value is 48s.
+
+<Tabs>
+  <Tab title="Syntax">`--resubmission-timeout=<value>`</Tab>
+  <Tab title="Example">`--resubmission-timeout=48s`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_RESUBMISSION_TIMEOUT=48s`</Tab>
+</Tabs>
+
+#### safe-abort-nonce-too-low-count
+
+Number of ErrNonceTooLow observations required to give up on a tx at a
+particular nonce without receiving confirmation. The default value is 3.
+
+<Tabs>
+  <Tab title="Syntax">`--safe-abort-nonce-too-low-count=<value>`</Tab>
+  <Tab title="Example">`--safe-abort-nonce-too-low-count=3`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_SAFE_ABORT_NONCE_TOO_LOW_COUNT=3`</Tab>
+</Tabs>
+
+#### txmgr.fee-limit-threshold
+
+The minimum threshold (in GWei) at which fee bumping starts to be capped. The
+default value is 100.
+
+<Tabs items={['Syntax', 'Example', 'Environment Variable']}>
+  <Tab title="Syntax">`--txmgr.fee-limit-threshold=<value>`</Tab>
+  <Tab title="Example">`--txmgr.fee-limit-threshold=100`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_TXMGR_FEE_LIMIT_THRESHOLD=100`</Tab>
+</Tabs>
+
+#### txmgr.min-basefee
+
+Enforces a minimum base fee (in GWei) to assume when determining tx fees. The
+default value is 1.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.min-basefee=<value>`</Tab>
+  <Tab title="Example">`--txmgr.min-basefee=1`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_TXMGR_MIN_BASEFEE=1`</Tab>
+</Tabs>
+
+#### txmgr.min-tip-cap
+
+Enforces a minimum tip cap (in GWei) to use when determining tx fees. The
+default value is 1.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.min-tip-cap=<value>`</Tab>
+  <Tab title="Example">`--txmgr.min-tip-cap=1`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_TXMGR_MIN_TIP_CAP=1`</Tab>
+</Tabs>
+
+#### txmgr.not-in-mempool-timeout
+
+Timeout for aborting a tx send if the tx does not make it to the mempool. The
+default value is 2m0s.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.not-in-mempool-timeout=<value>`</Tab>
+  <Tab title="Example">`--txmgr.not-in-mempool-timeout=2m0s`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_TXMGR_TX_NOT_IN_MEMPOOL_TIMEOUT=2m0s`</Tab>
+</Tabs>
+
+#### txmgr.receipt-query-interval
+
+Frequency to poll for receipts. The default value is 12s.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.receipt-query-interval=<value>`</Tab>
+  <Tab title="Example">`--txmgr.receipt-query-interval=12s`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_TXMGR_RECEIPT_QUERY_INTERVAL=12s`</Tab>
+</Tabs>
+
+#### txmgr.send-timeout
+
+Timeout for sending transactions. If 0 it is disabled. The default value is 0s.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.send-timeout=<value>`</Tab>
+  <Tab title="Example">`--txmgr.send-timeout=0s`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_TXMGR_TX_SEND_TIMEOUT=0s`</Tab>
+</Tabs>
+
+### Wallet
+
+#### hd-path
+
+The HD path used to derive the sequencer wallet from the mnemonic.
+
+<Tabs items={['Syntax', 'Example', 'Environment Variable']}>
+  <Tab>`--hd-path=<value>`</Tab>
+  <Tab>`--hd-path=<value>`</Tab>
+  <Tab>`OP_PROPOSER_HD_PATH=<value>`</Tab>
+</Tabs>
+
+#### mnemonic
+
+The mnemonic used to derive the wallets for the service.
+
+<Tabs>
+  <Tab title="Syntax">`--mnemonic=<value>`</Tab>
+  <Tab title="Example">`--mnemonic=<value>`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_MNEMONIC=<value>`</Tab>
+</Tabs>
+
+### RPC
+
+#### l1-eth-rpc
+
+HTTP provider URL for L1.
+
+<Tabs>
+  <Tab title="Syntax">`--l1-eth-rpc=<value>`</Tab>
+  <Tab title="Example">`--l1-eth-rpc=<value>`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_L1_ETH_RPC=<value>`</Tab>
+</Tabs>
+
+#### rollup-rpc
+
+HTTP provider URL for the rollup node. A comma-separated list enables the
+active rollup provider.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup-rpc=<value>`</Tab>
+  <Tab title="Example">`--rollup-rpc=<value>`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_ROLLUP_RPC=<value>`</Tab>
+</Tabs>
+
+#### rpc.addr
+
+rpc listening address. The default value is "0.0.0.0".
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.addr=<value>`</Tab>
+  <Tab title="Example">`--rpc.addr=0.0.0.0`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_RPC_ADDR=0.0.0.0`</Tab>
+</Tabs>
+
+#### rpc.enable-admin
+
+Enable the admin API. The default value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.enable-admin=<value>`</Tab>
+  <Tab title="Example">`--rpc.enable-admin=false`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_RPC_ENABLE_ADMIN=false`</Tab>
+</Tabs>
+
+#### rpc.port
+
+rpc listening port. The default value is 8545.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.port=<value>`</Tab>
+  <Tab title="Example">`--rpc.port=8545`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_RPC_PORT=8545`</Tab>
+</Tabs>
+
+### Logging
+
+#### log.color
+
+Color the log output if in terminal mode. The default value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--log.color=<value>`</Tab>
+  <Tab title="Example">`--log.color=false`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_LOG_COLOR=false`</Tab>
+</Tabs>
+
+#### log.format
+
+Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json',
+'json-pretty'. The default value is text.
+
+<Tabs>
+  <Tab title="Syntax">`--log.format=<value>`</Tab>
+  <Tab title="Example">`--log.format=text`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_LOG_FORMAT=text`</Tab>
+</Tabs>
+
+#### log.level
+
+The lowest log level that will be output. The default value is INFO.
+
+<Tabs>
+  <Tab title="Syntax">`--log.level=<value>`</Tab>
+  <Tab title="Example">`--log.level=INFO`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_LOG_LEVEL=INFO`</Tab>
+</Tabs>
+
+### Metrics
+
+#### metrics.addr
+
+Metrics listening address. The default value is "0.0.0.0".
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.addr=<value>`</Tab>
+  <Tab title="Example">`--metrics.addr=0.0.0.0`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_METRICS_ADDR=0.0.0.0`</Tab>
+</Tabs>
+
+#### metrics.enabled
+
+Enable the metrics server. The default value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.enabled=<value>`</Tab>
+  <Tab title="Example">`--metrics.enabled=false`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_METRICS_ENABLED=false`</Tab>
+</Tabs>
+
+#### metrics.port
+
+Metrics listening port. The default value is 7300.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.port=<value>`</Tab>
+  <Tab title="Example">`--metrics.port=7300`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_METRICS_PORT=7300`</Tab>
+</Tabs>
+
+### pprof
+
+#### pprof.addr
+
+pprof listening address. The default value is "0.0.0.0".
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.addr=<value>`</Tab>
+  <Tab title="Example">`--pprof.addr=0.0.0.0`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_PPROF_ADDR=0.0.0.0`</Tab>
+</Tabs>
+
+#### pprof.enabled
+
+Enable the pprof server. The default value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.enabled=<value>`</Tab>
+  <Tab title="Example">`--pprof.enabled=false`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_PPROF_ENABLED=false`</Tab>
+</Tabs>
+
+#### pprof.path
+
+The pprof file path. If it is a directory, the path is `{dir}/{profileType}.prof`
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.path=<value>`</Tab>
+  <Tab title="Example">`--pprof.path=<value>`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_PPROF_PATH=<value>`</Tab>
+</Tabs>
+
+#### pprof.port
+
+pprof listening port. The default value is 6060.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.port=<value>`</Tab>
+  <Tab title="Example">`--pprof.port=6060`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_PPROF_PORT=6060`</Tab>
+</Tabs>
+
+#### pprof.type
+
+pprof profile type. One of cpu, heap, goroutine, threadcreate, block, mutex,
+allocs
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.type=<value>`</Tab>
+  <Tab title="Example">`--pprof.type=<value>`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_PPROF_TYPE=<value>`</Tab>
+</Tabs>
+
+### Signer
+
+#### signer.address
+
+Address the signer is signing transactions for.
+
+<Tabs>
+  <Tab title="Syntax">`--signer.address=<value>`</Tab>
+  <Tab title="Example">`--signer.address=<value>`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_SIGNER_ADDRESS=<value>`</Tab>
+</Tabs>
+
+#### signer.endpoint
+
+Signer endpoint the client will connect to.
+
+<Tabs>
+  <Tab title="Syntax">`--signer.endpoint=<value>`</Tab>
+  <Tab title="Example">`--signer.endpoint=<value>`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_SIGNER_ENDPOINT=<value>`</Tab>
+</Tabs>
+
+#### signer.tls.ca
+
+tls ca cert path. The default value is "tls/ca.crt".
+
+<Tabs>
+  <Tab title="Syntax">`--signer.tls.ca=<value>`</Tab>
+  <Tab title="Example">`--signer.tls.ca=tls/ca.crt`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_SIGNER_TLS_CA=tls/ca.crt`</Tab>
+</Tabs>
+
+#### signer.tls.cert
+
+tls cert path. The default value is "tls/tls.crt".
+
+<Tabs>
+  <Tab title="Syntax">`--signer.tls.cert=<value>`</Tab>
+  <Tab title="Example">`--signer.tls.cert=tls/tls.crt`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_SIGNER_TLS_CERT=tls/tls.crt`</Tab>
+</Tabs>
+
+#### signer.tls.key
+
+tls key. The default value is "tls/tls.key".
+
+<Tabs>
+  <Tab title="Syntax">`--signer.tls.key=<value>`</Tab>
+  <Tab title="Example">`--signer.tls.key=tls/tls.key`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_SIGNER_TLS_KEY=tls/tls.key`</Tab>
+</Tabs>
+
+### Miscellaneous
+
+#### network-timeout
+
+Timeout for all network operations. The default value is 10s.
+
+<Tabs>
+  <Tab title="Syntax">`--network-timeout=<value>`</Tab>
+  <Tab title="Example">`--network-timeout=10s`</Tab>
+  <Tab title="Environment Variable">`OP_PROPOSER_NETWORK_TIMEOUT=10s`</Tab>
+</Tabs>
+
+#### help
+
+Show help. The default value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--help=<value>`</Tab>
+  <Tab title="Example">`--help=false`</Tab>
+</Tabs>
+
+#### version
+
+Print the version. The default value is false.
+
+<Tabs items={['Syntax', 'Example', 'Environment Variable']}>
+  <Tab>`--version=<value>`</Tab>
+  <Tab>`--version=false`</Tab>
+</Tabs>

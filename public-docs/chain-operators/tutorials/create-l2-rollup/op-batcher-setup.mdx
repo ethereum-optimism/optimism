@@ -1,0 +1,429 @@
+---
+title: Spin up batcher
+description: Learn how to set up and configure an OP Stack batcher to submit L2 transaction batches to L1.
+---
+
+After you have spun up your sequencer, you need to configure a batcher to submit L2 transaction batches to L1.
+
+<Info>
+  **Step 3 of 5**: This tutorial is designed to be followed step-by-step. Each step builds on the [previous one](/operators/chain-operators/tutorials/create-l2-rollup/op-geth-setup).
+</Info>
+
+<Info>
+  **Automated Setup Available**
+
+  For a complete working setup with all components, check out the [automated approach](https://github.com/ethereum-optimism/docs/tree/main/create-l2-rollup-example/) in the code directory.
+</Info>
+
+## Understanding the batcher's role
+
+The batcher (`op-batcher`) serves as a crucial component that bridges your L2 chain data to L1. Its primary responsibilities include:
+
+*   **Batch submission**: Collecting L2 transactions and submitting them as batches to L1
+*   **Data availability**: Ensuring L2 transaction data is available on L1 for verification
+*   **Cost optimization**: Compressing and efficiently packing transaction data to minimize L1 costs
+*   **Channel management**: Managing data channels for optimal batch submission timing
+
+The batcher reads transaction data from your sequencer and submits compressed batches to the `BatchInbox` contract on L1.
+
+## Prerequisites
+
+Before setting up your batcher, ensure you have:
+
+**Running infrastructure:**
+
+*   An operational sequencer node
+*   Access to a L1 RPC endpoint
+
+**Network information:**
+
+*   Your L2 chain ID and network configuration
+*   L1 network details (chain ID, RPC endpoints)
+*   `BatchInbox` contract address from your deployment
+
+For setting up the batcher, we recommend using Docker as it provides a consistent and isolated environment. Building from source is also available for more advanced users.
+
+<Tabs>
+  <Tab title="Use docker">
+    If you prefer containerized deployment, you can use the official Docker images and do the following:
+
+    <Steps>
+
+      <Step title="Set up directory structure and copy configuration files">
+
+      ```bash
+      # Create your batcher directory inside rollup
+      cd ../    # Go back to rollup directory if you're in sequencer
+      mkdir batcher
+      cd batcher
+
+      # Copy configuration files from deployer
+      cp ../deployer/.deployer/state.json .
+
+      # Extract the BatchInbox address
+      BATCH_INBOX_ADDRESS=$(cat state.json | jq -r '.opChainDeployments[0].systemConfigProxyAddress')
+      echo "BatchInbox Address: $BATCH_INBOX_ADDRESS"
+      ```
+
+      </Step>
+
+      <Step title="Create environment variables file">
+
+      <Info>
+        **OP Stack Standard Variables**
+
+        The batcher uses OP Stack standard environment variables following the OP Stack conventions. These are prefixed with `OP_BATCHER_` for batcher-specific settings.
+      </Info>
+
+      ```bash
+      # Create .env file with your actual values
+      cat > .env << 'EOF'
+      # L1 Configuration - Replace with your actual RPC URLs
+      OP_BATCHER_L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+      # Private key - Replace with your actual private key
+      OP_BATCHER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+      # L2 Configuration - Should match your sequencer setup
+      OP_BATCHER_L2_ETH_RPC=http://op-geth:8545
+      OP_BATCHER_ROLLUP_RPC=http://op-node:8547
+
+      # Contract addresses - Extract from your op-deployer output
+      OP_BATCHER_BATCH_INBOX_ADDR=YOUR_ACTUAL_BATCH_INBOX_ADDRESS
+
+      # Batcher configuration
+      OP_BATCHER_POLL_INTERVAL=1s
+      OP_BATCHER_SUB_SAFETY_MARGIN=6
+      OP_BATCHER_NUM_CONFIRMATIONS=1
+      OP_BATCHER_SAFE_ABORT_NONCE_TOO_LOW_COUNT=3
+      OP_BATCHER_MAX_CHANNEL_DURATION=1
+      OP_BATCHER_DATA_AVAILABILITY_TYPE=calldata
+
+      # RPC configuration
+      OP_BATCHER_RPC_PORT=8548
+      EOF
+      ```
+
+      **Important**: Replace ALL placeholder values (`YOUR_ACTUAL_*`) with your real configuration values.
+
+      </Step>
+
+      <Step title="Create a docker-compose.yml file">
+
+      <Info>
+        This configuration assumes your sequencer is running in a Docker container named `sequencer-node` on the same `op-stack` network.
+        Make sure your sequencer is running before starting the batcher.
+      </Info>
+
+      ```yaml
+
+      services:
+        op-batcher:
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.13.2
+          volumes:
+            - .:/workspace
+          working_dir: /workspace
+          ports:
+            - "8548:8548"
+          env_file:
+            - .env
+          networks:
+            - sequencer-node_default
+          command: >
+            op-batcher
+            --rpc.addr=0.0.0.0
+            --rpc.enable-admin
+            --resubmission-timeout=30s
+            --log.level=info
+            --log.format=json
+          restart: unless-stopped
+
+      networks:
+        sequencer-node_default:
+          external: false
+      ```
+
+      </Step>
+
+      <Step title="Start the batcher service">
+
+      ```bash
+      # Make sure your sequencer network exists
+      # Start the batcher
+      docker-compose up -d
+
+      # View logs
+      docker-compose logs -f op-batcher
+      ```
+
+      </Step>
+
+      <Step title="Verify batcher is running">
+
+      ```bash
+      # Check container status
+      docker-compose ps
+      ```
+
+      </Step>
+
+      <Step title="Final directory structure">
+
+      ```bash
+      rollup/
+      ├── deployer/            # From previous step
+      │   └── .deployer/      # Contains genesis.json and rollup.json
+      ├── sequencer/          # From previous step
+      └── batcher/           # You are here
+          ├── state.json     # Copied from deployer
+          ├── .env           # Environment variables
+          └── docker-compose.yml # Docker configuration
+      ```
+    
+      </Step>
+    </Steps>
+
+    Your batcher is now operational and will continuously submit L2 transaction batches to L1!
+  </Tab>
+
+  <Tab title="Build from source">
+
+    To ensure you're using the latest compatible versions of OP Stack components, always check the official [releases page](https://github.com/ethereum-optimism/optimism/releases).
+
+    Look for the latest `op-batcher/v*` release that's compatible with your sequencer setup.
+
+    <Info>
+      This guide uses `op-batcher/v1.13.2` which is compatible with op-node/v1.13.3 and op-geth/v1.101511.1 from the sequencer setup.
+      Always check the [release notes](https://github.com/ethereum-optimism/optimism/releases) for compatibility information.
+    </Info>
+
+    <Steps>
+
+      <Step title="Clone and build op-batcher">
+
+      ```bash
+      # If you don't already have the optimism repository from the sequencer setup
+      git clone https://github.com/ethereum-optimism/optimism.git
+      cd optimism
+
+      # Checkout the latest release tag
+      git checkout op-batcher/v1.13.2
+
+      # Build op-batcher
+      cd op-batcher
+      just
+
+      # Binary will be available at ./bin/op-batcher
+      ```
+
+      </Step>
+
+      <Step title="Verify installation">
+
+      Run this command to verify the installation:
+
+      ```bash
+      ./bin/op-batcher --version
+      ```
+      </Step>
+
+      <Step title="Configuration setup">
+
+    <Info>
+      For advanced configuration options and fine-tuning your batcher, including:
+
+      *   Batch submission policies
+      *   Channel duration settings
+      *   Data availability types (blobs vs calldata)
+      *   Transaction throttling
+      *   Network timeouts
+
+      Check out the [Batcher Configuration Reference](/chain-operators/guides/configuration/batcher).
+      This will help you optimize your batcher's performance and cost-efficiency.
+    </Info>
+
+    <Steps>
+    <Step title="Organize your workspace">
+
+    Create your batcher working directory:
+
+      ```bash
+      # Create batcher directory inside rollup
+      cd ../    # Go back to rollup directory
+      mkdir batcher
+      cd batcher
+
+      # Create scripts directory
+      mkdir scripts
+      ```
+
+      Your final directory structure should look like:
+
+      ```bash
+      rollup/
+      ├── deployer/              # From previous step
+      │   └── .deployer/        # Contains state.json
+      ├── optimism/             # Contains op-batcher binary
+      ├── sequencer/           # From previous step
+      └── batcher/            # You are here
+          ├── state.json      # Copied from deployer
+          ├── .env           # Environment variables
+          └── scripts/       # Startup scripts
+        └── start-batcher.sh
+      ```
+
+      </Step>
+
+      <Step title="Extract BatchInbox address">
+
+      Extract the `BatchInbox` contract address from your op-deployer output:
+
+      ```bash
+      # Make sure you're in the rollup/batcher directory
+      cd rollup/batcher
+
+      # Copy the deployment state file from deployer
+      cp ../deployer/.deployer/state.json .
+
+      # Extract the BatchInbox address
+      BATCH_INBOX_ADDRESS=$(cat state.json | jq -r '.opChainDeployments[0].systemConfigProxyAddress')
+      echo "BatchInbox Address: $BATCH_INBOX_ADDRESS"
+      ```
+
+      <Info>
+        The batcher submits transaction batches to the `BatchInbox` contract on L1. This contract is responsible for accepting and storing L2 transaction data.
+      </Info>
+
+      </Step>
+
+      <Step title="Set up environment variables">
+
+      Create your `.env` file with the actual values:
+
+      ```bash
+      # Create .env file with your actual values
+      # L1 Configuration - Replace with your actual RPC URL
+      L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+
+      # L2 Configuration - Should match your sequencer setup
+            L2_RPC_URL=http://op-geth:8545
+          ROLLUP_RPC_URL=http://op-node:8547
+
+      # Contract addresses - Extract from your op-deployer output
+      BATCH_INBOX_ADDRESS=YOUR_ACTUAL_BATCH_INBOX_ADDRESS
+
+      # Private key - Replace with your actual private key
+      BATCHER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+      # Batcher configuration
+      POLL_INTERVAL=1s
+      SUB_SAFETY_MARGIN=6
+      NUM_CONFIRMATIONS=1
+      SAFE_ABORT_NONCE_TOO_LOW_COUNT=3
+      RESUBMISSION_TIMEOUT=30s
+      MAX_CHANNEL_DURATION=25
+
+      # RPC configuration
+      BATCHER_RPC_PORT=8548
+      ```
+
+      **Important**: Replace ALL placeholder values (`YOUR_ACTUAL_*`) with your real configuration values!
+
+      </Step>
+
+      <Step title="Get your private key">
+
+      Get a private key from your wallet that will be used for submitting batches to L1. This account needs sufficient ETH to pay for L1 gas costs.
+
+      <Info>
+        The batcher account needs to be funded with ETH on L1 to pay for batch submission transactions. Monitor this account's balance regularly as it will consume ETH for each batch submission.
+      </Info>
+    
+      </Step>
+    </Steps>
+
+    ### Batcher configuration
+
+    Create `scripts/start-batcher.sh` in the same directory:
+
+    ```bash
+    #!/bin/bash
+
+    source .env
+
+    # Path to the op-batcher binary we built
+    ../../optimism/op-batcher/bin/op-batcher \
+      --l2-eth-rpc=$L2_RPC_URL \
+      --rollup-rpc=$ROLLUP_RPC_URL \
+      --poll-interval=$POLL_INTERVAL \
+      --sub-safety-margin=$SUB_SAFETY_MARGIN \
+      --num-confirmations=$NUM_CONFIRMATIONS \
+      --safe-abort-nonce-too-low-count=$SAFE_ABORT_NONCE_TOO_LOW_COUNT \
+      --resubmission-timeout=$RESUBMISSION_TIMEOUT \
+      --rpc.addr=0.0.0.0 \
+      --rpc.port=$BATCHER_RPC_PORT \
+      --rpc.enable-admin \
+      --max-channel-duration=$MAX_CHANNEL_DURATION \
+      --l1-eth-rpc=$L1_RPC_URL \
+      --private-key=$BATCHER_PRIVATE_KEY \
+      --batch-type=1 \
+      --data-availability-type=blobs \
+      --log.level=info
+    ```
+
+    ### Batcher parameters explained
+
+    *   **`--poll-interval`**: How frequently the batcher checks for new L2 blocks to batch
+    *   **`--sub-safety-margin`**: Number of confirmations to wait before considering L1 transactions safe
+    *   **`--max-channel-duration`**: Maximum time (in L1 blocks) to keep a channel open
+    *   **`--batch-type`**: Type of batch encoding (1 for span batches, 0 for singular batches)
+    *   **`--data-availability-type`**: Whether to use blobs or calldata for data availability
+
+    ### Starting the batcher
+
+      ### Start the batcher
+
+      ```bash
+      # Make the script executable
+      chmod +x scripts/start-batcher.sh
+
+      # Start the batcher
+      ./scripts/start-batcher.sh
+      ```
+
+    <Info>
+      For detailed cost analysis and optimization strategies, refer to the [Transaction fees documentation](/op-stack/transactions/fees).
+    </Info>
+
+    Your batcher is now operational and will continuously submit L2 transaction batches to L1!
+    </Step>
+
+  </Steps>
+  </Tab>
+</Tabs>
+
+<Info>
+  **Understanding common startup messages**
+
+  When starting your batcher, you might see various log messages:
+
+  *   `Added L2 block to local state`: Normal operation, shows the batcher processing blocks
+  *   `SetMaxDASize RPC method unavailable`: Expected if the `op-geth` version used doesn't support this method.
+  *   `context canceled` errors during shutdown: Normal cleanup messages
+  *   `Failed to query L1 tip`: Can occur during graceful shutdowns
+
+  Most of these messages are part of normal operation. For detailed explanations of configuration options and troubleshooting, see the [Batcher configuration reference](/chain-operators/guides/configuration/batcher).
+</Info>
+
+## What's Next?
+
+Excellent! Your batcher is publishing transaction data to L1. The next step is to set up the proposer to submit state root proposals.
+
+<Card title="Spin up proposer →" href="./op-proposer-setup">
+  **Next**: Configure and start op-proposer to submit L2 state roots to L1 for withdrawal verification.
+</Card>
+
+***
+
+## Need Help?
+
+*   **Monitoring Guide**: [Chain Monitoring](/chain-operators/tools/chain-monitoring)

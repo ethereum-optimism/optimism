@@ -1,0 +1,140 @@
+---
+title: Deploying new dispute games with OPCM
+description: Learn how to deploy new dispute games to an OP Stack chain using OPCM
+---
+
+This guide provides instructions on how to deploy new dispute games to an OP Stack chain using the [OPCM (OP Contracts Manager)](/chain-operators/reference/opcm). This process is particularly relevant for teams looking to upgrade their chains to support permissionless dispute games.
+
+## Prerequisites
+
+Before you begin, ensure that:
+
+*   Run op-contracts/v2.0.0 or higher on your chain
+*   Own the chain's L1 `ProxyAdmin` contract
+*   Install the Forge toolkit (see [Foundry docs](https://getfoundry.sh/))
+
+## Understanding dispute games
+
+The OP Stack uses two types of dispute games:
+
+*   **Permissioned dispute game**: Limited to specific proposer and challenger addresses
+*   **Permissionless dispute game**: Open to anyone to propose or challenge
+
+<Info>
+  In the Permissioned dispute game (PDG), the [challenger role](/op-stack/protocol/privileged-roles) is a protocol-level permission assigned to specific addresses, allowing them to initiate or respond to disputes. This role is distinct from the op-challenger service, which is an off-chain monitoring service responsible for automatically detecting discrepancies and submitting challenges.
+  While the op-challenger service typically operates using an address that has been assigned the challenger role, the protocol-level role itself can be independently assigned, regardless of whether the op-challenger service is in use.
+  Refer to the [OP Stack configurability spec](https://specs.optimism.io/protocol/configurability.html) for more details.
+</Info>
+
+All chains deployed with `op-deployer` only initially include the permissioned dispute game.
+This guide explains how to add the permissionless game.
+
+## The `addGameType` function
+
+The OPCM contract contains an `addGameType` function that handles the deployment of new dispute games. This function:
+
+1.  Deploys a new dispute game implementation
+2.  Optionally deploys a new [`DelayedWETH`](https://github.com/ethereum-optimism/optimism/blob/6dc586d551f55b2b3a607cfcca9d3d272dec84d7/packages/contracts-bedrock/src/dispute/DelayedWETH.sol) contract
+3.  Registers the game with the `DisputeGameFactory`
+4.  Sets the initial bond amount
+
+### 1. Finding the correct OPCM instance
+
+Each OP Contracts release has its own OPCM instance. You must use the OPCM corresponding exactly to your chain's contract version. For example, if your system uses contracts version **v3.0.0**, you must use the OPCM for **v3.0.0**.
+
+To find the correct OPCM address:
+
+*   For **Mainnet**, refer to the [standard-versions-mainnet.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml) file in the superchain-registry.
+*   For **Sepolia**, refer to the [standard-versions-sepolia.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-sepolia.toml) file in the superchain-registry.
+
+These registry files contain mappings between OP contract versions and their corresponding OPCM addresses.
+
+### 2. Preparing the `addGameType` Call
+
+The `addGameType` function expects an array of `AddGameInput` structs. Here is the structure:
+
+```solidity
+struct AddGameInput {
+    string saltMixer;
+    ISystemConfig systemConfig;
+    IProxyAdmin proxyAdmin;
+    IDelayedWETH delayedWETH;
+    GameType disputeGameType;
+    Claim disputeAbsolutePrestate;
+    uint256 disputeMaxGameDepth;
+    uint256 disputeSplitDepth;
+    Duration disputeClockExtension;
+    Duration disputeMaxClockDuration;
+    uint256 initialBond;
+    IBigStepper vm;
+    bool permissioned;
+}
+```
+
+**Key parameters explained:**
+
+*   **saltMixer:** A string used to create unique contract addresses
+*   **systemConfig:** The address of your chain's `SystemConfig` contract
+*   **proxyAdmin:** The Address of your chain's `ProxyAdmin` contract
+*   **delayedWETH:** The Address of the `DelayedWETH` contract (use zero address to deploy a new one)
+*   **disputeGameType:** For permissionless games, use `GameTypes.CANNON`
+*   **disputeAbsolutePrestate:** The absolute prestate hash for the game
+*   **permissioned:** Set to `false` for a permissionless game
+
+For a permissionless game, you'll generally want to mirror most parameters from your existing permissioned game, but set permissioned to `false` and use the GameType `CANNON`.
+
+3.  Execute the addGameType function
+    The following is a template for calling the addGameType function using Forge's cast:
+
+<Info>
+  The most recommended way is to use a script to execute this call, rather than manual execution.
+</Info>
+
+```bash
+# Retrieve existing values from chain for reference
+# Get permissioned game implementation
+PERMISSIONED_GAME=$(cast call --rpc-url $RPC_URL $DISPUTE_GAME_FACTORY "gameImpls(uint32)" $PERMISSIONED_GAME_TYPE)
+
+# Retrieve parameters from existing permissioned game
+ABSOLUTE_PRESTATE=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "absolutePrestate()")
+MAX_GAME_DEPTH=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "maxGameDepth()")
+SPLIT_DEPTH=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "splitDepth()")
+CLOCK_EXTENSION=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "clockExtension()")
+MAX_CLOCK_DURATION=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "maxClockDuration()")
+VM=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "vm()")
+ANCHOR_STATE_REGISTRY=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "anchorStateRegistry()")
+L2_CHAIN_ID=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "l2ChainId()")
+
+# Create call data for addGameType function
+# Note: Set delayedWETH to 0x0 to deploy a new one
+CALLDATA=$(cast calldata "addGameType((string,address,address,address,uint32,bytes32,uint256,uint256,uint64,uint64,uint256,address,bool)[])" \
+"[(\
+\"unique_salt_mixer\",\
+$SYSTEM_CONFIG,\
+$PROXY_ADMIN,\
+0x0000000000000000000000000000000000000000,\
+$CANNON_GAME_TYPE,\
+$ABSOLUTE_PRESTATE,\
+$MAX_GAME_DEPTH,\
+$SPLIT_DEPTH,\
+$CLOCK_EXTENSION,\
+$MAX_CLOCK_DURATION,\
+$INITIAL_BOND,\
+$VM,\
+false\
+)]")
+
+# Execute the transaction
+cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $OPCM_ADDRESS $CALLDATA
+```
+
+4.  Setting the respected game type
+    After deploying the permissionless dispute game, you'll need to update the respectedGameType in the OptimismPortal to start using it.
+    For detailed instructions on setting the respected game type and migrating your chain from permissioned to permissionless fault proofs, refer to the [migrating to permissionless fault proofs guide](/chain-operators/tutorials/migrating-permissionless).
+
+## Next Steps
+
+*   For more detail on deploying new dispute games with OPCM, [see the docs](/chain-operators/tutorials/dispute-games).
+*   Learn about [absolute prestate](/chain-operators/tutorials/absolute-prestate)
+*   checkout the [migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless) guide
+*   [Fault proofs explainer](/op-stack/fault-proofs/explainer)

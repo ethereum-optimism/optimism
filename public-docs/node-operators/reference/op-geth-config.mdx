@@ -1,0 +1,1850 @@
+---
+title: op-geth configuration options
+description: Complete reference for all op-geth command-line flags and environment variables.
+---
+
+This page provides detailed documentation for all available op-geth configuration options, organized by functionality.
+The following options are from [v1.101603.3-rc.3](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.3-rc.3)
+
+Please note that the executable is still named `geth` to maintain a [minimal diff](https://op-geth.optimism.io/?utm_source=op-docs&utm_medium=docs).
+
+The following sections provide detailed documentation for all available op-geth configuration options, organized by functionality.
+
+### Account management
+
+Options for managing accounts, keystores, and external signers.
+
+#### keystore
+
+Directory for the keystore. The default is inside the data directory.
+
+<Tabs>
+  <Tab title="Syntax">`--keystore <value>`</Tab>
+  <Tab title="Example">`--keystore=/path/to/keystore`</Tab>
+  <Tab title="Environment Variable">`GETH_KEYSTORE=/path/to/keystore`</Tab>
+</Tabs>
+
+#### lightkdf
+
+Reduce key-derivation RAM & CPU usage at some expense of KDF strength. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--lightkdf`</Tab>
+  <Tab title="Example">`--lightkdf=false`</Tab>
+  <Tab title="Environment Variable">`GETH_LIGHTKDF=false`</Tab>
+</Tabs>
+
+#### password
+
+Password file to use for non-interactive password input.
+
+<Tabs>
+  <Tab title="Syntax">`--password <value>`</Tab>
+  <Tab title="Example">`--password=/path/to/passwordfile`</Tab>
+  <Tab title="Environment Variable">`GETH_PASSWORD=/path/to/passwordfile`</Tab>
+</Tabs>
+
+#### pcscdpath
+
+Path to the smartcard daemon (pcscd) socket file. The default value is `"/run/pcscd/pcscd.comm"`.
+
+<Tabs>
+  <Tab title="Syntax">`--pcscdpath <value>`</Tab>
+  <Tab title="Example">`--pcscdpath=/custom/path/to/pcscd.comm`</Tab>
+  <Tab title="Environment Variable">`GETH_PCSCDPATH=/custom/path/to/pcscd.comm`</Tab>
+</Tabs>
+
+#### signer
+
+External signer (url or path to ipc file).
+
+<Tabs>
+  <Tab title="Syntax">`--signer <value>`</Tab>
+  <Tab title="Example">`--signer=/path/to/ipcfile`</Tab>
+  <Tab title="Environment Variable">`GETH_SIGNER=/path/to/ipcfile`</Tab>
+</Tabs>
+
+#### usb
+
+Enable monitoring and management of USB hardware wallets. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--usb`</Tab>
+  <Tab title="Example">`--usb=false`</Tab>
+  <Tab title="Environment Variable">`GETH_USB=false`</Tab>
+</Tabs>
+
+### RPC and API configuration
+
+Configure HTTP, WebSocket, authenticated RPC endpoints, and console access.
+
+#### authrpc.addr
+
+Listening address for authenticated APIs. The default value is `"localhost"`.
+
+<Tabs>
+  <Tab title="Syntax">`--authrpc.addr <value>`</Tab>
+  <Tab title="Example">`--authrpc.addr="localhost"`</Tab>
+  <Tab title="Environment Variable">`GETH_AUTHRPC_ADDR="localhost"`</Tab>
+</Tabs>
+
+#### authrpc.jwtsecret
+
+Path to a JWT secret to use for authenticated RPC endpoints.
+
+<Tabs>
+  <Tab title="Syntax">`--authrpc.jwtsecret <value>`</Tab>
+  <Tab title="Example">`--authrpc.jwtsecret=/path/to/jwtsecret`</Tab>
+  <Tab title="Environment Variable">`GETH_AUTHRPC_JWTSECRET=/path/to/jwtsecret`</Tab>
+</Tabs>
+
+#### authrpc.port
+
+Listening port for authenticated APIs. The default value is `8551`.
+
+<Tabs>
+  <Tab title="Syntax">`--authrpc.port <value>`</Tab>
+  <Tab title="Example">`--authrpc.port=8551`</Tab>
+  <Tab title="Environment Variable">`GETH_AUTHRPC_PORT=8551`</Tab>
+</Tabs>
+
+#### authrpc.vhosts
+
+Comma separated list of virtual hostnames from which to accept requests (server enforced). 
+The default value is `"localhost"`. Accepts '\*' wildcard.
+
+<Tabs>
+  <Tab title="Syntax">`--authrpc.vhosts <value>`</Tab>
+  <Tab title="Example">`--authrpc.vhosts="localhost"`</Tab>
+  <Tab title="Environment Variable">`GETH_AUTHRPC_VHOSTS="localhost"`</Tab>
+</Tabs>
+
+#### exec
+
+Execute JavaScript statement.
+
+<Tabs>
+  <Tab title="Syntax">`--exec <value>`</Tab>
+  <Tab title="Example">`--exec="console.log('Hello, World!')"`</Tab>
+  <Tab title="Environment Variable">`GETH_EXEC="console.log('Hello, World!')"`</Tab>
+</Tabs>
+
+#### graphql
+
+Enable GraphQL on the HTTP-RPC server. Note that GraphQL can only be started if an HTTP server 
+is started as well. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--graphql`</Tab>
+  <Tab title="Example">`--graphql=false`</Tab>
+  <Tab title="Environment Variable">`GETH_GRAPHQL=false`</Tab>
+</Tabs>
+
+#### graphql.corsdomain
+
+Comma separated list of domains from which to accept cross origin requests (browser enforced).
+
+<Tabs>
+  <Tab title="Syntax">`--graphql.corsdomain <value>`</Tab>
+  <Tab title="Example">`--graphql.corsdomain="http://example.com"`</Tab>
+  <Tab title="Environment Variable">`GETH_GRAPHQL_CORSDOMAIN="http://example.com"`</Tab>
+</Tabs>
+
+#### graphql.vhosts
+
+Comma separated list of virtual hostnames from which to accept requests (server enforced). The default value is `"localhost"`. Accepts '\*' wildcard.
+
+<Tabs>
+  <Tab title="Syntax">`--graphql.vhosts <value>`</Tab>
+  <Tab title="Example">`--graphql.vhosts="localhost"`</Tab>
+  <Tab title="Environment Variable">`GETH_GRAPHQL_VHOSTS="localhost"`</Tab>
+</Tabs>
+
+#### header
+
+Pass custom headers to the RPC server when using `--remotedb` or the geth attach console. This flag can be given multiple times.
+
+<Tabs>
+  <Tab title="Syntax">`--header <value>`, `-H <value>`</Tab>
+  <Tab title="Example">`--header "X-Custom-Header: Value"`</Tab>
+  <Tab title="Environment Variable">Not applicable for environment variables</Tab>
+</Tabs>
+
+#### http
+
+Enable the HTTP-RPC server. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--http`</Tab>
+  <Tab title="Example">`--http=false`</Tab>
+  <Tab title="Environment Variable">`GETH_HTTP=false`</Tab>
+</Tabs>
+
+#### http.addr
+
+HTTP-RPC server listening interface. The default value is `"localhost"`.
+
+<Tabs>
+  <Tab title="Syntax">`--http.addr <value>`</Tab>
+  <Tab title="Example">`--http.addr="localhost"`</Tab>
+  <Tab title="Environment Variable">`GETH_HTTP_ADDR="localhost"`</Tab>
+</Tabs>
+
+#### http.api
+
+API's offered over the HTTP-RPC interface.
+
+<Tabs>
+  <Tab title="Syntax">`--http.api <value>`</Tab>
+  <Tab title="Example">`--http.api="eth,web3"`</Tab>
+  <Tab title="Environment Variable">`GETH_HTTP_API="eth,web3"`</Tab>
+</Tabs>
+
+#### http.corsdomain
+
+Comma separated list of domains from which to accept cross origin requests (browser enforced).
+
+<Tabs>
+  <Tab title="Syntax">`--http.corsdomain <value>`</Tab>
+  <Tab title="Example">`--http.corsdomain="http://example.com"`</Tab>
+  <Tab title="Environment Variable">`GETH_HTTP_CORSDOMAIN="http://example.com"`</Tab>
+</Tabs>
+
+#### http.port
+
+HTTP-RPC server listening port. The default value is `8545`.
+
+<Tabs>
+  <Tab title="Syntax">`--http.port <value>`</Tab>
+  <Tab title="Example">`--http.port=8545`</Tab>
+  <Tab title="Environment Variable">`GETH_HTTP_PORT=8545`</Tab>
+</Tabs>
+
+#### http.rpcprefix`\
+
+HTTP path prefix on which JSON-RPC is served. Use '/' to serve on all paths.
+
+<Tabs>
+  <Tab title="Syntax">`--http.rpcprefix <value>`</Tab>
+  <Tab title="Example">`--http.rpcprefix="/"`</Tab>
+  <Tab title="Environment Variable">`GETH_HTTP_RPCPREFIX="/"`</Tab>
+</Tabs>
+
+#### http.vhosts
+
+Comma separated list of virtual hostnames from which to accept requests (server enforced). The default value is `"localhost"`. Accepts '\*' wildcard.
+
+<Tabs>
+  <Tab title="Syntax">`--http.vhosts <value>`</Tab>
+  <Tab title="Example">`--http.vhosts=localhost`</Tab>
+  <Tab title="Environment Variable">`GETH_HTTP_VHOSTS=localhost`</Tab>
+</Tabs>
+
+#### ipcdisable
+
+Disable the IPC-RPC server. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--ipcdisable`</Tab>
+  <Tab title="Example">`--ipcdisable=false`</Tab>
+  <Tab title="Environment Variable">`GETH_IPCDISABLE=false`</Tab>
+</Tabs>
+
+#### ipcpath
+
+Filename for IPC socket/pipe within the datadir (explicit paths escape it).
+
+<Tabs>
+  <Tab title="Syntax">`--ipcpath <value>`</Tab>
+  <Tab title="Example">`--ipcpath=/path/to/ipcfile`</Tab>
+  <Tab title="Environment Variable">`GETH_IPCPATH=/path/to/ipcfile`</Tab>
+</Tabs>
+
+#### jspath
+
+JavaScript root path for `loadScript`. The default value is `.` (current directory).
+
+<Tabs>
+  <Tab title="Syntax">`--jspath <value>`</Tab>
+  <Tab title="Example">`--jspath=/path/to/scripts`</Tab>
+  <Tab title="Environment Variable">`GETH_JSPATH=/path/to/scripts`</Tab>
+</Tabs>
+
+#### preload
+
+Comma separated list of JavaScript files to preload into the console.
+
+<Tabs>
+  <Tab title="Syntax">`--preload <value>`</Tab>
+  <Tab title="Example">`--preload="file1.js,file2.js"`</Tab>
+  <Tab title="Environment Variable">`GETH_PRELOAD="file1.js,file2.js"`</Tab>
+</Tabs>
+
+#### rpc.allow-unprotected-txs
+
+Allow for unprotected (non EIP155 signed) transactions to be submitted via RPC. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.allow-unprotected-txs`</Tab>
+  <Tab title="Example">`--rpc.allow-unprotected-txs=false`</Tab>
+  <Tab title="Environment Variable">`GETH_RPC_ALLOW_UNPROTECTED_TXS=false`</Tab>
+</Tabs>
+
+#### rpc.batch-request-limit
+
+Maximum number of requests in a batch. The default value is `1000`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.batch-request-limit=<value>`</Tab>
+  <Tab title="Example">`--rpc.batch-request-limit=1000`</Tab>
+  <Tab title="Environment Variable">`GETH_RPC_BATCH_REQUEST_LIMIT=1000`</Tab>
+</Tabs>
+
+#### rpc.batch-response-max-size
+
+Maximum number of bytes returned from a batched call. The default value is `25000000`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.batch-response-max-size=<value>`</Tab>
+  <Tab title="Example">`--rpc.batch-response-max-size=25000000`</Tab>
+  <Tab title="Environment Variable">`GETH_RPC_BATCH_RESPONSE_MAX_SIZE=25000000`</Tab>
+</Tabs>
+
+#### rpc.evmtimeout
+
+Sets a timeout used for eth\_call (0=infinite). The default value is `5s`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.evmtimeout <value>`</Tab>
+  <Tab title="Example">`--rpc.evmtimeout=5s`</Tab>
+  <Tab title="Environment Variable">`GETH_RPC_EVMTIMEOUT=5s`</Tab>
+</Tabs>
+
+#### rpc.gascap
+
+Sets a cap on gas that can be used in eth\_call/estimateGas (0=infinite). The default value is `50000000`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.gascap=<value>`</Tab>
+  <Tab title="Example">`--rpc.gascap=50000000`</Tab>
+  <Tab title="Environment Variable">`GETH_RPC_GASCAP=50000000`</Tab>
+</Tabs>
+
+#### rpc.txfeecap
+
+Sets a cap on transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap). The default value is `1`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.txfeecap=<value>`</Tab>
+  <Tab title="Example">`--rpc.txfeecap=1`</Tab>
+  <Tab title="Environment Variable">Not directly applicable for environment variables</Tab>
+</Tabs>
+
+#### ws
+
+Enable the WS-RPC server. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--ws`</Tab>
+  <Tab title="Example">`--ws=false`</Tab>
+  <Tab title="Environment Variable">`GETH_WS=false`</Tab>
+</Tabs>
+
+#### ws.addr
+
+WS-RPC server listening interface. The default value is `"localhost"`.
+
+<Tabs>
+  <Tab title="Syntax">`--ws.addr=<value>`</Tab>
+  <Tab title="Example">`--ws.addr=localhost`</Tab>
+  <Tab title="Environment Variable">`GETH_WS_ADDR=localhost`</Tab>
+</Tabs>
+
+#### ws.api
+
+API's offered over the WS-RPC interface.
+
+<Tabs>
+  <Tab title="Syntax">`--ws.api=<value>`</Tab>
+  <Tab title="Example">`--ws.api="eth,web3"`</Tab>
+  <Tab title="Environment Variable">`GETH_WS_API="eth,web3"`</Tab>
+</Tabs>
+
+#### ws.origins
+
+Origins from which to accept websockets requests.
+
+<Tabs>
+  <Tab title="Syntax">`--ws.origins=<value>`</Tab>
+  <Tab title="Example">`--ws.origins="http://example.com"`</Tab>
+  <Tab title="Environment Variable">`GETH_WS_ORIGINS="http://example.com"`</Tab>
+</Tabs>
+
+#### ws.port
+
+WS-RPC server listening port. The default value is `8546`.
+
+<Tabs>
+  <Tab title="Syntax">`--ws.port=<value>`</Tab>
+  <Tab title="Example">`--ws.port=8546`</Tab>
+  <Tab title="Environment Variable">`GETH_WS_PORT=8546`</Tab>
+</Tabs>
+
+#### ws.rpcprefix
+
+HTTP path prefix on which JSON-RPC is served over WS. Use '/' to serve on all paths.
+
+<Tabs>
+  <Tab title="Syntax">`--ws.rpcprefix=<value>`</Tab>
+  <Tab title="Example">`--ws.rpcprefix="/"`</Tab>
+  <Tab title="Environment Variable">`GETH_WS_RPCPREFIX="/"`</Tab>
+</Tabs>
+
+### Development Chain
+
+Options for running a local development chain with pre-funded accounts.
+
+#### dev
+
+Ephemeral proof-of-authority network with a pre-funded developer account, mining enabled. 
+The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--dev`</Tab>
+  <Tab title="Example">`--dev=false`</Tab>
+  <Tab title="Environment Variable">`GETH_DEV=false`</Tab>
+</Tabs>
+
+#### dev.gaslimit
+
+Initial block gas limit. The default value is `11500000`.
+
+<Tabs>
+  <Tab title="Syntax">`--dev.gaslimit=<value>`</Tab>
+  <Tab title="Example">`--dev.gaslimit=11500000`</Tab>
+  <Tab title="Environment Variable">`GETH_DEV_GASLIMIT=11500000`</Tab>
+</Tabs>
+
+#### dev.period
+
+Block period to use in developer mode (0 = mine only if transaction pending). The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--dev.period=<value>`</Tab>
+  <Tab title="Example">`--dev.period=0`</Tab>
+  <Tab title="Environment Variable">`GETH_DEV_PERIOD=0`</Tab>
+</Tabs>
+
+### Chain and network selection
+
+Configure which network to connect to and manage blockchain data storage.
+
+#### bloomfilter.size
+
+Megabytes of memory allocated to bloom-filter for pruning. The default value is `2048`.
+
+<Tabs>
+  <Tab title="Syntax">`--bloomfilter.size=<value>`</Tab>
+  <Tab title="Example">`--bloomfilter.size=2048`</Tab>
+  <Tab title="Environment Variable">`GETH_BLOOMFILTER_SIZE=2048`</Tab>
+</Tabs>
+
+#### config
+
+TOML configuration file.
+
+<Tabs>
+  <Tab title="Syntax">`--config=<value>`</Tab>
+  <Tab title="Example">`--config=/path/to/config.toml`</Tab>
+  <Tab title="Environment Variable">`GETH_CONFIG=/path/to/config.toml`</Tab>
+</Tabs>
+
+#### datadir
+
+Data directory for the databases and keystore. The default value is `/home/<user>/.ethereum`.
+
+<Tabs>
+  <Tab title="Syntax">`--datadir=<value>`</Tab>
+  <Tab title="Example">`--datadir=/home/soyboy/.ethereum`</Tab>
+  <Tab title="Environment Variable">`GETH_DATADIR=/home/soyboy/.ethereum`</Tab>
+</Tabs>
+
+#### datadir.ancient
+
+Root directory for ancient data (default = inside chaindata).
+
+<Tabs>
+  <Tab title="Syntax">`--datadir.ancient=<value>`</Tab>
+  <Tab title="Example">Default value inside=chaindata</Tab>
+  <Tab title="Environment Variable">`GETH_DATADIR_ANCIENT=<value>`</Tab>
+</Tabs>
+
+#### datadir.era
+
+Root directory for era1 history (default = inside ancient/chain).
+
+<Tabs>
+  <Tab title="Syntax">`--datadir.era=<value>`</Tab>
+  <Tab title="Example">Default value inside ancient/chain</Tab>
+  <Tab title="Environment Variable">`GETH_DATADIR_ERA=<value>`</Tab>
+</Tabs>
+
+#### datadir.minfreedisk
+
+Minimum free disk space in MB, once reached triggers auto shut down (default = --cache.gc converted to MB, 0 = disabled).
+
+<Tabs>
+  <Tab title="Syntax">`--datadir.minfreedisk=<value>`</Tab>
+  <Tab title="Example">`--datadir.minfreedisk=0`</Tab>
+  <Tab title="Environment Variable">`GETH_DATADIR_MINFREEDISK=0`</Tab>
+</Tabs>
+
+#### db.engine
+
+Backing database implementation to use ('pebble' or 'leveldb').
+
+<Tabs>
+  <Tab title="Syntax">`--db.engine=<value>`</Tab>
+  <Tab title="Example">`--db.engine=leveldb`</Tab>
+  <Tab title="Environment Variable">`GETH_DB_ENGINE=leveldb`</Tab>
+</Tabs>
+
+#### eth.requiredblocks
+
+Comma separated block number-to-hash mappings to require for peering (`<number>=<hash>`).
+
+<Tabs>
+  <Tab title="Syntax">`--eth.requiredblocks=<value>`</Tab>
+  <Tab title="Example">`--eth.requiredblocks="12345=0xabcde12345..."`</Tab>
+  <Tab title="Environment Variable">`GETH_ETH_REQUIREDBLOCKS="12345=0xabcde12345..."`</Tab>
+</Tabs>
+
+#### exitwhensynced
+
+Exits after block synchronization completes. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--exitwhensynced`</Tab>
+  <Tab title="Example">`--exitwhensynced=false`</Tab>
+  <Tab title="Environment Variable">`GETH_EXITWHENSYNCED=false`</Tab>
+</Tabs>
+
+#### holesky
+
+Holesky network: pre-configured proof-of-stake test network. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--holesky`</Tab>
+  <Tab title="Example">`--holesky=false`</Tab>
+  <Tab title="Environment Variable">`GETH_HOLESKY=false`</Tab>
+</Tabs>
+
+#### hoodi
+
+Hoodi network: pre-configured proof-of-stake test network. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--hoodi`</Tab>
+  <Tab title="Example">`--hoodi=false`</Tab>
+  <Tab title="Environment Variable">`GETH_HOODI=false`</Tab>
+</Tabs>
+
+#### mainnet
+
+Ethereum mainnet. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--mainnet`</Tab>
+  <Tab title="Example">`--mainnet=false`</Tab>
+  <Tab title="Environment Variable">`GETH_MAINNET=false`</Tab>
+</Tabs>
+
+#### networkid
+
+Explicitly set network id (integer). The default value is `0`. For testnets: use --sepolia, --holesky, --hoodi instead.
+
+<Tabs>
+  <Tab title="Syntax">`--networkid <value>`</Tab>
+  <Tab title="Example">`--networkid=1`</Tab>
+  <Tab title="Environment Variable">`GETH_NETWORKID=1`</Tab>
+</Tabs>
+
+#### op-network, beta.op-network
+
+Select a pre-configured OP-Stack network (warning: op-mainnet and op-goerli
+require special sync, datadir is recommended), options:
+arena-z-mainnet, arena-z-sepolia, automata-mainnet, base-devnet-0-sepolia-dev-0,
+base-mainnet, base-sepolia, bob-mainnet, camp-sepolia, creator-chain-testnet-sepolia,
+cyber-mainnet, cyber-sepolia, ethernity-mainnet, ethernity-sepolia, fraxtal-mainnet,
+funki-mainnet, funki-sepolia, hashkeychain-mainnet, ink-mainnet, ink-sepolia,
+lisk-mainnet, lisk-sepolia, lyra-mainnet, metal-mainnet, metal-sepolia, mint-mainnet,
+mode-mainnet, mode-sepolia, op-mainnet, op-sepolia, oplabs-devnet-0-sepolia-dev-0,
+orderly-mainnet, ozean-sepolia, pivotal-sepolia, polynomial-mainnet, race-mainnet,
+race-sepolia, radius_testnet-sepolia, redstone-mainnet, rehearsal-0-bn-0-rehearsal-0-bn,
+rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet-mainnet, settlus-sepolia-sepolia,
+shape-mainnet, shape-sepolia, silent-data-mainnet-mainnet, snax-mainnet,
+soneium-mainnet, soneium-minato-sepolia, sseed-mainnet, swan-mainnet, swell-mainnet,
+tbn-mainnet, tbn-sepolia, unichain-mainnet, unichain-sepolia, worldchain-mainnet,
+worldchain-sepolia, xterio-eth-mainnet, zora-mainnet, zora-sepolia
+
+<Tabs>
+  <Tab title="Syntax">`--op-network=<value>`</Tab>
+  <Tab title="Example">`--op-network=base-mainnet`</Tab>
+  <Tab title="Environment Variable">`GETH_OP_NETWORK=base-mainnet`</Tab>
+</Tabs>
+
+#### override.cancun
+
+Manually specify the Cancun fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.cancun=<value>`</Tab>
+  <Tab title="Example">`--override.cancun=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_CANCUN=0`</Tab>
+</Tabs>
+
+#### override.canyon
+
+Manually specify the Optimism Canyon fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.canyon=<value>`</Tab>
+  <Tab title="Example">`--override.canyon=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_CANYON=0`</Tab>
+</Tabs>
+
+#### override.ecotone
+
+Manually specify the Optimism Ecotone fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.ecotone=<value>`</Tab>
+  <Tab title="Example">`--override.ecotone=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_ECOTONE=0`</Tab>
+</Tabs>
+
+#### override.fjord
+
+Manually specify the Optimism Fjord fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.fjord=<value>`</Tab>
+  <Tab title="Example">`--override.fjord=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_FJORD=0`</Tab>
+</Tabs>
+
+#### override.granite
+
+Manually specify the Optimism Granite fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.granite=<value>`</Tab>
+  <Tab title="Example">`--override.granite=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_GRANITE=0`</Tab>
+</Tabs>
+
+#### override.holocene
+
+Manually specify the Optimism Holocene fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.holocene=<value>`</Tab>
+  <Tab title="Example">`--override.holocene=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_HOLOCENE=0`</Tab>
+</Tabs>
+
+#### `override.interop`
+
+Manually specify the Optimism Interop feature-set fork timestamp, overriding the bundled setting.
+The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.interop=<value>`</Tab>
+  <Tab title="Example">`--override.interop=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_INTEROP=0`</Tab>
+</Tabs>
+
+#### override.isthmus
+
+Manually specify the Optimism Isthmus fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.isthmus=<value>`</Tab>
+  <Tab title="Example">`--override.isthmus=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_ISTHMUS=0`</Tab>
+</Tabs>
+
+#### override.jovian
+
+Manually specify the Optimism Jovian fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.jovian=<value>`</Tab>
+  <Tab title="Example">`--override.jovian=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_JOVIAN=0`</Tab>
+</Tabs>
+
+#### override.osaka
+
+Manually specify the Osaka fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.osaka=<value>`</Tab>
+  <Tab title="Example">`--override.osaka=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_OSAKA=0`</Tab>
+</Tabs>
+
+#### override.verkle
+
+Manually specify the Verkle fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.verkle=<value>`</Tab>
+  <Tab title="Example">`--override.verkle=0`</Tab>
+  <Tab title="Environment Variable">`GETH_OVERRIDE_VERKLE=0`</Tab>
+</Tabs>
+
+#### sepolia
+
+Sepolia network: pre-configured proof-of-work test network. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--sepolia`</Tab>
+  <Tab title="Example">`--sepolia=false`</Tab>
+  <Tab title="Environment Variable">`GETH_SEPOLIA=false`</Tab>
+</Tabs>
+
+#### `snapshot`
+
+Enables snapshot-database mode. The default value is `true`.
+
+<Tabs>
+  <Tab title="Syntax">`--snapshot`</Tab>
+  <Tab title="Example">`--snapshot=true`</Tab>
+  <Tab title="Environment Variable">`GETH_SNAPSHOT=true`</Tab>
+</Tabs>
+
+### Gas price oracle
+
+Configure how gas prices are estimated and suggested to users.
+
+#### gpo.blocks
+
+Number of recent blocks to check for gas prices. The default value is `20`.
+
+<Tabs>
+  <Tab title="Syntax">`--gpo.blocks=<value>`</Tab>
+  <Tab title="Example">`--gpo.blocks=20`</Tab>
+  <Tab title="Environment Variable">`GETH_GPO_BLOCKS=20`</Tab>
+</Tabs>
+
+#### gpo.ignoreprice
+
+Gas price below which GPO will ignore transactions. The default value is `2`.
+
+<Tabs items={['Syntax', 'Example']}>
+  <Tab title="Syntax">`--gpo.ignoreprice=<value>`</Tab>
+  <Tab title="Syntax">`--gpo.ignoreprice=2`</Tab>
+  <Tab title="Syntax">`GETH_GPO_IGNOREPRICE=2`</Tab>
+</Tabs>
+
+#### gpo.maxprice
+
+Maximum transaction priority fee (or gasprice before London fork) to be recommended by GPO. 
+The default value is `500000000000`.
+
+<Tabs items={['Syntax', 'Example']}>
+  <Tab title="Syntax">`--gpo.maxprice=<value>`</Tab>
+  <Tab title="Syntax">`--gpo.maxprice=500000000000`</Tab>
+  <Tab title="Syntax">`GETH_GPO_MAXPRICE=500000000000`</Tab>
+</Tabs>
+
+#### gpo.minsuggestedpriorityfee
+
+Minimum transaction priority fee to suggest. Used on OP chains when blocks are not full. 
+The default value is `1000000`.
+
+<Tabs items={['Syntax', 'Example']}>
+  <Tab title="Syntax">`--gpo.minsuggestedpriorityfee=<value>`</Tab>
+  <Tab title="Syntax">`--gpo.minsuggestedpriorityfee=1000000`</Tab>
+  <Tab title="Syntax">`GETH_GPO_MINSUGGESTEDPRIORITYFEE=1000000`</Tab>
+</Tabs>
+
+#### gpo.percentile
+
+Suggested gas price is the given percentile of a set of recent transaction gas prices. The default value is `60`.
+
+<Tabs>
+  <Tab title="Syntax">`--gpo.percentile=<value>`</Tab>
+  <Tab title="Example">`--gpo.percentile=60`</Tab>
+  <Tab title="Environment Variable">`GETH_GPO_PERCENTILE=60`</Tab>
+</Tabs>
+
+### Logging and debugging
+
+Control log output, profiling, and debugging tools.
+
+#### go-execution-trace
+
+Write Go execution trace to the given file.
+
+<Tabs>
+  <Tab title="Syntax">`--go-execution-trace <value>`</Tab>
+  <Tab title="Example">`--go-execution-trace=/path/to/trace.out`</Tab>
+  <Tab title="Environment Variable">`GETH_GO_EXECUTION_TRACE=/path/to/trace.out`</Tab>
+</Tabs>
+
+#### log.compress
+
+Compress the log files. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.compress`</Tab>
+  <Tab title="Example">`--log.compress=false`</Tab>
+  <Tab title="Environment Variable">`GETH_LOG_COMPRESS=false`</Tab>
+</Tabs>
+
+#### log.file
+
+Write logs to a file.
+
+<Tabs>
+  <Tab title="Syntax">`--log.file=<value>`</Tab>
+  <Tab title="Example">`--log.file=/path/to/logfile`</Tab>
+  <Tab title="Environment Variable">`GETH_LOG_FILE=/path/to/logfile`</Tab>
+</Tabs>
+
+#### log.format
+
+Log format to use (json|logfmt|terminal).
+
+<Tabs>
+  <Tab title="Syntax">`--log.format=<value>`</Tab>
+  <Tab title="Example">`--log.format=logfmt`</Tab>
+  <Tab title="Environment Variable">`GETH_LOG_FORMAT=logfmt`</Tab>
+</Tabs>
+
+#### log.maxage
+
+Maximum number of days to retain a log file. The default value is `30`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.maxage=<value>`</Tab>
+  <Tab title="Example">`--log.maxage=30`</Tab>
+  <Tab title="Environment Variable">`GETH_LOG_MAXAGE=30`</Tab>
+</Tabs>
+
+#### log.maxbackups
+
+Maximum number of log files to retain. The default value is `10`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.maxbackups=<value>`</Tab>
+  <Tab title="Example">`--log.maxbackups=10`</Tab>
+  <Tab title="Environment Variable">`GETH_LOG_MAXBACKUPS=10`</Tab>
+</Tabs>
+
+#### log.maxsize
+
+Maximum size in MBs of a single log file. The default value is `100`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.maxsize=<value>`</Tab>
+  <Tab title="Example">`--log.maxsize=100`</Tab>
+  <Tab title="Environment Variable">`GETH_LOG_MAXSIZE=100`</Tab>
+</Tabs>
+
+#### `log.rotate`
+
+Enables log file rotation. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.rotate`</Tab>
+  <Tab title="Example">`--log.rotate=false`</Tab>
+  <Tab title="Environment Variable">`GETH_LOG_ROTATE=false`</Tab>
+</Tabs>
+
+#### log.vmodule
+
+Per-module verbosity: comma-separated list of `<pattern>=<level>` (e.g. eth/\*=5,p2p=4).
+
+<Tabs>
+  <Tab title="Syntax">`--log.vmodule=<value>`</Tab>
+  <Tab title="Example">`--log.vmodule="eth/*=5,p2p=4"`</Tab>
+  <Tab title="Environment Variable">`GETH_LOG_VMODULE="eth/*=5,p2p=4"`</Tab>
+</Tabs>
+
+#### nocompaction
+
+Disables database compaction after import. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--nocompaction`</Tab>
+  <Tab title="Example">`--nocompaction=false`</Tab>
+  <Tab title="Environment Variable">`GETH_NOCOMPACTION=false`</Tab>
+</Tabs>
+
+#### pprof
+
+Enable the pprof HTTP server. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof`</Tab>
+  <Tab title="Example">`--pprof=false`</Tab>
+  <Tab title="Environment Variable">`GETH_PPROF=false`</Tab>
+</Tabs>
+
+#### pprof.addr
+
+pprof HTTP server listening interface. The default value is `"127.0.0.1"`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.addr=<value>`</Tab>
+  <Tab title="Example">`--pprof.addr="127.0.0.1"`</Tab>
+  <Tab title="Environment Variable">`GETH_PPROF_ADDR="127.0.0.1"`</Tab>
+</Tabs>
+
+#### pprof.blockprofilerate
+
+Turn on block profiling with the given rate. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.blockprofilerate=<value>`</Tab>
+  <Tab title="Example">`--pprof.blockprofilerate=0`</Tab>
+  <Tab title="Environment Variable">`GETH_PPROF_BLOCKPROFILERATE=0`</Tab>
+</Tabs>
+
+#### pprof.cpuprofile
+
+Write CPU profile to the given file.
+
+<Tabs items={['Syntax', 'Example']}>
+  <Tab title="Syntax">`--pprof.cpuprofile=<value>`</Tab>
+  <Tab title="Syntax">`--pprof.cpuprofile=/path/to/cpu.profile`</Tab>
+</Tabs>
+
+#### pprof.memprofilerate
+
+Turn on memory profiling with the given rate. The default value is `524288`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.memprofilerate=<value>`</Tab>
+  <Tab title="Example">`--pprof.memprofilerate=524288`</Tab>
+  <Tab title="Environment Variable">`GETH_PPROF_MEMPROFILERATE=524288`</Tab>
+</Tabs>
+
+#### pprof.port
+
+pprof HTTP server listening port. The default value is `6060`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.port=<value>`</Tab>
+  <Tab title="Example">`--pprof.port=6060`</Tab>
+  <Tab title="Environment Variable">`GETH_PPROF_PORT=6060`</Tab>
+</Tabs>
+
+#### remotedb
+
+URL for remote database.
+
+<Tabs>
+  <Tab title="Syntax">`--remotedb=<value>`</Tab>
+  <Tab title="Example">`--remotedb=http://example.com/db`</Tab>
+  <Tab title="Environment Variable">`GETH_REMOTEDB=http://example.com/db`</Tab>
+</Tabs>
+
+#### verbosity
+
+Logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail. The default value is `3`.
+
+<Tabs>
+  <Tab title="Syntax">`--verbosity=<value>`</Tab>
+  <Tab title="Example">`--verbosity=3`</Tab>
+  <Tab title="Environment Variable">`GETH_VERBOSITY=3`</Tab>
+</Tabs>
+
+### Metrics and monitoring
+
+Enable metrics collection and export to monitoring systems.
+
+#### ethstats
+
+Reporting URL of an ethstats service (nodename:secret\@host:port).
+
+<Tabs>
+  <Tab title="Syntax">`--ethstats=<value>`</Tab>
+  <Tab title="Example">`--ethstats="nodename:secret@host:port"`</Tab>
+  <Tab title="Environment Variable">`GETH_ETHSTATS="nodename:secret@host:port"`</Tab>
+</Tabs>
+
+#### metrics
+
+Enable metrics collection and reporting. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics`</Tab>
+  <Tab title="Example">`--metrics=false`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS=false`</Tab>
+</Tabs>
+
+#### metrics.addr
+
+Enable stand-alone metrics HTTP server listening interface.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.addr=<value>`</Tab>
+  <Tab title="Example">`--metrics.addr="127.0.0.1:9090"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_ADDR="127.0.0.1:9090"`</Tab>
+</Tabs>
+
+#### metrics.expensive
+
+Enable expensive metrics collection and reporting. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.expensive`</Tab>
+  <Tab title="Example">`--metrics.expensive=false`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_EXPENSIVE=false`</Tab>
+</Tabs>
+
+#### metrics.influxdb
+
+Enable metrics export/push to an external InfluxDB database. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb`</Tab>
+  <Tab title="Example">`--metrics.influxdb=false`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB=false`</Tab>
+</Tabs>
+
+#### metrics.influxdb.bucket
+
+InfluxDB bucket name to push reported metrics to (v2 only). The default value is `"geth"`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb.bucket=<value>`</Tab>
+  <Tab title="Example">`--metrics.influxdb.bucket="geth"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB_BUCKET="geth"`</Tab>
+</Tabs>
+
+#### metrics.influxdb.database
+
+InfluxDB database name to push reported metrics to. The default value is `"geth"`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb.database=<value>`</Tab>
+  <Tab title="Example">`--metrics.influxdb.database="geth"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB_DATABASE="geth"`</Tab>
+</Tabs>
+
+#### metrics.influxdb.endpoint
+
+InfluxDB API endpoint to report metrics to. The default value is `"http://localhost:8086"`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb.endpoint=<value>`</Tab>
+  <Tab title="Example">`--metrics.influxdb.endpoint="http://localhost:8086"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB_ENDPOINT="http://localhost:8086"`</Tab>
+</Tabs>
+
+#### metrics.influxdb.organization
+
+InfluxDB organization name (v2 only). The default value is `"geth"`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb.organization=<value>`</Tab>
+  <Tab title="Example">`--metrics.influxdb.organization="geth"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB_ORGANIZATION="geth"`</Tab>
+</Tabs>
+
+#### metrics.influxdb.password
+
+Password to authorize access to the database. The default value is `"test"`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb.password=<value>`</Tab>
+  <Tab title="Example">`--metrics.influxdb.password="test"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB_PASSWORD="test"`</Tab>
+</Tabs>
+
+#### metrics.influxdb.tags
+
+Comma-separated InfluxDB tags (key/values) attached to all measurements. The default value is `"host=localhost"`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb.tags=<value>`</Tab>
+  <Tab title="Example">`--metrics.influxdb.tags="host=localhost"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB_TAGS="host=localhost"`</Tab>
+</Tabs>
+
+#### metrics.influxdb.token
+
+Token to authorize access to the database (v2 only). The default value is `"test"`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb.token=<value>`</Tab>
+  <Tab title="Example">`--metrics.influxdb.token="test"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB_TOKEN="test"`</Tab>
+</Tabs>
+
+#### metrics.influxdb.username
+
+Username to authorize access to the database. The default value is `"test"`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdb.username=<value>`</Tab>
+  <Tab title="Example">`--metrics.influxdb.username="test"`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDB_USERNAME="test"`</Tab>
+</Tabs>
+
+#### metrics.influxdbv2
+
+Enable metrics export/push to an external InfluxDB v2 database. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.influxdbv2`</Tab>
+  <Tab title="Example">`--metrics.influxdbv2=false`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_INFLUXDBV2=false`</Tab>
+</Tabs>
+
+#### metrics.port
+
+Metrics HTTP server listening port. The default value is `6060`. 
+Please note that `--metrics.addr` must be set to start the server.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.port=<value>`</Tab>
+  <Tab title="Example">`--metrics.port=6060`</Tab>
+  <Tab title="Environment Variable">`GETH_METRICS_PORT=6060`</Tab>
+</Tabs>
+
+### General options
+
+Help, version, and other general-purpose flags.
+
+#### help
+
+Show help. This is typically used to display command-line options and usage information.
+
+<Tabs items={['Syntax', 'Example']}>
+  <Tab title="Syntax">`--help` or `-h`</Tab>
+  <Tab title="Syntax">`--help`</Tab>
+</Tabs>
+
+#### synctarget
+
+Hash of the block to full sync to (dev testing feature).
+
+<Tabs>
+  <Tab title="Syntax">`--synctarget=<value>`</Tab>
+  <Tab title="Example">`--synctarget="0x123...456"`</Tab>
+  <Tab title="Environment Variable">`GETH_SYNCTARGET="0x123...456"`</Tab>
+</Tabs>
+
+#### version
+
+<Info>
+  Nodes built from source do not output the correct version numbers that are reported on 
+  the GitHub release page.
+</Info>
+
+Print the version. This option is typically used to display the version of the software.
+
+<Tabs items={['Syntax', 'Example']}>
+  <Tab title="Syntax">`--version` or `-v`</Tab>
+  <Tab title="Syntax">`--version`</Tab>
+</Tabs>
+
+### Peer-to-peer networking
+
+Configure P2P connections, peer discovery, and network settings.
+
+#### bootnodes
+
+Comma separated enode URLs for P2P discovery bootstrap.
+
+<Tabs>
+  <Tab title="Syntax">`--bootnodes=<value>`</Tab>
+  <Tab title="Example">`--bootnodes=`</Tab>
+  <Tab title="Environment Variable">`GETH_BOOTNODES=`</Tab>
+</Tabs>
+
+#### discovery.dns
+
+Sets DNS discovery entry points (use "" to disable DNS).
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.dns=<value>`</Tab>
+  <Tab title="Example">`--discovery.dns=""`</Tab>
+  <Tab title="Environment Variable">`GETH_DISCOVERY_DNS=""`</Tab>
+</Tabs>
+
+#### discovery.port
+
+Use a custom UDP port for P2P discovery. The default value is `30303`.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.port=<value>`</Tab>
+  <Tab title="Example">`--discovery.port=30303`</Tab>
+  <Tab title="Environment Variable">`GETH_DISCOVERY_PORT=30303`</Tab>
+</Tabs>
+
+#### discovery.v4
+
+Enables the V4 discovery mechanism. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v4` or `--discv4`</Tab>
+  <Tab title="Example">`--discovery.v4=false`</Tab>
+  <Tab title="Environment Variable">`GETH_DISCOVERY_V4=false`</Tab>
+</Tabs>
+
+#### discovery.v5
+
+Enables the V5 discovery mechanism. The default value is `true`.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v5` or `--discv5`</Tab>
+  <Tab title="Example">`--discovery.v5=true`</Tab>
+  <Tab title="Environment Variable">`GETH_DISCOVERY_V5=true`</Tab>
+</Tabs>
+
+#### identity
+
+Custom node name.
+
+<Tabs>
+  <Tab title="Syntax">`--identity=<value>`</Tab>
+  <Tab title="Example">`--identity="MyNode"`</Tab>
+  <Tab title="Environment Variable">`GETH_IDENTITY="MyNode"`</Tab>
+</Tabs>
+
+#### maxpeers
+
+Maximum number of network peers (network disabled if set to 0). The default value is `50`.
+
+<Tabs>
+  <Tab title="Syntax">`--maxpeers=<value>`</Tab>
+  <Tab title="Example">`--maxpeers=50`</Tab>
+  <Tab title="Environment Variable">`GETH_MAXPEERS=50`</Tab>
+</Tabs>
+
+#### maxpendpeers
+
+Maximum number of pending connection attempts (defaults used if set to 0). The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--maxpendpeers=<value>`</Tab>
+  <Tab title="Example">`--maxpendpeers=0`</Tab>
+  <Tab title="Environment Variable">`GETH_MAXPENDPEERS=0`</Tab>
+</Tabs>
+
+#### nat
+
+NAT port mapping mechanism (any|none|upnp|pmp|pmp:`<IP>`|extip:`<IP>`|stun:`<IP:PORT>`). The default value is `"any"`.
+
+<Tabs>
+  <Tab title="Syntax">`--nat=<value>`</Tab>
+  <Tab title="Example">`--nat="any"`</Tab>
+  <Tab title="Environment Variable">`GETH_NAT="any"`</Tab>
+</Tabs>
+
+#### netrestrict
+
+Restricts network communication to the given IP networks (CIDR masks).
+
+<Tabs>
+  <Tab title="Syntax">`--netrestrict=<value>`</Tab>
+  <Tab title="Example">`--netrestrict="192.168.0.0/24"`</Tab>
+  <Tab title="Environment Variable">`GETH_NETRESTRICT="192.168.0.0/24"`</Tab>
+</Tabs>
+
+#### nodekey
+
+P2P node key file.
+
+<Tabs>
+  <Tab title="Syntax">`--nodekey=<value>`</Tab>
+  <Tab title="Example">`--nodekey=/path/to/nodekey`</Tab>
+  <Tab title="Environment Variable">`GETH_NODEKEY=/path/to/nodekey`</Tab>
+</Tabs>
+
+#### nodekeyhex
+
+P2P node key as hex (for testing).
+
+<Tabs>
+  <Tab title="Syntax">`--nodekeyhex=<value>`</Tab>
+  <Tab title="Example">`--nodekeyhex="abcdef..."`</Tab>
+  <Tab title="Environment Variable">`GETH_NODEKEYHEX="abcdef..."`</Tab>
+</Tabs>
+
+#### nodiscover
+
+Disables the peer discovery mechanism (manual peer addition). The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--nodiscover`</Tab>
+  <Tab title="Example">`--nodiscover=false`</Tab>
+  <Tab title="Environment Variable">`GETH_NODISCOVER=false`</Tab>
+</Tabs>
+
+#### port
+
+Network listening port. The default value is `30303`.
+
+<Tabs>
+  <Tab title="Syntax">`--port=<value>`</Tab>
+  <Tab title="Example">`--port=30303`</Tab>
+  <Tab title="Environment Variable">`GETH_PORT=30303`</Tab>
+</Tabs>
+
+### Performance and resource management
+
+Tune memory usage, caching, and other performance-related settings.
+
+#### `cache`
+
+Megabytes of memory allocated to internal caching.
+The default is `4096` MB for mainnet full node and `128` MB for light mode.
+
+<Tabs>
+  <Tab title="Syntax">`--cache=<value>`</Tab>
+  <Tab title="Example">`--cache=1024`</Tab>
+  <Tab title="Environment Variable">`GETH_CACHE=1024`</Tab>
+</Tabs>
+
+#### cache.blocklogs
+
+Size (in number of blocks) of the log cache for filtering. The default value is `32`.
+
+<Tabs>
+  <Tab title="Syntax">`--cache.blocklogs=<value>`</Tab>
+  <Tab title="Example">`--cache.blocklogs=32`</Tab>
+  <Tab title="Environment Variable">`GETH_CACHE_BLOCKLOGS=32`</Tab>
+</Tabs>
+
+#### cache.database
+
+Percentage of cache memory allowance to use for database I/O. The default value is `50`.
+
+<Tabs>
+  <Tab title="Syntax">`--cache.database=<value>`</Tab>
+  <Tab title="Example">`--cache.database=50`</Tab>
+  <Tab title="Environment Variable">`GETH_CACHE_DATABASE=50`</Tab>
+</Tabs>
+
+#### cache.gc
+
+Percentage of cache memory allowance to use for trie pruning. The default is `25%` for full mode 
+and `0%` for archive mode.
+
+<Tabs>
+  <Tab title="Syntax">`--cache.gc=<value>`</Tab>
+  <Tab title="Example">`--cache.gc=25`</Tab>
+  <Tab title="Environment Variable">`GETH_CACHE_GC=25`</Tab>
+</Tabs>
+
+#### cache.noprefetch
+
+Disable heuristic state prefetch during block import (less CPU and disk IO, more
+time waiting for data). The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--cache.noprefetch`</Tab>
+  <Tab title="Example">`--cache.noprefetch=false`</Tab>
+  <Tab title="Environment Variable">`GETH_CACHE_NOPREFETCH=false`</Tab>
+</Tabs>
+
+#### cache.preimages
+
+Enable recording the SHA3/keccak preimages of trie keys. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--cache.preimages`</Tab>
+  <Tab title="Example">`--cache.preimages=false`</Tab>
+  <Tab title="Environment Variable">`GETH_CACHE_PREIMAGES=false`</Tab>
+</Tabs>
+
+#### cache.snapshot
+
+Percentage of cache memory allowance to use for snapshot caching. 
+The default is `10%` for full mode and `20%` for archive mode.
+
+<Tabs>
+  <Tab title="Syntax">`--cache.snapshot=<value>`</Tab>
+  <Tab title="Example">`--cache.snapshot=10`</Tab>
+  <Tab title="Environment Variable">`GETH_CACHE_SNAPSHOT=10`</Tab>
+</Tabs>
+
+#### cache.trie
+
+Percentage of cache memory allowance to use for trie caching. 
+The default is `15%` for full mode and `30%` for archive mode.
+
+<Tabs>
+  <Tab title="Syntax">`--cache.trie=<value>`</Tab>
+  <Tab title="Example">`--cache.trie=15%`</Tab>
+  <Tab title="Environment Variable">`GETH_CACHE_TRIE=15%`</Tab>
+</Tabs>
+
+#### crypto.kzg
+
+KZG library implementation to use; gokzg (recommended) or ckzg. 
+The default value is `"gokzg"`.
+
+<Tabs>
+  <Tab title="Syntax">`--crypto.kzg=<value>`</Tab>
+  <Tab title="Example">`--crypto.kzg=gokzg`</Tab>
+  <Tab title="Environment Variable">`GETH_CRYPTO_KZG=gokzg`</Tab>
+</Tabs>
+
+#### fdlimit
+
+Raise the open file descriptor resource limit. The default is the system fd limit.
+
+<Tabs>
+  <Tab title="Syntax">`--fdlimit=<value>`</Tab>
+  <Tab title="Example">`--fdlimit=0` (system default)</Tab>
+  <Tab title="Environment Variable">`GETH_FDLIMIT=0`</Tab>
+</Tabs>
+
+### OP Stack specific options
+
+Configuration options specific to OP Stack rollup functionality.
+
+#### rollup.computependingblock
+
+By default, the pending block equals the latest block to save resources and not leak 
+transactions from the tx-pool. This flag enables computing of the pending block from 
+the tx-pool instead. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.computependingblock`</Tab>
+  <Tab title="Example">`--rollup.computependingblock=false`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_COMPUTEPENDINGBLOCK=false`</Tab>
+</Tabs>
+
+#### rollup.disabletxpoolgossip
+
+Disable transaction pool gossip. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.disabletxpoolgossip`</Tab>
+  <Tab title="Example">`--rollup.disabletxpoolgossip=false`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_DISABLETXPOOLGOSSIP=false`</Tab>
+</Tabs>
+
+#### rollup.enabletxpooladmission
+
+Add RPC-submitted transactions to the txpool (on by default if --rollup.sequencerhttp is not set).
+The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.enabletxpooladmission`</Tab>
+  <Tab title="Example">`--rollup.enabletxpooladmission=false`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_ENABLETXPOOLADMISSION=false`</Tab>
+</Tabs>
+
+#### rollup.halt
+
+Opt-in option to halt on incompatible protocol version requirements of the 
+given level (major/minor/patch/none), as signaled through the Engine API 
+by the rollup node.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.halt=<value>`</Tab>
+  <Tab title="Example">`--rollup.halt="major"`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_HALT="major"`</Tab>
+</Tabs>
+
+#### rollup.historicalrpc
+
+RPC endpoint for historical data.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.historicalrpc <value>`</Tab>
+  <Tab title="Example">`--rollup.historicalrpc "http://example.com"`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_HISTORICALRPC="http://example.com"`</Tab>
+</Tabs>
+
+#### rollup.historicalrpctimeout
+
+Timeout for historical RPC requests. The default value is `5s`.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.historicalrpctimeout=<value>`</Tab>
+  <Tab title="Example">`--rollup.historicalrpctimeout=5s`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_HISTORICALRPCTIMEOUT=5s`</Tab>
+</Tabs>
+
+#### rollup.interopmempoolfiltering
+
+If using interop, transactions are checked for interop validity before being added to the mempool (experimental).
+The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.interopmempoolfiltering`</Tab>
+  <Tab title="Example">`--rollup.interopmempoolfiltering=false`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_INTEROPMEMPOOLFILTERING=false`</Tab>
+</Tabs>
+
+#### rollup.interoprpc
+
+RPC endpoint for interop message verification (experimental).
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.interoprpc <value>`</Tab>
+  <Tab title="Example">`--rollup.interoprpc="http://example.com"`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_INTEROPRPC="http://example.com"`</Tab>
+</Tabs>
+
+#### rollup.sequencerhttp
+
+HTTP endpoint for the sequencer mempool.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.sequencerhttp=<value>`</Tab>
+  <Tab title="Example">`--rollup.sequencerhttp="http://example.com"`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_SEQUENCERHTTP="http://example.com"`</Tab>
+</Tabs>
+
+#### rollup.sequencertxconditionalcostratelimit
+
+Maximum cost -- storage lookups -- allowed for conditional transactions in a given second.
+The default value is `5000`.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.sequencertxconditionalcostratelimit <value>`</Tab>
+  <Tab title="Example">`--rollup.sequencertxconditionalcostratelimit=5000`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_SEQUENCERTXCONDITIONALCOSTRATELIMIT=5000`</Tab>
+</Tabs>
+
+#### rollup.sequencertxconditionalenabled
+
+Serve the eth_sendRawTransactionConditional endpoint and apply the conditional constraints on mempool inclusion & block building.
+The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.sequencertxconditionalenabled`</Tab>
+  <Tab title="Example">`--rollup.sequencertxconditionalenabled=false`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_SEQUENCERTXCONDITIONALENABLED=false`</Tab>
+</Tabs>
+
+#### rollup.superchain-upgrades
+
+Apply superchain-registry config changes to the local chain-configuration. 
+The default value is `true`.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.superchain-upgrades` or `--beta.rollup.superchain-upgrades`</Tab>
+  <Tab title="Example">`--rollup.superchain-upgrades=true`</Tab>
+  <Tab title="Environment Variable">`GETH_ROLLUP_SUPERCHAIN_UPGRADES=true`</Tab>
+</Tabs>
+
+### State and history management
+
+Control how much historical state and transaction data to retain.
+
+#### gcmode
+
+Blockchain garbage collection mode, only relevant in `state.scheme=hash`.
+Options are "full" and "archive". The default value is `"full"`.
+
+<Tabs>
+  <Tab title="Syntax">`--gcmode=<value>`</Tab>
+  <Tab title="Example">`--gcmode="full"`</Tab>
+  <Tab title="Environment Variable">`GETH_GCMODE="full"`</Tab>
+</Tabs>
+
+#### history.chain
+
+Blockchain history retention ("all" or "postmerge"). The default value is `"all"`.
+
+<Tabs>
+  <Tab title="Syntax">`--history.chain=<value>`</Tab>
+  <Tab title="Example">`--history.chain="all"`</Tab>
+  <Tab title="Environment Variable">`GETH_HISTORY_CHAIN="all"`</Tab>
+</Tabs>
+
+#### history.logs
+
+Number of recent blocks to maintain log search index for. The default is about one year (`2350000` blocks), with `0` representing the entire chain.
+
+<Tabs>
+  <Tab title="Syntax">`--history.logs=<value>`</Tab>
+  <Tab title="Example">`--history.logs=2350000`</Tab>
+  <Tab title="Environment Variable">`GETH_HISTORY_LOGS=2350000`</Tab>
+</Tabs>
+
+#### history.logs.disable
+
+Do not maintain log search index. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--history.logs.disable`</Tab>
+  <Tab title="Example">`--history.logs.disable=false`</Tab>
+  <Tab title="Environment Variable">`GETH_HISTORY_LOGS_DISABLE=false`</Tab>
+</Tabs>
+
+#### history.logs.export
+
+Export checkpoints to file in go source file format.
+
+<Tabs>
+  <Tab title="Syntax">`--history.logs.export <value>`</Tab>
+  <Tab title="Example">`--history.logs.export="/path/to/export.go"`</Tab>
+  <Tab title="Environment Variable">`GETH_HISTORY_LOGS_EXPORT="/path/to/export.go"`</Tab>
+</Tabs>
+
+#### history.state
+
+Number of recent blocks to retain state history for, only relevant in state.scheme=path.
+The default is `90000` blocks, with `0` representing the entire chain.
+
+<Tabs>
+  <Tab title="Syntax">`--history.state=<value>`</Tab>
+  <Tab title="Example">`--history.state=90000`</Tab>
+  <Tab title="Environment Variable">`GETH_HISTORY_STATE=90000`</Tab>
+</Tabs>
+
+#### history.transactions
+
+Number of recent blocks to maintain transactions index for.
+The default is about one year (`2350000` blocks), with `0` representing the entire chain.
+
+<Tabs>
+  <Tab title="Syntax">`--history.transactions=<value>`</Tab>
+  <Tab title="Example">`--history.transactions=2350000`</Tab>
+  <Tab title="Environment Variable">`GETH_HISTORY_TRANSACTIONS=2350000`</Tab>
+</Tabs>
+
+#### state.scheme
+
+Scheme to use for storing Ethereum state. Options are 'hash' or 'path'.
+
+<Tabs>
+  <Tab title="Syntax">`--state.scheme=<value>`</Tab>
+  <Tab title="Example">`--state.scheme="hash"`</Tab>
+  <Tab title="Environment Variable">`GETH_STATE_SCHEME="hash"`</Tab>
+</Tabs>
+
+#### syncmode
+
+Blockchain sync mode. Options are "snap", or "full". The default value is `"snap"`.
+
+<Tabs>
+  <Tab title="Syntax">`--syncmode=<value>`</Tab>
+  <Tab title="Example">`--syncmode="full"`</Tab>
+  <Tab title="Environment Variable">`GETH_SYNCMODE="full"`</Tab>
+</Tabs>
+
+### Transaction pool - Blob transactions
+
+Configure the blob transaction pool (EIP-4844).
+
+#### blobpool.datacap
+
+Disk space to allocate for pending blob transactions (soft limit).
+The default value is `2684354560`.
+
+<Tabs>
+  <Tab title="Syntax">`--blobpool.datacap=<value>`</Tab>
+  <Tab title="Example">`--blobpool.datacap=2684354560`</Tab>
+  <Tab title="Environment Variable">`GETH_BLOBPOOL_DATACAP=2684354560`</Tab>
+</Tabs>
+
+#### blobpool.datadir
+
+Data directory to store blob transactions in. The default value is `"blobpool"`.
+
+<Tabs>
+  <Tab title="Syntax">`--blobpool.datadir=<value>`</Tab>
+  <Tab title="Example">`--blobpool.datadir="blobpool"`</Tab>
+  <Tab title="Environment Variable">`GETH_BLOBPOOL_DATADIR="blobpool"`</Tab>
+</Tabs>
+
+#### blobpool.pricebump
+
+Price bump percentage to replace an already existing blob transaction. 
+The default value is `100`.
+
+<Tabs>
+  <Tab title="Syntax">`--blobpool.pricebump=<value>`</Tab>
+  <Tab title="Example">`--blobpool.pricebump=100`</Tab>
+  <Tab title="Environment Variable">`GETH_BLOBPOOL_PRICEBUMP=100`</Tab>
+</Tabs>
+
+### Transaction pool - Standard transactions
+
+Configure the standard EVM transaction pool.
+
+#### txpool.accountqueue
+
+Maximum number of non-executable transaction slots permitted per account. 
+The default value is `64`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.accountqueue=<value>`</Tab>
+  <Tab title="Example">`--txpool.accountqueue=64`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_ACCOUNTQUEUE=64`</Tab>
+</Tabs>
+
+#### txpool.accountslots
+
+Minimum number of executable transaction slots guaranteed per account. 
+The default value is `16`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.accountslots=<value>`</Tab>
+  <Tab title="Example">`--txpool.accountslots=16`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_ACCOUNTSLOTS=16`</Tab>
+</Tabs>
+
+#### txpool.globalqueue
+
+Maximum number of non-executable transaction slots for all accounts. 
+The default value is `1024`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.globalqueue=<value>`</Tab>
+  <Tab title="Example">`--txpool.globalqueue=1024`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_GLOBALQUEUE=1024`</Tab>
+</Tabs>
+
+#### txpool.globalslots
+
+Maximum number of executable transaction slots for all accounts. 
+The default value is `5120`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.globalslots=<value>`</Tab>
+  <Tab title="Example">`--txpool.globalslots=5120`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_GLOBALSLOTS=5120`</Tab>
+</Tabs>
+
+#### txpool.journal
+
+Disk journal for local transactions to survive node restarts. 
+The default value is `"transactions.rlp"`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.journal=<value>`</Tab>
+  <Tab title="Example">`--txpool.journal="transactions.rlp"`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_JOURNAL="transactions.rlp"`</Tab>
+</Tabs>
+
+#### txpool.journalremotes
+
+Includes remote transactions in the journal. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.journalremotes`</Tab>
+  <Tab title="Example">`--txpool.journalremotes=false`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_JOURNALREMOTES=false`</Tab>
+</Tabs>
+
+#### txpool.lifetime
+
+Maximum amount of time non-executable transactions are queued. 
+The default value is `3h0m0s`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.lifetime=<value>`</Tab>
+  <Tab title="Example">`--txpool.lifetime=3h0m0s`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_LIFETIME=3h0m0s`</Tab>
+</Tabs>
+
+#### txpool.locals
+
+Comma-separated accounts to treat as locals (no flush, priority inclusion).
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.locals=<value>`</Tab>
+  <Tab title="Example">`--txpool.locals="0x123...,0x456..."`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_LOCALS="0x123...,0x456..."`</Tab>
+</Tabs>
+
+#### txpool.maxtxgas
+
+Maximum gas limit for individual transactions (0 = no limit). Transactions exceeding this limit will be rejected by the transaction pool. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.maxtxgas=<value>`</Tab>
+  <Tab title="Example">`--txpool.maxtxgas=0`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_MAXTXGAS=0`</Tab>
+</Tabs>
+
+#### txpool.nolocals
+
+Disables price exemptions for locally submitted transactions. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.nolocals`</Tab>
+  <Tab title="Example">`--txpool.nolocals=false`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_NOLOCALS=false`</Tab>
+</Tabs>
+
+#### txpool.pricebump
+
+Price bump percentage to replace an already existing transaction. The default value is `10`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.pricebump=<value>`</Tab>
+  <Tab title="Example">`--txpool.pricebump=10`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_PRICEBUMP=10`</Tab>
+</Tabs>
+
+#### txpool.pricelimit
+
+Minimum gas price tip to enforce for acceptance into the pool. The default value is `1`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.pricelimit=<value>`</Tab>
+  <Tab title="Example">`--txpool.pricelimit=1`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_PRICELIMIT=1`</Tab>
+</Tabs>
+
+#### txpool.rejournal
+
+Time interval to regenerate the local transaction journal. The default value is `1h0m0s`.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.rejournal=<value>`</Tab>
+  <Tab title="Example">`--txpool.rejournal=1h0m0s`</Tab>
+  <Tab title="Environment Variable">`GETH_TXPOOL_REJOURNAL=1h0m0s`</Tab>
+</Tabs>
+
+### EVM configuration
+
+Options for EVM debugging and instrumentation.
+
+#### vmdebug
+
+Record information useful for VM and contract debugging. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--vmdebug`</Tab>
+  <Tab title="Example">`--vmdebug=false`</Tab>
+  <Tab title="Environment Variable">`GETH_VMDEBUG=false`</Tab>
+</Tabs>
+
+#### vmtrace
+
+Name of tracer which should record internal VM operations (costly).
+
+<Tabs>
+  <Tab title="Syntax">`--vmtrace <value>`</Tab>
+  <Tab title="Example">`--vmtrace="callTracer"`</Tab>
+  <Tab title="Environment Variable">`GETH_VMTRACE="callTracer"`</Tab>
+</Tabs>
+
+#### vmtrace.jsonconfig
+
+Tracer configuration (JSON). The default value is `"{}"`.
+
+<Tabs>
+  <Tab title="Syntax">`--vmtrace.jsonconfig <value>`</Tab>
+  <Tab title="Example">`--vmtrace.jsonconfig="{}"`</Tab>
+  <Tab title="Environment Variable">`GETH_VMTRACE_JSONCONFIG="{}"`</Tab>
+</Tabs>

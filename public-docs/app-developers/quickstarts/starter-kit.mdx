@@ -1,0 +1,145 @@
+---
+title: Deploying a SuperchainERC20 (Starter Kit)
+description: Learn how to quickly build and deploy a SuperchainERC20 token across OP Stack chains using the SuperchainERC20 Starter Kit.
+---
+<Info>
+The SuperchainERC20 standard is ready for production use with active Mainnet deployments. 
+Please note that the OP Stack interoperability upgrade, required for crosschain messaging, is currently still in active development.
+</Info>
+The [SuperchainERC20 Starter Kit](https://github.com/ethereum-optimism/superchainerc20-starter) is a development toolkit designed to simplify the creation, deployment, and testing of SuperchainERC20 tokens. It leverages cross-chain interoperability for the deployment of ERC20 tokens that can be used across different blockchains in the OP Stack ecosystem.
+
+## How it works
+
+Here's a breakdown of what's under the hood:
+
+*   **Cross-Chain Interoperability**: SuperchainERC20 tokens can move across multiple chains. This is possible by using the [IERC-7802](https://eips.ethereum.org/EIPS/eip-7802) interface, which lets tokens be minted on one chain and burned on another to maintain a consistent supply.
+
+*   **OP Stack Network**: The OP Stack powers a network of connected blockchains, allowing smooth data and asset flow. By using Optimism's scaling solutions, OP Stack chains reduce gas fees and speed up transactions.
+
+*   **Deployment**: The kit helps deploy SuperchainERC20 tokens on Ethereum-compatible chains, including setting up contracts, minting, burning, and cross-chain communication.
+
+*   **Testing**: Test scripts simulate real token transfers across chains to ensure everything works properly before going live.
+
+## Setup
+
+<Steps>
+  <Step title="Install foundry">
+  `supersim` requires `anvil` to be installed.
+  
+    Follow the [Foundry toolchain](https://book.getfoundry.sh/getting-started/installation) guide for detailed instructions.
+  </Step>
+
+  <Step title="Clone the repo">
+  Next, you need to clone and navigate to the repo:
+  
+    ```sh
+    git clone https://github.com/ethereum-optimism/superchainerc20-starter.git
+    cd superchainerc20-starter
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+  Install project dependencies using `pnpm`:
+  
+    ```sh
+    pnpm i
+    ```
+  </Step>
+
+  <Step title="Initialize .env files">
+  ```sh
+    pnpm init:env
+    ```
+  </Step>
+
+  <Step title="Start the development environment">
+  This command will:
+  
+    *   Start the `supersim` local development environment
+    *   Deploy the smart contracts to the test networks
+    *   Launch the example frontend application
+  
+    ```sh
+    pnpm dev
+    ```
+  
+    <Expandable>
+  
+      title="Sanity check"
+  
+      Browse to [the console](http://localhost:5173/), mint some tokens and transfer them.
+  
+    </Expandable>
+  </Step>
+</Steps>
+
+## Deploy SuperchainERC20s
+
+<Steps>
+  <Step title="Configure RPC urls">
+  This repository includes a script to automatically fetch the public RPC URLs for each chain listed in the [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json) and add them to the `[rpc_endpoints]` configuration section of `foundry.toml`.
+  
+    The script ensures that only new RPC URLs are appended, preserving any URLs already present in `foundry.toml`. To execute this script, run:
+  
+    ```sh
+    pnpm contracts:update:rpcs
+    ```
+  </Step>
+
+  <Step title="Modify deploy config parameters">
+  The deployment configuration for token deployments is managed through the `deploy-config.toml` file. Below is a detailed breakdown of each configuration section:
+  
+    #### `[deploy-config]`
+  
+    This section defines parameters for deploying token contracts.
+  
+    | Parameter | Description                                                                                                                                                               | Example                                |
+    | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+    | `salt`    | A unique identifier used for deploying token contracts via \[`Create2`]. This value along with the contract bytecode ensures that contract deployments are deterministic. | `salt = "ethers phoenix"`              |
+    | `chains`  | Lists the chains where the token will be deployed. Each chain must correspond to an entry in the `[rpc_endpoints]` section of `foundry.toml`.                             | `chains = ["op_chain_a","op_chain_b"]` |
+  
+    #### `[token]`
+  
+    Deployment configuration for the token that will be deployed.
+  
+    | Parameter       | Description                                                                                                                                                                                                                                                   | Example                                                        |
+    | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+    | `owner_address` | The address designated as the owner of the token. The `L2NativeSuperchainERC20.sol` contract included in this repo extends the [`Ownable`](https://github.com/Vectorized/solady/blob/c3b2ffb4a3334ea519555c5ea11fb0e666f8c2bc/src/auth/Ownable.sol) contract. | `owner_address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"` |
+    | `name`          | The token's name.                                                                                                                                                                                                                                             | `name = "TestSuperchainERC20"`                                 |
+    | `symbol`        | The token's symbol.                                                                                                                                                                                                                                           | `symbol = "TSU"`                                               |
+    | `decimals`      | The number of decimal places the token supports.                                                                                                                                                                                                              | `decimals = 18`                                                |
+  </Step>
+
+  <Step title="Deploy a token">
+  *   Before proceeding, ensure that your `deploy-config.toml` file is fully configured (see the [Modify Deploy Config Parameters](#modify-deploy-config-parameters) section setup details).
+    *   Also, confirm that the `[rpc_endpoints]` section in `foundry.toml` is properly set up by following the instructions in [Configure RPC urls](#configure-rpc-urls).
+  
+    <Info>
+      Deployments are executed through the `SuperchainERC20Deployer.s.sol` script. This script deploys tokens across each specified chain in the deployment configuration using `Create2`, ensuring deterministic contract addresses for each deployment. The script targets the `L2NativeSuperchainERC20.sol` contract by default. If you need to modify the token being deployed, either update this file directly or point the script to a custom token contract of your choice.
+    </Info>
+  
+    *   To execute a token deployment run:
+  
+    ```sh
+    pnpm contracts:deploy:token
+  
+    ```
+  </Step>
+</Steps>
+
+## Best practices for deploying SuperchainERC20
+
+### Use `Create2` to deploy SuperchainERC20
+
+`Create2` ensures that the address is deterministically determined by the bytecode of the contract and the provided salt. This is crucial because in order for cross-chain transfers of `SuperchainERC20`s to work with interop, the tokens must be deployed at the same address across all chains.
+
+### Set safe `crosschainMint` and `crosschainBurn` permissions
+
+For best security practices `SuperchainERC20Bridge` should be the only contract with permission to call `crosschainMint` and `crosschainBurn`. These permissions are set up by default when using the `SuperchainERC20` contract.
+
+## Next Steps
+
+*   Test your token deployment on multiple chains using [Supersim](/app-developers/tools/development/supersim) and run simple [end-to-end integration tests](https://github.com/ethereum-optimism/superchainerc20-starter/blob/main/README.md#-e2e-tests).
+*   For specific use cases, check out our guides for [bridging a SuperchainERC20 token to another chain](https://github.com/ethereum-optimism/superchainerc20-starter/blob/main/README.md#-example-how-to-bridge-a-superchainerc20-token-to-another-chain) or [modifying an existing ERC20 contract to be interoperable](https://github.com/ethereum-optimism/superchainerc20-starter/blob/main/README.md#updating-an-erc20-contract-to-be-interoperable).
+*   Questions about Interop? Check out our collection of [interop guides](/> op-stack/interop/explainer) or check out this [OP Stack interop design video walk-thru](https://www.youtube.com/watch?v=FKc5RgjtGes).
+
