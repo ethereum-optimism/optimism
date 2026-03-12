@@ -33,6 +33,7 @@ fi
 
 for src in "$@"; do
     if [ ! -e "$src" ]; then
+        echo "warning: source '$src' does not exist, forcing rebuild" >&2
         exit 1
     elif [ -d "$src" ]; then
         newer=$(find "$src" -type f -newer "$target" -print -quit 2>/dev/null)
