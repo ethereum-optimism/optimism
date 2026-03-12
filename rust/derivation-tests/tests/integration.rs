@@ -4,8 +4,9 @@
 //! generates one test per program implementation. To add a new program,
 //! update the macro — all scenarios get it for free.
 //!
-//! These tests require external binaries and are marked `#[ignore]`.
+//! These tests require external binaries and are excluded from `just test-derivation`.
 //! Run with: `just test-derivation-integration` (from rust/)
+//! Run a single program: `just test-derivation-op-program` or `just test-derivation-kona-host`
 
 mod helpers;
 
@@ -45,8 +46,10 @@ const KONA_HOST: Program = Program {
 
 async fn run_program(build: fn() -> DerivationTest, program: &Program) {
     if std::env::var(program.env_var).is_err() {
-        eprintln!("SKIP: {} not set.", program.env_var);
-        return;
+        panic!(
+            "{} not set. Build the binary first (see just test-derivation-integration).",
+            program.env_var
+        );
     }
 
     let test = build();
@@ -63,7 +66,7 @@ async fn run_program(build: fn() -> DerivationTest, program: &Program) {
     assert!(status.success(), "{} should exit 0, got: {status}", program.name,);
 }
 
-/// Generates one `#[tokio::test] #[ignore]` per program for a given scenario.
+/// Generates one `#[tokio::test]` per program for a given scenario.
 ///
 /// Adding a new program means adding one line here — every scenario gets it
 /// automatically.
@@ -71,13 +74,11 @@ macro_rules! run_all_programs {
     ($scenario:ident) => {
         paste::paste! {
             #[tokio::test]
-            #[ignore]
             async fn [<test_op_program_ $scenario>]() {
                 run_program($scenario, &OP_PROGRAM).await;
             }
 
             #[tokio::test]
-            #[ignore]
             async fn [<test_kona_host_ $scenario>]() {
                 run_program($scenario, &KONA_HOST).await;
             }

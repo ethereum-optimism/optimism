@@ -41,8 +41,8 @@ build-op-reth:
 # Run all tests (unit + doc tests)
 test: test-unit test-docs
 
-# Run unit tests (excluding online tests)
-test-unit *args="-E '!test(test_online)'":
+# Run unit tests (excluding online tests and derivation-tests integration binary)
+test-unit *args="-E '!test(test_online) & !(package(derivation-tests) & binary(integration))'":
   cargo nextest run --workspace --all-features {{args}}
 
 # Run online tests only
@@ -57,25 +57,25 @@ test-docs:
 
 MONOREPO_ROOT := justfile_directory() / ".."
 
-# Run derivation-tests unit tests
+# Run derivation-tests unit tests (excludes integration tests that require external binaries)
 test-derivation *args='':
-  cargo test -p derivation-tests {{args}}
+  cargo nextest run -p derivation-tests -E '!binary(integration)' {{args}}
 
 # Run derivation-tests integration tests (builds op-program and kona-host first)
 test-derivation-integration: _build-op-program _build-kona-host
   OP_PROGRAM_PATH={{MONOREPO_ROOT}}/op-program/bin/op-program \
   KONA_HOST_PATH={{justfile_directory()}}/target/debug/kona-host \
-    cargo test -p derivation-tests -- --ignored
+    cargo nextest run -p derivation-tests -E 'binary(integration)'
 
 # Run derivation-tests integration tests against op-program only
 test-derivation-op-program: _build-op-program
   OP_PROGRAM_PATH={{MONOREPO_ROOT}}/op-program/bin/op-program \
-    cargo test -p derivation-tests -- --ignored test_op_program
+    cargo nextest run -p derivation-tests -E 'binary(integration) & test(test_op_program)'
 
 # Run derivation-tests integration tests against kona-host only
 test-derivation-kona-host: _build-kona-host
   KONA_HOST_PATH={{justfile_directory()}}/target/debug/kona-host \
-    cargo test -p derivation-tests -- --ignored test_kona_host
+    cargo nextest run -p derivation-tests -E 'binary(integration) & test(test_kona_host)'
 
 # Build op-program host binary
 _build-op-program:
