@@ -1,8 +1,6 @@
 # fix-rust-fmt
 
-Fix Rust formatting issues in the optimism monorepo. When the `rust-fmt` CI job
-fails, don't bother reading the errors — just run the formatter and commit
-whatever it changes.
+Fix Rust formatting issues in the optimism monorepo which would case the `rust-fmt` CI job to fail.
 
 ## When to Use
 
