@@ -16,7 +16,7 @@ import (
 
 func TestChallengerPlaysGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
@@ -38,7 +38,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 
 func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
@@ -61,7 +61,7 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 
 func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),

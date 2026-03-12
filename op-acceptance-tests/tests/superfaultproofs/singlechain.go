@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -34,7 +35,7 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 	// Stop batch submission so safe head stalls, then we have a known boundary.
 	c.Batcher.Stop()
 	t.Cleanup(c.Batcher.Start)
-	awaitSafeHeadsStalled(t, sys.L2CLA)
+	sys.L2CLA.WaitForStall(types.CrossSafe)
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
 	startTimestamp := endTimestamp - 1
@@ -45,9 +46,7 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 	c.EL.Reached(eth.Unsafe, target, 60)
 
 	// L1 head where chain has no batch data at endTimestamp.
-	respBefore := awaitOptimisticPattern(t, sys.SuperRoots, endTimestamp,
-		nil, []eth.ChainID{c.ID})
-	l1HeadBefore := respBefore.CurrentL1
+	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{c.ID})
 
 	// Resume batching so the chain's data at endTimestamp becomes available.
 	c.Batcher.Start()

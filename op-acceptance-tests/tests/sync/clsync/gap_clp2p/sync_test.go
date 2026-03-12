@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -12,7 +11,7 @@ import (
 // TestSyncAfterInitialELSync tests that blocks received out of order would be processed in order when running in CL sync mode. Note that this is not going to happen when running in EL sync mode, which relies on healthy ELP2P, something that is disabled in this test.
 func TestSyncAfterInitialELSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := newGapCLP2PSystem(t)
 	require := t.Require()
 
 	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)

@@ -3,7 +3,6 @@ package loadtest
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -18,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -31,16 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
-
-func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithSimpleInterop(),
-		presets.WithLogFilter(
-			logfilter.DefaultMute(
-				logfilter.Level(slog.LevelWarn).Show(),
-			),
-		),
-	)
-}
 
 // TODO(16371) every txintent.Call implementation should probably just be a txplan.Option.
 func planCall(t devtest.T, call txintent.Call) txplan.Option {

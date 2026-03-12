@@ -36,7 +36,7 @@ Solidity smart contracts for the OP Stack, including the core protocol contracts
 
 The OP Stack includes significant Rust implementations:
 
-- **kona**: Rust implementation of the OP Stack rollup state transition, including fault proof program, rollup node, and supervisor
+- **kona**: Rust implementation of the OP Stack rollup state transition, including fault proof program and rollup node
 - **op-reth**: OP Stack execution client built on reth
 - **op-alloy**: Rust crates providing OP Stack types and providers for the alloy ecosystem
 - **alloy-op-hardforks** / **alloy-op-evm**: OP Stack hardfork and EVM support for alloy

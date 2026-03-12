@@ -13,7 +13,7 @@ import (
 func TestL2SafeSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	sequencer := out.L2CLSequencerNodes()[0]
 	nodes := out.L2CLValidatorNodes()
@@ -32,7 +32,7 @@ func TestL2SafeSync(gt *testing.T) {
 func TestL2UnsafeSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLNodes()
 
@@ -50,7 +50,7 @@ func TestL2FinalizedSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	t.Skip("Skipping finalized sync test")
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLNodes()
 

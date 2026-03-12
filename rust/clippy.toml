@@ -1,4 +1,4 @@
-msrv = "1.88"
+msrv = "1.92"
 too-large-for-stack = 128
 doc-valid-idents = [
     "P2P",

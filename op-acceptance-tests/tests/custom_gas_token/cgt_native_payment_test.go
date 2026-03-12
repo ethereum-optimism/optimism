@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -13,7 +12,7 @@ import (
 // recipient +amount and sender > amount decrease (amount + gas).
 func TestCGT_ValueTransferPaysGasInToken(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newCGTMinimal(t)
 
 	ensureCGTOrSkip(t, sys)
 

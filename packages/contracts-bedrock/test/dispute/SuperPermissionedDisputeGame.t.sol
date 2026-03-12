@@ -3,6 +3,7 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { _changeClaimStatus, _dummyClaim } from "test/dispute/FaultDisputeGame.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 // Libraries
@@ -122,23 +123,11 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         init({ _rootClaim: rootClaim, _absolutePrestate: absolutePrestate, _super: superRootProof });
     }
 
-    /// @notice Helper to return a pseudo-random claim
-    function _dummyClaim() internal view returns (Claim) {
-        return Claim.wrap(keccak256(abi.encode(gasleft())));
-    }
-
     /// @notice Helper to get the required bond for the given claim index.
     function _getRequiredBond(uint256 _claimIndex) internal view returns (uint256 bond_) {
         (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);
         Position pos = parent.move(true);
         bond_ = gameProxy.getRequiredBond(pos);
-    }
-
-    /// @notice Helper to change the VM status byte of a claim.
-    function _changeClaimStatus(Claim _claim, VMStatus _status) internal pure returns (Claim out_) {
-        assembly {
-            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
-        }
     }
 
     /// @notice Helper to create an arbitrary SuperRootProof

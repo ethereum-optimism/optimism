@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -133,7 +132,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		require.NoError(t, err, "Expected to be able to call L2BlockRefByHash API, but got error")
 
 		nextL1Origin := parentsL1Origin.L1Origin.Number + 1
-		l1Origin, err := sys.L1Network.Escape().L1ELNode(match.FirstL1EL).EthClient().InfoByNumber(ctx, nextL1Origin)
+		l1Origin, err := sys.L1EL.EthClient().InfoByNumber(ctx, nextL1Origin)
 		require.NoError(t, err, "Expected to get block number %v from L1 execution client", nextL1Origin)
 		l1OriginHash := l1Origin.Hash()
 

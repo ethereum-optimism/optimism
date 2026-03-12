@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
@@ -56,7 +55,7 @@ import (
 //   - With ELP2P enabled, repeated FCU attempts eventually validate and advance the canonical chain.
 func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := newGapELP2PSystem(t)
 	require := t.Require()
 	logger := t.Logger()
 
@@ -251,7 +250,7 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 // and by avoiding advancement of the chain on invalid data.
 func TestELP2PFCUUnavailableHash(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 	genesis := sys.L2ELB.BlockRefByNumber(0)
 
@@ -307,7 +306,7 @@ func TestELP2PFCUUnavailableHash(gt *testing.T) {
 // appendability/sync checks first, per Engine API behavior.
 func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 
 	// Advance few blocks to make sure reference node advanced
@@ -394,7 +393,7 @@ func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 // invalid payloads—whether rejected at the CL or EL—do not advance the chain.
 func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 	require := t.Require()
 	ctx := t.Ctx()

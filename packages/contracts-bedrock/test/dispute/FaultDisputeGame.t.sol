@@ -62,6 +62,11 @@ function _changeClaimStatus(Claim _claim, VMStatus _status) pure returns (Claim 
     }
 }
 
+/// @notice Helper to return a pseudo-random claim.
+function _dummyClaim() view returns (Claim) {
+    return Claim.wrap(keccak256(abi.encode(gasleft())));
+}
+
 /// @title BaseFaultDisputeGame_TestInit
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
 abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
@@ -208,11 +213,6 @@ abstract contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
         (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);
         Position pos = parent.move(true);
         bond_ = gameProxy.getRequiredBond(pos);
-    }
-
-    /// @notice Helper to return a pseudo-random claim
-    function _dummyClaim() internal view returns (Claim) {
-        return Claim.wrap(keccak256(abi.encode(gasleft())));
     }
 
     /// @notice Helper to get the localized key for an identifier in the context of the game proxy.

@@ -1214,7 +1214,6 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		alloc := chainState.Allocs.Data.Accounts
 
 		chainIntent := intent.Chains[i]
-		checkImmutableBehindProxy(t, alloc, predeploys.OptimismMintableERC721FactoryAddr, common.BigToHash(new(big.Int).SetUint64(intent.L1ChainID)))
 
 		// ownership slots
 		var addrAsSlot common.Hash
@@ -1243,20 +1242,8 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 	}
 }
 
-func getEIP1967ImplementationAddress(t *testing.T, allocations types.GenesisAlloc, proxyAddress common.Address) common.Address {
-	storage := allocations[proxyAddress].Storage
-	storageValue := storage[genesis.ImplementationSlot]
-	require.NotEmpty(t, storageValue, "Implementation address for %s should be set", proxyAddress)
-	return common.HexToAddress(storageValue.Hex())
-}
-
 type bytesMarshaler interface {
 	Bytes() []byte
-}
-
-func checkImmutableBehindProxy(t *testing.T, allocations types.GenesisAlloc, proxyContract common.Address, thing bytesMarshaler) {
-	implementationAddress := getEIP1967ImplementationAddress(t, allocations, proxyContract)
-	checkImmutable(t, allocations, implementationAddress, thing)
 }
 
 func checkImmutable(t *testing.T, allocations types.GenesisAlloc, implementationAddress common.Address, thing bytesMarshaler) {

@@ -11,24 +11,12 @@ import (
 // A network hosts configuration resources and tracks participating nodes.
 type Network interface {
 	Common
-	ComponentRegistry
 
 	ChainID() eth.ChainID
 
 	ChainConfig() *params.ChainConfig
 
-	Faucet(m FaucetMatcher) Faucet
 	Faucets() []Faucet
-	FaucetIDs() []FaucetID
 
-	SyncTester(m SyncTesterMatcher) SyncTester
 	SyncTesters() []SyncTester
-	SyncTesterIDs() []SyncTesterID
-}
-
-type ExtensibleNetwork interface {
-	Network
-
-	AddFaucet(f Faucet)
-	AddSyncTester(st SyncTester)
 }

@@ -302,13 +302,25 @@ impl RollupConfig {
     /// Returns true if Jovian is active at the given timestamp.
     pub fn is_jovian_active(&self, timestamp: u64) -> bool {
         self.hardforks.jovian_time.is_some_and(|t| timestamp >= t) ||
-            self.is_interop_active(timestamp)
+            self.is_karst_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Jovian block.
     pub fn is_first_jovian_block(&self, timestamp: u64) -> bool {
         self.is_jovian_active(timestamp) &&
             !self.is_jovian_active(timestamp.saturating_sub(self.block_time))
+    }
+
+    /// Returns true if Karst is active at the given timestamp.
+    pub fn is_karst_active(&self, timestamp: u64) -> bool {
+        self.hardforks.karst_time.is_some_and(|t| timestamp >= t) ||
+            self.is_interop_active(timestamp)
+    }
+
+    /// Returns true if the timestamp marks the first Karst block.
+    pub fn is_first_karst_block(&self, timestamp: u64) -> bool {
+        self.is_karst_active(timestamp) &&
+            !self.is_karst_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Interop is active at the given timestamp.
@@ -460,7 +472,12 @@ impl OpHardforks for RollupConfig {
                 .hardforks
                 .jovian_time
                 .map(ForkCondition::Timestamp)
-                .unwrap_or(ForkCondition::Never),
+                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Karst)),
+            OpHardfork::Karst => self
+                .hardforks
+                .karst_time
+                .map(ForkCondition::Timestamp)
+                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Interop)),
             OpHardfork::Interop => self
                 .hardforks
                 .interop_time
@@ -649,6 +666,25 @@ mod tests {
     }
 
     #[test]
+    fn test_karst_active() {
+        let mut config = RollupConfig::default();
+        assert!(!config.is_karst_active(0));
+        config.hardforks.karst_time = Some(10);
+        assert!(config.is_regolith_active(10));
+        assert!(config.is_canyon_active(10));
+        assert!(config.is_delta_active(10));
+        assert!(config.is_ecotone_active(10));
+        assert!(config.is_fjord_active(10));
+        assert!(config.is_granite_active(10));
+        assert!(config.is_holocene_active(10));
+        assert!(!config.is_pectra_blob_schedule_active(10));
+        assert!(config.is_isthmus_active(10));
+        assert!(config.is_jovian_active(10));
+        assert!(config.is_karst_active(10));
+        assert!(!config.is_karst_active(9));
+    }
+
+    #[test]
     fn test_interop_active() {
         let mut config = RollupConfig::default();
         assert!(!config.is_interop_active(0));
@@ -662,6 +698,7 @@ mod tests {
         assert!(config.is_holocene_active(10));
         assert!(!config.is_pectra_blob_schedule_active(10));
         assert!(config.is_isthmus_active(10));
+        assert!(config.is_karst_active(10));
         assert!(config.is_interop_active(10));
         assert!(!config.is_interop_active(9));
     }
@@ -680,7 +717,8 @@ mod tests {
                 pectra_blob_schedule_time: Some(80),
                 isthmus_time: Some(90),
                 jovian_time: Some(100),
-                interop_time: Some(110),
+                karst_time: Some(110),
+                interop_time: Some(120),
             },
             block_time: 2,
             ..Default::default()
@@ -736,10 +774,15 @@ mod tests {
         assert!(cfg.is_first_jovian_block(100));
         assert!(!cfg.is_first_jovian_block(102));
 
+        // Karst
+        assert!(!cfg.is_first_karst_block(108));
+        assert!(cfg.is_first_karst_block(110));
+        assert!(!cfg.is_first_karst_block(112));
+
         // Interop
-        assert!(!cfg.is_first_interop_block(108));
-        assert!(cfg.is_first_interop_block(110));
-        assert!(!cfg.is_first_interop_block(112));
+        assert!(!cfg.is_first_interop_block(118));
+        assert!(cfg.is_first_interop_block(120));
+        assert!(!cfg.is_first_interop_block(122));
     }
 
     #[test]

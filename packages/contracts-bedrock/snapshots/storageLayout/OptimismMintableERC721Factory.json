@@ -5,5 +5,40 @@
     "offset": 0,
     "slot": "0",
     "type": "mapping(address => bool)"
+  },
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "1",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "bridge",
+    "offset": 2,
+    "slot": "1",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "remoteChainID",
+    "offset": 0,
+    "slot": "2",
+    "type": "uint256"
+  },
+  {
+    "bytes": "1472",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "3",
+    "type": "uint256[46]"
   }
 ]

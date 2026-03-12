@@ -67,6 +67,11 @@ pub struct HardForkConfig {
     /// otherwise.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub jovian_time: Option<u64>,
+    /// `karst_time` sets the activation time for the Karst network upgrade.
+    /// Active if `karst_time` != None && L2 block timestamp >= `Some(karst_time)`, inactive
+    /// otherwise.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub karst_time: Option<u64>,
     /// `interop_time` sets the activation time for the Interop network upgrade.
     /// Active if `interop_time` != None && L2 block timestamp >= `Some(interop_time)`, inactive
     /// otherwise.
@@ -103,6 +108,7 @@ impl HardForkConfig {
             ("Pectra Blob Schedule", self.pectra_blob_schedule_time),
             ("Isthmus", self.isthmus_time),
             ("Jovian", self.jovian_time),
+            ("Karst", self.karst_time),
             ("Interop", self.interop_time),
         ]
         .into_iter()
@@ -138,6 +144,7 @@ mod tests {
             pectra_blob_schedule_time: None,
             isthmus_time: None,
             jovian_time: None,
+            karst_time: None,
             interop_time: None,
         };
 
@@ -185,6 +192,7 @@ mod tests {
             pectra_blob_schedule_time: None,
             isthmus_time: None,
             jovian_time: None,
+            karst_time: None,
             interop_time: None,
         };
 
@@ -219,7 +227,8 @@ mod tests {
             pectra_blob_schedule_time: Some(8),
             isthmus_time: Some(9),
             jovian_time: Some(10),
-            interop_time: Some(11),
+            karst_time: Some(11),
+            interop_time: Some(12),
         };
 
         let mut iter = hardforks.iter();
@@ -233,7 +242,8 @@ mod tests {
         assert_eq!(iter.next(), Some(("Pectra Blob Schedule", Some(8))));
         assert_eq!(iter.next(), Some(("Isthmus", Some(9))));
         assert_eq!(iter.next(), Some(("Jovian", Some(10))));
-        assert_eq!(iter.next(), Some(("Interop", Some(11))));
+        assert_eq!(iter.next(), Some(("Karst", Some(11))));
+        assert_eq!(iter.next(), Some(("Interop", Some(12))));
         assert_eq!(iter.next(), None);
     }
 }

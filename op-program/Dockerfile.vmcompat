@@ -25,7 +25,14 @@ COPY ./go.mod ./go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
 COPY . /app
 
-# Run the op-program analysis
+# Run the op-program analysis, capturing findings even on failure.
+# The exit code is saved so the caller can extract findings before failing.
 WORKDIR /app/op-program
+ENV FINDINGS_OUTPUT_PATH=/app/op-program/vm-compat-findings.json
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  make "analyze-op-program-client-${VM_TARGET}"
+  touch $FINDINGS_OUTPUT_PATH && \
+  make "analyze-op-program-client-${VM_TARGET}"; echo $? > /app/op-program/vm-compat-exit-code
+
+FROM scratch AS export
+COPY --from=builder /app/op-program/vm-compat-findings.json .
+COPY --from=builder /app/op-program/vm-compat-exit-code .

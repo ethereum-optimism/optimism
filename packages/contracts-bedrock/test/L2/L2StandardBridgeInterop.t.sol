@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { MockHelper } from "test/utils/MockHelper.sol";
 
 // Interfaces
 import { IMintableAndBurnableERC20 } from "interfaces/L2/IMintableAndBurnableERC20.sol";
@@ -15,7 +16,7 @@ import { IOptimismERC20Factory } from "interfaces/L2/IOptimismERC20Factory.sol";
 
 /// @title L2StandardBridgeInterop_TestInit
 /// @notice Reusable test initialization for `L2StandardBridgeInterop` tests.
-abstract contract L2StandardBridgeInterop_TestInit is CommonTest {
+abstract contract L2StandardBridgeInterop_TestInit is CommonTest, MockHelper {
     /// @notice Emitted when a conversion is made.
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);
 
@@ -26,12 +27,6 @@ abstract contract L2StandardBridgeInterop_TestInit is CommonTest {
 
         super.enableInterop();
         super.setUp();
-    }
-
-    /// @notice Helper function to setup a mock and expect a call to it.
-    function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
-        vm.mockCall(_receiver, _calldata, _returned);
-        vm.expectCall(_receiver, _calldata);
     }
 
     /// @notice Mock ERC20 decimals

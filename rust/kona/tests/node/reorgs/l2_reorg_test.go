@@ -120,7 +120,7 @@ func TestL2Reorg(gt *testing.T) {
 				}
 			}
 			if !found {
-				return fmt.Errorf("expected node %s to be connected to the sequencer", node.Escape().ID().Key())
+				return fmt.Errorf("expected node %s to be connected to the sequencer", node.Escape().Name())
 			}
 		}
 

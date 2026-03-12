@@ -26,7 +26,7 @@ func NewFaucet(inner stack.Faucet) *Faucet {
 }
 
 func (f *Faucet) String() string {
-	return f.inner.ID().String()
+	return f.inner.Name()
 }
 
 // Escape returns the underlying stack.Faucet

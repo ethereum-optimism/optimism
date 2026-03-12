@@ -32,10 +32,6 @@ build-release *args='':
 build-node:
   cargo build --release --bin kona-node
 
-# Build the supervisor
-build-supervisor:
-  cargo build --release --bin kona-supervisor
-
 # Build op-reth
 build-op-reth:
   cargo build --release --bin op-reth

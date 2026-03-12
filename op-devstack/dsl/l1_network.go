@@ -5,26 +5,29 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // L1Network wraps a stack.L1Network interface for DSL operations
 type L1Network struct {
 	commonImpl
-	inner stack.L1Network
+	inner     stack.L1Network
+	primaryEL *L1ELNode
+	primaryCL *L1CLNode
 }
 
 // NewL1Network creates a new L1Network DSL wrapper
-func NewL1Network(inner stack.L1Network) *L1Network {
+func NewL1Network(inner stack.L1Network, primaryEL *L1ELNode, primaryCL *L1CLNode) *L1Network {
 	return &L1Network{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
+		primaryEL:  primaryEL,
+		primaryCL:  primaryCL,
 	}
 }
 
 func (n *L1Network) String() string {
-	return n.inner.ID().String()
+	return n.inner.Name()
 }
 
 func (n *L1Network) ChainID() eth.ChainID {
@@ -36,13 +39,23 @@ func (n *L1Network) Escape() stack.L1Network {
 	return n.inner
 }
 
+func (n *L1Network) PrimaryEL() *L1ELNode {
+	n.require.NotNil(n.primaryEL, "l1 network %s is missing a primary EL node", n.String())
+	return n.primaryEL
+}
+
+func (n *L1Network) PrimaryCL() *L1CLNode {
+	n.require.NotNil(n.primaryCL, "l1 network %s is missing a primary CL node", n.String())
+	return n.primaryCL
+}
+
 func (n *L1Network) WaitForBlock() eth.BlockRef {
-	return NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForBlock()
+	return n.PrimaryEL().WaitForBlock()
 }
 
 // PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests
 func (n *L1Network) PrintChain() {
-	l1_el := n.inner.L1ELNode(match.FirstL1EL)
+	l1_el := n.PrimaryEL().Escape()
 
 	unsafeHeadRef, err := l1_el.EthClient().InfoByLabel(n.ctx, "latest")
 	n.require.NoError(err, "Expected to get latest block from L1 execution client")
@@ -60,9 +73,9 @@ func (n *L1Network) PrintChain() {
 }
 
 func (n *L1Network) WaitForFinalization() eth.BlockRef {
-	return NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForFinalization()
+	return n.PrimaryEL().WaitForFinalization()
 }
 
 func (n *L1Network) WaitForOnline() {
-	NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForOnline()
+	n.PrimaryEL().WaitForOnline()
 }

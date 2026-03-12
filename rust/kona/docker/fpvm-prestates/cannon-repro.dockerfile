@@ -33,7 +33,7 @@ RUN cd /optimism/cannon && \
 #            Build kona-client from local source               #
 ################################################################
 
-FROM ghcr.io/op-rs/kona/cannon-builder:0.3.0 AS client-build
+FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v1.0.0 AS client-build
 SHELL ["/bin/bash", "-c"]
 
 ARG CLIENT_BIN
@@ -49,7 +49,7 @@ ENV KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs
 
 # Build kona-client
 RUN cd kona && \
-  cargo build -Zbuild-std=core,alloc -p kona-client --bin $CLIENT_BIN --locked --profile release-client-lto && \
+  cargo build -Zbuild-std=core,alloc -Zjson-target-spec -p kona-client --bin $CLIENT_BIN --locked --profile release-client-lto && \
   mv ./target/mips64-unknown-none/release-client-lto/$CLIENT_BIN /kona-client-elf
 
 ################################################################

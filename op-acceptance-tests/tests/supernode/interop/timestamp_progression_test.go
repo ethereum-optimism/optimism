@@ -5,14 +5,13 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 )
 
 // TestSupernodeInteropVerifiedAt tests that the VerifiedAt endpoint returns
 // correct data after the interop activity has processed timestamps.
 func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	sys := newSupernodeInteropWithTimeTravel(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time
@@ -55,7 +54,7 @@ func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 // This proves the supernode waits for all chains' local safe heads before verifying.
 func TestSupernodeInteropChainLag(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	sys := newSupernodeInteropWithTimeTravel(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	ctx := t.Ctx()
