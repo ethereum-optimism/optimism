@@ -113,7 +113,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClock(t, l1Net, jwtPath, l1Clock)
-	l2EL := startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0))
+	l2EL := startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil)
 
 	var depSetStatic *depset.StaticConfigDependencySet
 	if depSet != nil {
@@ -166,10 +166,8 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	}
 	l1EL, l1CL := startInProcessL1WithClock(t, l1Net, jwtPath, l1Clock)
 
-	l2AIdentity := NewELNodeIdentity(0)
-	l2BIdentity := NewELNodeIdentity(0)
-	l2AEL := startSequencerEL(t, l2ANet, jwtPath, jwtSecret, l2AIdentity)
-	l2BEL := startSequencerEL(t, l2BNet, jwtPath, jwtSecret, l2BIdentity)
+	l2AEL := startMixedOpRethNode(t, l2ANet, "sequencer", jwtPath, jwtSecret, nil)
+	l2BEL := startMixedOpRethNode(t, l2BNet, "sequencer", jwtPath, jwtSecret, nil)
 
 	var activationTime uint64
 	var interopActivationTimestamp *uint64
@@ -341,9 +339,9 @@ func startTwoL2SharedSupernode(
 	l1EL *L1Geth,
 	l1CL *L1CLNode,
 	l2ANet *L2Network,
-	l2AEL *OpGeth,
+	l2AEL L2ELNode,
 	l2BNet *L2Network,
-	l2BEL *OpGeth,
+	l2BEL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	interopActivationTimestamp *uint64,
 	jwtSecret [32]byte,
@@ -459,7 +457,7 @@ func startSingleChainSharedSupernode(
 	l1EL *L1Geth,
 	l1CL *L1CLNode,
 	l2Net *L2Network,
-	l2EL *OpGeth,
+	l2EL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	jwtSecret [32]byte,
 	interopAtGenesis bool,
@@ -580,7 +578,7 @@ func waitForSupernodeRoute(t devtest.T, logger log.Logger, rpcEndpoint string) {
 
 type l2TestSequencerTarget struct {
 	chainID eth.ChainID
-	l2EL    *OpGeth
+	l2EL    L2ELNode
 	l2CL    L2CLNode
 }
 
@@ -602,11 +600,9 @@ func attachTestSequencerToRuntime(t devtest.T, runtime *MultiChainRuntime, testS
 	for _, key := range chainKeys {
 		chain := runtime.Chains[key]
 		t.Require().NotNil(chain, "missing runtime chain %s", key)
-		l2EL, ok := chain.EL.(*OpGeth)
-		t.Require().True(ok, "runtime chain %s must use op-geth for test sequencer", key)
 		targets = append(targets, l2TestSequencerTarget{
 			chainID: chain.Network.ChainID(),
-			l2EL:    l2EL,
+			l2EL:    chain.EL,
 			l2CL:    chain.CL,
 		})
 	}

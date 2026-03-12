@@ -55,11 +55,11 @@ const (
 )
 
 type MixedSingleChainNodeSpec struct {
-	ELKey          string
-	CLKey          string
-	ELKind         MixedL2ELKind
-	CLKind         MixedL2CLKind
-	IsSequencer    bool
+	ELKey       string
+	CLKey       string
+	ELKind      MixedL2ELKind
+	CLKind      MixedL2CLKind
+	IsSequencer bool
 }
 
 type MixedSingleChainPresetConfig struct {
