@@ -1,61 +1,23 @@
 package interop
 
 import (
-	"context"
-	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type supervisorSupernodeAdapter struct {
-	supervisor *dsl.SupervisorActor
-}
-
-func (a *supervisorSupernodeAdapter) SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	syncStatus, err := a.supervisor.SyncStatus(ctx)
-	if err != nil {
-		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to fetch supervisor sync status: %w", err)
-	}
-
-	resp := eth.SuperRootAtTimestampResponse{
-		CurrentL1:                 syncStatus.MinSyncedL1.ID(),
-		CurrentSafeTimestamp:      syncStatus.SafeTimestamp,
-		CurrentFinalizedTimestamp: syncStatus.FinalizedTimestamp,
-	}
-	if timestamp == 0 {
-		return resp, nil
-	}
-
-	superRootResp, err := a.supervisor.SuperRootAtTimestamp(ctx, hexutil.Uint64(timestamp))
-	if err != nil {
-		return eth.SuperRootAtTimestampResponse{}, err
-	}
-	super, err := superRootResp.ToSuper()
-	if err != nil {
-		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to convert supervisor super root response: %w", err)
-	}
-
-	chainIDs := make([]eth.ChainID, 0, len(superRootResp.Chains))
-	for _, chain := range superRootResp.Chains {
-		chainIDs = append(chainIDs, chain.ChainID)
-	}
-	resp.ChainIDs = chainIDs
-	resp.Data = &eth.SuperRootResponseData{
-		VerifiedRequiredL1: superRootResp.CrossSafeDerivedFrom,
-		Super:              super,
-		SuperRoot:          superRootResp.SuperRoot,
-	}
-	return resp, nil
-}
+const latestFinalizedLookupTimestamp = ^uint64(0)
 
 func TestSuperRootScript(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
@@ -81,36 +43,66 @@ func TestSuperRootScript(gt *testing.T) {
 	})
 
 	actors := system.Actors
-	client := &supervisorSupernodeAdapter{supervisor: actors.Supervisor}
+	expectedChainIDs := []eth.ChainID{actors.ChainA.ChainID, actors.ChainB.ChainID}
+	superNode := dsl.NewSuperNode(t, testlog.Logger(t, log.LevelInfo), actors.L1Miner, actors.ChainA, actors.ChainB)
 
 	gt.Run("SuppliedTimestamp", func(gt *testing.T) {
 		t := helpers.NewDefaultTesting(gt)
 		safeTime := actors.ChainA.Sequencer.L2Safe().Time
-		expected, err := actors.Supervisor.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(safeTime))
+		if otherSafeTime := actors.ChainB.Sequencer.L2Safe().Time; otherSafeTime < safeTime {
+			safeTime = otherSafeTime
+		}
+		migrator, err := script.NewSuperRootMigratorWithClient(testlog.Logger(t, log.LevelInfo), superNode, &safeTime)
 		require.NoError(t, err)
 
-		migrator, err := script.NewSuperRootMigratorWithClient(testlog.Logger(t, log.LevelInfo), client, &safeTime)
-		require.NoError(t, err)
-
-		actual, err := migrator.Run(t.Ctx())
-		require.NoError(t, err)
-		require.Equal(t, common.Hash(expected.SuperRoot), actual)
+		_, err = migrator.Run(t.Ctx())
+		require.Error(t, err)
 	})
 
 	gt.Run("LatestFinalized", func(gt *testing.T) {
 		t := helpers.NewDefaultTesting(gt)
-
-		syncStatus, err := actors.Supervisor.SyncStatus(t.Ctx())
+		initialResp := waitForSuperRootAtTimestamp(t, superNode, latestFinalizedLookupTimestamp, func(collect *assert.CollectT, resp eth.SuperRootAtTimestampResponse) {
+			require.NotZero(collect, resp.CurrentFinalizedTimestamp)
+			require.Nil(collect, resp.Data)
+		})
+		finalizedTime := initialResp.CurrentFinalizedTimestamp
+		superNodeResp := waitForSuperRootAtTimestamp(t, superNode, finalizedTime, func(collect *assert.CollectT, resp eth.SuperRootAtTimestampResponse) {
+			require.Equal(collect, finalizedTime, resp.CurrentFinalizedTimestamp)
+			require.NotNil(collect, resp.Data)
+			for _, chainID := range expectedChainIDs {
+				require.Contains(collect, resp.ChainIDs, chainID)
+			}
+		})
+		require.Equal(t, finalizedTime, superNodeResp.CurrentFinalizedTimestamp)
+		require.NotNil(t, superNodeResp.Data)
+		supervisorResp, err := actors.Supervisor.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(finalizedTime))
 		require.NoError(t, err)
-		finalizedTime := syncStatus.FinalizedTimestamp
-		expected, err := actors.Supervisor.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(finalizedTime))
-		require.NoError(t, err)
+		require.Equal(t, common.Hash(supervisorResp.SuperRoot), common.Hash(superNodeResp.Data.SuperRoot))
 
-		migrator, err := script.NewSuperRootMigratorWithClient(testlog.Logger(t, log.LevelInfo), client, nil)
+		migrator, err := script.NewSuperRootMigratorWithClient(testlog.Logger(t, log.LevelInfo), superNode, nil)
 		require.NoError(t, err)
 
 		actual, err := migrator.Run(t.Ctx())
 		require.NoError(t, err)
-		require.Equal(t, common.Hash(expected.SuperRoot), actual)
+		require.Equal(t, common.Hash(supervisorResp.SuperRoot), actual)
 	})
+}
+
+func waitForSuperRootAtTimestamp(
+	t helpers.Testing,
+	superNode apis.SupernodeQueryAPI,
+	timestamp uint64,
+	check func(*assert.CollectT, eth.SuperRootAtTimestampResponse),
+) eth.SuperRootAtTimestampResponse {
+	t.Helper()
+
+	var resp eth.SuperRootAtTimestampResponse
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var err error
+		resp, err = superNode.SuperRootAtTimestamp(t.Ctx(), timestamp)
+		require.NoError(collect, err)
+		check(collect, resp)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	return resp
 }

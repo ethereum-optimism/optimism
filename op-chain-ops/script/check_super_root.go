@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 )
 
+const latestFinalizedLookupTimestamp = ^uint64(0)
+
 // SuperRootMigrator fetches a verified super root from SuperNode.
 type SuperRootMigrator struct {
 	log             log.Logger
@@ -64,7 +66,7 @@ func (m *SuperRootMigrator) Run(ctx context.Context) (common.Hash, error) {
 
 	targetTimestamp := m.TargetTimestamp
 	if targetTimestamp == nil {
-		initialResp, err := client.SuperRootAtTimestamp(ctx, 0)
+		initialResp, err := client.SuperRootAtTimestamp(ctx, latestFinalizedLookupTimestamp)
 		if err != nil {
 			return common.Hash{}, fmt.Errorf("failed to resolve finalized timestamp from SuperNode: %w", err)
 		}
