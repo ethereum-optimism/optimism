@@ -31,10 +31,14 @@ library UpgradeUtils {
     uint256 internal constant IMPLEMENTATION_COUNT = 28;
 
     /// @notice The default gas limit for a deployment transaction.
-    uint64 internal constant DEFAULT_DEPLOYMENT_GAS = 1_000_000_000;
+    /// @dev Based on gas profiling: largest implementation (EAS) uses 3,820,943 gas.
+    ///      Recommended: 5,731,414 (1.5x actual). Set to 6M for additional safety margin.
+    uint64 internal constant DEFAULT_DEPLOYMENT_GAS = 6_000_000;
 
     /// @notice The default gas limit for an upgrade transaction.
-    uint64 internal constant DEFAULT_UPGRADE_GAS = 1_000_000;
+    /// @dev Based on gas profiling: ProxyAdmin upgrade uses 12,069 gas.
+    ///      Recommended: 18,103 (1.5x actual). Set to 50K for additional safety margin.
+    uint64 internal constant DEFAULT_UPGRADE_GAS = 50_000;
 
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
@@ -71,18 +75,28 @@ library UpgradeUtils {
     /// @notice Returns the gas limits for all upgrade transaction types.
     /// @dev Gas limits are chosen to provide sufficient headroom while being
     ///      conservative enough to fit within the upgrade block gas allocation.
+    ///      All values based on gas profiling of actual mainnet fork execution.
     ///      Rationale for each limit:
-    ///      - TODO: Add rationale here
+    ///      - l2cmDeployment: L2ContractsManager deployment measured at 2,824,780 gas
+    ///        Recommended 4,237,170 (1.5x). Set to 4.5M for safety.
+    ///      - upgradeExecution: L2ProxyAdmin.upgradePredeploys() measured at 1,602,448 gas
+    ///        Recommended 2,403,672 (1.5x). Set to 3M for safety.
+    ///      - conditionalDeployerDeployment: ConditionalDeployer deployment measured at 339,403 gas
+    ///        Recommended 509,104 (1.5x). Set to 600K for safety.
+    ///      - conditionalDeployerUpgrade: ConditionalDeployer upgrade measured at 29,169 gas
+    ///        Recommended 43,753 (1.5x). Set to 50K for safety.
+    ///      - proxyAdminUpgrade: ProxyAdmin upgrade measured at 12,069 gas
+    ///        Recommended 18,103 (1.5x). Set to 50K for safety.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({
             // Fixed
-            l2cmDeployment: DEFAULT_DEPLOYMENT_GAS,
-            upgradeExecution: type(uint64).max,
+            l2cmDeployment: 4_500_000,
+            upgradeExecution: 3_000_000,
             // Karst
-            conditionalDeployerDeployment: DEFAULT_DEPLOYMENT_GAS,
-            conditionalDeployerUpgrade: DEFAULT_UPGRADE_GAS,
-            proxyAdminUpgrade: DEFAULT_UPGRADE_GAS
+            conditionalDeployerDeployment: 600_000,
+            conditionalDeployerUpgrade: 50_000,
+            proxyAdminUpgrade: 50_000
         });
     }
 

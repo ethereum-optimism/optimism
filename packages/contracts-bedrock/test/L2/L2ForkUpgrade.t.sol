@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Vm } from "forge-std/Vm.sol";
+import { console } from "forge-std/console.sol";
 
 // Scripts
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
@@ -14,6 +15,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
+import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -675,5 +677,154 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             // Standard implementation lookup
             (expectedImpl_,,,) = generateScript.implementationConfigs(_name);
         }
+    }
+}
+
+/// @title L2ForkUpgrade_GasProfile_Test
+/// @notice Gas profiling test that measures actual gas consumption for each transaction in the upgrade bundle.
+contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
+    /// @notice Gas measurement for a single transaction.
+    struct GasMeasurement {
+        uint256 index;
+        string intent;
+        uint64 gasUsed;
+        uint64 gasLimit;
+        uint64 recommendedLimit;
+        uint256 efficiency; // gasUsed * 100 / gasLimit (percentage)
+    }
+
+    /// @notice Safety margin multiplier (150% = 1.5x).
+    uint256 internal constant SAFETY_MARGIN_MULTIPLIER = 150;
+    uint256 internal constant PERCENTAGE_DENOMINATOR = 100;
+
+    /// @notice Tests gas consumption for all transactions and generates a report.
+    function test_l2ForkUpgrade_gasProfile_succeeds() public {
+        // Read the bundle
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
+            NetworkUpgradeTxns.readArtifact(generateScript.CURRENT_BUNDLE_PATH());
+
+        console.log(repeat("=", 100));
+        console.log("GAS PROFILING REPORT");
+        console.log(repeat("=", 100));
+        console.log("");
+        console.log("Total transactions:", txns.length);
+        console.log("");
+
+        // Store measurements
+        GasMeasurement[] memory measurements = new GasMeasurement[](txns.length);
+        uint256 totalGasUsed = 0;
+        uint256 totalGasLimit = 0;
+
+        // Execute and measure each transaction
+        for (uint256 i = 0; i < txns.length; i++) {
+            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
+
+            // Ensure sender has sufficient balance
+            vm.deal(txn.from, 100 ether);
+
+            // Measure gas
+            uint256 gasBefore = gasleft();
+            vm.prank(txn.from);
+            (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit }(txn.data);
+            uint256 gasAfter = gasleft();
+
+            require(success, string.concat("Transaction failed: ", txn.intent, " - ", _getRevertReason(returnData)));
+
+            // Calculate gas used (including overhead)
+            uint64 gasUsed = uint64(gasBefore - gasAfter);
+            uint64 recommendedLimit = uint64((uint256(gasUsed) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
+            uint256 efficiency = (uint256(gasUsed) * 100) / uint256(txn.gasLimit);
+
+            // Store measurement
+            measurements[i] = GasMeasurement({
+                index: i,
+                intent: txn.intent,
+                gasUsed: gasUsed,
+                gasLimit: txn.gasLimit,
+                recommendedLimit: recommendedLimit,
+                efficiency: efficiency
+            });
+
+            totalGasUsed += gasUsed;
+            totalGasLimit += txn.gasLimit;
+
+            // Print individual transaction report
+            console.log("[%s/%s] %s", i + 1, txns.length, txn.intent);
+            console.log("  Gas Used:         %s", gasUsed);
+            console.log("  Current Limit:    %s", txn.gasLimit);
+            console.log("  Recommended:      %s (1.5x actual)", recommendedLimit);
+            console.log("  Efficiency:       %s%%", efficiency);
+            console.log("");
+        }
+
+        // Print summary
+        console.log(repeat("=", 100));
+        console.log("SUMMARY");
+        console.log(repeat("=", 100));
+        console.log("Total Gas Used:       %s", totalGasUsed);
+        console.log("Total Gas Limit:      %s", totalGasLimit);
+        console.log("Overall Efficiency:   %s%%", (totalGasUsed * 100) / totalGasLimit);
+        console.log("");
+
+        // Print transactions that need adjustment (efficiency < 50% or > 90%)
+        console.log("TRANSACTIONS NEEDING ADJUSTMENT:");
+        console.log(repeat("-", 100));
+        bool foundAdjustments = false;
+        for (uint256 i = 0; i < measurements.length; i++) {
+            if (measurements[i].efficiency < 50 || measurements[i].efficiency > 90) {
+                foundAdjustments = true;
+                console.log("[%s] %s", measurements[i].index + 1, measurements[i].intent);
+                console.log("  Current: %s | Used: %s", measurements[i].gasLimit, measurements[i].gasUsed);
+                console.log(
+                    "  Recommended: %s | Efficiency: %s%%", measurements[i].recommendedLimit, measurements[i].efficiency
+                );
+            }
+        }
+        if (!foundAdjustments) {
+            console.log("All transactions have acceptable efficiency (50-90%)");
+        }
+        console.log(repeat("=", 100));
+    }
+
+    /// @notice Helper function to repeat a string.
+    /// @param _str The string to repeat.
+    /// @param _count The number of times to repeat.
+    /// @return repeated_ The repeated string.
+    function repeat(string memory _str, uint256 _count) internal pure returns (string memory repeated_) {
+        for (uint256 i = 0; i < _count; i++) {
+            repeated_ = string.concat(repeated_, _str);
+        }
+    }
+
+    /// @notice Extracts a revert reason from return data.
+    /// @param _returnData The return data from a failed call.
+    /// @return reason_ The revert reason string, or a default message if unavailable.
+    function _getRevertReason(bytes memory _returnData) internal pure returns (string memory reason_) {
+        if (_returnData.length >= 68) {
+            bytes4 errorSelector = bytes4(_returnData);
+            if (errorSelector == 0x08c379a0) {
+                assembly {
+                    reason_ := add(_returnData, 0x44)
+                }
+                return reason_;
+            }
+        }
+        if (_returnData.length > 0) {
+            return string(abi.encodePacked("0x", _toHexString(_returnData)));
+        }
+        return "Unknown error";
+    }
+
+    /// @notice Converts bytes to hex string.
+    /// @param _data The bytes to convert.
+    /// @return hex_ The hex string representation.
+    function _toHexString(bytes memory _data) internal pure returns (string memory hex_) {
+        bytes memory hexChars = "0123456789abcdef";
+        bytes memory result = new bytes(_data.length * 2);
+        for (uint256 i = 0; i < _data.length; i++) {
+            result[i * 2] = hexChars[uint8(_data[i] >> 4)];
+            result[i * 2 + 1] = hexChars[uint8(_data[i] & 0x0f)];
+        }
+        return string(result);
     }
 }
