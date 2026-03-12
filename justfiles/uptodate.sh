@@ -32,12 +32,14 @@ if [ ! -f "$target" ]; then
 fi
 
 for src in "$@"; do
-    if [ -d "$src" ]; then
+    if [ ! -e "$src" ]; then
+        exit 1
+    elif [ -d "$src" ]; then
         newer=$(find "$src" -type f -newer "$target" -print -quit 2>/dev/null)
         if [ -n "$newer" ]; then
             exit 1
         fi
-    elif [ -f "$src" ]; then
+    else
         if [ "$src" -nt "$target" ]; then
             exit 1
         fi
