@@ -33,6 +33,9 @@ var excludeContracts = []string{
 	// Constructor inheritance differences
 	"IL2ProxyAdmin",
 
+	// OZ v4/v5 Ownable mismatch: IOwnable has v5 errors, AddressManager uses v4 Ownable
+	"IAddressManager",
+
 	// TODO: Interfaces that need to be fixed
 	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
 	"KontrolCheatsBase", "IResolvedDelegateProxy",
