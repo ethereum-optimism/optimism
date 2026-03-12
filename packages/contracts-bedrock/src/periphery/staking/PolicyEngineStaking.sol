@@ -8,11 +8,36 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 // Libraries
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+// Inheritance
+import { Ownable } from "@openzeppelin/contracts-v5/access/Ownable.sol";
+import { Ownable2Step } from "@openzeppelin/contracts-v5/access/Ownable2Step.sol";
+
+/// @title PolicyEngineStakingMapping
+/// @notice Holds the `peData` mapping at storage slot 0 so that `op-rbuilder` can read
+///         effective-stake data at a known, stable location. Inherited first by
+///         `PolicyEngineStaking` to guarantee the slot assignment.
+contract PolicyEngineStakingMapping {
+    /// @notice Policy Engine data per account. Packed in one slot for PE reads.
+    /// @custom:field effectiveStake The exact stake amount used for ordering.
+    /// @custom:field lastUpdate The timestamp of the latest change on their effective stake.
+    struct PEData {
+        uint128 effectiveStake;
+        uint128 lastUpdate;
+    }
+
+    /// @notice Base storage slot for PE data mapping. Policy Engine reads from
+    ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
+    bytes32 public constant PE_DATA_SLOT = 0;
+
+    /// @notice Slot 0: PE data mapping.
+    mapping(address account => PEData) public peData;
+}
+
 /// @title PolicyEngineStaking
 /// @notice Periphery contract for stake-based transaction ordering in op-rbuilder. Users stake governance tokens
 ///         and optionally link to a beneficiary who receives ordering power. Supports partial unstake.
 ///         Invariant: every staked token has a beneficiary (self or linked). No receivedStake tracking or unlink().
-contract PolicyEngineStaking is ISemver {
+contract PolicyEngineStaking is PolicyEngineStakingMapping, Ownable2Step, ISemver {
     using SafeERC20 for IERC20;
 
     /// @notice Staking stakingData per account.
@@ -23,28 +48,13 @@ contract PolicyEngineStaking is ISemver {
         address beneficiary;
     }
 
-    /// @notice Policy Engine stakingData per account. Packed in one slot for PE reads.
-    /// @custom:field effectiveStake The exact stake amount used for ordering.
-    /// @custom:field lastUpdate The timestamp of the latest change on their effective stake.
-    struct PEData {
-        uint128 effectiveStake;
-        uint128 lastUpdate;
-    }
-
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice Base storage slot for PE stakingData mapping. Policy Engine reads from
-    ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
-    bytes32 public constant PE_DATA_SLOT = 0;
-
     /// @notice The ERC20 token used for staking.
     // nosemgrep: sol-safety-no-immutable-variables
     IERC20 internal immutable STAKING_TOKEN;
-
-    /// @notice Slot 0: PE stakingData mapping.
-    mapping(address account => PEData) public peData;
 
     /// @notice Allowlist: beneficiary => staker => allowed.
     mapping(address beneficiary => mapping(address staker => bool allowed)) public allowlist;
@@ -54,12 +64,6 @@ contract PolicyEngineStaking is ISemver {
 
     /// @notice Paused state.
     bool public paused;
-
-    /// @notice The owner of the contract. Can pause, unpause, and transfer ownership.
-    address public owner;
-
-    /// @notice The pending owner nominated via `transferOwnership`.
-    address public pendingOwner;
 
     /// @notice Emitted when a user stakes OP tokens.
     /// @param account The address that staked tokens.
@@ -98,19 +102,6 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Emitted when the staking is unpaused.
     event Unpaused();
 
-    /// @notice Emitted when ownership is transferred.
-    /// @param previousOwner The address of the previous owner.
-    /// @param newOwner      The address of the new owner.
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /// @notice Emitted when a new owner is nominated via `transferOwnership`.
-    /// @param previousOwner The current owner who initiated the transfer.
-    /// @param newOwner      The nominated pending owner.
-    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
-
-    /// @notice Thrown when the caller is not the owner.
-    error PolicyEngineStaking_OnlyOwner();
-
     /// @notice Thrown when the staking is paused.
     error PolicyEngineStaking_Paused();
 
@@ -135,19 +126,14 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Thrown when trying to change beneficiary to the current beneficiary.
     error PolicyEngineStaking_SameBeneficiary();
 
-    /// @notice Thrown when the caller is not the pending owner.
-    error PolicyEngineStaking_NotPendingOwner();
-
     /// @notice Thrown when trying to allowlist/disallow yourself.
     error PolicyEngineStaking_SelfAllowlist();
 
     /// @notice Constructs the PolicyEngineStaking contract.
     /// @param _ownerAddr The address that can pause and unpause staking.
     /// @param _token The ERC20 token used for staking.
-    constructor(address _ownerAddr, address _token) {
-        if (_ownerAddr == address(0)) revert PolicyEngineStaking_ZeroAddress();
+    constructor(address _ownerAddr, address _token) Ownable(_ownerAddr) {
         if (_token == address(0)) revert PolicyEngineStaking_ZeroAddress();
-        owner = _ownerAddr;
         STAKING_TOKEN = IERC20(_token);
     }
 
@@ -157,39 +143,11 @@ contract PolicyEngineStaking is ISemver {
         _;
     }
 
-    /// @notice Modifier that reverts when the caller is not the owner.
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert PolicyEngineStaking_OnlyOwner();
-        _;
-    }
-
     /// @notice Returns the staking token address.
     ///
     /// @return The ERC20 token used for staking.
     function stakingToken() external view returns (IERC20) {
         return STAKING_TOKEN;
-    }
-
-    /// @notice Starts the ownership transfer of the contract to a new account. Replaces the
-    ///         pending transfer if there is one. The nominated address must call
-    ///         `acceptOwnership` to finalize the transfer (two-step pattern).
-    ///         Setting `_newOwner` to the zero address is allowed; this can be used to cancel
-    ///         an initiated ownership transfer.
-    ///
-    /// @param _newOwner The address of the nominated owner.
-    function transferOwnership(address _newOwner) external onlyOwner {
-        pendingOwner = _newOwner;
-        emit OwnershipTransferStarted(owner, _newOwner);
-    }
-
-    /// @notice Accepts ownership after being nominated via `transferOwnership`.
-    function acceptOwnership() external {
-        if (msg.sender != pendingOwner) revert PolicyEngineStaking_NotPendingOwner();
-        pendingOwner = address(0);
-
-        // Emit event before owner change
-        emit OwnershipTransferred(owner, msg.sender);
-        owner = msg.sender;
     }
 
     /// @notice Pauses the contract. Stake is disabled while paused.

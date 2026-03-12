@@ -37,8 +37,11 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Emitted when a new owner is nominated via `transferOwnership`.
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
-    /// @notice Thrown when the caller is not the owner.
-    error PolicyEngineStaking_OnlyOwner();
+    /// @notice Thrown when the caller is not authorized (OZ Ownable).
+    error OwnableUnauthorizedAccount(address account);
+
+    /// @notice Thrown when an invalid owner is provided (OZ Ownable).
+    error OwnableInvalidOwner(address owner);
 
     /// @notice Thrown when the staking is paused.
     error PolicyEngineStaking_Paused();
@@ -64,9 +67,6 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Thrown when trying to change beneficiary to the current beneficiary.
     error PolicyEngineStaking_SameBeneficiary();
 
-    /// @notice Thrown when the caller is not the pending owner.
-    error PolicyEngineStaking_NotPendingOwner();
-
     /// @notice Thrown when trying to allowlist/disallow yourself.
     error PolicyEngineStaking_SelfAllowlist();
 
@@ -81,7 +81,7 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Starts the ownership transfer of the contract to a new account. Replaces the
     ///         pending transfer if there is one. The nominated address must call
     ///         `acceptOwnership` to finalize the transfer (two-step pattern). Only callable
-    ///         by owner. Setting `_newOwner` to the zero address cancels a pending transfer.
+    ///         by owner.
     ///
     /// @param _newOwner The address of the nominated owner.
     function transferOwnership(address _newOwner) external;
@@ -89,6 +89,9 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Accepts ownership after being nominated via `transferOwnership`.
     ///         Only callable by the pending owner.
     function acceptOwnership() external;
+
+    /// @notice Renounces ownership of the contract. Only callable by owner.
+    function renounceOwnership() external;
 
     /// @notice Returns whether the contract is paused.
     function paused() external view returns (bool);

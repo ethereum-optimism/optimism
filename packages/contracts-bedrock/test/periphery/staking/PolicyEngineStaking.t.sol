@@ -122,7 +122,7 @@ contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestI
         staking.acceptOwnership();
 
         vm.prank(owner);
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyEngineStaking.OwnableUnauthorizedAccount.selector, owner));
         staking.pause();
     }
 
@@ -130,7 +130,7 @@ contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestI
     function testFuzz_transferOwnership_notOwner_reverts(address _caller) external {
         vm.assume(_caller != owner && _caller != address(0));
 
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyEngineStaking.OwnableUnauthorizedAccount.selector, _caller));
         vm.prank(_caller);
         staking.transferOwnership(alice);
     }
@@ -156,7 +156,7 @@ contract PolicyEngineStaking_TransferOwnership_Test is PolicyEngineStaking_TestI
         staking.transferOwnership(newOwner);
 
         vm.prank(alice);
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_NotPendingOwner.selector);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyEngineStaking.OwnableUnauthorizedAccount.selector, alice));
         staking.acceptOwnership();
     }
 
@@ -197,7 +197,7 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
     /// @notice Tests that non-owner cannot pause.
     function testFuzz_pause_notOwner_reverts(address _caller) external {
         vm.assume(_caller != owner && _caller != address(0));
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyEngineStaking.OwnableUnauthorizedAccount.selector, _caller));
         vm.prank(_caller);
         staking.pause();
     }
@@ -208,7 +208,7 @@ contract PolicyEngineStaking_Pause_Test is PolicyEngineStaking_TestInit {
         staking.pause();
 
         vm.assume(_caller != owner && _caller != address(0));
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_OnlyOwner.selector);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyEngineStaking.OwnableUnauthorizedAccount.selector, _caller));
         vm.prank(_caller);
         staking.unpause();
     }
@@ -679,7 +679,7 @@ contract PolicyEngineStaking_Constructor_Test is PolicyEngineStaking_TestInit {
 
     /// @notice Tests that the constructor reverts when owner is zero address.
     function test_constructor_zeroOwner_reverts() external {
-        vm.expectRevert(IPolicyEngineStaking.PolicyEngineStaking_ZeroAddress.selector);
+        vm.expectRevert(abi.encodeWithSelector(IPolicyEngineStaking.OwnableInvalidOwner.selector, address(0)));
         vm.deployCode(
             "PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(address(0), Predeploys.GOVERNANCE_TOKEN)
         );

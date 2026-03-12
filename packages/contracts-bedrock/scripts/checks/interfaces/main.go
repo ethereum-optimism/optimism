@@ -38,7 +38,7 @@ var excludeContracts = []string{
 // excludeSourceContracts is a list of contracts that are allowed to not have interfaces
 var excludeSourceContracts = []string{
 	// Base contracts with no external functions
-	"CrossDomainOwnable", "CrossDomainOwnable2", "CrossDomainOwnable3", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1",
+	"CrossDomainOwnable", "CrossDomainOwnable2", "CrossDomainOwnable3", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1", "PolicyEngineStakingMapping",
 
 	// Helper contracts
 	"SafeSend", "EventLogger", "StorageSetter", "DisputeMonitorHelper", "GameHelper",
