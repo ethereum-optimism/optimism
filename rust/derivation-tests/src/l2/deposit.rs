@@ -33,15 +33,11 @@ pub fn l1_info_deposit_tx(
     // than reading it from genesis. Without that change, deposit transactions
     // would be constructed with stale values, causing state root mismatches
     // when verified against op-program/kona-host.
-    let system_config = rollup_config
-        .genesis
-        .system_config
-        .clone()
-        .unwrap_or_else(|| SystemConfig {
-            batcher_address: config.batcher,
-            gas_limit: 30_000_000,
-            ..Default::default()
-        });
+    let system_config = rollup_config.genesis.system_config.unwrap_or_else(|| SystemConfig {
+        batcher_address: config.batcher,
+        gas_limit: 30_000_000,
+        ..Default::default()
+    });
 
     let (_info, sealed_deposit) = L1BlockInfoTx::try_new_with_deposit_tx(
         &rollup_config,

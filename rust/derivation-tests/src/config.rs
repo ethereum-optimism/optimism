@@ -260,14 +260,15 @@ impl DeterministicConfig {
         // - Isthmus active: L2ToL1MessagePasser storage root (empty at genesis)
         // - Canyon active (pre-Isthmus): EMPTY_ROOT_HASH
         // - Pre-Canyon: None
-        let withdrawals_root = if self.hardforks.isthmus_time.is_some_and(|t| self.genesis_timestamp >= t) {
-            // At genesis, no messages have been sent, so the storage root is EMPTY_ROOT_HASH
-            Some(EMPTY_ROOT_HASH)
-        } else if self.hardforks.canyon_time.is_some_and(|t| self.genesis_timestamp >= t) {
-            Some(EMPTY_ROOT_HASH)
-        } else {
-            None
-        };
+        let withdrawals_root =
+            if self.hardforks.isthmus_time.is_some_and(|t| self.genesis_timestamp >= t) {
+                // At genesis, no messages have been sent, so the storage root is EMPTY_ROOT_HASH
+                Some(EMPTY_ROOT_HASH)
+            } else if self.hardforks.canyon_time.is_some_and(|t| self.genesis_timestamp >= t) {
+                Some(EMPTY_ROOT_HASH)
+            } else {
+                None
+            };
 
         let l2_genesis_header = Header {
             number: 0,
