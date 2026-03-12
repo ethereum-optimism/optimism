@@ -185,7 +185,9 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             ? GameTypes.SUPER_PERMISSIONED_CANNON
             : GameTypes.PERMISSIONED_CANNON;
         IOPContractsManager.Implementations memory impls = IOPContractsManager(opcmAddr).implementations();
-        address expectedPDGAddress = impls.permissionedDisputeGameImpl;
+        address expectedPDGAddress = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+            ? impls.superPermissionedDisputeGameImpl
+            : impls.permissionedDisputeGameImpl;
         address actualPDGAddress = address(doo.disputeGameFactoryProxy.gameImpls(permGameType));
         assertNotEq(actualPDGAddress, address(0), "PDG address should be non-zero");
         assertEq(actualPDGAddress, expectedPDGAddress, "PDG address should match expected address");
@@ -272,7 +274,10 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChainInput.disputeGameType = GameTypes.PERMISSIONED_CANNON;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
-        address expectedPermissioned = address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        GameType permType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            : GameTypes.PERMISSIONED_CANNON;
+        address expectedPermissioned = address(doo.disputeGameFactoryProxy.gameImpls(permType));
         assertEq(address(doo.permissionedDisputeGame), expectedPermissioned, "PDG impl");
         assertEq(address(doo.faultDisputeGame), address(0), "FDG should be set to address(0)");
     }
@@ -289,10 +294,13 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             Duration.unwrap(pdg.maxClockDuration()), Duration.unwrap(disputeMaxClockDuration), "PDG maxClockDuration"
         );
 
-        // For v2 contracts, some immutable args are passed in at game creation time from DGF.gameArgs
-        assertEq(address(pdg.proposer()), address(0), "PDG proposer");
-        assertEq(address(pdg.challenger()), address(0), "PDG challenger");
-        assertEq(Claim.unwrap(pdg.absolutePrestate()), bytes32(0), "PDG absolutePrestate");
+        // For v2 contracts, some immutable args are passed in at game creation time from DGF.gameArgs.
+        // Super game impls use a different immutable args layout so skip these checks.
+        if (!isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            assertEq(address(pdg.proposer()), address(0), "PDG proposer");
+            assertEq(address(pdg.challenger()), address(0), "PDG challenger");
+            assertEq(Claim.unwrap(pdg.absolutePrestate()), bytes32(0), "PDG absolutePrestate");
+        }
 
         // Custom gas token feature should reflect input
         assertEq(doo.systemConfigProxy.isCustomGasToken(), useCustomGasToken, "SystemConfig isCustomGasToken");

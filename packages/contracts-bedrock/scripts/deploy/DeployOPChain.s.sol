@@ -432,7 +432,9 @@ contract DeployOPChain is Script {
         if (isOPCMv2) {
             // OPCM v2: use implementations from v2 contract
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
-            expectedPDGImpl = opcmV2.implementations().permissionedDisputeGameImpl;
+            expectedPDGImpl = isSuperRoot
+                ? opcmV2.implementations().superPermissionedDisputeGameImpl
+                : opcmV2.implementations().permissionedDisputeGameImpl;
         } else {
             // OPCM v1: use implementations from v1 contract
             IOPContractsManager opcm = IOPContractsManager(_i.opcm);
