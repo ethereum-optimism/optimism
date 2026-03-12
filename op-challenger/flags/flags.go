@@ -29,7 +29,6 @@ import (
 const EnvVarPrefix = "OP_CHALLENGER"
 
 func prefixEnvVars(names ...string) []string {
-
 	envs := make([]string, 0, len(names))
 	for _, name := range names {
 		envs = append(envs, EnvVarPrefix+"_"+name)
@@ -237,7 +236,8 @@ var (
 		Usage: "Enable experimental witness endpoint for Kona interop. " +
 			"Uses debug_executePayload RPC to collect execution witnesses, " +
 			"reducing proof generation time by avoiding re-execution. " +
-			"Requires op-reth or execution client with debug_executePayload support.",
+			"Requires op-reth or execution client started with " +
+			"--proofs-history enabled to provide debug_executePayload support.",
 		EnvVars: prefixEnvVars("CANNON_KONA_EXPERIMENTAL_WITNESS_ENDPOINT"),
 	}
 	GameWindowFlag = &cli.DurationFlag{
