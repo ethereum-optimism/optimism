@@ -52,7 +52,7 @@ func NewSingleChainInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Mult
 		l2Net.ChainID(): l2Net.rollupCfg,
 	})
 
-	l2EL := startL2ELNodeWithSupervisor(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+	l2EL := startL2ELNodeWithSupervisor(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0), supervisor.UserRPC())
 	l2CL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 		Key:            "sequencer",
 		IsSequencer:    true,
@@ -124,8 +124,8 @@ func NewSimpleInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChai
 		l2BNet.ChainID(): l2BNet.rollupCfg,
 	})
 
-	l2AEL := startL2ELNodeWithSupervisor(t, l2ANet, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
-	l2BEL := startL2ELNodeWithSupervisor(t, l2BNet, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+	l2AEL := startL2ELNodeWithSupervisor(t, l2ANet, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0), supervisor.UserRPC())
+	l2BEL := startL2ELNodeWithSupervisor(t, l2BNet, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0), supervisor.UserRPC())
 	l2ACL := startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, l2AEL, jwtSecret, l2CLNodeStartConfig{
 		Key:            "sequencer",
 		IsSequencer:    true,
@@ -241,6 +241,7 @@ func NewMultiSupervisorInteropRuntime(t devtest.T) *MultiChainRuntime {
 		readJWTSecretFromPath(t, chainA.EL.JWTPath()),
 		"verifier",
 		NewELNodeIdentity(0),
+		supervisorSecondary.UserRPC(),
 	)
 	l2A2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chainA.Network, runtime.L1EL, runtime.L1CL, l2A2EL, readJWTSecretFromPath(t, chainA.EL.JWTPath()), l2CLNodeStartConfig{
 		Key:            "verifier",
@@ -260,6 +261,7 @@ func NewMultiSupervisorInteropRuntime(t devtest.T) *MultiChainRuntime {
 		readJWTSecretFromPath(t, chainB.EL.JWTPath()),
 		"verifier",
 		NewELNodeIdentity(0),
+		supervisorSecondary.UserRPC(),
 	)
 	l2B2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chainB.Network, runtime.L1EL, runtime.L1CL, l2B2EL, readJWTSecretFromPath(t, chainB.EL.JWTPath()), l2CLNodeStartConfig{
 		Key:            "verifier",
@@ -435,9 +437,27 @@ func startL2ELNodeWithSupervisor(
 	jwtPath string,
 	jwtSecret [32]byte,
 	key string,
-	_ *ELNodeIdentity,
+	identity *ELNodeIdentity,
+	supervisorRPC string,
 ) L2ELNode {
-	return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil)
+	cfg := DefaultL2ELConfig()
+	cfg.P2PAddr = "127.0.0.1"
+	cfg.P2PPort = identity.Port
+	cfg.P2PNodeKeyHex = identity.KeyHex()
+
+	l2EL := &OpGeth{
+		name:          key,
+		p:             t,
+		logger:        t.Logger().New("component", "l2el-"+key),
+		l2Net:         l2Net,
+		jwtPath:       jwtPath,
+		jwtSecret:     jwtSecret,
+		supervisorRPC: supervisorRPC,
+		cfg:           cfg,
+	}
+	l2EL.Start()
+	t.Cleanup(l2EL.Stop)
+	return l2EL
 }
 
 func readJWTSecretFromPath(t devtest.T, jwtPath string) [32]byte {
