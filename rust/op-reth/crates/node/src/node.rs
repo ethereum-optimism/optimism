@@ -53,7 +53,7 @@ use reth_optimism_rpc::{
 use reth_optimism_storage::OpStorage;
 use reth_optimism_txpool::{
     OpPooledTx,
-    supervisor::{DEFAULT_SUPERVISOR_URL, SupervisorClient},
+    supervisor::SupervisorClient,
 };
 use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
 use reth_rpc_api::{DebugApiServer, L2EthApiExtServer, eth::RpcTypes};
@@ -901,8 +901,8 @@ pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
     pub pool_config_overrides: PoolBuilderConfigOverrides,
     /// Enable transaction conditionals.
     pub enable_tx_conditional: bool,
-    /// Supervisor client url
-    pub supervisor_http: String,
+    /// Supervisor client url. When None, interop transaction validation is disabled.
+    pub supervisor_http: Option<String>,
     /// Supervisor safety level
     pub supervisor_safety_level: SafetyLevel,
     /// Marker for the pooled transaction type.
@@ -914,7 +914,7 @@ impl<T> Default for OpPoolBuilder<T> {
         Self {
             pool_config_overrides: Default::default(),
             enable_tx_conditional: false,
-            supervisor_http: DEFAULT_SUPERVISOR_URL.to_string(),
+            supervisor_http: None,
             supervisor_safety_level: SafetyLevel::CrossUnsafe,
             _pd: Default::default(),
         }
@@ -949,10 +949,10 @@ impl<T> OpPoolBuilder<T> {
         self
     }
 
-    /// Sets the supervisor client
+    /// Sets the supervisor client URL. Pass None to disable interop transaction validation.
     pub fn with_supervisor(
         mut self,
-        supervisor_client: String,
+        supervisor_client: Option<String>,
         supervisor_safety_level: SafetyLevel,
     ) -> Self {
         self.supervisor_http = supervisor_client;
@@ -976,19 +976,22 @@ where
     ) -> eyre::Result<Self::Pool> {
         let Self { pool_config_overrides, .. } = self;
 
-        // supervisor used for interop
-        if ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) &&
-            self.supervisor_http == DEFAULT_SUPERVISOR_URL
-        {
-            info!(target: "reth::cli",
-                url=%DEFAULT_SUPERVISOR_URL,
-                "Default supervisor url is used, consider changing --rollup.supervisor-http."
-            );
-        }
-        let supervisor_client = SupervisorClient::builder(self.supervisor_http.clone())
-            .minimum_safety(self.supervisor_safety_level)
-            .build()
-            .await;
+        // supervisor used for interop txpool validation
+        let supervisor_client = if let Some(url) = self.supervisor_http.clone() {
+            Some(
+                SupervisorClient::builder(url)
+                    .minimum_safety(self.supervisor_safety_level)
+                    .build()
+                    .await,
+            )
+        } else {
+            if ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) {
+                info!(target: "reth::cli",
+                    "No supervisor URL configured (--rollup.supervisor-http), interop transaction validation disabled."
+                );
+            }
+            None
+        };
 
         let blob_store = reth_node_builder::components::create_blob_store(ctx)?;
         let validator =
@@ -1006,11 +1009,15 @@ where
                 )
                 .build_with_tasks(ctx.task_executor().clone(), blob_store.clone())
                 .map(|validator| {
-                    OpTransactionValidator::new(validator)
+                    let v = OpTransactionValidator::new(validator)
                         // In --dev mode we can't require gas fees because we're unable to decode
                         // the L1 block info
-                        .require_l1_data_gas_fee(!ctx.config().dev.dev)
-                        .with_supervisor(supervisor_client.clone())
+                        .require_l1_data_gas_fee(!ctx.config().dev.dev);
+                    if let Some(client) = supervisor_client.clone() {
+                        v.with_supervisor(client)
+                    } else {
+                        v
+                    }
                 });
 
         let final_pool_config = pool_config_overrides.apply(ctx.pool_config());
@@ -1022,19 +1029,21 @@ where
         info!(target: "reth::cli", "Transaction pool initialized");
         debug!(target: "reth::cli", "Spawned txpool maintenance task");
 
-        // The Op txpool maintenance task is only spawned when interop is active
+        // The Op txpool maintenance task is only spawned when interop is active and a supervisor is configured
         if ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) {
-            // spawn the Op txpool maintenance task
-            let chain_events = ctx.provider().canonical_state_stream();
-            ctx.task_executor().spawn_critical_task(
-                "Op txpool interop maintenance task",
-                reth_optimism_txpool::maintain::maintain_transaction_pool_interop_future(
-                    transaction_pool.clone(),
-                    chain_events,
-                    supervisor_client,
-                ),
-            );
-            debug!(target: "reth::cli", "Spawned Op interop txpool maintenance task");
+            if let Some(supervisor) = supervisor_client {
+                // spawn the Op txpool maintenance task
+                let chain_events = ctx.provider().canonical_state_stream();
+                ctx.task_executor().spawn_critical_task(
+                    "Op txpool interop maintenance task",
+                    reth_optimism_txpool::maintain::maintain_transaction_pool_interop_future(
+                        transaction_pool.clone(),
+                        chain_events,
+                        supervisor,
+                    ),
+                );
+                debug!(target: "reth::cli", "Spawned Op interop txpool maintenance task");
+            }
         }
 
         if self.enable_tx_conditional {
