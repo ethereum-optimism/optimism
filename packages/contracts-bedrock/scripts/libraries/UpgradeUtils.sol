@@ -30,16 +30,6 @@ library UpgradeUtils {
     ///         Total: 28 implementations
     uint256 internal constant IMPLEMENTATION_COUNT = 28;
 
-    /// @notice The default gas limit for a deployment transaction.
-    /// @dev Based on gas profiling: largest implementation (EAS) uses 3,820,943 gas.
-    ///      Recommended: 5,731,414 (1.5x actual). Set to 6M for additional safety margin.
-    uint64 internal constant DEFAULT_DEPLOYMENT_GAS = 6_000_000;
-
-    /// @notice The default gas limit for an upgrade transaction.
-    /// @dev Based on gas profiling: ProxyAdmin upgrade uses 12,069 gas.
-    ///      Recommended: 18,103 (1.5x actual). Set to 50K for additional safety margin.
-    uint64 internal constant DEFAULT_UPGRADE_GAS = 50_000;
-
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
     /// @param upgradeExecution Gas for L2ProxyAdmin.upgradePredeploys() call
