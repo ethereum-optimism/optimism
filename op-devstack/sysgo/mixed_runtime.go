@@ -120,7 +120,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, "", metricsRegistrar)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
@@ -230,7 +230,6 @@ func startMixedOpRethNode(
 	key string,
 	jwtPath string,
 	jwtSecret [32]byte,
-	supervisorRPC string,
 	metricsRegistrar L2MetricsRegistrar,
 ) *OpReth {
 	tempDir := t.TempDir()
@@ -289,10 +288,6 @@ func startMixedOpRethNode(
 
 	if areMetricsEnabled() {
 		args = append(args, "--metrics=127.0.0.1:0")
-	}
-
-	if supervisorRPC != "" {
-		args = append(args, "--rollup.supervisor-http="+supervisorRPC)
 	}
 
 	initArgs := []string{
