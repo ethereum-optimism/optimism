@@ -58,7 +58,6 @@ type MixedSingleChainNodeSpec struct {
 	ELKey          string
 	CLKey          string
 	ELKind         MixedL2ELKind
-	ELProofHistory bool
 	CLKind         MixedL2CLKind
 	IsSequencer    bool
 }
@@ -121,7 +120,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, spec.ELProofHistory, metricsRegistrar)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
@@ -231,7 +230,6 @@ func startMixedOpRethNode(
 	key string,
 	jwtPath string,
 	jwtSecret [32]byte,
-	proofHistory bool,
 	metricsRegistrar L2MetricsRegistrar,
 ) *OpReth {
 	tempDir := t.TempDir()
@@ -299,27 +297,25 @@ func startMixedOpRethNode(
 	err = exec.Command(execPath, initArgs...).Run()
 	t.Require().NoError(err, "must init op-reth node")
 
-	if proofHistory {
-		proofHistoryDir := filepath.Join(tempDir, "proof-history")
+	proofHistoryDir := filepath.Join(tempDir, "proof-history")
 
-		initProofsArgs := []string{
-			"proofs",
-			"init",
-			"--datadir=" + dataDirPath,
-			"--chain=" + chainConfigPath,
-			"--proofs-history.storage-path=" + proofHistoryDir,
-		}
-		err = exec.Command(execPath, initProofsArgs...).Run()
-		t.Require().NoError(err, "must init op-reth proof history")
-
-		args = append(
-			args,
-			"--proofs-history",
-			"--proofs-history.window=200",
-			"--proofs-history.prune-interval=1m",
-			"--proofs-history.storage-path="+proofHistoryDir,
-		)
+	initProofsArgs := []string{
+		"proofs",
+		"init",
+		"--datadir=" + dataDirPath,
+		"--chain=" + chainConfigPath,
+		"--proofs-history.storage-path=" + proofHistoryDir,
 	}
+	err = exec.Command(execPath, initProofsArgs...).Run()
+	t.Require().NoError(err, "must init op-reth proof history")
+
+	args = append(
+		args,
+		"--proofs-history",
+		"--proofs-history.window=10000",
+		"--proofs-history.prune-interval=1m",
+		"--proofs-history.storage-path="+proofHistoryDir,
+	)
 
 	l2EL := &OpReth{
 		name:               key,
