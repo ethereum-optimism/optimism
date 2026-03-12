@@ -30,7 +30,7 @@ build-contracts:
 
 # Builds the custom linter.
 build-customlint:
-  make -C linter build
+  cd linter && just build
 
 # Lints Go code with specific linters.
 lint-go: build-customlint
@@ -122,11 +122,11 @@ op-node:
 
 # Generates mocks for op-node.
 generate-mocks-op-node:
-  make -C ./op-node generate-mocks
+  cd op-node && just generate-mocks
 
 # Generates mocks for op-service.
 generate-mocks-op-service:
-  make -C ./op-service generate-mocks
+  cd op-service && just generate-mocks
 
 # Builds op-batcher binary.
 op-batcher:
@@ -138,11 +138,11 @@ op-proposer:
 
 # Builds op-challenger binary.
 op-challenger:
-  make -C ./op-challenger op-challenger
+  cd op-challenger && just op-challenger
 
 # Builds op-dispute-mon binary.
 op-dispute-mon:
-  make -C ./op-dispute-mon op-dispute-mon
+  cd op-dispute-mon && just op-dispute-mon
 
 # Builds op-supernode binary.
 op-supernode:
@@ -154,15 +154,15 @@ op-interop-filter:
 
 # Builds op-program binary.
 op-program:
-  make -C ./op-program op-program
+  cd op-program && just op-program
 
 # Builds cannon binary.
 cannon:
-  make -C ./cannon cannon
+  cd cannon && just cannon
 
 # Builds reproducible prestate for op-program.
 reproducible-prestate-op-program:
-  make -C ./op-program build-reproducible-prestate
+  cd op-program && just build-reproducible-prestate
 
 # Builds reproducible prestate for kona.
 reproducible-prestate-kona:
@@ -170,7 +170,7 @@ reproducible-prestate-kona:
 
 # Builds reproducible prestates for op-program and kona.
 reproducible-prestate: reproducible-prestate-op-program reproducible-prestate-kona
-  make -C ./op-program output-prestate-hash
+  cd op-program && just output-prestate-hash
   cd rust && just output-kona-prestate-hash
 
 # Builds cannon prestates.
@@ -178,6 +178,8 @@ cannon-prestates: cannon op-program
   go run ./op-program/builder/main.go build-all-prestates
 
 # Cleans up unused dependencies in Go modules.
+# Bypasses the Go module proxy for freshly released versions.
+# See https://proxy.golang.org/ for more info.
 mod-tidy:
   GOPRIVATE="github.com/ethereum-optimism" go mod tidy
 
@@ -192,10 +194,10 @@ nuke: clean
 
 # Runs unit tests for individual components.
 test-unit:
-  make -C ./op-node test
-  make -C ./op-proposer test
-  make -C ./op-batcher test
-  make -C ./op-e2e test
+  cd op-node && just test
+  cd op-proposer && just test
+  cd op-batcher && just test
+  cd op-e2e && just test
   cd packages/contracts-bedrock && just test
 
 # Runs semgrep on the entire monorepo.
@@ -211,15 +213,15 @@ semgrep-ci:
 
 # Builds op-program-client binary.
 op-program-client:
-  make -C ./op-program op-program-client
+  cd op-program && just op-program-client
 
 # Builds op-program-host binary.
 op-program-host:
-  make -C ./op-program op-program-host
+  cd op-program && just op-program-host
 
 # Makes pre-test setup.
 make-pre-test:
-  make -C ./op-e2e pre-test
+  cd op-e2e && just pre-test
 
 # Runs comprehensive Go tests across all packages.
 [script('bash')]
@@ -247,7 +249,7 @@ go-tests-short: op-program-client op-program-host cannon build-contracts cannon-
 [script('bash')]
 _go-tests-ci-internal go_test_flags="":
   set -euo pipefail
-  make -C cannon cannon elf
+  cd cannon && just cannon elf
   echo "Setting up test directories..."
   mkdir -p ./tmp/test-results ./tmp/testlogs
   echo "Running Go tests with gotestsum..."

@@ -49,7 +49,7 @@ test-fault-proofs: pre-test
 
 # Build cannon prestates
 cannon-prestates:
-    make -C .. cannon-prestates
+    cd .. && just cannon-prestates
 
 # Pre-test setup
 pre-test: pre-test-cannon
