@@ -13,7 +13,7 @@ import (
 // TestCGT_PortalReceiveReverts asserts that sending ETH to the L1 OptimismPortal
 // (receive() -> depositTransaction) reverts under CGT, preventing ETH from getting stuck.
 func TestCGT_PortalReceiveReverts(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newCGTMinimal(t)
 	ensureCGTOrSkip(t, sys)
 

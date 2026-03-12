@@ -15,7 +15,7 @@ import (
 
 // TestCLELDivergence tests that the CL and EL diverge when the CL advances the unsafe head, due to accepting SYNCING response from the EL, but the EL cannot validate the block (yet), does not canonicalize it, and doesn't serve it.
 func TestCLELDivergence(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 	require := t.Require()
 	l := t.Logger()

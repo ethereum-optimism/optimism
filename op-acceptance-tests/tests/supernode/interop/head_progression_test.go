@@ -25,7 +25,7 @@ import (
 //   - Finalized head eventually catches up to a snapshot of the safe head
 //   - Finalized L2 blocks have sane L1 origins (behind the L1 finalized head)
 func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSupernodeInteropWithTimeTravel(t, 0)
 	attempts := 15 // each attempt is hardcoded with a 2s by the DSL.
 
@@ -152,7 +152,7 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 // - Cross-safe head is gated by the slower chain
 // - Safe head advances after slower chain catches up
 func TestSupernodeInterop_SafeHeadWithUnevenProgress(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSupernodeInteropWithTimeTravel(t, 0)
 	attempts := 15
 

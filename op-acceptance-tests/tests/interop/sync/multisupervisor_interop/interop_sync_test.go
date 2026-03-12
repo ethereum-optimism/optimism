@@ -16,7 +16,7 @@ import (
 // L2CL ahead of supervisor, aka supervisor needs to reset the L2CL, to reproduce old data. Currently supervisor has only indexing mode implemented, so the supervisor will ask the L2CL to reset back.
 func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := presets.NewMultiSupervisorInterop(t)
 	logger := sys.Log.With("Test", "TestL2CLAheadOfSupervisor")
@@ -136,7 +136,7 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := presets.NewMultiSupervisorInterop(t)
 	logger := sys.Log.With("Test", "TestUnsafeChainKnownToL2CL")
@@ -207,7 +207,7 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := presets.NewMultiSupervisorInterop(t)
 	logger := sys.Log.With("Test", "TestUnsafeChainUnknownToL2CL")
@@ -248,7 +248,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 // Tests started/restarted L2CL advances unsafe head via P2P connection.
 func TestL2CLSyncP2P(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := presets.NewMultiSupervisorInterop(t)
 	logger := sys.Log.With("Test", "TestL2CLSyncP2P")

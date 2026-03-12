@@ -168,6 +168,16 @@ func WithGlobalSyncTesterELOption(opt sysgo.SyncTesterELOption) Option {
 	}
 }
 
+func WithL1Geth(execPath string) Option {
+	return option{
+		kinds: optionKindL1EL,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.L1ELKind = "geth"
+			cfg.L1GethExecPath = execPath
+		},
+	}
+}
+
 func WithProposerOption(opt sysgo.ProposerOption) Option {
 	var kinds optionKinds
 	if opt != nil {

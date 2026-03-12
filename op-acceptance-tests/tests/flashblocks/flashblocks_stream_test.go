@@ -17,14 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	flashblocksStreamRate  = os.Getenv("FLASHBLOCKS_STREAM_RATE_MS")
-	maxExpectedFlashblocks = 20
-)
+const maxExpectedFlashblocks = 20
 
 // TestFlashblocksStream checks we can connect to the flashblocks stream across multiple CL backends.
 func TestFlashblocksStream(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	logger := t.Logger()
 	sys := presets.NewSingleChainWithFlashblocks(t)
 	filterHandler, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
@@ -43,6 +40,7 @@ func TestFlashblocksStream(gt *testing.T) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	flashblocksStreamRate := os.Getenv("FLASHBLOCKS_STREAM_RATE_MS")
 	if flashblocksStreamRate == "" {
 		logger.Warn("FLASHBLOCKS_STREAM_RATE_MS is not set, using default of 250ms")
 		flashblocksStreamRate = "250"

@@ -22,7 +22,7 @@ import (
 // This test can take 3 minutes to run.
 func TestSequencingWindowExpiry(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := presets.NewSimpleInterop(t,
 		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),

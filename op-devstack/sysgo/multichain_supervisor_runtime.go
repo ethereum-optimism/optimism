@@ -51,7 +51,7 @@ func NewSingleChainInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Mult
 		timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClock(t, l1Net, jwtPath, l1Clock)
+	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 	supervisor := startSupervisor(t, "1-primary", l1EL, fullCfgSet, map[eth.ChainID]*rollup.Config{
 		l2Net.ChainID(): l2Net.rollupCfg,
 	})
@@ -125,7 +125,7 @@ func NewSimpleInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChai
 		timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClock(t, l1Net, jwtPath, l1Clock)
+	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 	supervisor := startSupervisor(t, "1-primary", l1EL, fullCfgSet, map[eth.ChainID]*rollup.Config{
 		l2ANet.ChainID(): l2ANet.rollupCfg,
 		l2BNet.ChainID(): l2BNet.rollupCfg,

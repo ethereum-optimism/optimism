@@ -17,6 +17,7 @@ const (
 	optionKindOPRBuilder
 	optionKindGlobalL2CL
 	optionKindGlobalSyncTesterEL
+	optionKindL1EL
 	optionKindAddedGameType
 	optionKindRespectedGameType
 	optionKindChallengerCannonKona
@@ -33,6 +34,7 @@ const allOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder |
 	optionKindGlobalL2CL |
 	optionKindGlobalSyncTesterEL |
+	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
 	optionKindChallengerCannonKona |
@@ -52,6 +54,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindOPRBuilder, label: "builder options"},
 	{kind: optionKindGlobalL2CL, label: "L2 CL options"},
 	{kind: optionKindGlobalSyncTesterEL, label: "sync tester EL options"},
+	{kind: optionKindL1EL, label: "L1 EL options"},
 	{kind: optionKindAddedGameType, label: "added game types"},
 	{kind: optionKindRespectedGameType, label: "respected game types"},
 	{kind: optionKindChallengerCannonKona, label: "challenger cannon-kona"},
@@ -99,6 +102,7 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindGlobalL2CL |
+	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
 	optionKindChallengerCannonKona |
@@ -110,6 +114,7 @@ const minimalWithConductorsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindGlobalL2CL |
+	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
 	optionKindTimeTravel |
@@ -123,6 +128,7 @@ const singleChainInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindGlobalL2CL |
+	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
 	optionKindTimeTravel |
@@ -135,18 +141,21 @@ const simpleInteropSuperProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindGlobalL2CL |
+	optionKindL1EL |
 	optionKindChallengerCannonKona |
 	optionKindTimeTravel |
 	optionKindMaxSequencingWindow |
 	optionKindRequireInteropNotAtGen
 
-const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindChallengerCannonKona
+const supernodeProofsPresetSupportedOptionKinds = optionKindChallengerCannonKona |
+	optionKindL1EL
 
-const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer
+const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
+	optionKindL1EL
 
 const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindTimeTravel
+	optionKindTimeTravel |
+	optionKindL1EL
 
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder

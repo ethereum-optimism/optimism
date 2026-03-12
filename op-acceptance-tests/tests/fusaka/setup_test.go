@@ -10,10 +10,8 @@ import (
 )
 
 func newMinimalFusaka(t devtest.T) *presets.Minimal {
-	resetEnvVars := ConfigureDevstackEnvVars()
-	t.Cleanup(resetEnvVars)
-
 	return presets.NewMinimal(t,
+		L1GethOption(),
 		presets.WithDeployerOptions(
 			sysgo.WithDefaultBPOBlobSchedule,
 			// Make the BPO fork happen after Osaka so we can easily use geth's eip4844.CalcBlobFee

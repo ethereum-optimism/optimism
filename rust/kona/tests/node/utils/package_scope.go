@@ -138,6 +138,9 @@ func (t *packageScopeT) Gate() *testreq.Assertions {
 	return t.gate
 }
 
+func (t *packageScopeT) MarkFlaky(string) {
+}
+
 func (t *packageScopeT) Deadline() (time.Time, bool) {
 	return time.Time{}, false
 }

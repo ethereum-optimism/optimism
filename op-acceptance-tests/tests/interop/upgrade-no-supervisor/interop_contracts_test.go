@@ -17,7 +17,7 @@ import (
 // Note: CrossL2Inbox is only deployed when there are 2+ chains in the dependency set.
 // This test uses a single-chain setup, so only L2ToL2CrossDomainMessenger is deployed.
 func TestInteropContractsDeployed(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimalInteropNoSupervisor(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -49,7 +49,7 @@ func TestInteropContractsDeployed(gt *testing.T) {
 // TestLocalFinalityWithoutSupervisor verifies that local finality and promotion work
 // correctly when interop is active but no supervisor is running.
 func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimalInteropNoSupervisor(t)
 	require := t.Require()
 	logger := t.Logger()

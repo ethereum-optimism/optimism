@@ -17,7 +17,7 @@ import (
 
 // TestRPCConnectivity checks we can connect to L2 execution layer RPC endpoints
 func TestRPCConnectivity(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t)
 	logger := testlog.Logger(t, log.LevelInfo).With("Test", "TestRPCConnectivity")
 	tracer := t.Tracer()

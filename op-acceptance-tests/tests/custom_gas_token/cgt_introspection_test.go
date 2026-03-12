@@ -9,7 +9,7 @@ import (
 // TestCGT_IntrospectionViaL1Block verifies that the L2 L1Block predeploy reports
 // that CGT mode is enabled and exposes non-empty token metadata (name, symbol).
 func TestCGT_IntrospectionViaL1Block(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newCGTMinimal(t)
 
 	name, symbol := ensureCGTOrSkip(t, sys)

@@ -38,6 +38,9 @@ parameters:
   sdk_dispatch:
     type: boolean
     default: false
+  docker_publish_dispatch:
+    type: boolean
+    default: false
   publish_contract_artifacts_dispatch:
     type: boolean
     default: false
@@ -71,15 +74,6 @@ parameters:
   devnet-metrics-collect:
     type: boolean
     default: false
-  flake-shake-dispatch:
-    type: boolean
-    default: false
-  flake-shake-iterations:
-    type: integer
-    default: 300
-  flake-shake-workers:
-    type: integer
-    default: 50
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   go-cache-version:
     type: string
@@ -105,6 +99,7 @@ workflows:
             .* c-kontrol_dispatch << pipeline.parameters.kontrol_dispatch >> .circleci/continue/main.yml
             .* c-cannon_full_test_dispatch << pipeline.parameters.cannon_full_test_dispatch >> .circleci/continue/main.yml
             .* c-sdk_dispatch << pipeline.parameters.sdk_dispatch >> .circleci/continue/main.yml
+            .* c-docker_publish_dispatch << pipeline.parameters.docker_publish_dispatch >> .circleci/continue/main.yml
             .* c-publish_contract_artifacts_dispatch << pipeline.parameters.publish_contract_artifacts_dispatch >> .circleci/continue/main.yml
             .* c-stale_check_dispatch << pipeline.parameters.stale_check_dispatch >> .circleci/continue/main.yml
             .* c-contracts_coverage_dispatch << pipeline.parameters.contracts_coverage_dispatch >> .circleci/continue/main.yml
@@ -114,9 +109,6 @@ workflows:
             .* c-github-event-action << pipeline.parameters.github-event-action >> .circleci/continue/main.yml
             .* c-github-event-base64 << pipeline.parameters.github-event-base64 >> .circleci/continue/main.yml
             .* c-devnet-metrics-collect << pipeline.parameters.devnet-metrics-collect >> .circleci/continue/main.yml
-            .* c-flake-shake-dispatch << pipeline.parameters.flake-shake-dispatch >> .circleci/continue/main.yml
-            .* c-flake-shake-iterations << pipeline.parameters.flake-shake-iterations >> .circleci/continue/main.yml
-            .* c-flake-shake-workers << pipeline.parameters.flake-shake-workers >> .circleci/continue/main.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
             rust/.* c-rust_files_changed true .circleci/continue/main.yml
             ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/main.yml

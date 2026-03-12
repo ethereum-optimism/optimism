@@ -17,7 +17,7 @@ import (
 // And then confirms we can finalize the chains.
 func TestUnscheduledInterop(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, presets.WithDeployerOptions(
 		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2 := range builder.L2s() {

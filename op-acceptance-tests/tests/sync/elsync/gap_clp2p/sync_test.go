@@ -10,7 +10,7 @@ import (
 )
 
 func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newGapCLP2PSystem(t)
 	logger := t.Logger()
 
@@ -45,7 +45,7 @@ func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
 // not cause the CL's unsafe head to regress, preserving the last known valid head
 // while maintaining correct Engine API semantics.
 func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newGapCLP2PSystem(t)
 	logger := t.Logger()
 	require := t.Require()

@@ -47,7 +47,7 @@ func TestReorgInvalidExecMsgs(gt *testing.T) {
 }
 
 func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Message)) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewSimpleInterop(t)

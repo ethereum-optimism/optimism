@@ -18,7 +18,7 @@ import (
 
 func TestL1ToL2Deposit(gt *testing.T) {
 	// Create a test environment using op-devstack
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t)
 
 	// Skip this test if CGT is enabled

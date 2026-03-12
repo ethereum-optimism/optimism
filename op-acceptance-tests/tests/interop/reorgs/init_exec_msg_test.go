@@ -24,7 +24,7 @@ import (
 
 func TestReorgInitExecMsg(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewSimpleInterop(t)
