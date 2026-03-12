@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -117,7 +118,11 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		}
 		batch.Batch, err = DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
 		if err != nil {
-			return nil, err
+			if errors.Is(err, ErrCritical) {
+				return nil, err
+			}
+			cr.log.Warn("dropping malformed span batch", "err", err)
+			return nil, NotEnoughData
 		}
 		batch.LogContext(cr.log).Info("decoded span batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("span")
