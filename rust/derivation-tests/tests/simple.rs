@@ -28,7 +28,7 @@ const EXPECTED_MULTI_BLOCK_ROOT: alloy_primitives::B256 =
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {
     let mut test = DerivationTest::new();
     test.advance_l1(l2_count);
-    test.derive_empty_blocks(l2_count);
+    test.derive_empty_l2_blocks(l2_count);
     test
 }
 
@@ -81,7 +81,7 @@ fn test_empty_blocks_structure() {
 fn test_single_batch_submission() {
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_empty_block();
+    test.derive_empty_l2_block();
     test.submit_batch_with(BatchConfig::singular_calldata());
 
     let root1 = test.expected_super_root();
@@ -97,7 +97,7 @@ fn test_single_batch_submission() {
 fn test_multiple_l2_blocks() {
     let mut test = DerivationTest::new();
     test.advance_l1(5);
-    test.derive_empty_blocks(6);
+    test.derive_empty_l2_blocks(6);
     test.submit_batch_with(BatchConfig::singular_calldata());
 
     // 7 blocks total: genesis + 6 built
@@ -196,7 +196,7 @@ fn test_single_transfer() {
 
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_block()
+    test.derive_l2_block()
         .with_funded_transfer(
             Address::with_last_byte(0x99),
             U256::from(1_000_000_000_000_000_000u64),
@@ -225,7 +225,7 @@ fn test_single_transfer() {
 fn test_blob_batch() {
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_empty_blocks(3);
+    test.derive_empty_l2_blocks(3);
     test.submit_batch();
 
     let root1 = test.expected_super_root();
@@ -237,7 +237,7 @@ fn test_blob_batch() {
 async fn test_blob_batch_beacon_endpoint() {
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_empty_block();
+    test.derive_empty_l2_block();
     test.submit_batch();
 
     let servers = test.serve().await.unwrap();

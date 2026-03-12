@@ -5,7 +5,7 @@ use derivation_tests::{config::DeterministicConfig, harness::DerivationTest};
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {
     let mut test = DerivationTest::new();
     test.advance_l1(l2_count);
-    test.derive_empty_blocks(l2_count);
+    test.derive_empty_l2_blocks(l2_count);
     test
 }
 

@@ -16,7 +16,7 @@ use crate::{
 /// High-level test entry point that ties together L1 builder, L2 builder, and verification.
 ///
 /// Provides both a low-level API (`self.l1`, `self.l2`) and a scenario-oriented DSL
-/// (`advance_l1`, `derive_empty_block`, `submit_batch`, `finalize`). The DSL methods
+/// (`advance_l1`, `derive_empty_l2_block`, `submit_batch`, `finalize`). The DSL methods
 /// wrap the low-level API with sensible defaults — tests can freely mix both.
 #[allow(missing_debug_implementations)]
 pub struct DerivationTest {
@@ -214,14 +214,14 @@ impl DerivationTest {
     /// Build one empty (deposit-only) L2 block.
     ///
     /// Auto-sets the epoch to L1 genesis on the first call.
-    pub fn derive_empty_block(&mut self) {
+    pub fn derive_empty_l2_block(&mut self) {
         self.ensure_epoch();
         let block_ref = self.l2.build_empty_block().expect("failed to build L2 block");
         self.pending_l2_blocks.push(block_ref);
     }
 
     /// Build `count` empty (deposit-only) L2 blocks.
-    pub fn derive_empty_blocks(&mut self, count: usize) {
+    pub fn derive_empty_l2_blocks(&mut self, count: usize) {
         self.ensure_epoch();
         for _ in 0..count {
             let block_ref = self.l2.build_empty_block().expect("failed to build L2 block");
@@ -233,7 +233,7 @@ impl DerivationTest {
     ///
     /// Returns a [`BlockBuilder`] that collects transactions and builds the
     /// block on [`.build()`](super::BlockBuilder::build).
-    pub fn derive_block(&mut self) -> super::BlockBuilder<'_> {
+    pub fn derive_l2_block(&mut self) -> super::BlockBuilder<'_> {
         self.ensure_epoch();
         super::BlockBuilder::new(self)
     }
@@ -252,7 +252,7 @@ impl DerivationTest {
         let refs: Vec<L2BlockRef> = self.pending_l2_blocks.drain(..).collect();
         assert!(
             !refs.is_empty(),
-            "no pending L2 blocks to submit — call derive_empty_block() first"
+            "no pending L2 blocks to submit — call derive_empty_l2_block() first"
         );
 
         let epoch =

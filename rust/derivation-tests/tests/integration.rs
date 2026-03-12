@@ -92,7 +92,7 @@ macro_rules! run_all_programs {
 fn empty_blocks() -> DerivationTest {
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_empty_block();
+    test.derive_empty_l2_block();
     test.submit_batch_with(BatchConfig::singular_calldata());
     test.finalize();
     test
@@ -102,7 +102,7 @@ fn empty_blocks() -> DerivationTest {
 fn with_batch() -> DerivationTest {
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_block()
+    test.derive_l2_block()
         .with_funded_transfer(
             Address::with_last_byte(0x99),
             U256::from(1_000_000_000_000_000_000u64),

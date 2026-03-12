@@ -53,7 +53,7 @@ impl BatchConfig {
 
 /// Builder for L2 blocks with user transactions.
 ///
-/// Created by [`DerivationTest::derive_block`]. Collects transactions and
+/// Created by [`DerivationTest::derive_l2_block`]. Collects transactions and
 /// builds the block on [`build`](Self::build).
 #[allow(missing_debug_implementations)]
 pub struct BlockBuilder<'a> {

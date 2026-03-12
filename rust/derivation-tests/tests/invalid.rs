@@ -11,7 +11,7 @@ use derivation_tests::harness::DerivationTest;
 fn test_wrong_batcher_address() {
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_empty_block();
+    test.derive_empty_l2_block();
 
     // Drop to low-level for adversarial part
     let fake_batch_data = Bytes::from(vec![0x00, 0xDE, 0xAD, 0xBE, 0xEF]);
@@ -26,7 +26,7 @@ fn test_wrong_batcher_address() {
 fn test_truncated_frame() {
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_empty_block();
+    test.derive_empty_l2_block();
 
     // Drop to low-level for adversarial part
     let truncated_frame = Bytes::from(vec![0x00, 0x01, 0x02]);
@@ -49,7 +49,7 @@ fn test_future_timestamp_batch() {
 
     let mut test = DerivationTest::new();
     test.advance_l1(2);
-    test.derive_empty_block();
+    test.derive_empty_l2_block();
 
     // Drop to low-level — manually construct an invalid batch
     let l1_origin = test.l1.block_at(0).unwrap();

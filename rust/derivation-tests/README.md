@@ -38,20 +38,20 @@ use derivation_tests::harness::{DerivationTest, BatchConfig};
 
 let mut test = DerivationTest::new();
 test.advance_l1(2);
-test.derive_empty_block();
+test.derive_empty_l2_block();
 test.submit_batch_with(BatchConfig::singular_calldata());
 let root = test.finalize();
 assert_ne!(root, alloy_primitives::B256::ZERO);
 ```
 
-The DSL methods (`advance_l1`, `derive_empty_block`, `submit_batch`, `finalize`) describe the scenario at a high level. For tests that need fine-grained control (adversarial batches, manual encoding), the low-level API (`test.l1`, `test.l2`) remains public.
+The DSL methods (`advance_l1`, `derive_empty_l2_block`, `submit_batch`, `finalize`) describe the scenario at a high level. For tests that need fine-grained control (adversarial batches, manual encoding), the low-level API (`test.l1`, `test.l2`) remains public.
 
 ### DSL methods
 
 - `advance_l1(count)` -- emit empty L1 blocks
 - `advance_epoch()` -- advance the L2 epoch to the latest L1 block
-- `derive_empty_block()` / `derive_empty_blocks(count)` -- build deposit-only L2 blocks
-- `derive_block()` -- returns a `BlockBuilder` for L2 blocks with user transactions
+- `derive_empty_l2_block()` / `derive_empty_l2_blocks(count)` -- build deposit-only L2 blocks
+- `derive_l2_block()` -- returns a `BlockBuilder` for L2 blocks with user transactions
 - `submit_batch()` / `submit_batch_with(config)` -- encode pending L2 blocks and submit on L1
 - `finalize()` -- seal the L1 chain and return the expected super root
 
@@ -65,7 +65,7 @@ The DSL methods (`advance_l1`, `derive_empty_block`, `submit_batch`, `finalize`)
 
 **BatchConfig** -- controls batch encoding (`Singular` or `SpanBatch`) and submission type (`Calldata` or `Blobs`). Defaults to span batch via blobs.
 
-**BlockBuilder** -- fluent builder for L2 blocks with user transactions. Created by `derive_block()`, supports `with_funded_transfer(to, value)` for simple transfers and `with_tx(op_tx)` for pre-signed transactions.
+**BlockBuilder** -- fluent builder for L2 blocks with user transactions. Created by `derive_l2_block()`, supports `with_funded_transfer(to, value)` for simple transfers and `with_tx(op_tx)` for pre-signed transactions.
 
 **TestServers** -- starts L1 RPC, L2 RPC, and Beacon API servers on ephemeral ports. Required for op-program and kona-host integration tests.
 
