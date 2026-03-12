@@ -28,7 +28,7 @@ func simpleWithSyncTesterOpts() []presets.Option {
 }
 
 func TestMultiELSync(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 

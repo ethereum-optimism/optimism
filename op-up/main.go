@@ -445,6 +445,10 @@ func (t *testingT) Gate() *testreq.Assertions {
 	return t.gate
 }
 
+// MarkFlaky implements devtest.T.
+func (t *testingT) MarkFlaky(string) {
+}
+
 // Helper implements devtest.T.
 func (t *testingT) Helper() {
 }

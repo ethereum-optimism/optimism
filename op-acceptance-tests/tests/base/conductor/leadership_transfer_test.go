@@ -22,7 +22,7 @@ type conductorWithInfo struct {
 
 // TestConductorLeadershipTransfer checks if the leadership transfer works correctly on the conductors
 func TestConductorLeadershipTransfer(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	logger := testlog.Logger(t, log.LevelInfo).With("Test", "TestConductorLeadershipTransfer")
 
 	sys := presets.NewMinimalWithConductors(t)

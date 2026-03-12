@@ -58,7 +58,7 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 // op-e2e/e2eutils/geth/geth.go when initialising FakePoS)
 // pre- and post-checks are sanity checks to ensure that the blocks we expected to be reorged were indeed reorged or not
 func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksFunc) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewSimpleInterop(t)

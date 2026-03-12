@@ -17,7 +17,7 @@ import (
 //  3. Verifier restarts, and consolidation drops the verifier previously-unsafe blocks.
 //  4. CLP2P is restored, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -147,7 +147,7 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 //  3. Verifier restarts and detects the L1 reorg, triggering its own unsafe reorg,
 //  4. Verifier then backfills and closes the unsafe gap once reconnected via CLP2P.
 func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -269,7 +269,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 //  3. Verifier detects the L1 reorg, triggering its own unsafe reorg.
 //  4. CLP2P is restored Verifier, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()

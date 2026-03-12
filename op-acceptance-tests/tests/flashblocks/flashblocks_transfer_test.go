@@ -31,7 +31,7 @@ type timedMessage struct {
 // - That Flashblock's time (in seconds) must be less than or equal to the Transaction's block time (in seconds). (Can't check the block time beyond the granularity of seconds)
 // - That Flashblock's time in nanoseconds must be before the approximated transaction confirmation time recorded previously.
 func TestFlashblocksTransfer(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	logger := t.Logger()
 	tracer := t.Tracer()
 	ctx := t.Ctx()

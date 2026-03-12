@@ -14,7 +14,7 @@ import (
 
 // TestChainFork checks that the chain does not fork (all nodes have the same block hash for a fixed block number).
 func TestChainFork(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t)
 
 	t.Logger().Info("Started chain fork test")

@@ -59,15 +59,6 @@ parameters:
   c-devnet-metrics-collect:
     type: boolean
     default: false
-  c-flake-shake-dispatch:
-    type: boolean
-    default: false
-  c-flake-shake-iterations:
-    type: integer
-    default: 300
-  c-flake-shake-workers:
-    type: integer
-    default: 50
   # Set to true by path-filtering when files under rust/ change.
   # When false on feature branches, kona-build-release skips cargo build and
   # reuses cached binaries — saving ~9 minutes on PRs that don't touch Rust.
@@ -142,15 +133,6 @@ parameters:
   devnet-metrics-collect:
     type: boolean
     default: false
-  flake-shake-dispatch:
-    type: boolean
-    default: false
-  flake-shake-iterations:
-    type: integer
-    default: 300
-  flake-shake-workers:
-    type: integer
-    default: 50
   go-cache-version:
     type: string
     default: "v0.0"
@@ -206,21 +188,6 @@ commands:
             gcloud auth login --brief --cred-file "<< parameters.gcp_cred_config_file_path >>"
             # Configure ADC
             echo "export GOOGLE_APPLICATION_CREDENTIALS='<< parameters.gcp_cred_config_file_path >>'" | tee -a "$BASH_ENV"
-
-  clean-old-acceptor-logs:
-    description: "Delete op-acceptor testrun logs older than 60 days (prevents disk bloat across workspace attaches/reruns)."
-    steps:
-      - run:
-          name: Cleanup old op-acceptor testrun logs (>60 days)
-          command: |
-            set -eu
-            for base in "op-acceptor/logs" "op-acceptance-tests/logs"; do
-              if [ -d "$base" ]; then
-                echo "Scanning $base for old testrun-* directories..."
-                # Remove any testrun-* directories older than 60 days
-                find "$base" -type d -name 'testrun-*' -mtime +60 -print -exec rm -rf {} +
-              fi
-            done
 
   check-changed:
     description: "Conditionally halts a step if certain modules change"
@@ -2013,10 +1980,6 @@ jobs:
 
   op-acceptance-tests:
     parameters:
-      gate:
-        description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
-        type: string
-        default: "base"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona)"
         type: string
@@ -2025,10 +1988,6 @@ jobs:
         description: "L2 execution layer client (op-geth or op-reth)"
         type: string
         default: "op-geth"
-      run_all:
-        description: When true, run all tests in gateless mode.
-        type: boolean
-        default: false
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -2068,29 +2027,14 @@ jobs:
           name: Download Go dependencies
           working_directory: op-acceptance-tests
           command: go mod download
-      - run:
-          name: Lint/Vet/Build op-acceptance-tests/cmd
-          working_directory: op-acceptance-tests
-          command: |
-            just cmd-check
-      # Prepare the test environment
-      - run:
-          name: Prepare test environment (compile tests and cache build results)
-          working_directory: op-acceptance-tests
-          command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
           name: Run acceptance tests
           working_directory: op-acceptance-tests
-          no_output_timeout: 1h
+          no_output_timeout: <<parameters.no_output_timeout>>
           command: |
-            if <<parameters.run_all>>; then
-              echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
-              LOG_LEVEL=info just acceptance-test-all
-            else
-              echo "Running in gate mode (gate=<<parameters.gate>>)"
-              LOG_LEVEL=info just acceptance-test "<<parameters.gate>>"
-            fi
+            echo "Running all acceptance test packages via gotestsum/go test..."
+            LOG_LEVEL=info just acceptance-test-all
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2102,7 +2046,7 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/failed/*.log" || true
+            cat "$LOG_DIR"/failed/*.log || true
           when: on_fail
       - run:
           name: Print results (all)
@@ -2110,13 +2054,6 @@ jobs:
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR/all.log" || true
-      - run:
-          name: Generate JUnit XML test report for CircleCI
-          working_directory: op-acceptance-tests
-          when: always
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
@@ -2139,216 +2076,15 @@ jobs:
             - notify-failures-on-develop:
                 mentions: "@protocol-devx-pod @changwan"
 
-  op-acceptance-tests-flake-shake:
-    parameters:
-      gate:
-        type: string
-        default: "flake-shake"
-      l2_cl_kind:
-        description: "L2 consensus layer client (op-node or kona)"
-        type: string
-        default: "op-node"
-      l2_el_kind:
-        description: "L2 execution layer client (op-geth or op-reth)"
-        type: string
-        default: "op-geth"
-    machine:
-      image: ubuntu-2404:current
-    resource_class: xlarge
-    parallelism: << pipeline.parameters.c-flake-shake-workers >>
+  # Aggregator job - allows downstream jobs and required checks to depend on a single memory-all job.
+  memory-all:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
     steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - attach_workspace:
-          at: .
       - run:
-          name: Configure Rust binary paths (sysgo)
-          command: |
-            ROOT_DIR="$(pwd)"
-            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
-            echo "export RUST_BINARY_PATH_KONA_NODE=$BIN_DIR/kona-node" >> "$BASH_ENV"
-            echo "export OP_RETH_EXEC_PATH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
-      - run:
-          name: Configure L2 stack
-          command: |
-            echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
-            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
-      - run:
-          name: Download Go dependencies
-          working_directory: op-acceptance-tests
-          command: go mod download
-      - run:
-          name: Lint/Vet/Build op-acceptance-tests/cmd
-          working_directory: op-acceptance-tests
-          command: |
-            just cmd-check
-      - run:
-          name: Calculate iterations for worker
-          command: |
-            bash ./op-acceptance-tests/scripts/ci_flake_shake_calc_iterations.sh << pipeline.parameters.c-flake-shake-iterations >>
-      - run:
-          name: Run flake-shake iterations
-          no_output_timeout: 3h
-          working_directory: op-acceptance-tests
-          command: |
-            OUTPUT_DIR="logs/flake-shake-results-worker-${FLAKE_SHAKE_WORKER_ID}"
-            mkdir -p "$OUTPUT_DIR"
-            op-acceptor \
-              --validators ./acceptance-tests.yaml \
-              --gate << parameters.gate >> \
-              --testdir tests \
-              --flake-shake \
-              --flake-shake-iterations "$FLAKE_SHAKE_ITERATIONS" \
-              --log.level debug \
-              --logdir "./$OUTPUT_DIR"
-      - persist_to_workspace:
-          root: op-acceptance-tests
-          paths:
-            - logs/flake-shake-results-worker-*/
-      - store_artifacts:
-          path: ./op-acceptance-tests/logs
-          destination: flake-shake-workers
-
-  op-acceptance-tests-flake-shake-report:
-    machine:
-      image: ubuntu-2404:current
-    resource_class: large
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - attach_workspace:
-          at: .
-      - clean-old-acceptor-logs
-      - run:
-          name: Lint/Vet/Build op-acceptance-tests/cmd
-          working_directory: op-acceptance-tests
-          command: |
-            just cmd-check
-      - go-restore-cache:
-          namespace: op-acceptance-tests-flake-shake-aggregator
-      - run:
-          name: Build flake-shake aggregator
-          working_directory: op-acceptance-tests
-          command: |
-            go mod download
-            go build -o ../flake-shake-aggregator ./cmd/flake-shake-aggregator/main.go
-      - go-save-cache:
-          namespace: op-acceptance-tests-flake-shake-aggregator
-      - run:
-          name: Aggregate results
-          command: |
-            mkdir -p final-report
-            ./flake-shake-aggregator \
-              --input-pattern "logs/flake-shake-results-worker-*/testrun-*/flake-shake-report.json" \
-              --output-dir final-report \
-              --verbose
-      - run:
-          name: Generate summary
-          command: |
-            bash ./op-acceptance-tests/scripts/ci_flake_shake_generate_summary.sh final-report/flake-shake-report.json final-report
-      - run:
-          name: Bundle consolidated flake-shake worker logs
-          command: |
-            set -euo pipefail
-            # Create a single tarball with all worker logs, if any exist in the workspace
-            if compgen -G "op-acceptance-tests/logs/flake-shake-results-worker-*" > /dev/null; then
-              tar -czf final-report/flake-shake-workers-logs.tar.gz op-acceptance-tests/logs/flake-shake-results-worker-*
-              echo "Created final-report/flake-shake-workers-logs.tar.gz"
-            else
-              echo "No worker log directories found to bundle"
-            fi
-      - store_artifacts:
-          path: ./final-report
-          destination: flake-shake-report
-
-  op-acceptance-tests-flake-shake-promote:
-    machine:
-      image: ubuntu-2404:current
-    resource_class: large
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - run:
-          name: Lint/Vet/Build op-acceptance-tests/cmd
-          working_directory: op-acceptance-tests
-          command: |
-            just cmd-check
-      - go-restore-cache:
-          namespace: op-acceptance-tests-flake-shake-promoter
-      - run:
-          name: Build flake-shake promoter
-          working_directory: op-acceptance-tests
-          command: |
-            go mod download
-            go build -o ../flake-shake-promoter ./cmd/flake-shake-promoter/main.go
-      - go-save-cache:
-          namespace: op-acceptance-tests-flake-shake-promoter
-      - run:
-          name: Set GH_TOKEN
-          command: |
-            if [ -n "${GITHUB_TOKEN_GOVERNANCE:-}" ]; then
-              echo "export GH_TOKEN=${GITHUB_TOKEN_GOVERNANCE}" >> "$BASH_ENV"
-            fi
-      - run:
-          name: Validate GH_TOKEN is present
-          command: |
-            if [ -z "${GH_TOKEN:-}" ]; then
-              echo "GH_TOKEN is required for PR creation" >&2
-              exit 1
-            fi
-      - run:
-          name: Run flake-shake promoter
-          command: |
-            ./flake-shake-promoter \
-              --org ethereum-optimism \
-              --repo optimism \
-              --branch "<< pipeline.git.branch >>" \
-              --workflow scheduled-flake-shake \
-              --report-job op-acceptance-tests-flake-shake-report \
-              --days 3 \
-              --gate flake-shake \
-              --min-runs 300 \
-              --max-failure-rate 0.0 \
-              --min-age-days 2 \
-              --dry-run=false \
-              --require-clean-24h \
-              --out ./final-promotion \
-              --verbose
-      - store_artifacts:
-          path: ./final-promotion
-          destination: flake-shake-promotion
-      - run:
-          name: Prepare Slack message (promotion candidates)
-          command: |
-            bash ./op-acceptance-tests/scripts/ci_flake_shake_prepare_slack.sh ./final-promotion/promotion-ready.json
-      - run:
-          name: Slack - Sending Notification
-          command: |
-            set -euo pipefail
-            if [ -z "${SLACK_BLOCKS_PAYLOAD:-}" ] || [ "${SLACK_BLOCKS_PAYLOAD}" = "[]" ]; then
-              echo "SLACK_BLOCKS is empty or doesn't exist. Skipping Slack notification."
-              # Halt this job here to avoid invoking the Slack orb step.
-              circleci-agent step halt
-            else
-              printf '%s' "$SLACK_BLOCKS_PAYLOAD" | jq '.' > /tmp/blocks.json
-              jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
-            fi
-            echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> "$BASH_ENV"
-      - slack/notify:
-          channel: C03N11M0BBN # "notify-ci" channel
-          event: always
-          retries: 1
-          retry_delay: 3
-          template: SLACK_TEMPLATE
+          name: All memory-all tests passed
+          command: echo "All memory-all acceptance test variants passed"
 
   sanitize-op-program:
     docker:
@@ -2390,16 +2126,6 @@ jobs:
             - "op-program/bin/prestate*"
             - "op-program/bin/meta*"
             - "rust/kona/prestate-artifacts-*/"
-
-  # Aggregator job - allows downstream jobs to depend on a single memory-all job.
-  memory-all:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
-    steps:
-      - run:
-          name: All memory-all tests passed
-          command: echo "All memory-all acceptance test variants passed"
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
   rust-binaries-for-sysgo:
@@ -3212,7 +2938,6 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
-          run_all: true
           no_output_timeout: 120m # Allow longer runs for memory-all gate
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3226,7 +2951,6 @@ workflows:
       # IN-MEMORY (all) - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
-          gate: "base"
           l2_el_kind: op-reth
           no_output_timeout: 120m # Allow longer runs for memory-all gate
           context:
@@ -3241,7 +2965,6 @@ workflows:
       # IN-MEMORY (all) - kona/op-reth
       - op-acceptance-tests:
           name: memory-all-kona-op-reth
-          gate: "base"
           l2_cl_kind: kona
           l2_el_kind: op-reth
           no_output_timeout: 120m # Allow longer runs for memory-all gate
@@ -3530,57 +3253,6 @@ workflows:
             - <<matrix.op_component>>-docker-publish
           context:
             - circleci-repo-readonly-authenticated-github-token
-
-  scheduled-flake-shake:
-    when:
-      or:
-        - equal: [build_daily, << pipeline.schedule.name >>]
-        - and:
-            - equal: [true, << pipeline.parameters.c-flake-shake-dispatch >>]
-            - equal: ["api", << pipeline.trigger_source >>]
-    jobs:
-      - contracts-bedrock-build:
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
-          name: kona-build-release
-          directory: rust
-          needs_clang: true
-          profile: "release"
-          persist_to_workspace: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: *rust-build-op-rbuilder
-      - rust-build-submodule: *rust-build-rollup-boost
-      - rust-binaries-for-sysgo:
-          requires:
-            - kona-build-release
-            - rust-build-op-rbuilder
-            - rust-build-rollup-boost
-      - op-acceptance-tests-flake-shake:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - rust-binaries-for-sysgo
-      - op-acceptance-tests-flake-shake-report:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - op-acceptance-tests-flake-shake
-      - op-acceptance-tests-flake-shake-promote:
-          requires:
-            - op-acceptance-tests-flake-shake-report
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-optimism
-            - circleci-api-token
-            - slack
 
   scheduled-preimage-reproducibility:
     when:

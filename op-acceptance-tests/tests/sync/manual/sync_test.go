@@ -13,7 +13,7 @@ import (
 )
 
 func TestVerifierManualSync(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	// Disable ELP2P and Batcher
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t,

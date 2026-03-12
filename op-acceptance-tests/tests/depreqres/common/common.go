@@ -87,8 +87,7 @@ func stableSyncStatus(require *testreq.Assertions, node *dsl.L2CLNode) *eth.Sync
 	return ss
 }
 
-func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
-	t := devtest.SerialT(gt)
+func UnsafeChainNotStalling_DisconnectT(t devtest.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
@@ -130,8 +129,12 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
 }
 
-func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
-	t := devtest.SerialT(gt)
+func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
+	t := devtest.ParallelT(gt)
+	UnsafeChainNotStalling_DisconnectT(t, syncMode, sleep, opts...)
+}
+
+func UnsafeChainNotStalling_RestartOpNodeT(t devtest.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
@@ -175,4 +178,9 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sle
 	l.Info("Confirm that the unsafe chain for L2CLB is not stalled")
 	sys.L2CLB.Reached(types.LocalUnsafe, ssA_after.UnsafeL2.Number, 30)
 	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
+}
+
+func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
+	t := devtest.ParallelT(gt)
+	UnsafeChainNotStalling_RestartOpNodeT(t, syncMode, sleep, opts...)
 }

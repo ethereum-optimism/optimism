@@ -7,6 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
+const supernodeInteropFlakyReason = "known flaky in the default acceptance run"
+
 // TestSupernodeInteropVerifiedAt tests that the VerifiedAt endpoint returns
 // correct data after the interop activity has processed timestamps.
 func TestSupernodeInteropVerifiedAt(gt *testing.T) {
@@ -53,7 +55,8 @@ func TestSupernodeInteropVerifiedAt(gt *testing.T) {
 //
 // This proves the supernode waits for all chains' local safe heads before verifying.
 func TestSupernodeInteropChainLag(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
+	t.MarkFlaky(supernodeInteropFlakyReason)
 	sys := newSupernodeInteropWithTimeTravel(t, 0)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime

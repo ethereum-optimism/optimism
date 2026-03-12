@@ -32,7 +32,7 @@ import (
 // TestInitExecMsg tests basic interop messaging
 func TestInitExecMsg(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -50,7 +50,7 @@ func TestInitExecMsg(gt *testing.T) {
 // TestInitExecMsgWithDSL tests basic interop messaging with contract DSL
 func TestInitExecMsgWithDSL(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -126,7 +126,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 // Construct random directed graph of messages.
 func TestRandomDirectedGraph(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := presets.NewSimpleInterop(t)
 	logger := sys.Log.With("Test", "TestRandomDirectedGraph")
@@ -249,7 +249,7 @@ func TestRandomDirectedGraph(gt *testing.T) {
 // Transaction initiates and executes multiple messages of self
 func TestInitExecMultipleMsg(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -295,7 +295,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 // Transaction that executes the same message twice.
 func TestExecSameMsgTwice(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -340,7 +340,7 @@ func TestExecSameMsgTwice(gt *testing.T) {
 // Execute message that links with initiating message with: 0, 1, 2, 3, or 4 topics in it
 func TestExecDifferentTopicCount(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -391,7 +391,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 // Execute message that links with initiating message with: 0, 10KB of opaque event data in it
 func TestExecMsgOpaqueData(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -442,7 +442,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 // Execute message that links with initiating message with: first, random or last event of a tx.
 func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -561,7 +561,7 @@ func executeIndexedFault(
 // Execute message, but with one or more invalid attributes inside identifiers
 func TestExecMessageInvalidAttributes(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()

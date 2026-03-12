@@ -49,7 +49,7 @@ func newSystem(t devtest.T) *testSystem {
 }
 
 func TestPectra(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSystem(t)
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 

@@ -21,7 +21,7 @@ func newSingleChainMultiNodeELSync(t devtest.T) *presets.SingleChainMultiNode {
 }
 
 func TestTruncateDatabaseOnELResync(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,
@@ -50,7 +50,7 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 }
 
 func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,

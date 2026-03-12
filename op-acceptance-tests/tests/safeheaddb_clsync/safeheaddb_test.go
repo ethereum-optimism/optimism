@@ -12,7 +12,7 @@ import (
 )
 
 func TestPreserveDatabaseOnCLResync(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNode(t,
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.SequencerSyncMode = sync.CLSync
