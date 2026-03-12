@@ -2802,7 +2802,7 @@ jobs:
       - run:
           name: Collect devnet metrics for op-acceptance-tests
           command: |
-            ./devnet-sdk/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
+            ./op-acceptance-tests/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
             echo "Wrote file .metrics--authorship--op-acceptance-tests"
       - gcp-cli/install
       - gcp-oidc-authenticate:

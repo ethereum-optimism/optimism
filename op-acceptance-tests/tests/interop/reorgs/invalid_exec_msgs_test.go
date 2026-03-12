@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -134,7 +134,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 			// modify the message in order to make it invalid
 			txModifierFn(&msg)
 			return &txintent.ExecTrigger{
-				Executor: constants.CrossL2Inbox,
+				Executor: predeploys.CrossL2InboxAddr,
 				Msg:      msg,
 			}, nil
 		})

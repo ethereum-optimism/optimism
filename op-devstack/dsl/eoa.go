@@ -7,9 +7,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -233,7 +232,7 @@ func (u *EOA) WaitForBalance(v eth.ETH) {
 }
 
 func (u *EOA) DeployEventLogger() common.Address {
-	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(common.FromHex(bindings.EventloggerBin)))
+	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(common.FromHex(txIntentBindings.EventloggerBin)))
 	res, err := tx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "failed to deploy EventLogger")
 	eventLoggerAddress := res.ContractAddress
@@ -292,7 +291,7 @@ func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Ad
 func (u *EOA) SendExecMessage(initMsg *InitMessage) *ExecMessage {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.DependOn(&initMsg.Tx.Result)
-	tx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0))
+	tx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "exec msg receipt not found")
 	u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
@@ -318,7 +317,7 @@ func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
 
 	// Create the exec trigger with the invalid message
 	execTrigger := &txintent.ExecTrigger{
-		Executor: constants.CrossL2Inbox,
+		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      msg,
 	}
 
@@ -348,7 +347,7 @@ func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress co
 		initCalls[index] = interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(100))
 	}
 	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](u.Plan())
-	tx.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+	tx.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: initCalls})
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	if err != nil {
 		return nil, nil, err
@@ -369,7 +368,7 @@ func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.Multi
 	for idx := range len(result.Entries) {
 		indexes = append(indexes, idx)
 	}
-	tx.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &dependOn.Result, indexes))
+	tx.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &dependOn.Result, indexes))
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	if err != nil {
 		return nil, nil, err
@@ -513,7 +512,7 @@ func (p *SameTimestampPair) SubmitInit() *txplan.PlannedTx {
 func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
 	tx.Content.Set(&txintent.ExecTrigger{
-		Executor: constants.CrossL2Inbox,
+		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      p.Message,
 	})
 	_, err := tx.PlannedTx.Submitted.Eval(executor.ctx)
@@ -529,7 +528,7 @@ func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx
 
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
 	tx.Content.Set(&txintent.ExecTrigger{
-		Executor: constants.CrossL2Inbox,
+		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      invalidMsg,
 	})
 	_, err := tx.PlannedTx.Submitted.Eval(executor.ctx)

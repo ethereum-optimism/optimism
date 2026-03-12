@@ -48,8 +48,6 @@ The OP Stack includes significant Rust implementations:
 
 ### Development and Testing Infrastructure
 
-- **devnet-sdk**: Toolkit for devnet interactions
-- **kurtosis-devnet**: Kurtosis-based devnet environment (DEPRECATED)
 - **op-e2e**: End-to-end testing framework
 - **op-acceptance-tests**: Acceptance test suite
 

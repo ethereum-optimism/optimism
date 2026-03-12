@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -313,7 +312,7 @@ func SerialT(t *testing.T) T {
 
 	// Set the lowest default log-level, so the log-filters on top can apply correctly
 	logger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
-		telemetry.WrapHandler, logfilter.WrapFilterHandler, logfilter.WrapContextHandler)
+		wrapTracingHandler, logfilter.WrapFilterHandler, logfilter.WrapContextHandler)
 	h, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
 	if ok {
 		// Apply default log level. This may be overridden later.

@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -78,7 +77,7 @@ func TestPreNoInbox(gt *testing.T) {
 		// send executing message on chain B and confirm we got an error
 		execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](bob.Plan())
 		execTx.Content.DependOn(&initMsg.Tx.Result)
-		execTx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0))
+		execTx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
 		execReceipt, err := execTx.PlannedTx.Included.Eval(sys.T.Ctx())
 		require.ErrorContains(err, "implementation not initialized", "error did not contain expected string")
 		require.Nil(execReceipt)
@@ -95,7 +94,7 @@ func TestPreNoInbox(gt *testing.T) {
 	{
 		ctx := sys.T.Ctx()
 
-		execTrigger, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0)(ctx)
+		execTrigger, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0)(ctx)
 		require.NoError(err)
 
 		ed := stypes.ExecutingDescriptor{Timestamp: uint64(time.Now().Unix())}

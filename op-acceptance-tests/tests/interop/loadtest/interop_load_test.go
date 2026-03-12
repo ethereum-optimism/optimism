@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -58,7 +58,7 @@ type BlockRefByLabel interface {
 func planExecMsg(t devtest.T, initMsg *suptypes.Message, blockTime time.Duration, el BlockRefByLabel) txplan.Option {
 	t.Require().NotNil(initMsg)
 	return txplan.Combine(planCall(t, &txintent.ExecTrigger{
-		Executor: constants.CrossL2Inbox,
+		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      *initMsg,
 	}), func(tx *txplan.PlannedTx) {
 		tx.AgainstBlock.Wrap(func(fn plan.Fn[eth.BlockInfo]) plan.Fn[eth.BlockInfo] {
