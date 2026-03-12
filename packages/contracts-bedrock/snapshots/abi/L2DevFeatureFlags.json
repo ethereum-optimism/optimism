@@ -56,5 +56,10 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "L2DevFeatureFlags__Unauthorized",
+    "type": "error"
   }
 ]

@@ -7,6 +7,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title IL2DevFeatureFlags
 /// @notice Interface for the L2DevFeatureFlags contract.
 interface IL2DevFeatureFlags is ISemver {
+    /// @notice Thrown when the caller is not the depositor account.
+    error L2DevFeatureFlags__Unauthorized();
+
     /// @notice Sets the development feature bitmap. Only callable by the DEPOSITOR_ACCOUNT.
     /// @param _bitmap The new development feature bitmap.
     function setDevFeatureBitmap(bytes32 _bitmap) external;

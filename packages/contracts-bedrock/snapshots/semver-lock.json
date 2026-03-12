@@ -104,8 +104,8 @@
     "sourceCodeHash": "0x12ea125038b87e259a0d203e119faa6e9726ab2bdbc30430f820ccd48fe87e14"
   },
   "src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags": {
-    "initCodeHash": "0x68dbf30947fb184237861f59ef40b5f93f036332a98a74c694efd530fac30fd2",
-    "sourceCodeHash": "0xa4ccbbc6886cf94f2f918181f7add1ac986c7a50fe6dd1977e6fc7543caf3395"
+    "initCodeHash": "0x0fc2856b694866f2793b8fb99cfb232b7826d12fa0400ab0241747ed2bba6b99",
+    "sourceCodeHash": "0xfa18670c78bf9b63c6bc75ef5ad7f49278e11ed1b685c4e407e82ec5403635f7"
   },
   "src/L2/L2ERC721Bridge.sol:L2ERC721Bridge": {
     "initCodeHash": "0x863f0f5b410983f3e51cd97c60a3a42915141b7452864d0e176571d640002b81",
