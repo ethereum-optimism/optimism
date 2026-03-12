@@ -41,6 +41,7 @@ abstract contract L2ProxyAdmin_TestInit is CommonTest, MockHelper {
     /// @notice Test setup.
     function setUp() public virtual override {
         super.setUp();
+        skipIfL2ForkTest("not an L2 fork test");
         l2ProxyAdmin = IL2ProxyAdmin(Predeploys.PROXY_ADMIN);
         owner = l2ProxyAdmin.owner();
     }

@@ -52,6 +52,7 @@ abstract contract CrossL2Inbox_TestInit is CommonTest {
     function setUp() public override {
         useInteropOverride = true;
         super.setUp();
+        skipIfL2ForkTest("not an L2 fork test");
         validateMessageRelayer = new CrossL2Inbox_ValidateMessageRelayer_Harness(address(crossL2Inbox));
     }
 }

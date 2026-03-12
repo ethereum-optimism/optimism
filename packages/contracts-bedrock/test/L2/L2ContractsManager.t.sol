@@ -97,6 +97,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
 
     function setUp() public override {
         super.setUp();
+        skipIfL2ForkTest("not an L2 fork test");
         _loadImplementations();
         _deployL2CM();
 

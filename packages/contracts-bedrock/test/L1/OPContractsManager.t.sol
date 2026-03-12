@@ -133,6 +133,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     function setUp() public virtual override {
         super.disableUpgradedFork();
         super.setUp();
+        skipIfL2ForkTest("not an L2 fork test");
         if (!isForkTest()) {
             // This test is only supported in forked tests, as we are testing the upgrade.
             vm.skip(true);
@@ -466,6 +467,7 @@ abstract contract OPContractsManager_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
+        skipIfL2ForkTest("not an L2 fork test");
 
         // TODO(#18332): Remove this once we support all existing OPCM functions.
         skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);

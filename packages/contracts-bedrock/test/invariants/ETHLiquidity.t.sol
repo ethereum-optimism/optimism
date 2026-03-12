@@ -76,6 +76,7 @@ contract ETHLiquidity_MintBurn_Invariant is CommonTest {
     function setUp() public override {
         super.enableInterop();
         super.setUp();
+        skipIfL2ForkTest("not an L2 fork test");
 
         // Create a new ETHLiquidity_User actor.
         actor = new ETHLiquidity_User(vm, ethLiquidity, STARTING_BALANCE);

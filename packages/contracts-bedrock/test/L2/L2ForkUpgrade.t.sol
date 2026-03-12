@@ -619,8 +619,10 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             bool foundEvent = false;
             for (uint256 j = 0; j < logs.length; j++) {
                 // Check if this log is an Upgraded event from the current predeploy
-                if (logs[j].emitter == predeploy && logs[j].topics.length > 0 && logs[j].topics[0] == UPGRADED_EVENT_TOPIC)
-                {
+                if (
+                    logs[j].emitter == predeploy && logs[j].topics.length > 0
+                        && logs[j].topics[0] == UPGRADED_EVENT_TOPIC
+                ) {
                     // Decode the implementation address from the event
                     address emittedImpl = address(uint160(uint256(logs[j].topics[1])));
 
@@ -643,9 +645,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             }
 
             // Verify the event was found
-            assertTrue(
-                foundEvent, string.concat("Upgraded event not found for ", name, ": ", vm.toString(predeploy))
-            );
+            assertTrue(foundEvent, string.concat("Upgraded event not found for ", name, ": ", vm.toString(predeploy)));
         }
     }
 
