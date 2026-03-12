@@ -252,7 +252,9 @@ func startMixedOpRethNode(
 		Package: "op-reth",
 		Binary:  "op-reth",
 	})
-	t.Require().NoError(err)
+	if err != nil {
+		t.Skip("op-reth binary not available, skipping test (build with 'just build-rust-release' or set RUST_JIT_BUILD=1)")
+	}
 
 	args := []string{
 		"node",
