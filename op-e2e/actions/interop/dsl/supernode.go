@@ -2,7 +2,6 @@ package dsl
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
@@ -30,13 +29,15 @@ var _ apis.SupernodeQueryAPI = (*SuperNodeActor)(nil)
 
 // SuperNodeActor exposes a real op-supernode instance to interop action tests.
 type SuperNodeActor struct {
-	client *sources.SuperNodeClient
+	*sources.SuperNodeClient
 }
 
 func NewSuperNode(t helpers.Testing, logger log.Logger, l1Miner *helpers.L1Miner, chains ...*Chain) *SuperNodeActor {
 	logger = logger.New("role", "supernode")
+	supernodeDataDir := t.TempDir()
+	logger.Info("supernode data dir", "dir", supernodeDataDir)
 	beacon := newSuperNodeBeacon(t, logger, l1Miner)
-	cfg := newSuperNodeConfig(t, l1Miner, beacon, chains)
+	cfg := newSuperNodeConfig(t, l1Miner, beacon, supernodeDataDir, chains)
 	vnCfgs := newVirtualNodeConfigs(l1Miner, beacon.BeaconAddr(), chains)
 
 	runCtx, cancel := context.WithCancelCause(t.Ctx())
@@ -60,12 +61,8 @@ func NewSuperNode(t helpers.Testing, logger log.Logger, l1Miner *helpers.L1Miner
 	t.Cleanup(client.Close)
 
 	return &SuperNodeActor{
-		client: client,
+		SuperNodeClient: client,
 	}
-}
-
-func (a *SuperNodeActor) SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	return a.client.SuperRootAtTimestamp(ctx, timestamp)
 }
 
 func newSuperNodeBeacon(t helpers.Testing, logger log.Logger, l1Miner *helpers.L1Miner) *fakebeacon.FakeBeacon {
@@ -82,7 +79,7 @@ func newSuperNodeBeacon(t helpers.Testing, logger log.Logger, l1Miner *helpers.L
 	return beacon
 }
 
-func newSuperNodeConfig(t helpers.Testing, l1Miner *helpers.L1Miner, beacon *fakebeacon.FakeBeacon, chains []*Chain) *supernodecfg.CLIConfig {
+func newSuperNodeConfig(t helpers.Testing, l1Miner *helpers.L1Miner, beacon *fakebeacon.FakeBeacon, dataDir string, chains []*Chain) *supernodecfg.CLIConfig {
 	chainIDs := make([]uint64, 0, len(chains))
 	for _, chain := range chains {
 		chainID, ok := chain.ChainID.Uint64()
@@ -92,13 +89,13 @@ func newSuperNodeConfig(t helpers.Testing, l1Miner *helpers.L1Miner, beacon *fak
 
 	cfg := &supernodecfg.CLIConfig{
 		Chains:                     chainIDs,
-		DataDir:                    t.TempDir(),
+		DataDir:                    dataDir,
 		L1NodeAddr:                 l1Miner.WSEndpoint(),
 		L1BeaconAddr:               beacon.BeaconAddr(),
 		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0},
 		MetricsConfig:              opmetrics.DefaultCLIConfig(),
 		PprofConfig:                oppprof.DefaultCLIConfig(),
-		InteropActivationTimestamp: sharedInteropActivationTimestamp(chains),
+		InteropActivationTimestamp: sharedInteropActivationTimestamp(t, chains),
 	}
 	require.NoError(t, cfg.Check())
 	return cfg
@@ -138,7 +135,7 @@ func newVirtualNodeConfigs(l1Miner *helpers.L1Miner, beaconAddr string, chains [
 	return vnCfgs
 }
 
-func sharedInteropActivationTimestamp(chains []*Chain) *uint64 {
+func sharedInteropActivationTimestamp(t helpers.Testing, chains []*Chain) *uint64 {
 	if len(chains) == 0 {
 		return nil
 	}
@@ -156,10 +153,9 @@ func sharedInteropActivationTimestamp(chains []*Chain) *uint64 {
 		case interopTime == nil:
 			ts := *resolvedInteropTime
 			interopTime = &ts
-		case resolvedInteropTime == nil:
-			panic("interop chains disagree on interop activation")
-		case *resolvedInteropTime != *interopTime:
-			panic(fmt.Sprintf("interop chains disagree on interop activation: %d != %d", *resolvedInteropTime, *interopTime))
+		default:
+			require.NotNilf(t, resolvedInteropTime, "interop chains disagree on interop activation", "chain %v is missing an interop activation timestamp", chain.ChainID)
+			require.Equalf(t, *interopTime, *resolvedInteropTime, "interop chains disagree on interop activation", "chain %v has interop activation %d, expected %d", chain.ChainID, *resolvedInteropTime, *interopTime)
 		}
 	}
 
