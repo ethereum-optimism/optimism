@@ -67,6 +67,10 @@ library L2ContractsManagerUtils {
         try IFeeVault(payable(_feeVault)).WITHDRAWAL_NETWORK() returns (Types.WithdrawalNetwork withdrawalNetwork_) {
             withdrawalNetwork = withdrawalNetwork_;
         } catch {
+            // Previous FeeVault implementations hardcoded L1 withdrawals (via L2StandardBridge.bridgeETHTo)
+            // and did not expose a WITHDRAWAL_NETWORK() function. We preserve this L1 behavior as the default.
+            // Modifying this configuration requires explicit migration steps outside the L2ContractsManager upgrade
+            // flow.
             withdrawalNetwork = Types.WithdrawalNetwork.L1;
         }
 
