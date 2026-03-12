@@ -1,11 +1,13 @@
-package backend
+package chain_container
 
 import (
+	"context"
 	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	types2 "github.com/ethereum/go-ethereum/core/types"
 	params2 "github.com/ethereum/go-ethereum/params"
@@ -13,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -83,6 +86,70 @@ type RandomChain struct {
 	chainHeads    map[eth.ChainID]*ChainHeads
 	l1SourceMap   map[ChainBlock]eth.BlockRef
 	l1Source      map[uint64]eth.BlockRef
+}
+
+type randomChainContainer struct {
+	chainID            eth.ChainID
+	randomChain        *RandomChain
+}
+
+func (c *randomChainContainer) ID() eth.ChainID                                  { return c.chainID }
+func (c *randomChainContainer) Start(ctx context.Context) error                  { return nil }
+func (c *randomChainContainer) Stop(ctx context.Context) error                   { return nil }
+func (c *randomChainContainer) Pause(ctx context.Context) error                  { return nil }
+func (c *randomChainContainer) Resume(ctx context.Context) error                 { return nil }
+func (c *randomChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
+
+func (c *randomChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	//TODO
+	/*
+	var theblock *ChainBlock = nil;
+	for _, block := range c.blocks {
+		if block.block.Time <= ts {
+			theblock = block;
+		} else {
+			break
+		}
+	}
+	if theblock == nil || theblock.block.Number > c.chainHeads.localSafe {
+		return eth.L2BlockRef{}, ethereum.NotFound;
+	}
+	*/
+	return eth.L2BlockRef{}, nil
+}
+
+func (c *randomChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	//TODO
+	return nil, nil
+}
+
+func (c *randomChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
+	//TODO?
+	return nil
+}
+
+func (c *randomChainContainer) FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types2.Receipts, error) {
+	//TODO
+	return nil, types2.Receipts{}, nil
+}
+
+func (c *randomChainContainer) BlockTime() uint64 {
+	//TODO
+	return 1
+}
+
+func (c *randomChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+	//TODO
+	return true, nil
+}
+
+func (c *randomChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	//TODO
+	return false, nil
+}
+
+func (c *randomChainContainer) SetResetCallback(cb ResetCallback) {
+	//TODO
 }
 
 func (rc *RandomChain) ChainInfo(chainid eth.ChainID) (blocks []*eth.L2BlockRef, heads ChainHeads) {
