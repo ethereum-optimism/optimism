@@ -416,7 +416,8 @@ func startTestSequencer(
 	l1Net *L1Network,
 	l1EL *L1Geth,
 	l1CL *L1CLNode,
-	l2EL *OpGeth,
+	l2EL L2ELNode,
+	l2Net *L2Network,
 	l2CL *OpNode,
 ) *testSequencer {
 	require := t.Require()
@@ -433,7 +434,7 @@ func startTestSequencer(
 	})
 
 	l1ChainID := l1Net.ChainID()
-	l2ChainID := l2EL.l2Net.ChainID()
+	l2ChainID := l2Net.ChainID()
 
 	// L1 sequencer components: fakepos builder + noop signer/committer/publisher.
 	bidL1 := seqtypes.BuilderID("test-l1-builder")
