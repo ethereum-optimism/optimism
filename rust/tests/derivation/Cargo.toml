@@ -1,0 +1,42 @@
+[package]
+name = "derivation-tests"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# kona protocol + derive
+kona-derive = { workspace = true, features = ["test-utils"] }
+kona-protocol = { workspace = true, features = ["std", "serde"] }
+kona-genesis = { workspace = true, features = ["serde", "std"] }
+
+# kona node
+kona-node-service.workspace = true
+kona-engine.workspace = true
+
+# alloy
+alloy-chains.workspace = true
+alloy-primitives = { workspace = true, features = ["std"] }
+alloy-consensus = { workspace = true, features = ["std"] }
+alloy-genesis = { workspace = true, features = ["std"] }
+alloy-eips = { workspace = true, features = ["std"] }
+alloy-rlp = { workspace = true, features = ["std"] }
+
+# op-alloy
+op-alloy-consensus = { workspace = true, features = ["std"] }
+
+# general
+tokio = { workspace = true, features = ["full"] }
+async-trait.workspace = true
+miniz_oxide.workspace = true
+tracing.workspace = true
+serde_json = { workspace = true, features = ["std"] }
+thiserror = "2"
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

@@ -3136,6 +3136,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "derivation-tests"
+version = "0.1.0"
+dependencies = [
+ "alloy-chains",
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-genesis",
+ "alloy-primitives",
+ "alloy-rlp",
+ "async-trait",
+ "kona-derive",
+ "kona-engine",
+ "kona-genesis",
+ "kona-node-service",
+ "kona-protocol",
+ "miniz_oxide 0.9.0",
+ "op-alloy-consensus",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.22",
+]
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -43,6 +43,9 @@ members = [
   "op-reth/crates/txpool/",
   "op-reth/examples/*",
 
+  # Tests
+  "tests/derivation",
+
   # Alloy OP EVM
   "alloy-op-evm/",
 
