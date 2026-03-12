@@ -291,9 +291,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions;
 
         if (Config.devFeatureSuperRootGamesMigration()) {
-            // Read the current respected game type to determine permissionless vs permissioned.
-            IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
-            GameType originalGameType = asr.respectedGameType();
+            // Read the current respected game type from the portal (pre-upgrade ASR lacks this getter).
+            IOptimismPortal2 portal = IOptimismPortal2(payable(artifacts.mustGetAddress("OptimismPortalProxy")));
+            GameType originalGameType = portal.respectedGameType();
             uint32 originalRaw = originalGameType.raw();
             bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
 
