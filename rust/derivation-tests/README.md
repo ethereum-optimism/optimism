@@ -68,7 +68,7 @@ assert_ne!(root, alloy_primitives::B256::ZERO);
 
 1. Create a function that builds a `DerivationTest` with the desired chain structure.
 2. Assert the super root against a golden hash constant (see below).
-3. Optionally add an `#[ignore]` integration test that runs the scenario through op-program or kona-host.
+3. Optionally add the scenario to `tests/integration.rs` using the `run_all_programs!` macro to run it through op-program and kona-host.
 
 See `tests/simple.rs` for examples covering empty blocks, singular batches, blob batches, user transfers, multi-block epochs, and system config updates. Integration tests live in `tests/integration.rs` and server tests in `tests/server.rs`.
 
@@ -76,13 +76,13 @@ See `tests/simple.rs` for examples covering empty blocks, singular batches, blob
 
 Tests pin expected super root hashes as hardcoded constants in `tests/simple.rs`. This catches silent regressions in batch encoding, block execution, state root computation, or output root calculation -- a consistently wrong root would pass a pure determinism check.
 
-The golden values are framework-internal. Cross-implementation validation happens via the `#[ignore]` integration tests that run op-program and kona-host against the same chains.
+The golden values are framework-internal. Cross-implementation validation happens via the integration tests in `tests/integration.rs` that run op-program and kona-host against the same chains.
 
 ### Updating golden values
 
 When an intentional change modifies the derivation output (e.g. a new hardfork, changed genesis config, or updated deposit tx encoding):
 
-1. Run: `just test-derivation -- --nocapture 2>&1 | grep "super root"`
+1. Run: `just test-derivation -- --no-capture 2>&1 | grep "super root"`
 2. Each test prints its computed super root to stderr before asserting.
 3. Copy the new values into the `EXPECTED_*` constants in `tests/simple.rs`.
 4. Re-run `just test-derivation` to confirm all tests pass.
@@ -92,7 +92,7 @@ When an intentional change modifies the derivation output (e.g. a new hardfork, 
 ```
 tests/
 ├── simple.rs        Derivation correctness (golden hash assertions)
-├── integration.rs   op-program and kona-host end-to-end tests (#[ignore])
+├── integration.rs   op-program and kona-host end-to-end tests
 ├── server.rs        L1 RPC, L2 RPC, and Beacon API server tests
 └── helpers/         Shared test helpers (funded signer, etc.)
 
