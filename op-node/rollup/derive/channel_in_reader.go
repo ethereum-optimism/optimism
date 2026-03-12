@@ -59,7 +59,6 @@ func (cr *ChannelInReader) WriteChannel(data []byte) error {
 		cr.metrics.RecordChannelInputBytes(len(data))
 		return nil
 	} else {
-		cr.log.Warn("Error creating batch reader from channel data", "err", err)
 		return err
 	}
 }
@@ -81,7 +80,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 			return nil, err
 		} else {
 			if err := cr.WriteChannel(data); err != nil {
-				cr.log.Warn("failed to create batch reader from channel data, dropping channel", "err", err)
+				cr.log.Warn("failed to create batch reader from channel data, dropping channel", "err", err, "origin", cr.Origin())
 				return nil, NotEnoughData
 			}
 		}
