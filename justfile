@@ -168,8 +168,15 @@ reproducible-prestate-op-program:
 reproducible-prestate-kona:
   cd rust && just build-kona-reproducible-prestate
 
-# Builds reproducible prestates for op-program and kona.
-reproducible-prestate: reproducible-prestate-op-program reproducible-prestate-kona
+# Builds reproducible prestates for op-program and kona in parallel.
+[script('bash')]
+reproducible-prestate:
+  set -euo pipefail
+  (cd op-program && just build-reproducible-prestate) &
+  pid1=$!
+  (cd rust && just build-kona-reproducible-prestate) &
+  pid2=$!
+  wait "$pid1" "$pid2"
   cd op-program && just output-prestate-hash
   cd rust && just output-kona-prestate-hash
 
