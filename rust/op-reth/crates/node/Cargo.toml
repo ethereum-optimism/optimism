@@ -31,6 +31,7 @@ reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
 reth-engine-local = { workspace = true, features = ["op"] }
 reth-rpc-api.workspace = true
+reth-db = { workspace = true, features = ["op"] }
 reth-db-api = { workspace = true, features = ["op"] }
 
 # op-reth

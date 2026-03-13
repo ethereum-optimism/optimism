@@ -4,7 +4,8 @@ use crate::{OpNode, args::RollupArgs};
 use eyre::ErrReport;
 use futures_util::FutureExt;
 use reth_db::DatabaseEnv;
-use reth_node_builder::{NodeBuilder, WithLaunchContext};
+use reth_db_api::database_metrics::DatabaseMetrics;
+use reth_node_builder::{FullNodeComponents, NodeBuilder, WithLaunchContext};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_rpc::{
