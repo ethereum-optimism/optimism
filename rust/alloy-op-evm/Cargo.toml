@@ -2,7 +2,7 @@
 name = "alloy-op-evm"
 description = "OP EVM implementation"
 
-version = "0.27.0"
+version = "0.28.0"
 edition = "2021"
 rust-version = "1.92"
 authors = ["Alloy Contributors", "OpLabsPBC"]
