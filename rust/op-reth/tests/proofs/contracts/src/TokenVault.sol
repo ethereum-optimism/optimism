@@ -38,15 +38,15 @@ contract TokenVault {
         depositors.push(msg.sender);
     }
 
-    function approve(address spender, uint256 amount) external {
-        allowances[msg.sender][spender] = Allowance({
-            amount: amount,
+    function approve(address _spender, uint256 _amount) external {
+        allowances[msg.sender][_spender] = Allowance({
+            amount: _amount,
             active: true
         });
     }
 
-    function deactivateAllowance(address spender) external {
-        allowances[msg.sender][spender].active = false;
+    function deactivateAllowance(address _spender) external {
+        allowances[msg.sender][_spender].active = false;
     }
 
     function getDepositors() external view returns (address[] memory) {
