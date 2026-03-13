@@ -10,6 +10,7 @@ use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::Decodable;
 use alloy_rpc_types::{Block, debug::ExecutionWitness};
+use alloy_transport::{RpcError, TransportErrorKind};
 use anyhow::{Result, anyhow, ensure};
 use ark_ff::{BigInteger, PrimeField};
 use async_trait::async_trait;
@@ -18,7 +19,6 @@ use kona_proof::{Hint, HintType, l1::ROOTS_OF_UNITY};
 use kona_protocol::{BlockInfo, OutputRoot, Predeploys};
 use kona_providers_alloy::BlobWithCommitmentAndProof;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
-use alloy_transport::{RpcError, TransportErrorKind};
 use tracing::{info, warn};
 
 /// Parses a blob hint, supporting both legacy (48-byte) and new (40-byte) formats.
