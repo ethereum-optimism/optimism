@@ -2,15 +2,14 @@
 
 use super::precompiles::OpFpvmPrecompiles;
 use alloy_evm::{Database, EvmEnv, EvmFactory};
-use alloy_op_evm::OpEvm;
+use alloy_op_evm::{OpEvm, OpTx, OpTxError};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{
-    DefaultOp, OpContext, OpEvm as RevmOpEvm, OpHaltReason, OpSpecId, OpTransaction,
-    OpTransactionError,
+    DefaultOp, OpContext, OpEvm as RevmOpEvm, OpHaltReason, OpSpecId,
 };
 use revm::{
     Context, Inspector,
-    context::{BlockEnv, Evm as RevmEvm, FrameStack, TxEnv, result::EVMError},
+    context::{BlockEnv, Evm as RevmEvm, FrameStack, result::EVMError},
     handler::instructions::EthInstructions,
     inspector::NoOpInspector,
 };
@@ -52,9 +51,9 @@ where
 {
     type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, OpFpvmPrecompiles<H, O>>;
     type Context<DB: Database> = OpContext<DB>;
-    type Tx = OpTransaction<TxEnv>;
+    type Tx = OpTx;
     type Error<DBError: core::error::Error + Send + Sync + 'static> =
-        EVMError<DBError, OpTransactionError>;
+        EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type Precompiles = OpFpvmPrecompiles<H, O>;

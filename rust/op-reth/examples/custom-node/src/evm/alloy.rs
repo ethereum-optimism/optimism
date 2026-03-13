@@ -1,9 +1,9 @@
 use crate::evm::{CustomTxEnv, PaymentTxEnv};
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
-use alloy_op_evm::{OpEvm, OpEvmFactory};
+use alloy_op_evm::{OpEvm, OpEvmFactory, OpTx, OpTxError};
 use alloy_primitives::{Address, Bytes};
 use op_revm::{
-    L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction, OpTransactionError,
+    L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction,
     precompiles::OpPrecompiles,
 };
 use reth_ethereum::evm::revm::{
@@ -37,7 +37,7 @@ where
 {
     type DB = DB;
     type Tx = CustomTxEnv;
-    type Error = EVMError<DB::Error, OpTransactionError>;
+    type Error = EVMError<DB::Error, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;
@@ -101,7 +101,7 @@ impl EvmFactory for CustomEvmFactory {
     type Evm<DB: Database, I: Inspector<OpContext<DB>>> = CustomEvm<DB, I, Self::Precompiles>;
     type Context<DB: Database> = OpContext<DB>;
     type Tx = CustomTxEnv;
-    type Error<DBError: Error + Send + Sync + 'static> = EVMError<DBError, OpTransactionError>;
+    type Error<DBError: Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;

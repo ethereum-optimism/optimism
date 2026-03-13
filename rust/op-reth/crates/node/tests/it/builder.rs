@@ -2,8 +2,9 @@
 
 use alloy_primitives::{Bytes, address};
 use core::marker::PhantomData;
+use alloy_op_evm::{OpTx, OpTxError};
 use op_revm::{
-    OpContext, OpHaltReason, OpSpecId, OpTransaction, OpTransactionError,
+    OpContext, OpHaltReason, OpSpecId,
     precompiles::OpPrecompiles,
 };
 use reth_db::test_utils::create_test_rw_db;
@@ -89,9 +90,9 @@ fn test_setup_custom_precompiles() {
     impl EvmFactory for UniEvmFactory {
         type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, Self::Precompiles>;
         type Context<DB: Database> = OpContext<DB>;
-        type Tx = OpTransaction<TxEnv>;
+        type Tx = OpTx;
         type Error<DBError: core::error::Error + Send + Sync + 'static> =
-            EVMError<DBError, OpTransactionError>;
+            EVMError<DBError, OpTxError>;
         type HaltReason = OpHaltReason;
         type Spec = OpSpecId;
         type BlockEnv = BlockEnv;

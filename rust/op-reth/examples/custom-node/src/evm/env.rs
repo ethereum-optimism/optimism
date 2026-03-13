@@ -3,8 +3,8 @@ use alloy_eips::{Typed2718, eip2930::AccessList};
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
 use alloy_op_evm::block::OpTxEnv;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
+use alloy_op_evm::OpTx;
 use op_alloy_consensus::OpTxEnvelope;
-use op_revm::OpTransaction;
 use reth_ethereum::evm::{primitives::TransactionEnv, revm::context::TxEnv};
 
 /// An Optimism transaction extended by [`PaymentTxEnv`] that can be fed to [`Evm`].
@@ -12,7 +12,7 @@ use reth_ethereum::evm::{primitives::TransactionEnv, revm::context::TxEnv};
 /// [`Evm`]: alloy_evm::Evm
 #[derive(Clone, Debug)]
 pub enum CustomTxEnv {
-    Op(OpTransaction<TxEnv>),
+    Op(alloy_op_evm::OpTx),
     Payment(PaymentTxEnv),
 }
 
@@ -292,13 +292,13 @@ impl FromTxWithEncoded<TxPayment> for TxEnv {
 
 impl FromRecoveredTx<OpTxEnvelope> for CustomTxEnv {
     fn from_recovered_tx(tx: &OpTxEnvelope, sender: Address) -> Self {
-        Self::Op(OpTransaction::from_recovered_tx(tx, sender))
+        Self::Op(OpTx::from_recovered_tx(tx, sender))
     }
 }
 
 impl FromTxWithEncoded<OpTxEnvelope> for CustomTxEnv {
     fn from_encoded_tx(tx: &OpTxEnvelope, sender: Address, encoded: Bytes) -> Self {
-        Self::Op(OpTransaction::from_encoded_tx(tx, sender, encoded))
+        Self::Op(OpTx::from_encoded_tx(tx, sender, encoded))
     }
 }
 
