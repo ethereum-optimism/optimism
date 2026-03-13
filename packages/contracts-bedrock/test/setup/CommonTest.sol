@@ -131,15 +131,18 @@ abstract contract CommonTest is Test, Setup, Events {
         excludeContract(address(deploy));
         excludeContract(address(deploy.cfg()));
 
-        if (!isL2ForkTest()) {
-            Setup.L1();
-            if (!isL1ForkTest()) {
-                Setup.L2();
-            }
-            bridgeInitializerSetUp();
-        } else {
+        if (isL2ForkTest()) {
             Setup.L2Fork();
+            return;
         }
+
+        Setup.L1();
+
+        if (!isL1ForkTest()) {
+            Setup.L2();
+        }
+
+        bridgeInitializerSetUp();
     }
 
     function bridgeInitializerSetUp() public {
