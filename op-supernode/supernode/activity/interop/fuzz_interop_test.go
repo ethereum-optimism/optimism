@@ -35,10 +35,7 @@ func FuzzProgressInteropValid(f *testing.F) {
 		numChains := 2 + rng.Intn(3)    // 2-4 chains
 		numTimestamps := 2 + rng.Intn(5) // 2-6 timestamps to process
 
-		chainIDs := make([]eth.ChainID, numChains)
-		for i := range chainIDs {
-			chainIDs[i] = eth.ChainIDFromUInt64(uint64(10 + i*10))
-		}
+		chainIDs := generateChainIDs(numChains, 10, 10)
 
 		dataDir := t.TempDir()
 
@@ -149,10 +146,7 @@ func FuzzProgressInteropInvalid(f *testing.F) {
 			numChains = 8
 		}
 
-		chainIDs := make([]eth.ChainID, numChains)
-		for i := range chainIDs {
-			chainIDs[i] = eth.ChainIDFromUInt64(uint64(10 + i*10))
-		}
+		chainIDs := generateChainIDs(numChains, 10, 10)
 
 		dataDir := t.TempDir()
 		verifiedDB, err := OpenVerifiedDB(dataDir)
@@ -223,14 +217,7 @@ func FuzzProgressInteropInvalid(f *testing.F) {
 		}
 
 		// P31: After invalidation, should be able to commit at the same timestamp
-		validResult := VerifiedResult{
-			Timestamp: activationTS,
-			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 100},
-			L2Heads:   make(map[eth.ChainID]eth.BlockID),
-		}
-		for _, chainID := range chainIDs {
-			validResult.L2Heads[chainID] = eth.BlockID{Hash: randomHash(rng), Number: 100}
-		}
+		validResult := generateVerifiedResult(rng, activationTS, chainIDs)
 
 		err = verifiedDB.Commit(validResult)
 		require.NoError(t, err, "P31: should be able to commit at same timestamp after invalid result")
@@ -289,13 +276,10 @@ func FuzzProgressInteropReset(f *testing.F) {
 		}
 
 		// Commit several timestamps
+		singleChain := []eth.ChainID{chainID}
 		for i := uint64(0); i < numCommits; i++ {
 			ts := activationTS + i
-			err = verifiedDB.Commit(VerifiedResult{
-				Timestamp: ts,
-				L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: ts},
-				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 100 + i}},
-			})
+			err = verifiedDB.Commit(generateVerifiedResult(rng, ts, singleChain))
 			require.NoError(t, err)
 		}
 
@@ -339,11 +323,7 @@ func FuzzProgressInteropReset(f *testing.F) {
 		require.Equal(t, rewindTS, lastTS, "P32: lastTimestamp should be rewindTS")
 
 		// Should be able to commit at rewindTS+1 (next sequential)
-		err = verifiedDB.Commit(VerifiedResult{
-			Timestamp:   rewindTS + 1,
-			L1Inclusion: eth.BlockID{Hash: randomHash(rng), Number: rewindTS + 1},
-			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 200}},
-		})
+		err = verifiedDB.Commit(generateVerifiedResult(rng, rewindTS+1, singleChain))
 		require.NoError(t, err, "P32: should be able to commit at rewindTS+1")
 	})
 }
@@ -377,11 +357,7 @@ func FuzzHandleResultEmpty(f *testing.F) {
 
 		// Pre-commit some state
 		activationTS := uint64(1000)
-		err = verifiedDB.Commit(VerifiedResult{
-			Timestamp: activationTS,
-			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 1},
-			L2Heads:   map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Hash: randomHash(rng), Number: 1}},
-		})
+		err = verifiedDB.Commit(generateVerifiedResult(rng, activationTS, []eth.ChainID{eth.ChainIDFromUInt64(10)}))
 		require.NoError(t, err)
 
 		lastTSBefore, _ := verifiedDB.LastTimestamp()

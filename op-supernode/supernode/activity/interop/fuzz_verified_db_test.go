@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,8 +34,7 @@ func FuzzVerifiedDBCommitRewind(f *testing.F) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		chainID1 := eth.ChainIDFromUInt64(10)
-		chainID2 := eth.ChainIDFromUInt64(8453)
+		twoChains := generateChainIDs(2, 10, 8443)
 
 		// Choose a starting timestamp (activation timestamp)
 		activationTS := uint64(rng.Intn(10000))
@@ -53,17 +51,7 @@ func FuzzVerifiedDBCommitRewind(f *testing.F) {
 
 			switch {
 			case op < 50: // 50% chance: commit next sequential timestamp
-				result := VerifiedResult{
-					Timestamp: nextTS,
-					L1Inclusion: eth.BlockID{
-						Hash:   randomHash(rng),
-						Number: uint64(rng.Intn(1000)),
-					},
-					L2Heads: map[eth.ChainID]eth.BlockID{
-						chainID1: {Hash: randomHash(rng), Number: uint64(rng.Intn(1000))},
-						chainID2: {Hash: randomHash(rng), Number: uint64(rng.Intn(1000))},
-					},
-				}
+				result := generateVerifiedResult(rng, nextTS, twoChains)
 
 				err := db.Commit(result)
 				require.NoError(t, err, "sequential commit should succeed at ts=%d", nextTS)
@@ -73,8 +61,9 @@ func FuzzVerifiedDBCommitRewind(f *testing.F) {
 				require.NoError(t, err)
 				require.Equal(t, result.Timestamp, retrieved.Timestamp, "P20: timestamp preserved")
 				require.Equal(t, result.L1Inclusion, retrieved.L1Inclusion, "P20: L1Inclusion preserved")
-				require.Equal(t, result.L2Heads[chainID1], retrieved.L2Heads[chainID1], "P20: L2Heads chain1 preserved")
-				require.Equal(t, result.L2Heads[chainID2], retrieved.L2Heads[chainID2], "P20: L2Heads chain2 preserved")
+				for _, chainID := range twoChains {
+					require.Equal(t, result.L2Heads[chainID], retrieved.L2Heads[chainID], "P20: L2Heads preserved for chain %s", chainID)
+				}
 
 				committed[nextTS] = result
 				nextTS++
@@ -91,11 +80,7 @@ func FuzzVerifiedDBCommitRewind(f *testing.F) {
 
 				// P19: ErrNonSequential - try to commit with a gap
 				gapTS := nextTS + uint64(rng.Intn(10)) + 1
-				err := db.Commit(VerifiedResult{
-					Timestamp: gapTS,
-					L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 1},
-					L2Heads:   map[eth.ChainID]eth.BlockID{chainID1: {Hash: randomHash(rng), Number: 1}},
-				})
+				err := db.Commit(generateVerifiedResult(rng, gapTS, twoChains[:1]))
 				require.ErrorIs(t, err, ErrNonSequential, "P19: gap commit should return ErrNonSequential")
 
 			case op < 80: // 15% chance: try duplicate commit (should fail)
@@ -109,11 +94,7 @@ func FuzzVerifiedDBCommitRewind(f *testing.F) {
 					dupTS = ts
 					break
 				}
-				err := db.Commit(VerifiedResult{
-					Timestamp: dupTS,
-					L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 1},
-					L2Heads:   map[eth.ChainID]eth.BlockID{chainID1: {Hash: randomHash(rng), Number: 1}},
-				})
+				err := db.Commit(generateVerifiedResult(rng, dupTS, twoChains[:1]))
 				require.ErrorIs(t, err, ErrAlreadyCommitted, "P19: duplicate commit should return ErrAlreadyCommitted")
 
 			case op < 95: // 15% chance: rewind
@@ -217,31 +198,19 @@ func FuzzVerifiedDBFirstCommit(f *testing.F) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		chainID := eth.ChainIDFromUInt64(10)
+		singleChain := []eth.ChainID{eth.ChainIDFromUInt64(10)}
 
 		// First commit at any timestamp should succeed
 		firstTS := uint64(rng.Intn(1000000))
-		err = db.Commit(VerifiedResult{
-			Timestamp: firstTS,
-			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 1},
-			L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 1}},
-		})
+		err = db.Commit(generateVerifiedResult(rng, firstTS, singleChain))
 		require.NoError(t, err, "first commit should succeed at any timestamp")
 
 		// P15: next must be firstTS + 1
-		err = db.Commit(VerifiedResult{
-			Timestamp: firstTS + 1,
-			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 2},
-			L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 2}},
-		})
+		err = db.Commit(generateVerifiedResult(rng, firstTS+1, singleChain))
 		require.NoError(t, err, "P15: sequential commit should succeed")
 
 		// Trying firstTS + 3 should fail with ErrNonSequential
-		err = db.Commit(VerifiedResult{
-			Timestamp: firstTS + 3,
-			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 3},
-			L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 3}},
-		})
+		err = db.Commit(generateVerifiedResult(rng, firstTS+3, singleChain))
 		require.ErrorIs(t, err, ErrNonSequential, "P15: non-sequential should fail")
 
 		// Rewind all and recommit
@@ -253,11 +222,7 @@ func FuzzVerifiedDBFirstCommit(f *testing.F) {
 
 		// P18: first commit after full rewind succeeds at any timestamp
 		newTS := uint64(rng.Intn(1000000))
-		err = db.Commit(VerifiedResult{
-			Timestamp: newTS,
-			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 4},
-			L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 4}},
-		})
+		err = db.Commit(generateVerifiedResult(rng, newTS, singleChain))
 		require.NoError(t, err, "P18: first commit after full rewind should succeed")
 
 		lastTS, initialized := db.LastTimestamp()
@@ -275,7 +240,7 @@ func FuzzVerifiedDBPersistence(f *testing.F) {
 		rng := rand.New(rand.NewSource(seed))
 		dataDir := t.TempDir()
 
-		chainID := eth.ChainIDFromUInt64(10)
+		singleChain := []eth.ChainID{eth.ChainIDFromUInt64(10)}
 		startTS := uint64(rng.Intn(10000))
 		numCommits := 2 + rng.Intn(8)
 
@@ -286,11 +251,7 @@ func FuzzVerifiedDBPersistence(f *testing.F) {
 		require.NoError(t, err)
 
 		for i := 0; i < numCommits; i++ {
-			results[i] = VerifiedResult{
-				Timestamp: startTS + uint64(i),
-				L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: uint64(rng.Intn(1000))},
-				L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: uint64(rng.Intn(1000))}},
-			}
+			results[i] = generateVerifiedResult(rng, startTS+uint64(i), singleChain)
 			err = db.Commit(results[i])
 			require.NoError(t, err)
 		}
@@ -313,18 +274,8 @@ func FuzzVerifiedDBPersistence(f *testing.F) {
 		}
 
 		// Next commit should continue from last
-		err = db2.Commit(VerifiedResult{
-			Timestamp: lastTS + 1,
-			L1Inclusion:    eth.BlockID{Hash: randomHash(rng), Number: 999},
-			L2Heads:   map[eth.ChainID]eth.BlockID{chainID: {Hash: randomHash(rng), Number: 999}},
-		})
+		err = db2.Commit(generateVerifiedResult(rng, lastTS+1, singleChain))
 		require.NoError(t, err, "should continue sequential commits after reopen")
 	})
 }
 
-// randomHash generates a random common.Hash from the given rng.
-func randomHash(rng *rand.Rand) common.Hash {
-	var h common.Hash
-	rng.Read(h[:])
-	return h
-}
