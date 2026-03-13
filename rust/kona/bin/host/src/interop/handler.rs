@@ -59,7 +59,7 @@ fn parse_l2_payload_witness_hint(data: &[u8]) -> Result<(B256, &[u8], u64)> {
 
 /// Returns `true` if the RPC error indicates the node does not support the requested method
 /// (JSON-RPC error code -32601: Method not found).
-fn is_rpc_method_not_found(e: &RpcError<TransportErrorKind>) -> bool {
+const fn is_rpc_method_not_found(e: &RpcError<TransportErrorKind>) -> bool {
     matches!(e, RpcError::ErrorResp(p) if p.code == -32601)
 }
 
