@@ -2401,6 +2401,11 @@ jobs:
           name: All memory-all tests passed
           command: echo "All memory-all acceptance test variants passed"
 
+  # Gate job - single stable no-op job used as GitHub required status check for develop.
+  # Add new mandatory checks to the workflow entry below; no GitHub ruleset changes needed.
+  ci-gate:
+    type: no-op
+
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
   rust-binaries-for-sysgo:
     docker:
@@ -3260,6 +3265,22 @@ workflows:
             - memory-all-opn-op-geth
             - memory-all-opn-op-reth
             - memory-all-kona-op-reth
+      # Gate jobs - single stable no-op jobs used as GitHub required status checks.
+      # To add a new mandatory check, add it to the requires list here.
+      # No GitHub ruleset changes needed.
+      - ci-gate:
+          requires:
+            - check-kontrol-build
+            - shell-check
+            - go-lint
+            - semgrep-scan-local
+            - go-tests-short
+            - contracts-bedrock-coverage main
+            - contracts-bedrock-tests main
+            - contracts-bedrock-tests-heavy-fuzz-modified main
+            - contracts-bedrock-tests-upgrade op-mainnet main
+            - memory-all
+            - contracts-bedrock-checks-fast
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
