@@ -1777,7 +1777,7 @@ jobs:
           name: Fuzz
           no_output_timeout: 15m
           command: |
-            make fuzz
+            just fuzz
           working_directory: "<<parameters.package_name>>"
       - go-save-cache:
           namespace: fuzz-<<parameters.package_name>>
