@@ -61,6 +61,7 @@ op-alloy-rpc-types.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 op-alloy-rpc-jsonrpsee.workspace = true
 op-alloy-consensus.workspace = true
+alloy-op-evm.workspace = true
 revm.workspace = true
 op-revm.workspace = true
 

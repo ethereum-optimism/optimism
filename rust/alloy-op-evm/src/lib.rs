@@ -9,7 +9,21 @@
 
 extern crate alloc;
 
-pub use alloy_evm::op::{spec, spec_by_timestamp_after_bedrock};
+pub mod env;
+#[cfg(feature = "engine")]
+pub use env::evm_env_for_op_payload;
+pub use env::{
+    evm_env_for_op_block, evm_env_for_op_next_block, spec, spec_by_timestamp_after_bedrock,
+};
+
+pub mod error;
+pub use error::{OpTxError, map_op_err};
+
+pub mod tx;
+pub use tx::OpTx;
+
+#[cfg(feature = "rpc")]
+pub mod rpc;
 
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
 use alloy_primitives::{Address, Bytes};
@@ -18,12 +32,11 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use op_revm::{
-    DefaultOp, OpBuilder, OpContext, OpHaltReason, OpSpecId, OpTransaction, OpTransactionError,
-    precompiles::OpPrecompiles,
+    DefaultOp, OpBuilder, OpContext, OpHaltReason, OpSpecId, precompiles::OpPrecompiles,
 };
 use revm::{
     Context, ExecuteEvm, InspectEvm, Inspector, SystemCallEvm,
-    context::{BlockEnv, TxEnv},
+    context::BlockEnv,
     context_interface::result::{EVMError, ResultAndState},
     handler::{PrecompileProvider, instructions::EthInstructions},
     inspector::NoOpInspector,
@@ -92,8 +105,8 @@ where
     P: PrecompileProvider<OpContext<DB>, Output = InterpreterResult>,
 {
     type DB = DB;
-    type Tx = OpTransaction<TxEnv>;
-    type Error = EVMError<DB::Error, OpTransactionError>;
+    type Tx = OpTx;
+    type Error = EVMError<DB::Error, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;
@@ -112,7 +125,9 @@ where
         &mut self,
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        if self.inspect { self.inner.inspect_tx(tx) } else { self.inner.transact(tx) }
+        let result =
+            if self.inspect { self.inner.inspect_tx(tx.0) } else { self.inner.transact(tx.0) };
+        result.map_err(map_op_err)
     }
 
     fn transact_system_call(
@@ -121,7 +136,7 @@ where
         contract: Address,
         data: Bytes,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        self.inner.system_call_with_caller(caller, contract, data)
+        self.inner.system_call_with_caller(caller, contract, data).map_err(map_op_err)
     }
 
     fn finish(self) -> (Self::DB, EvmEnv<Self::Spec>) {
@@ -159,9 +174,8 @@ pub struct OpEvmFactory;
 impl EvmFactory for OpEvmFactory {
     type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, Self::Precompiles>;
     type Context<DB: Database> = OpContext<DB>;
-    type Tx = OpTransaction<TxEnv>;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> =
-        EVMError<DBError, OpTransactionError>;
+    type Tx = OpTx;
+    type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;

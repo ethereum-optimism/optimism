@@ -1,11 +1,9 @@
 //! Node builder setup tests.
 
+use alloy_op_evm::{OpTx, OpTxError};
 use alloy_primitives::{Bytes, address};
 use core::marker::PhantomData;
-use op_revm::{
-    OpContext, OpHaltReason, OpSpecId, OpTransaction, OpTransactionError,
-    precompiles::OpPrecompiles,
-};
+use op_revm::{OpContext, OpHaltReason, OpSpecId, precompiles::OpPrecompiles};
 use reth_db::test_utils::create_test_rw_db;
 use reth_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
 use reth_node_api::{FullNodeComponents, NodeTypesWithDBAdapter};
@@ -20,7 +18,7 @@ use reth_optimism_primitives::OpPrimitives;
 use reth_provider::providers::BlockchainProvider;
 use revm::{
     Inspector,
-    context::{BlockEnv, ContextTr, TxEnv},
+    context::{BlockEnv, ContextTr},
     context_interface::result::EVMError,
     inspector::NoOpInspector,
     interpreter::interpreter::EthInterpreter,
@@ -89,9 +87,9 @@ fn test_setup_custom_precompiles() {
     impl EvmFactory for UniEvmFactory {
         type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, Self::Precompiles>;
         type Context<DB: Database> = OpContext<DB>;
-        type Tx = OpTransaction<TxEnv>;
+        type Tx = OpTx;
         type Error<DBError: core::error::Error + Send + Sync + 'static> =
-            EVMError<DBError, OpTransactionError>;
+            EVMError<DBError, OpTxError>;
         type HaltReason = OpHaltReason;
         type Spec = OpSpecId;
         type BlockEnv = BlockEnv;
