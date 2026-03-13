@@ -49,7 +49,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         bool isCustomGasToken;
     }
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         // Skip if not L2 fork test
