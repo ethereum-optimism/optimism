@@ -1,12 +1,6 @@
 # Rust Development
 
-Guidance for AI agents working with Rust code in the Optimism monorepo.
-
-## Tool Versions
-
-All tool versions are pinned in `mise.toml` at the repo root and `rust/rust-toolchain.toml` for the Rust toolchain. Always access tools through mise — never install or invoke system-global versions directly. Check these files for current pinned versions.
-
-If mise reports the repo isn't trusted, ask the user to run `mise trust` — never trust it automatically.
+Guidance for AI agents working with Rust code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for tool versions, PR workflow, and other cross-language guidance.
 
 ## Workspace Layout
 
@@ -16,11 +10,11 @@ All Rust code lives under `rust/`. This is a unified Cargo workspace — always 
 - **Op-Reth** — OP Stack execution client built on reth (`rust/op-reth/`)
 - **Op-Alloy / Alloy extensions** — OP Stack types and providers
 
-Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration.
+Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration. The Rust toolchain version is pinned in `rust/rust-toolchain.toml`.
 
 ## Build System
 
-Rust targets use Just. Run `just --list` in `rust/` to see all available targets. The key ones:
+Run `just --list` in `rust/` to see all available targets. The key ones:
 
 ```bash
 cd rust
@@ -123,25 +117,9 @@ Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
    just check-no-std
    ```
 
-## Before Every PR
-
-Everything in "Before Every Commit" plus:
-
-1. **Run affected tests broadly** — don't just test the crate you changed. Test crates that depend on it too.
-
-2. **Rebase on `develop`** — this is the default branch, not `main`:
-   ```bash
-   git fetch origin develop
-   git rebase origin/develop
-   ```
-
-3. **Follow PR guidelines** — see `docs/handbook/pr-guidelines.md`.
-
 ## CI
 
-Some tests require CI-only environment variables and are skipped locally. Check the test code for environment variable guards if a test behaves differently than expected.
-
-Build dependencies: op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs this automatically — if you see bindgen errors locally, install clang.
+Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs this automatically — if you see bindgen errors locally, install clang.
 
 ## Skills
 
