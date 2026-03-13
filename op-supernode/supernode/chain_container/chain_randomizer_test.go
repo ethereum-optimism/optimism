@@ -86,6 +86,7 @@ type RandomChain struct {
 	chainHeads    map[eth.ChainID]*ChainHeads
 	l1SourceMap   map[ChainBlock]eth.BlockRef
 	l1Source      map[uint64]eth.BlockRef
+	receipts      map[eth.ChainID]map[eth.BlockID]types2.Receipts
 }
 
 type randomChainContainer struct {
@@ -130,7 +131,9 @@ func (c *randomChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 
 func (c *randomChainContainer) FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types2.Receipts, error) {
 	//TODO
-	return nil, types2.Receipts{}, nil
+	myReceipts := c.randomChain.receipts[c.chainID];
+	receipt := myReceipts[blockHash];
+	return nil, receipt, nil
 }
 
 func (c *randomChainContainer) BlockTime() uint64 {
@@ -196,6 +199,7 @@ func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
 		chainHeads:    make(map[eth.ChainID]*ChainHeads),
 		l1SourceMap:   make(map[ChainBlock]eth.BlockRef),
 		l1Source:      make(map[uint64]eth.BlockRef),
+		receipts:      make(map[eth.ChainID]map[eth.BlockID]types2.Receipts),
 	}
 
 	for i := range p.chainCount {
@@ -409,13 +413,12 @@ func insertExecutingMessageAt(i uint, res *RandomChain, execcb *ChainBlock, init
 
 func GenerateReceiptsFromLogs(res *RandomChain) {
 	for _, cb := range res.allBlocks {
-		chain, block := cb.chain, cb.block
+		chainid, block := cb.chain, cb.block
 		logs := res.generatedLogs[*cb]
 		rcpt := types2.Receipt{
 			Logs: logs,
 		}
-		source := res.chainSources[chain]
-		source.ExpectFetchReceipts(block.Hash, types2.Receipts{&rcpt}, nil)
+		res.receipts[chainid][block.ID()] = types2.Receipts{&rcpt};
 	}
 }
 
