@@ -130,6 +130,10 @@ bench:
 
 ########################## Misc tools ###############################
 
+# Audit dependencies for licenses, advisories, and bans
+deny:
+  cargo deny --all-features check all
+
 # Check for unused dependencies (requires nightly + cargo-udeps)
 check-udeps:
   cargo +{{NIGHTLY}} udeps --release --workspace --all-features --all-targets
