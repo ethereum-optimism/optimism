@@ -3066,7 +3066,7 @@ workflows:
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork op-mainnet
           fork_op_chain: op-mainnet
-          l2_fork_rpc: https://ci-op-mainnet.optimism.io
+          l2_fork_rpc: https://op-mainnet-rpc.optimism.io/
           l2_fork_block_number: latest
           test_profile: liteci
           context:
@@ -3079,7 +3079,7 @@ workflows:
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork-develop op-mainnet
           fork_op_chain: op-mainnet
-          l2_fork_rpc: https://ci-op-mainnet.optimism.io
+          l2_fork_rpc: https://op-mainnet-rpc.optimism.io/
           l2_fork_block_number: latest
           test_profile: ci
           context:
@@ -3674,12 +3674,7 @@ workflows:
             - cannon-prestate
           matrix:
             parameters:
-              network_preset:
-                [
-                  "op-sepolia",
-                  "unichain-sepolia",
-                  "op-mainnet",
-                ]
+              network_preset: ["op-sepolia", "unichain-sepolia", "op-mainnet"]
               l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
   scheduled-heavy-fuzz-tests:
@@ -3743,7 +3738,7 @@ workflows:
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork-dispatch op-mainnet
           fork_op_chain: op-mainnet
-          l2_fork_rpc: https://ci-op-mainnet.optimism.io
+          l2_fork_rpc: https://op-mainnet-rpc.optimism.io/
           l2_fork_block_number: latest
           test_profile: ci
           context:
