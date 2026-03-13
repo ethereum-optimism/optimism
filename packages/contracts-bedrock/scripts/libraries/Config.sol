@@ -284,7 +284,7 @@ library Config {
     }
 
     /// @notice Returns true if the fork is a test fork.
-    function forkTest() internal view returns (bool) {
+    function l1ForkTest() internal view returns (bool) {
         return vm.envOr("FORK_TEST", false);
     }
 

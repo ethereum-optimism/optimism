@@ -91,7 +91,7 @@ abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
     function init(Claim rootClaim, Claim absolutePrestate, uint256 l2BlockNumber) public {
         // Set the time to a realistic date.
-        if (!isForkTest()) {
+        if (!isL1ForkTest()) {
             vm.warp(1690906994);
         }
 
@@ -3102,7 +3102,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_TestInit {
     )
         internal
     {
-        if (isForkTest()) {
+        if (isL1ForkTest()) {
             // Mock the call anchorStateRegistry.getAnchorRoot() to return 0 as the block number
             (Hash root,) = anchorStateRegistry.getAnchorRoot();
             vm.mockCall(

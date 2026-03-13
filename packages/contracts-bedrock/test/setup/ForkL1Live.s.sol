@@ -38,7 +38,7 @@ import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.s
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
-/// @title ForkLive
+/// @title ForkL1Live
 /// @notice This script is called by Setup.sol as a preparation step for the foundry test suite, and is run as an
 ///         alternative to Deploy.s.sol, when `FORK_TEST=true` is set in the env.
 ///         Like Deploy.s.sol this script saves the system addresses to the Artifacts contract so that they can be
@@ -48,7 +48,7 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 ///         superchain-registry.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 
-contract ForkLive is Deployer, StdAssertions, FeatureFlags {
+contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
     using stdToml for string;
     using LibString for string;
 
@@ -82,7 +82,7 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
 
         useOpsRepo = bytes(superchainOpsAllocsPath).length > 0;
         if (useOpsRepo) {
-            console.log("ForkLive: loading state from %s", superchainOpsAllocsPath);
+            console.log("ForkL1Live: loading state from %s", superchainOpsAllocsPath);
             // Set the resultant state from the superchain ops repo upgrades.
             // The allocs are generated when simulating an upgrade task that runs vm.dumpState.
             // These allocs represent the state of the EVM after the upgrade has been simulated.
@@ -100,9 +100,9 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
 
         // Now upgrade the contracts (if the config is set to do so)
         if (useOpsRepo) {
-            console.log("ForkLive: using ops repo to upgrade");
+            console.log("ForkL1Live: using ops repo to upgrade");
         } else if (cfg.useUpgradedFork()) {
-            console.log("ForkLive: upgrading");
+            console.log("ForkL1Live: upgrading");
             _upgrade();
         }
     }
@@ -147,10 +147,10 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         // Get the lockbox address from the portal, and save it
         /// NOTE: Using try catch because this function could be called before or after the upgrade.
         try IOptimismPortal2(payable(optimismPortal)).ethLockbox() returns (IETHLockbox ethLockbox_) {
-            console.log("ForkLive: ETHLockboxProxy found: %s", address(ethLockbox_));
+            console.log("ForkL1Live: ETHLockboxProxy found: %s", address(ethLockbox_));
             artifacts.save("ETHLockboxProxy", address(ethLockbox_));
         } catch {
-            console.log("ForkLive: ETHLockboxProxy not found");
+            console.log("ForkL1Live: ETHLockboxProxy not found");
         }
 
         address addressManager = vm.parseTomlAddress(opToml, ".addresses.AddressManager");
@@ -358,7 +358,7 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
             _doUpgrade(opcm, upgrader);
         }
 
-        console.log("ForkLive: Saving newly deployed contracts");
+        console.log("ForkL1Live: Saving newly deployed contracts");
 
         // A new ASR and new dispute games were deployed, so we need to update them
         IDisputeGameFactory disputeGameFactory =

@@ -29,7 +29,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title PastUpgrades
 /// @notice Library for loading and executing past upgrades by fetching OPCM data from the
 ///         superchain-registry via FFI. This provides a single source of truth for past upgrade
-///         configuration that can be used across ForkLive.s.sol and OPCM tests.
+///         configuration that can be used across ForkL1Live.s.sol and OPCM tests.
 library PastUpgrades {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 

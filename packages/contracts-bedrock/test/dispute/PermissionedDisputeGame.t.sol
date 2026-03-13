@@ -53,7 +53,7 @@ abstract contract PermissionedDisputeGame_TestInit is DisputeGameFactory_TestIni
 
     function init(Claim _rootClaim, Claim _absolutePrestate, uint256 _l2BlockNumber) public {
         // Set the time to a realistic date.
-        if (!isForkTest()) {
+        if (!isL1ForkTest()) {
             vm.warp(1690906994);
         }
 

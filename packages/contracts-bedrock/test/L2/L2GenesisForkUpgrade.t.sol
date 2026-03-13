@@ -17,8 +17,7 @@ import {
     L2ForkUpgrade_Versions_Test,
     L2ForkUpgrade_Initialization_Test,
     L2ForkUpgrade_Implementations_Test,
-    L2ForkUpgrade_Events_Test,
-    L2ForkUpgrade_GasProfile_Test
+    L2ForkUpgrade_Events_Test
 } from "test/L2/L2ForkUpgrade.t.sol";
 
 /// @title L2GenesisForkUpgrade_TestInit

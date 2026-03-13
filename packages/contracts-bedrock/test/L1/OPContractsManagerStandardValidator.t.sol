@@ -177,7 +177,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         // reasonable sources, challenger we need to get from live system because there's no other
         // consistent way to get it right now. Means we're cheating a tiny bit for the challenger
         // address in fork tests but it's fine.
-        if (isForkTest()) {
+        if (isL1ForkTest()) {
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
             proposer = address(123);
@@ -232,7 +232,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             standardValidator, disputeGameFactory, IDisputeGameFactory(address(0xbad))
         );
 
-        if (isForkTest()) {
+        if (isL1ForkTest()) {
             // Load the FaultDisputeGame once, we'll need it later.
             fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         } else {
@@ -1303,7 +1303,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
             // One last mess here, during local tests delayedWeth refers to the contract attached to
             // the FaultDisputeGame, but during fork tests it refers to the one attached to the
             // PermissionedDisputeGame. We'll just branch based on the test type.
-            if (isForkTest()) {
+            if (isL1ForkTest()) {
                 assertEq("PDDG-DWETH-10", _validate(true));
             } else {
                 assertEq("PLDG-DWETH-10,CKDG-DWETH-10", _validate(true));
@@ -1323,7 +1323,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             assertEq("PDDG-DWETH-20,PLDG-DWETH-20,CKDG-DWETH-20", _validate(true));
         } else {
-            if (isForkTest()) {
+            if (isL1ForkTest()) {
                 assertEq("PDDG-DWETH-20", _validate(true));
             } else {
                 assertEq("PLDG-DWETH-20,CKDG-DWETH-20", _validate(true));
@@ -1341,7 +1341,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             assertEq("PDDG-DWETH-30,PLDG-DWETH-30,CKDG-DWETH-30", _validate(true));
         } else {
-            if (isForkTest()) {
+            if (isL1ForkTest()) {
                 assertEq("PDDG-DWETH-30", _validate(true));
             } else {
                 assertEq("PLDG-DWETH-30,CKDG-DWETH-30", _validate(true));
@@ -1357,7 +1357,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             assertEq("PDDG-DWETH-40,PLDG-DWETH-40,CKDG-DWETH-40", _validate(true));
         } else {
-            if (isForkTest()) {
+            if (isL1ForkTest()) {
                 assertEq("PDDG-DWETH-40", _validate(true));
             } else {
                 assertEq("PLDG-DWETH-40,CKDG-DWETH-40", _validate(true));
@@ -1373,7 +1373,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             assertEq("PDDG-DWETH-50,PLDG-DWETH-50,CKDG-DWETH-50", _validate(true));
         } else {
-            if (isForkTest()) {
+            if (isL1ForkTest()) {
                 assertEq("PDDG-DWETH-50", _validate(true));
             } else {
                 assertEq("PLDG-DWETH-50,CKDG-DWETH-50", _validate(true));
@@ -1391,7 +1391,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             assertEq("PDDG-DWETH-60,PLDG-DWETH-60,CKDG-DWETH-60", _validate(true));
         } else {
-            if (isForkTest()) {
+            if (isL1ForkTest()) {
                 assertEq("PDDG-DWETH-60", _validate(true));
             } else {
                 assertEq("PLDG-DWETH-60,CKDG-DWETH-60", _validate(true));

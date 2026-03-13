@@ -134,7 +134,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         super.disableUpgradedFork();
         super.setUp();
         skipIfL2ForkTest("not an L2 fork test");
-        if (!isForkTest()) {
+        if (!isL1ForkTest()) {
             // This test is only supported in forked tests, as we are testing the upgrade.
             vm.skip(true);
         }
