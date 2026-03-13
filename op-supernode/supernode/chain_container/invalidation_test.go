@@ -419,6 +419,34 @@ func TestInvalidateBlock(t *testing.T) {
 		require.False(t, found, "genesis block should not be added to denylist")
 	})
 
+	t.Run("missing rollup config returns error before rewind", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		mockEng := &mockEngineForInvalidation{
+			blockRef: eth.L2BlockRef{Hash: common.HexToHash("0xdead")},
+		}
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			engine:   mockEng,
+			vn:       &mockVNForInvalidation{},
+		}
+
+		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"))
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to compute rewind timestamp")
+		require.Contains(t, err.Error(), "rollup config not available")
+		require.False(t, rewound)
+		require.False(t, mockEng.rewindCalled, "rewind should not be attempted without rollup config")
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
