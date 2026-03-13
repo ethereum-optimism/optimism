@@ -234,7 +234,7 @@ jobs:
           no_output_timeout: 60m
           command: |
             export OP_RETH_EXEC_PATH="$(pwd)/../../target/release/op-reth"
-            make test-e2e-sysgo
+            just test-e2e-sysgo
       - go-save-cache:
           namespace: op-reth-e2e
 
