@@ -177,8 +177,8 @@ reproducible-prestate:
   (cd rust && just build-kona-reproducible-prestate) &
   pid2=$!
   wait "$pid1" "$pid2"
-  cd op-program && just output-prestate-hash
-  cd rust && just output-kona-prestate-hash
+  (cd op-program && just output-prestate-hash)
+  (cd rust && just output-kona-prestate-hash)
 
 # Builds cannon prestates.
 cannon-prestates: cannon op-program
