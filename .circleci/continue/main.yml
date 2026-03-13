@@ -2418,26 +2418,19 @@ jobs:
               -H "Circle-Token: $CIRCLECI_API_TOKEN" \
               "https://circleci.com/api/v2/workflow/$CIRCLE_WORKFLOW_ID/job")
 
-            REQUIRED_JOBS=(
-              "check-kontrol-build"
-              "shell-check"
-              "go-lint"
-              "semgrep-scan-local"
-              "go-tests-short"
-              "contracts-bedrock-coverage main"
-              "contracts-bedrock-tests main"
-              "contracts-bedrock-tests-heavy-fuzz-modified main"
-              "contracts-bedrock-tests-upgrade op-mainnet main"
-              "memory-all"
-              "contracts-bedrock-checks-fast"
-            )
+            # Derive required jobs from ci-gate's own dependencies field in the API response.
+            # The requires:terminal list in the workflow is the single source of truth.
+            DEP_IDS=$(echo "$JOBS" | jq -r \
+              '.items[] | select(.name == "ci-gate") | .dependencies[]')
 
             ALL_PASSED=true
-            for job in "${REQUIRED_JOBS[@]}"; do
-              STATUS=$(echo "$JOBS" | jq -r --arg n "$job" \
-                '[.items[] | select(.name == $n)] | last | .status // "not_run"')
+            for dep_id in $DEP_IDS; do
+              NAME=$(echo "$JOBS" | jq -r --arg id "$dep_id" \
+                '.items[] | select(.id == $id) | .name')
+              STATUS=$(echo "$JOBS" | jq -r --arg id "$dep_id" \
+                '.items[] | select(.id == $id) | .status')
               if [ "$STATUS" != "success" ]; then
-                echo "REQUIRED JOB NOT PASSED: '$job' status='$STATUS'"
+                echo "REQUIRED JOB NOT PASSED: '$NAME' status='$STATUS'"
                 ALL_PASSED=false
               fi
             done
