@@ -11,3 +11,23 @@ DEPRECATED_TARGETS := install build build-debug \
 	check-udeps test test-integration check-windows examples
 
 include ../../justfiles/deprecated.mk
+
+# Pattern rules need manual shims because the generic deprecated-target
+# macro can't handle Make's build-% / build-native-% patterns.
+# These forward to the parameterized just recipes.
+
+.PHONY: build-native-%
+build-native-%:
+	@echo
+	@printf '%s\n' '$(call banner-style,Deprecated make call: make build-native-$*)'
+	@printf '%s\n' '$(call banner-style,Consider using just instead: just build-native $*)'
+	@echo
+	just build-native $*
+
+.PHONY: build-%
+build-%:
+	@echo
+	@printf '%s\n' '$(call banner-style,Deprecated make call: make build-$*)'
+	@printf '%s\n' '$(call banner-style,Consider using just instead: just build-cross $*)'
+	@echo
+	just build-cross $*
