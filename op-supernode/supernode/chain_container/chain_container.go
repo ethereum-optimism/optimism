@@ -628,5 +628,8 @@ func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) (uint64, 
 	if c.vncfg == nil {
 		return 0, fmt.Errorf("rollup config not available")
 	}
-	return c.vncfg.Rollup.Genesis.L2Time + (blockNum * c.vncfg.Rollup.BlockTime), nil
+	if blockNum < c.vncfg.Rollup.Genesis.L2.Number {
+		return 0, fmt.Errorf("block number %d before genesis %d", blockNum, c.vncfg.Rollup.Genesis.L2.Number)
+	}
+	return c.vncfg.Rollup.TimestampForBlock(blockNum), nil
 }
