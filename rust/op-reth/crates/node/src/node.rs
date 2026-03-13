@@ -898,7 +898,8 @@ pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
     pub pool_config_overrides: PoolBuilderConfigOverrides,
     /// Enable transaction conditionals.
     pub enable_tx_conditional: bool,
-    /// Supervisor client url. When None, interop transaction validation is disabled.
+    /// Supervisor client URL for txpool-level interop validation (deprecated; supernode is preferred).
+    /// When None, interop transaction validation in the txpool is disabled.
     pub supervisor_http: Option<String>,
     /// Supervisor safety level
     pub supervisor_safety_level: SafetyLevel,
