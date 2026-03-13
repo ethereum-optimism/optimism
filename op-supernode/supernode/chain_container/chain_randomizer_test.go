@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	types2 "github.com/ethereum/go-ethereum/core/types"
 	params2 "github.com/ethereum/go-ethereum/params"
@@ -29,7 +28,7 @@ func ExecMsgForLog(chain eth.ChainID, block eth.L2BlockRef, log *types2.Log) *ty
 			Timestamp:   block.Time,
 			ChainID:     chain,
 		},
-		PayloadHash: processors.LogToPayloadHash(log),
+		PayloadHash: processors.LogToLogHash(log),
 	}
 	topics, data := msg.EncodeEvent()
 	return &types2.Log{
@@ -81,7 +80,6 @@ type RandomChain struct {
 	cbIndices     map[ChainBlock]int // Lookup for a ChainBlock's index in allBlocks
 	generatedLogs map[ChainBlock][]*types2.Log
 	dependencies  map[ChainBlock][]*ChainBlock
-	chainSources  map[eth.ChainID]*MockProcessorSource
 	chainBlocks   map[eth.ChainID][]*eth.L2BlockRef
 	chainHeads    map[eth.ChainID]*ChainHeads
 	l1SourceMap   map[ChainBlock]eth.BlockRef
@@ -194,7 +192,6 @@ func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
 		cbIndices:     make(map[ChainBlock]int),
 		generatedLogs: make(map[ChainBlock][]*types2.Log),
 		dependencies:  make(map[ChainBlock][]*ChainBlock),
-		chainSources:  make(map[eth.ChainID]*MockProcessorSource),
 		chainBlocks:   make(map[eth.ChainID][]*eth.L2BlockRef),
 		chainHeads:    make(map[eth.ChainID]*ChainHeads),
 		l1SourceMap:   make(map[ChainBlock]eth.BlockRef),
@@ -203,9 +200,8 @@ func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
 	}
 
 	for i := range p.chainCount {
-		chain := eth.ChainIDFromUInt64(testChainIDOffset + uint64(i))
+		chain := eth.ChainIDFromUInt64(uint64(i))
 		res.chainBlocks[chain] = make([]*eth.L2BlockRef, 0)
-		res.chainSources[chain] = &MockProcessorSource{}
 		res.chainHeads[chain] = &ChainHeads{}
 		res.chainIDs = append(res.chainIDs, chain)
 	}
@@ -295,7 +291,6 @@ func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
 		}
 
 		res.cbIndices[*cb] = i
-		res.chainSources[chainid].ExpectL2BlockRefByNumber(block.Number, *block, nil)
 		res.chainBlocks[chainid] = append(res.chainBlocks[chainid], block)
 		prevBlock = block
 	}
@@ -436,7 +431,7 @@ func InvalidExecMsgForLog(r *rand.Rand, res *RandomChain, chain eth.ChainID, blo
 			Timestamp:   block.Time,
 			ChainID:     chain,
 		},
-		PayloadHash: processors.LogToPayloadHash(log),
+		PayloadHash: processors.LogToLogHash(log),
 	}
 
 	switch r.Intn(5) {
@@ -454,7 +449,7 @@ func InvalidExecMsgForLog(r *rand.Rand, res *RandomChain, chain eth.ChainID, blo
 		msg.Identifier.Timestamp -= uint64(randomInRange(r, 1, 100))
 	case 4:
 		// Invalid chain ID
-		impossibleChainID := testChainIDOffset + len(res.chainIDs)
+		impossibleChainID := len(res.chainIDs)
 		msg.Identifier.ChainID = eth.ChainIDFromUInt64(uint64(impossibleChainID))
 	}
 
