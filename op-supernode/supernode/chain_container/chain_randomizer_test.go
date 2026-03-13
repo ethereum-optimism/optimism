@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	types2 "github.com/ethereum/go-ethereum/core/types"
 	params2 "github.com/ethereum/go-ethereum/params"
@@ -100,20 +101,17 @@ func (c *randomChainContainer) Resume(ctx context.Context) error                
 func (c *randomChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
 
 func (c *randomChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	//TODO
-	/*
-	var theblock *ChainBlock = nil;
-	for _, block := range c.blocks {
-		if block.block.Time <= ts {
+	var theblock *eth.L2BlockRef = nil;
+	for _, block := range c.randomChain.chainBlocks[c.chainID] {
+		if block.Time <= ts {
 			theblock = block;
 		} else {
 			break
 		}
 	}
-	if theblock == nil || theblock.block.Number > c.chainHeads.localSafe {
+	if theblock == nil || theblock.Number > c.randomChain.chainHeads[c.chainID].localSafe {
 		return eth.L2BlockRef{}, ethereum.NotFound;
 	}
-	*/
 	return eth.L2BlockRef{}, nil
 }
 
