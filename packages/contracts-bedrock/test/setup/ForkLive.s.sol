@@ -124,7 +124,7 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         string memory standardVersionsToml =
             vm.readFile(string.concat(validationBasePath, "standard-versions-", baseChain(), ".toml"));
 
-        standardVersionsToml = standardVersionsToml.replace('"op-contracts/v2.0.0-rc.1"', "RELEASE");
+        standardVersionsToml = standardVersionsToml.replace('"op-contracts/v6.0.0-rc.2"', "RELEASE");
 
         // Read the extra addresses JSON file which contains addresses no longer in the chain TOML.
         string memory addressesJson = vm.readFile("./lib/superchain-registry/superchain/extra/addresses/addresses.json");
