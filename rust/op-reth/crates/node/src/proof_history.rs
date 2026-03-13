@@ -75,7 +75,7 @@ pub async fn launch_node_with_proof_history(
                     ctx.node().provider().clone(),
                     ctx.registry.eth_api().clone(),
                     storage,
-                    Box::new(ctx.node().task_executor().clone()),
+                    ctx.node().task_executor().clone(),
                     ctx.node().evm_config().clone(),
                 );
                 ctx.modules.replace_configured(api_ext.into_rpc())?;

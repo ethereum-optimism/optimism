@@ -70,7 +70,7 @@ where
         let revm_evm = RevmOpEvm(RevmEvm {
             ctx,
             inspector: NoOpInspector {},
-            instruction: EthInstructions::new_mainnet(),
+            instruction: EthInstructions::new_mainnet_with_spec(spec_id.into()),
             precompiles: OpFpvmPrecompiles::new_with_spec(
                 spec_id,
                 self.hint_writer.clone(),
@@ -93,7 +93,7 @@ where
         let revm_evm = RevmOpEvm(RevmEvm {
             ctx,
             inspector,
-            instruction: EthInstructions::new_mainnet(),
+            instruction: EthInstructions::new_mainnet_with_spec(spec_id.into()),
             precompiles: OpFpvmPrecompiles::new_with_spec(
                 spec_id,
                 self.hint_writer.clone(),

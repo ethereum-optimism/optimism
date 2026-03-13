@@ -16,7 +16,7 @@ use reth_storage_api::{
     BlockReaderIdExt, NodePrimitivesProvider, StateProviderFactory,
     errors::{ProviderError, ProviderResult},
 };
-use reth_tasks::TaskSpawner;
+use reth_tasks::Runtime;
 use reth_transaction_pool::TransactionPool;
 use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{Semaphore, oneshot};
@@ -30,7 +30,7 @@ impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConf
     /// Creates a new instance of the `OpDebugWitnessApi`.
     pub fn new(
         provider: Provider,
-        task_spawner: Box<dyn TaskSpawner>,
+        task_spawner: Runtime,
         builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
     ) -> Self {
         let semaphore = Arc::new(Semaphore::new(3));
@@ -116,6 +116,6 @@ impl<Pool, Provider, EvmConfig, Attrs> Debug
 struct OpDebugWitnessApiInner<Pool, Provider, EvmConfig, Attrs> {
     provider: Provider,
     builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
-    task_spawner: Box<dyn TaskSpawner>,
+    task_spawner: Runtime,
     semaphore: Arc<Semaphore>,
 }

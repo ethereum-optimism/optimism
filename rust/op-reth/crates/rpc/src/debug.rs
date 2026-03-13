@@ -33,7 +33,7 @@ use reth_revm::{State, database::StateProviderDatabase, witness::ExecutionWitnes
 use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
 use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
-use reth_tasks::TaskSpawner;
+use reth_tasks::Runtime;
 use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::{Semaphore, oneshot};
@@ -86,7 +86,7 @@ where
         provider: Provider,
         eth_api: Eth,
         preimage_store: OpProofsStorage<Storage>,
-        task_spawner: Box<dyn TaskSpawner>,
+        task_spawner: Runtime,
         evm_config: EvmConfig,
     ) -> Self {
         Self {
@@ -109,7 +109,7 @@ pub struct DebugApiExtInner<Eth: FullEthApi, Storage, Provider, EvmConfig, Attrs
     storage: OpProofsStorage<Storage>,
     state_provider_factory: OpStateProviderFactory<Eth, Storage>,
     evm_config: EvmConfig,
-    task_spawner: Box<dyn TaskSpawner>,
+    task_spawner: Runtime,
     semaphore: Semaphore,
     _attrs: PhantomData<Attrs>,
     metrics: DebugApiExtMetrics,
@@ -126,7 +126,7 @@ where
         provider: Provider,
         eth_api: Eth,
         storage: OpProofsStorage<P>,
-        task_spawner: Box<dyn TaskSpawner>,
+        task_spawner: Runtime,
         evm_config: EvmConfig,
     ) -> Self {
         Self {

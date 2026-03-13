@@ -254,6 +254,7 @@ where
             basefee: payload.payload.as_v1().base_fee_per_gas.to(),
             // EIP-4844 excess blob gas of this block, introduced in Cancun
             blob_excess_gas_and_price,
+            slot_num: 0,
         };
 
         Ok(EvmEnv { cfg_env, block_env })

@@ -455,7 +455,7 @@ commands:
       toolchain_version:
         description: The specific toolchain version for stable channel
         type: string
-        default: "1.92.0"
+        default: "1.94.0"
       target:
         description: A custom target architecture to add to the toolchain
         type: string

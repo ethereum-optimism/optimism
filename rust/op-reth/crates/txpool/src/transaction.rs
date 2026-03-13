@@ -130,6 +130,10 @@ where
     type Consensus = Cons;
     type Pooled = Pooled;
 
+    fn consensus_ref(&self) -> Recovered<&Self::Consensus> {
+        self.inner.transaction().as_recovered_ref()
+    }
+
     fn clone_into_consensus(&self) -> Recovered<Self::Consensus> {
         self.inner.transaction().clone()
     }

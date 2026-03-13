@@ -568,7 +568,7 @@ where
         // install additional OP specific rpc methods
         let debug_ext = OpDebugWitnessApi::<_, _, _, Attrs>::new(
             ctx.node.provider().clone(),
-            Box::new(ctx.node.task_executor().clone()),
+            ctx.node.task_executor().clone(),
             builder,
         );
         let miner_ext = OpMinerExtApi::new(da_config, gas_limit_config);

@@ -396,7 +396,6 @@ where
                 OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ))
-            .with_prefix_sets_mut(input.prefix_sets)
             .always_include_root_node()
             .compute(target)
     }
