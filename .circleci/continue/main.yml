@@ -2401,6 +2401,16 @@ jobs:
           name: All memory-all tests passed
           command: echo "All memory-all acceptance test variants passed"
 
+  # Temporary job for testing ci-gate failure detection. Remove after verification.
+  ci-gate-test-fail:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - run:
+          name: Always fail (test job)
+          command: exit 1
+
   # Gate job - single stable job used as GitHub required status check for develop.
   # Uses terminal requires so it always runs (even when deps fail), then explicitly
   # fails via the CircleCI API check — giving the merge queue an immediate signal
@@ -3304,8 +3314,13 @@ workflows:
       # merge queue an immediate failure signal instead of a timeout.
       # To add a new mandatory check: add it to requires here AND to the job's
       # REQUIRED_JOBS list above. No GitHub ruleset changes needed.
+      - ci-gate-test-fail:
+          filters:
+            branches:
+              ignore: develop
       - ci-gate:
           requires:
+            - ci-gate-test-fail: terminal
             - check-kontrol-build: terminal
             - shell-check: terminal
             - go-lint: terminal
