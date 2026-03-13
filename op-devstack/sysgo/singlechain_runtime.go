@@ -60,7 +60,7 @@ func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2
 }
 
 func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
-	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.DeployerOptions...)
+	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{
 		L1Network: l1Net,
 		L2Network: l2Net,

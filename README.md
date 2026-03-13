@@ -64,9 +64,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 
 <pre>
 ├── <a href="./cannon">cannon</a>: Onchain MIPS instruction emulator for fault proofs
-├── <a href="./devnet-sdk">devnet-sdk</a>: Comprehensive toolkit for standardized devnet interactions
 ├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
-├── <a href="./kurtosis-devnet">kurtosis-devnet</a>: OP-Stack Kurtosis devnet
 ├── <a href="./op-acceptance-tests">op-acceptance-tests</a>: Acceptance tests and configuration for OP Stack
 ├── <a href="./op-alt-da">op-alt-da</a>: Alternative Data Availability mode (beta)
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1

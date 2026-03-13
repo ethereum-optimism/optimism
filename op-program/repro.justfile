@@ -13,24 +13,16 @@ cannon:
     # in devnet scenario, the cannon binary is already built.
     [ -x /app/cannon/bin/cannon ] && exit 0
     cd ../cannon
-    make cannon \
-        GOOS={{GOOS}} \
-        GOARCH={{GOARCH}} \
-        GITCOMMIT={{GIT_COMMIT}} \
-        GITDATE={{GIT_DATE}} \
-        VERSION={{CANNON_VERSION}}
+    env GOOS={{GOOS}} GOARCH={{GOARCH}} \
+        just GITCOMMIT={{GIT_COMMIT}} GITDATE={{GIT_DATE}} VERSION={{CANNON_VERSION}} cannon
 
 # Build the op-program-client elf binaries
+# Note: GOOS/GOARCH/GOMIPS are hardcoded in the justfile targets,
+# so they don't need to be passed here.
 op-program-client-mips:
     #!/bin/bash
     cd ../op-program
-    make op-program-client-mips \
-        GOOS=linux \
-        GOARCH=mips \
-        GOMIPS=softfloat \
-        GITCOMMIT={{GIT_COMMIT}} \
-        GITDATE={{GIT_DATE}} \
-        VERSION={{OP_PROGRAM_VERSION}}
+    just GITCOMMIT={{GIT_COMMIT}} GITDATE={{GIT_DATE}} VERSION={{OP_PROGRAM_VERSION}} op-program-client-mips
 
 # Generate the prestate proof containing the absolute pre-state hash.
 prestate TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: cannon op-program-client-mips

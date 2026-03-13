@@ -147,4 +147,5 @@ const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer
 const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindTimeTravel
 
-const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindOPRBuilder
+const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindOPRBuilder

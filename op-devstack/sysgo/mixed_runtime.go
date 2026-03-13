@@ -64,10 +64,11 @@ type MixedSingleChainNodeSpec struct {
 }
 
 type MixedSingleChainPresetConfig struct {
-	NodeSpecs         []MixedSingleChainNodeSpec
-	WithTestSequencer bool
-	TestSequencerName string
-	DeployerOptions   []DeployerOption
+	NodeSpecs                  []MixedSingleChainNodeSpec
+	WithTestSequencer          bool
+	TestSequencerName          string
+	LocalContractArtifactsPath string
+	DeployerOptions            []DeployerOption
 }
 
 type mixedSingleChainNode struct {
@@ -105,7 +106,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.DeployerOptions...)
+	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)
 

@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -43,7 +43,7 @@ func TestRegularMessage(gt *testing.T) {
 
 	logger.Info("Send message", "address", eventLoggerAddress, "topicCnt", len(topics), "dataLen", len(data))
 	trigger := &txintent.SendTrigger{
-		Emitter:         constants.L2ToL2CrossDomainMessenger,
+		Emitter:         predeploys.L2toL2CrossDomainMessengerAddr,
 		DestChainID:     bob.ChainID(),
 		Target:          eventLoggerAddress,
 		RelayedCalldata: calldata,
@@ -55,7 +55,7 @@ func TestRegularMessage(gt *testing.T) {
 	sendMsgReceipt, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err, "send msg receipt not found")
 	require.Equal(1, len(sendMsgReceipt.Logs)) // SentMessage event
-	require.Equal(constants.L2ToL2CrossDomainMessenger, sendMsgReceipt.Logs[0].Address)
+	require.Equal(predeploys.L2toL2CrossDomainMessengerAddr, sendMsgReceipt.Logs[0].Address)
 
 	// Make sure supervisor syncs the chain A events
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
@@ -64,14 +64,14 @@ func TestRegularMessage(gt *testing.T) {
 	txB := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](bob.Plan())
 	txB.Content.DependOn(&txA.Result)
 	idx := 0
-	txB.Content.Fn(txintent.RelayIndexed(constants.L2ToL2CrossDomainMessenger, &txA.Result, &txA.PlannedTx.Included, idx))
+	txB.Content.Fn(txintent.RelayIndexed(predeploys.L2toL2CrossDomainMessengerAddr, &txA.Result, &txA.PlannedTx.Included, idx))
 
 	relayMsgReceipt, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err, "relay msg receipt not found")
 
 	// ExecutingMessage, EventLogger, RelayedMessage Events
 	require.Equal(3, len(relayMsgReceipt.Logs))
-	for logIdx, addr := range []common.Address{constants.CrossL2Inbox, eventLoggerAddress, constants.L2ToL2CrossDomainMessenger} {
+	for logIdx, addr := range []common.Address{predeploys.CrossL2InboxAddr, eventLoggerAddress, predeploys.L2toL2CrossDomainMessengerAddr} {
 		require.Equal(addr, relayMsgReceipt.Logs[logIdx].Address)
 	}
 	// EventLogger topics and data

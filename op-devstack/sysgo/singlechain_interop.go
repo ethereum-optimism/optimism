@@ -6,7 +6,7 @@ import (
 )
 
 func newSingleChainInteropWorldNoSupervisor(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
-	l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInterop(t, keys, true, cfg.DeployerOptions...)
+	l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{
 		L1Network: l1Net,
 		L2Network: l2Net,

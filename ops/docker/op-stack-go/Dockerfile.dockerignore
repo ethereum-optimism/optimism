@@ -3,7 +3,6 @@
 *
 
 !/cannon
-!/devnet-sdk
 !/op-core
 !/op-batcher
 !/op-chain-ops
