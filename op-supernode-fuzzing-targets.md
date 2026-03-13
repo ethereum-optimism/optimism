@@ -8,7 +8,7 @@
 | P1 | Valid cross-chain messages never produce `InvalidHeads` | `FuzzVerifyInteropMessagesValid` |
 | P2 | Every invalidation type is correctly detected (unknown chain, timestamp violation, expired, conflict, hash mismatch) | `FuzzVerifyInteropMessagesFails` |
 | P3 | `Result.IsValid()` ↔ `len(InvalidHeads) == 0` | `FuzzVerifyInteropMessagesValid` |
-| P4 | `execMsg.Timestamp + ExpiryTime` overflow doesn't cause false positive/negative; exact boundary values handled correctly | `FuzzVerifyExpiryBoundary` |
+| P4 | `execMsg.Timestamp + ExpiryTime` overflow doesn't cause false positive/negative; exact boundary values handled correctly | `FuzzVerifyExpiryBoundary`, `FuzzVerifyExpiryOverflow` |
 | P5 | First block (`ErrSkipped` path) correctly handles hash match vs mismatch against `FirstSealedBlock` | `FuzzVerifyFirstBlockSkipped` |
 | P6 | Block with multiple invalid executing messages is still marked invalid (first-invalid short-circuits) | `FuzzVerifyMultipleInvalidMessages` |
 | P7 | Chains not present in `logsDBs` are silently excluded from `Result.L2Heads` | `FuzzVerifyMissingChains` |
@@ -83,6 +83,14 @@
 go test -fuzz=FuzzDenyListAddContains ./op-supernode/supernode/chain_container/ -fuzztime=60s
 ```
 
+Results:
+```
+fuzz: elapsed: 30s, execs: 538358 (19036/sec), new interesting: 1 (total: 91)
+fuzz: elapsed: 33s, execs: 584012 (15222/sec), new interesting: 2 (total: 92)
+fuzz: elapsed: 7m18s, execs: 9178180 (21450/sec), new interesting: 2 (total: 92)
+fuzz: elapsed: 8m27s, execs: 10613926 (20912/sec), new interesting: 2 (total: 92)
+```
+
 ### `FuzzDenyListConcurrent`
 **Properties tested:**
 - Thread safety: parallel Add/Contains from multiple goroutines never error or lose writes
@@ -90,6 +98,16 @@ go test -fuzz=FuzzDenyListAddContains ./op-supernode/supernode/chain_container/ 
 
 ```bash
 go test -fuzz=FuzzDenyListConcurrent ./op-supernode/supernode/chain_container/ -fuzztime=60s
+```
+
+Results:
+
+```
+fuzz: elapsed: 27s, execs: 480112 (17583/sec), new interesting: 21 (total: 154)
+fuzz: elapsed: 1m24s, execs: 1472021 (16863/sec), new interesting: 22 (total: 155)
+fuzz: elapsed: 4h17m57s, execs: 152163737 (9713/sec), new interesting: 66 (total: 68)
+fuzz: elapsed: 4h18m0s, execs: 152192768 (9677/sec), new interesting: 67 (total: 69)
+fuzz: elapsed: 5h52m9s, execs: 207193909 (9847/sec), new interesting: 67 (total: 69)
 ```
 
 ---
@@ -106,6 +124,10 @@ go test -fuzz=FuzzDenyListConcurrent ./op-supernode/supernode/chain_container/ -
 go test -fuzz=FuzzRewindToTimestamp ./op-supernode/supernode/chain_container/engine_controller/ -fuzztime=60s
 ```
 
+fuzz: elapsed: 3s, execs: 24320 (8105/sec), new interesting: 13 (total: 17)
+fuzz: elapsed: 6s, execs: 59028 (11567/sec), new interesting: 14 (total: 18)
+fuzz: elapsed: 5m0s, execs: 3464235 (0/sec), new interesting: 14 (total: 18)
+
 ### `FuzzComputeRewindTargets`
 **Properties tested:**
 - **P25:** Returns error when target < finalized
@@ -114,6 +136,11 @@ go test -fuzz=FuzzRewindToTimestamp ./op-supernode/supernode/chain_container/eng
 ```bash
 go test -fuzz=FuzzComputeRewindTargets ./op-supernode/supernode/chain_container/engine_controller/ -fuzztime=60s
 ```
+
+
+fuzz: elapsed: 3s, execs: 35123 (11704/sec), new interesting: 16 (total: 18)
+fuzz: elapsed: 5m0s, execs: 4405223 (0/sec), new interesting: 16 (total: 18)
+
 
 ---
 
@@ -128,6 +155,9 @@ go test -fuzz=FuzzComputeRewindTargets ./op-supernode/supernode/chain_container/
 go test -fuzz=FuzzVerifyCanAddTimestamp ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
 
+fuzz: elapsed: 1m0s, execs: 1753747 (28822/sec), new interesting: 1 (total: 22)
+
+
 ### `FuzzProcessBlockLogs`
 **Properties tested:**
 - **P11:** First block with empty parent hash is accepted exactly once (virtual parent seal handling)
@@ -136,6 +166,9 @@ go test -fuzz=FuzzVerifyCanAddTimestamp ./op-supernode/supernode/activity/intero
 ```bash
 go test -fuzz=FuzzProcessBlockLogs ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
+
+fuzz: elapsed: 2m0s, execs: 2833828 (23341/sec), new interesting: 2 (total: 44)
+fuzz: elapsed: 2m0s, execs: 2833828 (0/sec), new interesting: 2 (total: 44)
 
 ---
 
@@ -150,6 +183,8 @@ go test -fuzz=FuzzProcessBlockLogs ./op-supernode/supernode/activity/interop/ -f
 go test -fuzz=FuzzVerifyInteropMessagesValid ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
 
+fuzz: elapsed: 2m0s, execs: 2769528 (0/sec), new interesting: 21 (total: 25)
+
 ### `FuzzVerifyInteropMessagesFails`
 **Properties tested:**
 - **P2:** Every invalidation type is correctly detected (unknown source chain, timestamp violation, expired message, message not found/conflict, block hash mismatch)
@@ -158,12 +193,22 @@ go test -fuzz=FuzzVerifyInteropMessagesValid ./op-supernode/supernode/activity/i
 go test -fuzz=FuzzVerifyInteropMessagesFails ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
 
+fuzz: elapsed: 1m0s, execs: 1431913 (28172/sec), new interesting: 1 (total: 21)
+
 ### `FuzzVerifyExpiryBoundary`
 **Properties tested:**
 - **P4:** `execMsg.Timestamp + ExpiryTime` overflow doesn't cause false positive/negative; exact boundary values (at, one past, one before expiry) are handled correctly
 
 ```bash
 go test -fuzz=FuzzVerifyExpiryBoundary ./op-supernode/supernode/activity/interop/ -fuzztime=60s
+```
+
+### `FuzzVerifyExpiryOverflow`
+**Properties tested:**
+- **P4 (overflow):** Demonstrates that `execMsg.Timestamp + ExpiryTime` uint64 overflow causes false expiration of logically valid messages. When `initTS > MaxUint64 - ExpiryTime`, the addition wraps to a small number, triggering `ErrMessageExpired` even though `execTS - initTS < ExpiryTime`. Asserts the **current buggy behavior** — if the production code is fixed, update assertions to expect valid results.
+
+```bash
+go test -fuzz=FuzzVerifyExpiryOverflow ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
 
 ### `FuzzVerifyFirstBlockSkipped`
@@ -174,6 +219,9 @@ go test -fuzz=FuzzVerifyExpiryBoundary ./op-supernode/supernode/activity/interop
 go test -fuzz=FuzzVerifyFirstBlockSkipped ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
 
+fuzz: elapsed: 5m0s, execs: 5076937 (0/sec), new interesting: 11 (total: 14)
+
+
 ### `FuzzVerifyMultipleInvalidMessages`
 **Properties tested:**
 - **P6:** Block with multiple invalid executing messages is still marked invalid (first-invalid-short-circuits)
@@ -182,6 +230,9 @@ go test -fuzz=FuzzVerifyFirstBlockSkipped ./op-supernode/supernode/activity/inte
 go test -fuzz=FuzzVerifyMultipleInvalidMessages ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
 
+fuzz: elapsed: 5m0s, execs: 5044294 (0/sec), new interesting: 19 (total: 22)
+
+
 ### `FuzzVerifyMissingChains`
 **Properties tested:**
 - **P7:** Chains not present in `logsDBs` are silently excluded from `Result.L2Heads`
@@ -189,6 +240,9 @@ go test -fuzz=FuzzVerifyMultipleInvalidMessages ./op-supernode/supernode/activit
 ```bash
 go test -fuzz=FuzzVerifyMissingChains ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
+
+fuzz: elapsed: 5m0s, execs: 7491473 (26008/sec), new interesting: 24 (total: 26)
+
 
 ### `FuzzResultProperties`
 **Properties tested:**
@@ -199,6 +253,9 @@ go test -fuzz=FuzzVerifyMissingChains ./op-supernode/supernode/activity/interop/
 ```bash
 go test -fuzz=FuzzResultProperties ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
+
+fuzz: elapsed: 5m0s, execs: 4603574 (15442/sec), new interesting: 10 (total: 13)
+
 
 ---
 
@@ -212,6 +269,10 @@ go test -fuzz=FuzzResultProperties ./op-supernode/supernode/activity/interop/ -f
 ```bash
 go test -fuzz=FuzzProgressInteropValid ./op-supernode/supernode/activity/interop/ -fuzztime=60s
 ```
+
+fuzz: elapsed: 2m36s, execs: 4290 (27/sec), new interesting: 29 (total: 32)
+fuzz: elapsed: 2m39s, execs: 4377 (29/sec), new interesting: 30 (total: 33)
+
 
 ### `FuzzProgressInteropInvalid`
 **Properties tested:**
@@ -278,15 +339,24 @@ go test -fuzz=FuzzVerifiedDBPersistence ./op-supernode/supernode/activity/intero
 
 ### DenyList (chain_container)
 ```bash
-kaas go test -fuzz='FuzzDenyListAddContains,FuzzDenyListConcurrent' ./op-supernode/supernode/chain_container/ --fuzztime=60s
+kaas go test -fuzz='FuzzDenyListAddContains,FuzzDenyListConcurrent' ./op-supernode/supernode/chain_container/ --fuzztime=5m
 ```
 
 ### Engine Controller Rewind (engine_controller)
 ```bash
-kaas go test -fuzz='FuzzRewindToTimestamp,FuzzComputeRewindTargets' ./op-supernode/supernode/chain_container/engine_controller/ --fuzztime=60s
+kaas go test -fuzz='FuzzRewindToTimestamp,FuzzComputeRewindTargets' ./op-supernode/supernode/chain_container/engine_controller/ --fuzztime=5m
 ```
 
 ### Interop — all targets (activity/interop)
 ```bash
-kaas go test -fuzz='FuzzVerifyCanAddTimestamp,FuzzProcessBlockLogs,FuzzVerifyInteropMessagesValid,FuzzVerifyInteropMessagesFails,FuzzVerifyExpiryBoundary,FuzzVerifyFirstBlockSkipped,FuzzVerifyMultipleInvalidMessages,FuzzVerifyMissingChains,FuzzResultProperties,FuzzProgressInteropValid,FuzzProgressInteropInvalid,FuzzProgressInteropReset,FuzzHandleResultEmpty,FuzzVerifiedDBCommitRewind,FuzzVerifiedDBFirstCommit,FuzzVerifiedDBPersistence' ./op-supernode/supernode/activity/interop/ --fuzztime=60s
+kaas go test -fuzz='FuzzVerifyCanAddTimestamp,FuzzProcessBlockLogs,FuzzVerifyInteropMessagesValid,FuzzVerifyInteropMessagesFails,FuzzVerifyExpiryBoundary,FuzzVerifyExpiryOverflow' ./op-supernode/supernode/activity/interop/ --fuzztime=5m
+```
+Limited to 5 targets
+
+```bash
+kaas go test -fuzz='FuzzVerifyFirstBlockSkipped,FuzzVerifyMultipleInvalidMessages,FuzzVerifyMissingChains,FuzzResultProperties,FuzzProgressInteropValid' ./op-supernode/supernode/activity/interop/ --fuzztime=5m
+
+kaas go test -fuzz='FuzzProgressInteropInvalid,FuzzProgressInteropReset,FuzzHandleResultEmpty,FuzzVerifiedDBCommitRewind,FuzzVerifiedDBFirstCommit' ./op-supernode/supernode/activity/interop/ --fuzztime=5m
+
+kaas go test -fuzz='FuzzVerifiedDBPersistence' ./op-supernode/supernode/activity/interop/ --fuzztime=5m
 ```

@@ -1,6 +1,7 @@
 package chain_container
 
 import (
+	"encoding/binary"
 	"math/rand"
 	"sync"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	bolt "go.etcd.io/bbolt"
 )
 
 // FuzzDenyListAddContains performs random sequences of Add and Contains operations
@@ -215,5 +217,179 @@ func FuzzDenyListConcurrent(f *testing.F) {
 					"worker %d op %d: hash should be visible after concurrent writes complete", workerID, j)
 			}
 		}
+	})
+}
+
+// FuzzDenyListBoundaryAlignment tests the real bbolt-backed DenyList's
+// concatenated 32-byte hash storage for boundary alignment correctness.
+//
+// The production DenyList stores multiple hashes at a single height as
+// raw concatenated bytes: hash1[32] || hash2[32] || ... || hashN[32].
+// Contains and GetDeniedHashes iterate with i += 32 steps. If the stored
+// data is ever misaligned (len % 32 != 0), trailing bytes are silently
+// dropped, causing data loss.
+//
+// This test:
+// 1. Uses the REAL bbolt-backed DenyList (not MemoryDenyList)
+// 2. Adds many hashes per height to stress the concatenation
+// 3. Verifies raw storage is always 32-byte aligned
+// 4. Verifies every hash survives the round-trip through byte storage
+// 5. Tests adjacent heights to verify key isolation in bbolt
+//
+// Properties:
+// P24: Concatenated 32-byte hash storage handles boundary alignment correctly
+func FuzzDenyListBoundaryAlignment(f *testing.F) {
+	f.Add(int64(1), 5)
+	f.Add(int64(42), 20)
+	f.Add(int64(100), 1)
+	f.Add(int64(0), 50)
+
+	f.Fuzz(func(t *testing.T, seed int64, hashesPerHeight int) {
+		rng := rand.New(rand.NewSource(seed))
+
+		if hashesPerHeight < 1 {
+			hashesPerHeight = 1
+		}
+		if hashesPerHeight > 64 {
+			hashesPerHeight = 64
+		}
+
+		dataDir := t.TempDir()
+		dl, err := OpenDenyList(dataDir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		// Use adjacent heights to test key isolation
+		numHeights := 2 + rng.Intn(5)
+		baseHeight := uint64(rng.Intn(10000))
+
+		// Track what we add: height -> ordered list of unique hashes
+		added := make(map[uint64][]common.Hash)
+
+		for h := 0; h < numHeights; h++ {
+			height := baseHeight + uint64(h)
+			seen := make(map[common.Hash]bool)
+
+			for i := 0; i < hashesPerHeight; i++ {
+				var hash common.Hash
+				rng.Read(hash[:])
+
+				// Skip duplicates within same height
+				if seen[hash] {
+					continue
+				}
+				seen[hash] = true
+
+				err := dl.Add(height, hash)
+				require.NoError(t, err)
+				added[height] = append(added[height], hash)
+			}
+		}
+
+		// Verify 1: Raw storage alignment
+		// Read the bbolt database directly to check that every value
+		// is exactly len % 32 == 0 (no partial hashes).
+		err = dl.db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket(denyListBucketName)
+			require.NotNil(t, b)
+
+			for height := range added {
+				key := make([]byte, 8)
+				binary.BigEndian.PutUint64(key, height)
+
+				raw := b.Get(key)
+				require.NotNil(t, raw,
+					"P24: raw data should exist at height %d", height)
+				require.Equal(t, 0, len(raw)%common.HashLength,
+					"P24: raw storage length %d is not 32-byte aligned at height %d (has %d trailing bytes)",
+					len(raw), height, len(raw)%common.HashLength)
+
+				// Verify the raw byte count matches expected hash count
+				expectedCount := len(added[height])
+				actualCount := len(raw) / common.HashLength
+				require.Equal(t, expectedCount, actualCount,
+					"P24: raw storage at height %d has %d hashes but expected %d",
+					height, actualCount, expectedCount)
+			}
+			return nil
+		})
+		require.NoError(t, err)
+
+		// Verify 2: Every added hash is retrievable via Contains
+		for height, hashes := range added {
+			for _, hash := range hashes {
+				found, err := dl.Contains(height, hash)
+				require.NoError(t, err)
+				require.True(t, found,
+					"P24: hash %s should be found at height %d after Add", hash, height)
+			}
+		}
+
+		// Verify 3: GetDeniedHashes returns exactly the right set
+		for height, expectedHashes := range added {
+			gotHashes, err := dl.GetDeniedHashes(height)
+			require.NoError(t, err)
+			require.Equal(t, len(expectedHashes), len(gotHashes),
+				"P24: GetDeniedHashes count mismatch at height %d", height)
+
+			gotSet := make(map[common.Hash]bool)
+			for _, h := range gotHashes {
+				gotSet[h] = true
+			}
+			for _, h := range expectedHashes {
+				require.True(t, gotSet[h],
+					"P24: expected hash %s not found in GetDeniedHashes at height %d", h, height)
+			}
+		}
+
+		// Verify 4: Height isolation — hashes at one height don't leak to adjacent
+		for height, hashes := range added {
+			for _, hash := range hashes {
+				for otherHeight := range added {
+					if otherHeight == height {
+						continue
+					}
+					// Hash should only be found at otherHeight if it was also added there
+					found, err := dl.Contains(otherHeight, hash)
+					require.NoError(t, err)
+
+					wasAddedAtOther := false
+					for _, oh := range added[otherHeight] {
+						if oh == hash {
+							wasAddedAtOther = true
+							break
+						}
+					}
+					require.Equal(t, wasAddedAtOther, found,
+						"P24: hash %s isolation violation between heights %d and %d",
+						hash, height, otherHeight)
+				}
+			}
+		}
+
+		// Verify 5: Duplicate adds don't corrupt alignment
+		// Re-add every hash and verify storage is unchanged
+		for height, hashes := range added {
+			for _, hash := range hashes {
+				err := dl.Add(height, hash)
+				require.NoError(t, err)
+			}
+		}
+
+		err = dl.db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket(denyListBucketName)
+			for height, expectedHashes := range added {
+				key := make([]byte, 8)
+				binary.BigEndian.PutUint64(key, height)
+
+				raw := b.Get(key)
+				require.Equal(t, 0, len(raw)%common.HashLength,
+					"P24: alignment broken after duplicate adds at height %d", height)
+				require.Equal(t, len(expectedHashes), len(raw)/common.HashLength,
+					"P24: duplicate adds changed hash count at height %d", height)
+			}
+			return nil
+		})
+		require.NoError(t, err)
 	})
 }

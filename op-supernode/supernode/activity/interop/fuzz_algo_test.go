@@ -295,8 +295,8 @@ func FuzzVerifyInteropMessagesFails(f *testing.F) {
 				Checksum:  suptypes.MessageChecksum(randomHash(rng)),
 			}
 
-		case 1: // Timestamp violation - initTimestamp >= execTimestamp
-			initTS := execTimestamp + uint64(rng.Intn(1000))
+		case 1: // Timestamp violation - initTimestamp > execTimestamp
+			initTS := execTimestamp + 1 + uint64(rng.Intn(1000))
 			execMsg = &suptypes.ExecutingMessage{
 				ChainID:   sourceChainID,
 				BlockNum:  50,
@@ -518,6 +518,132 @@ func FuzzVerifyExpiryBoundary(f *testing.F) {
 				require.False(t, result.IsValid(), "P4: %s at execTS=%d, initTS=%d should be invalid", tc.name, execTimestamp, tc.initTS)
 			}
 		}
+	})
+}
+
+// =============================================================================
+// Fuzz Test: Expiry overflow causes false expiration (P4 overflow)
+// =============================================================================
+
+// FuzzVerifyExpiryOverflow tests that when execMsg.Timestamp is large enough
+// for Timestamp + ExpiryTime to overflow uint64, the production code's
+// unchecked addition wraps around and falsely expires a valid message.
+//
+// The production check (algo.go:167) is:
+//
+//	if execMsg.Timestamp+ExpiryTime < executingTimestamp { → ErrMessageExpired }
+//
+// When Timestamp > MaxUint64-ExpiryTime, the LHS overflows to a small value,
+// making the condition true even though the message is not actually expired
+// (initTS <= execTS, and the "real" age is execTS - initTS which is < ExpiryTime).
+//
+// This test demonstrates the bug: a message whose true age is well within the
+// expiry window gets incorrectly rejected due to uint64 overflow.
+func FuzzVerifyExpiryOverflow(f *testing.F) {
+	// Seeds that place initTS in the overflow region (initTS + ExpiryTime > MaxUint64)
+	f.Add(int64(1), uint64(0))   // offset 0: initTS = MaxUint64 - ExpiryTime + 1
+	f.Add(int64(2), uint64(100)) // offset 100: initTS = MaxUint64 - ExpiryTime + 101
+	f.Add(int64(3), uint64(ExpiryTime-1))
+
+	f.Fuzz(func(t *testing.T, seed int64, offset uint64) {
+		rng := rand.New(rand.NewSource(seed))
+
+		// Clamp offset so initTS doesn't wrap around itself
+		maxOffset := uint64(ExpiryTime - 1)
+		if offset > maxOffset {
+			offset = offset % maxOffset
+		}
+
+		// Place initTS in the overflow zone: initTS + ExpiryTime will wrap uint64
+		initTS := (math.MaxUint64 - ExpiryTime + 1) + offset
+
+		// Sanity: confirm this is actually in the overflow zone
+		if initTS <= math.MaxUint64-ExpiryTime {
+			return // not in overflow zone, skip
+		}
+
+		// execTimestamp must be >= initTS (timestamp ordering) and the "real"
+		// age (execTS - initTS) must be <= ExpiryTime so the message is
+		// logically valid.
+		//
+		// Pick execTS in [initTS, initTS + ExpiryTime/2] but clamp to MaxUint64.
+		age := uint64(rng.Int63n(int64(ExpiryTime/2))) + 1
+		execTimestamp := initTS + age
+		if execTimestamp < initTS {
+			// execTimestamp itself overflowed — skip
+			return
+		}
+
+		// The message is logically valid:
+		//   initTS <= execTimestamp              (timestamp ordering satisfied)
+		//   execTimestamp - initTS <= ExpiryTime (within expiry window)
+		//
+		// But the production code computes initTS + ExpiryTime which overflows:
+		//   (initTS + ExpiryTime) wraps to a small number < execTimestamp
+		//   → falsely returns ErrMessageExpired
+
+		sourceChainID := eth.ChainIDFromUInt64(10)
+		destChainID := eth.ChainIDFromUInt64(8453)
+
+		destBlockHash := randomHash(rng)
+		destBlockNum := uint64(100)
+
+		sourceDB := newFuzzMockLogsDB()
+		sourceDB.defaultContainsSeal = suptypes.BlockSeal{Number: 1, Timestamp: initTS}
+
+		destDB := newFuzzMockLogsDB()
+
+		execMsg := &suptypes.ExecutingMessage{
+			ChainID:   sourceChainID,
+			BlockNum:  50,
+			LogIdx:    0,
+			Timestamp: initTS,
+			Checksum:  suptypes.MessageChecksum(randomHash(rng)),
+		}
+
+		destDB.blocks[destBlockNum] = fuzzBlockData{
+			ref:      eth.BlockRef{Hash: destBlockHash, Number: destBlockNum, Time: execTimestamp},
+			execMsgs: map[uint32]*suptypes.ExecutingMessage{0: execMsg},
+		}
+
+		interop := &Interop{
+			log: gethlog.New(),
+			logsDBs: map[eth.ChainID]LogsDB{
+				sourceChainID: sourceDB,
+				destChainID:   destDB,
+			},
+		}
+
+		blocksAtTimestamp := map[eth.ChainID]eth.BlockID{
+			destChainID: {Number: destBlockNum, Hash: destBlockHash},
+		}
+
+		result, err := interop.verifyInteropMessages(execTimestamp, blocksAtTimestamp)
+		require.NoError(t, err)
+
+		// The message is logically valid (within expiry window), so a correct
+		// implementation would return IsValid() == true.
+		//
+		// However, due to uint64 overflow in the production code, the message
+		// is falsely expired. We assert the ACTUAL (buggy) behavior here so
+		// that:
+		// 1. The test documents the overflow bug.
+		// 2. If the production code is fixed (e.g. by rewriting the check as
+		//    `execTimestamp - initTS > ExpiryTime`), this assertion will flip
+		//    and the test must be updated to expect IsValid() == true.
+		overflowedSum := initTS + ExpiryTime // wraps around
+		require.Less(t, overflowedSum, initTS,
+			"sanity: addition must have overflowed")
+		require.Less(t, overflowedSum, execTimestamp,
+			"sanity: overflowed sum should be < execTimestamp, triggering false expiry")
+
+		require.False(t, result.IsValid(),
+			"BUG(P4-overflow): message with initTS=%d, execTS=%d (age=%d, ExpiryTime=%d) "+
+				"is logically valid but falsely expired due to uint64 overflow in "+
+				"initTS+ExpiryTime (overflows to %d)",
+			initTS, execTimestamp, execTimestamp-initTS, ExpiryTime, overflowedSum)
+		require.Contains(t, result.InvalidHeads, destChainID,
+			"BUG(P4-overflow): dest chain should be in InvalidHeads due to false expiry")
 	})
 }
 
