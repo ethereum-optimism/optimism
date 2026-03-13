@@ -202,11 +202,6 @@ abstract contract Setup is FeatureFlags {
         if (isL2ForkTest()) {
             vm.createSelectFork(Config.l2ForkRpcUrl(), Config.l2ForkBlockNumber());
             console.log("Setup: L2 fork selected!");
-            // TODO: Add support for other L2 chains
-            require(
-                block.chainid == Chains.OPMainnet,
-                "Setup: L2_FORK_RPC_URL must be set to a production (OP Mainnet) RPC URL"
-            );
         } else if (isForkTest()) {
             vm.createSelectFork(Config.forkRpcUrl(), Config.forkBlockNumber());
             console.log("Setup: fork selected!");
