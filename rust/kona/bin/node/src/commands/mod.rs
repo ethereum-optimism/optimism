@@ -1,5 +1,8 @@
 //! Contains subcommands for the kona node.
 
+mod follow;
+pub use follow::FollowCommand;
+
 mod info;
 pub use info::InfoCommand;
 

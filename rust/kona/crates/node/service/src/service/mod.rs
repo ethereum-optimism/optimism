@@ -9,6 +9,9 @@ pub use builder::{DerivationDelegateConfig, L1ConfigBuilder, RollupNodeBuilder};
 mod mode;
 pub use mode::{InteropMode, NodeMode};
 
+mod follow;
+pub use follow::{FollowNode, FollowNodeBuilder};
+
 mod node;
 pub use node::{L1Config, RollupNode};
 

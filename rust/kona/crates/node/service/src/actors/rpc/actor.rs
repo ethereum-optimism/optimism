@@ -43,10 +43,10 @@ pub struct RpcActor<
 /// The communication context used by the RPC actor.
 #[derive(Debug)]
 pub struct RpcContext {
-    /// The network p2p rpc sender.
-    pub p2p_network: mpsc::Sender<P2pRpcRequest>,
-    /// The network admin rpc sender.
-    pub network_admin: mpsc::Sender<NetworkAdminQuery>,
+    /// The network p2p rpc sender. Optional to support modes without P2P networking.
+    pub p2p_network: Option<mpsc::Sender<P2pRpcRequest>>,
+    /// The network admin rpc sender. Optional to support modes without P2P networking.
+    pub network_admin: Option<mpsc::Sender<NetworkAdminQuery>>,
     /// The l1 watcher queries sender.
     pub l1_watcher_queries: mpsc::Sender<L1WatcherQueries>,
     /// The cancellation token, shared between all tasks.
@@ -123,18 +123,22 @@ where
         modules
             .merge(RollupBoostHealthzApiServer::into_rpc(self.rollup_boost_health_rpc_client))?;
 
-        // Build the p2p rpc module.
-        modules.merge(P2pRpc::new(p2p_network).into_rpc())?;
+        // Build the p2p rpc module if P2P networking is enabled.
+        if let Some(p2p_network) = p2p_network {
+            modules.merge(P2pRpc::new(p2p_network).into_rpc())?;
+        }
 
-        // Build the admin rpc module.
-        modules.merge(
-            AdminRpc::new(
-                self.sequencer_admin_rpc_client,
-                network_admin,
-                Some(self.rollup_boost_admin_rpc_client),
-            )
-            .into_rpc(),
-        )?;
+        // Build the admin rpc module if network admin is available.
+        if let Some(network_admin) = network_admin {
+            modules.merge(
+                AdminRpc::new(
+                    self.sequencer_admin_rpc_client,
+                    network_admin,
+                    Some(self.rollup_boost_admin_rpc_client),
+                )
+                .into_rpc(),
+            )?;
+        }
 
         // Create context for communication between actors.
         let rollup_rpc = RollupRpc::new(self.engine_rpc_client.clone(), l1_watcher_queries);

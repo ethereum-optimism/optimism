@@ -198,38 +198,15 @@ impl RollupNode {
         >,
         String,
     > {
-        let engine_state = EngineState::default();
-        let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
-        let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
-        let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
-
-        let engine_client = Arc::new(self.engine_config().build_engine_client().map_err(|e| {
-            error!(target: "service", error = ?e, "engine client build failed");
-            format!("Engine client build failed: {e:?}")
-        })?);
-
-        let engine_processor = EngineProcessor::new(
-            engine_client.clone(),
+        create_engine_actor(
+            &self.engine_config(),
             self.config.clone(),
-            derivation_client,
-            engine,
-            self.mode().is_sequencer().then_some(unsafe_head_tx),
-        );
-
-        let engine_rpc_processor = EngineRpcProcessor::new(
-            engine_client.clone(),
-            engine_client.rollup_boost.clone(),
-            self.config.clone(),
-            engine_state_rx,
-            engine_queue_length_rx,
-        );
-
-        Ok(EngineActor::new(
+            self.mode().is_sequencer(),
             cancellation_token,
             engine_request_rx,
-            engine_processor,
-            engine_rpc_processor,
-        ))
+            derivation_client,
+            unsafe_head_tx,
+        )
     }
 
     /// Starts the rollup node service.
@@ -349,7 +326,7 @@ impl RollupNode {
             l1_query_rx,
             l1_head_updates_tx.clone(),
             QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
-            signer,
+            Some(signer),
             cancellation.clone(),
             head_stream,
             finalized_stream,
@@ -408,8 +385,8 @@ impl RollupNode {
                     r,
                     RpcContext {
                         cancellation: cancellation.clone(),
-                        p2p_network: network_rpc,
-                        network_admin: net_admin_rpc,
+                        p2p_network: Some(network_rpc),
+                        network_admin: Some(net_admin_rpc),
                         l1_watcher_queries: l1_query_tx,
                     }
                 )),
@@ -422,4 +399,59 @@ impl RollupNode {
         );
         Ok(())
     }
+}
+
+/// Shared helper to assemble an [`EngineActor`]. Used by both [`RollupNode`] and
+/// [`super::FollowNode`].
+#[allow(clippy::type_complexity)]
+pub(crate) fn create_engine_actor(
+    engine_config: &EngineConfig,
+    config: Arc<RollupConfig>,
+    is_sequencer: bool,
+    cancellation_token: CancellationToken,
+    engine_request_rx: mpsc::Receiver<EngineActorRequest>,
+    derivation_client: QueuedEngineDerivationClient,
+    unsafe_head_tx: watch::Sender<L2BlockInfo>,
+) -> Result<
+    EngineActor<
+        EngineProcessor<
+            OpEngineClient<RootProvider, RootProvider<Optimism>>,
+            QueuedEngineDerivationClient,
+        >,
+        EngineRpcProcessor<OpEngineClient<RootProvider, RootProvider<Optimism>>>,
+    >,
+    String,
+> {
+    let engine_state = EngineState::default();
+    let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
+    let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
+    let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
+
+    let engine_client = Arc::new(engine_config.clone().build_engine_client().map_err(|e| {
+        error!(target: "service", error = ?e, "engine client build failed");
+        format!("Engine client build failed: {e:?}")
+    })?);
+
+    let engine_processor = EngineProcessor::new(
+        engine_client.clone(),
+        config.clone(),
+        derivation_client,
+        engine,
+        is_sequencer.then_some(unsafe_head_tx),
+    );
+
+    let engine_rpc_processor = EngineRpcProcessor::new(
+        engine_client.clone(),
+        engine_client.rollup_boost.clone(),
+        config,
+        engine_state_rx,
+        engine_queue_length_rx,
+    );
+
+    Ok(EngineActor::new(
+        cancellation_token,
+        engine_request_rx,
+        engine_processor,
+        engine_rpc_processor,
+    ))
 }

@@ -1,7 +1,9 @@
 //! Contains the node CLI.
 
 use crate::{
-    commands::{BootstoreCommand, InfoCommand, NetCommand, NodeCommand, RegistryCommand},
+    commands::{
+        BootstoreCommand, FollowCommand, InfoCommand, NetCommand, NodeCommand, RegistryCommand,
+    },
     flags::{GlobalArgs, init_unified_metrics},
     version,
 };
@@ -17,6 +19,9 @@ pub enum Commands {
     /// Runs the consensus node.
     #[command(alias = "n")]
     Node(NodeCommand),
+    /// Runs a lightweight follow node that tracks a source L2 CL.
+    #[command(alias = "f")]
+    Follow(FollowCommand),
     /// Runs the networking stack for the node.
     #[command(alias = "p2p", alias = "network")]
     Net(NetCommand),
@@ -55,6 +60,7 @@ impl Cli {
         // Initialize telemetry - allow subcommands to customize the filter.
         match self.subcommand {
             Commands::Node(ref node) => node.init_logs(&self.global)?,
+            Commands::Follow(ref follow) => follow.init_logs(&self.global)?,
             Commands::Net(ref net) => net.init_logs(&self.global)?,
             Commands::Registry(ref registry) => registry.init_logs(&self.global)?,
             Commands::Bootstore(ref bootstore) => bootstore.init_logs(&self.global)?,
@@ -75,6 +81,7 @@ impl Cli {
         // Run the subcommand.
         match self.subcommand {
             Commands::Node(node) => Self::run_until_ctrl_c(node.run(&self.global)),
+            Commands::Follow(follow) => Self::run_until_ctrl_c(follow.run(&self.global)),
             Commands::Net(net) => Self::run_until_ctrl_c(net.run(&self.global)),
             Commands::Registry(registry) => registry.run(&self.global),
             Commands::Bootstore(bootstore) => bootstore.run(&self.global),
@@ -122,6 +129,8 @@ mod tests {
     #[case::bootstore_subcommand_short(Commands::Bootstore(Default::default()), "b")]
     #[case::bootstore_subcommand_long(Commands::Bootstore(Default::default()), "boot")]
     #[case::bootstore_subcommand_long2(Commands::Bootstore(Default::default()), "store")]
+    #[case::follow_subcommand_long(Commands::Follow(Default::default()), "follow")]
+    #[case::follow_subcommand_short(Commands::Follow(Default::default()), "f")]
     #[case::info_subcommand(Commands::Info(Default::default()), "info")]
     fn test_parse_cli(#[case] subcommand: Commands, #[case] subcommand_alias: &str) {
         let args = vec!["kona-node", subcommand_alias, "--help"];

@@ -226,6 +226,50 @@ impl NodeCommand {
         Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
     }
 
+    /// Validate the jwt secret for a given set of L2 client args.
+    pub async fn validate_jwt_with(l2_client_args: &L2ClientArgs) -> anyhow::Result<JwtSecret> {
+        let jwt_secret = Self::l2_jwt_secret_from(l2_client_args)?;
+
+        let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
+            l2_client_args.l2_engine_rpc.clone(),
+            jwt_secret,
+        );
+
+        let exchange = || async {
+            match <RootProvider<Optimism> as OpEngineApi<
+                Optimism,
+                Http<HyperAuthClient>,
+            >>::exchange_capabilities(&engine, vec![])
+            .await
+            {
+                Ok(_) => {
+                    debug!("Successfully exchanged capabilities with engine");
+                    Ok(jwt_secret)
+                }
+                Err(e) => {
+                    if Self::is_jwt_signature_error(&e) {
+                        error!(
+                            "Engine API JWT secret differs from the one specified by --l2.jwt-secret/--l2.jwt-secret-encoded"
+                        );
+                        error!(
+                            "Ensure that the JWT secret file specified is correct (by default it is `jwt.hex` in the current directory)"
+                        );
+                        return Err(JwtValidationError::InvalidSignature.into());
+                    }
+                    Err(JwtValidationError::CapabilityExchange(e.to_string()).into())
+                }
+            }
+        };
+
+        exchange
+            .retry(ExponentialBuilder::default())
+            .when(|e| !Self::is_jwt_signature_error_from_anyhow(e))
+            .notify(|_, duration| {
+                debug!("Retrying engine capability handshake after {duration:?}");
+            })
+            .await
+    }
+
     /// Validate the jwt secret if specified by exchanging capabilities with the engine.
     /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
     /// that the jwt token passed as a cli arg is correct.
@@ -342,7 +386,15 @@ impl NodeCommand {
 
     /// Get the L1 config, either from a file or the known chains.
     pub fn get_l1_config(&self, l1_chain_id: u64) -> Result<L1ChainConfig> {
-        match &self.l1_config_file {
+        Self::get_l1_config_from(&self.l1_config_file, l1_chain_id)
+    }
+
+    /// Get the L1 config from an optional file path or the known chains.
+    pub fn get_l1_config_from(
+        l1_config_file: &Option<PathBuf>,
+        l1_chain_id: u64,
+    ) -> Result<L1ChainConfig> {
+        match l1_config_file {
             Some(path) => {
                 debug!("Loading l1 config from file: {:?}", path);
                 let file = File::open(path)
@@ -361,7 +413,15 @@ impl NodeCommand {
 
     /// Get the L2 rollup config, either from a file or the superchain registry.
     pub fn get_l2_config(&self, args: &GlobalArgs) -> Result<RollupConfig> {
-        match &self.l2_config_file {
+        Self::get_l2_config_from(&self.l2_config_file, args)
+    }
+
+    /// Get the L2 rollup config from an optional file path or the superchain registry.
+    pub fn get_l2_config_from(
+        l2_config_file: &Option<PathBuf>,
+        args: &GlobalArgs,
+    ) -> Result<RollupConfig> {
+        match l2_config_file {
             Some(path) => {
                 debug!("Loading l2 config from file: {:?}", path);
                 let file = File::open(path)
@@ -378,22 +438,27 @@ impl NodeCommand {
         }
     }
 
-    /// Returns the L2 JWT secret for the engine API
-    /// using the provided [`PathBuf`]. If the file is not found,
-    /// it will return the default JWT secret.
-    pub fn l2_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
-        if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret &&
+    /// Returns the L2 JWT secret for the engine API from a set of L2 client args.
+    pub fn l2_jwt_secret_from(l2_client_args: &L2ClientArgs) -> anyhow::Result<JwtSecret> {
+        if let Some(path) = &l2_client_args.l2_engine_jwt_secret &&
             let Ok(secret) = std::fs::read_to_string(path)
         {
             return JwtSecret::from_hex(secret)
                 .map_err(|e| anyhow::anyhow!("Failed to parse JWT secret: {e}"));
         }
 
-        if let Some(secret) = &self.l2_client_args.l2_engine_jwt_encoded {
+        if let Some(secret) = &l2_client_args.l2_engine_jwt_encoded {
             return Ok(*secret);
         }
 
         Self::default_jwt_secret("l2_jwt.hex")
+    }
+
+    /// Returns the L2 JWT secret for the engine API
+    /// using the provided [`PathBuf`]. If the file is not found,
+    /// it will return the default JWT secret.
+    pub fn l2_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
+        Self::l2_jwt_secret_from(&self.l2_client_args)
     }
 
     /// Returns the builder JWT secret for the engine API
