@@ -4,7 +4,7 @@ GIT_SHA := `git rev-parse HEAD`
 GIT_TAG := `git describe --tags --abbrev=0 2>/dev/null || echo "unknown"`
 BIN_DIR := "dist/bin"
 CARGO_TARGET_DIR := env("CARGO_TARGET_DIR", "target")
-FEATURES := if os() == "windows" { "asm-keccak min-debug-logs" } else { "jemalloc asm-keccak min-debug-logs" }
+FEATURES := env("FEATURES", if os() == "windows" { "asm-keccak min-debug-logs" } else { "jemalloc asm-keccak min-debug-logs" })
 PROFILE := env("PROFILE", "release")
 CARGO_INSTALL_EXTRA_FLAGS := env("CARGO_INSTALL_EXTRA_FLAGS", "")
 DOCKER_IMAGE_NAME := env("DOCKER_IMAGE_NAME", "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth")
