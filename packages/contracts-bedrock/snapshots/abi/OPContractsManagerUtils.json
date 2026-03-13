@@ -152,6 +152,11 @@
         "type": "tuple"
       },
       {
+        "internalType": "contract IOptimismPortal2",
+        "name": "_portal",
+        "type": "address"
+      },
+      {
         "internalType": "contract IAnchorStateRegistry",
         "name": "_asr",
         "type": "address"
