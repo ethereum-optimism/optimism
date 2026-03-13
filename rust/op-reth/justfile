@@ -104,13 +104,13 @@ build-release-tarballs:
   mkdir -p {{BIN_DIR}}
   just build-x86_64-unknown-linux-gnu
   cp {{CARGO_TARGET_DIR}}/x86_64-unknown-linux-gnu/{{PROFILE}}/op-reth {{BIN_DIR}}/op-reth
-  cd {{BIN_DIR}} && tar -czf op-reth-{{GIT_TAG}}-x86_64-unknown-linux-gnu.tar.gz op-reth && rm op-reth
+  (cd {{BIN_DIR}} && tar -czf op-reth-{{GIT_TAG}}-x86_64-unknown-linux-gnu.tar.gz op-reth && rm op-reth)
   just build-aarch64-unknown-linux-gnu
   cp {{CARGO_TARGET_DIR}}/aarch64-unknown-linux-gnu/{{PROFILE}}/op-reth {{BIN_DIR}}/op-reth
-  cd {{BIN_DIR}} && tar -czf op-reth-{{GIT_TAG}}-aarch64-unknown-linux-gnu.tar.gz op-reth && rm op-reth
+  (cd {{BIN_DIR}} && tar -czf op-reth-{{GIT_TAG}}-aarch64-unknown-linux-gnu.tar.gz op-reth && rm op-reth)
   just build-x86_64-pc-windows-gnu
   cp {{CARGO_TARGET_DIR}}/x86_64-pc-windows-gnu/{{PROFILE}}/op-reth.exe {{BIN_DIR}}/op-reth.exe
-  cd {{BIN_DIR}} && tar -czf op-reth-{{GIT_TAG}}-x86_64-pc-windows-gnu.tar.gz op-reth.exe && rm op-reth.exe
+  (cd {{BIN_DIR}} && tar -czf op-reth-{{GIT_TAG}}-x86_64-pc-windows-gnu.tar.gz op-reth.exe && rm op-reth.exe)
 
 # Run unit tests
 test-unit:

@@ -1,4 +1,4 @@
-DEPRECATED_TARGETS := install build build-debug build-native build-cross \
+DEPRECATED_TARGETS := install build build-debug \
 	build-x86_64-apple-darwin build-aarch64-apple-darwin \
 	build-x86_64-unknown-linux-gnu build-aarch64-unknown-linux-gnu build-x86_64-pc-windows-gnu \
 	build-release-tarballs \
