@@ -513,10 +513,10 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         );
     }
 
-    /// @notice Tests that the migration flag cannot be used for initial deploys.
+    /// @notice Tests that malformed SUPER_ game configs are rejected on initial deploy.
     function test_upgrade_superRootMigrationInitialDeploy_reverts() public {
-        // Initial deploys use the deploy() path, which internally hits the guard.
-        // The deploy function rejects the migration flag because it's an initial deployment.
+        // The deploy path validates SUPER_ game configs. Providing the wrong number of
+        // configs (2 instead of required 3) triggers InvalidGameConfigs.
         IOPContractsManagerV2.FullConfig memory cfg;
         cfg.l2ChainId = 999999;
         cfg.proxyAdminOwner = makeAddr("owner");
@@ -529,7 +529,7 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         cfg.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(uint256(1))), l2SequenceNumber: 0 });
         cfg.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
 
-        // Need at least some dispute game configs.
+        // Provide only 2 configs (requires exactly 3: SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA).
         cfg.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](2);
         cfg.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -551,16 +551,13 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         });
 
         // nosemgrep: sol-style-use-abi-encodecall
-        runDeployV2(
-            cfg, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInput.selector)
-        );
+        runDeployV2(cfg, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector));
     }
 
     /// @notice Tests that the full super root migration upgrade succeeds end-to-end with overrides.
     function test_upgrade_superRootMigration_succeeds() public {
-        // Read current chain state from the ASR.
-        GameType originalGameType = anchorStateRegistry.respectedGameType();
-        Proposal memory currentAnchorRoot = anchorStateRegistry.getStartingAnchorRoot();
+        // Read the respected game type from the portal (pre-upgrade ASR may lack this getter).
+        GameType originalGameType = optimismPortal2.respectedGameType();
 
         // Skip if chain is already migrated to a SUPER_ type.
         uint32 originalRaw = originalGameType.raw();
@@ -580,11 +577,9 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         address currentProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         address currentChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
 
-        // Construct override values that provably differ from on-chain values.
-        Proposal memory newAnchorRoot = Proposal({
-            root: Hash.wrap(bytes32(uint256(currentAnchorRoot.root.raw()) ^ 1)),
-            l2SequenceNumber: currentAnchorRoot.l2SequenceNumber + 1
-        });
+        // Construct override values for the new anchor root.
+        Proposal memory newAnchorRoot =
+            Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: 1 });
 
         // Rebuild dispute game configs for migration.
         delete v2UpgradeInput.disputeGameConfigs;
