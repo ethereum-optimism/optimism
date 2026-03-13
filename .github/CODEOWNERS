@@ -22,7 +22,7 @@
 /docs/security-reviews @ethereum-optimism/evm-safety
 
 # Public developer documentation
-/public-docs/  @ethereum-optimism/docs-team @ethereum-optimism/monorepo-reviewers
+/docs/public-docs/  @ethereum-optimism/solutions
 
 # Must come last to avoid being overridden
 /.github/CODEOWNERS  @ethereum-optimism/cloud-security
