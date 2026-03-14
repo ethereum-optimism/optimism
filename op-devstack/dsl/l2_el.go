@@ -125,37 +125,62 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	return block
 }
 
-// ReorgTriggeredFn returns a lambda that checks that a L2 reorg occurred on the expected block
+// ReorgTriggeredFn returns a lambda that checks that a L2 reorg occurred on or before the expected block
 // Composable with other lambdas to wait in parallel
 func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckFunc {
 	return func() error {
 		el.log.Info("expecting chain to reorg on block ref", "name", el.inner.Name(), "chain", el.inner.ChainID(), "target", target)
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
-				reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
-				if err != nil {
-					if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
-						el.log.Info("chain still hasn't been reorged", "chain", el.inner.ChainID(), "error", err)
-						return err
-					}
-					return err
+				reorged, err := el.reorgTriggered(target)
+				if err == nil {
+					el.log.Info("reorg on divergence block", "chain", el.inner.ChainID(), "pre_blockref", target, "post_blockref", reorged)
 				}
+				return err
+			})
+	}
+}
 
-				if target.Hash == reorged.Hash { // want not equal
-					el.log.Info("chain still hasn't been reorged", "chain", el.inner.ChainID(), "ref", reorged)
-					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
+// ReorgExactFn returns a lambda that checks that a L2 reorg occurred on the exact target L2 block.
+// If an L2 block prior to target was reorged, this function will block forever.
+// Composable with other lambdas to wait in parallel.
+func (el *L2ELNode) ReorgExactFn(target eth.L2BlockRef, attempts int) CheckFunc {
+	return func() error {
+		el.log.Info("expecting chain to reorg on block ref", "name", el.inner.Name(), "chain", el.inner.ChainID(), "target", target)
+		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				reorged, err := el.reorgTriggered(target)
+				if err != nil {
+					return err
 				}
 
 				if target.ParentHash != reorged.ParentHash && target.ParentHash != emptyHash {
 					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
 				}
 
-				el.log.Info("reorg on divergence block", "chain", el.inner.ChainID(), "pre_blockref", target)
-				el.log.Info("reorg on divergence block", "chain", el.inner.ChainID(), "post_blockref", reorged)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ChainID(), "pre_blockref", target, "post_blockref", reorged)
 
 				return nil
 			})
 	}
+}
+
+func (el *L2ELNode) reorgTriggered(target eth.L2BlockRef) (eth.BlockRef, error) {
+	reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
+			el.log.Info("chain still hasn't been reorged", "chain", el.inner.ChainID(), "error", err)
+			return eth.BlockRef{}, err
+		}
+		return eth.BlockRef{}, err
+	}
+
+	if target.Hash == reorged.Hash { // want not equal
+		el.log.Info("chain still hasn't been reorged", "chain", el.inner.ChainID(), "ref", reorged)
+		return eth.BlockRef{}, fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
+	}
+
+	return reorged, nil
 }
 
 func (el *L2ELNode) Advanced(label eth.BlockLabel, block uint64) {
@@ -176,6 +201,10 @@ func (el *L2ELNode) NotAdvancedUnsafe(attempts int) {
 
 func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
 	el.require.NoError(el.ReorgTriggeredFn(target, attempts)())
+}
+
+func (el *L2ELNode) ReorgExact(target eth.L2BlockRef, attempts int) {
+	el.require.NoError(el.ReorgExactFn(target, attempts)())
 }
 
 func (el *L2ELNode) TransactionTimeout() time.Duration {

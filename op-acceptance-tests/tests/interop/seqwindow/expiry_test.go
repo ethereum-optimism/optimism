@@ -102,7 +102,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	t.Logger().Info("Waiting for sequencing window expiry induced reorg now", "windowDuration", windowDuration)
 
 	// Monitor that the old unsafe chain is reorged out as expected
-	sys.L2ELA.ReorgTriggered(old, 50)
+	sys.L2ELA.ReorgExact(old, 50)
 
 	// Wait for the tx to no longer be included.
 	// The tx-indexer may still return the old block or be stale.
