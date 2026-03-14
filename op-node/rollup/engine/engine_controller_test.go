@@ -557,7 +557,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 			expectResult: &eth.L2BlockRef{},
 		},
 		{
-			name: "panics when SuperAuthority block unknown to engine",
+			name: "falls back to local finalized when SuperAuthority block unknown to engine (reorg)",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					finalizedL2Head: eth.BlockID{Hash: common.Hash{0x99}, Number: 50},
@@ -568,7 +568,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
 			},
-			expectPanic: "superAuthority supplied an identifier for the finalized head which is not known to the engine",
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 		},
 	}
 

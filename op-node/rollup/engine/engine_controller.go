@@ -264,7 +264,12 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, f.Hash)
 		if err != nil {
-			panic("superAuthority supplied an identifier for the finalized head which is not known to the engine")
+			// The super authority's finalized head may point to a block that was
+			// reorganized away. Fall back to the local finalized head until the
+			// super authority updates its state after the reorg.
+			e.log.Warn("super authority finalized head not found in engine, falling back to local finalized head",
+				"fid", f, "local_finalized", e.localFinalizedHead, "err", err)
+			return e.localFinalizedHead
 		}
 		return br
 	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
