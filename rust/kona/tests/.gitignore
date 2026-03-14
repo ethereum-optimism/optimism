@@ -4,3 +4,4 @@ kona-test-logs
 proofs
 actions
 builder_jwt.hex
+tmp/
