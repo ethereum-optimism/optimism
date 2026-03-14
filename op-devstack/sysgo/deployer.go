@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"math/big"
+	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -205,7 +206,14 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
 
-		l1Config.WithL1ForkAtGenesis(forks.Prague) // activate pectra on L1
+		l1Fork := forks.Prague
+		switch os.Getenv("DEVSTACK_L1_HARDFORK") {
+		case "fusaka":
+			l1Fork = forks.Osaka
+		case "prague":
+			l1Fork = forks.Prague
+		}
+		l1Config.WithL1ForkAtGenesis(l1Fork)
 
 		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 		p.Require().NoError(err, "need funder addr")
