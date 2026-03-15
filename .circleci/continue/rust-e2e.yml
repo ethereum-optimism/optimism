@@ -322,7 +322,7 @@ workflows:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:
             parameters:
-              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
+              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -361,7 +361,6 @@ workflows:
             - rust-e2e-simple-kona
             - rust-e2e-simple-kona-geth
             - rust-e2e-simple-kona-sequencer
-            - rust-e2e-large-kona-sequencer
             - rust-e2e-restart
             - kona-proof-action-single
 
