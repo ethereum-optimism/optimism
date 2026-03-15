@@ -85,6 +85,12 @@ gates:
         metadata:
           owner: "anton evangelatov"
           target_gate: "depreqres"
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/supernode/interop/same_timestamp_invalid
+        name: TestSupernodeSameTimestampCycle
+        timeout: 15m
+        metadata:
+          owner: "axel kingsley"
+          target_gate: "supernode-interop"
 
   - id: jovian
     description: "Jovian network tests."
