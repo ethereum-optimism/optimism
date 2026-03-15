@@ -148,9 +148,13 @@ jobs:
         description: Whether to run reorg tests
         type: boolean
         default: false
+      resource_class:
+        description: "CircleCI resource class (large devnets need 2xlarge for memory)"
+        type: string
+        default: xlarge
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: <<parameters.resource_class>>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -322,7 +326,21 @@ workflows:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:
             parameters:
-              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
+              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate
+            - cannon-kona-host
+            - kona-build-release
+            - op-reth-build
+      # large-kona-sequencer needs 2xlarge: it runs 9 nodes (1 sequencer +
+      # 4 reth validators + 4 geth validators) which exceeds xlarge memory.
+      - rust-e2e-sysgo-tests:
+          name: rust-e2e-large-kona-sequencer
+          devnet_config: large-kona-sequencer
+          resource_class: 2xlarge
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
