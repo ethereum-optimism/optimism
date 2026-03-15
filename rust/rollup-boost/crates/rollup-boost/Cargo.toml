@@ -1,6 +1,6 @@
 [package]
 name = "rollup-boost"
-version = "0.7.13"
+version = "0.7.14"
 edition.workspace = true
 description = "Rollup Boost is a sidecar for optimism rollups that enables rollup extensions"
 rust-version.workspace = true
