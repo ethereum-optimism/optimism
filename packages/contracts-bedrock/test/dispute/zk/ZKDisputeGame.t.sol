@@ -359,6 +359,29 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_Init {
         vm.stopPrank();
     }
 
+    function test_initialize_parentBelowAnchor_reverts() public {
+        // Resolve and finalize the child game so it becomes the new anchor.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        vm.warp(game.resolvedAt().raw() + finalityDelay + 1 seconds);
+        game.closeGame();
+
+        // Now the anchor is at childL2SequenceNumber, which is above the parent's sequence number.
+        // Trying to create a new game referencing the parent (whose seq num < anchor) should revert.
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType,
+            Claim.wrap(keccak256("below-anchor-claim")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, parentGameIndex)
+        );
+        vm.stopPrank();
+    }
+
     function test_initialize_l2ChainIdZero_reverts() public {
         // Deploy a new game impl with l2ChainId = 0 in gameArgs
         IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));

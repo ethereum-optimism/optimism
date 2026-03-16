@@ -327,6 +327,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
                 root: Hash.wrap(ZKDisputeGame(payable(address(proxy))).rootClaim().raw())
             });
 
+            // INVARIANT: The parent game's sequence number must be at or above the anchor state.
+            (, uint256 anchorL2SeqNum) = anchorStateRegistry().anchors(gameType());
+            if (startingProposal.l2SequenceNumber < anchorL2SeqNum) revert InvalidParentGame();
+
             // INVARIANT: The parent game must be a valid game.
             if (proxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
