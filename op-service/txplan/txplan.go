@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -233,7 +234,12 @@ func WithEstimator(cl Estimator, invalidateOnNewBlock bool) Option {
 				Data:       tx.Data.Value(),
 				AccessList: tx.AccessList.Value(),
 			}
-			gas, err := cl.EstimateGas(ctx, msg)
+			// Use a bounded context so a hanging eth_estimateGas call
+			// (e.g. for EIP-7702 delegated EOAs) doesn't block for the
+			// entire parent context lifetime.
+			estimateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			gas, err := cl.EstimateGas(estimateCtx, msg)
 			if err != nil {
 				return 0, err
 			}
