@@ -1,8 +1,3 @@
-DEPRECATED_TARGETS := help build build-go build-contracts build-customlint lint-go lint-go-fix check-op-geth-version golang-docker docker-builder-clean docker-builder cross-op-node contracts-bedrock-docker submodules op-node generate-mocks-op-node generate-mocks-op-service op-batcher op-proposer op-challenger op-dispute-mon op-supernode op-interop-filter op-program cannon reproducible-prestate-op-program reproducible-prestate-kona reproducible-prestate cannon-prestates mod-tidy clean nuke test-unit semgrep-ci op-program-client op-program-host make-pre-test go-tests go-tests-short go-tests-short-ci go-tests-ci go-tests-ci-kona-action go-tests-fraud-proofs-ci test update-op-geth
+DEPRECATED_TARGETS := help build build-go build-contracts build-customlint lint-go lint-go-fix check-op-geth-version golang-docker docker-builder-clean docker-builder cross-op-node contracts-bedrock-docker submodules op-node generate-mocks-op-node generate-mocks-op-service op-batcher op-proposer op-challenger op-dispute-mon op-supernode op-interop-filter op-program cannon reproducible-prestate-op-program reproducible-prestate-kona reproducible-prestate cannon-prestates mod-tidy clean nuke test-unit semgrep-ci op-program-client op-program-host make-pre-test go-tests go-tests-short go-tests-short-ci go-tests-ci go-tests-ci-kona-action go-tests-fraud-proofs-ci test update-op-geth compute-git-versions
 
 include ./justfiles/deprecated.mk
-
-# Called directly by GitHub Actions (no just dependency).
-.PHONY: compute-git-versions
-compute-git-versions:
-	@GIT_COMMIT="$${GIT_COMMIT:-$$(git rev-parse HEAD)}" ./ops/scripts/compute-git-versions.sh

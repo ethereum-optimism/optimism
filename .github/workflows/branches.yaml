@@ -12,6 +12,7 @@ on:
       - 'packages/contracts-bedrock/**'
       - 'docker-bake.hcl'
       - '.github/workflows/branches.yaml'
+      - '.github/actions/docker-build-prep/**'
       - 'ops/scripts/compute-git-versions.sh'
       - 'op-rbuilder/**'
       - 'rust/**'
