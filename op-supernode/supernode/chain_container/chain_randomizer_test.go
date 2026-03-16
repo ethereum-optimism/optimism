@@ -171,6 +171,18 @@ func (c *randomChainContainer) SetResetCallback(cb ResetCallback) {
 	//TODO
 }
 
+func (rc *RandomChain) GetContainers() (map[eth.ChainID]randomChainContainer) {
+	chains := make(map[eth.ChainID]randomChainContainer);
+	for _, chain := range rc.chainIDs {
+		container := randomChainContainer {
+			chainID:     chain,
+			randomChain: rc,
+		}
+		chains[chain] = container
+	}
+	return chains
+}
+
 func (rc *RandomChain) ChainInfo(chainid eth.ChainID) (blocks []*eth.L2BlockRef, heads ChainHeads) {
 	blocks = rc.chainBlocks[chainid]
 	heads = *rc.chainHeads[chainid]
