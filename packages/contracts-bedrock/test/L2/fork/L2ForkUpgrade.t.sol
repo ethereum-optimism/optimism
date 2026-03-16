@@ -763,7 +763,11 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         console.log(repeat("=", 100));
         console.log("Total Gas Used:       %s", totalGasUsed);
         console.log("Total Gas Limit:      %s", totalGasLimit);
-        console.log("Overall Efficiency:   %s%%", (totalGasUsed * 100) / totalGasLimit);
+        if (totalGasLimit > 0) {
+            console.log("Overall Efficiency:   %s%%", (totalGasUsed * 100) / totalGasLimit);
+        } else {
+            console.log("Overall Efficiency:   N/A (no transactions)");
+        }
         console.log("");
 
         // Print transactions that need adjustment (efficiency < 50% or > 90%)
