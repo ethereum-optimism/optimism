@@ -120,6 +120,26 @@ func (c *randomChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 	return nil, nil
 }
 
+func (c *randomChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+	//TODO
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+
+func (c *randomChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+	//TODO
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+
+func (c *randomChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+	//TODO
+	return eth.Bytes32{}, nil
+}
+
+func (c *randomChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+	//TODO
+	return nil, nil
+}
+
 func (c *randomChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	//TODO?
 	return nil
