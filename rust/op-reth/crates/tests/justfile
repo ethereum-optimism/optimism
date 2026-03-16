@@ -7,8 +7,7 @@ OP_DEVSTACK_PROOF_SEQUENCER_EL := env("OP_DEVSTACK_PROOF_SEQUENCER_EL", "op-geth
 OP_DEVSTACK_PROOF_VALIDATOR_EL := env("OP_DEVSTACK_PROOF_VALIDATOR_EL", "op-reth-with-proof")
 
 # default recipe
-default:
-  @just --list
+default: all
 
 # Run E2E tests (default target)
 all: test-e2e-sysgo
