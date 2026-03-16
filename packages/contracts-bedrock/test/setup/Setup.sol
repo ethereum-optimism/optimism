@@ -230,16 +230,13 @@ abstract contract Setup is FeatureFlags {
         }
     }
 
-    /// @dev Updates the ERC1967 implementation slot for DelayedWETH and ETHLockbox proxies when
-    ///      running with an unoptimized Foundry profile. These proxies are not re-pointed during
-    ///      OPCM upgrades, so their CREATE2 implementation addresses diverge from mainnet when
-    ///      bytecode differs (unoptimized vs optimized). Updating the slot (rather than mocking
-    ///      getProxyImplementation) ensures both the implementation address check and the version
-    ///      check pass, since delegatecalls from the proxy now reach the locally-deployed impl.
-    ///      No-op for optimized profiles.
+    /// @dev Mocks getProxyImplementation for DelayedWETH and ETHLockbox proxies when running
+    ///      with an unoptimized Foundry profile. These proxies are not re-pointed during OPCM
+    ///      upgrades, so their CREATE2 implementation addresses diverge from mainnet when
+    ///      bytecode differs (unoptimized vs optimized). No-op for optimized profiles.
     function mockUnoptimizedProxyImplementations(
         IDisputeGameFactory _dgf,
-        IProxyAdmin,
+        IProxyAdmin _proxyAdmin,
         address _ethLockbox,
         address _delayedWETHImpl,
         address _ethLockboxImpl
@@ -248,19 +245,24 @@ abstract contract Setup is FeatureFlags {
     {
         if (!Config.isUnoptimized()) return;
 
-        // ERC1967 implementation storage slot: keccak256("eip1967.proxy.implementation") - 1
-        bytes32 implSlot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-
         GameType[3] memory gameTypes = [GameTypes.CANNON, GameTypes.PERMISSIONED_CANNON, GameTypes.CANNON_KONA];
         for (uint256 i = 0; i < gameTypes.length; i++) {
             IDelayedWETH delayedWETHProxy = DisputeGames.getGameImplDelayedWeth(_dgf, gameTypes[i]);
             if (address(delayedWETHProxy) != address(0)) {
-                vm.store(address(delayedWETHProxy), implSlot, bytes32(uint256(uint160(_delayedWETHImpl))));
+                vm.mockCall(
+                    address(_proxyAdmin),
+                    abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(delayedWETHProxy))),
+                    abi.encode(_delayedWETHImpl)
+                );
             }
         }
 
         if (_ethLockbox != address(0)) {
-            vm.store(_ethLockbox, implSlot, bytes32(uint256(uint160(_ethLockboxImpl))));
+            vm.mockCall(
+                address(_proxyAdmin),
+                abi.encodeCall(IProxyAdmin.getProxyImplementation, (_ethLockbox)),
+                abi.encode(_ethLockboxImpl)
+            );
         }
     }
 

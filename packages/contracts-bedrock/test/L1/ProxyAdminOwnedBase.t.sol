@@ -6,7 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 // Contracts
-import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 /// @title ProxyAdminOwnedBase_Harness
 /// @notice Contract implementing the abstract `ProxyAdminOwnedBase` contract so we can write unit

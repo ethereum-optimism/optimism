@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 // Libraries
@@ -75,7 +75,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @notice Semantic version.
     /// @custom:semver 1.2.0
     function version() public view virtual returns (string memory) {
-        return "1.2.1";
+        return "1.2.0";
     }
 
     /// @notice Constructs the ETHLockbox contract.

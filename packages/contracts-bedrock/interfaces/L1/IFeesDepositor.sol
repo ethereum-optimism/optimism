@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 

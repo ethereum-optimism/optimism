@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
@@ -208,9 +208,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.2.1
+    /// @custom:semver 5.2.0
     function version() public pure virtual returns (string memory) {
-        return "5.2.1";
+        return "5.2.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
