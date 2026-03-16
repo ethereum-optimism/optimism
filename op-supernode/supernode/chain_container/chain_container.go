@@ -518,7 +518,7 @@ func isCriticalRewindError(err error) bool {
 		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
 }
 
-// WARNING: this should only be called by interop transition application.
+// WARNING: this should only be called by the interop activity.
 // Other callers risk triggering chain rewinds outside the interop WAL model.
 // TODO: remove this footgun by moving reorg-triggering operations behind a
 // smaller interop-owned interface.
