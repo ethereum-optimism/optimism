@@ -29,7 +29,7 @@ import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IZKVerifier } from "src/dispute/zk/IZKVerifier.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 

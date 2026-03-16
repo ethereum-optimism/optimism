@@ -38,7 +38,7 @@ import {
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IZKVerifier } from "src/dispute/zk/IZKVerifier.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
@@ -406,8 +406,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // INVARIANT: Cannot prove if the game is over.
         if (gameOver()) revert GameOver();
 
-        // Construct the public input for verification.
-        bytes memory publicInput = abi.encode(
+        // Construct the public values for verification.
+        bytes memory publicValues = abi.encode(
             l1Head(),
             startingProposal.root,
             rootClaim(),
@@ -416,7 +416,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         );
 
         // Verify the proof. Reverts if the proof is invalid.
-        verifier().verify(publicInput, _proofBytes);
+        verifier().verify(absolutePrestate(), publicValues, _proofBytes);
 
         // Update the prover address
         claimData.prover = msg.sender;
