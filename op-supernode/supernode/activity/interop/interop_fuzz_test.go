@@ -2,31 +2,34 @@ package interop
 
 import (
 	"context"
-	"errors"
+	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	types2 "github.com/ethereum/go-ethereum/core/types"
+	params2 "github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+	"github.com/ethereum-optimism/optimism/op-node/params"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // =============================================================================
 // Test Harness
 // =============================================================================
 
-// interopFuzzHarness provides a builder-pattern test setup for Interop tests.
-// It reduces boilerplate by handling common setup: temp directories, mock chains,
-// interop creation, context assignment, and cleanup.
 type interopFuzzHarness struct {
 	t              *testing.T
 	interop        *Interop
-	seed           uint64
-	randomChain    cc.RandomChain
-	mocks          map[eth.ChainID]*cc.RandomChainContainer
+	params         RandomChainParams
+	seed           int64
+	randomChain    RandomChain
+	mocks          map[eth.ChainID]*RandomChainContainer
 	activationTime uint64
 	dataDir        string
 	skipBuild      bool // for tests that need custom construction
@@ -38,10 +41,25 @@ func newInteropFuzzHarness(t *testing.T) *interopFuzzHarness {
 	t.Parallel()
 	return &interopFuzzHarness{
 		t:              t,
-		mocks:          make(map[eth.ChainID]*cc.RandomChainContainer),
+		mocks:          make(map[eth.ChainID]*RandomChainContainer),
 		activationTime: 1000,
 		dataDir:        t.TempDir(),
 	}
+}
+
+// WithParams sets the parameters for random L2 chain generation.
+func (h *interopFuzzHarness) WithParams(params RandomChainParams) *interopFuzzHarness {
+	h.params = params
+	return h
+}
+
+// WithSeed sets the seed for random generation and then generates the random
+// L2 chains with it.
+func (h *interopFuzzHarness) WithSeed(seed int64) *interopFuzzHarness {
+	h.seed = seed
+	h.randomChain = h.params.MakeRandomChain(seed)
+	h.mocks = h.randomChain.GetContainers()
+	return h
 }
 
 // WithActivation sets the interop activation timestamp.
@@ -53,16 +71,6 @@ func (h *interopFuzzHarness) WithActivation(ts uint64) *interopFuzzHarness {
 // WithDataDir sets a custom data directory (useful for error testing).
 func (h *interopFuzzHarness) WithDataDir(dir string) *interopFuzzHarness {
 	h.dataDir = dir
-	return h
-}
-
-// WithChain adds a mock chain container with optional configuration.
-func (h *interopFuzzHarness) WithChain(id uint64, configure func(*mockChainContainer)) *interopFuzzHarness {
-	mock := newMockChainContainer(id)
-	if configure != nil {
-		configure(mock)
-	}
-	h.mocks[mock.id] = mock
 	return h
 }
 
@@ -101,1188 +109,660 @@ func (h *interopFuzzHarness) Chains() map[eth.ChainID]cc.ChainContainer {
 }
 
 // Mock returns the mock for a given chain ID.
-func (h *interopFuzzHarness) Mock(id uint64) *mockChainContainer {
+func (h *interopFuzzHarness) Mock(id uint64) *RandomChainContainer {
 	return h.mocks[eth.ChainIDFromUInt64(id)]
 }
 
-// =============================================================================
-// TestNew
-// =============================================================================
-
-func _TestNew(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		setup func(h *interopFuzzHarness) *interopFuzzHarness
-		run   func(t *testing.T, h *interopFuzzHarness)
-	}{
-		{
-			name: "valid inputs initializes all components",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir)
-				require.NotNil(t, interop)
-				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
-
-				require.Equal(t, uint64(1000), interop.activationTimestamp)
-				require.NotNil(t, interop.verifiedDB)
-				require.Len(t, interop.chains, 2)
-				require.Len(t, interop.logsDBs, 2)
-				require.NotNil(t, interop.verifyFn)
-				require.NotNil(t, interop.cycleVerifyFn)
-
-				for chainID := range h.Chains() {
-					require.Contains(t, interop.logsDBs, chainID)
-					require.NotNil(t, interop.logsDBs[chainID])
-				}
-			},
+func ExecMsgForLog(chain eth.ChainID, block eth.L2BlockRef, log *types2.Log) *types2.Log {
+	msg := types.Message{
+		Identifier: types.Identifier{
+			Origin:      log.Address,
+			BlockNumber: block.Number,
+			LogIndex:    uint32(log.Index),
+			Timestamp:   block.Time,
+			ChainID:     chain,
 		},
-		{
-			name: "invalid dataDir returns nil",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithDataDir("/nonexistent/path").SkipBuild()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir)
-				require.Nil(t, interop)
-			},
-		},
+		PayloadHash: processors.LogToLogHash(log),
 	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			tc.run(t, h)
-		})
+	topics, data := msg.EncodeEvent()
+	return &types2.Log{
+		Address: params2.InteropCrossL2InboxAddress,
+		Data:    data,
+		Topics:  topics,
+		Index:   log.Index,
 	}
 }
 
-// =============================================================================
-// TestStartStop
-// =============================================================================
-
-func _TestStartStop(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		setup func(h *interopFuzzHarness) *interopFuzzHarness
-		run   func(t *testing.T, h *interopFuzzHarness)
-	}{
-		{
-			name: "Start blocks until context cancelled",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 50}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				ctx, cancel := context.WithCancel(context.Background())
-				done := make(chan error, 1)
-				go func() { done <- h.interop.Start(ctx) }()
-
-				require.Eventually(t, func() bool {
-					h.interop.mu.RLock()
-					defer h.interop.mu.RUnlock()
-					return h.interop.started
-				}, 5*time.Second, 100*time.Millisecond)
-
-				cancel()
-
-				var err error
-				require.Eventually(t, func() bool {
-					select {
-					case err = <-done:
-						return true
-					default:
-						return false
-					}
-				}, 5*time.Second, 100*time.Millisecond)
-				require.ErrorIs(t, err, context.Canceled)
-			},
-		},
-		{
-			name: "double Start blocked",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-
-				go func() { _ = h.interop.Start(ctx) }()
-
-				require.Eventually(t, func() bool {
-					h.interop.mu.RLock()
-					defer h.interop.mu.RUnlock()
-					return h.interop.started
-				}, 5*time.Second, 100*time.Millisecond)
-
-				ctx2, cancel2 := context.WithTimeout(context.Background(), 500*time.Millisecond)
-				defer cancel2()
-
-				err := h.interop.Start(ctx2)
-				require.ErrorIs(t, err, context.DeadlineExceeded)
-			},
-		},
-		{
-			name: "Stop cancels running Start and closes DB",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-					m.blockAtTimestampErr = ethereum.NotFound
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				done := make(chan error, 1)
-				go func() { done <- h.interop.Start(context.Background()) }()
-
-				require.Eventually(t, func() bool {
-					h.interop.mu.RLock()
-					defer h.interop.mu.RUnlock()
-					return h.interop.started
-				}, 5*time.Second, 100*time.Millisecond)
-
-				err := h.interop.Stop(context.Background())
-				require.NoError(t, err)
-
-				require.Eventually(t, func() bool {
-					select {
-					case <-done:
-						return true
-					default:
-						return false
-					}
-				}, 5*time.Second, 100*time.Millisecond)
-
-				// Verify DB is closed
-				_, err = h.interop.verifiedDB.Has(100)
-				require.Error(t, err)
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			tc.run(t, h)
-		})
-	}
+type ChainBlock struct {
+	chain eth.ChainID
+	block *eth.L2BlockRef
 }
 
-// =============================================================================
-// TestCollectCurrentL1
-// =============================================================================
-
-func _TestCollectCurrentL1(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		setup  func(h *interopFuzzHarness) *interopFuzzHarness
-		assert func(t *testing.T, l1 eth.BlockID, err error)
-	}{
-		{
-			name: "returns minimum L1 across multiple chains",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
-				}).WithChain(8453, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")} // minimum
-				}).Build()
-			},
-			assert: func(t *testing.T, l1 eth.BlockID, err error) {
-				require.NoError(t, err)
-				require.Equal(t, uint64(100), l1.Number)
-				require.Equal(t, common.HexToHash("0x1"), l1.Hash)
-			},
-		},
-		{
-			name: "single chain returns its L1",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 500, Hash: common.HexToHash("0x5")}
-				}).Build()
-			},
-			assert: func(t *testing.T, l1 eth.BlockID, err error) {
-				require.NoError(t, err)
-				require.Equal(t, uint64(500), l1.Number)
-			},
-		},
-		{
-			name: "chain error propagated",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1Err = errors.New("chain not synced")
-				}).Build()
-			},
-			assert: func(t *testing.T, l1 eth.BlockID, err error) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "not ready")
-				require.Equal(t, eth.BlockID{}, l1)
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			l1, err := h.interop.collectCurrentL1()
-			tc.assert(t, l1, err)
-		})
-	}
+type ChainHeads struct {
+	// These are block numbers on the chain
+	localSafe   uint64
+	localUnsafe uint64
+	crossSafe   uint64
+	crossUnsafe uint64
 }
 
-// =============================================================================
-// TestCheckChainsReady
-// =============================================================================
+type RandomChainParams struct {
+	chainCount int
 
-func _TestCheckChainsReady(t *testing.T) {
-	t.Parallel()
+	minLength int
+	maxLength int
 
-	tests := []struct {
-		name   string
-		setup  func(h *interopFuzzHarness) *interopFuzzHarness
-		assert func(t *testing.T, h *interopFuzzHarness, blocks map[eth.ChainID]eth.BlockID, err error)
-	}{
-		{
-			name: "all chains ready returns blocks",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-				}).WithChain(8453, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
-				}).Build()
-			},
-			assert: func(t *testing.T, h *interopFuzzHarness, blocks map[eth.ChainID]eth.BlockID, err error) {
-				require.NoError(t, err)
-				require.Len(t, blocks, 2)
-				require.NotEqual(t, common.Hash{}, blocks[h.Mock(10).id].Hash)
-				require.NotEqual(t, common.Hash{}, blocks[h.Mock(8453).id].Hash)
-			},
-		},
-		{
-			name: "one chain not ready returns error",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100}
-				}).WithChain(8453, func(m *mockChainContainer) {
-					m.blockAtTimestampErr = ethereum.NotFound
-				}).Build()
-			},
-			assert: func(t *testing.T, h *interopFuzzHarness, blocks map[eth.ChainID]eth.BlockID, err error) {
-				require.Error(t, err)
-				require.Nil(t, blocks)
-			},
-		},
-		{
-			name: "parallel execution works",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				for i := 0; i < 5; i++ {
-					idx := i // capture loop var
-					h.WithChain(uint64(10+idx), func(m *mockChainContainer) {
-						m.blockAtTimestamp = eth.L2BlockRef{Number: uint64(100 + idx)}
-					})
-				}
-				return h.Build()
-			},
-			assert: func(t *testing.T, h *interopFuzzHarness, blocks map[eth.ChainID]eth.BlockID, err error) {
-				require.NoError(t, err)
-				require.Len(t, blocks, 5)
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			blocks, err := h.interop.checkChainsReady(1000)
-			tc.assert(t, h, blocks, err)
-		})
-	}
+	sameTimestampFrequency int // Percentage [0-100]
+	dependencyChance       int // Percentage [0-100]
 }
 
-// =============================================================================
-// TestProgressInterop
-// =============================================================================
+type L1Assignments struct {
+	L1Block  eth.BlockRef
+	L2Blocks []*ChainBlock
+}
 
-func _TestProgressInterop(t *testing.T) {
-	t.Parallel()
+type RandomChain struct {
+	randomGenerator *rand.Rand
+	cutoffs         struct {
+		crossUnsafe int
+		crossSafe   int
+		localUnsafe int
+		localSafe   int
+	}
+	chainIDs      []eth.ChainID
+	allBlocks     []*ChainBlock
+	cbIndices     map[ChainBlock]int // Lookup for a ChainBlock's index in allBlocks
+	generatedLogs map[ChainBlock][]*types2.Log
+	dependencies  map[ChainBlock][]*ChainBlock
+	chainBlocks   map[eth.ChainID][]*eth.L2BlockRef
+	chainHeads    map[eth.ChainID]*ChainHeads
+	l1SourceMap   map[ChainBlock]eth.BlockRef
+	l1Source      map[uint64]eth.BlockRef
+	receipts      map[eth.ChainID]map[eth.BlockID]types2.Receipts
+}
 
-	// Default verifyFn that passes through
-	passThroughVerifyFn := func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+type RandomChainContainer struct {
+	chainID            eth.ChainID
+	randomChain        *RandomChain
+}
+
+func (c *RandomChainContainer) ID() eth.ChainID                                  { return c.chainID }
+func (c *RandomChainContainer) Start(ctx context.Context) error                  { return nil }
+func (c *RandomChainContainer) Stop(ctx context.Context) error                   { return nil }
+func (c *RandomChainContainer) Pause(ctx context.Context) error                  { return nil }
+func (c *RandomChainContainer) Resume(ctx context.Context) error                 { return nil }
+func (c *RandomChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
+
+func (c *RandomChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	var theblock *eth.L2BlockRef = nil;
+	for _, block := range c.randomChain.chainBlocks[c.chainID] {
+		if block.Time <= ts {
+			theblock = block;
+		} else {
+			break
+		}
+	}
+	if theblock == nil || theblock.Number > c.randomChain.chainHeads[c.chainID].localSafe {
+		return eth.L2BlockRef{}, ethereum.NotFound;
+	}
+	return eth.L2BlockRef{}, nil
+}
+
+func (c *RandomChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	//TODO
+	return nil, nil
+}
+
+func (c *RandomChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+	//TODO
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+
+func (c *RandomChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+	//TODO
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+
+func (c *RandomChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+	//TODO
+	return eth.Bytes32{}, nil
+}
+
+func (c *RandomChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+	//TODO
+	return nil, nil
+}
+
+func (c *RandomChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
+	//TODO?
+	return nil
+}
+
+func (c *RandomChainContainer) FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types2.Receipts, error) {
+	//TODO
+	myReceipts := c.randomChain.receipts[c.chainID];
+	receipt := myReceipts[blockHash];
+	return nil, receipt, nil
+}
+
+func (c *RandomChainContainer) BlockTime() uint64 {
+	//TODO
+	return 1
+}
+
+func (c *RandomChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+	//TODO
+	return true, nil
+}
+
+func (c *RandomChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+	//TODO
+	return false, nil
+}
+
+func (c *RandomChainContainer) SetResetCallback(cb cc.ResetCallback) {
+	//TODO
+}
+
+func (rc *RandomChain) GetContainers() (map[eth.ChainID]*RandomChainContainer) {
+	chains := make(map[eth.ChainID]*RandomChainContainer);
+	for _, chain := range rc.chainIDs {
+		container := RandomChainContainer {
+			chainID:     chain,
+			randomChain: rc,
+		}
+		chains[chain] = &container
+	}
+	return chains
+}
+
+func (rc *RandomChain) ChainInfo(chainid eth.ChainID) (blocks []*eth.L2BlockRef, heads ChainHeads) {
+	blocks = rc.chainBlocks[chainid]
+	heads = *rc.chainHeads[chainid]
+	return blocks, heads
+}
+
+func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
+	r := rand.New(rand.NewSource(seed))
+
+	// Add two special blocks to be used when creating invalid dependencies
+	totalLength := randomInRange(r, p.minLength, p.maxLength) + 2
+	// First block has a timestamp far in the past, already expired (used in InsertDependencyToExpiredMessage)
+	expiredBlockIndex := 0
+	// Last block has a timestamp in the future (used in InsertFutureDependency)
+	futureBlockIndex := totalLength - 1
+
+	// Heads (and candidates) must be between the two special blocks
+	localUnsafe := futureBlockIndex - 1
+	localSafe := randomInRange(r, expiredBlockIndex+2, futureBlockIndex)
+	crossSafe := randomInRange(r, expiredBlockIndex+1, localSafe)
+	crossUnsafe := randomInRange(r, crossSafe, localUnsafe)
+	res = RandomChain{
+		randomGenerator: r,
+		cutoffs: struct {
+			crossUnsafe int
+			crossSafe   int
+			localUnsafe int
+			localSafe   int
+		}{
+			crossUnsafe: crossUnsafe,
+			crossSafe:   crossSafe,
+			localUnsafe: localUnsafe,
+			localSafe:   localSafe,
+		},
+		chainIDs:      make([]eth.ChainID, 0, p.chainCount),
+		allBlocks:     make([]*ChainBlock, 0, totalLength),
+		cbIndices:     make(map[ChainBlock]int),
+		generatedLogs: make(map[ChainBlock][]*types2.Log),
+		dependencies:  make(map[ChainBlock][]*ChainBlock),
+		chainBlocks:   make(map[eth.ChainID][]*eth.L2BlockRef),
+		chainHeads:    make(map[eth.ChainID]*ChainHeads),
+		l1SourceMap:   make(map[ChainBlock]eth.BlockRef),
+		l1Source:      make(map[uint64]eth.BlockRef),
+		receipts:      make(map[eth.ChainID]map[eth.BlockID]types2.Receipts),
 	}
 
-	tests := []struct {
-		name     string
-		setup    func(h *interopFuzzHarness) *interopFuzzHarness
-		verifyFn func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error)
-		assert   func(t *testing.T, result Result, err error)
-		run      func(t *testing.T, h *interopFuzzHarness) // override for complex cases
-	}{
-		{
-			name: "not initialized uses activation timestamp",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithActivation(5000).WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-				}).Build()
-			},
-			verifyFn: passThroughVerifyFn,
-			assert: func(t *testing.T, result Result, err error) {
-				require.NoError(t, err)
-				require.Equal(t, uint64(5000), result.Timestamp)
-			},
-		},
-		{
-			name: "initialized uses next timestamp",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				h.interop.verifyFn = passThroughVerifyFn
-
-				// First progress
-				result1, err := h.interop.progressInterop()
-				require.NoError(t, err)
-				require.Equal(t, uint64(1000), result1.Timestamp)
-
-				// Commit
-				err = h.interop.handleResult(result1)
-				require.NoError(t, err)
-
-				// Second progress should use next timestamp
-				result2, err := h.interop.progressInterop()
-				require.NoError(t, err)
-				require.Equal(t, uint64(1001), result2.Timestamp)
-			},
-		},
-		{
-			name: "chains not ready returns empty result",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestampErr = ethereum.NotFound
-				}).Build()
-			},
-			assert: func(t *testing.T, result Result, err error) {
-				require.NoError(t, err)
-				require.True(t, result.IsEmpty())
-			},
-		},
-		{
-			name: "chain error propagated",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestampErr = errors.New("internal error")
-				}).Build()
-			},
-			assert: func(t *testing.T, result Result, err error) {
-				require.Error(t, err)
-				require.True(t, result.IsEmpty())
-			},
-		},
-		{
-			name: "verifyFn error propagated",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithActivation(100).WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
-				}).Build()
-			},
-			verifyFn: func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-				return Result{}, errors.New("verification failed")
-			},
-			assert: func(t *testing.T, result Result, err error) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "verification failed")
-				require.True(t, result.IsEmpty())
-			},
-		},
+	for i := range p.chainCount {
+		chain := eth.ChainIDFromUInt64(uint64(i))
+		res.chainBlocks[chain] = make([]*eth.L2BlockRef, 0)
+		res.chainHeads[chain] = &ChainHeads{}
+		res.chainIDs = append(res.chainIDs, chain)
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			if tc.run != nil {
-				tc.run(t, h)
-				return
+	//
+	// Create array of all blocks
+	//
+	chainUninit := eth.ChainIDFromUInt64(0)
+	timeStampCount := 1 // Can't be greater than p.chainCount
+	var newBlock *ChainBlock
+	for i := range totalLength {
+		allBlocks := res.allBlocks
+		if i == 0 {
+			// First block has a timestamp far in the past, already expired (used in InsertDependencyToExpiredMessage)
+			randomBlock := testutils.RandomL2BlockRef(r)
+			randomBlock.Time = 0
+			newBlock = &ChainBlock{chainUninit, &randomBlock}
+		} else if i == 1 {
+			// Set the initial timestamp so that the block at index 0 is already expired
+			randomBlock := testutils.NextRandomL2Ref(r, 100, *allBlocks[0].block, eth.BlockID{})
+			randomBlock.Time = params.MessageExpiryTimeSecondsInterop + 1
+			newBlock = &ChainBlock{chainUninit, &randomBlock}
+		} else {
+			// Use NextRandomRef for timestamp coherence.
+			randomBlock := testutils.NextRandomL2Ref(r, 100, *allBlocks[len(allBlocks)-1].block, eth.BlockID{})
+
+			// Repeat timestamps with some probability, with two caveats:
+			// - Can only have one block per chain with the same timestamp,
+			// - Last block must have a unique future timestamp, so it can be used in InsertFutureDependency.
+			if timeStampCount < p.chainCount && i < futureBlockIndex && r.Intn(100) < p.sameTimestampFrequency {
+				randomBlock.Time = allBlocks[len(allBlocks)-1].block.Time
+				timeStampCount++
+			} else {
+				randomBlock.Time += 1 // Increment because NextRandomRef could return a block with the same timestamp
+				timeStampCount = 1
 			}
-			if tc.verifyFn != nil {
-				h.interop.verifyFn = tc.verifyFn
+			newBlock = &ChainBlock{chainUninit, &randomBlock}
+		}
+		res.allBlocks = append(res.allBlocks, newBlock)
+	}
+
+	//
+	// Assign blocks to random L2 chains
+	//
+	chainSelections := make([]eth.ChainID, p.chainCount)
+	copy(chainSelections, res.chainIDs)
+	shuffleChains := func() {
+		r.Shuffle(len(chainSelections), func(i, j int) {
+			chainSelections[i], chainSelections[j] = chainSelections[j], chainSelections[i]
+		})
+	}
+
+	nextChain := 0
+	var prevBlock *eth.L2BlockRef
+	for i, cb := range res.allBlocks {
+		block := cb.block
+		if i == 0 || prevBlock.Time != block.Time {
+			shuffleChains()
+			nextChain = 0
+		}
+		chainid := chainSelections[nextChain]
+		cb.chain = chainid
+		nextChain++
+
+		if len(res.chainBlocks[chainid]) == 0 {
+			block.Number = 0
+			block.ParentHash = common.Hash{}
+		} else {
+			chainBlocks := res.chainBlocks[chainid]
+			lastblock := chainBlocks[len(chainBlocks)-1]
+			block.Number = lastblock.Number + 1
+			block.ParentHash = lastblock.Hash
+		}
+
+		// Assign the cross/local heads based on where the cutoffs are
+		if i <= res.cutoffs.localSafe {
+			res.chainHeads[chainid].localSafe = block.Number
+		}
+		if i <= res.cutoffs.localUnsafe {
+			res.chainHeads[chainid].localUnsafe = block.Number
+		}
+		if i <= res.cutoffs.crossSafe {
+			res.chainHeads[chainid].crossSafe = block.Number
+		}
+		if i <= res.cutoffs.crossUnsafe {
+			res.chainHeads[chainid].crossUnsafe = block.Number
+		}
+
+		res.cbIndices[*cb] = i
+		res.chainBlocks[chainid] = append(res.chainBlocks[chainid], block)
+		prevBlock = block
+	}
+
+	//
+	// Create random dependencies between all blocks
+	//
+	for initIndex, initcb := range res.allBlocks {
+		// Add an unimportant message at index 0 that can be modified later by the InsertCycle function
+		addRandomInitiatingMessage(r, &res, initcb)
+
+		block := initcb.block
+		if block.Number == 0 {
+			continue
+		}
+
+		for r.Intn(100) < p.dependencyChance {
+			execIndex := randomInRange(r, initIndex, totalLength)
+			execcb := res.allBlocks[execIndex]
+			if block.Number == 0 {
+				continue
 			}
-			result, err := h.interop.progressInterop()
-			tc.assert(t, result, err)
-		})
+			res.dependencies[*execcb] = append(res.dependencies[*execcb], initcb)
+		}
+	}
+
+	// Add dependencies for candidates
+	candidateDependencyChance := p.dependencyChance
+	crossUnsafeCandidate := GetCrossUnsafeCandidate(res)
+	crossSafeCandidate := GetCrossSafeCandidate(res)
+
+	addCandidateDeps := func(candidate *ChainBlock) {
+		if candidate != nil {
+			time := candidate.block.Time
+			candidateIndex := res.cbIndices[*candidate]
+			index := candidateIndex - 1
+			// Find earliest block with the same timestamp as the candidate
+			for res.allBlocks[index].block.Time == time {
+				index--
+			}
+			// Iterate over this range of blocks and add dependencies between them
+			for i := candidateIndex; index+1 < i; i-- {
+				for r.Intn(100) < candidateDependencyChance {
+					execcb := res.allBlocks[i]
+					dependencyIndex := randomInRange(r, index+1, i)
+					initcb := res.allBlocks[dependencyIndex]
+					if initcb.block.Number == 0 {
+						continue
+					}
+					res.dependencies[*execcb] = append(res.dependencies[*execcb], initcb)
+				}
+			}
+		}
+	}
+
+	addCandidateDeps(crossUnsafeCandidate)
+	addCandidateDeps(crossSafeCandidate)
+
+	// Construct the dependencies by creating initiating/executing message pairs
+	for _, execcb := range res.allBlocks {
+		for _, initcb := range res.dependencies[*execcb] {
+			initiatingLog := addRandomInitiatingMessage(r, &res, initcb)
+			addExecutingMessage(&res, execcb, initcb, initiatingLog)
+		}
+	}
+
+	//
+	// Make L1 derivation info
+	//
+	taken := 0
+	nextL1 := testutils.RandomBlockRef(r)
+	for taken < totalLength {
+		nextL1 = testutils.NextRandomRef(r, nextL1)
+		take := randomInRange(r, 1, 5) // Take 1-4 L2 blocks
+		take = min(totalLength-taken, take)
+		for _, l2Block := range res.allBlocks[taken : taken+take] {
+			res.l1SourceMap[*l2Block] = nextL1
+		}
+		res.l1Source[nextL1.Number] = nextL1
+		taken += take
+	}
+
+	return res
+}
+
+func TestMakeRandomChain(t *testing.T) {
+	params := RandomChainParams {
+		chainCount:             3,
+		minLength:              5,
+		maxLength:              20,
+		sameTimestampFrequency: 10,
+		dependencyChance:       8,
+	}
+
+	chain := params.MakeRandomChain(0)
+
+	t.Run("Correct number of chains", func(t *testing.T) {
+		require.Equal(t, params.chainCount, len(chain.chainIDs))
+	})
+}
+
+func addRandomInitiatingMessage(r *rand.Rand, res *RandomChain, initcb *ChainBlock) *types2.Log {
+	initiatingLog := testutils.RandomLog(r)
+	initiatingLog.Index = uint(len(res.generatedLogs[*initcb]))
+	res.generatedLogs[*initcb] = append(res.generatedLogs[*initcb], initiatingLog)
+	return initiatingLog
+}
+
+func addExecutingMessage(res *RandomChain, execcb *ChainBlock, initcb *ChainBlock, initiatingLog *types2.Log) {
+	execLog := ExecMsgForLog(initcb.chain, *initcb.block, initiatingLog)
+	execLog.Index = uint(len(res.generatedLogs[*execcb]))
+	res.generatedLogs[*execcb] = append(res.generatedLogs[*execcb], execLog)
+}
+
+func addExecutingMessageWithDependency(res *RandomChain, execcb *ChainBlock, initcb *ChainBlock, initiatingLog *types2.Log) {
+	addExecutingMessage(res, execcb, initcb, initiatingLog)
+	res.dependencies[*execcb] = append(res.dependencies[*execcb], initcb)
+}
+
+func addInvalidExecutingMessage(r *rand.Rand, res *RandomChain, execcb *ChainBlock, initcb *ChainBlock, initiatingLog *types2.Log) {
+	execLog := InvalidExecMsgForLog(r, res, initcb.chain, *initcb.block, initiatingLog)
+	execLog.Index = uint(len(res.generatedLogs[*execcb]))
+	res.generatedLogs[*execcb] = append(res.generatedLogs[*execcb], execLog)
+}
+
+func insertExecutingMessageAt(i uint, res *RandomChain, execcb *ChainBlock, initcb *ChainBlock, initiatingLog *types2.Log) {
+	execLog := ExecMsgForLog(initcb.chain, *initcb.block, initiatingLog)
+	execLog.Index = i
+	res.generatedLogs[*execcb][i] = execLog
+}
+
+func GenerateReceiptsFromLogs(res *RandomChain) {
+	for _, cb := range res.allBlocks {
+		chainid, block := cb.chain, cb.block
+		logs := res.generatedLogs[*cb]
+		rcpt := types2.Receipt{
+			Logs: logs,
+		}
+		res.receipts[chainid][block.ID()] = types2.Receipts{&rcpt};
 	}
 }
 
-// =============================================================================
-// TestProgressInteropWithCycleVerify
-// =============================================================================
+// Returns a random integer in the interval [lowerIncluding, upperExcluding)
+func randomInRange(r *rand.Rand, lowerIncluding int, upperExcluding int) int {
+	return r.Intn(upperExcluding-lowerIncluding) + lowerIncluding
+}
 
-func _TestProgressInteropWithCycleVerify(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		setup func(h *interopFuzzHarness) *interopFuzzHarness
-		run   func(t *testing.T, h *interopFuzzHarness)
-	}{
-		{
-			name: "default cycleVerifyFn returns valid result",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				// Set verifyFn to return a valid result
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{Timestamp: ts, L2Heads: blocks}, nil
-				}
-				// cycleVerifyFn is overridden with this stub implementation.
-
-				result, err := h.interop.progressInterop()
-				require.NoError(t, err)
-				require.False(t, result.IsEmpty())
-				require.True(t, result.IsValid())
-			},
+func InvalidExecMsgForLog(r *rand.Rand, res *RandomChain, chain eth.ChainID, block eth.L2BlockRef, log *types2.Log) *types2.Log {
+	msg := types.Message{
+		Identifier: types.Identifier{
+			Origin:      log.Address,
+			BlockNumber: block.Number,
+			LogIndex:    uint32(log.Index),
+			Timestamp:   block.Time,
+			ChainID:     chain,
 		},
-		{
-			name: "cycleVerifyFn called after verifyFn and results merged",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-				}).WithChain(8453, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				verifyFnCalled := false
-				cycleVerifyFnCalled := false
-				chain10 := eth.ChainIDFromUInt64(10)
-				chain8453 := eth.ChainIDFromUInt64(8453)
-
-				// verifyFn returns valid result
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					verifyFnCalled = true
-					return Result{Timestamp: ts, L2Heads: blocks}, nil
-				}
-
-				// cycleVerifyFn marks chain 8453 as invalid
-				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					require.True(t, verifyFnCalled, "verifyFn should be called before cycleVerifyFn")
-					cycleVerifyFnCalled = true
-					return Result{
-						Timestamp: ts,
-						L2Heads:   blocks,
-						InvalidHeads: map[eth.ChainID]eth.BlockID{
-							chain8453: blocks[chain8453],
-						},
-					}, nil
-				}
-
-				result, err := h.interop.progressInterop()
-				require.NoError(t, err)
-				require.True(t, verifyFnCalled, "verifyFn should be called")
-				require.True(t, cycleVerifyFnCalled, "cycleVerifyFn should be called")
-				require.False(t, result.IsValid(), "result should be invalid due to cycleVerifyFn")
-				require.Contains(t, result.InvalidHeads, chain8453)
-				require.NotContains(t, result.InvalidHeads, chain10)
-			},
-		},
-		{
-			name: "cycleVerifyFn error propagated",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{Timestamp: ts, L2Heads: blocks}, nil
-				}
-				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{}, errors.New("cycle verification failed")
-				}
-
-				result, err := h.interop.progressInterop()
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "cycle verification")
-				require.True(t, result.IsEmpty())
-			},
-		},
-		{
-			name: "both verifyFn and cycleVerifyFn invalid heads are merged",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-				}).WithChain(8453, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				chain10 := eth.ChainIDFromUInt64(10)
-				chain8453 := eth.ChainIDFromUInt64(8453)
-
-				// verifyFn marks chain 10 as invalid
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{
-						Timestamp: ts,
-						L2Heads:   blocks,
-						InvalidHeads: map[eth.ChainID]eth.BlockID{
-							chain10: blocks[chain10],
-						},
-					}, nil
-				}
-
-				// cycleVerifyFn marks chain 8453 as invalid
-				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{
-						Timestamp: ts,
-						L2Heads:   blocks,
-						InvalidHeads: map[eth.ChainID]eth.BlockID{
-							chain8453: blocks[chain8453],
-						},
-					}, nil
-				}
-
-				result, err := h.interop.progressInterop()
-				require.NoError(t, err)
-				require.False(t, result.IsValid())
-				// Both chains should be in InvalidHeads
-				require.Contains(t, result.InvalidHeads, chain10, "chain10 from verifyFn should be invalid")
-				require.Contains(t, result.InvalidHeads, chain8453, "chain8453 from cycleVerifyFn should be invalid")
-			},
-		},
+		PayloadHash: processors.LogToLogHash(log),
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			tc.run(t, h)
-		})
+	switch r.Intn(5) {
+	case 0:
+		// Invalid origin
+		msg.Identifier.Origin = common.HexToAddress("0xffffffffffffffffffffffffffffffffffffffff")
+	case 1:
+		// Invalid block number
+		msg.Identifier.BlockNumber += uint64(randomInRange(r, 1, 10))
+	case 2:
+		// Invalid log index
+		msg.Identifier.LogIndex += uint32(randomInRange(r, 1, 5))
+	case 3:
+		// Invalid timestamp
+		msg.Identifier.Timestamp -= uint64(randomInRange(r, 1, 100))
+	case 4:
+		// Invalid chain ID
+		impossibleChainID := len(res.chainIDs)
+		msg.Identifier.ChainID = eth.ChainIDFromUInt64(uint64(impossibleChainID))
+	}
+
+	topics, data := msg.EncodeEvent()
+	return &types2.Log{
+		Address: params2.InteropCrossL2InboxAddress,
+		Data:    data,
+		Topics:  topics,
+		Index:   log.Index,
 	}
 }
 
-// =============================================================================
-// TestVerifiedAtTimestamp
-// =============================================================================
+func InsertMessageWithInvalidIdentifier(r *rand.Rand, res *RandomChain, candidateIndex int) {
+	candidateBlock := res.allBlocks[candidateIndex]
+	randomIndex := r.Intn(candidateIndex + 1)
+	randomBlock := res.allBlocks[randomIndex]
+	randomLogIndex := r.Intn(len(res.generatedLogs[*randomBlock]))
+	randomLog := res.generatedLogs[*randomBlock][randomLogIndex]
 
-func _TestVerifiedAtTimestamp(t *testing.T) {
-	t.Parallel()
+	addInvalidExecutingMessage(r, res, candidateBlock, randomBlock, randomLog)
+}
 
-	tests := []struct {
-		name  string
-		setup func(h *interopFuzzHarness) *interopFuzzHarness
-		run   func(t *testing.T, h *interopFuzzHarness)
-	}{
-		{
-			name: "before activation always verified",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				verified, err := h.interop.VerifiedAtTimestamp(999)
-				require.NoError(t, err)
-				require.True(t, verified)
-
-				verified, err = h.interop.VerifiedAtTimestamp(0)
-				require.NoError(t, err)
-				require.True(t, verified)
-			},
-		},
-		{
-			name: "at/after activation not verified until committed",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				verified, err := h.interop.VerifiedAtTimestamp(1000)
-				require.NoError(t, err)
-				require.False(t, verified)
-
-				verified, err = h.interop.VerifiedAtTimestamp(9999)
-				require.NoError(t, err)
-				require.False(t, verified)
-			},
-		},
-		{
-			name: "committed timestamp verified",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
-				}
-
-				result, err := h.interop.progressInterop()
-				require.NoError(t, err)
-
-				err = h.interop.handleResult(result)
-				require.NoError(t, err)
-
-				verified, err := h.interop.VerifiedAtTimestamp(1000)
-				require.NoError(t, err)
-				require.True(t, verified)
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			tc.run(t, h)
-		})
+func InvalidateBlock(t *testing.T, res *RandomChain, candidate *ChainBlock) {
+	r := res.randomGenerator
+	switch r.Intn(5) {
+	case 0:
+		InsertCycle(t, r, res, candidate)
+	case 1:
+		InsertSelfDependency(r, res, candidate)
+	case 2:
+		InsertFutureDependency(t, r, res, res.cbIndices[*candidate])
+	case 3:
+		InsertDependencyToExpiredMessage(t, r, res, res.cbIndices[*candidate])
+	case 4:
+		InsertMessageWithInvalidIdentifier(r, res, res.cbIndices[*candidate])
+	default:
 	}
 }
 
-// =============================================================================
-// TestHandleResult
-// =============================================================================
+func InsertFutureDependency(t *testing.T, r *rand.Rand, res *RandomChain, candidateIndex int) {
+	candidateBlock := res.allBlocks[candidateIndex]
+	t.Logf("Inserting a future dependency in candidate (%s, %2d)'s hazard set", candidateBlock.chain, candidateBlock.block.Number)
 
-func _TestHandleResult(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		setup func(h *interopFuzzHarness) *interopFuzzHarness
-		run   func(t *testing.T, h *interopFuzzHarness)
-	}{
-		{
-			name: "empty result is no-op",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				err := h.interop.handleResult(Result{})
-				require.NoError(t, err)
-
-				has, err := h.interop.verifiedDB.Has(0)
-				require.NoError(t, err)
-				require.False(t, has)
-			},
-		},
-		{
-			name: "valid result commits to DB with correct data",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, nil).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				mock := h.Mock(10)
-				validResult := Result{
-					Timestamp:   1000,
-					L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
-					L2Heads: map[eth.ChainID]eth.BlockID{
-						mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
-					},
-				}
-
-				err := h.interop.handleResult(validResult)
-				require.NoError(t, err)
-
-				has, err := h.interop.verifiedDB.Has(1000)
-				require.NoError(t, err)
-				require.True(t, has)
-
-				retrieved, err := h.interop.verifiedDB.Get(1000)
-				require.NoError(t, err)
-				require.Equal(t, validResult.Timestamp, retrieved.Timestamp)
-				require.Equal(t, validResult.L1Inclusion, retrieved.L1Inclusion)
-				require.Equal(t, validResult.L2Heads[mock.id], retrieved.L2Heads[mock.id])
-			},
-		},
-		{
-			name: "invalid result does not commit",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, nil).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				mock := h.Mock(10)
-				invalidResult := Result{
-					Timestamp:   1000,
-					L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
-					L2Heads: map[eth.ChainID]eth.BlockID{
-						mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
-					},
-					InvalidHeads: map[eth.ChainID]eth.BlockID{
-						mock.id: {Number: 500, Hash: common.HexToHash("0xBAD")},
-					},
-				}
-
-				err := h.interop.handleResult(invalidResult)
-				require.NoError(t, err)
-
-				has, err := h.interop.verifiedDB.Has(1000)
-				require.NoError(t, err)
-				require.False(t, has)
-			},
-		},
+	// Find the next block with a timestamp in the future (guaranteed to exist since we added a special block at the end)
+	i := candidateIndex + 1
+	for res.allBlocks[i].block.Time <= candidateBlock.block.Time {
+		i++
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			tc.run(t, h)
-		})
-	}
+	// Randomly pick a future block and create an executing message to it
+	futureIndex := randomInRange(r, i, len(res.allBlocks))
+	futureBlock := res.allBlocks[futureIndex]
+	initiatingLog := addRandomInitiatingMessage(r, res, futureBlock)
+	addExecutingMessageWithDependency(res, candidateBlock, futureBlock, initiatingLog)
 }
 
-// =============================================================================
-// TestInvalidateBlock
-// =============================================================================
+func InsertDependencyToExpiredMessage(t *testing.T, r *rand.Rand, res *RandomChain, candidateIndex int) {
+	candidate := res.allBlocks[candidateIndex]
 
-// TestInvalidateBlock verifies the invalidateBlock method correctly calls
-// ChainContainer.InvalidateBlock with the right parameters and handles errors.
-func _TestInvalidateBlock(t *testing.T) {
-	t.Parallel()
+	// We set the timestamps so that this is true for every block that can be selected as candidate
+	require.Less(t, uint64(params.MessageExpiryTimeSecondsInterop), candidate.block.Time)
 
-	tests := []struct {
-		name  string
-		setup func(h *interopFuzzHarness) *interopFuzzHarness
-		run   func(t *testing.T, h *interopFuzzHarness)
-	}{
-		{
-			name: "calls chain.InvalidateBlock with correct args",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, nil).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				mock := h.Mock(10)
-				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID)
-				require.NoError(t, err)
+	// Any timestamp below this is expired
+	expiryTimestamp := candidate.block.Time - params.MessageExpiryTimeSecondsInterop
 
-				require.Len(t, mock.invalidateBlockCalls, 1)
-				require.Equal(t, uint64(500), mock.invalidateBlockCalls[0].height)
-				require.Equal(t, common.HexToHash("0xBAD"), mock.invalidateBlockCalls[0].payloadHash)
-			},
-		},
-		{
-			name: "returns error when chain not found",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, nil).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				mock := h.Mock(10)
-				unknownChain := eth.ChainIDFromUInt64(999)
-				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(unknownChain, blockID)
-
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "not found")
-				require.Len(t, mock.invalidateBlockCalls, 0)
-			},
-		},
-		{
-			name: "returns error when chain.InvalidateBlock fails",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.invalidateBlockErr = errors.New("engine failure")
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				mock := h.Mock(10)
-				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID)
-
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "engine failure")
-			},
-		},
-		{
-			name: "handleResult calls invalidateBlock for each invalid head",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, nil).WithChain(8453, nil).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				mock1 := h.Mock(10)
-				mock2 := h.Mock(8453)
-
-				invalidResult := Result{
-					Timestamp:   1000,
-					L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
-					L2Heads: map[eth.ChainID]eth.BlockID{
-						mock1.id: {Number: 500, Hash: common.HexToHash("0xL2-1")},
-						mock2.id: {Number: 600, Hash: common.HexToHash("0xL2-2")},
-					},
-					InvalidHeads: map[eth.ChainID]eth.BlockID{
-						mock1.id: {Number: 500, Hash: common.HexToHash("0xBAD1")},
-						mock2.id: {Number: 600, Hash: common.HexToHash("0xBAD2")},
-					},
-				}
-
-				err := h.interop.handleResult(invalidResult)
-				require.NoError(t, err)
-
-				require.Len(t, mock1.invalidateBlockCalls, 1)
-				require.Equal(t, uint64(500), mock1.invalidateBlockCalls[0].height)
-				require.Equal(t, common.HexToHash("0xBAD1"), mock1.invalidateBlockCalls[0].payloadHash)
-
-				require.Len(t, mock2.invalidateBlockCalls, 1)
-				require.Equal(t, uint64(600), mock2.invalidateBlockCalls[0].height)
-				require.Equal(t, common.HexToHash("0xBAD2"), mock2.invalidateBlockCalls[0].payloadHash)
-			},
-		},
+	// Iterate until we find the first unexpired block
+	i := 0
+	for res.allBlocks[i].block.Time < expiryTimestamp {
+		i++
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			tc.run(t, h)
-		})
-	}
+	// i is at least 1 since the block at index 0 is guaranteed to be expired
+	expiredIndex := r.Intn(i)
+	expiredBlock := res.allBlocks[expiredIndex]
+	initiatingLog := addRandomInitiatingMessage(r, res, expiredBlock)
+	addExecutingMessageWithDependency(res, candidate, expiredBlock, initiatingLog)
 }
 
-// =============================================================================
-// TestProgressAndRecord
-// =============================================================================
+func InsertSelfDependency(r *rand.Rand, res *RandomChain, candidate *ChainBlock) {
+	// Create a random initiating message to be inserted at index N+1
+	initiatingLog := testutils.RandomLog(r)
+	initiatingLog.Index = uint(len(res.generatedLogs[*candidate]) + 1)
 
-func _TestProgressAndRecord(t *testing.T) {
-	t.Parallel()
+	// Insert executing message at index N
+	addExecutingMessageWithDependency(res, candidate, candidate, initiatingLog)
 
-	tests := []struct {
-		name  string
-		setup func(h *interopFuzzHarness) *interopFuzzHarness
-		run   func(t *testing.T, h *interopFuzzHarness)
-	}{
-		{
-			name: "empty result sets L1 to collected minimum",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
-					m.blockAtTimestampErr = ethereum.NotFound
-				}).WithChain(8453, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-					m.blockAtTimestampErr = ethereum.NotFound
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				require.Equal(t, eth.BlockID{}, h.interop.currentL1)
-
-				madeProgress, err := h.interop.progressAndRecord()
-				require.NoError(t, err)
-				require.False(t, madeProgress, "empty result should not advance verified timestamp")
-
-				require.Equal(t, uint64(100), h.interop.currentL1.Number)
-				require.Equal(t, common.HexToHash("0x1"), h.interop.currentL1.Hash)
-			},
-		},
-		{
-			name: "valid result sets L1 to result L1Head",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				expectedL1Inclusion := eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{Timestamp: ts, L1Inclusion: expectedL1Inclusion, L2Heads: blocks}, nil
-				}
-
-				madeProgress, err := h.interop.progressAndRecord()
-				require.NoError(t, err)
-				require.True(t, madeProgress, "valid result should advance verified timestamp")
-
-				require.Equal(t, expectedL1Inclusion.Number, h.interop.currentL1.Number)
-				require.Equal(t, expectedL1Inclusion.Hash, h.interop.currentL1.Hash)
-			},
-		},
-		{
-			name: "invalid result does not update L1",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				mock := h.Mock(10)
-				initialL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0x50")}
-				h.interop.currentL1 = initialL1
-
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-					return Result{
-						Timestamp:    ts,
-						L1Inclusion:  eth.BlockID{Number: 999, Hash: common.HexToHash("0xShouldNotBeUsed")},
-						L2Heads:      blocks,
-						InvalidHeads: map[eth.ChainID]eth.BlockID{mock.id: {Number: 100}},
-					}, nil
-				}
-
-				madeProgress, err := h.interop.progressAndRecord()
-				require.NoError(t, err)
-				require.False(t, madeProgress, "invalid result should not advance verified timestamp")
-
-				require.Equal(t, initialL1.Number, h.interop.currentL1.Number)
-				require.Equal(t, initialL1.Hash, h.interop.currentL1.Hash)
-			},
-		},
-		{
-			name: "errors propagated",
-			setup: func(h *interopFuzzHarness) *interopFuzzHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1Err = errors.New("L1 sync error")
-				}).Build()
-			},
-			run: func(t *testing.T, h *interopFuzzHarness) {
-				madeProgress, err := h.interop.progressAndRecord()
-				require.Error(t, err)
-				require.False(t, madeProgress, "error should not advance verified timestamp")
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			tc.setup(h)
-			tc.run(t, h)
-		})
-	}
+	// Insert initiating message at index N+1
+	res.generatedLogs[*candidate] = append(res.generatedLogs[*candidate], initiatingLog)
 }
 
-// =============================================================================
-// TestInterop_FullCycle
-// =============================================================================
+func listHazards(t *testing.T, res *RandomChain, candidate *ChainBlock) []*ChainBlock {
+	hazards := make([]*ChainBlock, 0)
+	includedHazards := make(map[eth.ChainID]*ChainBlock)
 
-func _TestInterop_FullCycle(t *testing.T) {
-	t.Parallel()
-	dataDir := t.TempDir()
+	// Add the candidate itself as a hazard
+	stack := []*ChainBlock{candidate}
 
-	mock := newMockChainContainer(10)
-	mock.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
-	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+	for len(stack) > 0 {
+		// Pop hazard from the stack
+		hazard := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
 
-	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 100, chains, dataDir)
-	require.NotNil(t, interop)
-	interop.ctx = context.Background()
+		// Check if we already found a hazard from this chain
+		includedHazard, ok := includedHazards[hazard.chain]
+		if ok {
+			// Ensure that there are not two different hazards from the same chain
+			require.Equal(t, includedHazard.block.ID(), hazard.block.ID())
+		} else {
+			// If not already included, add hazard to the list
+			hazards = append(hazards, hazard)
+			includedHazards[hazard.chain] = hazard
 
-	// Verify logsDB is empty initially
-	_, hasBlocks := interop.logsDBs[mock.id].LatestSealedBlock()
-	require.False(t, hasBlocks)
-
-	// Stub verifyFn
-	interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
-		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+			// For each new hazard, add all dependencies with the same timestamp to the stack
+			for _, dependency := range res.dependencies[*hazard] {
+				if dependency.block.Time == candidate.block.Time {
+					stack = append(stack, dependency)
+				}
+			}
+		}
 	}
 
-	// Run 3 cycles
-	for i := 0; i < 3; i++ {
-		l1, err := interop.collectCurrentL1()
-		require.NoError(t, err)
-		require.Equal(t, uint64(1000), l1.Number)
-
-		result, err := interop.progressInterop()
-		require.NoError(t, err)
-		require.False(t, result.IsEmpty())
-
-		err = interop.handleResult(result)
-		require.NoError(t, err)
-	}
-
-	// Verify timestamps committed with correct L2Heads
-	for ts := uint64(100); ts <= 102; ts++ {
-		has, err := interop.verifiedDB.Has(ts)
-		require.NoError(t, err)
-		require.True(t, has)
-
-		retrieved, err := interop.verifiedDB.Get(ts)
-		require.NoError(t, err)
-		require.Equal(t, ts, retrieved.Timestamp)
-		require.Contains(t, retrieved.L2Heads, mock.id)
-		require.Equal(t, ts, retrieved.L2Heads[mock.id].Number)
-	}
-
-	// Verify logsDB populated
-	latestBlock, hasBlocks := interop.logsDBs[mock.id].LatestSealedBlock()
-	require.True(t, hasBlocks)
-	require.Equal(t, uint64(102), latestBlock.Number)
+	return hazards
 }
 
-// =============================================================================
-// TestResult_IsEmpty
-// =============================================================================
+func InsertCycle(t *testing.T, r *rand.Rand, res *RandomChain, candidate *ChainBlock) {
+	t.Logf("Inserting a cycle in candidate (%s, %2d)'s hazard set", candidate.chain, candidate.block.Number)
 
-func _TestResult_IsEmpty(t *testing.T) {
-	t.Parallel()
+	candidateHazards := listHazards(t, res, candidate)
+	t.Logf("Size of (%s, %2d)'s hazard set: %d", candidate.chain, candidate.block.Number, len(candidateHazards))
+	cycleStart := candidateHazards[r.Intn(len(candidateHazards))]
+	t.Logf("Picked random hazard set element to start the cycle: (%s, %2d)", cycleStart.chain, cycleStart.block.Number)
 
-	tests := []struct {
-		name    string
-		result  Result
-		isEmpty bool
-	}{
-		{"zero value", Result{}, true},
-		{"only timestamp", Result{Timestamp: 1000}, true},
-		{"with L1Head", Result{Timestamp: 1000, L1Inclusion: eth.BlockID{Number: 100}}, false},
-		{"with L2Heads", Result{Timestamp: 1000, L2Heads: map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 50}}}, false},
-		{"with InvalidHeads", Result{Timestamp: 1000, InvalidHeads: map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 50}}}, false},
+	// If the random element is equal to the candidate, no need to compute the hazards again
+	var subHazards []*ChainBlock
+	if cycleStart.chain == candidate.chain {
+		require.Equal(t, cycleStart.block.Number, candidate.block.Number)
+		subHazards = candidateHazards
+	} else {
+		subHazards = listHazards(t, res, cycleStart)
+		t.Logf("Size of (%s, %2d)'s hazard set: %d", cycleStart.chain, cycleStart.block.Number, len(subHazards))
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.isEmpty, tt.result.IsEmpty())
-		})
-	}
+	cycleEnd := subHazards[r.Intn(len(subHazards))]
+	t.Logf("Picked random hazard set element to end the cycle: (%s, %2d)", cycleEnd.chain, cycleEnd.block.Number)
+
+	// Add executing message from first log of cycleEnd to last log of cycleStart
+	lastIndex := len(res.generatedLogs[*cycleStart]) - 1
+	initiatingLog := res.generatedLogs[*cycleStart][lastIndex]
+	// Replace dummy message at index 0
+	insertExecutingMessageAt(0, res, cycleEnd, cycleStart, initiatingLog)
+	res.dependencies[*cycleEnd] = append(res.dependencies[*cycleEnd], cycleStart)
+	t.Logf("Added cyclic dependency: (%s, %2d) -> (%s, %2d)", cycleEnd.chain, cycleEnd.block.Number, cycleStart.chain, cycleStart.block.Number)
 }
 
-// =============================================================================
-// TestReset
-// =============================================================================
-
-func _TestReset(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		setup func(h *interopFuzzHarness) (*interopFuzzHarness, *mockLogsDBForInterop)
-		run   func(t *testing.T, h *interopFuzzHarness, mockLogsDB *mockLogsDBForInterop)
-	}{
-		{
-			name: "rewinds logsDB to parent of invalidated block",
-			setup: func(h *interopFuzzHarness) (*interopFuzzHarness, *mockLogsDBForInterop) {
-				h.WithChain(10, nil).Build()
-				mockLogsDB := &mockLogsDBForInterop{}
-				h.interop.logsDBs[h.Mock(10).id] = mockLogsDB
-				return h, mockLogsDB
-			},
-			run: func(t *testing.T, h *interopFuzzHarness, mockLogsDB *mockLogsDBForInterop) {
-				// BlockRef provides the target block info directly (no RPC call needed)
-				// logsDB rewinds to parent of invalidated block (Number-1, ParentHash)
-				invalidatedBlock := eth.BlockRef{Number: 100, ParentHash: common.HexToHash("0xPARENT")}
-				h.interop.Reset(h.Mock(10).id, 100, invalidatedBlock)
-
-				// Should rewind to block 99 (parent of invalidated block 100)
-				require.Len(t, mockLogsDB.rewindCalls, 1)
-				require.Equal(t, uint64(99), mockLogsDB.rewindCalls[0].Number)
-				require.Equal(t, common.HexToHash("0xPARENT"), mockLogsDB.rewindCalls[0].Hash)
-				require.Equal(t, 0, mockLogsDB.clearCalls)
-			},
-		},
-		{
-			name: "clears logsDB when timestamp at or before blockTime",
-			setup: func(h *interopFuzzHarness) (*interopFuzzHarness, *mockLogsDBForInterop) {
-				h.WithChain(10, nil).Build()
-				mockLogsDB := &mockLogsDBForInterop{
-					firstSealedBlock: suptypes.BlockSeal{Number: 5},
-				}
-				h.interop.logsDBs[h.Mock(10).id] = mockLogsDB
-				return h, mockLogsDB
-			},
-			run: func(t *testing.T, h *interopFuzzHarness, mockLogsDB *mockLogsDBForInterop) {
-				// Reset at timestamp 1 with block 1 invalidated; target is block 0
-				// Since firstSealedBlock.Number (5) > targetBlock.Number (0), Clear is called
-				invalidatedBlock := eth.BlockRef{Number: 1, ParentHash: common.Hash{}}
-				h.interop.Reset(h.Mock(10).id, 1, invalidatedBlock)
-
-				require.Len(t, mockLogsDB.rewindCalls, 0)
-				require.Equal(t, 1, mockLogsDB.clearCalls)
-			},
-		},
-		{
-			name: "rewinds verifiedDB",
-			setup: func(h *interopFuzzHarness) (*interopFuzzHarness, *mockLogsDBForInterop) {
-				h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 99}
-				}).Build()
-				mockLogsDB := &mockLogsDBForInterop{}
-				h.interop.logsDBs[h.Mock(10).id] = mockLogsDB
-				return h, mockLogsDB
-			},
-			run: func(t *testing.T, h *interopFuzzHarness, mockLogsDB *mockLogsDBForInterop) {
-				mock := h.Mock(10)
-				// Add some verified results
-				for ts := uint64(98); ts <= 102; ts++ {
-					err := h.interop.verifiedDB.Commit(VerifiedResult{
-						Timestamp:   ts,
-						L1Inclusion: eth.BlockID{Number: ts},
-						L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: ts}},
-					})
-					require.NoError(t, err)
-				}
-
-				// Reset at timestamp 100 (timestamp 100 is first NOT removed, so 101, 102 are removed)
-				invalidatedBlock := eth.BlockRef{Number: 100, ParentHash: common.Hash{}}
-				h.interop.Reset(mock.id, 100, invalidatedBlock)
-
-				// Verify results at 98, 99, 100 still exist (100 is first NOT removed)
-				has, _ := h.interop.verifiedDB.Has(98)
-				require.True(t, has)
-				has, _ = h.interop.verifiedDB.Has(99)
-				require.True(t, has)
-				has, _ = h.interop.verifiedDB.Has(100)
-				require.True(t, has)
-
-				// Verify results at 101, 102 are gone (after reset timestamp)
-				has, _ = h.interop.verifiedDB.Has(101)
-				require.False(t, has)
-				has, _ = h.interop.verifiedDB.Has(102)
-				require.False(t, has)
-			},
-		},
-		{
-			name: "resets currentL1",
-			setup: func(h *interopFuzzHarness) (*interopFuzzHarness, *mockLogsDBForInterop) {
-				h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 99}
-				}).Build()
-				mockLogsDB := &mockLogsDBForInterop{}
-				h.interop.logsDBs[h.Mock(10).id] = mockLogsDB
-				return h, mockLogsDB
-			},
-			run: func(t *testing.T, h *interopFuzzHarness, mockLogsDB *mockLogsDBForInterop) {
-				h.interop.currentL1 = eth.BlockID{Number: 500, Hash: common.HexToHash("0xL1")}
-
-				invalidatedBlock := eth.BlockRef{Number: 100, ParentHash: common.Hash{}}
-				h.interop.Reset(h.Mock(10).id, 100, invalidatedBlock)
-
-				require.Equal(t, eth.BlockID{}, h.interop.currentL1)
-			},
-		},
-		{
-			name: "handles unknown chain gracefully",
-			setup: func(h *interopFuzzHarness) (*interopFuzzHarness, *mockLogsDBForInterop) {
-				h.WithChain(10, nil).Build()
-				return h, nil
-			},
-			run: func(t *testing.T, h *interopFuzzHarness, mockLogsDB *mockLogsDBForInterop) {
-				// Reset on unknown chain (should not panic)
-				unknownChain := eth.ChainIDFromUInt64(999)
-				invalidatedBlock := eth.BlockRef{Number: 100, ParentHash: common.Hash{}}
-				h.interop.Reset(unknownChain, 100, invalidatedBlock)
-				// Just verify it didn't panic
-			},
-		},
+func GetCrossUnsafeCandidate(rc RandomChain) (block *ChainBlock) {
+	for _, chain := range rc.chainIDs {
+		if rc.chainHeads[chain].crossUnsafe < rc.chainHeads[chain].localUnsafe {
+			return &ChainBlock{
+				chain: chain,
+				block: rc.chainBlocks[chain][rc.chainHeads[chain].crossUnsafe+1],
+			}
+		}
 	}
+	return nil
+}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropFuzzHarness(t)
-			h, mockLogsDB := tc.setup(h)
-			tc.run(t, h, mockLogsDB)
-		})
+func GetCrossSafeCandidate(rc RandomChain) (block *ChainBlock) {
+	for _, chain := range rc.chainIDs {
+		if rc.chainHeads[chain].crossSafe < rc.chainHeads[chain].localSafe {
+			return &ChainBlock{
+				chain: chain,
+				block: rc.chainBlocks[chain][rc.chainHeads[chain].crossSafe+1],
+			}
+		}
 	}
+	return nil
 }
