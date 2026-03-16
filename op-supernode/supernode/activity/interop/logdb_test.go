@@ -648,6 +648,7 @@ func (m *statefulMockChainContainer) Start(ctx context.Context) error           
 func (m *statefulMockChainContainer) Stop(ctx context.Context) error                   { return nil }
 func (m *statefulMockChainContainer) Pause(ctx context.Context) error                  { return nil }
 func (m *statefulMockChainContainer) Resume(ctx context.Context) error                 { return nil }
+func (m *statefulMockChainContainer) PauseAndStopVN(ctx context.Context) error         { return nil }
 func (m *statefulMockChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
 func (m *statefulMockChainContainer) VerifierCurrentL1s() []eth.BlockID                { return nil }
 func (m *statefulMockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {

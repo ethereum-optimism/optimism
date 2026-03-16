@@ -27,7 +27,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const virtualNodeVersion = "0.1.0"
+const (
+	virtualNodeVersion = "0.1.0"
+	// maxRewindAttempts is the maximum number of times RewindEngine will retry a transient
+	// rewind error before giving up. Prevents infinite retry loops when the engine
+	// consistently rejects synthetic payloads or FCU calls.
+	maxRewindAttempts = 10
+)
 
 type ChainContainer interface {
 	Start(ctx context.Context) error
@@ -58,6 +64,10 @@ type ChainContainer interface {
 	// currently uses that block at the specified height.
 	// Returns true if a rewind was triggered, false otherwise.
 	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error)
+	// PauseAndStopVN pauses the chain container restart loop and stops the virtual node.
+	// This is used to freeze a chain's VN before a multi-chain rewind begins, preventing
+	// the VN from issuing forkchoice updates that race with the rewind of a peer chain.
+	PauseAndStopVN(ctx context.Context) error
 	// IsDenied checks if a block hash is on the deny list at the given height.
 	IsDenied(height uint64, payloadHash common.Hash) (bool, error)
 	// SetResetCallback sets a callback that is invoked when the chain resets.
@@ -522,20 +532,23 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	c.log.Info("chain_container/RewindEngine: stopped vn")
 
 retryLoop:
-	for {
+	for attempt := 1; ; attempt++ {
 		err = c.engine.RewindToTimestamp(ctx, timestamp)
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
-			c.log.Error("chain_container/RewindEngine: timeout exceeded")
+			c.log.Error("chain_container/RewindEngine: timeout exceeded", "attempt", attempt, "timestamp", timestamp)
 			return err
 		case isCriticalRewindError(err):
-			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
+			c.log.Error("chain_container/RewindEngine: critical error", "err", err, "attempt", attempt, "timestamp", timestamp)
 			return err
 		case err == nil:
-			c.log.Info("chain_container/RewindEngine: executed engine rewind")
+			c.log.Info("chain_container/RewindEngine: executed engine rewind", "attempts", attempt, "timestamp", timestamp)
 			break retryLoop
+		case attempt >= maxRewindAttempts:
+			c.log.Error("chain_container/RewindEngine: max retry attempts reached, giving up", "err", err, "attempt", attempt, "timestamp", timestamp)
+			return err
 		default:
-			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
+			c.log.Error("chain_container/RewindEngine: temporary error, retrying", "err", err, "attempt", attempt, "timestamp", timestamp)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -557,6 +570,20 @@ retryLoop:
 	c.log.Info("chain_container/RewindEngine: resumed container")
 
 	return nil
+}
+
+// PauseAndStopVN pauses the container restart loop and stops the running virtual node.
+// This must be called before a multi-chain rewind to prevent a peer chain's VN from
+// issuing forkchoice updates that race with the rewind operation.
+// RewindEngine's own Pause+Stop calls are idempotent when called after this.
+func (c *simpleChainContainer) PauseAndStopVN(ctx context.Context) error {
+	if err := c.Pause(ctx); err != nil {
+		return err
+	}
+	if c.vn == nil {
+		return nil
+	}
+	return c.vn.Stop(ctx)
 }
 
 // SetResetCallback sets a callback that is invoked when the chain resets.

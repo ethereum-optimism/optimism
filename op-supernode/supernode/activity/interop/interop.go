@@ -336,6 +336,20 @@ func (i *Interop) handleResult(result Result) error {
 	// if the result is invalid, invalidate the blocks and return
 	if !result.IsValid() {
 		i.log.Error("interop validation failed", "results", result)
+		// Freeze ALL invalid chains before rewinding any. Without this, rewinding chain A
+		// fires onReset which changes the interop supervisor state. Chain B's still-running
+		// VN sees the change and issues a ForkchoiceUpdate that advances its safe head,
+		// causing chain B's subsequent synthetic-payload rewind to be rejected as INVALID.
+		for chainID, invalidHead := range result.InvalidHeads {
+			chain, ok := i.chains[chainID]
+			if !ok {
+				i.log.Error("chain not found for pre-rewind freeze", "chainID", chainID)
+				continue
+			}
+			if err := chain.PauseAndStopVN(i.ctx); err != nil {
+				i.log.Error("failed to freeze chain before rewind", "chainID", chainID, "blockID", invalidHead, "err", err)
+			}
+		}
 		for chainID, invalidHead := range result.InvalidHeads {
 			if err := i.invalidateBlock(chainID, invalidHead); err != nil {
 				i.log.Error("failed to invalidate block", "chainID", chainID, "blockID", invalidHead, "err", err)
