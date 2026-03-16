@@ -137,7 +137,16 @@ contract L2Genesis is Script {
 
         dealEthToPrecompiles();
         setPredeployProxies(_input);
+        vm.stopPrank();
+
+        // setPredeployImplementations calls initialize() on contracts that now assert
+        // _assertOnlyProxyAdminOrProxyAdminOwner(). Prank as the proxy admin owner so those
+        // assertions pass for both proxy and implementation initialization calls.
+        vm.startPrank(_input.opChainProxyAdminOwner);
         setPredeployImplementations(_input);
+        vm.stopPrank();
+
+        vm.startPrank(deployer);
         setPreinstalls();
         if (_input.fundDevAccounts) {
             fundDevAccounts();
@@ -241,6 +250,9 @@ contract L2Genesis is Script {
     ///      sets the deployed bytecode at their expected predeploy address.
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
     function setPredeployImplementations(Input memory _input) internal {
+        // Must be first: other contracts' initialize() calls assert _assertOnlyProxyAdminOrProxyAdminOwner(),
+        // which reads L2ProxyAdmin.owner(). The owner slot must be set before any initializer runs.
+        setL2ProxyAdmin(_input); // 18
         setLegacyMessagePasser(); // 0
         // 01: legacy, not used in OP-Stack
         setDeployerWhitelist(); // 2
@@ -257,7 +269,6 @@ contract L2Genesis is Script {
         setL1Block(_input.useCustomGasToken); // 15
         setL2ToL1MessagePasser(_input.useCustomGasToken); // 16
         setOptimismMintableERC721Factory(_input); // 17
-        setL2ProxyAdmin(_input); // 18
         setBaseFeeVault(_input); // 19
         setL1FeeVault(_input); // 1A
         setOperatorFeeVault(_input); // 1B
@@ -696,6 +707,9 @@ contract L2Genesis is Script {
         string memory cname = Predeploys.getName(_addr);
         address impl = Predeploys.predeployToCodeNamespace(_addr);
         vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        // Set the EIP-1967 admin slot on the implementation so that ProxyAdminOwnedBase.proxyAdmin()
+        // can resolve the proxy admin when initialize() is called directly on the implementation.
+        EIP1967Helper.setAdmin(impl, Predeploys.PROXY_ADMIN);
         return impl;
     }
 

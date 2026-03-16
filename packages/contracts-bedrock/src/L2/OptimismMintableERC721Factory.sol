@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { OptimismMintableERC721 } from "src/L2/OptimismMintableERC721.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -18,7 +19,12 @@ contract OptimismMintableERC721FactoryLegacyMapping {
 /// @custom:predeploy 0x4200000000000000000000000000000000000017
 /// @title OptimismMintableERC721Factory
 /// @notice Factory contract for creating OptimismMintableERC721 contracts.
-contract OptimismMintableERC721Factory is ISemver, OptimismMintableERC721FactoryLegacyMapping, Initializable {
+contract OptimismMintableERC721Factory is
+    ProxyAdminOwnedBase,
+    ISemver,
+    OptimismMintableERC721FactoryLegacyMapping,
+    Initializable
+{
     /// @notice Address of the ERC721 bridge on this network.
     /// @custom:network-specific
     address public bridge;
@@ -51,6 +57,7 @@ contract OptimismMintableERC721Factory is ISemver, OptimismMintableERC721Factory
     /// @param _bridge Address of the ERC721 bridge on this network.
     /// @param _remoteChainID Chain ID for the remote network.
     function initialize(address _bridge, uint256 _remoteChainID) external initializer {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         bridge = _bridge;
         remoteChainID = _remoteChainID;
     }

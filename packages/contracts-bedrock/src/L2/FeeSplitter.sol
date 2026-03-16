@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// Contracts
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
+
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -20,7 +23,7 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 /// @title FeeSplitter
 /// @notice Withdraws funds from system FeeVault contracts and distributes them according to the
 ///         configured SharesCalculator.
-contract FeeSplitter is ISemver, Initializable {
+contract FeeSplitter is ProxyAdminOwnedBase, ISemver, Initializable {
     /// @notice Thrown when the fee disbursement interval exceeds the maximum allowed.
     error FeeSplitter_ExceedsMaxFeeDisbursementTime();
 
@@ -110,6 +113,7 @@ contract FeeSplitter is ISemver, Initializable {
     /// @dev This function can only be called once and must be called by the ProxyAdmin owner.
     /// @param _sharesCalculator            The share calculator contract.
     function initialize(ISharesCalculator _sharesCalculator) external initializer {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         sharesCalculator = _sharesCalculator;
         // As default, the fee disbursement interval is 1 day
         feeDisbursementInterval = 1 days;
