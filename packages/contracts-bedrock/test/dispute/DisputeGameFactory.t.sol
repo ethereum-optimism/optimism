@@ -27,7 +27,7 @@ import { ZKMockVerifier } from "test/dispute/zk/ZKMockVerifier.sol";
 
 // ZKDisputeGame
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
-import { AccessManager } from "src/dispute/zk/AccessManager.sol";
+
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 
 /// @notice A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
