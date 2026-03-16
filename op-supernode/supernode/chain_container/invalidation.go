@@ -45,7 +45,12 @@ func decodeDenyRecords(raw []byte) ([]DenyRecord, error) {
 	if err := json.Unmarshal(raw, &records); err == nil {
 		return records, nil
 	}
-	// Backward compatibility: legacy format is concatenated 32-byte hashes
+	// Backward compatibility: legacy format is concatenated 32-byte hashes.
+	// Legacy entries get DecisionTimestamp: 0, which means they are never
+	// removed by PruneAtOrAfterTimestamp (since rewind timestamps are always
+	// well above 0). This is the safe default — deny decisions from before
+	// provenance tracking was added should be preserved rather than silently
+	// dropped.
 	if len(raw)%common.HashLength != 0 {
 		return nil, fmt.Errorf("invalid denylist record payload length %d", len(raw))
 	}
@@ -269,7 +274,7 @@ func (d *DenyList) Close() error {
 // currently uses that block at the specified height.
 // WARNING: this should only be called by interop transition application.
 // Other callers risk triggering chain rewinds outside the interop WAL model.
-// TODO: remove this footgun by moving reorg-triggering operations behind a
+// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
 // smaller interop-owned interface.
 // Returns true if a rewind was triggered, false otherwise.
 // Note: Genesis block (height=0) cannot be invalidated as there is no prior block to rewind to.

@@ -47,7 +47,7 @@ type ChainContainer interface {
 	// WARNING: this is a dangerous stateful operation and is intended to be called only
 	// by interop transition application. Other callers should not use it until the
 	// interface is refactored to make that ownership explicit.
-	// TODO: remove this footgun by moving reorg-triggering operations behind a
+	// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
 	// smaller interop-owned interface.
 	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
 	RegisterVerifier(v activity.VerificationActivity)
@@ -64,7 +64,7 @@ type ChainContainer interface {
 	// WARNING: this is a dangerous stateful operation and is intended to be called only
 	// by interop transition application. Other callers should not use it until the
 	// interface is refactored to make that ownership explicit.
-	// TODO: remove this footgun by moving reorg-triggering operations behind a
+	// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
 	// smaller interop-owned interface.
 	// Returns true if a rewind was triggered, false otherwise.
 	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64) (bool, error)
@@ -520,7 +520,7 @@ func isCriticalRewindError(err error) bool {
 
 // WARNING: this should only be called by the interop activity.
 // Other callers risk triggering chain rewinds outside the interop WAL model.
-// TODO: remove this footgun by moving reorg-triggering operations behind a
+// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
 // smaller interop-owned interface.
 func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	if !c.resetting.CompareAndSwap(false, true) {

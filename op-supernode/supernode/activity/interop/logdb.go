@@ -97,8 +97,8 @@ var (
 )
 
 // persistFrontierLogs persists the exact accepted frontier blocks for a
-// timestamp. This is the only frontier logsDB write path once verification is
-// read-only.
+// timestamp. Frontier logs are only written here, during DecisionAdvance
+// transition apply — verification itself is read-only.
 func (i *Interop) persistFrontierLogs(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) error {
 	for chainID, blockID := range blocksAtTS {
 		chain, ok := i.chains[chainID]
@@ -114,7 +114,7 @@ func (i *Interop) persistFrontierLogs(ts uint64, blocksAtTS map[eth.ChainID]eth.
 
 		blockInfo, receipts, err := chain.FetchReceipts(i.ctx, blockID)
 		if err != nil {
-			return fmt.Errorf("chain %s: failed to fetch receipts for block %d: %w", chainID, blockID.Number, err)
+			return fmt.Errorf("chain %s: failed to fetch receipts for block %v: %w", chainID, blockID, err)
 		}
 
 		if hasBlocks {
@@ -189,7 +189,7 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 	// This is expected for chains whose block time is greater than one second, since the
 	// interop timestamp may legitimately fall between consecutive L2 blocks.
 	if gap < blockTime {
-		i.log.Warn("verifyCanAddTimestamp: timestamp falls between L2 blocks for this chain; this can be expected for chains with block times greater than one second",
+		i.log.Debug("verifyCanAddTimestamp: timestamp falls between L2 blocks for this chain; this can be expected for chains with block times greater than one second",
 			"chain", chainID,
 			"timestamp", ts,
 			"block time", blockTime,
