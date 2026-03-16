@@ -61,6 +61,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IWETH98 } from "interfaces/universal/IWETH98.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "interfaces/legacy/ILegacyMessagePasser.sol";
@@ -243,12 +244,20 @@ abstract contract Setup is FeatureFlags {
     )
         internal
     {
-        if (!Config.isUnoptimized()) return;
+        // In fork tests, existing DWETH/ETHLockbox proxies keep their old implementations since the
+        // upgrade reuses them. In unoptimized profiles, CREATE2 addresses differ so impls won't match.
+        // In both cases we mock getProxyImplementation and version() to satisfy the validator checks.
+        if (!Config.isUnoptimized() && !isForkTest()) return;
+        console.log("Setup: mocking unoptimized proxy implementations");
 
+        string memory delayedWETHVersion = ISemver(_delayedWETHImpl).version();
         GameType[3] memory gameTypes = [GameTypes.CANNON, GameTypes.PERMISSIONED_CANNON, GameTypes.CANNON_KONA];
         for (uint256 i = 0; i < gameTypes.length; i++) {
             IDelayedWETH delayedWETHProxy = DisputeGames.getGameImplDelayedWeth(_dgf, gameTypes[i]);
             if (address(delayedWETHProxy) != address(0)) {
+                vm.mockCall(
+                    address(delayedWETHProxy), abi.encodeCall(ISemver.version, ()), abi.encode(delayedWETHVersion)
+                );
                 vm.mockCall(
                     address(_proxyAdmin),
                     abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(delayedWETHProxy))),
@@ -258,6 +267,9 @@ abstract contract Setup is FeatureFlags {
         }
 
         if (_ethLockbox != address(0)) {
+            vm.mockCall(
+                _ethLockbox, abi.encodeCall(ISemver.version, ()), abi.encode(ISemver(_ethLockboxImpl).version())
+            );
             vm.mockCall(
                 address(_proxyAdmin),
                 abi.encodeCall(IProxyAdmin.getProxyImplementation, (_ethLockbox)),
