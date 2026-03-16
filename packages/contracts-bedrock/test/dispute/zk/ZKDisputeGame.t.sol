@@ -467,12 +467,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
         // Now the proposal is UnchallengedAndValidProofProvided; we can resolve immediately.
         game.resolve();
 
-        // Prover does not get any credit.
+        // Prover does not get any credit — claimCredit reverts immediately.
         vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
-
-        // Phase 1 of prover claim should unlock 0, then phase 2 should revert.
-        game.claimCredit(prover); // unlock with 0 credit
-        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
         vm.expectRevert(NoCreditToClaim.selector);
         game.claimCredit(prover);
 
@@ -630,12 +626,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
         // The child's bond is lost since there is no challenger for the child game.
         childGame.resolve();
 
-        // Challenger hasn't challenged the child game, so it gets nothing.
+        // Challenger hasn't challenged the child game, so it gets nothing — reverts immediately.
         vm.warp(childGame.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
-
-        // Phase 1: unlock with 0 credit for challenger, phase 2: revert NoCreditToClaim
-        childGame.claimCredit(challenger); // unlock 0
-        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
         vm.expectRevert(NoCreditToClaim.selector);
         childGame.claimCredit(challenger);
 

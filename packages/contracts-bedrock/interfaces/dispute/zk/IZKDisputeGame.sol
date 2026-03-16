@@ -56,7 +56,6 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
     function refundModeCredit(address) external view returns (uint256);
     function startingProposal() external view returns (Proposal memory);
     function bondDistributionMode() external view returns (BondDistributionMode);
-    function hasUnlockedCredit(address) external view returns (bool);
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function totalBonds() external view returns (uint256);
 
