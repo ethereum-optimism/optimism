@@ -1668,9 +1668,9 @@ jobs:
         type: string
         default: ci
       features:
-        description: Comma-separated list of features to enable (e.g., "DEV_FEATURE__L2CM")
+        description: Comma-separated list of features to enable (e.g., "L2CM")
         type: string
-        default: "DEV_FEATURE__L2CM"
+        default: "L2CM"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
