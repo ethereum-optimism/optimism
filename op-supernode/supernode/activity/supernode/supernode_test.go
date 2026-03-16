@@ -24,8 +24,8 @@ type mockCC struct {
 	syncStatusErr error
 }
 
-func (m *mockCC) Start(ctx context.Context) error  { return nil }
-func (m *mockCC) Stop(ctx context.Context) error   { return nil }
+func (m *mockCC) Start(ctx context.Context) error          { return nil }
+func (m *mockCC) Stop(ctx context.Context) error           { return nil }
 func (m *mockCC) Pause(ctx context.Context) error          { return nil }
 func (m *mockCC) Resume(ctx context.Context) error         { return nil }
 func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
