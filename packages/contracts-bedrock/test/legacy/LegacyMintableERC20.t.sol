@@ -23,7 +23,7 @@ abstract contract LegacyMintableERC20_TestInit is CommonTest {
 /// @notice Tests the constructor of the `LegacyMintableERC20` contract.
 contract LegacyMintableERC20_Constructor_Test is LegacyMintableERC20_TestInit {
     /// @notice Tests that the constructor sets the correct values
-    function test_constructor_works() public view {
+    function test_constructor_succeeds() public view {
         assertEq(legacyMintableERC20.l2Bridge(), address(l2StandardBridge));
         assertEq(legacyMintableERC20.l1Token(), address(L1Token));
         assertEq(legacyMintableERC20.name(), "_L2Token_");
@@ -36,7 +36,7 @@ contract LegacyMintableERC20_Constructor_Test is LegacyMintableERC20_TestInit {
 /// @notice Tests the `supportsInterface` function of the `LegacyMintableERC20` contract.
 contract LegacyMintableERC20_SupportsInterface_Test is LegacyMintableERC20_TestInit {
     /// @notice Tests that the contract supports the correct interfaces
-    function test_supportsInterface_works() public view {
+    function test_supportsInterface_supportedInterfaces_succeeds() public view {
         assertEq(legacyMintableERC20.supportsInterface(bytes4(keccak256("supportsInterface(bytes4)"))), true);
         assertEq(
             legacyMintableERC20.supportsInterface(
