@@ -1696,11 +1696,12 @@ jobs:
               BLOCK_NUMBER=$(cast block-number --rpc-url <<parameters.l2_fork_rpc>>)
               echo "export L2_FORK_BLOCK_NUMBER=$BLOCK_NUMBER" >> $BASH_ENV
               echo "Using latest block number: $BLOCK_NUMBER"
+              echo "$BLOCK_NUMBER" > ./l2ForkBlockNumber.txt
             else
               echo "export L2_FORK_BLOCK_NUMBER=<<parameters.l2_fork_block_number>>" >> $BASH_ENV
               echo "Using specified block number: <<parameters.l2_fork_block_number>>"
+              echo "<<parameters.l2_fork_block_number>>" > ./l2ForkBlockNumber.txt
             fi
-            echo "$L2_FORK_BLOCK_NUMBER" > ./l2ForkBlockNumber.txt
           working_directory: packages/contracts-bedrock
       - restore_cache:
           name: Restore forked L2 state
