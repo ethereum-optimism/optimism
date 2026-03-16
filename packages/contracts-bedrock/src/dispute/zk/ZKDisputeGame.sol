@@ -13,7 +13,6 @@ import {
     Timestamp,
     Proposal
 } from "src/dispute/lib/Types.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
 import {
     AlreadyInitialized,
     BondTransferFailed,
@@ -71,12 +70,12 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
     struct ClaimData {
-        uint32 parentIndex;       // 4 bytes  \
-        ProposalStatus status;    // 1 byte    |-- slot 1 (25 bytes)
-        address challenger;       // 20 bytes /
-        address prover;           // 20 bytes \
-        Timestamp deadline;       // 8 bytes  /-- slot 2 (28 bytes)
-        Claim claim;              // 32 bytes --- slot 3
+        uint32 parentIndex; // 4 bytes  \
+        ProposalStatus status; // 1 byte    |-- slot 1 (25 bytes)
+        address challenger; // 20 bytes /
+        address prover; // 20 bytes \
+        Timestamp deadline; // 8 bytes  /-- slot 2 (28 bytes)
+        Claim claim; // 32 bytes --- slot 3
     }
 
     ////////////////////////////////////////////////////////////////
@@ -255,6 +254,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Initializes the contract.
+    // nosemgrep: sol-safety-initialize-assert-proxy-admin
     function initialize() external payable virtual {
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
@@ -306,9 +306,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             (,, IDisputeGame proxy) = disputeGameFactory.gameAtIndex(parentIndex());
 
             // Verify parent game is not blacklisted or retired.
-            if (
-                anchorStateRegistry().isGameBlacklisted(proxy) || anchorStateRegistry().isGameRetired(proxy)
-            ) {
+            if (anchorStateRegistry().isGameBlacklisted(proxy) || anchorStateRegistry().isGameRetired(proxy)) {
                 revert InvalidParentGame();
             }
 
@@ -330,8 +328,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             if (proxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
-            (startingProposal.root, startingProposal.l2SequenceNumber) =
-                anchorStateRegistry().anchors(gameType());
+            (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().anchors(gameType());
         }
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
@@ -416,13 +413,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         if (gameOver()) revert GameOver();
 
         // Construct the public values for verification.
-        bytes memory publicValues = abi.encode(
-            l1Head(),
-            startingProposal.root,
-            rootClaim(),
-            l2SequenceNumber(),
-            l2ChainId()
-        );
+        bytes memory publicValues =
+            abi.encode(l1Head(), startingProposal.root, rootClaim(), l2SequenceNumber(), l2ChainId());
 
         // Verify the proof. Reverts if the proof is invalid.
         verifier().verify(absolutePrestate(), publicValues, _proofBytes);

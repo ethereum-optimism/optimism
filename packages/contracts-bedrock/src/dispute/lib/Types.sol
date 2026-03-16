@@ -129,4 +129,3 @@ library LocalPreimageKey {
     /// @notice The identifier for the chain ID.
     uint256 internal constant CHAIN_ID = 0x05;
 }
-

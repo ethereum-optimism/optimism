@@ -25,18 +25,15 @@ import {
 import { GameTypes } from "src/dispute/lib/Types.sol";
 
 // Contracts
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 
-/// @title ZKDisputeGame_Init
+/// @title ZKDisputeGame_TestInit
 /// @notice Base test contract with shared setup for ZKDisputeGame tests.
-abstract contract ZKDisputeGame_Init is DisputeGameFactory_TestInit {
+abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
     // Events
     event Challenged(address indexed challenger);
     event Proved(address indexed prover);
@@ -160,7 +157,7 @@ abstract contract ZKDisputeGame_Init is DisputeGameFactory_TestInit {
 
 /// @title ZKDisputeGame_Initialize_Test
 /// @notice Tests for initialization of ZKDisputeGame.
-contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_Init {
+contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
     function test_initialize_succeeds() public view {
         // Test that the factory is correctly initialized.
         assertEq(address(disputeGameFactory.owner()), address(this));
@@ -422,7 +419,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_Init {
 
 /// @title ZKDisputeGame_Resolve_Test
 /// @notice Tests for resolve functionality of ZKDisputeGame.
-contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
+contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_TestInit {
     function test_resolve_unchallenged_succeeds() public {
         assertEq(uint8(game.status()), uint8(GameStatus.IN_PROGRESS));
 
@@ -640,7 +637,7 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
 
 /// @title ZKDisputeGame_Challenge_Test
 /// @notice Tests for challenge functionality of ZKDisputeGame.
-contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_Init {
+contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_TestInit {
     function test_challenge_alreadyChallenged_reverts() public {
         // Initially unchallenged.
         (, ZKDisputeGame.ProposalStatus status_, address challenger_,,,) = game.claimData();
@@ -674,7 +671,7 @@ contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_Init {
 
 /// @title ZKDisputeGame_Prove_Test
 /// @notice Tests for prove functionality of ZKDisputeGame.
-contract ZKDisputeGame_Prove_Test is ZKDisputeGame_Init {
+contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
     function test_prove_afterDeadline_reverts() public {
         // Challenge first.
         vm.startPrank(challenger);
@@ -748,7 +745,7 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_Init {
 
 /// @title ZKDisputeGame_ClaimCredit_Test
 /// @notice Tests for claimCredit functionality of ZKDisputeGame.
-contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_Init {
+contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_TestInit {
     function test_claimCredit_notFinalized_reverts() public {
         (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
@@ -762,7 +759,7 @@ contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_Init {
 
 /// @title ZKDisputeGame_CloseGame_Test
 /// @notice Tests for closeGame functionality of ZKDisputeGame.
-contract ZKDisputeGame_CloseGame_Test is ZKDisputeGame_Init {
+contract ZKDisputeGame_CloseGame_Test is ZKDisputeGame_TestInit {
     function test_closeGame_notResolved_reverts() public {
         // Game is not resolved, so closeGame should revert with GameNotResolved
         vm.expectRevert(GameNotResolved.selector);
