@@ -80,10 +80,17 @@ type LogEntry interface {
 type LogParser func(line []byte) LogEntry
 
 func ToLogger(logger log.Logger) func(e LogEntry) {
+	return ToLoggerWithMinLevel(logger, log.LevelTrace)
+}
+
+func ToLoggerWithMinLevel(logger log.Logger, minLevel slog.Level) func(e LogEntry) {
 	return func(e LogEntry) {
 		msg := e.LogMessage()
 		attrs := e.LogFields()
 		lvl := e.LogLevel()
+		if lvl < minLevel {
+			return
+		}
 
 		if lvl >= log.LevelCrit {
 			// If a sub-process has a critical error, this process can handle it

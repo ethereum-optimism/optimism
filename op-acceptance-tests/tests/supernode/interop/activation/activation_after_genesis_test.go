@@ -9,6 +9,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// InteropActivationDelay is the delay in seconds from genesis to interop activation.
+// This is set to 20 seconds to allow several blocks to be produced before interop kicks in.
+const InteropActivationDelay = uint64(20)
+
 // TestSupernodeInteropActivationAfterGenesis tests behavior when interop is activated
 // AFTER genesis. This verifies that VerifiedAt (via superroot_atTimestamp) returns
 // verified data for timestamps both before and after the activation boundary.

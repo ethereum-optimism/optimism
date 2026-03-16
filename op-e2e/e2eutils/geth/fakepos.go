@@ -65,9 +65,9 @@ type EngineAPI interface {
 	GetPayloadV3(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV2(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 
-	NewPayloadV4(engine.ExecutableData, []common.Hash, *common.Hash, []hexutil.Bytes) (engine.PayloadStatusV1, error)
-	NewPayloadV3(engine.ExecutableData, []common.Hash, *common.Hash) (engine.PayloadStatusV1, error)
-	NewPayloadV2(engine.ExecutableData) (engine.PayloadStatusV1, error)
+	NewPayloadV4(context.Context, engine.ExecutableData, []common.Hash, *common.Hash, []hexutil.Bytes) (engine.PayloadStatusV1, error)
+	NewPayloadV3(context.Context, engine.ExecutableData, []common.Hash, *common.Hash) (engine.PayloadStatusV1, error)
+	NewPayloadV2(context.Context, engine.ExecutableData) (engine.PayloadStatusV1, error)
 }
 
 func NewFakePoS(backend Backend, engineAPI EngineAPI, c clock.Clock, logger log.Logger, blockTime uint64, finalizedDistance uint64, beacon Beacon, config *params.ChainConfig) *FakePoS {
@@ -226,11 +226,11 @@ func (f *FakePoS) Start() error {
 				}
 
 				if isPrague {
-					_, err = f.engineAPI.NewPayloadV4(*envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+					_, err = f.engineAPI.NewPayloadV4(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 				} else if isCancun {
-					_, err = f.engineAPI.NewPayloadV3(*envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)
+					_, err = f.engineAPI.NewPayloadV3(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)
 				} else {
-					_, err = f.engineAPI.NewPayloadV2(*envelope.ExecutionPayload)
+					_, err = f.engineAPI.NewPayloadV2(context.Background(), *envelope.ExecutionPayload)
 				}
 				if err != nil {
 					f.log.Error("failed to insert built L1 block", "err", err)

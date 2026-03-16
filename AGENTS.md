@@ -15,6 +15,9 @@ When this happens, offer to submit the improvement to the relevant file in `docs
 
 ## Repository Overview
 
+- **Default branch**: `develop` (not `main`)
+- **Build system**: migrating from Make to [Just](https://github.com/casey/just) — shared justfile infra lives in `justfiles/`
+
 This repository contains multiple components spanning different technologies:
 
 ### Go Services
@@ -48,8 +51,6 @@ The OP Stack includes significant Rust implementations:
 
 ### Development and Testing Infrastructure
 
-- **devnet-sdk**: Toolkit for devnet interactions
-- **kurtosis-devnet**: Kurtosis-based devnet environment (DEPRECATED)
 - **op-e2e**: End-to-end testing framework
 - **op-acceptance-tests**: Acceptance test suite
 

@@ -111,13 +111,15 @@ where
                 derive_deposits(epoch.hash, &receipts, self.rollup_cfg.deposit_contract_address)
                     .await
                     .map_err(|e| PipelineError::BadEncoding(e).crit())?;
-            sys_config
-                .update_with_receipts(
-                    &receipts,
-                    self.rollup_cfg.l1_system_config_address,
-                    self.rollup_cfg.is_ecotone_active(header.timestamp),
-                )
-                .map_err(|e| PipelineError::SystemConfigUpdate(e).crit())?;
+            // Failure to update the system config is non-fatal: one or more receipts may
+            // contain malformed or invalid config update logs. Log a warning and continue.
+            if let Err(err) = sys_config.update_with_receipts(
+                &receipts,
+                self.rollup_cfg.l1_system_config_address,
+                self.rollup_cfg.is_ecotone_active(header.timestamp),
+            ) {
+                warn!(target: "attributes", ?err, "Failed to update system config at epoch {} (non-fatal, continuing)", epoch.number);
+            }
             l1_header = header;
             deposit_transactions = deposits;
             0
@@ -268,8 +270,8 @@ mod tests {
     };
     use alloc::vec;
     use alloy_consensus::Header;
-    use alloy_primitives::{B256, Log, LogData, U64, U256, address};
-    use kona_genesis::{HardForkConfig, SystemConfig};
+    use alloy_primitives::{B256, Bytes, Log, LogData, U64, U256, address};
+    use kona_genesis::{CONFIG_UPDATE_TOPIC, HardForkConfig, SystemConfig};
     use kona_protocol::{BlockInfo, DepositError};
     use kona_registry::L1Config;
 
@@ -657,5 +659,74 @@ mod tests {
         };
         assert_eq!(payload.transactions.as_ref().unwrap().len(), 10);
         assert_eq!(payload, expected);
+    }
+
+    #[tokio::test]
+    async fn test_syscfg_update_error_is_nonfatal() {
+        // When a receipt contains a malformed system config log, update_with_receipts
+        // returns an error. This must NOT halt the pipeline — the error should be
+        // logged as a warning and attributes building should continue successfully.
+        // This matches op-node's attributes.go:97-99 which uses a blank identifier
+        // assignment: `_ = UpdateSystemConfigWithL1Receipts(...)`.
+        let block_time = 10;
+        let timestamp = 100;
+        let l1_sys_config_addr = address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let deposit_contract = address!("1111111111111111111111111111111111111111");
+        let cfg = Arc::new(RollupConfig {
+            block_time,
+            l1_system_config_address: l1_sys_config_addr,
+            deposit_contract_address: deposit_contract,
+            ..Default::default()
+        });
+        let l1_cfg = Arc::new(L1Config::sepolia().into());
+
+        // L2 parent is at number 1, its l1_origin is at genesis (number 0, hash = parent_hash
+        // of the epoch header). The epoch is at number 1 — different from l1_origin.number,
+        // so the code enters the first-block-of-epoch branch that fetches receipts.
+        let epoch_header = Header { timestamp, ..Default::default() };
+        let epoch_hash = epoch_header.hash_slow();
+        let parent_origin_hash = epoch_header.parent_hash;
+
+        let mut provider = TestChainProvider::default();
+        provider.insert_header(epoch_hash, epoch_header);
+
+        // Insert a malformed receipt: the log is from the system config address but has
+        // only 1 topic (CONFIG_UPDATE_TOPIC) instead of the required >= 3 topics.
+        // This causes update_with_receipts to return Err(InvalidTopicLen(1)).
+        let bad_log = Log {
+            address: l1_sys_config_addr,
+            data: LogData::new_unchecked(vec![CONFIG_UPDATE_TOPIC], Bytes::default()),
+        };
+        let bad_receipt = Receipt {
+            status: Eip658Value::Eip658(true),
+            logs: vec![bad_log],
+            ..Receipt::default()
+        };
+        provider.insert_receipts(epoch_hash, vec![bad_receipt]);
+
+        let l2_number = 1u64;
+        let mut fetcher = TestSystemConfigL2Fetcher::default();
+        fetcher.insert(l2_number, SystemConfig::default());
+
+        let mut builder = StatefulAttributesBuilder::new(cfg.clone(), l1_cfg, fetcher, provider);
+        let epoch = BlockNumHash { hash: epoch_hash, number: 1 };
+        let l2_parent = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::ZERO,
+                number: l2_number,
+                timestamp,
+                parent_hash: epoch_hash,
+            },
+            l1_origin: BlockNumHash { hash: parent_origin_hash, number: 0 },
+            seq_num: 0,
+        };
+        // Before the fix this would return Err(Critical(SystemConfigUpdate(...))).
+        // After the fix, the error is logged as a warning and attributes are returned.
+        let result = builder.prepare_payload_attributes(l2_parent, epoch).await;
+        assert!(
+            result.is_ok(),
+            "system config update failure should be non-fatal, got: {:?}",
+            result.unwrap_err()
+        );
     }
 }

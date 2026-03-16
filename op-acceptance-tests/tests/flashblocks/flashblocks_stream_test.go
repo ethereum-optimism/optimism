@@ -53,7 +53,6 @@ func TestFlashblocksStream(gt *testing.T) {
 
 	logger.Info("Flashblocks stream rate", "rate", flashblocksStreamRateMs)
 
-	// Test all L2 chains in the system
 	oprbuilderNode := sys.L2OPRBuilder
 	rollupBoostNode := sys.L2RollupBoost
 	_, span = tracer.Start(ctx, "test chain")
@@ -64,15 +63,11 @@ func TestFlashblocksStream(gt *testing.T) {
 
 	DriveViaTestSequencer(t, sys, 3)
 
-	// Test the presence / absence of a flashblocks stream operating at a 250ms rate from a flashblocks-websocket-proxy node.
-	// Allow a generous window for first flashblocks to appear.
 	testDuration := time.Duration(int64(flashblocksStreamRateMs*maxExpectedFlashblocks*2)) * time.Millisecond
-	// Allow up to 15% of expected flashblocks to be missing due to timing variations
 	failureTolerance := int(0.15 * float64(maxExpectedFlashblocks))
 
 	logger.Debug("Test duration", "duration", testDuration, "failure tolerance (of flashblocks)", failureTolerance)
 
-	// Instrument builder stream separately to confirm flashblocks emission upstream.
 	builderOutput := make(chan []byte, maxExpectedFlashblocks)
 	defer close(builderOutput)
 	builderDone := make(chan struct{})
@@ -158,13 +153,12 @@ func evaluateFlashblocksStream(t devtest.T, logger log.Logger, streamedMessages 
 		require.Greater(t, lastIndex, -1, "some bug: last index should be greater than -1 by now")
 		require.Greater(t, currentIndex, -1, "some bug: current index should be greater than -1 by now")
 
-		// same block number, just the flashblock incremented
 		if currentBlockNumber == lastBlockNumber {
 			require.Greater(t, currentIndex, lastIndex, "some bug: current index should be greater than last index from the stream")
 
 			totalFlashblocksProduced += (currentIndex - lastIndex)
-		} else if currentBlockNumber > lastBlockNumber { // new block number
-			totalFlashblocksProduced += (currentIndex + 1) // assuming it's a new block number whose flashblocks begin from 0th-index
+		} else if currentBlockNumber > lastBlockNumber {
+			totalFlashblocksProduced += (currentIndex + 1)
 		}
 
 		lastIndex = currentIndex

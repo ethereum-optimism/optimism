@@ -122,6 +122,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2000},
+				SafeL2:      eth.L2BlockRef{Time: 190},
 				LocalSafeL2: eth.L2BlockRef{Time: 200},
 				FinalizedL2: eth.L2BlockRef{Time: 150},
 			},
@@ -134,6 +135,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2100},
+				SafeL2:      eth.L2BlockRef{Time: 170},
 				LocalSafeL2: eth.L2BlockRef{Time: 180},
 				FinalizedL2: eth.L2BlockRef{Time: 140},
 			},
@@ -146,7 +148,8 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	require.Len(t, out.OptimisticAtTimestamp, 2)
 	// min values
 	require.Equal(t, uint64(2000), out.CurrentL1.Number)
-	require.Equal(t, uint64(180), out.CurrentSafeTimestamp)
+	require.Equal(t, uint64(170), out.CurrentSafeTimestamp)
+	require.Equal(t, uint64(180), out.CurrentLocalSafeTimestamp)
 	require.Equal(t, uint64(140), out.CurrentFinalizedTimestamp)
 	require.Equal(t, uint64(1000), out.Data.VerifiedRequiredL1.Number)
 	// With zero outputs, the superroot will be deterministic, just ensure it's set

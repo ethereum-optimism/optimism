@@ -163,7 +163,7 @@ func (tr *TxReceiver) Start(wg *sync.WaitGroup) {
 func TestTxProducer(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newLongRunningPreset(t)
 
 	var wg sync.WaitGroup
 

@@ -153,6 +153,11 @@ impl SpanBatchTransactions {
         let mut sigs = Vec::with_capacity(self.total_block_tx_count as usize);
         for i in 0..self.total_block_tx_count {
             let y_parity = y_parity_bits.get_bit(i as usize).expect("same length");
+            if r.len() < 64 {
+                return Err(SpanBatchError::Decoding(
+                    SpanDecodingError::InvalidTransactionSignature,
+                ));
+            }
             let r_val = U256::from_be_slice(&r[..32]);
             let s_val = U256::from_be_slice(&r[32..64]);
             sigs.push(Signature::new(r_val, s_val, y_parity == 1));
@@ -193,6 +198,9 @@ impl SpanBatchTransactions {
         let mut tos = Vec::with_capacity(self.total_block_tx_count as usize);
         let contract_creation_count = self.contract_creation_count();
         for _ in 0..(self.total_block_tx_count - contract_creation_count) {
+            if r.len() < 20 {
+                return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+            }
             let to = Address::from_slice(&r[..20]);
             tos.push(to);
             r.advance(20);
@@ -355,6 +363,48 @@ mod tests {
     use alloc::vec;
     use alloy_consensus::{Signed, TxEip1559, TxEip2930, TxEip7702};
     use alloy_primitives::{Signature, TxKind, address};
+
+    #[test]
+    fn test_decode_tx_sigs_truncated() {
+        let mut txs = SpanBatchTransactions { total_block_tx_count: 1, ..Default::default() };
+        // Provide a valid y_parity bitfield (1 bit = 1 byte) but truncated signature data
+        // SpanBatchBits::decode for 1 bit needs 1 byte for the bitfield
+        let buf = vec![0u8]; // y_parity byte, but no r/s signature bytes
+        let result = txs.decode_tx_sigs(&mut buf.as_slice());
+        assert_eq!(
+            result,
+            Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionSignature))
+        );
+    }
+
+    #[test]
+    fn test_decode_tx_tos_truncated() {
+        let mut txs = SpanBatchTransactions {
+            total_block_tx_count: 1,
+            contract_creation_bits: SpanBatchBits::default(),
+            ..Default::default()
+        };
+        let buf = [0u8; 19]; // one byte short of a 20-byte address
+        let result = txs.decode_tx_tos(&mut buf.as_slice());
+        assert_eq!(
+            result,
+            Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))
+        );
+    }
+
+    #[test]
+    fn test_decode_tx_tos_empty() {
+        let mut txs = SpanBatchTransactions {
+            total_block_tx_count: 1,
+            contract_creation_bits: SpanBatchBits::default(),
+            ..Default::default()
+        };
+        let result = txs.decode_tx_tos(&mut [].as_slice());
+        assert_eq!(
+            result,
+            Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))
+        );
+    }
 
     #[test]
     fn test_span_batch_transactions_add_empty_txs() {

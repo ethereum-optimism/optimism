@@ -21,10 +21,10 @@ func TestSyncTesterE2E(gt *testing.T) {
 	ctx := t.Ctx()
 
 	// Test that we can get chain IDs from both L2CL nodes
-	l2CLChainID := sys.L2CL.ID().ChainID()
+	l2CLChainID := sys.L2CL.ChainID()
 	require.Equal(eth.ChainIDFromUInt64(901), l2CLChainID, "first L2CL should be on chain 901")
 
-	l2CL2ChainID := sys.L2CL2.ID().ChainID()
+	l2CL2ChainID := sys.L2CL2.ChainID()
 	require.Equal(eth.ChainIDFromUInt64(901), l2CL2ChainID, "second L2CL should be on chain 901")
 
 	// Test that the network started successfully

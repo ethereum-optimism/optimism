@@ -410,8 +410,8 @@ func main() {
 
 	// 7) Request reviewers (user and team slug)
 	if _, _, err := ghc.PullRequests.RequestReviewers(ghCtx, opts.org, opts.repo, pr.GetNumber(), github.ReviewersRequest{
-		Reviewers:     []string{"scharissis"},
-		TeamReviewers: []string{"platforms-team"},
+		Reviewers:     []string{"serpixel"},
+		TeamReviewers: []string{"core-team"},
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to request reviewers: %v\n", err)
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 func TestCLAdvance(gt *testing.T) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 	tracer := t.Tracer()
 	ctx := t.Ctx()

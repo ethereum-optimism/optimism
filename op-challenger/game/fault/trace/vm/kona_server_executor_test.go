@@ -10,6 +10,54 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestKonaExecutorWithWitnessEndpoint(t *testing.T) {
+	t.Parallel()
+	executor := NewKonaExecutor()
+	cfg := Config{
+		Server:                            "/path/to/kona",
+		L1:                                "http://l1",
+		L1Beacon:                          "http://beacon",
+		L2s:                               []string{"http://l2"},
+		Networks:                          []string{"op-sepolia"},
+		EnableExperimentalWitnessEndpoint: true,
+	}
+	inputs := utils.LocalGameInputs{
+		L1Head:           common.Hash{0x11},
+		L2Head:           common.Hash{0x22},
+		L2OutputRoot:     common.Hash{0x33},
+		L2Claim:          common.Hash{0x44},
+		L2SequenceNumber: big.NewInt(100),
+	}
+
+	args, err := executor.OracleCommand(cfg, "/data", inputs)
+	require.NoError(t, err)
+	require.True(t, slices.Contains(args, "--enable-experimental-witness-endpoint"))
+}
+
+func TestKonaExecutorWithoutWitnessEndpoint(t *testing.T) {
+	t.Parallel()
+	executor := NewKonaExecutor()
+	cfg := Config{
+		Server:                            "/path/to/kona",
+		L1:                                "http://l1",
+		L1Beacon:                          "http://beacon",
+		L2s:                               []string{"http://l2"},
+		Networks:                          []string{"op-sepolia"},
+		EnableExperimentalWitnessEndpoint: false,
+	}
+	inputs := utils.LocalGameInputs{
+		L1Head:           common.Hash{0x11},
+		L2Head:           common.Hash{0x22},
+		L2OutputRoot:     common.Hash{0x33},
+		L2Claim:          common.Hash{0x44},
+		L2SequenceNumber: big.NewInt(100),
+	}
+
+	args, err := executor.OracleCommand(cfg, "/data", inputs)
+	require.NoError(t, err)
+	require.False(t, slices.Contains(args, "--enable-experimental-witness-endpoint"))
+}
+
 func TestKonaFillHostCommand(t *testing.T) {
 	dir := "mockdir"
 	cfg := Config{

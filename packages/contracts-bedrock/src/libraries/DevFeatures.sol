@@ -14,9 +14,7 @@ library DevFeatures {
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
 
-    /// @notice The feature that enables deployment of the CANNON_KONA fault dispute game.
-    /// @custom:legacy
-    /// This feature is no longer used, but is kept here for legacy reasons.
+    /// @notice The feature that gates the respected game type override for CANNON_KONA during upgrades.
     bytes32 public constant CANNON_KONA = bytes32(0x0000000000000000000000000000000000000000000000000000000000000010);
 
     /// @notice The feature that enables deployment of V2 dispute game contracts.

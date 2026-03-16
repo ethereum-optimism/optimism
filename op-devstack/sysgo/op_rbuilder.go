@@ -3,7 +3,6 @@ package sysgo
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,10 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
@@ -25,7 +23,8 @@ import (
 type OPRBuilderNode struct {
 	mu sync.Mutex
 
-	id        stack.ComponentID
+	name      string
+	chainID   eth.ChainID
 	rollupCfg *rollup.Config
 
 	wsProxyURL string
@@ -38,13 +37,12 @@ type OPRBuilderNode struct {
 	authProxy    *tcpproxy.Proxy
 
 	logger log.Logger
-	p      devtest.P
+	p      devtest.CommonT
 
 	sub *SubProcess
 	cfg *OPRBuilderNodeConfig //nolint:unused,structcheck // configuration retained for restarts and JWT lookups
 }
 
-var _ hydrator = (*OPRBuilderNode)(nil)
 var _ stack.Lifecycle = (*OPRBuilderNode)(nil)
 var _ L2ELNode = (*OPRBuilderNode)(nil)
 
@@ -127,14 +125,14 @@ func DefaultOPRbuilderNodeConfig() *OPRBuilderNodeConfig {
 		WithUnusedPorts:   false,
 		DisableDiscovery:  true,
 		DataDir:           "",
-		ExtraArgs:         nil,
-		Env:               nil,
 		RulesEnabled:      false,
 		RulesConfigPath:   "",
+		ExtraArgs:         nil,
+		Env:               nil,
 	}
 }
 
-func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.P) (args []string, env []string) {
+func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.CommonT) (args []string, env []string) {
 	p.Require().NotNil(cfg, "nil OPRbuilderNodeConfig")
 
 	env = append([]string(nil), cfg.Env...)
@@ -251,21 +249,15 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.P) (args []string, env []s
 }
 
 type OPRBuilderNodeOption interface {
-	Apply(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig)
+	Apply(p devtest.CommonT, target ComponentTarget, cfg *OPRBuilderNodeConfig)
 }
 
-func WithGlobalOPRBuilderNodeOption(opt OPRBuilderNodeOption) stack.Option[*Orchestrator] {
-	return stack.BeforeDeploy(func(o *Orchestrator) {
-		o.oprbuilderNodeOptions = append(o.oprbuilderNodeOptions, opt)
-	})
-}
-
-type OPRBuilderNodeOptionFn func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig)
+type OPRBuilderNodeOptionFn func(p devtest.CommonT, target ComponentTarget, cfg *OPRBuilderNodeConfig)
 
 var _ OPRBuilderNodeOption = OPRBuilderNodeOptionFn(nil)
 
-func (fn OPRBuilderNodeOptionFn) Apply(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
-	fn(p, id, cfg)
+func (fn OPRBuilderNodeOptionFn) Apply(p devtest.CommonT, target ComponentTarget, cfg *OPRBuilderNodeConfig) {
+	fn(p, target, cfg)
 }
 
 // OPRBuilderNodeOptionBundle applies multiple OPRBuilderNodeOptions in order.
@@ -273,16 +265,16 @@ type OPRBuilderNodeOptionBundle []OPRBuilderNodeOption
 
 var _ OPRBuilderNodeOption = OPRBuilderNodeOptionBundle(nil)
 
-func (b OPRBuilderNodeOptionBundle) Apply(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
+func (b OPRBuilderNodeOptionBundle) Apply(p devtest.CommonT, target ComponentTarget, cfg *OPRBuilderNodeConfig) {
 	for _, opt := range b {
 		p.Require().NotNil(opt, "cannot Apply nil OPRBuilderNodeOption")
-		opt.Apply(p, id, cfg)
+		opt.Apply(p, target, cfg)
 	}
 }
 
 // OPRBuilderWithP2PConfig sets deterministic P2P identity and static peers for the builder EL.
 func OPRBuilderWithP2PConfig(addr string, port int, nodeKeyHex string, staticPeers, trustedPeers []string) OPRBuilderNodeOption {
-	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
+	return OPRBuilderNodeOptionFn(func(p devtest.CommonT, _ ComponentTarget, cfg *OPRBuilderNodeConfig) {
 		cfg.P2PAddr = addr
 		cfg.P2PPort = port
 		cfg.P2PNodeKeyHex = nodeKeyHex
@@ -293,7 +285,7 @@ func OPRBuilderWithP2PConfig(addr string, port int, nodeKeyHex string, staticPee
 
 // OPRBuilderWithNodeIdentity applies an ELNodeIdentity directly to the builder EL.
 func OPRBuilderWithNodeIdentity(identity *ELNodeIdentity, addr string, staticPeers, trustedPeers []string) OPRBuilderNodeOption {
-	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
+	return OPRBuilderNodeOptionFn(func(p devtest.CommonT, _ ComponentTarget, cfg *OPRBuilderNodeConfig) {
 		cfg.P2PAddr = addr
 		cfg.P2PPort = identity.Port
 		cfg.P2PNodeKeyHex = identity.KeyHex()
@@ -303,40 +295,15 @@ func OPRBuilderWithNodeIdentity(identity *ELNodeIdentity, addr string, staticPee
 }
 
 func OPRBuilderNodeWithExtraArgs(args ...string) OPRBuilderNodeOption {
-	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
+	return OPRBuilderNodeOptionFn(func(p devtest.CommonT, _ ComponentTarget, cfg *OPRBuilderNodeConfig) {
 		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
 	})
 }
 
 func OPRBuilderNodeWithEnv(env ...string) OPRBuilderNodeOption {
-	return OPRBuilderNodeOptionFn(func(p devtest.P, id stack.ComponentID, cfg *OPRBuilderNodeConfig) {
+	return OPRBuilderNodeOptionFn(func(p devtest.CommonT, _ ComponentTarget, cfg *OPRBuilderNodeConfig) {
 		cfg.Env = append(cfg.Env, env...)
 	})
-}
-
-func (b *OPRBuilderNode) hydrate(system stack.ExtensibleSystem) {
-	elRPC, err := client.NewRPC(system.T().Ctx(), system.Logger(), b.rpcProxyURL, client.WithLazyDial())
-	system.T().Require().NoError(err)
-	system.T().Cleanup(elRPC.Close)
-
-	// Create a shared websocket client for flashblocks traffic over the proxy.
-	wsClient, err := client.DialWS(system.T().Ctx(), client.WSConfig{
-		URL: b.wsProxyURL,
-		Log: system.Logger(),
-	})
-	system.T().Require().NoError(err)
-
-	node := shim.NewOPRBuilderNode(shim.OPRBuilderNodeConfig{
-		ID: b.id,
-		ELNodeConfig: shim.ELNodeConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			Client:       elRPC,
-			ChainID:      b.id.ChainID(),
-		},
-		RollupCfg:         b.rollupCfg,
-		FlashblocksClient: wsClient,
-	})
-	system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(b.id.ChainID()))).(stack.ExtensibleL2Network).AddOPRBuilderNode(node)
 }
 
 func (b *OPRBuilderNode) Start() {
@@ -382,8 +349,8 @@ func (b *OPRBuilderNode) Start() {
 	defer close(authRPCChan)
 
 	// Forward structured logs to Go logger and parse for port discovery
-	logOut := logpipe.ToLogger(b.logger.New("component", "op-OPRbuilderNode", "src", "stdout"))
-	logErr := logpipe.ToLogger(b.logger.New("component", "op-OPRbuilderNode", "src", "stderr"))
+	logOut := logpipe.ToLoggerWithMinLevel(b.logger.New("component", "op-OPRbuilderNode", "src", "stdout"), log.LevelWarn)
+	logErr := logpipe.ToLoggerWithMinLevel(b.logger.New("component", "op-OPRbuilderNode", "src", "stderr"), log.LevelWarn)
 
 	// Log parsing callback to extract bound addresses from process output
 	onLogEntry := func(e logpipe.LogEntry) {
@@ -479,40 +446,6 @@ func (b *OPRBuilderNode) Stop() {
 	b.sub = nil
 }
 
-// WithOPRBuilderNode constructs and starts an OPRbuilderNode using the provided options.
-func WithOPRBuilderNode(id stack.ComponentID, opts ...OPRBuilderNodeOption) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
-		l2Net, ok := orch.GetL2Network(stack.NewL2NetworkID(id.ChainID()))
-		p.Require().True(ok, "l2 network required")
-
-		tempDir := p.TempDir()
-		data, err := json.Marshal(l2Net.genesis)
-		p.Require().NoError(err, "must json-encode genesis")
-		chainConfigPath := filepath.Join(tempDir, "genesis.json")
-		p.Require().NoError(os.WriteFile(chainConfigPath, data, 0o644), "must write genesis file")
-
-		// Build config from options
-		cfg := DefaultOPRbuilderNodeConfig()
-		cfg.AuthRPCJWTPath, _ = orch.writeDefaultJWT()
-		cfg.Chain = chainConfigPath
-		orch.oprbuilderNodeOptions.Apply(p, id, cfg)              // apply global options
-		OPRBuilderNodeOptionBundle(opts).Apply(orch.P(), id, cfg) // apply specific options
-
-		rb := &OPRBuilderNode{
-			id:        id,
-			logger:    p.Logger(),
-			p:         p,
-			rollupCfg: l2Net.rollupCfg,
-			cfg:       cfg,
-		}
-		p.Logger().Info("Starting OPRbuilderNode")
-		rb.Start()
-		p.Cleanup(rb.Stop)
-		orch.registry.Register(id, rb)
-	})
-}
-
 func (b *OPRBuilderNode) EngineRPC() string {
 	return b.authProxyURL
 }
@@ -523,4 +456,8 @@ func (b *OPRBuilderNode) JWTPath() string {
 
 func (b *OPRBuilderNode) UserRPC() string {
 	return b.rpcProxyURL
+}
+
+func (b *OPRBuilderNode) FlashblocksWSURL() string {
+	return b.wsProxyURL
 }
