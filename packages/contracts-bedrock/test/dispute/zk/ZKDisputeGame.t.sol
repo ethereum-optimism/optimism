@@ -322,6 +322,43 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_Init {
         assertEq(newGame.gameCreator(), anyUser);
     }
 
+    function test_initialize_parentDifferentGameType_reverts() public {
+        // Deploy a second ZK game impl with a different GameType id.
+        IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
+        address newImpl = address(new ZKDisputeGame());
+        GameType differentGameType = GameType.wrap(201);
+
+        bytes memory gameArgs = abi.encodePacked(
+            bytes32(0),
+            zkVerifier,
+            maxChallengeDuration,
+            maxProveDuration,
+            uint256(1 ether),
+            anchorStateRegistry,
+            delayedWeth,
+            l2ChainId
+        );
+
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(differentGameType);
+
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(differentGameType, IDisputeGame(newImpl), gameArgs);
+        disputeGameFactory.setInitBond(differentGameType, 1 ether);
+        vm.stopPrank();
+
+        // Try to create a game of differentGameType referencing childGameIndex (which is gameType).
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            differentGameType,
+            Claim.wrap(keccak256("different-type-claim")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+        );
+        vm.stopPrank();
+    }
+
     function test_initialize_l2ChainIdZero_reverts() public {
         // Deploy a new game impl with l2ChainId = 0 in gameArgs
         IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
