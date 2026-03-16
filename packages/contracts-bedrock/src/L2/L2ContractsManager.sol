@@ -228,6 +228,9 @@ contract L2ContractsManager is ISemver {
     ///         configuration to each predeploy.
     /// @param _config The full configuration for the L2 Predeploys.
     function _apply(L2ContractsManagerTypes.FullConfig memory _config) internal {
+        // Read any dev flags
+        bool _useInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
         // Initializable predeploys.
 
         // L2CrossDomainMessenger
@@ -397,7 +400,7 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
 
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
-        if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (_useInterop) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
             L2ContractsManagerUtils.upgradeTo(
                 Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
