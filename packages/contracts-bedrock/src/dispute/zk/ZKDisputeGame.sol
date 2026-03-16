@@ -72,7 +72,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
     struct ClaimData {
         uint32 parentIndex;
-        address counteredBy;
+        address challenger;
         address prover;
         Claim claim;
         ProposalStatus status;
@@ -342,7 +342,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // Set the root claim
         claimData = ClaimData({
             parentIndex: parentIndex(),
-            counteredBy: address(0),
+            challenger: address(0),
             prover: address(0),
             claim: rootClaim(),
             status: ProposalStatus.Unchallenged,
@@ -380,8 +380,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // If the required bond is not met, revert.
         if (msg.value != challengerBond()) revert IncorrectBondAmount();
 
-        // Update the counteredBy address
-        claimData.counteredBy = msg.sender;
+        // Update the challenger address
+        claimData.challenger = msg.sender;
 
         // Update the status of the proposal
         claimData.status = ProposalStatus.Challenged;
@@ -394,7 +394,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         totalBonds += msg.value;
         weth().deposit{ value: msg.value }();
 
-        emit Challenged(claimData.counteredBy);
+        emit Challenged(claimData.challenger);
 
         return claimData.status;
     }
@@ -422,7 +422,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         claimData.prover = msg.sender;
 
         // Update the status of the proposal
-        if (claimData.counteredBy == address(0)) {
+        if (claimData.challenger == address(0)) {
             claimData.status = ProposalStatus.UnchallengedAndValidProofProvided;
         } else {
             claimData.status = ProposalStatus.ChallengedAndValidProofProvided;
@@ -463,7 +463,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             // Parent game is invalid so this game is invalid too. Therefore the challenger wins and gets all bonds.
             // If the game has not been challenged then there will not be any challenger address and the bond is burned.
             status = GameStatus.CHALLENGER_WINS;
-            normalModeCredit[claimData.counteredBy] = totalBonds;
+            normalModeCredit[claimData.challenger] = totalBonds;
         } else {
             // INVARIANT: Game must be completed either by clock expiration or valid proof.
             if (!gameOver()) revert GameNotOver();
@@ -476,7 +476,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             } else if (claimData.status == ProposalStatus.Challenged) {
                 // Claim is challenged, challenger wins, challenger wins everything
                 status = GameStatus.CHALLENGER_WINS;
-                normalModeCredit[claimData.counteredBy] = totalBonds;
+                normalModeCredit[claimData.challenger] = totalBonds;
             } else if (claimData.status == ProposalStatus.UnchallengedAndValidProofProvided) {
                 // Claim is unchallenged but a valid proof was provided, defender wins, game
                 // creator gets everything. Note that the prover does not receive any reward in

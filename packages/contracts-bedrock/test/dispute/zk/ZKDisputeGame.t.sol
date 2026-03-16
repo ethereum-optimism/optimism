@@ -194,7 +194,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_Init {
         // Check the claimData.
         (
             uint32 parentIndex_,
-            address counteredBy_,
+            address challenger_,
             address prover_,
             Claim claim_,
             ZKDisputeGame.ProposalStatus status_,
@@ -202,7 +202,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_Init {
         ) = game.claimData();
 
         assertEq(parentIndex_, parentGameIndex);
-        assertEq(counteredBy_, address(0));
+        assertEq(challenger_, address(0));
         assertEq(game.gameCreator(), proposer);
         assertEq(prover_, address(0));
         assertEq(claim_.raw(), rootClaim.raw());
@@ -443,8 +443,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
         vm.stopPrank();
 
         // Confirm the proposal is in Challenged state.
-        (, address counteredBy_,,, ZKDisputeGame.ProposalStatus challStatus,) = game.claimData();
-        assertEq(counteredBy_, challenger);
+        (, address challenger_,,, ZKDisputeGame.ProposalStatus challStatus,) = game.claimData();
+        assertEq(challenger_, challenger);
         assertEq(uint8(challStatus), uint8(ZKDisputeGame.ProposalStatus.Challenged));
 
         // Prover proves the claim in time.
@@ -590,8 +590,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
 contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_Init {
     function test_challenge_alreadyChallenged_reverts() public {
         // Initially unchallenged.
-        (, address counteredBy_,,, ZKDisputeGame.ProposalStatus status_,) = game.claimData();
-        assertEq(counteredBy_, address(0));
+        (, address challenger_,,, ZKDisputeGame.ProposalStatus status_,) = game.claimData();
+        assertEq(challenger_, address(0));
         assertEq(uint8(status_), uint8(ZKDisputeGame.ProposalStatus.Unchallenged));
 
         // The first challenge is valid.
@@ -614,8 +614,8 @@ contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_Init {
         game.challenge{ value: 1 ether }();
         vm.stopPrank();
 
-        (, address counteredBy_,,,,) = game.claimData();
-        assertEq(counteredBy_, anyChallenger);
+        (, address challenger_,,,,) = game.claimData();
+        assertEq(challenger_, anyChallenger);
     }
 }
 

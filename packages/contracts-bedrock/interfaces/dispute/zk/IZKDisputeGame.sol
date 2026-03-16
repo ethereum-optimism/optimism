@@ -31,7 +31,7 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
 
     struct ClaimData {
         uint32 parentIndex;
-        address counteredBy;
+        address challenger;
         address prover;
         Claim claim;
         ProposalStatus status;
