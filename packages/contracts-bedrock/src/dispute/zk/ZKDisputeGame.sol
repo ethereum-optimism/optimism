@@ -403,6 +403,12 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ///
     /// @param _proofBytes The proof bytes to validate the claim.
     function prove(bytes calldata _proofBytes) external returns (ProposalStatus) {
+        // INVARIANT: Cannot prove if the game is already resolved.
+        if (status != GameStatus.IN_PROGRESS) revert ClaimAlreadyResolved();
+
+        // INVARIANT: Cannot prove if the parent game is invalid.
+        if (getParentGameStatus() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
+
         // INVARIANT: Cannot prove if the game is over.
         if (gameOver()) revert GameOver();
 

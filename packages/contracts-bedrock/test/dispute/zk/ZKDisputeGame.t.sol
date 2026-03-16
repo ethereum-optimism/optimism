@@ -17,6 +17,7 @@ import {
     ParentGameNotResolved,
     InvalidParentGame,
     ClaimAlreadyChallenged,
+    ClaimAlreadyResolved,
     GameOver,
     GameNotOver,
     UnknownChainId
@@ -646,6 +647,50 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_Init {
         vm.expectRevert(GameOver.selector);
         game.prove(bytes(""));
         vm.stopPrank();
+    }
+
+    function test_prove_alreadyResolved_reverts() public {
+        // Warp past the challenge deadline so the game is over.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+
+        // Resolve the game.
+        game.resolve();
+
+        // Attempting to prove after resolution should revert.
+        vm.expectRevert(ClaimAlreadyResolved.selector);
+        game.prove(bytes(""));
+    }
+
+    function test_prove_parentChallengerWins_reverts() public {
+        // Create a child game referencing our game as parent.
+        vm.startPrank(proposer);
+        ZKDisputeGame childGame = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: 1 ether }(
+                        gameType,
+                        Claim.wrap(keccak256("child-claim")),
+                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+                    )
+                )
+            )
+        );
+        vm.stopPrank();
+
+        // Challenge the parent game so it resolves as CHALLENGER_WINS.
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        (,,,, Timestamp gameDeadline,) = game.claimData();
+        vm.warp(gameDeadline.raw() + 1);
+        game.resolve();
+
+        // Attempting to prove the child game should revert because parent is invalid.
+        vm.expectRevert(InvalidParentGame.selector);
+        childGame.prove(bytes(""));
     }
 }
 
