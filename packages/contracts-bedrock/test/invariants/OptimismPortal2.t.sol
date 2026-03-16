@@ -164,7 +164,6 @@ contract OptimismPortal2_Deposit_Invariant is CommonTest {
 
     function setUp() public override {
         super.setUp();
-
         // Create a deposit actor.
         actor = new OptimismPortal2_Depositor(vm, optimismPortal2);
 

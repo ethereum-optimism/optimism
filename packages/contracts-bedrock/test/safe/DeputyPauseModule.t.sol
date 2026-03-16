@@ -35,6 +35,7 @@ abstract contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
     /// @notice Sets up the test environment.
     function setUp() public virtual override {
         super.setUp();
+
         // Set up 10 keys for the Foundation Safe.
         (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("DeputyPauseModule_test_fnd_", 10);
 
