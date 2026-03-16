@@ -41,7 +41,6 @@ abstract contract Encoding_TestInit is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         encoding = new Encoding_Harness();
     }
 }

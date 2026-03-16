@@ -216,7 +216,6 @@ contract FeeSplitter_Invariant is CommonTest {
     function setUp() public override {
         super.enableRevenueShare();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         disburser = new FeeSplitter_Disburser(vm, feeSplitter, l1Withdrawer);
         preconditions = new FeeSplitter_Preconditions();

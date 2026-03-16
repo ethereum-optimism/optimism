@@ -32,7 +32,6 @@ abstract contract ETHLockbox_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // If not on the last upgrade network, we skip the test since the `ETHLockbox` won't be yet
         // deployed

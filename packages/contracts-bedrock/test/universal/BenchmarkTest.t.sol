@@ -19,11 +19,6 @@ function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
 }
 
 contract SetPrevBaseFee_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     function test_setPrevBaseFee_succeeds() external {
         setPrevBaseFee(vm, address(optimismPortal2), 100 gwei);
         (uint128 prevBaseFee,, uint64 prevBlockNum) = optimismPortal2.params();
@@ -38,7 +33,6 @@ contract GasBenchMark_L1Block is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Get the address of the depositor.
         depositor = l1Block.DEPOSITOR_ACCOUNT();

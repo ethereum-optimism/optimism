@@ -18,7 +18,6 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 abstract contract SuperchainConfig_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         skipIfForkTest("SuperchainConfig_TestInit: cannot test initialization on forked network");
     }
 }

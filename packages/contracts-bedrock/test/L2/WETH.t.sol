@@ -13,11 +13,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title WETH_Version_Test
 /// @notice Tests the `version` function of the `WETH` contract.
 contract WETH_Version_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that the version returns a valid semver string.
     function test_version_succeeds() external view {
         SemverComp.parse(ISemver(address(weth)).version());
@@ -27,11 +22,6 @@ contract WETH_Version_Test is CommonTest {
 /// @title WETH_Name_Test
 /// @notice Tests the `name` function of the `WETH` contract.
 contract WETH_Name_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that the `name` function returns the correct value.
     function testFuzz_name_succeeds(string memory _gasPayingTokenName) external {
         vm.mockCall(address(l1Block), abi.encodeCall(l1Block.gasPayingTokenName, ()), abi.encode(_gasPayingTokenName));
@@ -48,11 +38,6 @@ contract WETH_Name_Test is CommonTest {
 /// @title WETH_Symbol_Test
 /// @notice Tests the `symbol` function of the `WETH` contract.
 contract WETH_Symbol_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that the `symbol` function returns the correct value.
     function testFuzz_symbol_succeeds(string memory _gasPayingTokenSymbol) external {
         vm.mockCall(

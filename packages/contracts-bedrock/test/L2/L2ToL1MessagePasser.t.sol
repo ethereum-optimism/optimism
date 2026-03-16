@@ -16,12 +16,7 @@ import { IL2ToL1MessagePasserCGT } from "interfaces/L2/IL2ToL1MessagePasserCGT.s
 /// @title L2ToL1MessagePasser_Version_Test
 /// @notice Tests the `version` function of the `L2ToL1MessagePasser` contract.
 contract L2ToL1MessagePasser_Version_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
     /// @notice Tests that the version follows valid semver format.
-
     function test_version_validFormat_succeeds() external view {
         SemverComp.parse(l2ToL1MessagePasser.version());
     }
@@ -30,11 +25,6 @@ contract L2ToL1MessagePasser_Version_Test is CommonTest {
 /// @title L2ToL1MessagePasser_Receive_Test
 /// @notice Tests the `receive` function of the `L2ToL1MessagePasser` contract.
 contract L2ToL1MessagePasser_Receive_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that receive() initiates withdrawal with default gas limit.
     function testFuzz_receive_initiatesWithdrawal_succeeds(uint256 _value) external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
@@ -67,11 +57,6 @@ contract L2ToL1MessagePasser_Receive_Test is CommonTest {
 /// @title L2ToL1MessagePasser_Burn_Test
 /// @notice Tests the `burn` function of the `L2ToL1MessagePasser` contract.
 contract L2ToL1MessagePasser_Burn_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that `burn` succeeds and destroys the ETH held in the contract.
     function testFuzz_burn_succeeds(uint256 _value, address _target, uint256 _gasLimit, bytes memory _data) external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
@@ -93,11 +78,6 @@ contract L2ToL1MessagePasser_Burn_Test is CommonTest {
 /// @title L2ToL1MessagePasser_InitiateWithdrawal_Test
 /// @notice Tests the `initiateWithdrawal` function of the `L2ToL1MessagePasser` contract.
 contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that `initiateWithdrawal` succeeds and correctly sets the state of the
     ///         message passer for the withdrawal hash.
     function testFuzz_initiateWithdrawal_succeeds(
@@ -227,11 +207,6 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
 /// @title L2ToL1MessagePasser_MessageNonce_Test
 /// @notice Tests the `messageNonce` function of the `L2ToL1MessagePasser` contract.
 contract L2ToL1MessagePasser_MessageNonce_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that messageNonce encodes version in upper bytes.
     function test_messageNonce_encodesVersion_succeeds() external view {
         uint256 nonce = l2ToL1MessagePasser.messageNonce();

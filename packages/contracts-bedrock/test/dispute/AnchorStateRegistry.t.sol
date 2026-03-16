@@ -26,7 +26,6 @@ abstract contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit 
     event RetirementTimestampSet(uint256 timestamp);
 
     function setUp() public virtual override {
-        skipIfL2ForkTest("AnchorStateRegistry tests only on L1");
         // Duplicating the initialization/setup logic of FaultDisputeGame_Test.
         bytes memory absolutePrestateData = abi.encode(0);
         Claim absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);

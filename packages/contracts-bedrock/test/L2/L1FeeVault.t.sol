@@ -26,7 +26,6 @@ contract L1FeeVault_Uncategorized_Test is FeeVault_Uncategorized_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         recipient = deploy.cfg().l1FeeVaultRecipient();
         feeVaultName = "L1FeeVault";
         minWithdrawalAmount = deploy.cfg().l1FeeVaultMinimumWithdrawalAmount();

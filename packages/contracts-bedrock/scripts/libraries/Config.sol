@@ -298,9 +298,9 @@ library Config {
         return vm.envString("L2_FORK_RPC_URL");
     }
 
-    /// @notice Returns the L2 block number to fork at.
+    /// @notice Returns the L2 block number to fork at. Defaults to 0 (latest).
     function l2ForkBlockNumber() internal view returns (uint256) {
-        return vm.envUint("L2_FORK_BLOCK_NUMBER");
+        return vm.envOr("L2_FORK_BLOCK_NUMBER", uint256(0));
     }
 
     /// @notice Returns the L2 chain identifier (e.g., "op", "base", "mode").

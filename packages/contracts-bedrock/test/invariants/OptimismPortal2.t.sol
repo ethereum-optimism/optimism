@@ -103,7 +103,6 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         _defaultTx = Types.WithdrawalTransaction({
             nonce: 0,
@@ -165,7 +164,6 @@ contract OptimismPortal2_Deposit_Invariant is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Create a deposit actor.
         actor = new OptimismPortal2_Depositor(vm, optimismPortal2);

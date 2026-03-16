@@ -57,7 +57,6 @@ abstract contract ProxyAdminOwnedBase_TestInit is CommonTest {
     /// @notice Sets up the test.
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Create a new harness
         harness = new ProxyAdminOwnedBase_Harness();

@@ -78,7 +78,6 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         skipIfForkTest("Skip not supported yet");
 

@@ -21,11 +21,6 @@ import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 /// @title L2CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for `L2CrossDomainMessenger` tests.
 abstract contract L2CrossDomainMessenger_TestInit is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Receiver address for testing
     address recipient = address(0xabbaacdc);
 }

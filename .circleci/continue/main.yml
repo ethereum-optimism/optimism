@@ -1603,21 +1603,19 @@ jobs:
           name: Run L2 fork tests
           command: |
             mkdir -p results
-            forge test --match-path "./test/L2/L2ForkUpgrade.t.sol" --junit > results/results.xml
+            JUNIT_TEST_PATH=results/results.xml just test-l2-fork-upgrade
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             L2_FORK_RPC_URL: <<parameters.l2_fork_rpc>>
-            L2_FORK_TEST: "true"
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:
           name: Print failed test traces
           command: |
-            just test-rerun | tee failed-test-traces-l2-fork.log
+            just test-l2-fork-upgrade-rerun | tee failed-test-traces-l2-fork.log
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             L2_FORK_RPC_URL: <<parameters.l2_fork_rpc>>
-            L2_FORK_TEST: "true"
           working_directory: packages/contracts-bedrock
           when: on_fail
       - save_cache:

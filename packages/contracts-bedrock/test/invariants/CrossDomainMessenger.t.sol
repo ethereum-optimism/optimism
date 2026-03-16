@@ -95,7 +95,6 @@ contract XDM_MinGasLimits is CommonTest {
     function init(bool doFail) public virtual {
         // Set up the `L1CrossDomainMessenger` and `OptimismPortal` contracts.
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Deploy a relay actor
         actor = new RelayActor(optimismPortal2, l1CrossDomainMessenger, vm, doFail);

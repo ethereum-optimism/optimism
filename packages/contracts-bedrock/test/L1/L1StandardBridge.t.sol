@@ -26,11 +26,6 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 /// @title L1StandardBridge_TestInit
 /// @notice Reusable test initialization for `L1StandardBridge` tests.
 abstract contract L1StandardBridge_TestInit is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Asserts the expected calls and events for bridging ETH depending on whether the
     ///         bridge call is legacy or not.
     function _preBridgeETH(bool isLegacy, uint256 value) internal {
@@ -164,11 +159,6 @@ abstract contract L1StandardBridge_TestInit is CommonTest {
 /// @title L1StandardBridge_Constructor_Test
 /// @notice Tests the `constructor` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_Constructor_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Test that the constructor sets the correct values.
     /// @dev Marked virtual to be overridden in test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
@@ -189,11 +179,6 @@ contract L1StandardBridge_Constructor_Test is CommonTest {
 /// @title L1StandardBridge_Initialize_Test
 /// @notice Tests the `initialize` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_Initialize_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Test that the initialize function sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(address(l1StandardBridge.systemConfig()), address(systemConfig));
@@ -236,11 +221,6 @@ contract L1StandardBridge_Initialize_Test is CommonTest {
 /// @title L1StandardBridge_Paused_Test
 /// @notice Tests the `paused` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_Paused_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Sets up the test by pausing the bridge, giving ether to the bridge and mocking the
     ///         calls to the xDomainMessageSender so that it returns the correct value.
     function _setupPausedBridge() internal {
@@ -350,11 +330,6 @@ contract L1StandardBridge_Paused_Test is CommonTest {
 /// @title L1StandardBridge_Receive_Test
 /// @notice Tests the `receive` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_Receive_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests receive bridges ETH successfully.
     function test_receive_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
@@ -563,11 +538,6 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
 contract L1StandardBridge_DepositERC20_Test is CommonTest {
     using stdStorage for StdStorage;
 
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     // depositERC20
     // - updates bridge.deposits
     // - emits ERC20DepositInitiated
@@ -671,11 +641,6 @@ contract L1StandardBridge_DepositERC20_Test is CommonTest {
 /// @title L1StandardBridge_DepositERC20To_Test
 /// @notice Tests the `depositERC20To` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_DepositERC20To_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that depositing ERC20 to the bridge succeeds when sent to a different address.
     ///         Bridge deposits are updated.
     ///         Emits ERC20DepositInitiated event.
@@ -759,11 +724,6 @@ contract L1StandardBridge_DepositERC20To_Test is CommonTest {
 contract L1StandardBridge_FinalizeETHWithdrawal_Test is CommonTest {
     using stdStorage for StdStorage;
 
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that finalizing an ETH withdrawal succeeds.
     ///         Emits ETHWithdrawalFinalized event.
     ///         Only callable by the L2 bridge.
@@ -797,11 +757,6 @@ contract L1StandardBridge_FinalizeETHWithdrawal_Test is CommonTest {
 /// @notice Tests the `finalizeERC20Withdrawal` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_FinalizeERC20Withdrawal_Test is CommonTest {
     using stdStorage for StdStorage;
-
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
 
     /// @notice Tests that finalizing an ERC20 withdrawal succeeds.
     ///         Bridge deposits are updated.

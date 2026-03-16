@@ -105,7 +105,6 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         harness = new VerifyOPCM_Harness();
         harness.setUp();
 

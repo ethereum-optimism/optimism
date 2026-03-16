@@ -24,7 +24,6 @@ contract SuperchainRevSharesCalculator_TestInit is CommonTest {
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         shareRecipient = payable(address(l1Withdrawer));
         remainderRecipient = payable(deploy.cfg().chainFeesRecipient());

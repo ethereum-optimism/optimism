@@ -20,11 +20,6 @@ import { Features } from "src/libraries/Features.sol";
 /// @notice Abstract test contract for fee feeVault testing.
 ///         Subclasses can override the feeVault-specific variables.
 abstract contract FeeVault_Uncategorized_Test is CommonTest {
-    function setUp() public virtual override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     // Variables that can be overridden by concrete test contracts
     address recipient;
     IFeeVault feeVault;

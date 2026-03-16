@@ -15,10 +15,6 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 /// @title Predeploys_TestInit
 /// @notice Reusable test initialization for `Predeploys` tests.
 abstract contract Predeploys_TestInit is CommonTest {
-    function setUp() public virtual override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
     //////////////////////////////////////////////////////
     /// Internal helpers
     //////////////////////////////////////////////////////
@@ -190,7 +186,6 @@ contract Predeploys_UncategorizedInterop_Test is Predeploys_TestInit {
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
     }
 
     /// @notice Tests that the predeploy addresses are set correctly. They have code and the

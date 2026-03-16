@@ -26,7 +26,6 @@ contract RevenueSharingIntegration_Test is CommonTest {
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         disbursementInterval = feeSplitter.feeDisbursementInterval();
     }

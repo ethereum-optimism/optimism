@@ -19,7 +19,6 @@ abstract contract ProtocolVersions_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         required = ProtocolVersion.wrap(deploy.cfg().requiredProtocolVersion());
         recommended = ProtocolVersion.wrap(deploy.cfg().recommendedProtocolVersion());
     }

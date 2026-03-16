@@ -25,7 +25,6 @@ abstract contract Preinstalls_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         harness = new Preinstalls_Harness();
     }
 

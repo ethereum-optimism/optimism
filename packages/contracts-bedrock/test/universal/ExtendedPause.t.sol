@@ -8,11 +8,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 ///         pausable contracts, however it is worthwhile to pull them into one location to ensure
 ///         that the behavior is consistent.
 contract ExtendedPause_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Tests that other contracts are paused when the superchain config is paused
     function test_pause_fullSystem_succeeds() public {
         assertFalse(superchainConfig.paused(address(0)));

@@ -24,7 +24,6 @@ abstract contract OptimismMintableERC721_TestInit is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Set up the token pair.
         L1NFT = new ERC721("L1NFT", "L1T");

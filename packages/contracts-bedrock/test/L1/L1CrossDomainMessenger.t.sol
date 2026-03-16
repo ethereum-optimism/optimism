@@ -52,7 +52,6 @@ abstract contract L1CrossDomainMessenger_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         senderSlotIndex = ForgeArtifacts.getSlot("OptimismPortal2", "l2Sender").slot;
         encoding = new L1CrossDomainMessenger_Encoding_Harness();
     }

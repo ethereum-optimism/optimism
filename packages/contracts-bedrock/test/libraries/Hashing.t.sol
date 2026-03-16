@@ -96,7 +96,6 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
     /// @notice Sets up the test.
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         harness = new Hashing_Harness();
     }
     /// @notice Tests that hashCrossDomainMessage returns the correct hash in a simple case.

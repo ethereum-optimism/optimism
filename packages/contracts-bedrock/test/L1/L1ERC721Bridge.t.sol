@@ -58,7 +58,6 @@ abstract contract L1ERC721Bridge_TestInit is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         localToken = new L1ERC721Bridge_TestERC721_Harness();
         remoteToken = new L1ERC721Bridge_TestERC721_Harness();

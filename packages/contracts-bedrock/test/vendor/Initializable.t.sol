@@ -48,7 +48,6 @@ contract Initializer_Test is CommonTest {
     function setUp() public override {
         super.enableAltDA();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Initialize the `contracts` array with the addresses of the contracts to test, the
         // calldata used to initialize them, and the storage slot of their `_initialized` flag.

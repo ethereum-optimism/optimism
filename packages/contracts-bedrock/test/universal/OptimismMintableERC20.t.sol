@@ -12,11 +12,6 @@ import { SemverComp } from "src/libraries/SemverComp.sol";
 abstract contract OptimismMintableERC20_TestInit is CommonTest {
     event Mint(address indexed account, uint256 amount);
     event Burn(address indexed account, uint256 amount);
-
-    function setUp() public virtual override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
 }
 
 /// @title OptimismMintableERC20_Permit2_Test

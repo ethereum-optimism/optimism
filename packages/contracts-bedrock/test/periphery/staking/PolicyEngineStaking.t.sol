@@ -31,7 +31,6 @@ abstract contract PolicyEngineStaking_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         owner = makeAddr("owner");
         staking = IPolicyEngineStaking(
             vm.deployCode("PolicyEngineStaking.sol:PolicyEngineStaking", abi.encode(owner, Predeploys.GOVERNANCE_TOKEN))

@@ -30,7 +30,6 @@ contract FeesDepositor_TestInit is CommonTest {
     /// @notice Test setup.
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Deploy FeesDepositor implementation
         address implementation = DeployUtils.create1({

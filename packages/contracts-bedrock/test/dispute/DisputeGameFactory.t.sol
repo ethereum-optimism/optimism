@@ -63,7 +63,6 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         fakeClone = new DisputeGameFactory_FakeClone_Harness();
 
         // Transfer ownership of the factory to the test contract.

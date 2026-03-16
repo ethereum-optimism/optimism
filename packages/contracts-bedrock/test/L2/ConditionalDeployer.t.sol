@@ -30,7 +30,6 @@ contract ConditionalDeployer_TestInit is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         skipIfDevFeatureDisabled(DevFeatures.L2CM);
         // Deploy contracts
         simpleContractCreationCode = type(ConditionalDeployer_Harness).creationCode;

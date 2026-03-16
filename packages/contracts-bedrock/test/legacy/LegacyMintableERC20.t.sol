@@ -14,7 +14,6 @@ abstract contract LegacyMintableERC20_TestInit is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         legacyMintableERC20 = new LegacyMintableERC20(address(l2StandardBridge), address(L1Token), "_L2Token_", "_L2T_");
     }

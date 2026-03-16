@@ -205,23 +205,32 @@ coverage-lcov-all *ARGS:
   just coverage-lcov-upgrade --match-contract "OPContractsManager.*_Upgrade_Test" {{ARGS}} && \
   lcov -a lcov.info -a lcov-upgrade.info -o lcov-all.info
 
-# Prepares environment variables for L2 fork upgrade tests
-prepare-l2-upgrade-env L2_RPC BLOCK *ARGS: build-go-ffi
+# Prepares the environment for L2 fork upgrade tests.
+# Env Vars:
+# - L2_FORK_RPC_URL must be set to an L2 RPC URL.
+# - L2_FORK_BLOCK_NUMBER can be set in the env to pin a block (defaults to latest).
+prepare-l2-upgrade-env *ARGS: build-go-ffi
   #!/bin/bash
   set -euo pipefail
-  export L2_FORK_RPC_URL={{L2_RPC}}
-  export L2_FORK_BLOCK_NUMBER={{BLOCK}}
   export L2_FORK_TEST=true
   export DEV_FEATURE__L2CM=true
   export FOUNDRY_FORK_RETRIES=10
   export FOUNDRY_FORK_RETRY_BACKOFF=1000
-  echo "Running L2 fork upgrade tests at block $L2_FORK_BLOCK_NUMBER"
-  {{ARGS}}
+  {{ARGS}} \
+  --match-path "test/L2/fork/**"
 
-# Runs L2 fork upgrade tests against a specified L2 chain.
-# Usage: just test-l2-fork-upgrade <L2_RPC_URL> <BLOCK_NUMBER> [ARGS]
-test-l2-fork-upgrade L2_RPC BLOCK *ARGS:
-  just prepare-l2-upgrade-env {{L2_RPC}} {{BLOCK}} "forge test --match-contract L2ForkUpgrade {{ARGS}}"
+# Runs L2 fork upgrade tests.
+# Usage: L2_FORK_RPC_URL=<url> just test-l2-fork-upgrade [ARGS]
+test-l2-fork-upgrade *ARGS:
+  #!/bin/bash
+  if [ -n "$JUNIT_TEST_PATH" ]; then
+    just prepare-l2-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""
+  else
+    just prepare-l2-upgrade-env "forge test {{ARGS}}"
+  fi
+
+test-l2-fork-upgrade-rerun *ARGS: build-go-ffi
+  just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
 
 ########################################################
 #                        DEPLOY                        #

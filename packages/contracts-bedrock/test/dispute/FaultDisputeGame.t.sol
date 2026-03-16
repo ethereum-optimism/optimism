@@ -164,7 +164,6 @@ abstract contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
 
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Get the actual anchor roots
         (Hash root, uint256 l2Bn) = anchorStateRegistry.getAnchorRoot();

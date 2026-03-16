@@ -17,7 +17,6 @@ abstract contract DataAvailabilityChallenge_TestInit is CommonTest {
     function setUp() public virtual override {
         super.enableAltDA();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
     }
 }
 

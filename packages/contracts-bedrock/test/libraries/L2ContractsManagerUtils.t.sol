@@ -51,7 +51,6 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         implV1 = address(new L2ContractsManagerUtils_ImplV1_Harness());
         implV2 = address(new L2ContractsManagerUtils_ImplV2_Harness());
 

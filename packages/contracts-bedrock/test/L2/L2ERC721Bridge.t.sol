@@ -93,7 +93,6 @@ abstract contract L2ERC721Bridge_TestInit is CommonTest {
     /// @notice Sets up the test suite.
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         remoteToken = new L2ERC721Bridge_TestERC721_Harness();
         localToken = new L2ERC721Bridge_TestMintableERC721_Harness(address(l2ERC721Bridge), address(remoteToken));

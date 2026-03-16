@@ -28,7 +28,6 @@ contract L1Withdrawer_TestInit is CommonTest {
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
     }
 }
 

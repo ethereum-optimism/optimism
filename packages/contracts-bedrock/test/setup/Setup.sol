@@ -200,7 +200,12 @@ abstract contract Setup is FeatureFlags {
 
         // Handle L2 fork test (takes precedence over L1 fork)
         if (isL2ForkTest()) {
-            vm.createSelectFork(Config.l2ForkRpcUrl(), Config.l2ForkBlockNumber());
+            uint256 l2ForkBlock = Config.l2ForkBlockNumber();
+            if (l2ForkBlock == 0) {
+                vm.createSelectFork(Config.l2ForkRpcUrl());
+            } else {
+                vm.createSelectFork(Config.l2ForkRpcUrl(), l2ForkBlock);
+            }
             console.log("Setup: L2 fork selected!");
         } else if (isL1ForkTest()) {
             vm.createSelectFork(Config.forkRpcUrl(), Config.forkBlockNumber());

@@ -358,7 +358,6 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 contract OptimismPortal2_UpgradeInterop_Test is CommonTest {
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
@@ -798,7 +797,6 @@ contract OptimismPortal2_DonateETH_Test is OptimismPortal2_TestInit {
 contract OptimismPortal2_MigrateLiquidity_Test is CommonTest {
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
@@ -2607,11 +2605,6 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
 /// @notice Test various values of the resource metering config to ensure that deposits cannot be
 ///         broken by changing the config.
 contract OptimismPortal2_Params_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice The max gas limit observed throughout this test. Setting this too high can cause
     ///         the test to take too long to run.
     uint256 constant MAX_GAS_LIMIT = 30_000_000;

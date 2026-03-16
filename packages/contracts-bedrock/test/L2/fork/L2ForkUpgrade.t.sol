@@ -53,7 +53,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         super.setUp();
 
         // Skip if not L2 fork test
-        skipIfNotL2ForkTest("requires L2 fork");
 
         // Skip if L2CM dev feature is not enabled
         skipIfDevFeatureDisabled(DevFeatures.L2CM);

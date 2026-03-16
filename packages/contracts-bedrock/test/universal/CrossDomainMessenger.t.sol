@@ -93,7 +93,6 @@ abstract contract CrossDomainMessenger_TestInit is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         er = new CrossDomainMessenger_ExternalRelay_Harness(l1CrossDomainMessenger, address(optimismPortal2));
     }
 }
@@ -154,11 +153,6 @@ contract CrossDomainMessenger_RelayMessage_Test is CrossDomainMessenger_TestInit
 ///      L2 CrossDomainMessenger contracts. For simplicity, we use the L1 Messenger as the test
 ///      contract.
 contract CrossDomainMessenger_BaseGas_Test is CommonTest {
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Ensure that `baseGas` passes for the max value of `_minGasLimit`, this is about
     ///         4 Billion.
     function test_baseGas_succeeds() external view {

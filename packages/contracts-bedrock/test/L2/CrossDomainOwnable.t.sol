@@ -60,7 +60,6 @@ contract CrossDomainOwnable_AccessControl_Test is CrossDomainOwnable_TestInit {
 contract CrossDomainOwnable_PortalIntegration_Test is CommonTest, CrossDomainOwnable_TestInit {
     function setUp() public override(CommonTest, CrossDomainOwnable_TestInit) {
         CommonTest.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         vm.prank(alice);
         setter = new XDomainSetter();

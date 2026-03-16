@@ -23,7 +23,6 @@ contract ReadImplementationAddressesTest is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         script = new ReadImplementationAddresses();
     }
 

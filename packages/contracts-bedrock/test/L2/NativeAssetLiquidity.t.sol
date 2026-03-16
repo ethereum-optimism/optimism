@@ -23,7 +23,6 @@ contract NativeAssetLiquidity_TestInit is CommonTest {
     /// @notice Test setup.
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
     }
 }

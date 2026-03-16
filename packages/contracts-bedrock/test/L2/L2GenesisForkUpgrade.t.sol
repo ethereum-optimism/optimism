@@ -18,7 +18,7 @@ import {
     L2ForkUpgrade_Initialization_Test,
     L2ForkUpgrade_Implementations_Test,
     L2ForkUpgrade_Events_Test
-} from "test/L2/L2ForkUpgrade.t.sol";
+} from "test/L2/fork/L2ForkUpgrade.t.sol";
 
 /// @title L2GenesisForkUpgrade_TestInit
 /// @notice Provides a genesis-based setUp for the L2 upgrade tests.
@@ -32,7 +32,6 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         CommonTest.setUp();
 
         // Skip if running against any fork — this test targets local genesis state only
-        skipIfL2ForkTest("genesis upgrade test, not for live fork");
         skipIfForkTest("genesis upgrade test, not for L1 fork");
 
         // Skip if L2CM dev feature is not enabled

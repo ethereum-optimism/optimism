@@ -23,11 +23,6 @@ abstract contract OptimismMintableERC20Factory_TestInit is CommonTest {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    function setUp() public override {
-        super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
-    }
-
     /// @notice Precalculates the address of the token contract.
     function _calculateTokenAddress(
         address _remote,

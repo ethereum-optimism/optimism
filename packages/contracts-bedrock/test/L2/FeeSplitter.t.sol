@@ -46,7 +46,6 @@ contract FeeSplitter_TestInit is CommonTest, MockHelper {
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         // Get the owner from L2ProxyAdmin
         _owner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();

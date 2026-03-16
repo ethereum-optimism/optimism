@@ -31,7 +31,6 @@ contract ExecutingMessageEmittedTest is CommonTest {
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
 
         {
             // TODO: Remove this block when L2Genesis includes this contract.

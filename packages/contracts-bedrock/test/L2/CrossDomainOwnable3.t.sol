@@ -35,7 +35,6 @@ abstract contract CrossDomainOwnable3_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         vm.prank(alice);
         setter = new XDomainSetter3();
     }

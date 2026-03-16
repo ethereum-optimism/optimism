@@ -192,7 +192,6 @@ contract CustomGasToken_Invariants_Test is CommonTest {
     /// @notice Test setup.
     function setUp() public override {
         super.setUp();
-        skipIfL2ForkTest("not an L2 fork test");
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
         randomActor = new RandomActor();
