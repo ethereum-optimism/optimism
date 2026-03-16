@@ -269,7 +269,11 @@ contract L2Genesis is Script {
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         setFeeSplitter(_input); // 2B: FeeSplitter
-        if (_input.fork >= uint256(Fork.INTEROP) && _input.useInterop) {
+        if (
+            _input.fork >= uint256(Fork.INTEROP) && _input.useInterop
+                && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+        ) {
+            // Both flags must be explicitly set in order to enable Interop
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
         }
