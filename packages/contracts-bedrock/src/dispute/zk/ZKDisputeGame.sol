@@ -84,12 +84,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Emitted when the game is challenged.
-    ///
     /// @param challenger The address of the challenger.
     event Challenged(address indexed challenger);
 
     /// @notice Emitted when the game is proved.
-    ///
     /// @param prover The address of the prover.
     event Proved(address indexed prover);
 
@@ -409,7 +407,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice Proves the game.
-    ///
     /// @param _proofBytes The proof bytes to validate the claim.
     function prove(bytes calldata _proofBytes) external returns (ProposalStatus) {
         // INVARIANT: Cannot prove if the game is already resolved.
@@ -529,7 +526,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice Claim the credit belonging to the recipient address. Uses a two-phase
     ///         DelayedWETH withdrawal pattern: first call unlocks, second call withdraws.
-    ///
     /// @param _recipient The owner and recipient of the credit.
     function claimCredit(address _recipient) external {
         // Close out the game and determine the bond distribution mode if not already set.
@@ -634,9 +630,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice Returns the credit balance of a given recipient.
-    ///
     /// @param _recipient The recipient of the credit.
-    ///
     /// @return credit_ The credit balance of the recipient.
     function credit(address _recipient) external view returns (uint256 credit_) {
         if (bondDistributionMode == BondDistributionMode.REFUND) {
