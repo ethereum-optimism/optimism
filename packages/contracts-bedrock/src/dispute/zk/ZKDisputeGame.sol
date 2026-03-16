@@ -371,11 +371,11 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice Challenges the game.
     function challenge() external payable returns (ProposalStatus) {
-        // INVARIANT: Can only challenge a game that has not been challenged yet.
-        if (claimData.status != ProposalStatus.Unchallenged) revert ClaimAlreadyChallenged();
-
         // INVARIANT: Cannot challenge if the game is over.
         if (gameOver()) revert GameOver();
+
+        // INVARIANT: Can only challenge a game that has not been challenged yet.
+        if (claimData.status != ProposalStatus.Unchallenged) revert ClaimAlreadyChallenged();
 
         // If the required bond is not met, revert.
         if (msg.value != challengerBond()) revert IncorrectBondAmount();
