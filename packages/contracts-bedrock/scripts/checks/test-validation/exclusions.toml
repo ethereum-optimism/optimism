@@ -31,7 +31,7 @@ src_validation = [
     "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
     "test/L2/LegacyFeeSplitter.t.sol",     # Tests legacy fee splitter with updated vaults interface
     "test/L2/FeeSplitterVaults.t.sol",     # Tests FeeSplitter with vault-specific scenarios using test helper
-    "test/L2/L2ForkUpgrade.t.sol",         # Tests L2 fork upgrade workflow
+    "test/L2/fork/L2ForkUpgrade.t.sol",    # Tests L2 fork upgrade workflow
     "test/L2/L2GenesisForkUpgrade.t.sol",  # Tests L2 genesis fork upgrade workflow
 ]
 
