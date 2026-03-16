@@ -10,7 +10,6 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @title OPContractsManagerUtilsCaller
 /// @notice OPContractsManagerUtilsCaller is an abstract contract that exists to hide all of the
@@ -231,7 +230,6 @@ abstract contract OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
         GameType _startingRespectedGameType,
         Proposal memory _startingAnchorRoot,
-        IOptimismPortal2 _portal,
         IAnchorStateRegistry _asr
     )
         internal
@@ -240,7 +238,7 @@ abstract contract OPContractsManagerUtilsCaller {
         _staticcall(
             abi.encodeCall(
                 IOPContractsManagerUtils.assertValidSuperRootMigrationConfig,
-                (_disputeGameConfigs, _startingRespectedGameType, _startingAnchorRoot, _portal, _asr)
+                (_disputeGameConfigs, _startingRespectedGameType, _startingAnchorRoot, _asr)
             )
         );
     }

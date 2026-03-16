@@ -18,7 +18,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -467,15 +466,13 @@ contract OPContractsManagerUtils {
         IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
         GameType _startingRespectedGameType,
         Proposal memory _startingAnchorRoot,
-        IOptimismPortal2 _portal,
         IAnchorStateRegistry _asr
     )
         external
         view
     {
-        // Read the original game type from the portal (available on all versions, unlike
-        // ASR.respectedGameType which is a v2-only API).
-        uint32 originalRaw = _portal.respectedGameType().raw();
+        GameType originalGameType = _asr.respectedGameType();
+        uint32 originalRaw = originalGameType.raw();
 
         // Reject already-migrated chains (any SUPER_ type).
         if (
@@ -510,17 +507,12 @@ contract OPContractsManagerUtils {
         }
 
         // Validate that the override was actually provided (startingAnchorRoot must differ from current).
-        // Use try/catch because pre-v2 ASR may not have getStartingAnchorRoot().
-        // nosemgrep: sol-safety-low-level-call
-        try _asr.getStartingAnchorRoot() returns (Proposal memory currentAnchorRoot) {
-            if (
-                _startingAnchorRoot.root.raw() == currentAnchorRoot.root.raw()
-                    && _startingAnchorRoot.l2SequenceNumber == currentAnchorRoot.l2SequenceNumber
-            ) {
-                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidUpgradeInput();
-            }
-        } catch {
-            // Pre-v2 ASR lacks getStartingAnchorRoot(); skip comparison.
+        Proposal memory currentAnchorRoot = _asr.getStartingAnchorRoot();
+        if (
+            _startingAnchorRoot.root.raw() == currentAnchorRoot.root.raw()
+                && _startingAnchorRoot.l2SequenceNumber == currentAnchorRoot.l2SequenceNumber
+        ) {
+            revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidUpgradeInput();
         }
 
         // Validate that startingRespectedGameType override was provided (must differ from original).

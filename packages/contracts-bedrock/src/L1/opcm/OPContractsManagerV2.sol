@@ -719,7 +719,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cfg.disputeGameConfigs,
                 _cfg.startingRespectedGameType,
                 _cfg.startingAnchorRoot,
-                _cts.optimismPortal,
                 _cts.anchorStateRegistry
             );
         } else {
