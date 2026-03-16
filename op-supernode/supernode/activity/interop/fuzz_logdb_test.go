@@ -17,6 +17,10 @@ import (
 // FuzzVerifyCanAddTimestamp tests the verifyCanAddTimestamp function with
 // random parameters to verify gap detection and activation timestamp handling.
 //
+// Document coverage:
+//   Step 1: Determining if a chain is ready at the target timestamp
+//           (gap detection, activation timestamp bootstrap)
+//
 // Properties:
 // P9: Gap violations are always detected (gap > blockTime)
 // P13: Non-block-time-aligned gaps only warn, don't error
@@ -90,6 +94,11 @@ func FuzzVerifyCanAddTimestamp(f *testing.F) {
 }
 
 // FuzzProcessBlockLogs tests processBlockLogs with varying receipt and log counts.
+//
+// Document coverage:
+//   INV-1: Logs stored per block (AddLog called per log with correct indices)
+//   INV-2: Parent block linkage (SealBlock called with correct parent hash,
+//          virtual parent seal for first block)
 //
 // Properties:
 // P11: First block with empty parent hash is accepted exactly once

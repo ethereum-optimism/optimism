@@ -12,6 +12,11 @@ import (
 // FuzzVerifiedDBCommitRewind performs random sequences of commit/rewind operations
 // and verifies that the VerifiedDB maintains invariants throughout.
 //
+// Document coverage:
+//   Step 5: VerifiedDB extended sequentially (commit enforcement)
+//   Step 3: VerifiedDB rollback on reorg (rewind deletes entries ≥ ts, resume works)
+//   INV-6:  Sequential timestamps enforced (no gaps, no duplicates)
+//
 // Properties tested:
 // P15: Commit(result) succeeds iff result.Timestamp == lastTimestamp + 1 (or first commit)
 // P16: After Rewind(ts), LastTimestamp() returns ts - 1 (or uninitialized if all deleted)

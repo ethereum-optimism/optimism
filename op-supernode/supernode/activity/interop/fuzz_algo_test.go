@@ -130,6 +130,9 @@ var _ LogsDB = (*fuzzMockLogsDB)(nil)
 // FuzzVerifyInteropMessagesValid generates random valid multi-chain states and
 // verifies that valid cross-chain messages always result in a valid Result.
 //
+// Document coverage:
+//   INV-3: Every block in LogsDB is cross-valid (valid executing messages, no cycles)
+//
 // Properties:
 // P1: Valid cross-chain messages never produce InvalidHeads
 // P3: Result.IsValid() ↔ len(InvalidHeads) == 0
@@ -175,6 +178,10 @@ func FuzzVerifyInteropMessagesValid(f *testing.F) {
 
 // FuzzVerifyInteropMessagesFails generates states with various invalidation types
 // and verifies they are correctly detected.
+//
+// Document coverage:
+//   INV-3: Cross-validity violations are detected (5 invalidation types)
+//   Step 4: Invalid blocks are identified for DenyList addition
 //
 // Properties:
 // P2: Every invalidation type is correctly detected
@@ -263,6 +270,9 @@ func FuzzVerifyInteropMessagesFails(f *testing.F) {
 // =============================================================================
 
 // FuzzVerifyExpiryBoundary tests timestamps at the exact expiry boundary.
+//
+// Document coverage:
+//   INV-3: Cross-validity expiry window boundary correctness
 //
 // Properties:
 // P4: execMsg.Timestamp + ExpiryTime overflow doesn't cause false positive/negative
@@ -385,6 +395,9 @@ func FuzzVerifyExpiryBoundary(f *testing.F) {
 // FuzzVerifyExpiryOverflow tests that when execMsg.Timestamp is large enough
 // for Timestamp + ExpiryTime to overflow uint64, the production code's
 // unchecked addition wraps around and falsely expires a valid message.
+//
+// Document coverage:
+//   INV-3: BUG — uint64 overflow in expiry check violates cross-validity correctness.
 //
 // The production check (algo.go:167) is:
 //
@@ -564,6 +577,9 @@ func FuzzVerifyFirstBlockSkipped(f *testing.F) {
 
 // FuzzVerifyMultipleInvalidMessages tests that blocks with multiple invalid
 // executing messages are still correctly detected as invalid.
+//
+// Document coverage:
+//   INV-3: Cross-validity detection works regardless of number of invalid messages
 //
 // Properties:
 // P6: Block with multiple invalid messages still gets marked invalid

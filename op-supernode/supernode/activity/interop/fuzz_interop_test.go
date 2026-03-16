@@ -20,6 +20,10 @@ import (
 // FuzzProgressInteropValid tests that valid multi-chain states always result
 // in successful commits to the VerifiedDB.
 //
+// Document coverage:
+//   INV-6: L2 heads advance monotonically (sequential timestamp commits)
+//   Step 5: Valid blocks → extend VerifiedDB
+//
 // Properties:
 // P28: Timestamps are processed strictly sequentially (no gaps, no repeats)
 // P29: Valid results are committed
@@ -37,10 +41,7 @@ func FuzzProgressInteropValid(f *testing.F) {
 
 		chainIDs := generateChainIDs(numChains, 10, 10)
 
-		dataDir := t.TempDir()
-
-		// Create a custom Interop with mock logsDBs, mock chains, and real VerifiedDB
-		verifiedDB, err := OpenVerifiedDB(dataDir)
+		verifiedDB, err := OpenVerifiedDB(t.TempDir())
 		require.NoError(t, err)
 		defer verifiedDB.Close()
 
@@ -122,6 +123,10 @@ func FuzzProgressInteropValid(f *testing.F) {
 // FuzzProgressInteropInvalid tests that invalid messages correctly trigger
 // block invalidation through handleResult.
 //
+// Document coverage:
+//   Step 4: Invalid B_j → invalidateBlock called per invalid chain (DenyList addition),
+//           valid chains untouched. After invalidation, can resume at same timestamp.
+//
 // Properties:
 // P29: Invalid results trigger block invalidation via invalidateBlock
 // P31: After invalidation, the interop loop can resume from the same timestamp
@@ -148,8 +153,7 @@ func FuzzProgressInteropInvalid(f *testing.F) {
 
 		chainIDs := generateChainIDs(numChains, 10, 10)
 
-		dataDir := t.TempDir()
-		verifiedDB, err := OpenVerifiedDB(dataDir)
+		verifiedDB, err := OpenVerifiedDB(t.TempDir())
 		require.NoError(t, err)
 		defer verifiedDB.Close()
 
@@ -222,6 +226,7 @@ func FuzzProgressInteropInvalid(f *testing.F) {
 		err = verifiedDB.Commit(validResult)
 		require.NoError(t, err, "P31: should be able to commit at same timestamp after invalid result")
 
+
 		lastTS, initialized := verifiedDB.LastTimestamp()
 		require.True(t, initialized)
 		require.Equal(t, activationTS, lastTS)
@@ -234,6 +239,12 @@ func FuzzProgressInteropInvalid(f *testing.F) {
 
 // FuzzProgressInteropReset tests that Reset correctly rewinds both
 // the logsDB and verifiedDB.
+//
+// Document coverage:
+//   Step 3: C_t reorged out → rollback VerifiedDB (entries after rewindTS deleted),
+//           rollback LogsDB (rewound to block before rewind timestamp),
+//           currentL1 cleared to force re-evaluation.
+//           Can resume committing at rewindTS+1.
 //
 // Properties:
 // P32: Reset correctly rewinds both logsDB and verifiedDB
@@ -254,8 +265,7 @@ func FuzzProgressInteropReset(f *testing.F) {
 		activationTS := uint64(1000)
 		chainID := eth.ChainIDFromUInt64(10)
 
-		dataDir := t.TempDir()
-		verifiedDB, err := OpenVerifiedDB(dataDir)
+		verifiedDB, err := OpenVerifiedDB(t.TempDir())
 		require.NoError(t, err)
 		defer verifiedDB.Close()
 
@@ -279,7 +289,7 @@ func FuzzProgressInteropReset(f *testing.F) {
 		singleChain := []eth.ChainID{chainID}
 		for i := uint64(0); i < numCommits; i++ {
 			ts := activationTS + i
-			err = verifiedDB.Commit(generateVerifiedResult(rng, ts, singleChain))
+			err := verifiedDB.Commit(generateVerifiedResult(rng, ts, singleChain))
 			require.NoError(t, err)
 		}
 
@@ -334,6 +344,9 @@ func FuzzProgressInteropReset(f *testing.F) {
 
 // FuzzHandleResultEmpty tests that empty results are no-ops.
 //
+// Document coverage:
+//   Step 1: When chains not ready, empty result returned → no state change.
+//
 // Properties:
 // P30: Empty results do not modify state
 func FuzzHandleResultEmpty(f *testing.F) {
@@ -343,8 +356,7 @@ func FuzzHandleResultEmpty(f *testing.F) {
 	f.Fuzz(func(t *testing.T, seed int64) {
 		rng := rand.New(rand.NewSource(seed))
 
-		dataDir := t.TempDir()
-		verifiedDB, err := OpenVerifiedDB(dataDir)
+		verifiedDB, err := OpenVerifiedDB(t.TempDir())
 		require.NoError(t, err)
 		defer verifiedDB.Close()
 

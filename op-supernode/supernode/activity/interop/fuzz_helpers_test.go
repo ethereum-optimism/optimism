@@ -11,6 +11,146 @@ import (
 )
 
 // =============================================================================
+// Document Invariant → Fuzz Test Coverage Mapping
+// =============================================================================
+//
+// Reference: Architecture document "Supernode State and Invariants"
+//
+// INVARIANTS (after cross-validation for timestamp t, before t+1):
+//
+// INV-1: ℓ^j_i is the list of logs for block B^j_i (logs match blocks)
+//   → FuzzProcessBlockLogs (P11, P12): Verifies AddLog called per log with correct
+//     indices and parent block. SealBlock called with correct parent hash.
+//   ⚠ Gap: Log content/hash correctness not verified.
+//
+// INV-2: B^j_i is parent of B^j_{i+1} (chain continuity in LogsDB)
+//   → FuzzProcessBlockLogs (P11): Parent hash handling for first block (virtual
+//     parent seal) and subsequent blocks.
+//   ⚠ Gap: Multi-block chain continuity across timestamps not tested.
+//
+// INV-3: Every B^j_i is cross-valid (all executing messages valid, no cycles)
+//   → FuzzVerifyInteropMessagesValid (P1, P3): Valid messages → valid result.
+//   → FuzzVerifyInteropMessagesFails (P2): All 5 invalidation types detected
+//     (unknown source, timestamp violation, expired, conflict, hash mismatch).
+//   → FuzzVerifyExpiryBoundary (P4): Exact expiry boundary correctness.
+//   → FuzzVerifyExpiryOverflow (P4-overflow): Documents uint64 overflow bug in
+//     algo.go:167 (initTS + ExpiryTime wraps, falsely expires valid messages).
+//   → FuzzVerifyMultipleInvalidMessages (P6): Multiple invalid msgs in one block.
+//   → FuzzProgressInteropValid (P28, P29): Valid multi-chain → committed to VerifiedDB.
+//
+// INV-4: C^j_{t_0} = B^j_0 (first verified head = first logsDB block)
+//   ⚠ Not verified: Would require correlating VerifiedDB entries with LogsDB
+//     state at activation timestamp. Mocking strategy pre-seals logsDB.
+//
+// INV-5: C^j_t = B^j_{n_j} (last verified head = last logsDB block)
+//   ⚠ Not verified: Same reason as INV-4 — LogsDB is pre-sealed in fuzz tests.
+//
+// INV-6: C^j_i ∈ {C^j_{i+1}, parent(C^j_{i+1})} (L2 heads monotonic)
+//   → FuzzProgressAndRecordSequential (P13): Sequential timestamps commit correctly.
+//   → FuzzProgressInteropValid (P28): Sequential processing verified via VerifiedDB.
+//   ⚠ Partial: Checks VerifiedDB sequencing, not that L2 head advances by ≤1 block.
+//
+// INV-7: C^j_i is highest block on chain j with timestamp ≤ i
+//   → FuzzProgressAndRecord case 0 (P8): Uses LocalSafeBlockAtTimestamp return value.
+//   ⚠ Partial: Relies on mock returning correct block; doesn't verify the query logic.
+//
+// INV-8: C_{t_0}, ..., C_t on same linear L1 chain (no L1 forks in history)
+//   → FuzzProgressAndRecord case 3 (P11): currentL1 = min of collected L1s.
+//   → FuzzProgressAndRecordSequential (P14): Tracks L1Inclusion across steps.
+//   ⚠ Not verified: Linear chain property (parent links). Only tracks L1 numbers.
+//
+// INV-9: C_i = max(B'_1, ..., B'_k) where B'_j is L1 derivation block of C^j_i
+//   → FuzzProgressAndRecord case 0 (P8): currentL1 = result.L1Inclusion after valid.
+//   → FuzzProgressAndRecordSequential (P14): currentL1 tracks L1Inclusion each step.
+//   ⚠ Partial: Verified at orchestration level; derivation-level max not tested.
+//
+// INV-10: B^j_i ∉ D_j (logsDB/verifiedDB blocks never in DenyList)
+//   ⚠ Not verified: DenyList is inside ChainContainer, fully mocked in fuzz tests.
+//
+// INV-11: ∀B ∈ D_j: timestamp(B) ≤ t+1 (DenyList only has near-future blocks)
+//   ⚠ Not verified: DenyList is inside ChainContainer, fully mocked in fuzz tests.
+//
+// ASSUMPTIONS ON L1/L2 CHAINS:
+//
+// A1: At most one block per chain per timestamp (no duplicate timestamps)
+//   → Implicitly assumed in all tests (one block per chain in BlocksAtTimestamp).
+//
+// A2: L2 reorgs only if L1 reorgs
+//   ⚠ Not tested: Requires L1/L2 reorg simulation beyond interop scope.
+//
+// A3: L2 eventually syncs to L1 (given sufficient time)
+//   → FuzzProgressAndRecord case 3 (P11): Models "not yet synced" via NotFound.
+//
+// A4: DenyList causes deposit-only block replacement
+//   ⚠ Not tested: VirtualNode behavior is outside interop package scope.
+//
+// A5: Queries can return arbitrary results (due to concurrent reorgs)
+//   → FuzzProgressAndRecord cases 4,5 (P12, P15): Error propagation from chain queries.
+//   ⚠ Partial: Tests error paths, not arbitrary-but-plausible results.
+//
+// STATE CHANGES FROM CROSS-VALIDATION:
+//
+// Step 1: For each chain j, get highest block B_j with ts ≤ t+1; wait if not ready
+//   → FuzzProgressAndRecord case 0 (P8): Chains ready → valid result committed.
+//   → FuzzProgressAndRecord case 3 (P11): Chains not ready → no progress, no error.
+//   → FuzzVerifyCanAddTimestamp (P9, P13): Gap detection and activation ts handling.
+//
+// Step 2: Verify B'_j on same linear L1 chain; if not, wait for L2 to sync
+//   → FuzzProgressAndRecord case 3 (P11): currentL1 = min of collected L1s.
+//   ⚠ Not verified: L1 linear chain consistency check across rounds.
+//
+// Step 3: If C_t reorged out → rollback VerifiedDB, prune DenyList, prune LogsDB
+//   → FuzzProgressInteropReset (P32): Reset rewinds logsDB and verifiedDB,
+//     clears currentL1, verifies entries before/after rewind point,
+//     can resume committing at rewindTS+1.
+//   → FuzzVerifiedDBCommitRewind (P16-P18): VerifiedDB rewind invariants.
+//   ⚠ Not verified: DenyList pruning on reorg (DenyList is mocked).
+//
+// Step 4: If any B_j invalid → add to DenyList, reset ChainContainer
+//   → FuzzProgressInteropInvalid (P29): invalidateBlock called per invalid chain,
+//     NOT called for valid chains.
+//   → FuzzProgressInteropInvalid (P31): Can commit at same timestamp after invalidation.
+//   → FuzzProgressAndRecord case 1 (P9): Invalid from verifyFn → invalidateBlock called,
+//     currentL1 unchanged, madeProgress=false.
+//   → FuzzProgressAndRecord case 2 (P10): Invalid from cycleVerifyFn → merged invalids.
+//   → FuzzProgressAndRecord case 6 (P16): invalidateBlock error propagation.
+//   ⚠ Not verified: DenyList addition, VirtualNode destruction/recreation (mocked).
+//
+// Step 5: If all valid → extend VerifiedDB with (t+1, C_{t+1}, C^1_{t+1}, ..., C^k_{t+1})
+//   → FuzzProgressAndRecord case 0 (P8): verifiedDB.Has(ts), currentL1 = L1Inclusion.
+//   → FuzzProgressAndRecordSequential (P13, P14): Sequential multi-step commits.
+//   → FuzzProgressInteropValid (P28, P29): All timestamps committed sequentially.
+//   → FuzzVerifiedDBCommitRewind (P15, P19, P20): Sequential commit enforcement,
+//     error discrimination, JSON round-trip.
+//   → FuzzVerifiedDBFirstCommit: First commit at any timestamp succeeds.
+//   → FuzzVerifiedDBPersistence: Data survives close/reopen (P20).
+//
+// ADDITIONAL PROPERTIES (beyond document invariants):
+//
+// P5:  ErrSkipped path (first block in logsDB)
+//   → FuzzVerifyFirstBlockSkipped: Hash match/mismatch on first sealed block.
+//
+// P7:  Missing chains silently excluded from Result
+//   → FuzzVerifyMissingChains: Chains not in logsDBs not in L2Heads.
+//
+// P17: pauseAtTimestamp prevents progress
+//   → FuzzProgressAndRecord case 7: No progress, no error, verifyFn never called.
+//
+// P30: Empty results are no-ops
+//   → FuzzHandleResultEmpty: Empty result doesn't modify verifiedDB state.
+//
+// P34-P36: Result type algebraic properties
+//   → FuzzResultProperties: IsValid ↔ no InvalidHeads, IsEmpty, ToVerifiedResult.
+//
+// COVERAGE GAPS SUMMARY:
+//   - INV-4, INV-5: VerifiedDB ↔ LogsDB head correspondence (pre-sealed mocks)
+//   - INV-10, INV-11: DenyList invariants (DenyList fully mocked)
+//   - INV-8 (linear L1): Only number tracking, no parent-link verification
+//   - A2, A4: L1/L2 reorg propagation and deposit-only replacement (VirtualNode scope)
+//   - Step 2: L1 linear chain consistency check between consecutive rounds
+//   - Multi-block LogsDB chain continuity (INV-2 across timestamps)
+//
+// =============================================================================
 // Shared fuzz test helpers — reusable generators and builders
 // =============================================================================
 
