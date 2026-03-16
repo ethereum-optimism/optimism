@@ -31,11 +31,11 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
 
     struct ClaimData {
         uint32 parentIndex;
+        ProposalStatus status;
         address challenger;
         address prover;
-        Claim claim;
-        ProposalStatus status;
         Timestamp deadline;
+        Claim claim;
     }
 
     /// @notice Emitted when the game is challenged.

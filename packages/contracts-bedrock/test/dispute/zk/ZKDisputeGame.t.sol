@@ -120,7 +120,7 @@ abstract contract ZKDisputeGame_Init is DisputeGameFactory_TestInit {
         parentGameIndex = uint32(disputeGameFactory.gameCount() - 1);
 
         // We want the parent game to finalize. We'll skip its challenge period.
-        (,,,,, Timestamp parentGameDeadline) = parentGame.claimData();
+        (,,,, Timestamp parentGameDeadline,) = parentGame.claimData();
         vm.warp(parentGameDeadline.raw() + 1 seconds);
         parentGame.resolve();
 
@@ -194,11 +194,11 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_Init {
         // Check the claimData.
         (
             uint32 parentIndex_,
+            ZKDisputeGame.ProposalStatus status_,
             address challenger_,
             address prover_,
-            Claim claim_,
-            ZKDisputeGame.ProposalStatus status_,
-            Timestamp deadline_
+            Timestamp deadline_,
+            Claim claim_
         ) = game.claimData();
 
         assertEq(parentIndex_, parentGameIndex);
@@ -370,7 +370,7 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
         game.resolve();
 
         // Warp forward past the challenge deadline.
-        (,,,,, Timestamp deadline) = game.claimData();
+        (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
 
         // Expect the Resolved event.
@@ -443,7 +443,7 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
         vm.stopPrank();
 
         // Confirm the proposal is in Challenged state.
-        (, address challenger_,,, ZKDisputeGame.ProposalStatus challStatus,) = game.claimData();
+        (, ZKDisputeGame.ProposalStatus challStatus, address challenger_,,,) = game.claimData();
         assertEq(challenger_, challenger);
         assertEq(uint8(challStatus), uint8(ZKDisputeGame.ProposalStatus.Challenged));
 
@@ -453,7 +453,7 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
         vm.stopPrank();
 
         // Confirm the proposal is now ChallengedAndValidProofProvided.
-        (,,,, challStatus,) = game.claimData();
+        (, challStatus,,,,) = game.claimData();
         assertEq(uint8(challStatus), uint8(ZKDisputeGame.ProposalStatus.ChallengedAndValidProofProvided));
         assertEq(uint8(game.status()), uint8(GameStatus.IN_PROGRESS));
 
@@ -485,7 +485,7 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
         vm.stopPrank();
 
         // We must wait for the prove deadline to pass.
-        (,,,,, Timestamp deadline) = game.claimData();
+        (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
 
         // Now we can resolve, resulting in CHALLENGER_WINS.
@@ -552,7 +552,7 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
         vm.stopPrank();
 
         // 3) Warp past the prove deadline.
-        (,,,,, Timestamp gameDeadline) = game.claimData();
+        (,,,, Timestamp gameDeadline,) = game.claimData();
         vm.warp(gameDeadline.raw() + 1);
 
         // 4) The game resolves as CHALLENGER_WINS.
@@ -590,7 +590,7 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_Init {
 contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_Init {
     function test_challenge_alreadyChallenged_reverts() public {
         // Initially unchallenged.
-        (, address challenger_,,, ZKDisputeGame.ProposalStatus status_,) = game.claimData();
+        (, ZKDisputeGame.ProposalStatus status_, address challenger_,,,) = game.claimData();
         assertEq(challenger_, address(0));
         assertEq(uint8(status_), uint8(ZKDisputeGame.ProposalStatus.Unchallenged));
 
@@ -614,7 +614,7 @@ contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_Init {
         game.challenge{ value: 1 ether }();
         vm.stopPrank();
 
-        (, address challenger_,,,,) = game.claimData();
+        (,, address challenger_,,,) = game.claimData();
         assertEq(challenger_, anyChallenger);
     }
 }
@@ -630,7 +630,7 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_Init {
         vm.stopPrank();
 
         // Move time forward beyond the prove period.
-        (,,,,, Timestamp deadline) = game.claimData();
+        (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
 
         vm.startPrank(prover);
@@ -653,7 +653,7 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_Init {
 /// @notice Tests for claimCredit functionality of ZKDisputeGame.
 contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_Init {
     function test_claimCredit_notFinalized_reverts() public {
-        (,,,,, Timestamp deadline) = game.claimData();
+        (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
         game.resolve();
 
@@ -674,7 +674,7 @@ contract ZKDisputeGame_CloseGame_Test is ZKDisputeGame_Init {
 
     function test_closeGame_paused_reverts() public {
         // Resolve the game first
-        (,,,,, Timestamp deadline) = game.claimData();
+        (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
         game.resolve();
 
@@ -692,7 +692,7 @@ contract ZKDisputeGame_CloseGame_Test is ZKDisputeGame_Init {
     }
 
     function test_closeGame_updatesAnchorGame_succeeds() public {
-        (,,,,, Timestamp deadline) = game.claimData();
+        (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
         game.resolve();
 

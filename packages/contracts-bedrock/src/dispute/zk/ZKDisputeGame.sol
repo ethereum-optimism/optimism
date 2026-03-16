@@ -71,12 +71,12 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
     struct ClaimData {
-        uint32 parentIndex;
-        address challenger;
-        address prover;
-        Claim claim;
-        ProposalStatus status;
-        Timestamp deadline;
+        uint32 parentIndex;       // 4 bytes  \
+        ProposalStatus status;    // 1 byte    |-- slot 1 (25 bytes)
+        address challenger;       // 20 bytes /
+        address prover;           // 20 bytes \
+        Timestamp deadline;       // 8 bytes  /-- slot 2 (28 bytes)
+        Claim claim;              // 32 bytes --- slot 3
     }
 
     ////////////////////////////////////////////////////////////////
@@ -342,11 +342,11 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // Set the root claim
         claimData = ClaimData({
             parentIndex: parentIndex(),
+            status: ProposalStatus.Unchallenged,
             challenger: address(0),
             prover: address(0),
-            claim: rootClaim(),
-            status: ProposalStatus.Unchallenged,
-            deadline: Timestamp.wrap(uint64(block.timestamp + maxChallengeDuration().raw()))
+            deadline: Timestamp.wrap(uint64(block.timestamp + maxChallengeDuration().raw())),
+            claim: rootClaim()
         });
 
         // Set the game as initialized.
