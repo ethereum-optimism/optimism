@@ -209,7 +209,7 @@ coverage-lcov-all *ARGS:
 # Env Vars:
 # - L2_FORK_RPC_URL must be set to an L2 RPC URL.
 # - L2_FORK_BLOCK_NUMBER can be set in the env to pin a block (defaults to latest).
-prepare-l2-upgrade-env *ARGS: build-go-ffi
+prepare-l2-upgrade-env *ARGS:
   #!/bin/bash
   set -euo pipefail
   export L2_FORK_TEST=true
@@ -222,14 +222,9 @@ prepare-l2-upgrade-env *ARGS: build-go-ffi
 # Runs L2 fork upgrade tests.
 # Usage: L2_FORK_RPC_URL=<url> just test-l2-fork-upgrade [ARGS]
 test-l2-fork-upgrade *ARGS:
-  #!/bin/bash
-  if [ -n "$JUNIT_TEST_PATH" ]; then
-    just prepare-l2-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""
-  else
-    just prepare-l2-upgrade-env "forge test {{ARGS}}"
-  fi
+  just prepare-l2-upgrade-env "just test {{ARGS}}"
 
-test-l2-fork-upgrade-rerun *ARGS: build-go-ffi
+test-l2-fork-upgrade-rerun *ARGS:
   just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
 
 ########################################################

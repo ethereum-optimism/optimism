@@ -3114,22 +3114,9 @@ workflows:
           filters:
             branches:
               only: develop
-      # On PRs, run L2 fork tests with lite profile
+      # Always run L2 fork tests with ci profile
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork op-mainnet
-          fork_op_chain: op-mainnet
-          l2_fork_rpc: https://op-mainnet-rpc.optimism.io/
-          l2_fork_block_number: latest
-          test_profile: liteci
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-          filters:
-            branches:
-              ignore: develop
-      # On develop, run L2 fork tests with ci profile
-      - contracts-bedrock-tests-l2-fork:
-          name: contracts-bedrock-tests-l2-fork-develop op-mainnet
           fork_op_chain: op-mainnet
           l2_fork_rpc: https://op-mainnet-rpc.optimism.io/
           l2_fork_block_number: latest
@@ -3137,9 +3124,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-          filters:
-            branches:
-              only: develop
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
