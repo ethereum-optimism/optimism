@@ -897,6 +897,7 @@ func (m *algoMockChain) Stop(ctx context.Context) error                   { retu
 func (m *algoMockChain) Pause(ctx context.Context) error                  { return nil }
 func (m *algoMockChain) Resume(ctx context.Context) error                 { return nil }
 func (m *algoMockChain) RegisterVerifier(v activity.VerificationActivity) {}
+func (m *algoMockChain) VerifierCurrentL1s() []eth.BlockID                { return nil }
 func (m *algoMockChain) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }

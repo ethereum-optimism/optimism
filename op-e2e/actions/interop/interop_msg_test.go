@@ -6,15 +6,15 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -449,7 +449,7 @@ func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	txB.Content.DependOn(&txA.Result)
 
 	// Single event in tx so index is 0
-	txB.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &txA.Result, 0))
+	txB.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &txA.Result, 0))
 
 	actors.ChainB.Sequencer.ActL2StartBlock(t)
 	_, err = txB.PlannedTx.Included.Eval(t.Ctx())
@@ -509,7 +509,7 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	txB.Content.DependOn(&txA.Result)
 
 	// Single event in tx so index is 0
-	txB.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &txA.Result, 0))
+	txB.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &txA.Result, 0))
 
 	actors.ChainB.Sequencer.ActL2StartBlock(t)
 	_, err = txB.PlannedTx.Included.Eval(t.Ctx())
@@ -636,7 +636,7 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 			execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB)
 
 			// Single event in every tx so index is always 0
-			execTx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initTx.Result, 0))
+			execTx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initTx.Result, 0))
 			execTx.Content.DependOn(&initTx.Result)
 
 			includedBlock, err := execTx.PlannedTx.IncludedBlock.Eval(t.Ctx())
@@ -710,7 +710,7 @@ func TestExpiredMessage(gt *testing.T) {
 	txB.Content.DependOn(&txA.Result)
 
 	// Single event in tx so index is 0
-	txB.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &txA.Result, 0))
+	txB.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &txA.Result, 0))
 
 	actors.ChainB.Sequencer.ActL2StartBlock(t)
 	_, err = txB.PlannedTx.Included.Eval(t.Ctx())
@@ -783,7 +783,7 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 
 	// Intent to execute message X on chain B
 	tx1 := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB)
-	tx1.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx0.Result, 0))
+	tx1.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &tx0.Result, 0))
 	tx1.Content.DependOn(&tx0.Result)
 
 	_, err = tx1.PlannedTx.Submitted.Eval(t.Ctx())
@@ -805,7 +805,7 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	// override nonce
 	optsA = txplan.Combine(optsA, txplan.WithStaticNonce(nonce+1))
 	tx3 := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsA)
-	tx3.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx2.Result, 0))
+	tx3.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &tx2.Result, 0))
 	tx3.Content.DependOn(&tx2.Result)
 
 	_, err = tx3.PlannedTx.Submitted.Eval(t.Ctx())
@@ -887,7 +887,7 @@ func ExecTriggerFromInitTrigger(init *txintent.InitTrigger, logIndex uint, targe
 	if x := len(output.Entries); x <= int(logIndex) {
 		return nil, fmt.Errorf("invalid index: %d, only have %d events", logIndex, x)
 	}
-	return &txintent.ExecTrigger{Executor: constants.CrossL2Inbox, Msg: output.Entries[logIndex]}, nil
+	return &txintent.ExecTrigger{Executor: predeploys.CrossL2InboxAddr, Msg: output.Entries[logIndex]}, nil
 }
 
 // TestCrossPatternSameTx tests below scenario:
@@ -940,10 +940,10 @@ func TestCrossPatternSameTx(gt *testing.T) {
 
 	// Intent to initiate message X and execute message Y at chain A
 	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsA)
-	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: callsA})
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: callsA})
 	// Intent to initiate message Y and execute message X at chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsB)
-	txB.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: callsB})
+	txB.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: callsB})
 
 	includedA, err := txA.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
@@ -962,14 +962,14 @@ func TestCrossPatternSameTx(gt *testing.T) {
 	// confirm speculatively built exec message X by rebuilding after txA inclusion
 	_, err = txA.Result.Eval(t.Ctx())
 	require.NoError(t, err)
-	multiTriggerA, err := txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, []int{int(logIndexX)})(t.Ctx())
+	multiTriggerA, err := txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, []int{int(logIndexX)})(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, multiTriggerA.Calls[logIndexX], execX)
 
 	// confirm speculatively built exec message Y by rebuilding after txB inclusion
 	_, err = txB.Result.Eval(t.Ctx())
 	require.NoError(t, err)
-	multiTriggerB, err := txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txB.Result, []int{int(logIndexY)})(t.Ctx())
+	multiTriggerB, err := txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txB.Result, []int{int(logIndexY)})(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, multiTriggerB.Calls[logIndexY], execY)
 
@@ -1021,7 +1021,7 @@ func TestCycleInTx(gt *testing.T) {
 
 	// Intent to execute message X and initiate message X at chain A
 	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsA)
-	tx.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: calls})
+	tx.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: calls})
 
 	included, err := tx.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
@@ -1033,7 +1033,7 @@ func TestCycleInTx(gt *testing.T) {
 	// confirm speculatively built exec message by rebuilding after tx inclusion
 	_, err = tx.Result.Eval(t.Ctx())
 	require.NoError(t, err)
-	exec2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx.Result, int(logIndexX))(t.Ctx())
+	exec2, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &tx.Result, int(logIndexX))(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, exec2, exec)
 
@@ -1129,7 +1129,7 @@ func TestCycleInBlock(gt *testing.T) {
 	_, err = tx.Result.Eval(t.Ctx())
 	require.NoError(t, err)
 	// log index is 0 because tx emitted a single log
-	exec2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx.Result, 0)(t.Ctx())
+	exec2, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &tx.Result, 0)(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, exec2, exec)
 
@@ -1224,14 +1224,14 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	_, err = tx2.Result.Eval(t.Ctx())
 	require.NoError(t, err)
 	// log index is 0 because tx emitted a single log
-	execX2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx2.Result, 0)(t.Ctx())
+	execX2, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &tx2.Result, 0)(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, execX2, execX)
 	tx3 := intents[3]
 	_, err = tx3.Result.Eval(t.Ctx())
 	require.NoError(t, err)
 	// log index is 0 because tx emitted a single log
-	execY2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx3.Result, 0)(t.Ctx())
+	execY2, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &tx3.Result, 0)(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, execY2, execY)
 
@@ -1288,10 +1288,10 @@ func TestCycleAcrossChainsSameTx(gt *testing.T) {
 
 	// tx0 executes message X, then initiates message Y
 	tx0 := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsA)
-	tx0.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: []txintent.Call{execX, initY}})
+	tx0.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: []txintent.Call{execX, initY}})
 	// tx1 executes message Y, then initiates message X
 	tx1 := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsB)
-	tx1.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: []txintent.Call{execY, initX}})
+	tx1.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: []txintent.Call{execY, initX}})
 
 	included0, err := tx0.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
@@ -1307,12 +1307,12 @@ func TestCycleAcrossChainsSameTx(gt *testing.T) {
 	// confirm speculatively built exec message by rebuilding after tx inclusion
 	_, err = tx0.Result.Eval(t.Ctx())
 	require.NoError(t, err)
-	execY2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx0.Result, int(logIndexY))(t.Ctx())
+	execY2, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &tx0.Result, int(logIndexY))(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, execY2, execY)
 	_, err = tx1.Result.Eval(t.Ctx())
 	require.NoError(t, err)
-	execX2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx1.Result, int(logIndexX))(t.Ctx())
+	execX2, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &tx1.Result, int(logIndexX))(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, execX2, execX)
 
@@ -1343,7 +1343,7 @@ func TestExecMsgPointToSelf(gt *testing.T) {
 
 	// manually construct identifier which makes exec message point to itself
 	identifier := suptypes.Identifier{
-		Origin:      constants.CrossL2Inbox,
+		Origin:      predeploys.CrossL2InboxAddr,
 		BlockNumber: targetNum,
 		LogIndex:    uint32(0), // tx will emit single ExecutingMessage event to set log index as 0
 		Timestamp:   targetTime,
@@ -1354,7 +1354,7 @@ func TestExecMsgPointToSelf(gt *testing.T) {
 	payloadHash := testutils.RandomHash(rng)
 	message := suptypes.Message{Identifier: identifier, PayloadHash: payloadHash}
 
-	exec := &txintent.ExecTrigger{Executor: constants.CrossL2Inbox, Msg: message}
+	exec := &txintent.ExecTrigger{Executor: predeploys.CrossL2InboxAddr, Msg: message}
 	// txintent for executing message pointing to itself
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsA)
 	tx.Content.Set(exec)

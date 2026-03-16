@@ -81,13 +81,13 @@ interface IPolicyEngineStaking is ISemver {
     function PE_DATA_SLOT() external view returns (bytes32);
 
     /// @notice Returns Policy Engine data for an account.
-    function peData(address _account) external view returns (uint128 effectiveStake_, uint128 lastUpdate_);
+    function peData(address account) external view returns (uint128 effectiveStake, uint128 lastUpdate);
 
     /// @notice Returns allowlist entry for a beneficiary-staker pair.
-    function allowlist(address _beneficiary, address _staker) external view returns (bool allowed_);
+    function allowlist(address beneficiary, address staker) external view returns (bool allowed);
 
     /// @notice Returns staking data for an account.
-    function stakingData(address _account) external view returns (uint128 stakedAmount_, address beneficiary_);
+    function stakingData(address account) external view returns (uint128 stakedAmount, address beneficiary);
 
     /// @notice Returns the ERC20 token used for staking.
     function stakingToken() external view returns (IERC20);

@@ -18,20 +18,18 @@ import (
 
 type Supervisor struct {
 	commonImpl
-	inner   stack.Supervisor
-	control stack.ControlPlane
+	inner stack.Supervisor
 }
 
-func NewSupervisor(inner stack.Supervisor, control stack.ControlPlane) *Supervisor {
+func NewSupervisor(inner stack.Supervisor) *Supervisor {
 	return &Supervisor{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
-		control:    control,
 	}
 }
 
 func (s *Supervisor) String() string {
-	return s.inner.ID().String()
+	return s.inner.Name()
 }
 
 func (s *Supervisor) Escape() stack.Supervisor {
@@ -212,11 +210,15 @@ func (s *Supervisor) FetchSuperRootAtTimestamp(timestamp uint64) eth.SuperRootRe
 }
 
 func (s *Supervisor) Start() {
-	s.control.SupervisorState(s.inner.ID(), stack.Start)
+	lifecycle, ok := s.inner.(stack.Lifecycle)
+	s.require.Truef(ok, "supervisor %s is not lifecycle-controllable", s.inner.Name())
+	lifecycle.Start()
 }
 
 func (s *Supervisor) Stop() {
-	s.control.SupervisorState(s.inner.ID(), stack.Stop)
+	lifecycle, ok := s.inner.(stack.Lifecycle)
+	s.require.Truef(ok, "supervisor %s is not lifecycle-controllable", s.inner.Name())
+	lifecycle.Stop()
 }
 
 func (s *Supervisor) AddManagedL2CL(cl *L2CLNode) {

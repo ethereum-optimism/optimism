@@ -345,6 +345,13 @@ where
             return false;
         }
 
+        // Do not include transactions in the first Karst block.
+        // See: `<https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst>`
+        if self.rollup_config.is_first_karst_block(attributes.payload_attributes.timestamp) {
+            info!(target: "sequencer", "Sequencing karst upgrade block");
+            return false;
+        }
+
         // Do not include transactions in the first Interop block.
         if self.rollup_config.is_first_interop_block(attributes.payload_attributes.timestamp) {
             info!(target: "sequencer", "Sequencing interop upgrade block");

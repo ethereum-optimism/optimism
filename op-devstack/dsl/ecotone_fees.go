@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -45,7 +44,7 @@ func NewEcotoneFees(t devtest.T, l2Network *L2Network) *EcotoneFees {
 }
 
 func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) EcotoneFeesValidationResult {
-	client := ef.l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()
+	client := ef.l2Network.PrimaryEL().EthClient()
 
 	startBalance := from.GetBalance()
 	vaultsBefore := ef.getVaultBalances(client)

@@ -126,6 +126,10 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
 
         standardVersionsToml = standardVersionsToml.replace('"op-contracts/v2.0.0-rc.1"', "RELEASE");
 
+        // Read the extra addresses JSON file which contains addresses no longer in the chain TOML.
+        string memory addressesJson = vm.readFile("./lib/superchain-registry/superchain/extra/addresses/addresses.json");
+        string memory chainId = vm.toString(vm.parseTomlUint(opToml, ".chain_id"));
+
         // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts
         artifacts.save("L2ChainId", address(uint160(vm.parseTomlUint(opToml, ".chain_id"))));
         // Superchain shared contracts
@@ -136,7 +140,7 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         );
 
         // Core contracts
-        artifacts.save("ProxyAdmin", vm.parseTomlAddress(opToml, ".addresses.ProxyAdmin"));
+        artifacts.save("ProxyAdmin", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".ProxyAdmin")));
         saveProxyAndImpl("SystemConfig", opToml, ".addresses.SystemConfigProxy");
 
         // Bridge contracts
@@ -153,27 +157,32 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
             console.log("ForkLive: ETHLockboxProxy not found");
         }
 
-        address addressManager = vm.parseTomlAddress(opToml, ".addresses.AddressManager");
+        address addressManager = vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".AddressManager"));
         artifacts.save("AddressManager", addressManager);
         artifacts.save(
             "L1CrossDomainMessengerImpl", IAddressManager(addressManager).getAddress("OVM_L1CrossDomainMessenger")
         );
         artifacts.save(
-            "L1CrossDomainMessengerProxy", vm.parseTomlAddress(opToml, ".addresses.L1CrossDomainMessengerProxy")
+            "L1CrossDomainMessengerProxy",
+            vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".L1CrossDomainMessengerProxy"))
         );
-        saveProxyAndImpl("OptimismMintableERC20Factory", opToml, ".addresses.OptimismMintableERC20FactoryProxy");
+        saveProxyAndImplFromJson(
+            "OptimismMintableERC20Factory", addressesJson, chainId, "OptimismMintableERC20FactoryProxy"
+        );
         saveProxyAndImpl("L1StandardBridge", opToml, ".addresses.L1StandardBridgeProxy");
-        saveProxyAndImpl("L1ERC721Bridge", opToml, ".addresses.L1ERC721BridgeProxy");
+        saveProxyAndImplFromJson("L1ERC721Bridge", addressesJson, chainId, "L1ERC721BridgeProxy");
 
         // Fault proof proxied contracts
-        saveProxyAndImpl("AnchorStateRegistry", opToml, ".addresses.AnchorStateRegistryProxy");
+        saveProxyAndImplFromJson("AnchorStateRegistry", addressesJson, chainId, "AnchorStateRegistryProxy");
         saveProxyAndImpl("DisputeGameFactory", opToml, ".addresses.DisputeGameFactoryProxy");
 
         // Fault proof non-proxied contracts
         // For chains that don't have a permissionless game, we save the dispute game and WETH
         // addresses as the zero address.
-        artifacts.save("PreimageOracle", vm.parseTomlAddress(opToml, ".addresses.PreimageOracle"));
-        artifacts.save("MipsSingleton", vm.parseTomlAddress(opToml, ".addresses.MIPS"));
+        artifacts.save(
+            "PreimageOracle", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".PreimageOracle"))
+        );
+        artifacts.save("MipsSingleton", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".MIPS")));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
 
@@ -389,6 +398,27 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
     /// @param _tomlKey The key in the superchain config file to get the proxy address
     function saveProxyAndImpl(string memory _contractName, string memory _tomlPath, string memory _tomlKey) internal {
         address proxy = vm.parseTomlAddress(_tomlPath, _tomlKey);
+        artifacts.save(string.concat(_contractName, "Proxy"), proxy);
+
+        address impl = EIP1967Helper.getImplementation(proxy);
+        require(impl != address(0), "Upgrade: Implementation address is zero");
+        artifacts.save(string.concat(_contractName, "Impl"), impl);
+    }
+
+    /// @notice Saves the proxy and implementation addresses from the extra addresses JSON file.
+    /// @param _contractName The name of the contract to save
+    /// @param _json The JSON string containing addresses
+    /// @param _chainId The chain ID string to index into the JSON
+    /// @param _jsonKey The key in the JSON to get the proxy address
+    function saveProxyAndImplFromJson(
+        string memory _contractName,
+        string memory _json,
+        string memory _chainId,
+        string memory _jsonKey
+    )
+        internal
+    {
+        address proxy = vm.parseJsonAddress(_json, string.concat("$.", _chainId, ".", _jsonKey));
         artifacts.save(string.concat(_contractName, "Proxy"), proxy);
 
         address impl = EIP1967Helper.getImplementation(proxy);

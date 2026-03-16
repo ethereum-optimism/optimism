@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 
 // Libraries
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Claim, Duration, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
 import {
     BadAuth,
@@ -77,6 +78,7 @@ abstract contract OptimisticZkGame_TestInit is DisputeGameFactory_TestInit {
 
     function setUp() public virtual override {
         super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         skipIfForkTest("Skip not supported yet");
 
         // Get anchor state to calculate valid sequence numbers

@@ -232,7 +232,7 @@ contract DeploySuperchain is Script {
         vm.stopPrank();
 
         require(actualSuperchainConfigImpl == address(_output.superchainConfigImpl), "100"); // nosemgrep:
-            // sol-style-malformed-require
+        // sol-style-malformed-require
         require(actualProtocolVersionsImpl == address(_output.protocolVersionsImpl), "200"); // nosemgrep:
             // sol-style-malformed-require
     }

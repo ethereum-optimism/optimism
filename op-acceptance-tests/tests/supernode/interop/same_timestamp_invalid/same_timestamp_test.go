@@ -46,12 +46,15 @@ func TestSupernodeSameTimestampCycle(gt *testing.T) {
 	sys := presets.NewTwoL2SupernodeInterop(t, 0).ForSameTimestampTesting(t)
 	rng := rand.New(rand.NewSource(55555))
 
-	pairA := sys.PrepareInitA(rng, 0)
-	pairB := sys.PrepareInitB(rng, 0)
+	// Create the actual cycle shape: each chain executes the other chain's init
+	// before emitting its own init in the same block. That means the init lands at
+	// log index 1, not 0.
+	pairA := sys.PrepareInitA(rng, 1)
+	pairB := sys.PrepareInitB(rng, 1)
 
 	sys.IncludeAndValidate(
-		[]*txplan.PlannedTx{pairA.SubmitInit(), pairB.SubmitExecTo(sys.Alice)},
-		[]*txplan.PlannedTx{pairB.SubmitInit(), pairA.SubmitExecTo(sys.Bob)},
+		[]*txplan.PlannedTx{pairB.SubmitExecTo(sys.Alice), pairA.SubmitInit()},
+		[]*txplan.PlannedTx{pairA.SubmitExecTo(sys.Bob), pairB.SubmitInit()},
 		true, true, // both replaced (cycle detected)
 	)
 }

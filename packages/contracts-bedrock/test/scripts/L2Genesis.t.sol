@@ -48,10 +48,9 @@ abstract contract L2Genesis_TestInit is Test {
         // Verify owner in the implementation to catch storage shifting issues
         // The implementation is stored in the code namespace
         address proxyAdminImpl = Predeploys.predeployToCodeNamespace(Predeploys.PROXY_ADMIN);
+
         assertEq(
-            input.opChainProxyAdminOwner,
-            IL2ProxyAdmin(proxyAdminImpl).owner(),
-            "ProxyAdmin implementation owner should match expected"
+            IL2ProxyAdmin(proxyAdminImpl).owner(), address(0), "ProxyAdmin implementation owner should match expected"
         );
     }
 

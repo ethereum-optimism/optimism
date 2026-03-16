@@ -146,3 +146,60 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 		require.NotNil(t, err)
 	})
 }
+
+func TestSuperNodeClient_SyncStatus(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		ctx := context.Background()
+		rpc := new(mockRPC)
+		defer rpc.AssertExpectations(t)
+		client := NewSuperNodeClient(rpc)
+
+		chainA := eth.ChainIDFromUInt64(1)
+		chainB := eth.ChainIDFromUInt64(2)
+		expected := eth.SuperNodeSyncStatusResponse{
+			Chains: map[eth.ChainID]eth.SyncStatus{
+				chainA: {
+					CurrentL1:     eth.L1BlockRef{Number: 100},
+					UnsafeL2:      eth.L2BlockRef{Number: 10, Time: 200},
+					CrossUnsafeL2: eth.L2BlockRef{Number: 9, Time: 190},
+					LocalSafeL2:   eth.L2BlockRef{Number: 9, Time: 175},
+					SafeL2:        eth.L2BlockRef{Number: 8, Time: 160},
+					FinalizedL2:   eth.L2BlockRef{Number: 6, Time: 120},
+				},
+				chainB: {
+					CurrentL1:     eth.L1BlockRef{Number: 100},
+					UnsafeL2:      eth.L2BlockRef{Number: 11, Time: 210},
+					CrossUnsafeL2: eth.L2BlockRef{Number: 10, Time: 200},
+					LocalSafeL2:   eth.L2BlockRef{Number: 9, Time: 170},
+					SafeL2:        eth.L2BlockRef{Number: 8, Time: 160},
+					FinalizedL2:   eth.L2BlockRef{Number: 5, Time: 100},
+				},
+			},
+			CurrentL1:          eth.BlockID{Number: 100},
+			ChainIDs:           []eth.ChainID{chainA, chainB},
+			SafeTimestamp:      160,
+			LocalSafeTimestamp: 170,
+			FinalizedTimestamp: 100,
+		}
+		rpc.On("CallContext", ctx, new(eth.SuperNodeSyncStatusResponse),
+			"supernode_syncStatus", []any(nil)).Run(func(args mock.Arguments) {
+			*args[1].(*eth.SuperNodeSyncStatusResponse) = expected
+		}).Return([]error{nil})
+
+		result, err := client.SyncStatus(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, result)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		ctx := context.Background()
+		rpc := new(mockRPC)
+		defer rpc.AssertExpectations(t)
+		client := NewSuperNodeClient(rpc)
+
+		rpc.On("CallContext", ctx, new(eth.SuperNodeSyncStatusResponse),
+			"supernode_syncStatus", []any(nil)).Return([]error{errors.New("boom")})
+		_, err := client.SyncStatus(ctx)
+		require.Error(t, err)
+	})
+}

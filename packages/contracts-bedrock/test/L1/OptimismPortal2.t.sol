@@ -18,7 +18,6 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 import "src/dispute/lib/Types.sol";
@@ -2628,68 +2627,84 @@ contract OptimismPortal2_Params_Test is CommonTest {
         // Get the set system gas limit
         uint64 gasLimit = systemConfig.gasLimit();
 
+        // Bind _elasticityMultiplier first so we can round _maxResourceLimit by construction
+        // rather than filtering with vm.assume (which previously rejected ~97.6% of inputs).
+        _elasticityMultiplier = uint8(bound(_elasticityMultiplier, 1, type(uint8).max));
+        _baseFeeMaxChangeDenominator = uint8(bound(_baseFeeMaxChangeDenominator, 2, type(uint8).max));
+
         // Bound resource config
         _systemTxMaxGas = uint32(bound(_systemTxMaxGas, 0, gasLimit - 21000));
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, MAX_GAS_LIMIT / 8));
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, gasLimit - _systemTxMaxGas));
         _maximumBaseFee = uint128(bound(_maximumBaseFee, 1, type(uint128).max));
         _minimumBaseFee = uint32(bound(_minimumBaseFee, 0, _maximumBaseFee - 1));
+
+        // Round _maxResourceLimit to the nearest multiple of _elasticityMultiplier.
+        // This guarantees divisibility by construction, replacing the vm.assume filter.
+        // Formal equivalence proof: https://gist.github.com/smartcontracts/b0030421b51e305066abacfec0c0b57b
+        _maxResourceLimit = uint32((_maxResourceLimit / _elasticityMultiplier) * _elasticityMultiplier);
+
+        // Rounding can push _maxResourceLimit below 21000 in rare edge cases (e.g., e=255,
+        // r_pre=21000 → r=20910). Filter those out with a targeted vm.assume.
+        vm.assume(_maxResourceLimit >= 21000);
+
+        // Re-bound _gasLimit and _prevBoughtGas from the rounded _maxResourceLimit so that
+        // the invariants _gasLimit ≤ _maxResourceLimit and _prevBoughtGas ≤ _maxResourceLimit - _gasLimit
+        // are preserved after rounding.
         _gasLimit = uint64(bound(_gasLimit, 21000, _maxResourceLimit));
         _gasLimit = uint64(bound(_gasLimit, 0, gasLimit));
-        _prevBaseFee = uint128(bound(_prevBaseFee, 0, 3 gwei));
         _prevBoughtGas = uint64(bound(_prevBoughtGas, 0, _maxResourceLimit - _gasLimit));
         _blockDiff = uint8(bound(_blockDiff, 0, 3));
-        _baseFeeMaxChangeDenominator = uint8(bound(_baseFeeMaxChangeDenominator, 2, type(uint8).max));
-        _elasticityMultiplier = uint8(bound(_elasticityMultiplier, 1, type(uint8).max));
 
         // Prevent values that would cause reverts
         vm.assume(uint256(_maxResourceLimit) + uint256(_systemTxMaxGas) <= gasLimit);
-        vm.assume(((_maxResourceLimit / _elasticityMultiplier) * _elasticityMultiplier) == _maxResourceLimit);
-
-        // Although we typically want to limit the usage of vm.assume, we've constructed the above
-        // bounds to satisfy the assumptions listed in this specific section. These assumptions
-        // serve only to act as an additional sanity check on top of the bounds and should not
-        // result in an unnecessary number of test rejections.
         vm.assume(gasLimit >= _gasLimit);
         vm.assume(_minimumBaseFee < _maximumBaseFee);
 
         // Base fee can increase quickly and mean that we can't buy the amount of gas we want.
-        // Here we add a VM assumption to bound the potential increase.
-        // Compute the maximum possible increase in base fee.
-        uint256 maxPercentIncrease = uint256(_elasticityMultiplier - 1) * 100 / uint256(_baseFeeMaxChangeDenominator);
-
-        // Assume that we have enough gas to burn.
-        // Compute the maximum amount of gas we'd need to burn.
-        // Assume we need 1/5 of our gas to do other stuff.
-        vm.assume(_prevBaseFee * maxPercentIncrease * _gasLimit / 100 < MAX_GAS_LIMIT * 4 / 5);
+        // Replace the gas burn vm.assume with a direct bound on _prevBaseFee.
+        // For m > 0: p*m/100 < T ↔ p ≤ (100*T - 1)/m  (proved in FuzzProof.lean, GasBurnEquivalence).
+        // For m = 0: gas burn is always 0 < T, so no cap needed.
+        // Scoped to free stack slots for the assertions below (lite profile, no via-IR).
+        {
+            uint256 maxPercentIncrease =
+                uint256(_elasticityMultiplier - 1) * 100 / uint256(_baseFeeMaxChangeDenominator);
+            uint256 gasBurnDenom = maxPercentIncrease * uint256(_gasLimit);
+            uint256 gasBurnCap = gasBurnDenom == 0 ? 3 gwei : (uint256(MAX_GAS_LIMIT) * 4 / 5 * 100 - 1) / gasBurnDenom;
+            _prevBaseFee = uint128(bound(_prevBaseFee, 0, gasBurnCap < 3 gwei ? gasBurnCap : 3 gwei));
+        }
 
         // Pick a pseudorandom block number
         vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max) + uint256(_blockDiff));
 
-        // Create a resource config to mock the call to the system config with
-        IResourceMetering.ResourceConfig memory rcfg = IResourceMetering.ResourceConfig({
-            maxResourceLimit: _maxResourceLimit,
-            elasticityMultiplier: _elasticityMultiplier,
-            baseFeeMaxChangeDenominator: _baseFeeMaxChangeDenominator,
-            minimumBaseFee: _minimumBaseFee,
-            systemTxMaxGas: _systemTxMaxGas,
-            maximumBaseFee: _maximumBaseFee
-        });
-        vm.mockCall(address(systemConfig), abi.encodeCall(systemConfig.resourceConfig, ()), abi.encode(rcfg));
+        // Create a resource config to mock the call to the system config with.
+        // Scoped to free stack slots before the params() destructuring below.
+        {
+            IResourceMetering.ResourceConfig memory rcfg = IResourceMetering.ResourceConfig({
+                maxResourceLimit: _maxResourceLimit,
+                elasticityMultiplier: _elasticityMultiplier,
+                baseFeeMaxChangeDenominator: _baseFeeMaxChangeDenominator,
+                minimumBaseFee: _minimumBaseFee,
+                systemTxMaxGas: _systemTxMaxGas,
+                maximumBaseFee: _maximumBaseFee
+            });
+            vm.mockCall(address(systemConfig), abi.encodeCall(systemConfig.resourceConfig, ()), abi.encode(rcfg));
+        }
 
-        // Set the resource params
-        uint256 _prevBlockNum = block.number - _blockDiff;
-        vm.store(
-            address(optimismPortal2),
-            bytes32(uint256(1)),
-            bytes32((_prevBlockNum << 192) | (uint256(_prevBoughtGas) << 128) | _prevBaseFee)
-        );
-
-        // Ensure that the storage setting is correct
-        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal2.params();
-        assertEq(prevBaseFee, _prevBaseFee);
-        assertEq(prevBoughtGas, _prevBoughtGas);
-        assertEq(prevBlockNum, _prevBlockNum);
+        // Set the resource params and verify storage is correct.
+        // Scoped to keep _prevBlockNum and the params() tuple off the outer stack.
+        {
+            uint256 _prevBlockNum = block.number - _blockDiff;
+            vm.store(
+                address(optimismPortal2),
+                bytes32(uint256(1)),
+                bytes32((_prevBlockNum << 192) | (uint256(_prevBoughtGas) << 128) | _prevBaseFee)
+            );
+            (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal2.params();
+            assertEq(prevBaseFee, _prevBaseFee);
+            assertEq(prevBoughtGas, _prevBoughtGas);
+            assertEq(prevBlockNum, _prevBlockNum);
+        }
 
         // Do a deposit, should not revert
         optimismPortal2.depositTransaction{ gas: MAX_GAS_LIMIT }({

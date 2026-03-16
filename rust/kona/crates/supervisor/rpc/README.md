@@ -1,1 +1,0 @@
-## `kona-supervisor-rpc`

@@ -1,6 +1,7 @@
 package l2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
@@ -210,7 +211,7 @@ func (o *OracleBackedL2Chain) StateAt(root common.Hash) (*state.StateDB, error) 
 	return stateDB, nil
 }
 
-func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block, makeWitness bool) (*stateless.Witness, error) {
+func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(ctx context.Context, block *types.Block, makeWitness bool) (*stateless.Witness, error) {
 	processor, err := engineapi.NewBlockProcessorFromHeader(o, block.Header())
 	if err != nil {
 		return nil, err

@@ -98,9 +98,6 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when a staticcall to a validator getter fails.
     error VerifyOPCM_ValidatorCallFailed(string sig);
 
-    /// @notice Thrown when _findChar is called with a multi-character string.
-    error VerifyOPCM_MustBeSingleChar();
-
     /// @notice Preamble used for blueprint contracts.
     bytes constant BLUEPRINT_PREAMBLE = hex"FE7100";
 
@@ -290,6 +287,11 @@ contract VerifyOPCM is Script {
     /// @param _addr Address of the contract to verify.
     /// @param _skipConstructorVerification Whether to skip constructor verification.
     function runSingle(string memory _name, address _addr, bool _skipConstructorVerification) public {
+        // Make sure the setup function has been called.
+        if (!ready) {
+            setUp();
+        }
+
         // This function is used as part of the release checklist to verify new contracts.
         // Rather than requiring an opcm input parameter, just pass in an empty reference
         // as we really only need this for features that are in development.
@@ -1603,22 +1605,5 @@ contract VerifyOPCM is Script {
         (bool ok, bytes memory data) = _validator.staticcall(abi.encodeWithSignature(_sig));
         if (!ok) revert VerifyOPCM_ValidatorCallFailed(_sig);
         return abi.decode(data, (bytes32));
-    }
-
-    /// @notice Finds the position of a character in a string.
-    /// @param _str The string to search.
-    /// @param _char The character to find (as a single-char string).
-    /// @return The index of the first occurrence, or string length if not found.
-    function _findChar(string memory _str, string memory _char) internal pure returns (uint256) {
-        bytes memory strBytes = bytes(_str);
-        bytes memory charBytes = bytes(_char);
-        if (charBytes.length != 1) revert VerifyOPCM_MustBeSingleChar();
-        bytes1 target = charBytes[0];
-        for (uint256 i = 0; i < strBytes.length; i++) {
-            if (strBytes[i] == target) {
-                return i;
-            }
-        }
-        return strBytes.length;
     }
 }

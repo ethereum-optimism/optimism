@@ -6,12 +6,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 )
 
 func TestSmoke(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newSystem(t)
 	require := t.Require()
 	dgf := sys.DisputeGameFactory()
 

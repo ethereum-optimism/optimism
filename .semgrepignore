@@ -22,3 +22,4 @@ rust/op-alloy/book/
 
 # Op-reth test contracts (not production Solidity code)
 rust/op-reth/crates/tests/
+rust/op-reth/tests/

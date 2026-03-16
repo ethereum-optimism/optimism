@@ -5,14 +5,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestExecuteStep_Cannon(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newSystem(t)
 
 	l1User := sys.FunderL1.NewFundedEOA(eth.ThousandEther)
 	blockNum := uint64(3)
@@ -29,7 +28,7 @@ func TestExecuteStep_Cannon(gt *testing.T) {
 
 func TestExecuteStep_CannonKona(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimal(t)
+	sys := newSystem(t)
 
 	l1User := sys.FunderL1.NewFundedEOA(eth.ThousandEther)
 	blockNum := uint64(3)

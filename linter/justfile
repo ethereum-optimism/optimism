@@ -1,0 +1,21 @@
+import '../justfiles/go.just'
+
+BIN := "bin/op-golangci-lint"
+
+# Build the custom linter (only if sources changed)
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p bin
+    if ../justfiles/uptodate.sh "{{BIN}}" analyzers .custom-gcl.yml; then
+        echo "{{BIN}} is up to date"
+        exit 0
+    fi
+    golangci-lint custom -v
+
+# Run tests
+test: (go_test "./...")
+
+# Clean build artifacts
+clean:
+    rm -rf bin

@@ -30,6 +30,12 @@ library L2ContractsManagerTypes {
         address bridge;
     }
 
+    /// @notice Configuration for OptimismMintableERC721Factory.
+    struct MintableERC721FactoryConfig {
+        address bridge;
+        uint256 remoteChainID;
+    }
+
     /// @notice Configuration for a FeeVault contract.
     struct FeeVaultConfig {
         address recipient;
@@ -56,6 +62,7 @@ library L2ContractsManagerTypes {
         StandardBridgeConfig standardBridge;
         ERC721BridgeConfig erc721Bridge;
         MintableERC20FactoryConfig mintableERC20Factory;
+        MintableERC721FactoryConfig mintableERC721Factory;
         FeeVaultConfig sequencerFeeVault;
         FeeVaultConfig baseFeeVault;
         FeeVaultConfig l1FeeVault;

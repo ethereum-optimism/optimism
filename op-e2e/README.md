@@ -17,8 +17,8 @@ for those tests where we integration-test the full system, rather than only spec
 ## Quickstart
 
 ```bash
-make test-actions
-make test-ws
+just test-actions
+just test-ws
 ```
 
 ## Overview
@@ -44,7 +44,7 @@ make test-ws
 Bindings for a contract can be generated (or updated) using
 
 ```
-make gen-binding CONTRACT=OPContractsManager
+just gen-binding OPContractsManager
 ```
 
 

@@ -196,7 +196,7 @@ func (j *Job) Seal(ctx context.Context) (work.Block, error) {
 
 	j.logger.Info("about to insert payload into the chain", "envelope-hash", envelope.ExecutionPayload.BlockHash, "txs", len(envelope.ExecutionPayload.Transactions))
 
-	_, err := j.b.engine.NewPayloadV4(*envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+	_, err := j.b.engine.NewPayloadV4(ctx, *envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 	if err != nil {
 		j.logger.Error("failed to insert built L1 block", "err", err)
 		return nil, err

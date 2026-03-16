@@ -1,0 +1,118 @@
+import '../justfiles/go.just'
+
+# Build ldflags string
+_VERSION_META_STR := if VERSION_META != "" { "+" + VERSION_META } else { "" }
+_LDFLAGSSTRING := "'" + trim(
+    "-X main.GitCommit=" + GITCOMMIT + " " + \
+    "-X main.GitDate=" + GITDATE + " " + \
+    "-X github.com/ethereum-optimism/optimism/cannon/multicannon/version.Version=" + VERSION + " " + \
+    "-X github.com/ethereum-optimism/optimism/cannon/multicannon/version.Meta=" + _VERSION_META_STR + " " + \
+    "") + "'"
+
+# The MIPS64 r2 opcodes not supported by cannon (excludes coprocessor-specific and trap opcodes)
+UNSUPPORTED_OPCODES := "(dclo|dclz|madd|maddu|seb|seh|wsbh|dsbh|dshd|ins|dins|dinsm|dinsu|ext|dext|dextu|dextm|rotr|drotr|drotr32|rotrv|drotrv|break|sdbbp|pref)"
+
+CANNON64_FUZZTIME := "20s"
+
+# Build cannon binary (default target — must remain first recipe)
+cannon: cannon-embeds
+    env GO111MODULE=on GOOS={{TARGETOS}} GOARCH={{TARGETARCH}} go build -v -ldflags {{_LDFLAGSSTRING}} -o ./bin/cannon ./multicannon/
+
+# Build cannon64-impl binary (note: does NOT use CGO_ENABLED=0)
+cannon64-impl:
+    env GO111MODULE=on GOOS={{TARGETOS}} GOARCH={{TARGETARCH}} go build -v -ldflags {{_LDFLAGSSTRING}} -o ./bin/cannon64-impl .
+
+# Build cannon embeds (used by scripts/build-legacy-cannons.sh)
+# Each embed is suffixed with the latest StateVersion number for the target VM and architecture
+cannon-embeds: cannon64-impl
+    @cp bin/cannon64-impl ./multicannon/embeds/cannon-8
+
+# Clean build artifacts
+clean:
+    rm -rf bin multicannon/embeds/cannon*
+
+# Build ELF test binaries
+elf:
+    just ./testdata/elf
+
+# Build ELF test binaries for current Go version
+elf-go-current:
+    just ./testdata/go-1-24/elf
+
+# Check guest program for unsupported MIPS instructions
+sanitize-program:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mips-linux-gnu-objdump -d -j .text "$GUEST_PROGRAM" > ./bin/dump.txt
+    if ! { cat ./bin/dump.txt | awk '{print $3}' | grep -Ew -m1 "{{UNSUPPORTED_OPCODES}}"; }; then
+        echo "guest program is sanitized for unsupported instructions"
+    else
+        echo "found unsupported instructions in the guest program"
+        exit 1
+    fi
+
+# Build contracts
+contract:
+    cd ../packages/contracts-bedrock && forge build
+
+# Run tests
+test: elf contract
+    @just go_test "./..."
+
+# Compare cannon output against OTHER_CANNON for a given VM type
+diff-cannon VM: cannon elf-go-current
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VM="{{VM}}"
+    echo "Running diff for VM type ${VM}"
+    # Load an elf file to create a prestate, and check that both cannon versions generate the same prestate
+    $OTHER_CANNON load-elf --type "$VM" --path ./testdata/go-1-24/bin/hello.64.elf --out ./bin/prestate-other.bin.gz --meta ""
+    ./bin/cannon   load-elf --type "$VM" --path ./testdata/go-1-24/bin/hello.64.elf --out ./bin/prestate.bin.gz --meta ""
+    cmp ./bin/prestate-other.bin.gz ./bin/prestate.bin.gz
+    if [ $? -eq 0 ]; then
+        echo "Generated identical prestates"
+    else
+        echo "Generated different prestates"
+        exit 1
+    fi
+    # Run cannon and check that both cannon versions produce identical states
+    $OTHER_CANNON run --proof-at '=0' --stop-at '=100000000' --input=./bin/prestate.bin.gz --output ./bin/out-other.bin.gz --meta ""
+    ./bin/cannon   run --proof-at '=0' --stop-at '=100000000' --input=./bin/prestate.bin.gz --output ./bin/out.bin.gz --meta ""
+    cmp ./bin/out-other.bin.gz ./bin/out.bin.gz
+    if [ $? -eq 0 ]; then
+        echo "Generated identical post-states"
+    else
+        echo "Generated different post-states"
+        exit 1
+    fi
+
+# Verify cannon STF via Docker
+cannon-stf-verify:
+    @docker build --progress plain -f Dockerfile.diff ../
+
+# Lint (cannon is linted via the root lint-go target; this is a CI compatibility stub)
+lint:
+    @echo "cannon lint is handled by the root lint-go target"
+
+# Run fuzz tests in parallel
+fuzz:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    FUZZLDFLAGS=""
+    if [ "$(uname)" = "Darwin" ]; then
+        FUZZLDFLAGS="-ldflags=-extldflags=-Wl,-ld_classic"
+    fi
+    printf "%s\n" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzMulOp ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzMultOp ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzMultuOp ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStateSyscallBrk ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStateSyscallMmap ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStateSyscallExitGroup ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStateSyscallFcntl ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStateHintRead ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStatePreimageRead ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStateHintWrite ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStatePreimageWrite ./mipsevm/tests" \
+        "go test $FUZZLDFLAGS -run NOTAREALTEST -v -fuzztime {{CANNON64_FUZZTIME}} -fuzz=FuzzStateSyscallCloneMT ./mipsevm/tests" \
+    | parallel -j 8 {}

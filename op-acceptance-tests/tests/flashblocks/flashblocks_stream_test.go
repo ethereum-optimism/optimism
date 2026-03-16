@@ -11,10 +11,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +53,6 @@ func TestFlashblocksStream(gt *testing.T) {
 
 	logger.Info("Flashblocks stream rate", "rate", flashblocksStreamRateMs)
 
-	// Test all L2 chains in the system
 	oprbuilderNode := sys.L2OPRBuilder
 	rollupBoostNode := sys.L2RollupBoost
 	_, span = tracer.Start(ctx, "test chain")
@@ -64,17 +61,13 @@ func TestFlashblocksStream(gt *testing.T) {
 	expectedChainID := sys.L2Chain.ChainID().ToBig()
 	require.Equal(t, oprbuilderNode.Escape().ChainID().ToBig(), expectedChainID, "flashblocks builder node chain id should match expected chain id")
 
-	driveViaTestSequencer(t, sys, 3)
+	DriveViaTestSequencer(t, sys, 3)
 
-	// Test the presence / absence of a flashblocks stream operating at a 250ms rate from a flashblocks-websocket-proxy node.
-	// Allow a generous window for first flashblocks to appear.
 	testDuration := time.Duration(int64(flashblocksStreamRateMs*maxExpectedFlashblocks*2)) * time.Millisecond
-	// Allow up to 15% of expected flashblocks to be missing due to timing variations
 	failureTolerance := int(0.15 * float64(maxExpectedFlashblocks))
 
 	logger.Debug("Test duration", "duration", testDuration, "failure tolerance (of flashblocks)", failureTolerance)
 
-	// Instrument builder stream separately to confirm flashblocks emission upstream.
 	builderOutput := make(chan []byte, maxExpectedFlashblocks)
 	defer close(builderOutput)
 	builderDone := make(chan struct{})
@@ -122,27 +115,6 @@ func TestFlashblocksStream(gt *testing.T) {
 	logger.Info("Flashblocks stream validation completed", "total_flashblocks_produced", totalFlashblocksProduced)
 }
 
-// driveViaTestSequencer explicitly builds a few blocks to ensure the builder/rollup-boost
-// have payloads to serve before we start listening for flashblocks.
-func driveViaTestSequencer(t devtest.T, sys *presets.SingleChainWithFlashblocks, count int) {
-	t.Helper()
-	ts := sys.TestSequencer.Escape().ControlAPI(sys.L2Chain.ChainID())
-	ctx := t.Ctx()
-
-	head := sys.L2EL.BlockRefByLabel(eth.Unsafe)
-	for i := 0; i < count; i++ {
-		require.NoError(t, ts.New(ctx, seqtypes.BuildOpts{Parent: head.Hash}))
-		require.NoError(t, ts.Next(ctx))
-		head = sys.L2EL.BlockRefByLabel(eth.Unsafe)
-	}
-	// Ensure the sequencer EL has produced at least one unsafe block before subscribing.
-	sys.L2EL.WaitForBlockNumber(1)
-
-	// Log the latest unsafe head and L1 origin to confirm block production before listening.
-	head = sys.L2EL.BlockRefByLabel(eth.Unsafe)
-	sys.Log.Info("Pre-listen unsafe head", "unsafe", head)
-}
-
 func evaluateFlashblocksStream(t devtest.T, logger log.Logger, streamedMessages []string, failureTolerance int) int {
 	require.Greater(t, len(streamedMessages), 0, "should have received at least one message from WebSocket")
 	flashblocks := make([]Flashblock, len(streamedMessages))
@@ -181,13 +153,12 @@ func evaluateFlashblocksStream(t devtest.T, logger log.Logger, streamedMessages 
 		require.Greater(t, lastIndex, -1, "some bug: last index should be greater than -1 by now")
 		require.Greater(t, currentIndex, -1, "some bug: current index should be greater than -1 by now")
 
-		// same block number, just the flashblock incremented
 		if currentBlockNumber == lastBlockNumber {
 			require.Greater(t, currentIndex, lastIndex, "some bug: current index should be greater than last index from the stream")
 
 			totalFlashblocksProduced += (currentIndex - lastIndex)
-		} else if currentBlockNumber > lastBlockNumber { // new block number
-			totalFlashblocksProduced += (currentIndex + 1) // assuming it's a new block number whose flashblocks begin from 0th-index
+		} else if currentBlockNumber > lastBlockNumber {
+			totalFlashblocksProduced += (currentIndex + 1)
 		}
 
 		lastIndex = currentIndex

@@ -6,8 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -47,8 +45,8 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 		}
 		post := func(t devtest.T, sys *node_utils.MinimalWithTestSequencersPreset) {
 			for i, elNode := range sys.L2ELNodes() {
-				require.False(t, elNode.IsCanonical(unsafeRef[i].ID()), "Previous unsafe block should have been reorged", "elNode", elNode.ID(), "unsafeRef", unsafeRef[i].ID())
-				require.False(t, elNode.IsCanonical(localSafeRef[i].ID()), "Previous local-safe block should have been reorged", "elNode", elNode.ID(), "localSafeRef", localSafeRef[i].ID())
+				require.False(t, elNode.IsCanonical(unsafeRef[i].ID()), "Previous unsafe block should have been reorged", "elNode", elNode.String(), "unsafeRef", unsafeRef[i].ID())
+				require.False(t, elNode.IsCanonical(localSafeRef[i].ID()), "Previous local-safe block should have been reorged", "elNode", elNode.String(), "localSafeRef", localSafeRef[i].ID())
 			}
 		}
 		testL2ReorgAfterL1Reorg(gt, 20, pre, post)
@@ -66,11 +64,9 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	sys := node_utils.NewMixedOpKonaWithTestSequencer(t)
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
 
-	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
-
 	sys.L1Network.WaitForBlock()
 
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Stop)
+	sys.L1CL.Stop()
 
 	// sequence a few L1 and L2 blocks
 	for range n + 1 {
@@ -102,7 +98,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	sequenceL1Block(t, ts, divergence.ParentHash)
 
 	// continue building on the alternative L1 chain
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
+	sys.L1CL.Start()
 
 	// confirm L1 reorged
 	sys.L1EL.ReorgTriggered(divergence, 5)
