@@ -515,8 +515,15 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice Claim the credit belonging to the recipient address. Uses a two-phase
     ///         DelayedWETH withdrawal pattern: first call unlocks, second call withdraws.
+    ///         Does not revert if the recipient has no credit (even if they have no credit at all).
+    ///         This lets op-challenger use claimCredit to close the game.
     /// @param _recipient The owner and recipient of the credit.
     function claimCredit(address _recipient) external {
+        // Track whether the game was already closed before this call. If closeGame() sets
+        // bondDistributionMode in this transaction and we later find nothing to claim, we must
+        // return instead of revert so that the closeGame() state changes are not rolled back.
+        bool gameWasOpen = (bondDistributionMode == BondDistributionMode.UNDECIDED);
+
         // Close out the game and determine the bond distribution mode if not already set.
         closeGame();
 
@@ -544,7 +551,13 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // Phase 2: Credits have been zeroed (phase 1 completed). Check DelayedWETH for a
         // pending withdrawal and finalize it.
         (uint256 amount,) = weth().withdrawals(address(this), _recipient);
-        if (amount == 0) revert NoCreditToClaim();
+        if (amount == 0) {
+            // If the game was just closed in this transaction, return without reverting so
+            // the closeGame() state changes persist. This is the intended path for callers
+            // (e.g. op-challenger) that use claimCredit solely to close the game.
+            if (gameWasOpen) return;
+            revert NoCreditToClaim();
+        }
 
         // Withdraw the WETH amount so it can be used here.
         weth().withdraw(_recipient, amount);
