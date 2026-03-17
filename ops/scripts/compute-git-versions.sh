@@ -13,28 +13,17 @@ set -euo pipefail
 
 GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse HEAD)}"
 
-IMAGES=(
-  "op-node"
-  "op-batcher"
-  "op-deployer"
-  "op-faucet"
-  "op-program"
-  "op-proposer"
-  "op-challenger"
-  "op-dispute-mon"
-  "op-conductor"
-  "da-server"
-  "op-supervisor"
-  "op-supernode"
-  "op-test-sequencer"
-  "cannon"
-  "op-dripper"
-  "op-interop-mon"
-  "op-reth"
-  "kona-node"
-  "kona-host"
-  "kona-client"
-)
+# Read image list from the single source of truth
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+IMAGES_JSON="$REPO_ROOT/.github/docker-images.json"
+
+if [ ! -f "$IMAGES_JSON" ]; then
+  echo "Error: $IMAGES_JSON not found" >&2
+  exit 1
+fi
+
+mapfile -t IMAGES < <(jq -r '.images | keys[]' "$IMAGES_JSON" | sort)
 
 echo "Checking git tags pointing at $GIT_COMMIT:" >&2
 tags_at_commit=$(git tag --points-at "$GIT_COMMIT" || true)
