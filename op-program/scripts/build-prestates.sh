@@ -106,7 +106,7 @@ EOF
 
   rm -rf "${BIN_DIR}"
   rm -rf rust/kona/prestate-artifacts-*
-  if [ -f justfile ]; then
+  if [ -f justfile ] && just --show reproducible-prestate &>/dev/null; then
     just reproducible-prestate >> "${log_file}" 2>&1
   else
     make reproducible-prestate >> "${log_file}" 2>&1
