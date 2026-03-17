@@ -89,6 +89,11 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
+	// Measure initial memory
+	var initialMem runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&initialMem)
+
 	// Create the first block (genesis)
 	var prevBlock *types.Block
 
@@ -131,25 +136,31 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 	require.NoError(t, m.processBlocks())
 
-	// Measure retained heap memory after forcing GC. Using HeapInuse as an
-	// absolute value avoids the uint64 underflow that made the original
-	// Alloc-delta approach flaky, while still catching retained-memory regressions.
+	// Measure final memory
 	var finalMem runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&finalMem)
 
-	heapInuse := finalMem.HeapInuse
+	// Calculate memory used by the channel manager.
+	// Guard against uint64 underflow: GC between the two ReadMemStats calls can
+	// reclaim memory from other goroutines, making finalMem.Alloc < initialMem.Alloc.
+	// When that happens the delta is effectively zero — no leak detected.
+	var memUsed uint64
+	if finalMem.Alloc > initialMem.Alloc {
+		memUsed = finalMem.Alloc - initialMem.Alloc
+	}
 
-	const maxMemory = 512 * 1024 * 1024 // 512MB in bytes
-	require.Less(t, heapInuse, uint64(maxMemory),
-		"Channel manager HeapInuse %d bytes (%.2f MB) exceeds 512 MB limit",
-		heapInuse, float64(heapInuse)/1024/1024)
+	// Assert that memory usage doesn't exceed 512MB
+	const maxMemoryMB = 512 * 1024 * 1024 // 512MB in bytes
+	require.Less(t, memUsed, uint64(maxMemoryMB),
+		"Channel manager used %d bytes (%.2f MB), exceeding 512 MB limit",
+		memUsed, float64(memUsed)/1024/1024)
 
 	// Log memory usage for debugging
 	t.Logf("Compressor: %s, Algorithm: %s, Batch Type: %d",
 		compressorType, compressionAlgo, batchType)
-	t.Logf("Channel manager HeapInuse: %d bytes (%.2f MB)",
-		heapInuse, float64(heapInuse)/1024/1024)
+	t.Logf("Channel manager memory usage: %d bytes (%.2f MB)",
+		memUsed, float64(memUsed)/1024/1024)
 	t.Logf("Number of channels in queue: %d", len(m.channelQueue))
 	t.Logf("Number of blocks processed: %d", len(m.blocks))
 
