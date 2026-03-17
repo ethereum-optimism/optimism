@@ -21,6 +21,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	rpcRetryAttempts = 3
+	rpcRetryDelay    = 2 * time.Second
+	rpcCallTimeout   = 60 * time.Second
+)
+
+// retryRPCCall retries an RPC call function on transient errors (timeouts, connection resets).
+func retryRPCCall(t *testing.T, description string, fn func() error) {
+	t.Helper()
+	var err error
+	for attempt := range rpcRetryAttempts {
+		err = fn()
+		if err == nil {
+			return
+		}
+		errStr := err.Error()
+		transient := strings.Contains(errStr, "timeout") ||
+			strings.Contains(errStr, "connection reset") ||
+			strings.Contains(errStr, "EOF") ||
+			strings.Contains(errStr, "429") ||
+			strings.Contains(errStr, "i/o timeout") ||
+			strings.Contains(errStr, "TLS handshake") ||
+			strings.Contains(errStr, "context deadline exceeded")
+		if !transient {
+			break
+		}
+		t.Logf("attempt %d/%d for %s failed with transient error: %v; retrying in %v",
+			attempt+1, rpcRetryAttempts, description, err, rpcRetryDelay)
+		time.Sleep(rpcRetryDelay)
+	}
+	require.NoError(t, err, "failed after %d attempts: %s", rpcRetryAttempts, description)
+}
+
+// dialRPCWithRetry dials an RPC endpoint with retry logic for transient failures.
+func dialRPCWithRetry(t *testing.T, rpcURL string) *rpc.Client {
+	t.Helper()
+	var client *rpc.Client
+	retryRPCCall(t, fmt.Sprintf("dial %s", rpcURL), func() error {
+		var err error
+		client, err = rpc.Dial(rpcURL)
+		return err
+	})
+	return client
+}
+
 func TestValidatorAddress(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -116,6 +161,8 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 		standard.ContractsV600Tag,
 	}
 
+	rpcClient := dialRPCWithRetry(t, rpcURL)
+
 	for _, semver := range contractVersions {
 		version, ok := stdVersDefs[validation.Semver(semver)]
 		require.True(t, ok, "version %s not found in registry", semver)
@@ -124,19 +171,23 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 		require.NoError(t, err, "failed to get validator address for %s", semver)
 		require.NotEqual(t, common.Address{}, address, "validator address is zero for %s", semver)
 
-		rpcClient, err := rpc.Dial(rpcURL)
-		require.NoError(t, err)
-
 		t.Run(semver, func(t *testing.T) {
 			testStandardVersion(t, address, rpcClient, version, semver)
 		})
 	}
 }
 
-func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Client, version validation.VersionConfig, semverTag string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+// w3CallWithRetry wraps a w3 client call with retry logic for transient RPC errors.
+func w3CallWithRetry(t *testing.T, w3c *w3.Client, description string, callers ...w3types.RPCCaller) {
+	t.Helper()
+	retryRPCCall(t, description, func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), rpcCallTimeout)
+		defer cancel()
+		return w3c.CallCtx(ctx, callers...)
+	})
+}
 
+func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Client, version validation.VersionConfig, semverTag string) {
 	w3c := w3.NewClient(rpcClient)
 
 	// Semver tags from the registry include the "op-contracts/" prefix.
@@ -167,17 +218,11 @@ func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Cl
 		for _, field := range implFields {
 			implGetterFn := w3.MustNewFunc(fmt.Sprintf("%s()", field.implGetter), "address")
 			var implAddrBytes []byte
-			require.NoError(
-				t,
-				w3c.CallCtx(
-					ctx,
-					eth.Call(&w3types.Message{
-						To:   &address,
-						Func: implGetterFn,
-					}, nil, nil).Returns(&implAddrBytes),
-				),
-				"failed to call %s",
-				field.implGetter,
+			w3CallWithRetry(t, w3c, field.implGetter,
+				eth.Call(&w3types.Message{
+					To:   &address,
+					Func: implGetterFn,
+				}, nil, nil).Returns(&implAddrBytes),
 			)
 
 			var implAddr common.Address
@@ -185,17 +230,11 @@ func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Cl
 			require.NotEqual(t, common.Address{}, implAddr, "implementation address is zero for %s", field.implGetter)
 
 			var versionBytes []byte
-			require.NoError(
-				t,
-				w3c.CallCtx(
-					ctx,
-					eth.Call(&w3types.Message{
-						To:   &implAddr,
-						Func: versionFn,
-					}, nil, nil).Returns(&versionBytes),
-				),
-				"failed to call version() on %s implementation",
-				field.implGetter,
+			w3CallWithRetry(t, w3c, fmt.Sprintf("version() on %s impl", field.implGetter),
+				eth.Call(&w3types.Message{
+					To:   &implAddr,
+					Func: versionFn,
+				}, nil, nil).Returns(&versionBytes),
 			)
 
 			var outVersion string
@@ -205,16 +244,11 @@ func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Cl
 
 		preimageOracleVersionFn := w3.MustNewFunc("preimageOracleVersion()", "string")
 		var preimageOracleVersionBytes []byte
-		require.NoError(
-			t,
-			w3c.CallCtx(
-				ctx,
-				eth.Call(&w3types.Message{
-					To:   &address,
-					Func: preimageOracleVersionFn,
-				}, nil, nil).Returns(&preimageOracleVersionBytes),
-			),
-			"failed to call preimageOracleVersion",
+		w3CallWithRetry(t, w3c, "preimageOracleVersion",
+			eth.Call(&w3types.Message{
+				To:   &address,
+				Func: preimageOracleVersionFn,
+			}, nil, nil).Returns(&preimageOracleVersionBytes),
 		)
 
 		var preimageOracleVersion string
@@ -243,17 +277,11 @@ func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Cl
 		for _, field := range fields {
 			fn := w3.MustNewFunc(fmt.Sprintf("%s()", field.getter), "string")
 			var outBytes []byte
-			require.NoError(
-				t,
-				w3c.CallCtx(
-					ctx,
-					eth.Call(&w3types.Message{
-						To:   &address,
-						Func: fn,
-					}, nil, nil).Returns(&outBytes),
-				),
-				"failed to call %s",
-				field.getter,
+			w3CallWithRetry(t, w3c, field.getter,
+				eth.Call(&w3types.Message{
+					To:   &address,
+					Func: fn,
+				}, nil, nil).Returns(&outBytes),
 			)
 
 			var outVersion string
