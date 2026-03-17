@@ -39,9 +39,9 @@ func retryRPCCall(t *testing.T, description string, fn func() error) {
 		errStr := err.Error()
 		transient := strings.Contains(errStr, "timeout") ||
 			strings.Contains(errStr, "connection reset") ||
+			strings.Contains(errStr, "connection refused") ||
 			strings.Contains(errStr, "EOF") ||
 			strings.Contains(errStr, "429") ||
-			strings.Contains(errStr, "i/o timeout") ||
 			strings.Contains(errStr, "TLS handshake") ||
 			strings.Contains(errStr, "context deadline exceeded")
 		if !transient {
@@ -49,7 +49,9 @@ func retryRPCCall(t *testing.T, description string, fn func() error) {
 		}
 		t.Logf("attempt %d/%d for %s failed with transient error: %v; retrying in %v",
 			attempt+1, rpcRetryAttempts, description, err, rpcRetryDelay)
-		time.Sleep(rpcRetryDelay)
+		if attempt < rpcRetryAttempts-1 {
+			time.Sleep(rpcRetryDelay)
+		}
 	}
 	require.NoError(t, err, "failed after %d attempts: %s", rpcRetryAttempts, description)
 }
