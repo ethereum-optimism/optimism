@@ -183,21 +183,6 @@ library ChainAssertions {
         require(address(_bridge.systemConfig()) == address(0), "CHECK-L1SB-110");
     }
 
-    /// @notice Asserts that the DisputeGameFactory is setup correctly
-    function checkDisputeGameFactory(
-        IDisputeGameFactory _factory,
-        address _expectedOwner,
-        address _permissionedDisputeGame,
-        bool _isProxy
-    )
-        internal
-        view
-    {
-        checkDisputeGameFactory(
-            _factory, _expectedOwner, _permissionedDisputeGame, _isProxy, GameTypes.PERMISSIONED_CANNON
-        );
-    }
-
     /// @notice Asserts that the DisputeGameFactory is setup correctly with a specific game type.
     function checkDisputeGameFactory(
         IDisputeGameFactory _factory,

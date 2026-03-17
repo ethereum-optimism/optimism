@@ -325,8 +325,11 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(
             IOptimismMintableERC20Factory(impls.OptimismMintableERC20Factory)
         );
+        GameType permGameType = DevFeatures.isDevFeatureEnabled(
+            cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
+        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
-            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false
+            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
         );
         ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
         ChainAssertions.checkMIPS({
