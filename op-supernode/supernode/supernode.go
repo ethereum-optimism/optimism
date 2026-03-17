@@ -29,19 +29,20 @@ import (
 )
 
 type Supernode struct {
-	log          gethlog.Logger
-	version      string
-	requestStop  context.CancelCauseFunc
-	stopped      bool
-	cfg          *config.CLIConfig
-	chains       map[eth.ChainID]cc.ChainContainer
-	activities   []activity.Activity
-	rootRPC      *oprpc.Handler
-	wg           sync.WaitGroup
-	l1Client     *sources.L1Client
-	beaconClient *sources.L1BeaconClient
-	httpServer   *httputil.HTTPServer
-	rpcRouter    *resources.Router
+	log             gethlog.Logger
+	version         string
+	requestStop     context.CancelCauseFunc
+	stopped         bool
+	cfg             *config.CLIConfig
+	chains          map[eth.ChainID]cc.ChainContainer
+	activities      []activity.Activity
+	rootRPC         *oprpc.Handler
+	wg              sync.WaitGroup
+	lifecycleCancel context.CancelFunc // canceled in Stop() to unblock goroutines from Start()
+	l1Client        *sources.L1Client
+	beaconClient    *sources.L1BeaconClient
+	httpServer      *httputil.HTTPServer
+	rpcRouter       *resources.Router
 	// Metrics router/server for per-chain metrics
 	metrics      *resources.MetricsService
 	metricsFanIn *resources.MetricsFanIn
@@ -123,6 +124,15 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 
 func (s *Supernode) Start(ctx context.Context) error {
 	s.log.Info("supernode starting", "version", s.version)
+
+	// Create a lifecycle context that is canceled in Stop(). This ensures that
+	// goroutines spawned below will exit even if Stop() wins the race and runs
+	// before the goroutine has been scheduled. Without this, an activity's
+	// Start(ctx) could block forever if its Stop() was already called (and
+	// found cancel == nil) before Start() had a chance to initialize.
+	var lifecycleCtx context.Context
+	lifecycleCtx, s.lifecycleCancel = context.WithCancel(ctx)
+
 	if s.httpServer != nil {
 		s.wg.Add(1)
 		go func() {
@@ -161,7 +171,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 			s.wg.Add(1)
 			go func(run activity.RunnableActivity) {
 				defer s.wg.Done()
-				err := run.Start(ctx)
+				err := run.Start(lifecycleCtx)
 				activityName := a.Name()
 				switch err {
 				case nil:
@@ -181,7 +191,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 		s.wg.Add(1)
 		go func(chainID eth.ChainID, chain cc.ChainContainer) {
 			defer s.wg.Done()
-			if err := chain.Start(ctx); err != nil {
+			if err := chain.Start(lifecycleCtx); err != nil {
 				s.log.Error("error starting chain", "chain_id", chainID.String(), "error", err)
 			}
 		}(chainID, chain)
@@ -192,6 +202,15 @@ func (s *Supernode) Start(ctx context.Context) error {
 func (s *Supernode) Stop(ctx context.Context) error {
 	s.log.Info("supernode stopping")
 	s.stopped = true
+
+	// Cancel the lifecycle context before anything else. This guarantees that
+	// activity and chain goroutines will observe a canceled context even if
+	// they haven't been scheduled yet when the individual Stop() calls below
+	// execute. The individual Stop() calls are still made for orderly cleanup,
+	// but the lifecycle cancellation is the backstop that prevents hangs.
+	if s.lifecycleCancel != nil {
+		s.lifecycleCancel()
+	}
 
 	// Stop RPC server first, then close router resources
 	if s.httpServer != nil {

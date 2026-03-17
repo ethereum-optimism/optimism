@@ -46,7 +46,7 @@ func NewRetryProxy(lgr log.Logger, upstream string, opts ...Option) *RetryProxy 
 		upstream:   upstream,
 		client:     &http.Client{},
 		strategy:   strategy,
-		maxRetries: 5,
+		maxRetries: 10,
 	}
 
 	for _, opt := range opts {
@@ -57,28 +57,31 @@ func NewRetryProxy(lgr log.Logger, upstream string, opts ...Option) *RetryProxy 
 }
 
 func (p *RetryProxy) Start() error {
+	readyC := make(chan struct{}, 1)
 	errC := make(chan error, 1)
 
 	go func() {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			errC <- fmt.Errorf("failed to listen: %w", err)
+			return
 		}
 
 		p.listenPort = ln.Addr().(*net.TCPAddr).Port
+		readyC <- struct{}{}
 
 		p.srv = &http.Server{
-			Addr:    "127.0.0.1:0",
 			Handler: p,
 		}
-		errC <- p.srv.Serve(ln)
+		if err := p.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			p.lgr.Error("server exited with error", "err", err)
+		}
 	}()
 
-	timer := time.NewTimer(100 * time.Millisecond)
 	select {
 	case err := <-errC:
-		return fmt.Errorf("failed to start server: %w", err)
-	case <-timer.C:
+		return err
+	case <-readyC:
 		p.lgr.Info("server started", "port", p.listenPort)
 		return nil
 	}
@@ -114,7 +117,7 @@ func (p *RetryProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	//nolint:bodyClose
 	res, resBody, err := retry.Do2(r.Context(), p.maxRetries, p.strategy, func() (*http.Response, []byte, error) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 		res, err := p.doProxyReq(ctx, reqBody)
 		if err != nil {

@@ -9,7 +9,7 @@
 !/op-deployer
 !/op-dripper
 !/op-challenger
-!/packages/contracts-bedrock/snapshots
+!/packages/contracts-bedrock
 !/op-dispute-mon
 !/op-conductor
 !/op-node

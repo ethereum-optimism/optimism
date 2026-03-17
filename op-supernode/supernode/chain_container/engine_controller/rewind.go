@@ -128,12 +128,18 @@ func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blo
 	syntheticHash, _ := newEnvelope.CheckBlockHash() // ignore "ok" since we know it won't match
 	newPayload.BlockHash = syntheticHash
 
+	e.log.Info("inserting synthetic payload", "blockNumber", blockNumber, "parentHash", newPayload.ParentHash, "syntheticHash", syntheticHash)
 	status, err := e.l2.NewPayload(ctx, &newPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("%w: %w", ErrRewindInsertSyntheticFailed, err)
 	}
 	if status.Status != eth.ExecutionValid {
-		return common.Hash{}, fmt.Errorf("%w: status=%s", ErrRewindSyntheticPayloadRejected, status.Status)
+		validationErr := ""
+		if status.ValidationError != nil {
+			validationErr = *status.ValidationError
+		}
+		return common.Hash{}, fmt.Errorf("%w: status=%s validationError=%q blockNumber=%d parentHash=%s syntheticHash=%s",
+			ErrRewindSyntheticPayloadRejected, status.Status, validationErr, blockNumber, newPayload.ParentHash, syntheticHash)
 	}
 
 	return syntheticHash, nil
@@ -189,7 +195,12 @@ func (e *simpleEngineController) forkchoiceUpdate(ctx context.Context, head, saf
 		return err
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return fmt.Errorf("%w: status=%s", ErrRewindFCURejected, res.PayloadStatus.Status)
+		validationErr := ""
+		if res.PayloadStatus.ValidationError != nil {
+			validationErr = *res.PayloadStatus.ValidationError
+		}
+		return fmt.Errorf("%w: status=%s validationError=%q head=%s safe=%s finalized=%s",
+			ErrRewindFCURejected, res.PayloadStatus.Status, validationErr, head, safe, finalized)
 	}
 	return nil
 }
