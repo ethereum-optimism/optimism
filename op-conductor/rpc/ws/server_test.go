@@ -438,14 +438,15 @@ func TestConcurrentConnections(t *testing.T) {
 // TestBroadcastWithSlowClient tests that a slow client (full send channel)
 // is dropped during broadcast without affecting delivery to healthy clients.
 //
-// The original test blasted 300 messages through real WebSocket connections,
-// but under CI load the fast client's writePump also couldn't keep up, causing
-// both clients to be dropped. This rewrite uses the hub's event callbacks to
-// observe broadcast outcomes deterministically: we connect two real WebSocket
-// clients, then send enough messages to fill the slow client's send channel
-// (which has no reader draining it via websocket reads). We use the
-// OnMessageBroadcast callback to detect when a drop actually occurs rather
-// than relying on timing.
+// Strategy: connect two real WebSocket clients — one that actively reads
+// (fast) and one that never reads (slow). Broadcast large messages until the
+// slow client's send channel overflows and the hub drops it.
+//
+// Instead of pacing sends with a hard-coded sleep, we use the fast client's
+// received messages as backpressure: once in-flight messages approach the
+// send channel capacity, we block until the fast client confirms receipt.
+// This keeps the fast client's channel from overflowing while still filling
+// the slow client's.
 func TestBroadcastWithSlowClient(t *testing.T) {
 	handler, tracker, server, cleanup := setupTestServer(t)
 	defer cleanup()
@@ -495,46 +496,56 @@ func TestBroadcastWithSlowClient(t *testing.T) {
 
 	waitForClientCount(t, tracker, 2, 3*time.Second, "Both clients connected")
 
-	// Send large messages in a background goroutine until the slow client is
-	// dropped. Large messages fill the OS socket write buffer faster, which
-	// causes the slow client's writePump to stall and its send channel to back
-	// up. We pace sends with a small sleep to give the fast client's writePump
-	// time to drain its send channel, preventing it from also being dropped.
-	senderStop := make(chan struct{})
+	// Send large messages until the slow client is dropped, using the fast
+	// client's received messages as backpressure. The send channel holds
+	// sendChannelBufferSize (256) messages; we allow up to 3/4 of that to be
+	// in-flight before waiting for the fast client to drain one.
+	const backpressureThreshold = sendChannelBufferSize * 3 / 4
+	senderDone := make(chan struct{})
 	// 16KB payload fills OS socket buffers quickly (~8 messages for a 128KB buffer)
 	padding := strings.Repeat("x", 16*1024)
 	go func() {
+		defer close(senderDone)
+		inflight := 0
 		for i := 0; ; i++ {
 			select {
 			case <-ctx.Done():
 				return
-			case <-senderStop:
+			case <-dropDetected:
 				return
 			default:
 			}
 			handler.BroadcastMessage([]byte(fmt.Sprintf("msg-%d-%s", i, padding)))
-			// Pace sends so the fast client's writePump can keep up
-			time.Sleep(1 * time.Millisecond)
+			inflight++
+
+			// When approaching channel capacity, wait for the fast client
+			// to confirm receipt before sending more
+			if inflight >= backpressureThreshold {
+				select {
+				case <-fastClient.messagesReceived:
+					inflight--
+				case <-dropDetected:
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
 		}
 	}()
 
 	// Wait for the slow client to be dropped
 	select {
-	case <-dropDetected:
-		close(senderStop)
+	case <-senderDone:
 		t.Log("Slow client was dropped as expected")
 	case <-ctx.Done():
-		close(senderStop)
 		t.Fatal("Timeout: slow client was never dropped")
 	}
 
 	// Verify the fast client is still connected and receiving messages.
-	// It should have already received messages from the burst; check non-blocking first.
 	select {
 	case msg := <-fastClient.messagesReceived:
-		t.Logf("Fast client received: %s", string(msg))
+		t.Logf("Fast client received: %s", string(msg[:min(len(msg), 40)]))
 	default:
-		// Send one more to confirm the fast client is alive
 		handler.BroadcastMessage([]byte("alive-check"))
 		waitForMessage(t, fastClient, "alive-check", 5*time.Second, "Fast client should still receive messages")
 	}
