@@ -101,6 +101,7 @@ contract L2ContractsManager is ISemver {
     address internal immutable NATIVE_ASSET_LIQUIDITY_IMPL;
     /// @notice LiquidityController implementation.
     address internal immutable LIQUIDITY_CONTROLLER_IMPL;
+    // TODO(#19600): Remove FEE_SPLITTER_IMPL as part of revenue sharing deprecation.
     /// @notice FeeSplitter implementation.
     address internal immutable FEE_SPLITTER_IMPL;
     /// @notice CONDITIONAL_DEPLOYER implementation.
@@ -144,6 +145,7 @@ contract L2ContractsManager is ISemver {
         SUPERCHAIN_TOKEN_BRIDGE_IMPL = _implementations.superchainTokenBridgeImpl;
         NATIVE_ASSET_LIQUIDITY_IMPL = _implementations.nativeAssetLiquidityImpl;
         LIQUIDITY_CONTROLLER_IMPL = _implementations.liquidityControllerImpl;
+        // TODO(#19600): Remove FEE_SPLITTER_IMPL as part of revenue sharing deprecation.
         FEE_SPLITTER_IMPL = _implementations.feeSplitterImpl;
         CONDITIONAL_DEPLOYER_IMPL = _implementations.conditionalDeployerImpl;
     }
@@ -220,6 +222,7 @@ contract L2ContractsManager is ISemver {
             });
         }
 
+        // TODO(#19600): Remove FeeSplitter loading config as part of revenue sharing deprecation.
         // FeeSplitter
         ISharesCalculator sharesCalculator;
 
@@ -320,6 +323,7 @@ contract L2ContractsManager is ISemver {
             L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
         }
 
+        // TODO(#19600): Remove FeeSplitter upgrade as part of revenue sharing deprecation.
         // FeeSplitter
         L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.FEE_SPLITTER,
@@ -330,6 +334,8 @@ contract L2ContractsManager is ISemver {
             0
         );
 
+        // TODO(#19600): Remove withdrawalNetwork arg from fee vault initializers as part of revenue sharing
+        // deprecation.
         // SequencerFeeVault
         L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.SEQUENCER_FEE_WALLET,
