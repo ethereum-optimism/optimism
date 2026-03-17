@@ -139,12 +139,7 @@ contract L2Genesis is Script {
         setPredeployProxies(_input);
         vm.stopPrank();
 
-        // setPredeployImplementations calls initialize() on contracts that now assert
-        // _assertOnlyProxyAdminOrProxyAdminOwner(). Prank as the proxy admin owner so those
-        // assertions pass for both proxy and implementation initialization calls.
-        vm.startPrank(_input.opChainProxyAdminOwner);
         setPredeployImplementations(_input);
-        vm.stopPrank();
 
         vm.startPrank(deployer);
         setPreinstalls();
@@ -250,6 +245,10 @@ contract L2Genesis is Script {
     ///      sets the deployed bytecode at their expected predeploy address.
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
     function setPredeployImplementations(Input memory _input) internal {
+        // Contracts with initializers now call
+        // _assertOnlyProxyAdminOrProxyAdminOwner(). Prank as the proxy admin owner so that those
+        // assertions pass for both proxy and implementation initialization calls.
+        vm.startPrank(_input.opChainProxyAdminOwner);
         // Must be first: other contracts' initialize() calls assert _assertOnlyProxyAdminOrProxyAdminOwner(),
         // which reads L2ProxyAdmin.owner(). The owner slot must be set before any initializer runs.
         setL2ProxyAdmin(_input); // 18
@@ -266,7 +265,15 @@ contract L2Genesis is Script {
         setOptimismMintableERC20Factory(); // 12
         setL1BlockNumber(); // 13
         setL2ERC721Bridge(_input.l1ERC721BridgeProxy); // 14
+
+        // Stop pranking as the proxy admin owner.
+        vm.stopPrank();
+
+        // Set L1 Block has its own pranking requirements which it handles internally.
         setL1Block(_input.useCustomGasToken); // 15
+
+        // Resume pranking as the proxy admin owner.
+        vm.startPrank(_input.opChainProxyAdminOwner);
         setL2ToL1MessagePasser(_input.useCustomGasToken); // 16
         setOptimismMintableERC721Factory(_input); // 17
         setBaseFeeVault(_input); // 19
