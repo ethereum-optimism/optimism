@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -80,48 +79,4 @@ func getP2PClientsAndPeers(ctx context.Context, logger log.Logger,
 		peerInfo1: peerInfo1,
 		peerInfo2: peerInfo2,
 	}
-}
-
-// WithL2CLP2PConnection connects P2P between two L2CLs
-func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.ComponentID) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
-		l := orch.P().Logger()
-
-		l2CL1, ok := orch.GetL2CL(l2CL1ID)
-		require.True(ok, "looking for L2 CL node 1 to connect p2p")
-		l2CL2, ok := orch.GetL2CL(l2CL2ID)
-		require.True(ok, "looking for L2 CL node 2 to connect p2p")
-		require.Equal(l2CL1ID.ChainID(), l2CL2ID.ChainID(), "must be same l2 chain")
-
-		ctx := orch.P().Ctx()
-		logger := orch.P().Logger()
-
-		p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
-
-		connectPeer := func(l2CL L2CLNode, p2pClient *sources.P2PClient, multiAddress string) {
-			err := retry.Do0(ctx, 6, retry.Exponential(), func() error {
-				return p2pClient.ConnectPeer(ctx, multiAddress)
-			})
-			l.Info("connecting to L2CL peer", "l2CL", l2CL, "rpc", l2CL.UserRPC(), "multiAddress", multiAddress, "error", err)
-			require.NoError(err, "failed to connect L2CL peer")
-		}
-
-		connectPeer(l2CL1, p.client1, p.peerInfo2.Addresses[0])
-		connectPeer(l2CL2, p.client2, p.peerInfo1.Addresses[0])
-
-		check := func(peerDump *apis.PeerDump, peerInfo *apis.PeerInfo) {
-			multiAddress := peerInfo.PeerID.String()
-			_, ok := peerDump.Peers[multiAddress]
-			require.True(ok, "peer register invalid")
-		}
-
-		peerDump1, err := GetPeers(ctx, p.client1)
-		require.NoError(err)
-		peerDump2, err := GetPeers(ctx, p.client2)
-		require.NoError(err)
-
-		check(peerDump1, p.peerInfo2)
-		check(peerDump2, p.peerInfo1)
-	})
 }

@@ -5,8 +5,8 @@ DEFAULT_OP_PACKAGE_PATH := "github.com/ethpandaops/optimism-package@998796c0f3bb
 
 build-devnet BINARY:
     #!/usr/bin/env bash
-    if [ {{BINARY}} != "node" ] && [ {{BINARY}} != "supervisor" ]; then
-        echo "Invalid binary specified. Must be either 'node' or 'supervisor'."
+    if [ {{BINARY}} != "node" ]; then
+        echo "Invalid binary specified. Must be 'node'."
         exit 1
     fi
 
@@ -65,9 +65,6 @@ test-e2e-sysgo BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" FILT
       just build-kona
       echo "Building op-reth..."
       just build-reth
-    elif [ "{{BINARY}}" = "supervisor" ]; then
-      echo "Building supervisor..."
-      cd {{SOURCE}}/.. && just build-supervisor
     fi
 
     just test-e2e-sysgo-run {{BINARY}} {{GO_PKG_NAME}} {{DEVNET}} {{FILTER}}
@@ -88,11 +85,8 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         if [ $OP_RETH_EXEC_PATH == "" ]; then
           export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
         fi
-    elif [ "{{BINARY}}" = "supervisor" ]; then
-        export DEVSTACK_SUPERVISOR_KIND=kona
-        export KONA_SUPERVISOR_EXEC_PATH="{{SOURCE}}/../target/release/kona-supervisor"
     else
-        echo "Invalid BINARY specified. Must be either 'node' or 'supervisor'."
+        echo "Invalid BINARY specified. Must be 'node'."
         exit 1
     fi
 
@@ -131,22 +125,17 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         export OP_VALIDATOR_WITH_RETH=0
         export OP_SEQUENCER_WITH_GETH=0
         export OP_VALIDATOR_WITH_GETH=0
-    elif [ "{{DEVNET}}" = "large-kona-sequencer" ]; then
-        export KONA_SEQUENCER_WITH_RETH=1
-        export KONA_VALIDATOR_WITH_RETH=4
-        export KONA_SEQUENCER_WITH_GETH=0
-        export KONA_VALIDATOR_WITH_GETH=4
-
-        export OP_SEQUENCER_WITH_RETH=0
-        export OP_VALIDATOR_WITH_RETH=0
-        export OP_SEQUENCER_WITH_GETH=0
-        export OP_VALIDATOR_WITH_GETH=0
     fi
 
     export SKIP_P2P_CONNECTION_CHECK=true
 
     # Run the test with count=1 to avoid caching the test results.
-    cd {{SOURCE}} && go test -count=1 -timeout 40m -v ./$GO_PKG_NAME $FILTER
+    cd {{SOURCE}}
+    mkdir -p ./tmp/test-results ./tmp/testlogs
+    gotestsum --format=testname \
+        --junitfile=./tmp/test-results/results.xml \
+        --jsonfile=./tmp/testlogs/log.json \
+        -- -count=1 -timeout 40m ./$GO_PKG_NAME $FILTER
 
 long-running-test FILTER="" OUTPUT_LOGS_DIR="":
     #!/bin/bash

@@ -36,12 +36,12 @@ func NewSupernodeWithTestControl(inner stack.Supernode, testControl stack.Intero
 	}
 }
 
-func (s *Supernode) ID() stack.SupernodeID {
-	return s.inner.ID()
+func (s *Supernode) Name() string {
+	return s.inner.Name()
 }
 
 func (s *Supernode) String() string {
-	return s.inner.ID().String()
+	return s.inner.Name()
 }
 
 // Escape returns the underlying stack.Supernode

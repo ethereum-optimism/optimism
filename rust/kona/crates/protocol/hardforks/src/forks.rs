@@ -1,6 +1,6 @@
 //! Contains all hardforks represented in the [`crate::Hardfork`] type.
 
-use crate::{Ecotone, Fjord, Interop, Isthmus, Jovian};
+use crate::{Ecotone, Fjord, Interop, Isthmus, Jovian, Karst};
 
 /// Optimism Hardforks
 ///
@@ -54,6 +54,9 @@ impl Hardforks {
     /// The Jovian hardfork upgrade transactions.
     pub const JOVIAN: Jovian = Jovian;
 
+    /// The Karst hardfork upgrade transactions.
+    pub const KARST: Karst = Karst;
+
     /// The Interop hardfork upgrade transactions.
     pub const INTEROP: Interop = Interop;
 }
@@ -77,6 +80,9 @@ mod tests {
 
         let jovian_upgrade_tx = Hardforks::JOVIAN.txs();
         assert_eq!(jovian_upgrade_tx.collect::<Vec<_>>().len(), 5);
+
+        let karst_upgrade_tx = Hardforks::KARST.txs();
+        assert_eq!(karst_upgrade_tx.collect::<Vec<_>>().len(), 0);
 
         let interop_upgrade_tx = Hardforks::INTEROP.txs();
         assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 4);

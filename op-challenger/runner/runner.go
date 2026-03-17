@@ -113,14 +113,14 @@ func (r *Runner) Start(ctx context.Context) error {
 		}
 		rollupClient = cl
 	}
-	var supervisorClient *sources.SupervisorClient
+	var superNodeClient *sources.SuperNodeClient
 	if r.cfg.SuperRPC != "" {
-		r.log.Info("Dialling supervisor client", "url", r.cfg.SuperRPC)
-		cl, err := dial.DialSupervisorClientWithTimeout(ctx, r.log, r.cfg.SuperRPC)
+		r.log.Info("Dialling supernode client", "url", r.cfg.SuperRPC)
+		cl, err := dial.DialSuperNodeClientWithTimeout(ctx, r.log, r.cfg.SuperRPC)
 		if err != nil {
-			return fmt.Errorf("failed to dial supervisor: %w", err)
+			return fmt.Errorf("failed to dial supernode: %w", err)
 		}
-		supervisorClient = cl
+		superNodeClient = cl
 	}
 
 	l1Client, err := dial.DialRPCClientWithTimeout(ctx, r.log, r.cfg.L1EthRpc)
@@ -131,20 +131,20 @@ func (r *Runner) Start(ctx context.Context) error {
 
 	for _, runConfig := range r.runConfigs {
 		r.wg.Add(1)
-		go r.loop(ctx, runConfig, rollupClient, supervisorClient, caller)
+		go r.loop(ctx, runConfig, rollupClient, superNodeClient, caller)
 	}
 
 	r.log.Info("Runners started", "num", len(r.runConfigs))
 	return nil
 }
 
-func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, caller *batching.MultiCaller) {
+func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *sources.RollupClient, superNodeClient *sources.SuperNodeClient, caller *batching.MultiCaller) {
 	defer r.wg.Done()
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
 	for {
 		baseLog := r.log.New("run_id", generateRunID())
-		r.runAndRecordOnce(ctx, baseLog, runConfig, rollupClient, supervisorClient, caller)
+		r.runAndRecordOnce(ctx, baseLog, runConfig, rollupClient, superNodeClient, caller)
 		select {
 		case <-t.C:
 		case <-ctx.Done():
@@ -153,7 +153,7 @@ func (r *Runner) loop(ctx context.Context, runConfig RunConfig, rollupClient *so
 	}
 }
 
-func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, caller *batching.MultiCaller) {
+func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfig RunConfig, rollupClient *sources.RollupClient, superNodeClient *sources.SuperNodeClient, caller *batching.MultiCaller) {
 	recordError := func(err error, configName string, m Metricer, log log.Logger) {
 		if errors.Is(err, ErrUnexpectedStatusCode) {
 			log.Error("Incorrect status code", "type", runConfig.Name, "err", err)
@@ -194,7 +194,7 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 		prestateSource = &HashPrestateFetcher{prestateHash: runConfig.Prestate}
 	}
 
-	localInputs, err := createGameInputs(ctx, rlog, rollupClient, supervisorClient, runConfig.Name, runConfig.GameType)
+	localInputs, err := createGameInputs(ctx, rlog, rollupClient, superNodeClient, runConfig.Name, runConfig.GameType)
 	if err != nil {
 		recordError(err, runConfig.Name, r.m, rlog)
 		return

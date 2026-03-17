@@ -1,8 +1,8 @@
 //! Blob Data Source
 
 use crate::{
-    BlobData, BlobProvider, BlobProviderError, ChainProvider, DataAvailabilityProvider,
-    PipelineError, PipelineErrorKind, PipelineResult,
+    BlobData, BlobProvider, ChainProvider, DataAvailabilityProvider, PipelineError,
+    PipelineErrorKind, PipelineResult, ResetError,
 };
 use alloc::{boxed::Box, vec::Vec};
 use alloy_consensus::{
@@ -163,14 +163,21 @@ where
             })?;
 
         // Fill the blob pointers.
-        let mut blob_index = 0;
+        let mut filled_blobs = 0;
         for blob in &mut data {
-            let should_increment = blob
-                .fill(&blobs, blob_index)
-                .map_err(|e| -> PipelineErrorKind { BlobProviderError::from(e).into() })?;
+            let should_increment = blob.fill(&blobs, filled_blobs)?;
             if should_increment {
-                blob_index += 1;
+                filled_blobs += 1;
             }
+        }
+
+        // Post-loop over-fill check: if the provider returned more blobs than were
+        // requested, the pipeline state is inconsistent. Reset so the pipeline retries
+        // from a clean state.
+        if filled_blobs < blobs.len() {
+            return Err(
+                ResetError::BlobsOverFill { filled: filled_blobs, returned: blobs.len() }.reset()
+            );
         }
 
         self.open = true;
@@ -485,6 +492,53 @@ pub(crate) mod tests {
             matches!(err, PipelineErrorKind::Reset(_)),
             "expected Reset when block_info_and_transactions_by_hash returns BlockNotFound, \
              got {err:?}"
+        );
+    }
+
+    /// Regression test: when the blob provider returns more blobs than were requested
+    /// (over-fill), `load_blobs` must return `PipelineErrorKind::Reset` rather than
+    /// silently discarding the extra blobs.
+    /// Over-fill can occur with buggy providers or in rare L1 reorg scenarios.
+    #[tokio::test]
+    async fn test_load_blobs_overfill_triggers_reset() {
+        use alloy_consensus::Blob;
+
+        let mut source = default_test_blob_source();
+        let block_info = BlockInfo::default();
+        let batcher_address =
+            alloy_primitives::address!("A83C816D4f9b2783761a22BA6FADB0eB0606D7B2");
+        source.batcher_address =
+            alloy_primitives::address!("11E9CA82A3a762b4B5bd264d4173a242e7a77064");
+        let txs = valid_blob_txs();
+        source.chain_provider.insert_block_with_transactions(1, block_info, txs);
+        // Insert blobs for all the real hashes so fill does not under-fill first.
+        let hashes = [
+            alloy_primitives::b256!(
+                "012ec3d6f66766bedb002a190126b3549fce0047de0d4c25cffce0dc1c57921a"
+            ),
+            alloy_primitives::b256!(
+                "0152d8e24762ff22b1cfd9f8c0683786a7ca63ba49973818b3d1e9512cd2cec4"
+            ),
+            alloy_primitives::b256!(
+                "013b98c6c83e066d5b14af2b85199e3d4fc7d1e778dd53130d180f5077e2d1c7"
+            ),
+            alloy_primitives::b256!(
+                "01148b495d6e859114e670ca54fb6e2657f0cbae5b08063605093a4b3dc9f8f1"
+            ),
+            alloy_primitives::b256!(
+                "011ac212f13c5dff2b2c6b600a79635103d6f580a4221079951181b25c7e6549"
+            ),
+        ];
+        for hash in hashes {
+            source.blob_fetcher.insert_blob(hash, Blob::with_last_byte(1u8));
+        }
+        // Instruct the mock provider to return one extra blob beyond what was requested.
+        source.blob_fetcher.should_return_extra_blob = true;
+
+        let err = source.load_blobs(&BlockInfo::default(), batcher_address).await.unwrap_err();
+        assert!(
+            matches!(err, PipelineErrorKind::Reset(_)),
+            "expected Reset for blob over-fill, got {err:?}"
         );
     }
 }

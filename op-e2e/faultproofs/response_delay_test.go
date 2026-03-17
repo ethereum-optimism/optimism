@@ -49,7 +49,7 @@ func TestChallengerResponseDelay(t *testing.T) {
 
 			// Create a dispute game with incorrect root to trigger challenger response
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-			game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, disputegame.WithOutputRoot(common.Hash{0xaa, 0xbb, 0xcc}))
+			game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, common.Hash{0xaa, 0xbb, 0xcc})
 
 			// Make an invalid claim that the honest challenger should counter
 			invalidClaim := game.RootClaim(ctx)
@@ -95,7 +95,7 @@ func TestChallengerResponseDelayWithMultipleActions(t *testing.T) {
 	responseDelay := 2 * time.Second
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, disputegame.WithOutputRoot(common.Hash{0xaa, 0xbb, 0xcc}))
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, common.Hash{0xaa, 0xbb, 0xcc})
 
 	// Start challenger with response delay
 	game.StartChallenger(ctx, "sequencer", "DelayedChallenger",

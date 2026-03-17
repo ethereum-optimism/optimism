@@ -6,9 +6,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -21,7 +24,15 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),
+		presets.WithBatcherOption(func(id sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+			// Span-batches during recovery don't appear to align well with the starting-point.
+			// It can be off by ~6 L2 blocks, possibly due to off-by-one in L1 block sync
+			// considerations in batcher stop or start.
+			cfg.BatchType = derive.SingularBatchType
+		}),
+	)
 	require := t.Require()
 
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -91,7 +102,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	t.Logger().Info("Waiting for sequencing window expiry induced reorg now", "windowDuration", windowDuration)
 
 	// Monitor that the old unsafe chain is reorged out as expected
-	sys.L2ELA.ReorgTriggered(old, 50)
+	sys.L2ELA.ReorgExact(old, 50)
 
 	// Wait for the tx to no longer be included.
 	// The tx-indexer may still return the old block or be stale.

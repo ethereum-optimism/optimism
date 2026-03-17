@@ -8,11 +8,36 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 // Libraries
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+// Inheritance
+import { Ownable } from "@openzeppelin/contracts-v5/access/Ownable.sol";
+import { Ownable2Step } from "@openzeppelin/contracts-v5/access/Ownable2Step.sol";
+
+/// @title PolicyEngineStakingMapping
+/// @notice Holds the `peData` mapping at storage slot 0 so that `op-rbuilder` can read
+///         effective-stake data at a known, stable location. Inherited first by
+///         `PolicyEngineStaking` to guarantee the slot assignment.
+contract PolicyEngineStakingMapping {
+    /// @notice Policy Engine data per account. Packed in one slot for PE reads.
+    /// @custom:field effectiveStake The exact stake amount used for ordering.
+    /// @custom:field lastUpdate The timestamp of the latest change on their effective stake.
+    struct PEData {
+        uint128 effectiveStake;
+        uint128 lastUpdate;
+    }
+
+    /// @notice Base storage slot for PE data mapping. Policy Engine reads from
+    ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
+    bytes32 public constant PE_DATA_SLOT = 0;
+
+    /// @notice Slot 0: PE data mapping.
+    mapping(address account => PEData) public peData;
+}
+
 /// @title PolicyEngineStaking
 /// @notice Periphery contract for stake-based transaction ordering in op-rbuilder. Users stake governance tokens
 ///         and optionally link to a beneficiary who receives ordering power. Supports partial unstake.
 ///         Invariant: every staked token has a beneficiary (self or linked). No receivedStake tracking or unlink().
-contract PolicyEngineStaking is ISemver {
+contract PolicyEngineStaking is PolicyEngineStakingMapping, Ownable2Step, ISemver {
     using SafeERC20 for IERC20;
 
     /// @notice Staking stakingData per account.
@@ -23,28 +48,13 @@ contract PolicyEngineStaking is ISemver {
         address beneficiary;
     }
 
-    /// @notice Policy Engine stakingData per account. Packed in one slot for PE reads.
-    /// @custom:field effectiveStake The exact stake amount used for ordering.
-    /// @custom:field lastUpdate The timestamp of the latest change on their effective stake.
-    struct PEData {
-        uint128 effectiveStake;
-        uint128 lastUpdate;
-    }
-
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice Base storage slot for PE stakingData mapping. Policy Engine reads from
-    ///         keccak256(abi.encode(account, PE_DATA_SLOT)).
-    bytes32 public constant PE_DATA_SLOT = 0;
-
     /// @notice The ERC20 token used for staking.
     // nosemgrep: sol-safety-no-immutable-variables
     IERC20 internal immutable STAKING_TOKEN;
-
-    /// @notice Slot 0: PE stakingData mapping.
-    mapping(address account => PEData) public peData;
 
     /// @notice Allowlist: beneficiary => staker => allowed.
     mapping(address beneficiary => mapping(address staker => bool allowed)) public allowlist;
@@ -54,9 +64,6 @@ contract PolicyEngineStaking is ISemver {
 
     /// @notice Paused state.
     bool public paused;
-
-    /// @notice The owner of the contract. Can pause, unpause, and transfer ownership.
-    address private _owner;
 
     /// @notice Emitted when a user stakes OP tokens.
     /// @param account The address that staked tokens.
@@ -95,14 +102,6 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Emitted when the staking is unpaused.
     event Unpaused();
 
-    /// @notice Emitted when ownership is transferred.
-    /// @param previousOwner The address of the previous owner.
-    /// @param newOwner      The address of the new owner.
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /// @notice Thrown when the caller is not the owner.
-    error PolicyEngineStaking_OnlyOwner();
-
     /// @notice Thrown when the staking is paused.
     error PolicyEngineStaking_Paused();
 
@@ -133,10 +132,8 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Constructs the PolicyEngineStaking contract.
     /// @param _ownerAddr The address that can pause and unpause staking.
     /// @param _token The ERC20 token used for staking.
-    constructor(address _ownerAddr, address _token) {
-        if (_ownerAddr == address(0)) revert PolicyEngineStaking_ZeroAddress();
+    constructor(address _ownerAddr, address _token) Ownable(_ownerAddr) {
         if (_token == address(0)) revert PolicyEngineStaking_ZeroAddress();
-        _owner = _ownerAddr;
         STAKING_TOKEN = IERC20(_token);
     }
 
@@ -146,30 +143,11 @@ contract PolicyEngineStaking is ISemver {
         _;
     }
 
-    /// @notice Modifier that reverts when the caller is not the owner.
-    modifier onlyOwner() {
-        if (msg.sender != _owner) revert PolicyEngineStaking_OnlyOwner();
-        _;
-    }
-
-    /// @notice Returns the owner address.
-    function owner() external view returns (address) {
-        return _owner;
-    }
-
     /// @notice Returns the staking token address.
     ///
     /// @return The ERC20 token used for staking.
     function stakingToken() external view returns (IERC20) {
         return STAKING_TOKEN;
-    }
-
-    /// @notice Transfers ownership of the contract to a new account.
-    /// @param _newOwner The address of the new owner.
-    function transferOwnership(address _newOwner) external onlyOwner {
-        if (_newOwner == address(0)) revert PolicyEngineStaking_ZeroAddress();
-        emit OwnershipTransferred(_owner, _newOwner);
-        _owner = _newOwner;
     }
 
     /// @notice Pauses the contract. Stake is disabled while paused.
@@ -275,7 +253,15 @@ contract PolicyEngineStaking is ISemver {
     /// @notice Sets whether a staker can set the caller as beneficiary. When disallowing,
     ///         if the staker's current beneficiary is the caller, their stake attribution is
     ///         moved back to the staker (beneficiary reset to self).
-    ///
+    /// @dev    This function is intentionally NOT gated by `whenNotPaused`. Allowlist
+    ///         mutations remain available during pause so that beneficiaries can revoke
+    ///         stakers at any time. Note that disallowing a staker who is currently
+    ///         delegated to the caller will move effective stake attribution back to the
+    ///         staker, changing ordering-power state even while the contract is paused.
+    /// @dev    Trust assumption: stakers who delegate to a beneficiary implicitly trust
+    ///         that the beneficiary will not remove them from the allowlist at a
+    ///         disadvantageous time. Removal triggers `_increasePeData` on the staker,
+    ///         which resets their `lastUpdate` and thus their accumulated staking weight.
     /// @param _staker The staker to allow or deny.
     /// @param _allowed The allowed state.
     function setAllowedStaker(address _staker, bool _allowed) public {
@@ -318,13 +304,18 @@ contract PolicyEngineStaking is ISemver {
         emit EffectiveStakeChanged(_account, pe.effectiveStake);
     }
 
-    /// @notice Decreases effective stake for an account and updates timestamp.
+    /// @notice Decreases effective stake for an account. Only resets `lastUpdate` when
+    ///         the effective stake reaches zero to avoid stale timestamps; otherwise the
+    ///         existing timestamp is preserved so remaining stake keeps its staking weight.
+    ///
     /// @param _account The account address.
     /// @param _amount  The amount to subtract.
     function _decreasePeData(address _account, uint128 _amount) internal {
         PEData storage pe = peData[_account];
         pe.effectiveStake -= _amount;
-        pe.lastUpdate = uint128(block.timestamp);
+        if (pe.effectiveStake == 0) {
+            pe.lastUpdate = uint128(block.timestamp);
+        }
         emit EffectiveStakeChanged(_account, pe.effectiveStake);
     }
 }

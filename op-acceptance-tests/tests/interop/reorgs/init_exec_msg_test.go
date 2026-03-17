@@ -5,17 +5,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
@@ -101,7 +100,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		execTx = txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](bob.Plan())
 		execTx.Content.DependOn(&initTx.Result)
 		// single event in tx so index is 0. ExecuteIndexed returns a lambda to transform InteropOutput to a new ExecTrigger
-		execTx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initTx.Result, 0))
+		execTx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initTx.Result, 0))
 		var err error
 		execReceipt, err = execTx.PlannedTx.Included.Eval(ctx)
 		require.NoError(t, err)
@@ -133,7 +132,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		require.NoError(t, err, "Expected to be able to call L2BlockRefByHash API, but got error")
 
 		nextL1Origin := parentsL1Origin.L1Origin.Number + 1
-		l1Origin, err := sys.L1Network.Escape().L1ELNode(match.FirstL1EL).EthClient().InfoByNumber(ctx, nextL1Origin)
+		l1Origin, err := sys.L1EL.EthClient().InfoByNumber(ctx, nextL1Origin)
 		require.NoError(t, err, "Expected to get block number %v from L1 execution client", nextL1Origin)
 		l1OriginHash := l1Origin.Hash()
 
@@ -186,12 +185,12 @@ func TestReorgInitExecMsg(gt *testing.T) {
 
 	// wait and confirm reorgs on chain A and B
 	dsl.CheckAll(t,
-		sys.L2ELA.ReorgTriggeredFn(eth.L2BlockRef{
+		sys.L2ELA.ReorgExactFn(eth.L2BlockRef{
 			Number:     divergenceBlockNumber_A,
 			Hash:       originalRef_A.Hash,
 			ParentHash: originalRef_A.ParentID().Hash,
 		}, 30),
-		sys.L2ELB.ReorgTriggeredFn(eth.L2BlockRef{
+		sys.L2ELB.ReorgExactFn(eth.L2BlockRef{
 			Number:     divergenceBlockNumber_B,
 			Hash:       originalRef_B.Hash,
 			ParentHash: originalRef_B.ParentID().Hash,

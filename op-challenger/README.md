@@ -21,12 +21,8 @@ accessed by running `./op-challenger --help`.
 
 ### Running with Cannon on Local Devnet
 
-To run `op-challenger` against the local devnet, first clean and run
-the devnet. From the root of the repository run:
-
-```shell
-cd kurtosis-devnet && just simple-devnet
-```
+To run `op-challenger` against a local devnet, first start a local devnet
+that exposes the `simple-devnet` enclave.
 
 Then build the `op-challenger` with `make op-challenger`.
 

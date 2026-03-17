@@ -44,10 +44,12 @@ hardfork!(
         /// Holocene: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#holocene>
         Holocene,
         /// Isthmus: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/isthmus/overview.md>
-        #[default]
         Isthmus,
         /// Jovian: <https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/jovian>
+        #[default]
         Jovian,
+        /// Karst: <https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst>
+        Karst,
         /// TODO: add interop hardfork overview when available
         Interop,
     }
@@ -242,6 +244,12 @@ pub trait OpHardforks: EthereumHardforks {
         self.op_fork_activation(OpHardfork::Jovian).active_at_timestamp(timestamp)
     }
 
+    /// Returns `true` if [`Karst`](OpHardfork::Karst) is active at given block
+    /// timestamp.
+    fn is_karst_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.op_fork_activation(OpHardfork::Karst).active_at_timestamp(timestamp)
+    }
+
     /// Returns `true` if [`Interop`](OpHardfork::Interop) is active at given block
     /// timestamp.
     fn is_interop_active_at_timestamp(&self, timestamp: u64) -> bool {
@@ -341,7 +349,8 @@ impl Index<OpHardfork> for OpChainHardforks {
 
     fn index(&self, hf: OpHardfork) -> &Self::Output {
         use OpHardfork::{
-            Bedrock, Canyon, Ecotone, Fjord, Granite, Holocene, Interop, Isthmus, Jovian, Regolith,
+            Bedrock, Canyon, Ecotone, Fjord, Granite, Holocene, Interop, Isthmus, Jovian, Karst,
+            Regolith,
         };
 
         match hf {
@@ -354,6 +363,7 @@ impl Index<OpHardfork> for OpChainHardforks {
             Holocene => &self.forks[Holocene.idx()].1,
             Isthmus => &self.forks[Isthmus.idx()].1,
             Jovian => &self.forks[Jovian.idx()].1,
+            Karst => &self.forks[Karst.idx()].1,
             Interop => &self.forks[Interop.idx()].1,
         }
     }
@@ -406,7 +416,7 @@ mod tests {
     fn check_op_hardfork_from_str() {
         let hardfork_str = [
             "beDrOck", "rEgOlITH", "cAnYoN", "eCoToNe", "FJorD", "GRaNiTe", "hOlOcEnE", "isthMUS",
-            "jOvIaN", "inTerOP",
+            "jOvIaN", "kArSt", "inTerOP",
         ];
         let expected_hardforks = [
             OpHardfork::Bedrock,
@@ -418,6 +428,7 @@ mod tests {
             OpHardfork::Holocene,
             OpHardfork::Isthmus,
             OpHardfork::Jovian,
+            OpHardfork::Karst,
             OpHardfork::Interop,
         ];
 

@@ -51,7 +51,7 @@ func TestL2Reorg(gt *testing.T) {
 	for _, node := range out.L2ELSequencerNodes() {
 		reorgedHead := node.BlockRefByLabel(eth.Unsafe)
 		require.Greater(t, reorgedHead.Number, unsafeHead.Number)
-		checksPostReorg = append(checksPostReorg, node.ReorgTriggeredFn(unsafeHead, 40))
+		checksPostReorg = append(checksPostReorg, node.ReorgExactFn(unsafeHead, 40))
 	}
 
 	// Ensure that all the nodes still advance even after the reorg
@@ -120,7 +120,7 @@ func TestL2Reorg(gt *testing.T) {
 				}
 			}
 			if !found {
-				return fmt.Errorf("expected node %s to be connected to the sequencer", node.Escape().ID().Key())
+				return fmt.Errorf("expected node %s to be connected to the sequencer", node.Escape().Name())
 			}
 		}
 

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(DEV_FEATURE__OPCM_V2=true forge test --match-contract \"OPContractsManagerV2_Deploy_Test\" --match-test \"zkGameEnabled|permissionedCannonRespected|cannonKonaRespected|invalidRespected\" -vv 2>&1 | tail -20)"
+    ]
+  }
+}

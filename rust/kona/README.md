@@ -46,7 +46,6 @@ getting started with building your own programs, and a reference for the librari
 - [`client`](./bin/client): The bare-metal program that executes the state transition, to be run on a prover.
 - [`host`](./bin/host): The host program that runs natively alongside the prover, serving as the [Preimage Oracle][g-preimage-oracle] server.
 - [`node`](./bin/node): [WIP] A [Rollup Node][rollup-node-spec] implementation, backed by [`kona-derive`](./crates/protocol/derive). Supports flexible chain ID specification via `--l2-chain-id` using either numeric IDs (`10`) or chain names (`optimism`).
-- [`supervisor`](./bin/supervisor): [WIP] A [Supervisor][supervisor-spec] implementation.
 
 **Protocol**
 
@@ -158,7 +157,6 @@ Licensed under the [MIT license.](https://github.com/ethereum-optimism/optimism/
 [cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
 [cannon-rs]: https://github.com/op-rs/cannon-rs
 [rollup-node-spec]: https://specs.optimism.io/protocol/rollup-node.html
-[supervisor-spec]: https://specs.optimism.io/interop/supervisor.html
 [badboi-cannon-rs]: https://github.com/BadBoiLabs/cannon-rs
 [asterisc]: https://github.com/ethereum-optimism/asterisc
 [fpp-specs]: https://specs.optimism.io/fault-proof/index.html

@@ -213,6 +213,10 @@ coverage-lcov-all *ARGS:
 genesis:
   forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
 
+# Generates the Network Upgrade Transaction (NUT) bundle.
+generate-nut-bundle:
+  @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+
 # Deploys the contracts.
 deploy:
   ./scripts/deploy/deploy.sh
@@ -360,6 +364,14 @@ validate-spacers: build validate-spacers-no-build
 check-kontrol-summaries-unchanged:
   ./scripts/checks/check-kontrol-summaries-unchanged.sh
 
+# Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
+# Does not build contracts.
+nut-bundle-check-no-build:
+  go run ./scripts/checks/nut-bundle-check
+
+# Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
+nut-bundle-check: build-source nut-bundle-check-no-build
+
 # Runs semgrep on the contracts.
 semgrep:
   cd ../../ && semgrep scan --config .semgrep/rules/ ./packages/contracts-bedrock
@@ -374,6 +386,7 @@ check:
   semgrep \
   lint-check \
   snapshots-check-no-build \
+  nut-bundle-check-no-build \
   unused-imports-check-no-build \
   strict-pragma-check-no-build \
   valid-semver-check-no-build \
@@ -422,6 +435,7 @@ pre-pr *ARGS:
 
   just lint
   just build-source
+  just generate-nut-bundle
   just check
 
 

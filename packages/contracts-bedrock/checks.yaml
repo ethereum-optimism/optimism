@@ -85,6 +85,14 @@ phases:
       - name: opcm-upgrade-checks
         description: Check OPCM upgrade methods
         command: go run ./scripts/checks/opcm-upgrade-checks/
+      - name: nut-bundle-gen
+        description: Generate the Network Upgrade Transaction bundle from the source
+        command: forge script ./scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()'
+      - name: nut-bundle-check
+        description: Check the generated Network Upgrade Transaction bundle is up to date
+        command: go run ./scripts/checks/nut-bundle-check
+        depends:
+          - nut-bundle-gen
 
   # Phase 4: Dev build checks - needs test artifacts
   - name: dev

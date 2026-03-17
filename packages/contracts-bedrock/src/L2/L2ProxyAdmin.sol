@@ -34,8 +34,9 @@ contract L2ProxyAdmin is ProxyAdmin, ISemver {
     string public constant version = "1.0.0";
 
     /// @notice The constructor for the L2ProxyAdmin contract.
-    /// @param _owner Address of the initial owner of this contract.
-    constructor(address _owner) ProxyAdmin(_owner) { }
+    /// @dev    The owner can be set to address(0), since this contract is deployed behind a proxy.
+    ///         The proxy's owner is set via storage manipulation in the L2Genesis.
+    constructor() ProxyAdmin(address(0)) { }
 
     /// @notice Upgrades the predeploys via delegatecall to the l2ContractsManager contract.
     /// @param _l2ContractsManager Address of the l2ContractsManager contract.

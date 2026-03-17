@@ -58,6 +58,10 @@ type SuperRootAtTimestampResponse struct {
 	// This value is derived from the minimum per-chain safe L2 head timestamp.
 	CurrentSafeTimestamp uint64 `json:"safe_timestamp"`
 
+	// CurrentSafeTimestamp is the highest L2 timestamp that is safe across the dependency set at the CurrentL1.
+	// This value is derived from the minimum per-chain local-safe L2 head timestamp.
+	CurrentLocalSafeTimestamp uint64 `json:"local_safe_timestamp"`
+
 	// CurrentFinalizedTimestamp is the highest L2 timestamp that is finalized across the dependency set at the CurrentL1.
 	// This value is derived from the minimum per-chain finalized L2 head timestamp.
 	CurrentFinalizedTimestamp uint64 `json:"finalized_timestamp"`

@@ -15,6 +15,9 @@ When this happens, offer to submit the improvement to the relevant file in `docs
 
 ## Repository Overview
 
+- **Default branch**: `develop` (not `main`)
+- **Build system**: migrating from Make to [Just](https://github.com/casey/just) — shared justfile infra lives in `justfiles/`
+
 This repository contains multiple components spanning different technologies:
 
 ### Go Services
@@ -36,7 +39,7 @@ Solidity smart contracts for the OP Stack, including the core protocol contracts
 
 The OP Stack includes significant Rust implementations:
 
-- **kona**: Rust implementation of the OP Stack rollup state transition, including fault proof program, rollup node, and supervisor
+- **kona**: Rust implementation of the OP Stack rollup state transition, including fault proof program and rollup node
 - **op-reth**: OP Stack execution client built on reth
 - **op-alloy**: Rust crates providing OP Stack types and providers for the alloy ecosystem
 - **alloy-op-hardforks** / **alloy-op-evm**: OP Stack hardfork and EVM support for alloy
@@ -48,8 +51,6 @@ The OP Stack includes significant Rust implementations:
 
 ### Development and Testing Infrastructure
 
-- **devnet-sdk**: Toolkit for devnet interactions
-- **kurtosis-devnet**: Kurtosis-based devnet environment (DEPRECATED)
 - **op-e2e**: End-to-end testing framework
 - **op-acceptance-tests**: Acceptance test suite
 

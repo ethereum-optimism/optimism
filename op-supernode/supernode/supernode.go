@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
+	supernodeactivity "github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/supernode"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
@@ -88,6 +89,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Initialize fixed activities
 	s.activities = []activity.Activity{
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
+		supernodeactivity.New(log.New("activity", "supernode"), s.chains),
 		superroot.New(log.New("activity", "superroot"), s.chains),
 	}
 
@@ -95,7 +97,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Initialize interop activity if the activation timestamp is set (non-nil)
 	// If it's nil, don't start interop. If it's non-nil (including 0), do start it.
 	if cfg.InteropActivationTimestamp != nil {
-		interopActivity := interop.New(log.New("activity", "interop"), *cfg.InteropActivationTimestamp, s.chains, cfg.DataDir)
+		interopActivity := interop.New(log.New("activity", "interop"), *cfg.InteropActivationTimestamp, s.chains, cfg.DataDir, s.l1Client)
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)

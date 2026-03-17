@@ -100,13 +100,14 @@ impl<F: ChainProvider> IndexedTraversal<F> {
             }
             Ok(false) => { /* Ignore, no update applied */ }
             Err(err) => {
-                error!(target: "traversal", ?err, "Failed to update system config at block {}", block_info.number);
+                // Failure to update the system config is non-fatal: one or more receipts may be
+                // malformed or invalid. Log a warning and continue.
+                warn!(target: "traversal", ?err, "Failed to update system config at block {} (non-fatal, continuing)", block_info.number);
                 kona_macros::set!(
                     gauge,
                     crate::Metrics::PIPELINE_SYS_CONFIG_UPDATE_ERROR,
                     block_info.number as f64
                 );
-                return Err(PipelineError::SystemConfigUpdate(err).crit());
             }
         }
 
@@ -315,15 +316,19 @@ mod tests {
         let first = b256!("3333333333333333333333333333333333333333333333333333333333333333");
         let second = b256!("4444444444444444444444444444444444444444444444444444444444444444");
         let block1 = BlockInfo { hash: first, ..BlockInfo::default() };
-        let block2 = BlockInfo { number: 1, hash: second, ..BlockInfo::default() };
+        let block2 =
+            BlockInfo { number: 1, hash: second, parent_hash: first, ..BlockInfo::default() };
         let blocks = vec![block1, block2];
         let receipts = new_receipts();
         let mut traversal = new_test_managed(blocks, receipts);
         traversal.block = Some(block1);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(block1));
-        // provide_next_block will fail due to system config update error
-        let err = traversal.provide_next_block(block2).await.unwrap_err();
-        matches!(err, PipelineErrorKind::Critical(PipelineError::SystemConfigUpdate(_)));
+        // A system config update error is now non-fatal (matches op-node behaviour):
+        // provide_next_block returns Ok(()) and origin advances to block2.
+        assert!(
+            traversal.provide_next_block(block2).await.is_ok(),
+            "system config update failure should be non-fatal (warn + continue)"
+        );
     }
 
     #[tokio::test]

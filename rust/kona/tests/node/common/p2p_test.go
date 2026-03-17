@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +27,7 @@ func checkProtocols(t devtest.T, peer *apis.PeerInfo) {
 // Check that the node has enough connected peers and peers in the discovery table.
 func checkPeerStats(t devtest.T, node *dsl.L2CLNode, minConnected uint, minBlocksTopic uint) {
 	peerStats, err := node.Escape().P2PAPI().PeerStats(t.Ctx())
-	nodeName := node.Escape().ID()
+	nodeName := node.Escape().Name()
 
 	require.NoError(t, err, "failed to get peer stats for %s", nodeName)
 
@@ -47,18 +46,18 @@ func arePeers(t devtest.T, node *dsl.L2CLNode, otherNodeId peer.ID) {
 	for _, peer := range nodePeers.Peers {
 		if peer.PeerID == otherNodeId {
 			// TODO(ethereum-optimism/optimism#18655): this test is flaky, we should fix it.
-			// require.Equal(t, network.Connected, peer.Connectedness, fmt.Sprintf("%s is not connected to the %s", node.Escape().ID(), otherNodeId))
+			// require.Equal(t, network.Connected, peer.Connectedness, fmt.Sprintf("%s is not connected to the %s", node.Escape().Name(), otherNodeId))
 			checkProtocols(t, peer)
 			found = true
 		}
 	}
-	require.True(t, found, fmt.Sprintf("%s is not in the %s's peers", otherNodeId, node.Escape().ID()))
+	require.True(t, found, fmt.Sprintf("%s is not in the %s's peers", otherNodeId, node.Escape().Name()))
 }
 
 func TestP2PMinimal(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLNodes()
 	firstNode := nodes[0]
@@ -83,7 +82,7 @@ func TestP2PMinimal(gt *testing.T) {
 func TestP2PProtocols(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLNodes()
 
@@ -97,7 +96,7 @@ func TestP2PProtocols(gt *testing.T) {
 func TestP2PChainID(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLKonaNodes()
 
@@ -106,14 +105,14 @@ func TestP2PChainID(gt *testing.T) {
 	chainID := nodes[0].PeerInfo().ChainID
 
 	for _, node := range nodes {
-		nodeChainID, ok := node.Escape().ID().ChainID().Uint64()
+		nodeChainID, ok := node.Escape().ChainID().Uint64()
 		require.True(t, ok, "chainID is too large for a uint64")
-		require.Equal(t, chainID, nodeChainID, fmt.Sprintf("%s has a different chainID", node.Escape().ID()))
+		require.Equal(t, chainID, nodeChainID, fmt.Sprintf("%s has a different chainID", node.Escape().Name()))
 
 		for _, peer := range node.Peers().Peers {
 			// Sometimes peers don't have a chainID because they are not part of the discovery table while being connected to gossip.
 			if peer.ChainID != 0 {
-				require.Equal(t, chainID, peer.ChainID, fmt.Sprintf("%s has a different chainID", node.Escape().ID()))
+				require.Equal(t, chainID, peer.ChainID, fmt.Sprintf("%s has a different chainID", node.Escape().Name()))
 			}
 		}
 	}
@@ -123,7 +122,7 @@ func TestP2PChainID(gt *testing.T) {
 func TestNetworkConnectivity(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	nodes := out.L2CLNodes()
 	numNodes := len(nodes)

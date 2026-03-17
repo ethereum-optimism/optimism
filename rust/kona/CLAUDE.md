@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 - Build workspace: `just b` or `just build-native`
 - Lint: `just l` or `just lint-native`
-- Format: `just f` or `just fmt-native-fix`
+- Format: `just f` or `just fmt-native-fix` (if `rust-fmt` CI fails, use `/fix-rust-fmt`)
 - Run all tests: `just t` or `just tests`
 - Run specific test: `cargo nextest run --package [package-name] --test [test-name]`
 - Run single test: `cargo nextest run --package [package-name] --test [test-name] -- [test_function_name]`
@@ -31,7 +31,6 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 - **`client`**: The fault proof program that executes state transitions on a prover
 - **`host`**: Native program serving as the Preimage Oracle server
 - **`node`**: Rollup Node implementation with flexible chain ID support
-- **`supervisor`**: Supervisor implementation for interop coordination
 
 ### Protocol (`crates/protocol/`)
 - **`derive`**: `no_std` compatible derivation pipeline implementation
@@ -57,13 +56,6 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 - **`rpc`**: OP Stack RPC types and extensions
 - **`p2p`**: P2P networking including Gossip and Discovery
 - **`sources`**: Data source types and utilities
-
-### Supervisor (`crates/supervisor/`)
-- **`core`**: Core supervisor functionality
-- **`service`**: Supervisor service implementation
-- **`rpc`**: Supervisor RPC types and client
-- **`storage`**: Database storage layer
-- **`types`**: Common types for supervisor components
 
 ### Development Workflow
 

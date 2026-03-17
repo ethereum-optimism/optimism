@@ -6,12 +6,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 )
 
 func TestL2TransactionInclusion(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	out := node_utils.NewMixedOpKona(t)
+	out := newCommonPreset(t)
 
 	originNode := out.L2ELSequencerNodes()[0]
 	funder := dsl.NewFunder(out.Wallet, out.Faucet, originNode)

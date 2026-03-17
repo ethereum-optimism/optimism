@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -48,7 +47,7 @@ func NewFjordFees(t devtest.T, l2Network *L2Network) *FjordFees {
 
 // ValidateTransaction validates the transaction and returns the validation result
 func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) FjordFeesValidationResult {
-	client := ff.l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()
+	client := ff.l2Network.PrimaryEL().EthClient()
 
 	startBalance := from.GetBalance()
 	vaultsBefore := ff.getVaultBalances(client)
@@ -148,7 +147,7 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 	ff.require.NotNil(receipt.L1Fee, "L1 fee should be present in Fjord")
 	ff.require.True(l1Fee.Cmp(big.NewInt(0)) > 0, "L1 fee should be greater than 0 in Fjord")
 
-	client := ff.l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()
+	client := ff.l2Network.PrimaryEL().EthClient()
 
 	_, txs, err := client.InfoAndTxsByHash(ff.ctx, receipt.BlockHash)
 	ff.require.NoError(err)

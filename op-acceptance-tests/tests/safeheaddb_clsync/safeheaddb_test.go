@@ -6,12 +6,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := presets.NewSingleChainMultiNode(t,
+		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.SequencerSyncMode = sync.CLSync
+			cfg.VerifierSyncMode = sync.CLSync
+			cfg.SafeDBPath = p.TempDir()
+		})),
+	)
 
 	startSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
 	dsl.CheckAll(t,

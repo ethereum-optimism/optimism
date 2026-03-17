@@ -32,10 +32,6 @@ build-release *args='':
 build-node:
   cargo build --release --bin kona-node
 
-# Build the supervisor
-build-supervisor:
-  cargo build --release --bin kona-supervisor
-
 # Build op-reth
 build-op-reth:
   cargo build --release --bin op-reth
@@ -133,6 +129,10 @@ bench:
   cargo bench --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
 
 ########################## Misc tools ###############################
+
+# Audit dependencies for licenses, advisories, and bans
+deny:
+  cargo deny --all-features check all
 
 # Check for unused dependencies (requires nightly + cargo-udeps)
 check-udeps:
