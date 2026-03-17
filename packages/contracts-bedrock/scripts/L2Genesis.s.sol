@@ -139,6 +139,7 @@ contract L2Genesis is Script {
         setPredeployProxies(_input);
         vm.stopPrank();
 
+        // Set L1 Block has its own pranking requirements which it handles internally
         setPredeployImplementations(_input);
 
         vm.startPrank(deployer);
@@ -297,6 +298,7 @@ contract L2Genesis is Script {
         if (_input.useL2CM) {
             setConditionalDeployer(); // 2C
         }
+        vm.stopPrank();
     }
 
     function setInteropPredeployProxies() internal { }
