@@ -89,7 +89,9 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
-	// Measure initial memory
+	// Measure initial memory using TotalAlloc which is monotonically increasing.
+	// Using Alloc (current heap) is flaky because GC can reclaim memory between
+	// the initial and final reads, causing uint64 underflow in the delta.
 	var initialMem runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&initialMem)
@@ -136,25 +138,27 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 	require.NoError(t, m.processBlocks())
 
-	// Measure final memory
+	// Measure final memory using TotalAlloc (cumulative bytes allocated).
 	var finalMem runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&finalMem)
 
-	// Calculate memory used by the channel manager
-	memUsed := finalMem.Alloc - initialMem.Alloc
+	// TotalAlloc is monotonically increasing, so this subtraction is safe.
+	memAllocated := finalMem.TotalAlloc - initialMem.TotalAlloc
 
-	// Assert that memory usage doesn't exceed 512MB
-	const maxMemoryMB = 512 * 1024 * 1024 // 512MB in bytes
-	require.Less(t, memUsed, uint64(maxMemoryMB),
-		"Channel manager used %d bytes (%.2f MB), exceeding 512 MB limit",
-		memUsed, float64(memUsed)/1024/1024)
+	// Assert that total allocations don't exceed 1GB. TotalAlloc counts all
+	// allocations including those already freed, so the threshold is higher
+	// than a point-in-time heap limit.
+	const maxMemory = 1024 * 1024 * 1024 // 1GB in bytes
+	require.Less(t, memAllocated, uint64(maxMemory),
+		"Channel manager allocated %d bytes (%.2f MB), exceeding 1 GB limit",
+		memAllocated, float64(memAllocated)/1024/1024)
 
 	// Log memory usage for debugging
 	t.Logf("Compressor: %s, Algorithm: %s, Batch Type: %d",
 		compressorType, compressionAlgo, batchType)
-	t.Logf("Channel manager memory usage: %d bytes (%.2f MB)",
-		memUsed, float64(memUsed)/1024/1024)
+	t.Logf("Channel manager total allocations: %d bytes (%.2f MB)",
+		memAllocated, float64(memAllocated)/1024/1024)
 	t.Logf("Number of channels in queue: %d", len(m.channelQueue))
 	t.Logf("Number of blocks processed: %d", len(m.blocks))
 
