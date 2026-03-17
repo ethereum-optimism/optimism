@@ -186,6 +186,11 @@ jobs:
                   cd rust/kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
       - go-save-cache:
           namespace: kona-ci
+      - store_test_results:
+          path: rust/kona/tests/tmp/test-results
+      - store_artifacts:
+          path: rust/kona/tests/tmp/testlogs
+          when: always
 
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
   rust-restart-sysgo-tests:
@@ -211,6 +216,11 @@ jobs:
             cd rust/kona && just test-e2e-sysgo node node/restart
       - go-save-cache:
           namespace: kona-ci
+      - store_test_results:
+          path: rust/kona/tests/tmp/test-results
+      - store_artifacts:
+          path: rust/kona/tests/tmp/testlogs
+          when: always
 
   # op-reth E2E Sysgo Tests
   op-reth-e2e-sysgo-tests:
@@ -234,9 +244,14 @@ jobs:
           no_output_timeout: 60m
           command: |
             export OP_RETH_EXEC_PATH="$(pwd)/../../target/release/op-reth"
-            make test-e2e-sysgo
+            just test-e2e-sysgo
       - go-save-cache:
           namespace: op-reth-e2e
+      - store_test_results:
+          path: rust/op-reth/tests/tmp/test-results
+      - store_artifacts:
+          path: rust/op-reth/tests/tmp/testlogs
+          when: always
 
   # Kona Proof Action Tests (from proof.yaml)
   kona-proof-action-tests:
@@ -268,6 +283,11 @@ jobs:
             just action-tests-<<parameters.kind>>-run
       - go-save-cache:
           namespace: kona-ci
+      - store_test_results:
+          path: op-e2e/actions/proofs/tmp/test-results
+      - store_artifacts:
+          path: op-e2e/actions/proofs/tmp/testlogs
+          when: always
 
   required-rust-e2e:
     docker:

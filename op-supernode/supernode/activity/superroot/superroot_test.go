@@ -101,8 +101,11 @@ func (m *mockCC) ID() eth.ChainID {
 }
 
 func (m *mockCC) BlockTime() uint64 { return 1 }
-func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64) (bool, error) {
 	return false, nil
+}
+func (m *mockCC) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
+	return nil, nil
 }
 func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil

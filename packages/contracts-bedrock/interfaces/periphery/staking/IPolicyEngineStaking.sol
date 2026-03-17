@@ -34,8 +34,14 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Emitted when ownership is transferred.
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    /// @notice Thrown when the caller is not the owner.
-    error PolicyEngineStaking_OnlyOwner();
+    /// @notice Emitted when a new owner is nominated via `transferOwnership`.
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
+
+    /// @notice Thrown when the caller is not authorized (OZ Ownable).
+    error OwnableUnauthorizedAccount(address account);
+
+    /// @notice Thrown when an invalid owner is provided (OZ Ownable).
+    error OwnableInvalidOwner(address owner);
 
     /// @notice Thrown when the staking is paused.
     error PolicyEngineStaking_Paused();
@@ -69,9 +75,23 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Returns the contract owner.
     function owner() external view returns (address);
 
-    /// @notice Transfers ownership of the contract to a new account. Only callable by owner.
-    /// @param _newOwner The address of the new owner.
+    /// @notice Returns the pending owner nominated via `transferOwnership`.
+    function pendingOwner() external view returns (address);
+
+    /// @notice Starts the ownership transfer of the contract to a new account. Replaces the
+    ///         pending transfer if there is one. The nominated address must call
+    ///         `acceptOwnership` to finalize the transfer (two-step pattern). Only callable
+    ///         by owner.
+    ///
+    /// @param _newOwner The address of the nominated owner.
     function transferOwnership(address _newOwner) external;
+
+    /// @notice Accepts ownership after being nominated via `transferOwnership`.
+    ///         Only callable by the pending owner.
+    function acceptOwnership() external;
+
+    /// @notice Renounces ownership of the contract. Only callable by owner.
+    function renounceOwnership() external;
 
     /// @notice Returns whether the contract is paused.
     function paused() external view returns (bool);
@@ -114,6 +134,7 @@ interface IPolicyEngineStaking is ISemver {
     /// @notice Sets whether a staker can set the caller as beneficiary. When disallowing,
     ///         if the staker's current beneficiary is the caller, their stake attribution is
     ///         moved back to the staker (beneficiary reset to self).
+    ///         This function is callable even when the contract is paused.
     ///
     /// @param _staker  The staker address.
     /// @param _allowed Whether the staker is allowed to set the caller as beneficiary.

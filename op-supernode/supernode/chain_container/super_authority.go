@@ -56,7 +56,7 @@ func (c *simpleChainContainer) FinalizedL2Head() (eth.BlockID, bool) {
 		return eth.BlockID{}, true
 	}
 
-	ss, err := c.vn.SyncStatus(context.Background())
+	ss, err := c.SyncStatus(context.Background())
 	if err != nil {
 		c.log.Error("FinalizedL2Head: failed to get sync status", "err", err)
 		return eth.BlockID{}, true

@@ -96,9 +96,6 @@ Next, run the tests:
 
 ```sh
 cargo nextest run --workspace
-
-# Run the Ethereum Foundation tests
-make ef-tests
 ```
 
 We highly recommend using [`cargo nextest`](https://nexte.st/) to speed up testing.
