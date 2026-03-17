@@ -496,18 +496,8 @@ contract Deploy is Deployer {
 
     function getSuperRootDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](2);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
-                })
-            )
-        });
-        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -519,7 +509,7 @@ contract Deploy is Deployer {
                 })
             )
         });
-        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,

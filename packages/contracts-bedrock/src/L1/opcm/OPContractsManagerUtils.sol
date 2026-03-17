@@ -634,10 +634,9 @@ contract OPContractsManagerUtils {
         external
         pure
     {
-        GameType[] memory validGameTypes = new GameType[](3);
-        validGameTypes[0] = GameTypes.SUPER_CANNON;
-        validGameTypes[1] = GameTypes.SUPER_PERMISSIONED_CANNON;
-        validGameTypes[2] = GameTypes.SUPER_CANNON_KONA;
+        GameType[] memory validGameTypes = new GameType[](2);
+        validGameTypes[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        validGameTypes[1] = GameTypes.SUPER_CANNON_KONA;
 
         if (_disputeGameConfigs.length != validGameTypes.length) {
             revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();

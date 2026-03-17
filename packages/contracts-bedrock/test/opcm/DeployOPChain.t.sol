@@ -321,20 +321,21 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
             bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
             GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
-            GameType cannonType = isSuperRoot ? GameTypes.SUPER_CANNON : GameTypes.CANNON;
             GameType konaType = isSuperRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
 
             // Permissioned game must always be enabled with DEFAULT_INIT_BOND init bond
             assertEq(doo.disputeGameFactoryProxy.initBonds(permType), deployOPChain.DEFAULT_INIT_BOND());
             assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(permType)), address(0));
 
-            // Cannon must be disabled for initial deployment
-            assertEq(doo.disputeGameFactoryProxy.initBonds(cannonType), 0, "CANNON init bond should be 0");
-            assertEq(
-                address(doo.disputeGameFactoryProxy.gameImpls(cannonType)),
-                address(0),
-                "CANNON impl should be the zero address"
-            );
+            // CANNON must be disabled for initial deployment (not deployed for super root path)
+            if (!isSuperRoot) {
+                assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond should be 0");
+                assertEq(
+                    address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)),
+                    address(0),
+                    "CANNON impl should be the zero address"
+                );
+            }
 
             // Kona must be disabled for initial deployment
             assertEq(doo.disputeGameFactoryProxy.initBonds(konaType), 0, "CANNON_KONA init bond should be 0");

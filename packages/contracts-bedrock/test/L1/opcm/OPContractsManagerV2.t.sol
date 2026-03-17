@@ -529,25 +529,13 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         cfg.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(uint256(1))), l2SequenceNumber: 0 });
         cfg.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
 
-        // Provide only 2 configs (requires exactly 3: SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA).
-        cfg.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](2);
+        // Provide only 1 config (requires exactly 2: SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA).
+        cfg.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](1);
         cfg.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
-        });
-        cfg.disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: makeAddr("proposer"),
-                    challenger: makeAddr("challenger")
-                })
-            )
         });
 
         // nosemgrep: sol-style-use-abi-encodecall
