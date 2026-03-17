@@ -522,8 +522,14 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, fmt.Errorf("clear pending transition: %w", err)
 		}
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
+		currentL1 := pending.Result.L1Inclusion
+		if localL1, err := i.collectCurrentL1(); err != nil {
+			i.log.Warn("failed to collect node CurrentL1 on advance, using L1Inclusion", "err", err)
+		} else if localL1.Number < currentL1.Number {
+			currentL1 = localL1
+		}
 		i.mu.Lock()
-		i.currentL1 = pending.Result.L1Inclusion
+		i.currentL1 = currentL1
 		i.mu.Unlock()
 		return true, nil
 	}
