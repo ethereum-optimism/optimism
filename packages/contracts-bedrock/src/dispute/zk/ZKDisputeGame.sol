@@ -131,6 +131,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
 
+    /// @notice A mapping of whether a claimant has unlocked their credit.
+    mapping(address => bool) public hasUnlockedCredit;
+
     /// @notice The dispute game factory that created this game.
     IDisputeGameFactory public disputeGameFactory;
 
@@ -320,9 +323,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
                 root: Hash.wrap(ZKDisputeGame(payable(address(proxy))).rootClaim().raw())
             });
 
-            // INVARIANT: The parent game's sequence number must be at or above the anchor state.
+            // INVARIANT: The parent game's sequence number must be strictly above the anchor state.
             (, uint256 anchorL2SeqNum) = anchorStateRegistry().anchors(gameType());
-            if (startingProposal.l2SequenceNumber < anchorL2SeqNum) revert InvalidParentGame();
+            if (startingProposal.l2SequenceNumber <= anchorL2SeqNum) revert InvalidParentGame();
 
             // INVARIANT: The parent game must be a valid game.
             if (proxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
@@ -538,12 +541,13 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             revert InvalidBondDistributionMode();
         }
 
-        // Phase 1: If the recipient still has credit, zero it out and unlock in DelayedWETH.
-        // Credits are only assigned once per address, so a non-zero balance means the unlock
-        // hasn't happened yet.
-        if (recipientCredit > 0) {
-            refundModeCredit[_recipient] = 0;
-            normalModeCredit[_recipient] = 0;
+        // TODO: if this is not necessary
+        // https://github.com/ethereum-optimism/specs/pull/896/changes/BASE..2c12ff62d627e2b5ec275374b458e8cd692ec515#r2922194162
+        // we can optimize it
+
+        // Phase 1: Unlock the credit in DelayedWETH and return early.
+        if (!hasUnlockedCredit[_recipient]) {
+            hasUnlockedCredit[_recipient] = true;
             weth().unlock(_recipient, recipientCredit);
             return;
         }
@@ -559,11 +563,15 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             revert NoCreditToClaim();
         }
 
-        // Withdraw the WETH amount so it can be used here.
-        weth().withdraw(_recipient, amount);
+        // Set the recipient's credit balances to 0.
+        refundModeCredit[_recipient] = 0;
+        normalModeCredit[_recipient] = 0;
+
+        // Phase 2: Withdraw the WETH amount so it can be used here.
+        weth().withdraw(_recipient, recipientCredit);
 
         // Transfer the credit to the recipient.
-        (bool success,) = _recipient.call{ value: amount }(hex"");
+        (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
         if (!success) revert BondTransferFailed();
     }
 

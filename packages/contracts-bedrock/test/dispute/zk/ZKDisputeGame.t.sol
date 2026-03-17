@@ -122,15 +122,9 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         vm.warp(parentGameDeadline.raw() + 1 seconds);
         parentGame.resolve();
 
-        // Claim credit (two-phase: unlock then withdraw)
-        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
-        vm.warp(parentGame.resolvedAt().raw() + finalityDelay + 1 seconds);
-        parentGame.claimCredit(proposer); // Phase 1: unlock
-
-        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
-        parentGame.claimCredit(proposer); // Phase 2: withdraw
-
-        // Create the child game referencing actual parent game index.
+        // Create the child game before claiming parent credit, because claimCredit triggers
+        // closeGame() which advances the anchor to parentL2SequenceNumber. After that, the
+        // parent's seq num would equal the anchor, violating the "strictly above" invariant.
         game = ZKDisputeGame(
             payable(
                 address(
@@ -375,6 +369,30 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
             gameType,
             Claim.wrap(keccak256("below-anchor-claim")),
             abi.encodePacked(childL2SequenceNumber + grandchildOffset1, parentGameIndex)
+        );
+        vm.stopPrank();
+    }
+
+    function test_initialize_parentEqualAnchor_reverts() public {
+        // Resolve and finalize the child game so it becomes the new anchor.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        vm.warp(game.resolvedAt().raw() + finalityDelay + 1 seconds);
+        game.closeGame();
+
+        // Anchor is now at childL2SequenceNumber.
+        // The child game's l2SequenceNumber == anchor, so using it as parent should revert
+        // because parent seq num must be strictly above anchor.
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType,
+            Claim.wrap(keccak256("equal-anchor-claim")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
         );
         vm.stopPrank();
     }
