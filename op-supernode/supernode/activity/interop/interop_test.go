@@ -1288,10 +1288,10 @@ func newMockChainContainer(id uint64) *mockChainContainer {
 	return &mockChainContainer{id: eth.ChainIDFromUInt64(id)}
 }
 
-func (m *mockChainContainer) ID() eth.ChainID                                  { return m.id }
-func (m *mockChainContainer) Start(ctx context.Context) error                  { return nil }
-func (m *mockChainContainer) Stop(ctx context.Context) error                   { return nil }
-func (m *mockChainContainer) Pause(ctx context.Context) error                  { return nil }
+func (m *mockChainContainer) ID() eth.ChainID                 { return m.id }
+func (m *mockChainContainer) Start(ctx context.Context) error { return nil }
+func (m *mockChainContainer) Stop(ctx context.Context) error  { return nil }
+func (m *mockChainContainer) Pause(ctx context.Context) error { return nil }
 func (m *mockChainContainer) Resume(ctx context.Context) error {
 	m.mu.Lock()
 	m.resumeCalls++
