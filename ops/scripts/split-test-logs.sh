@@ -7,8 +7,7 @@
 # that test's output lines. Output goes to a "per-test" sibling directory next
 # to the JSON file, organized as <package>/<TestName>.log.
 #
-# Exits 0 on success or if the jsonfile doesn't exist (graceful no-op).
-# Skips silently if python3 is not available.
+# Fails if the jsonfile doesn't exist or python3 is not available.
 
 set -euo pipefail
 
@@ -20,11 +19,13 @@ fi
 json_file="$1"
 
 if [ ! -f "$json_file" ]; then
-  exit 0
+  echo "Error: JSON log file not found: $json_file" >&2
+  exit 1
 fi
 
 if ! command -v python3 &>/dev/null; then
-  exit 0
+  echo "Error: python3 is required but not found" >&2
+  exit 1
 fi
 
 output_dir="$(dirname "$json_file")/per-test"

@@ -42,5 +42,9 @@ gotestsum "$@"
 GOTESTSUM_EXIT=$?
 
 "$SCRIPT_DIR/split-test-logs.sh" "$json_file"
+SPLIT_EXIT=$?
 
+if [ $SPLIT_EXIT -ne 0 ]; then
+  exit $SPLIT_EXIT
+fi
 exit $GOTESTSUM_EXIT
