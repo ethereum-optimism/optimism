@@ -42,8 +42,7 @@ library L2ContractsManagerUtils {
 
         // We avoid downgrading Predeploys
         if (
-            // TODO(#19195): Remove this code skipping the ProxyAdmin once version is implemented.
-            _proxy != Predeploys.PROXY_ADMIN && implementation.code.length != 0
+            implementation.code.length != 0
                 && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
         ) {
             revert L2ContractsManager_DowngradeNotAllowed(address(_proxy));
@@ -99,9 +98,7 @@ library L2ContractsManagerUtils {
         address implementation = L2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
 
         if (
-            // TODO(#19195): Remove this code skipping the ProxyAdmin once version is implemented.
-            // This should never be the case, if you're trying to initialize the ProxyAdmin, it's probably a mistake.
-            _proxy != Predeploys.PROXY_ADMIN && implementation.code.length != 0
+            implementation.code.length != 0
                 && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
         ) {
             revert L2ContractsManager_DowngradeNotAllowed(address(_proxy));
