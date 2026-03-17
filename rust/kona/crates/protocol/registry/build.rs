@@ -74,11 +74,11 @@ fn main() {
     }
 
     // Sort the superchains by name.
-    superchains.superchains.sort_by(|a, b| a.name.cmp(&b.name));
+    superchains.superchains.sort_by_key(|a| a.name.clone());
 
     // For each superchain, sort the list of chains by chain id.
     for superchain in &mut superchains.superchains {
-        superchain.chains.sort_by(|a, b| a.chain_id.cmp(&b.chain_id));
+        superchain.chains.sort_by_key(|a| a.chain_id);
     }
 
     let output_path = std::path::Path::new("etc/configs.json");
@@ -211,9 +211,9 @@ fn merge_superchain_configs(custom_path: &Path, target_path: &Path) {
     }
 
     let mut merged: Vec<Superchain> = superchains.into_values().collect();
-    merged.sort_by(|a, b| a.name.cmp(&b.name));
+    merged.sort_by_key(|a| a.name.clone());
     for superchain in &mut merged {
-        superchain.chains.sort_by(|a, b| a.chain_id.cmp(&b.chain_id));
+        superchain.chains.sort_by_key(|a| a.chain_id);
     }
 
     let merged = Superchains { superchains: merged };

@@ -5,13 +5,13 @@ use alloy_consensus::{
 };
 use alloy_eips::{Encodable2718, Typed2718, eip7594::Encodable7594};
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
+use alloy_op_evm::block::OpTxEnv;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use core::ops::{Deref, DerefMut};
-use op_alloy::consensus::{OpTxEnvelope, TxDeposit};
+use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
 use op_revm::{OpTransaction, transaction::deposit::DepositTransactionParts};
+use reth_evm::TransactionEnv;
 use revm::context::TxEnv;
-
-use crate::block::OpTxEnv;
 
 /// Helper to convert a deposit transaction into a [`TxEnv`].
 fn deposit_tx_env(tx: &TxDeposit, caller: Address) -> TxEnv {
@@ -29,6 +29,12 @@ fn deposit_tx_env(tx: &TxDeposit, caller: Address) -> TxEnv {
 /// Newtype wrapper around [`OpTransaction<TxEnv>`] that allows implementing foreign traits.
 #[derive(Clone, Debug, Default)]
 pub struct OpTx(pub OpTransaction<TxEnv>);
+
+impl From<OpTx> for OpTransaction<TxEnv> {
+    fn from(tx: OpTx) -> Self {
+        tx.0
+    }
+}
 
 impl Deref for OpTx {
     type Target = OpTransaction<TxEnv>;
@@ -211,8 +217,22 @@ impl FromTxWithEncoded<TxDeposit> for OpTx {
     }
 }
 
-#[cfg(feature = "reth")]
-impl reth_evm::TransactionEnv for OpTx {
+#[cfg(feature = "rpc")]
+impl<Block: alloy_evm::env::BlockEnvironment> alloy_evm::rpc::TryIntoTxEnv<OpTx, Block>
+    for op_alloy_rpc_types::OpTransactionRequest
+{
+    type Err = alloy_evm::rpc::EthTxEnvError;
+
+    fn try_into_tx_env<Spec>(
+        self,
+        evm_env: &alloy_evm::EvmEnv<Spec, Block>,
+    ) -> Result<OpTx, Self::Err> {
+        let inner: OpTransaction<TxEnv> = self.try_into_tx_env(evm_env)?;
+        Ok(OpTx(inner))
+    }
+}
+
+impl TransactionEnv for OpTx {
     fn set_gas_limit(&mut self, gas_limit: u64) {
         self.0.base.gas_limit = gas_limit;
     }

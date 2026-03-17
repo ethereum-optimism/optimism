@@ -62,7 +62,7 @@ pub use traits::{NoopTrieDBProvider, TrieDBProvider};
 /// let executor_factory = OpBlockExecutorFactory::new(
 ///     OpAlloyReceiptBuilder::default(),
 ///     OpChainHardforks::op_mainnet(),
-///     OpEvmFactory::default(),
+///     OpEvmFactory::<op_revm::OpTransaction<revm::context::TxEnv>>::default(),
 /// );
 /// let mut state = State::builder().with_database(trie_db).with_bundle_update().build();
 /// let evm = executor_factory.evm_factory().create_evm(&mut state, EvmEnv::default());

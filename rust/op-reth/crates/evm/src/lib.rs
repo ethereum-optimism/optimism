@@ -15,7 +15,6 @@ use alloc::sync::Arc;
 use alloy_consensus::{BlockHeader, Header};
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
 use alloy_op_evm::{
-    OpTx,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
     evm_env_for_op_block, evm_env_for_op_next_block,
 };
@@ -63,6 +62,9 @@ pub use build::OpBlockAssembler;
 mod error;
 pub use error::{L1BlockInfoError, OpBlockExecutionError};
 
+pub mod tx;
+pub use tx::OpTx;
+
 pub use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory};
 
 /// Optimism-related EVM configuration.
@@ -71,7 +73,7 @@ pub struct OpEvmConfig<
     ChainSpec = OpChainSpec,
     N: NodePrimitives = OpPrimitives,
     R = OpRethReceiptBuilder,
-    EvmFactory = OpEvmFactory,
+    EvmFactory = OpEvmFactory<OpTx>,
 > {
     /// Inner [`OpBlockExecutorFactory`].
     pub executor_factory: OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmFactory>,
@@ -108,7 +110,7 @@ impl<ChainSpec: OpHardforks, N: NodePrimitives, R> OpEvmConfig<ChainSpec, N, R> 
             executor_factory: OpBlockExecutorFactory::new(
                 receipt_builder,
                 chain_spec,
-                OpEvmFactory::default(),
+                OpEvmFactory::<OpTx>::default(),
             ),
             _pd: core::marker::PhantomData,
         }

@@ -1,8 +1,8 @@
 //! [`EvmFactory`] implementation for the EVM in the FPVM environment.
 
-use super::precompiles::OpFpvmPrecompiles;
+use super::{precompiles::OpFpvmPrecompiles, tx::FpvmOpTx};
 use alloy_evm::{Database, EvmEnv, EvmFactory};
-use alloy_op_evm::{OpEvm, OpTx, OpTxError};
+use alloy_op_evm::{OpEvm, OpTxError};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{DefaultOp, OpContext, OpEvm as RevmOpEvm, OpHaltReason, OpSpecId};
 use revm::{
@@ -47,9 +47,10 @@ where
     H: HintWriterClient + Clone + Send + Sync + 'static,
     O: PreimageOracleClient + Clone + Send + Sync + 'static,
 {
-    type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, OpFpvmPrecompiles<H, O>>;
+    type Evm<DB: Database, I: Inspector<OpContext<DB>>> =
+        OpEvm<DB, I, OpFpvmPrecompiles<H, O>, FpvmOpTx>;
     type Context<DB: Database> = OpContext<DB>;
-    type Tx = OpTx;
+    type Tx = FpvmOpTx;
     type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;

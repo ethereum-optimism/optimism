@@ -1,17 +1,18 @@
 use crate::primitives::{CustomTransaction, TxPayment};
 use alloy_eips::{Typed2718, eip2930::AccessList};
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
-use alloy_op_evm::{OpTx, block::OpTxEnv};
+use alloy_op_evm::block::OpTxEnv;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use op_alloy_consensus::OpTxEnvelope;
 use reth_ethereum::evm::{primitives::TransactionEnv, revm::context::TxEnv};
+use reth_optimism_evm::OpTx;
 
 /// An Optimism transaction extended by [`PaymentTxEnv`] that can be fed to [`Evm`].
 ///
 /// [`Evm`]: alloy_evm::Evm
 #[derive(Clone, Debug)]
 pub enum CustomTxEnv {
-    Op(alloy_op_evm::OpTx),
+    Op(reth_optimism_evm::OpTx),
     Payment(PaymentTxEnv),
 }
 

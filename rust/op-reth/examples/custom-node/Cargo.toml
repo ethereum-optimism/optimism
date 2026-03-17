@@ -29,7 +29,8 @@ alloy-consensus = { workspace = true, features = ["serde"] }
 alloy-eips.workspace = true
 alloy-evm.workspace = true
 alloy-genesis.workspace = true
-alloy-op-evm = { workspace = true, features = ["reth"] }
+alloy-op-evm.workspace = true
+reth-optimism-evm.workspace = true
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true
 alloy-serde.workspace = true

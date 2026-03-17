@@ -56,7 +56,7 @@ where
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
         match tx {
-            CustomTxEnv::Op(tx) => self.inner.transact_raw(tx),
+            CustomTxEnv::Op(tx) => self.inner.transact_raw(tx.into()),
             CustomTxEnv::Payment(..) => todo!(),
         }
     }
