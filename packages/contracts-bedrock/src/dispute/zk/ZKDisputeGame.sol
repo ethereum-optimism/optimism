@@ -534,6 +534,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             revert InvalidBondDistributionMode();
         }
 
+        // TODO: if this is not necessary
+        // https://github.com/ethereum-optimism/specs/pull/896/changes/BASE..2c12ff62d627e2b5ec275374b458e8cd692ec515#r2922194162
+        // we can optimize it
+
         // Phase 1: Unlock the credit in DelayedWETH and return early.
         if (!hasUnlockedCredit[_recipient]) {
             hasUnlockedCredit[_recipient] = true;
