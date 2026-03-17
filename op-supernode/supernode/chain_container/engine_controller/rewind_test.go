@@ -221,8 +221,8 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 				// Verify NewPayload was called (for synthetic block)
 				require.Equal(t, 1, l2.newPayloadCalls, "NewPayload should be called once for synthetic block")
 				require.NotNil(t, l2.lastNewPayload)
-				// The synthetic payload should have modified fee recipient
-				require.Equal(t, common.MaxAddress, l2.lastNewPayload.FeeRecipient, "Synthetic payload should have modified fee recipient")
+				// The synthetic payload should have modified ExtraData to change the block hash
+				require.NotEqual(t, payloadEnvelope.ExecutionPayload.ExtraData, l2.lastNewPayload.ExtraData, "Synthetic payload should have modified ExtraData")
 
 				// Verify ForkchoiceUpdate was called twice (once for synthetic, once for target)
 				require.Equal(t, 2, l2.fcuCalls, "ForkchoiceUpdate should be called twice")
