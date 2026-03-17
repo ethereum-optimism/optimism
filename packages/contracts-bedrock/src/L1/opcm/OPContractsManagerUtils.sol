@@ -670,7 +670,7 @@ contract OPContractsManagerUtils {
         }
 
         // SUPER_PERMISSIONED_CANNON must be enabled.
-        if (!_disputeGameConfigs[1].enabled) {
+        if (!_disputeGameConfigs[0].enabled) {
             revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
         }
 

@@ -327,8 +327,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                     )
                 });
             } else {
-                // Permissioned: 1 config — [SUPER_PERMISSIONED_CANNON].
-                disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](1);
+                // Permissioned: 2 configs — [SUPER_PERMISSIONED_CANNON (enabled), SUPER_CANNON_KONA (disabled)].
+                disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](2);
                 disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: 0.08 ether,
@@ -340,6 +340,12 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                             challenger: challenger
                         })
                     )
+                });
+                disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    gameArgs: hex""
                 });
             }
 
