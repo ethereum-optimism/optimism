@@ -716,11 +716,18 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
         }
 
-        // The ZK dispute game can only be enabled when the ZK_DISPUTE_GAME dev feature is active.
-        // zkDisputeGameImpl is address(0) when the feature is off, so enabling it would register
-        // address(0) in the DisputeGameFactory.
-        if (_cfg.disputeGameConfigs[3].enabled && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
+        // The ZK dispute game can only be enabled when the ZK_DISPUTE_GAME dev feature is active
+        // AND a non-zero implementation has been set. Both conditions are required: the feature bit
+        // guards against accidental enablement, and the non-zero impl guard ensures that a bitmap
+        // with ZK enabled but an uninitialized zkDisputeGameImpl cannot register address(0) in the
+        // DisputeGameFactory via _apply().
+        if (_cfg.disputeGameConfigs[3].enabled) {
+            if (!isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (implementations().zkDisputeGameImpl == address(0)) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
         }
 
         // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
