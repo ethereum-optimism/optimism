@@ -48,6 +48,12 @@ jobs:
           ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - name: Detect affected images
         id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
 
@@ -55,16 +61,16 @@ jobs:
 
           # Determine if this is a fork PR
           IS_FORK="false"
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$HEAD_REPO" != "$THIS_REPO" ]]; then
               IS_FORK="true"
             fi
           fi
           echo "is_fork=$IS_FORK" >> "$GITHUB_OUTPUT"
 
           # For push to develop or scheduled builds, build all images
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            echo "Non-PR event (${{ github.event_name }}): building all images"
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "Non-PR event ($EVENT_NAME): building all images"
             ALL_IMAGES=$(jq -c '[.images | keys[]]' "$CONFIG")
             GO_CHECK=$(jq -c '[.images | to_entries[] | select(.value.check == "go") | .key]' "$CONFIG")
             RUST_CHECK=$(jq -c '[.images | to_entries[] | select(.value.check == "rust") | .key]' "$CONFIG")
@@ -79,7 +85,7 @@ jobs:
           fi
 
           # For PRs, detect which files changed (three-dot diff = only the PR's changes)
-          CHANGED_FILES=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" 2>/dev/null || true)
+          CHANGED_FILES=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}" 2>/dev/null || true)
 
           if [[ -z "$CHANGED_FILES" ]]; then
             echo "WARNING: Could not detect changed files — building all images as fallback"
