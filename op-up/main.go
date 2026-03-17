@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -30,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -204,9 +206,161 @@ func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal) erro
 	return nil
 }
 
+// parseRPCParams extracts the method and call parameters from a JSON RPC request map.
+// Returns an error response map if the request is malformed.
+func parseRPCParams(req map[string]any) (method string, args []any, errResp map[string]any) {
+	method, ok := req["method"].(string)
+	if !ok {
+		return "", nil, map[string]any{
+			"jsonrpc": "2.0",
+			"id":      req["id"],
+			"error": map[string]any{
+				"code":    -32600,
+				"message": "Missing or invalid 'method' field in JSON RPC request",
+			},
+		}
+	}
+
+	if p, ok := req["params"]; ok && p != nil {
+		if arr, isArray := p.([]any); isArray {
+			args = arr
+		} else if obj, isObject := p.(map[string]any); isObject {
+			args = []any{obj}
+		} else {
+			return "", nil, map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req["id"],
+				"error": map[string]any{
+					"code":    -32600,
+					"message": "Invalid 'params' field in JSON RPC request (must be array, object, or null)",
+				},
+			}
+		}
+	}
+	return method, args, nil
+}
+
+// handleSingleRPC processes a single JSON RPC request via CallContext and returns the response.
+func handleSingleRPC(ctx context.Context, stderr io.Writer, cl client.RPC, req map[string]any) map[string]any {
+	method, callParams, errResp := parseRPCParams(req)
+	if errResp != nil {
+		return errResp
+	}
+
+	id := req["id"]
+	var rpcResult json.RawMessage
+	fmt.Fprintf(stderr, "%s\n", method)
+
+	err := cl.CallContext(ctx, &rpcResult, method, callParams...)
+	if err != nil {
+		message := fmt.Sprintf("RPC call to backend failed for method '%s': %v", method, err)
+		fmt.Fprintf(stderr, "RPC error: %s\n", message)
+		return map[string]any{
+			"jsonrpc": "2.0",
+			"id":      id,
+			"error": map[string]any{
+				"code":    -32000,
+				"message": message,
+			},
+		}
+	}
+
+	return map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"result":  rpcResult,
+	}
+}
+
+// handleBatchRPC processes a batch of JSON RPC requests via BatchCallContext
+// and returns the responses as a slice of maps.
+func handleBatchRPC(ctx context.Context, stderr io.Writer, cl client.RPC, reqs []map[string]any) []map[string]any {
+	// First pass: parse all requests and build BatchElems for valid ones.
+	type parsed struct {
+		id     any
+		method string
+		elem   *rpc.BatchElem // nil if the request was malformed
+		errRes map[string]any // non-nil if the request was malformed
+	}
+	items := make([]parsed, len(reqs))
+	var batchElems []rpc.BatchElem
+	// Map from batchElems index back to items index.
+	var batchIdx []int
+
+	for i, req := range reqs {
+		method, args, errResp := parseRPCParams(req)
+		if errResp != nil {
+			items[i] = parsed{id: req["id"], errRes: errResp}
+			continue
+		}
+		fmt.Fprintf(stderr, "%s\n", method)
+		result := new(json.RawMessage)
+		elem := rpc.BatchElem{
+			Method: method,
+			Args:   args,
+			Result: result,
+		}
+		items[i] = parsed{id: req["id"], method: method, elem: &elem}
+		batchIdx = append(batchIdx, i)
+		batchElems = append(batchElems, elem)
+	}
+
+	// Send all valid requests as a single batch to the upstream.
+	if len(batchElems) > 0 {
+		if err := cl.BatchCallContext(ctx, batchElems); err != nil {
+			// If the entire batch call fails, mark all valid requests as errors.
+			fmt.Fprintf(stderr, "RPC batch error: %v\n", err)
+			for _, idx := range batchIdx {
+				items[idx].errRes = map[string]any{
+					"jsonrpc": "2.0",
+					"id":      items[idx].id,
+					"error": map[string]any{
+						"code":    -32000,
+						"message": fmt.Sprintf("RPC batch call to backend failed: %v", err),
+					},
+				}
+				items[idx].elem = nil
+			}
+		} else {
+			// Copy per-element results/errors back.
+			for j, idx := range batchIdx {
+				elem := batchElems[j]
+				if elem.Error != nil {
+					message := fmt.Sprintf("RPC call to backend failed for method '%s': %v", elem.Method, elem.Error)
+					fmt.Fprintf(stderr, "RPC error: %s\n", message)
+					items[idx].errRes = map[string]any{
+						"jsonrpc": "2.0",
+						"id":      items[idx].id,
+						"error": map[string]any{
+							"code":    -32000,
+							"message": message,
+						},
+					}
+					items[idx].elem = nil
+				}
+			}
+		}
+	}
+
+	// Build final response array.
+	responses := make([]map[string]any, len(reqs))
+	for i, item := range items {
+		if item.errRes != nil {
+			responses[i] = item.errRes
+		} else {
+			responses[i] = map[string]any{
+				"jsonrpc": "2.0",
+				"id":      item.id,
+				"result":  *(item.elem.Result.(*json.RawMessage)),
+			}
+		}
+	}
+	return responses
+}
+
 // proxyEL is a hacky way to intercept EL json rpc requests for logging to get around log filtering
 // bugs.
-func proxyEL(ctx context.Context, stderr io.Writer, client client.RPC) error {
+func proxyEL(ctx context.Context, stderr io.Writer, cl client.RPC) error {
 	mux := http.NewServeMux()
 	// Set up the HTTP handler for all incoming requests.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -222,98 +376,62 @@ func proxyEL(ctx context.Context, stderr io.Writer, client client.RPC) error {
 			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close() // Close the request body after reading
+		defer r.Body.Close()
 
-		// Parse the incoming JSON RPC request. We use a map to dynamically
-		// extract the method, parameters, and ID.
-		var req map[string]any
-		if err := json.Unmarshal(requestBody, &req); err != nil {
-			http.Error(w, "Invalid JSON RPC request format", http.StatusBadRequest)
-			return
-		}
+		// Create a context with a timeout for the RPC call(s) to the backend.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-		// Extract the RPC method name.
-		method, ok := req["method"].(string)
-		if !ok {
-			http.Error(w, "Missing or invalid 'method' field in JSON RPC request", http.StatusBadRequest)
-			return
-		}
+		// Detect whether this is a batch request (JSON array) or a single request (JSON object).
+		// Per JSON-RPC 2.0 spec, batch requests are sent as a JSON array of request objects.
+		var jsonResponse []byte
 
-		// Extract RPC parameters. JSON RPC parameters can be an array, an object, or null/missing.
-		var callParams []any
-		if p, ok := req["params"]; ok && p != nil {
-			if arr, isArray := p.([]any); isArray {
-				// If parameters are an array, spread them directly.
-				callParams = arr
-			} else if obj, isObject := p.(map[string]any); isObject {
-				// If parameters are a JSON object, pass the entire object as a single argument.
-				callParams = []any{obj}
+		// Trim whitespace to find the first significant character.
+		trimmed := bytes.TrimLeft(requestBody, " \t\r\n")
+		if len(trimmed) > 0 && trimmed[0] == '[' {
+			// Batch request: parse as array of request objects.
+			var reqs []map[string]any
+			if err := json.Unmarshal(requestBody, &reqs); err != nil {
+				http.Error(w, "Invalid JSON RPC batch request format", http.StatusBadRequest)
+				return
+			}
+			if len(reqs) == 0 {
+				// Per JSON-RPC 2.0 spec, an empty batch is an invalid request.
+				errResp := map[string]any{
+					"jsonrpc": "2.0",
+					"id":      nil,
+					"error": map[string]any{
+						"code":    -32600,
+						"message": "Invalid Request: empty batch",
+					},
+				}
+				jsonResponse, _ = json.Marshal(errResp)
 			} else {
-				http.Error(w, "Invalid 'params' field in JSON RPC request (must be array, object, or null)", http.StatusBadRequest)
+				responses := handleBatchRPC(ctx, stderr, cl, reqs)
+				jsonResponse, err = json.Marshal(responses)
+				if err != nil {
+					http.Error(w, "Failed to marshal RPC batch response", http.StatusInternalServerError)
+					return
+				}
+			}
+		} else {
+			// Single request: parse as a single request object.
+			var req map[string]any
+			if err := json.Unmarshal(requestBody, &req); err != nil {
+				http.Error(w, "Invalid JSON RPC request format", http.StatusBadRequest)
+				return
+			}
+			resp := handleSingleRPC(ctx, stderr, cl, req)
+			jsonResponse, err = json.Marshal(resp)
+			if err != nil {
+				http.Error(w, "Failed to marshal RPC response", http.StatusInternalServerError)
 				return
 			}
 		}
-		// If 'params' is missing or null, `callParams` remains empty, which is correct for methods without parameters.
 
-		// Extract the request ID. This is crucial for matching responses to requests.
-		id := req["id"] // ID can be string, number, or null. We don't need to check `ok` for this.
-
-		// Prepare a variable to hold the RPC response result.
-		// `json.RawMessage` is used to capture the raw JSON value from the backend
-		// without needing to know its specific Go type beforehand.
-		var rpcResult json.RawMessage
-
-		// Create a context with a timeout for the RPC call to the backend.
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // 30-second timeout
-		defer cancel()                                                           // Ensure the context is cancelled to release resources
-
-		fmt.Fprintf(stderr, "%s\n", method)
-
-		// Use the rpc.Client to make the actual call to the backend Ethereum node.
-		// The `callParams...` syntax unpacks the slice into variadic arguments.
-		err = client.CallContext(ctx, &rpcResult, method, callParams...)
-		if err != nil {
-			message := fmt.Sprintf("RPC call to backend failed for method '%s': %v", method, err)
-			// If the RPC call to the backend fails, construct a JSON RPC error response.
-			rpcErr := map[string]any{
-				"jsonrpc": "2.0",
-				"id":      id,
-				"error": map[string]any{
-					"code":    -32000, // Standard JSON RPC server error code for internal errors
-					"message": message,
-				},
-			}
-			fmt.Fprintf(stderr, "RPC error: %s\n", message)
-			jsonResponse, _ := json.Marshal(rpcErr) // Marshaling error is unlikely here, so we ignore it.
-			w.Header().Set("Content-Type", "application/json")
-			// For JSON-RPC, errors are typically returned with an HTTP 200 OK status,
-			// with the error details within the JSON payload.
-			w.WriteHeader(http.StatusOK)
-			if _, err := w.Write(jsonResponse); err != nil {
-				return
-			}
-			return
-		}
-
-		// If the RPC call was successful, construct the JSON RPC success response.
-		responseMap := map[string]any{
-			"jsonrpc": "2.0",
-			"id":      id,
-			"result":  rpcResult, // The raw JSON result from the backend node
-		}
-
-		jsonResponse, err := json.Marshal(responseMap)
-		if err != nil {
-			http.Error(w, "Failed to marshal RPC success response", http.StatusInternalServerError)
-			return
-		}
-
-		// Set the Content-Type header and write the successful JSON RPC response.
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(jsonResponse); err != nil {
-			return
-		}
+		_, _ = w.Write(jsonResponse)
 	})
 
 	server := &http.Server{Addr: "localhost:8545", Handler: mux}
