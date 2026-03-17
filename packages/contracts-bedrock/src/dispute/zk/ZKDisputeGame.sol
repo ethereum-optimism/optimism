@@ -131,6 +131,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
 
+    /// @notice A mapping of whether a claimant has unlocked their credit.
+    mapping(address => bool) public hasUnlockedCredit;
+
     /// @notice The dispute game factory that created this game.
     IDisputeGameFactory public disputeGameFactory;
 
@@ -531,26 +534,25 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             revert InvalidBondDistributionMode();
         }
 
-        // Phase 1: If the recipient still has credit, zero it out and unlock in DelayedWETH.
-        // Credits are only assigned once per address, so a non-zero balance means the unlock
-        // hasn't happened yet.
-        if (recipientCredit > 0) {
-            refundModeCredit[_recipient] = 0;
-            normalModeCredit[_recipient] = 0;
+        // Phase 1: Unlock the credit in DelayedWETH and return early.
+        if (!hasUnlockedCredit[_recipient]) {
+            hasUnlockedCredit[_recipient] = true;
             weth().unlock(_recipient, recipientCredit);
             return;
         }
 
-        // Phase 2: Credits have been zeroed (phase 1 completed). Check DelayedWETH for a
-        // pending withdrawal and finalize it.
-        (uint256 amount,) = weth().withdrawals(address(this), _recipient);
-        if (amount == 0) revert NoCreditToClaim();
+        // Revert if the recipient has no credit to claim.
+        if (recipientCredit == 0) revert NoCreditToClaim();
 
-        // Withdraw the WETH amount so it can be used here.
-        weth().withdraw(_recipient, amount);
+        // Set the recipient's credit balances to 0.
+        refundModeCredit[_recipient] = 0;
+        normalModeCredit[_recipient] = 0;
+
+        // Phase 2: Withdraw the WETH amount so it can be used here.
+        weth().withdraw(_recipient, recipientCredit);
 
         // Transfer the credit to the recipient.
-        (bool success,) = _recipient.call{ value: amount }(hex"");
+        (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
         if (!success) revert BondTransferFailed();
     }
 
