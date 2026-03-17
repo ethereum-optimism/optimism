@@ -17,6 +17,7 @@ type CLIConfig struct {
 	DataDir                    string
 	L1NodeAddr                 string
 	L1BeaconAddr               string
+	L1BeaconFallbackAddrs      []string
 	RPCConfig                  oprpc.CLIConfig
 	LogConfig                  oplog.CLIConfig
 	MetricsConfig              opmetrics.CLIConfig
@@ -46,7 +47,8 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		Chains:        ctx.Uint64Slice(flags.ChainsFlag.Name),
 		DataDir:       ctx.String(flags.DataDirFlag.Name),
 		L1NodeAddr:    ctx.String(flags.L1NodeAddr.Name),
-		L1BeaconAddr:  ctx.String(flags.L1BeaconAddr.Name),
+		L1BeaconAddr:          ctx.String(flags.L1BeaconAddr.Name),
+		L1BeaconFallbackAddrs: ctx.StringSlice(flags.L1BeaconFallbackAddrs.Name),
 		RPCConfig:     oprpc.ReadCLIConfig(ctx),
 		LogConfig:     oplog.ReadCLIConfig(ctx),
 		MetricsConfig: opmetrics.ReadCLIConfig(ctx),

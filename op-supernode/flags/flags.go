@@ -45,6 +45,12 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON"),
 		Required: false,
 	}
+	L1BeaconFallbackAddrs = &cli.StringSliceFlag{
+		Name:    "l1.beacon-fallbacks",
+		Aliases: []string{"l1.beacon-archiver"},
+		Usage:   "Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars not available at the l1.beacon (e.g. expired blobs).",
+		EnvVars: append(prefixEnvVars("L1_BEACON_FALLBACKS"), prefixEnvVars("L1_BEACON_ARCHIVER")...),
+	}
 	DisableP2P = &cli.BoolFlag{
 		Name:     "disable-p2p",
 		Usage:    "Disable P2P for all chains. Affects configuration handed to virtual nodes.",
@@ -75,6 +81,7 @@ func RegisterActivityFlags(flags ...cli.Flag) {
 
 func init() {
 	optionalFlags = append(optionalFlags, L1BeaconAddr)
+	optionalFlags = append(optionalFlags, L1BeaconFallbackAddrs)
 	optionalFlags = append(optionalFlags, DataDirFlag)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
