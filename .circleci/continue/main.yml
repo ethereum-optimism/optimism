@@ -1409,6 +1409,12 @@ jobs:
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "~/.cache/go-build"
+      # Store raw JUnit XML as artifact for debugging when store_test_results
+      # shows 0 results (see ethereum-optimism/optimism#19577)
+      - store_artifacts:
+          path: packages/contracts-bedrock/results
+          destination: junit-results
+          when: always
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
@@ -1637,6 +1643,12 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
+      # Store raw JUnit XML as artifact for debugging when store_test_results
+      # shows 0 results (see ethereum-optimism/optimism#19577)
+      - store_artifacts:
+          path: packages/contracts-bedrock/results
+          destination: junit-results
+          when: always
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
