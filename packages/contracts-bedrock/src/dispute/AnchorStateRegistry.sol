@@ -143,7 +143,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         // Clear the anchor game if requested. This is used during the super root games migration
         // to ensure that getAnchorRoot() returns the new startingAnchorRoot instead of the old
         // anchor game's root claim.
-        if (_clearAnchorGame) {
+        if (_clearAnchorGame && address(anchorGame) != address(0)) {
             anchorGame = IDisputeGame(address(0));
         }
 
