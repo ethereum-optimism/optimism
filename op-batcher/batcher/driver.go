@@ -1011,7 +1011,10 @@ func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.T
 		// We log instead of return an error here because the txmgr will do its own gas estimation.
 		l.Log.Warn("Failed to calculate floor data gas", "err", err)
 	} else {
-		candidate.GasLimit = floorDataGas
+		// Amsterdam (EIP-7918) requires txpool gas >= intrinsicGas * 10/9. Applying the
+		// same 10/9 multiplier to floorDataGas ensures the Amsterdam constraint is satisfied
+		// since floorDataGas >= intrinsicGas for data-heavy batch transactions.
+		candidate.GasLimit = floorDataGas * 10 / 9
 	}
 
 	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)

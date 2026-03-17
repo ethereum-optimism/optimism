@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/bal"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -252,22 +253,32 @@ func NewL1GenesisMinimal(config *DevL1DeployConfigMinimal) (*core.Genesis, error
 	if config.BlobScheduleConfig != nil {
 		chainConfig.BlobScheduleConfig = config.BlobScheduleConfig
 	}
+	// Compute the BlockAccessListHash for the genesis block when Amsterdam is active.
+	// The genesis block has no block access list, so we use the hash of an empty BAL.
+	var blockAccessListHash *common.Hash
+	if chainConfig.AmsterdamTime != nil {
+		empty := bal.BlockAccessList{}
+		h := empty.Hash()
+		blockAccessListHash = &h
+	}
+
 	// Note: excess-blob-gas, blob-gas-used, withdrawals-hash, requests-hash are set to reasonable defaults for L1 by the ToBlock() function
 	return &core.Genesis{
-		Config:        &chainConfig,
-		Nonce:         uint64(config.L1GenesisBlockNonce),
-		Timestamp:     uint64(timestamp),
-		ExtraData:     make([]byte, 0),
-		GasLimit:      uint64(gasLimit),
-		Difficulty:    difficulty.ToInt(),
-		Mixhash:       config.L1GenesisBlockMixHash,
-		Coinbase:      config.L1GenesisBlockCoinbase,
-		Number:        uint64(config.L1GenesisBlockNumber),
-		GasUsed:       uint64(config.L1GenesisBlockGasUsed),
-		ParentHash:    config.L1GenesisBlockParentHash,
-		BaseFee:       baseFee.ToInt(),
-		ExcessBlobGas: (*uint64)(config.L1GenesisBlockExcessBlobGas),
-		BlobGasUsed:   (*uint64)(config.L1GenesisBlockBlobGasUsed),
+		Config:              &chainConfig,
+		Nonce:               uint64(config.L1GenesisBlockNonce),
+		Timestamp:           uint64(timestamp),
+		ExtraData:           make([]byte, 0),
+		GasLimit:            uint64(gasLimit),
+		Difficulty:          difficulty.ToInt(),
+		Mixhash:             config.L1GenesisBlockMixHash,
+		Coinbase:            config.L1GenesisBlockCoinbase,
+		Number:              uint64(config.L1GenesisBlockNumber),
+		GasUsed:             uint64(config.L1GenesisBlockGasUsed),
+		ParentHash:          config.L1GenesisBlockParentHash,
+		BaseFee:             baseFee.ToInt(),
+		ExcessBlobGas:       (*uint64)(config.L1GenesisBlockExcessBlobGas),
+		BlobGasUsed:         (*uint64)(config.L1GenesisBlockBlobGasUsed),
+		BlockAccessListHash: blockAccessListHash,
 	}, nil
 }
 
