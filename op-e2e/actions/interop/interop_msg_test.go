@@ -562,6 +562,10 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	actors.ChainB.Sequencer.SyncSupervisor(t)
 	actors.Supervisor.ProcessFull(t)
 
+	// Propagate cross-safe/safe promotion back to op-node
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+
 	// Make sure the replaced block has different blockhash
 	replacedBlock := actors.ChainB.Sequencer.SyncStatus().LocalSafeL2
 	require.NotEqual(t, reorgedOutBlock.Hash, replacedBlock.Hash)
