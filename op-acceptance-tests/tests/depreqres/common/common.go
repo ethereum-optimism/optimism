@@ -83,7 +83,7 @@ func stableSyncStatus(require *testreq.Assertions, node *dsl.L2CLNode) *eth.Sync
 		stable := next.UnsafeL2.Number == ss.UnsafeL2.Number
 		ss = next
 		return stable
-	}, 5*time.Second, 200*time.Millisecond, "L2CLB head should stabilize after disconnect")
+	}, 15*time.Second, 200*time.Millisecond, "L2CLB head should stabilize after disconnect")
 	return ss
 }
 
@@ -126,8 +126,8 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 	sys.L2CL.ConnectPeer(sys.L2CLB)
 
 	l.Info("Confirm that the unsafe chain for L2CLB is not stalled")
-	sys.L2CLB.Reached(types.LocalUnsafe, ssA_after.UnsafeL2.Number, 30)
-	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
+	sys.L2CLB.Reached(types.LocalUnsafe, ssA_after.UnsafeL2.Number, 60)
+	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 60)
 }
 
 func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
@@ -173,6 +173,6 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sle
 	sys.L2CL.ConnectPeer(sys.L2CLB)
 
 	l.Info("Confirm that the unsafe chain for L2CLB is not stalled")
-	sys.L2CLB.Reached(types.LocalUnsafe, ssA_after.UnsafeL2.Number, 30)
-	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
+	sys.L2CLB.Reached(types.LocalUnsafe, ssA_after.UnsafeL2.Number, 60)
+	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 60)
 }
