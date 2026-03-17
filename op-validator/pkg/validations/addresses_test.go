@@ -74,6 +74,9 @@ func TestValidatorAddress(t *testing.T) {
 }
 
 func TestAddressValidDeployment(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test that requires external RPC endpoints")
+	}
 	t.Parallel()
 
 	for _, network := range []string{"mainnet", "sepolia"} {
