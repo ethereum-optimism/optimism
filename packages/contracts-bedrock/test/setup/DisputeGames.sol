@@ -76,7 +76,8 @@ library DisputeGames {
     /// @notice Checks if the game type is a super game type
     function isSuperGame(GameType _gameType) internal pure returns (bool) {
         return _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-            || _gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw();
+            || _gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+            || _gameType.raw() == GameTypes.SUPER_ASTERISC_KONA.raw();
     }
 
     enum GameArg {
