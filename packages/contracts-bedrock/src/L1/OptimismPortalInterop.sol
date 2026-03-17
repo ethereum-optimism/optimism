@@ -217,7 +217,7 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     error OptimismPortal_MigratingToSameRegistry();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.3.0+interop
+    /// @custom:semver 5.3.1+interop
     function version() public pure virtual returns (string memory) {
         return "5.3.1+interop";
     }
