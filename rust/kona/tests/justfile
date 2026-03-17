@@ -187,6 +187,7 @@ action-tests-build:
 # Run action tests for the single-chain client program on the native target
 action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   #!/bin/bash
+  set -euo pipefail
 
   if [ ! -n "$KONA_HOST_PATH" ]; then
     export KONA_HOST_PATH="{{SOURCE}}/../target/release/kona-host"
@@ -229,7 +230,7 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
     # so split once at the end rather than wrapping each call.
     {{SOURCE}}/../../../ops/scripts/split-test-logs.sh ./tmp/testlogs/log-$NODE_INDEX.json
 
-    exit 0
+    exit
   fi
 
   {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
@@ -242,6 +243,7 @@ action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-b
 
 action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
   #!/bin/bash
+  set -euo pipefail
 
   echo "Building host program for the native target"
   just build-native --bin kona-host
