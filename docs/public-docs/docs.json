@@ -260,7 +260,7 @@
     },
     {
       "source": "/stack/interop/transfer-superchainERC20",
-      "destination": "/stack/interop/tutorials/transfer-superchainERC20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/stack/interop/architecture",
@@ -440,11 +440,11 @@
     },
     {
       "source": "/stack/interop/superchain-erc20",
-      "destination": "/interop/superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/stack/interop/tutorials/transfer-superchainERC20",
-      "destination": "/interop/tutorials/transfer-superchainERC20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/stack/interop/tutorials/bridge-crosschain-eth",
@@ -460,7 +460,7 @@
     },
     {
       "source": "/stack/interop/tutorials/custom-superchain-erc20",
-      "destination": "/interop/tutorials/custom-superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/stack/interop/tutorials/relay-messages-cast",
@@ -480,7 +480,7 @@
     },
     {
       "source": "/stack/interop/tutorials/deploy-superchain-erc20",
-      "destination": "/interop/tutorials/deploy-superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/stack/interop/predeploy",
@@ -536,7 +536,7 @@
     },
     {
       "source": "/app-developers/starter-kit",
-      "destination": "/app-developers/quickstarts/starter-kit"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/app-developers/testing-apps",
@@ -644,7 +644,7 @@
     },
     {
       "source": "/app-developers/quickstarts/get-started",
-      "destination": "/app-developers/quickstarts/starter-kit"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/app-developers/tutorials/interop/bridge-crosschain-eth",
@@ -656,7 +656,7 @@
     },
     {
       "source": "/app-developers/tutorials/interop/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/app-developers/tutorials/interop/event-contests",
@@ -676,7 +676,7 @@
     },
     {
       "source": "/app-developers/tutorials/interop/transfer-superchainERC20",
-      "destination": "/op-stack/interop/superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/app-developers/tutorials/supersim",
@@ -768,7 +768,7 @@
     },
     {
       "source": "/interop/compatible-tokens",
-      "destination": "/app-developers/reference/tokens/compatible-tokens"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/interop/explainer",
@@ -820,15 +820,15 @@
     },
     {
       "source": "/interop/starter-kit",
-      "destination": "/app-developers/quickstarts/starter-kit"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/interop/superchain-erc20",
-      "destination": "/op-stack/interop/superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/concepts/interoperability/superchain-erc20",
-      "destination": "/op-stack/interop/superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/interop/superchain-eth-bridge",
@@ -868,11 +868,11 @@
     },
     {
       "source": "/interop/tutorials/custom-superchain-erc20",
-      "destination": "/op-stack/interop/superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/interop/tutorials/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/interop/tutorials/event-contests",
@@ -896,7 +896,7 @@
     },
     {
       "source": "/interop/tutorials/transfer-superchainERC20",
-      "destination": "/op-stack/interop/superchain-erc20"
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/notices/blob-fee-bug",
@@ -1818,9 +1818,33 @@
       "source": "/superchain/superchain-registry",
       "destination": "/op-stack/protocol/superchain-registry"
     },
-     {
+    {
       "source": "/node-operators/guides/management/snapshots",
       "destination": "/op-mainnet/network-information/snapshots"
+    },
+    {
+      "source": "/app-developers/quickstarts/starter-kit",
+      "destination": "/op-stack/interop/interop"
+    },
+    {
+      "source": "/app-developers/reference/tokens/compatible-tokens",
+      "destination": "/op-stack/interop/interop"
+    },
+    {
+      "source": "/app-developers/tutorials/tokens/custom-superchain-erc20",
+      "destination": "/op-stack/interop/interop"
+    },
+    {
+      "source": "/app-developers/tutorials/tokens/deploy-superchain-erc20",
+      "destination": "/op-stack/interop/interop"
+    },
+    {
+      "source": "/app-developers/tutorials/tokens/transfer-superchainERC20",
+      "destination": "/op-stack/interop/interop"
+    },
+    {
+      "source": "/op-stack/interop/superchain-erc20",
+      "destination": "/op-stack/interop/interop"
     },
     {
       "source": "/superchain/introduction/superchain-explainer",
@@ -1841,23 +1865,11 @@
     {
       "source": "/app-developers/guides/superchain",
       "destination": "/op-stack/introduction/op-stack"
-    },
-    {
-      "source": "/app-developers/tutorials/tokens/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/superchain-erc20"
-    },
-    {
-      "source": "/app-developers/tutorials/tokens/custom-superchain-erc20",
-      "destination": "/op-stack/interop/superchain-erc20"
-    },
-    {
-      "source": "/app-developers/tutorials/tokens/transfer-superchainERC20",
-      "destination": "/op-stack/interop/superchain-erc20"
     }
   ],
   "interaction": {
-      "drilldown": false 
-    },
+    "drilldown": false
+  },
   "navigation": {
     "tabs": [
       {
@@ -1903,7 +1915,6 @@
                   "chain-operators/guides/management/gas-target-limit",
                   "chain-operators/guides/management/key-management",
                   "chain-operators/guides/management/operations",
-                  "chain-operators/guides/management/revenue-sharing",
                   "chain-operators/guides/management/transaction-fees-101",
                   "chain-operators/guides/management/troubleshooting"
                 ]
@@ -2070,7 +2081,7 @@
               "node-operators/reference/op-node-json-rpc",
               "node-operators/reference/op-geth-config",
               "node-operators/reference/op-geth-json-rpc",
-              "node-operators/reference/op-reth-config", 
+              "node-operators/reference/op-reth-config",
               "node-operators/reference/op-reth-historical-proof-config",
               "node-operators/reference/consensus-layer-sync"
             ]
@@ -2083,7 +2094,6 @@
           {
             "group": "Quickstarts",
             "pages": [
-              "app-developers/quickstarts/starter-kit",
               "app-developers/quickstarts/actions"
             ]
           },
@@ -2206,7 +2216,6 @@
               {
                 "group": "Tokens",
                 "pages": [
-                  "app-developers/reference/tokens/compatible-tokens",
                   "app-developers/reference/tokens/tokenlist"
                 ]
               },
@@ -2234,15 +2243,15 @@
               "/op-stack/introduction/fact-sheet"
             ]
           },
-              {
-                "group": "Features",
-                "pages": [
-                  "/op-stack/features/flashblocks",
-                  "/op-stack/features/custom-gas-token",
-                  "/op-stack/features/bridged-usdc-standard",
-                  "/op-stack/features/span-batches",
-                  "/op-stack/features/send-raw-transaction-conditional"
-                ]
+          {
+            "group": "Features",
+            "pages": [
+              "/op-stack/features/flashblocks",
+              "/op-stack/features/custom-gas-token",
+              "/op-stack/features/bridged-usdc-standard",
+              "/op-stack/features/span-batches",
+              "/op-stack/features/send-raw-transaction-conditional"
+            ]
           },
           {
             "group": "Protocol Information",
@@ -2262,12 +2271,12 @@
             ]
           },
           {
-              "group": "Bridging",
-              "pages": [
-                "/op-stack/bridging/cross-domain",
-                "/op-stack/bridging/deposit-flow",
-                "/op-stack/bridging/withdrawal-flow"
-              ]
+            "group": "Bridging",
+            "pages": [
+              "/op-stack/bridging/cross-domain",
+              "/op-stack/bridging/deposit-flow",
+              "/op-stack/bridging/withdrawal-flow"
+            ]
           },
           {
             "group": "Transactions",
@@ -2312,7 +2321,6 @@
               "/op-stack/interop/interop",
               "/op-stack/interop/explainer",
               "/op-stack/interop/reorg",
-              "/op-stack/interop/superchain-erc20",
               "/op-stack/interop/superchain-eth-bridge"
             ]
           },
@@ -2358,7 +2366,6 @@
             "group": "Notices",
             "pages": [
               "notices/op-geth-deprecation",
-              "notices/upgrade-19",
               {
                 "group": "Archive",
                 "pages": [
