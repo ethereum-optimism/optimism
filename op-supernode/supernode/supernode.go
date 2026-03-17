@@ -29,20 +29,20 @@ import (
 )
 
 type Supernode struct {
-	log          gethlog.Logger
-	version      string
-	requestStop  context.CancelCauseFunc
-	stopped      bool
-	cfg          *config.CLIConfig
-	chains       map[eth.ChainID]cc.ChainContainer
-	activities   []activity.Activity
+	log             gethlog.Logger
+	version         string
+	requestStop     context.CancelCauseFunc
+	stopped         bool
+	cfg             *config.CLIConfig
+	chains          map[eth.ChainID]cc.ChainContainer
+	activities      []activity.Activity
 	rootRPC         *oprpc.Handler
 	wg              sync.WaitGroup
-	lifecycleCancel context.CancelFunc
-	l1Client     *sources.L1Client
-	beaconClient *sources.L1BeaconClient
-	httpServer   *httputil.HTTPServer
-	rpcRouter    *resources.Router
+	lifecycleCancel context.CancelFunc // canceled in Stop() to unblock goroutines from Start()
+	l1Client        *sources.L1Client
+	beaconClient    *sources.L1BeaconClient
+	httpServer      *httputil.HTTPServer
+	rpcRouter       *resources.Router
 	// Metrics router/server for per-chain metrics
 	metrics      *resources.MetricsService
 	metricsFanIn *resources.MetricsFanIn
