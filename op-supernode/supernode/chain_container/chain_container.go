@@ -27,13 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	virtualNodeVersion = "0.1.0"
-	// maxRewindAttempts is the maximum number of times RewindEngine will retry a transient
-	// rewind error before giving up. Prevents infinite retry loops when the engine
-	// consistently rejects synthetic payloads or FCU calls.
-	maxRewindAttempts = 10
-)
+const virtualNodeVersion = "0.1.0"
 
 type ChainContainer interface {
 	Start(ctx context.Context) error
@@ -564,23 +558,20 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	c.log.Info("chain_container/RewindEngine: stopped vn")
 
 retryLoop:
-	for attempt := 1; ; attempt++ {
+	for {
 		err = c.engine.RewindToTimestamp(ctx, timestamp)
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
-			c.log.Error("chain_container/RewindEngine: timeout exceeded", "attempt", attempt, "timestamp", timestamp)
+			c.log.Error("chain_container/RewindEngine: timeout exceeded")
 			return err
 		case isCriticalRewindError(err):
-			c.log.Error("chain_container/RewindEngine: critical error", "err", err, "attempt", attempt, "timestamp", timestamp)
+			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
 			return err
 		case err == nil:
-			c.log.Info("chain_container/RewindEngine: executed engine rewind", "attempts", attempt, "timestamp", timestamp)
+			c.log.Info("chain_container/RewindEngine: executed engine rewind")
 			break retryLoop
-		case attempt >= maxRewindAttempts:
-			c.log.Error("chain_container/RewindEngine: max retry attempts reached, giving up", "err", err, "attempt", attempt, "timestamp", timestamp)
-			return err
 		default:
-			c.log.Error("chain_container/RewindEngine: temporary error, retrying", "err", err, "attempt", attempt, "timestamp", timestamp)
+			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
