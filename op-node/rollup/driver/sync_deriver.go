@@ -158,8 +158,8 @@ func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.Engin
 	// and don't confirm the engine-reset with the derivation pipeline.
 	// The pipeline will re-trigger a reset as necessary.
 	if s.SafeHeadNotifs != nil {
-		if err := s.SafeHeadNotifs.SafeHeadReset(x.CrossSafe); err != nil {
-			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.CrossSafe)
+		if err := s.SafeHeadNotifs.SafeHeadReset(x.LocalSafe); err != nil {
+			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.LocalSafe)
 			return
 		}
 		if s.SafeHeadNotifs.Enabled() && x.LocalSafe.ID() == s.Config.Genesis.L2 {
