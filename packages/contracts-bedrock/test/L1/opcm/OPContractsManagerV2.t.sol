@@ -598,7 +598,7 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
                 })
             );
         } else {
-            // Permissioned: 1 config [SUPER_PERMISSIONED_CANNON].
+            // Permissioned: 2 configs [SUPER_PERMISSIONED_CANNON (enabled), SUPER_CANNON_KONA (disabled)].
             v2UpgradeInput.disputeGameConfigs.push(
                 IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
@@ -611,6 +611,15 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
                             challenger: currentChallenger
                         })
                     )
+                })
+            );
+            // SUPER_CANNON_KONA disabled in permissioned mode.
+            v2UpgradeInput.disputeGameConfigs.push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    gameArgs: hex""
                 })
             );
         }
@@ -660,6 +669,13 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
                 address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0),
                 "SUPER_CANNON_KONA not registered"
             );
+        } else {
+            assertEq(
+                address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)),
+                address(0),
+                "SUPER_CANNON_KONA not cleared in permissioned mode"
+            );
+            assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_CANNON_KONA), 0, "SUPER_CANNON_KONA bond not cleared");
         }
 
         // Verify ASR state: anchor game cleared, new anchor root and game type set.

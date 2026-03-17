@@ -890,8 +890,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the DisputeGame config and implementations.
-        // NOTE: We assert in assertValidStandardGameConfigs that we have a configuration for all valid game
-        // types so we can be confident that we're setting/unsetting everything we care about.
+        // NOTE: Both assertValidStandardGameConfigs and assertValidSuperRootMigrationConfig require
+        // a configuration entry for every game type we care about in the new configuration, so this
+        // loop sets/unsets all target game types. Legacy game types are separately cleaned up below.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             // Game implementation and arguments default to empty values. If the game is disabled,
             // we'll use these empty values to unset the game in the factory.

@@ -536,14 +536,23 @@ contract OPContractsManagerUtils {
                 revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
             }
         } else {
-            // Permissioned: 1 config — [SUPER_PERMISSIONED_CANNON], must be enabled.
-            if (_disputeGameConfigs.length != 1) {
+            // Permissioned: 2 configs — [SUPER_PERMISSIONED_CANNON (enabled), SUPER_CANNON_KONA (disabled)].
+            if (_disputeGameConfigs.length != 2) {
                 revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
             }
             if (_disputeGameConfigs[0].gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
                 revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
             }
+            if (_disputeGameConfigs[1].gameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
             if (!_disputeGameConfigs[0].enabled) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (_disputeGameConfigs[1].enabled) {
+                revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
+            }
+            if (_disputeGameConfigs[1].initBond != 0) {
                 revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
             }
         }
