@@ -1148,7 +1148,7 @@ workflows:
       - rust-ci-deny:
           name: rust-deny
           directory: rust
-          command: "cargo deny --all-features check all"
+          command: "just deny"
           context: *rust-ci-context
 
       - rust-ci-typos:

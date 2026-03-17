@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+	bolt "go.etcd.io/bbolt"
 )
 
 func TestDenyList_AddAndContains(t *testing.T) {
@@ -27,7 +28,7 @@ func TestDenyList_AddAndContains(t *testing.T) {
 			name: "single hash at height",
 			setup: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
-				require.NoError(t, dl.Add(100, hash))
+				require.NoError(t, dl.Add(100, hash, 0))
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
@@ -45,7 +46,7 @@ func TestDenyList_AddAndContains(t *testing.T) {
 					common.HexToHash("0xcccc"),
 				}
 				for _, h := range hashes {
-					require.NoError(t, dl.Add(50, h))
+					require.NoError(t, dl.Add(50, h, 0))
 				}
 			},
 			check: func(t *testing.T, dl *DenyList) {
@@ -65,7 +66,7 @@ func TestDenyList_AddAndContains(t *testing.T) {
 			name: "hash at wrong height returns false",
 			setup: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0xdddd")
-				require.NoError(t, dl.Add(10, hash))
+				require.NoError(t, dl.Add(10, hash, 0))
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0xdddd")
@@ -84,9 +85,9 @@ func TestDenyList_AddAndContains(t *testing.T) {
 			name: "duplicate add is idempotent",
 			setup: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0xeeee")
-				require.NoError(t, dl.Add(200, hash))
-				require.NoError(t, dl.Add(200, hash)) // Add again
-				require.NoError(t, dl.Add(200, hash)) // And again
+				require.NoError(t, dl.Add(200, hash, 0))
+				require.NoError(t, dl.Add(200, hash, 0)) // Add again
+				require.NoError(t, dl.Add(200, hash, 0)) // And again
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0xeeee")
@@ -136,7 +137,7 @@ func TestDenyList_Persistence(t *testing.T) {
 					{300, common.HexToHash("0x4444")},
 				}
 				for _, h := range hashes {
-					require.NoError(t, dl.Add(h.height, h.hash))
+					require.NoError(t, dl.Add(h.height, h.hash, 0))
 				}
 
 				require.NoError(t, dl.Close())
@@ -218,7 +219,7 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 			setup: func(t *testing.T, dl *DenyList) {
 				for i := 0; i < 5; i++ {
 					hash := common.BigToHash(common.Big1.Add(common.Big1, common.Big0.SetInt64(int64(i))))
-					require.NoError(t, dl.Add(100, hash))
+					require.NoError(t, dl.Add(100, hash, 0))
 				}
 			},
 			check: func(t *testing.T, dl *DenyList) {
@@ -231,8 +232,8 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 			name: "empty for clean height",
 			setup: func(t *testing.T, dl *DenyList) {
 				// Add hashes at other heights
-				require.NoError(t, dl.Add(10, common.HexToHash("0xaaaa")))
-				require.NoError(t, dl.Add(30, common.HexToHash("0xbbbb")))
+				require.NoError(t, dl.Add(10, common.HexToHash("0xaaaa"), 0))
+				require.NoError(t, dl.Add(30, common.HexToHash("0xbbbb"), 0))
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hashes, err := dl.GetDeniedHashes(20)
@@ -244,12 +245,12 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 			name: "isolated by height",
 			setup: func(t *testing.T, dl *DenyList) {
 				// Add different hashes at different heights
-				require.NoError(t, dl.Add(10, common.HexToHash("0x1010")))
-				require.NoError(t, dl.Add(10, common.HexToHash("0x1011")))
-				require.NoError(t, dl.Add(20, common.HexToHash("0x2020")))
-				require.NoError(t, dl.Add(20, common.HexToHash("0x2021")))
-				require.NoError(t, dl.Add(20, common.HexToHash("0x2022")))
-				require.NoError(t, dl.Add(30, common.HexToHash("0x3030")))
+				require.NoError(t, dl.Add(10, common.HexToHash("0x1010"), 0))
+				require.NoError(t, dl.Add(10, common.HexToHash("0x1011"), 0))
+				require.NoError(t, dl.Add(20, common.HexToHash("0x2020"), 0))
+				require.NoError(t, dl.Add(20, common.HexToHash("0x2021"), 0))
+				require.NoError(t, dl.Add(20, common.HexToHash("0x2022"), 0))
+				require.NoError(t, dl.Add(30, common.HexToHash("0x3030"), 0))
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hashes10, err := dl.GetDeniedHashes(10)
@@ -407,7 +408,7 @@ func TestInvalidateBlock(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"))
+		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"), 0)
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cannot invalidate genesis block")
@@ -450,7 +451,7 @@ func TestInvalidateBlock(t *testing.T) {
 
 			// Call InvalidateBlock
 			ctx := context.Background()
-			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash)
+			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash, 0)
 			require.NoError(t, err)
 
 			// Verify rewind behavior
@@ -516,7 +517,7 @@ func TestIsDenied(t *testing.T) {
 			defer dl.Close()
 
 			// Setup
-			require.NoError(t, dl.Add(tt.setupHeight, tt.setupHash))
+			require.NoError(t, dl.Add(tt.setupHeight, tt.setupHash, 0))
 
 			// Create container
 			c := &simpleChainContainer{
@@ -573,7 +574,7 @@ func TestDenyList_ConcurrentAccess(t *testing.T) {
 				hash := makeHash(accessorID, j)
 
 				// Write
-				err := dl.Add(height, hash)
+				err := dl.Add(height, hash, 0)
 				require.NoError(t, err)
 
 				// Read own write
@@ -604,4 +605,68 @@ func TestDenyList_ConcurrentAccess(t *testing.T) {
 			require.True(t, found, "hash from accessor %d at height %d should exist after concurrent access", i, height)
 		}
 	}
+}
+
+func TestDenyList_PruneAtOrAfterTimestamp(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	hashA := common.HexToHash("0xaaaa")
+	hashB := common.HexToHash("0xbbbb")
+	hashC := common.HexToHash("0xcccc")
+	require.NoError(t, dl.Add(100, hashA, 10))
+	require.NoError(t, dl.Add(100, hashB, 11))
+	require.NoError(t, dl.Add(200, hashC, 12))
+
+	removed, err := dl.PruneAtOrAfterTimestamp(11)
+	require.NoError(t, err)
+	require.Equal(t, map[uint64][]common.Hash{
+		100: {hashB},
+		200: {hashC},
+	}, removed)
+
+	// hashA at ts=10 should survive
+	records100, err := dl.GetDeniedRecords(100)
+	require.NoError(t, err)
+	require.Len(t, records100, 1)
+	require.Equal(t, hashA, records100[0].PayloadHash)
+	require.Equal(t, uint64(10), records100[0].DecisionTimestamp)
+
+	// height 200 should be empty
+	records200, err := dl.GetDeniedRecords(200)
+	require.NoError(t, err)
+	require.Empty(t, records200)
+}
+
+func TestDenyList_DecodesLegacyHashOnlyFormat(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	hashA := common.HexToHash("0xaaaa")
+	hashB := common.HexToHash("0xbbbb")
+	raw := append(hashA.Bytes(), hashB.Bytes()...)
+
+	// Write legacy format directly to bbolt
+	dl.mu.Lock()
+	err = dl.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(denyListBucketName).Put(heightToKey(100), raw)
+	})
+	dl.mu.Unlock()
+	require.NoError(t, err)
+
+	records, err := dl.GetDeniedRecords(100)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	require.Equal(t, DenyRecord{PayloadHash: hashA, DecisionTimestamp: 0}, records[0])
+	require.Equal(t, DenyRecord{PayloadHash: hashB, DecisionTimestamp: 0}, records[1])
+
+	found, err := dl.Contains(100, hashA)
+	require.NoError(t, err)
+	require.True(t, found)
 }

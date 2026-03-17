@@ -3,6 +3,7 @@ package sysgo
 
 import (
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -460,4 +462,34 @@ func (b *OPRBuilderNode) UserRPC() string {
 
 func (b *OPRBuilderNode) FlashblocksWSURL() string {
 	return b.wsProxyURL
+}
+
+type RulesConfig struct {
+	File []struct {
+		Path string `yaml:"path"`
+	} `yaml:"file"`
+	RefreshInterval int `yaml:"refresh_interval"`
+}
+
+func (b *OPRBuilderNode) UpdateRuleSet(rulesYaml string) error {
+	if b.cfg.RulesConfigPath == "" {
+		return fmt.Errorf("rules config path is not configured (rules not enabled?)")
+	}
+	rulesConfigContent, err := os.ReadFile(b.cfg.RulesConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to open rules config yaml: %w", err)
+	}
+	var rulesConfig RulesConfig
+	if err := yaml.Unmarshal(rulesConfigContent, &rulesConfig); err != nil {
+		return fmt.Errorf("failed to parse rules config yaml: %w", err)
+	}
+	if len(rulesConfig.File) == 0 {
+		return fmt.Errorf("no file entries found")
+	}
+	// Use only the first file entry for simplicity
+	rulesPath := rulesConfig.File[0].Path
+	if err := os.WriteFile(rulesPath, []byte(rulesYaml), 0644); err != nil {
+		return fmt.Errorf("failed to update rules file: %w", err)
+	}
+	return nil
 }

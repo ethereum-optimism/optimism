@@ -332,3 +332,78 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		require.Equal(t, common.HexToHash("0xNEW"), result.L1Inclusion.Hash)
 	})
 }
+
+func TestVerifiedDB_PendingTransition(t *testing.T) {
+	t.Parallel()
+
+	t.Run("set get clear round trip", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		vdb, err := OpenVerifiedDB(dir)
+		require.NoError(t, err)
+		defer vdb.Close()
+
+		// Initially empty
+		pending, err := vdb.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, pending)
+
+		// Set pending
+		transition := PendingTransition{
+			Decision: DecisionInvalidate,
+			Result: &Result{
+				Timestamp:   42,
+				L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x1111"), Number: 42},
+				InvalidHeads: map[eth.ChainID]eth.BlockID{
+					eth.ChainIDFromUInt64(1): {Hash: common.HexToHash("0xaaaa"), Number: 100},
+					eth.ChainIDFromUInt64(2): {Hash: common.HexToHash("0xbbbb"), Number: 200},
+				},
+			},
+		}
+		require.NoError(t, vdb.SetPendingTransition(transition))
+
+		// Get pending
+		got, err := vdb.GetPendingTransition()
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, transition.Decision, got.Decision)
+		require.NotNil(t, got.Result)
+		require.Equal(t, transition.Result.Timestamp, got.Result.Timestamp)
+		require.Equal(t, transition.Result.InvalidHeads, got.Result.InvalidHeads)
+
+		// Clear
+		require.NoError(t, vdb.ClearPendingTransition())
+		got, err = vdb.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("survives close and reopen", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		// Write pending and close
+		vdb, err := OpenVerifiedDB(dir)
+		require.NoError(t, err)
+		transition := PendingTransition{
+			Decision: DecisionRewind,
+			Rewind: &RewindPlan{
+				RewindAtOrAfter: 99,
+			},
+		}
+		require.NoError(t, vdb.SetPendingTransition(transition))
+		require.NoError(t, vdb.Close())
+
+		// Reopen and verify
+		vdb2, err := OpenVerifiedDB(dir)
+		require.NoError(t, err)
+		defer vdb2.Close()
+
+		got, err := vdb2.GetPendingTransition()
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, transition.Decision, got.Decision)
+		require.NotNil(t, got.Rewind)
+		require.Equal(t, transition.Rewind.RewindAtOrAfter, got.Rewind.RewindAtOrAfter)
+	})
+}

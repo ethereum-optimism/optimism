@@ -237,7 +237,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		epoch := l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, seqNumber, l1Info, 0)
 		require.NoError(t, err)
-		require.NoError(t, err)
 
 		var l2Txs []eth.Data
 		l2Txs = append(l2Txs, l1InfoTx)
@@ -277,7 +276,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		seqNumber := l2Parent.SequenceNumber + 1
 		epoch := l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, seqNumber, l1Info, 0)
-		require.NoError(t, err)
 		require.NoError(t, err)
 
 		var l2Txs []eth.Data

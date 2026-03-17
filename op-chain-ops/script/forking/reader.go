@@ -14,6 +14,11 @@ type forkStateReader struct {
 
 var _ state.Reader = (*forkStateReader)(nil)
 
+func (f *forkStateReader) Has(addr common.Address, codeHash common.Hash) bool {
+	_, err := f.trie.ContractCode(addr, codeHash)
+	return err != nil
+}
+
 func (f *forkStateReader) Account(addr common.Address) (*types.StateAccount, error) {
 	acc, err := f.trie.GetAccount(addr)
 	if err != nil {

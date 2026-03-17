@@ -123,11 +123,9 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
 
-	sequencerEL, ok := primary.EL.(*OpGeth)
-	require.True(ok, "single-chain runtime primary EL must be op-geth for test sequencer")
 	sequencerCL, ok := primary.CL.(*OpNode)
 	require.True(ok, "single-chain runtime primary CL must be op-node for test sequencer")
-	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, sequencerEL, sequencerCL)
+	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, primary.EL, world.L2Network, sequencerCL)
 	testSequencerRuntime := newTestSequencerRuntime(testSequencer, spec.TestSequencer)
 	faucetService := startFaucets(t, keys, world.L1Network.ChainID(), world.L2Network.ChainID(), l1EL.UserRPC(), primary.EL.UserRPC())
 
@@ -349,6 +347,7 @@ func startMinimalChallenger(
 		options = append(options,
 			sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 			sharedchallenger.WithCannonKonaGameType(),
+			sharedchallenger.WithExperimentalWitnessEndpoint(),
 		)
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(

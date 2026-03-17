@@ -84,7 +84,7 @@ func newL2BatcherFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndp
 	return newPresetL2Batcher(t, name, chainID, rpcCl)
 }
 
-func newOPRBuilderFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, flashblocksWSURL string, rollupCfg *rollup.Config, lifecycle ...stack.Lifecycle) *oprBuilderFrontend {
+func newOPRBuilderFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, flashblocksWSURL string, updateRuleSet func(string) error, rollupCfg *rollup.Config, lifecycle ...stack.Lifecycle) *oprBuilderFrontend {
 	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
@@ -96,7 +96,7 @@ func newOPRBuilderFrontend(t devtest.T, name string, chainID eth.ChainID, userRP
 	})
 	t.Require().NoError(err)
 
-	oprb := newPresetOPRBuilderNode(t, name, chainID, rpcCl, rollupCfg, wsCl)
+	oprb := newPresetOPRBuilderNode(t, name, chainID, rpcCl, rollupCfg, wsCl, updateRuleSet)
 	if len(lifecycle) > 0 {
 		oprb.lifecycle = lifecycle[0]
 	}

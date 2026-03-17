@@ -25,6 +25,7 @@ func TestSyncAfterInitialELSync(gt *testing.T) {
 	// Finish EL sync by supplying the first block
 	// EL Sync finished because underlying EL has states to validate the payload for block startNum+1
 	sys.L2CLB.SignalTarget(sys.L2EL, startNum+1)
+	sys.L2ELB.WaitForBlockNumber(startNum + 1)
 
 	// Send payloads for block startNum+3, startNum+4, startNum+5, startNum+7 which will fill in unsafe payload queue, block startNum+2, and block startNum+6 missed
 	// Non-canonical payloads will be not sent to L2EL

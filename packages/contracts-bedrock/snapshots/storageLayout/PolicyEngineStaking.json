@@ -4,34 +4,41 @@
     "label": "peData",
     "offset": 0,
     "slot": "0",
-    "type": "mapping(address => struct PolicyEngineStaking.PEData)"
+    "type": "mapping(address => struct PolicyEngineStakingMapping.PEData)"
+  },
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "1",
+    "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "_pendingOwner",
+    "offset": 0,
+    "slot": "2",
+    "type": "address"
   },
   {
     "bytes": "32",
     "label": "allowlist",
     "offset": 0,
-    "slot": "1",
+    "slot": "3",
     "type": "mapping(address => mapping(address => bool))"
   },
   {
     "bytes": "32",
     "label": "stakingData",
     "offset": 0,
-    "slot": "2",
+    "slot": "4",
     "type": "mapping(address => struct PolicyEngineStaking.StakedData)"
   },
   {
     "bytes": "1",
     "label": "paused",
     "offset": 0,
-    "slot": "3",
+    "slot": "5",
     "type": "bool"
-  },
-  {
-    "bytes": "20",
-    "label": "_owner",
-    "offset": 1,
-    "slot": "3",
-    "type": "address"
   }
 ]

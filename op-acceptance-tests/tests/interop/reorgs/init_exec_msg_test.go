@@ -185,12 +185,12 @@ func TestReorgInitExecMsg(gt *testing.T) {
 
 	// wait and confirm reorgs on chain A and B
 	dsl.CheckAll(t,
-		sys.L2ELA.ReorgTriggeredFn(eth.L2BlockRef{
+		sys.L2ELA.ReorgExactFn(eth.L2BlockRef{
 			Number:     divergenceBlockNumber_A,
 			Hash:       originalRef_A.Hash,
 			ParentHash: originalRef_A.ParentID().Hash,
 		}, 30),
-		sys.L2ELB.ReorgTriggeredFn(eth.L2BlockRef{
+		sys.L2ELB.ReorgExactFn(eth.L2BlockRef{
 			Number:     divergenceBlockNumber_B,
 			Hash:       originalRef_B.Hash,
 			ParentHash: originalRef_B.ParentID().Hash,

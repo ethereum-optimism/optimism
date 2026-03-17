@@ -69,7 +69,7 @@ func NewSingleChainInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Mult
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
 	l2Proposer := startMinimalProposer(t, keys, l2Net, l1EL, l2CL, cfg.ProposerOptions...)
 	applyMinimalGameTypeOptions(t, keys, l1Net, l2Net, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
-	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, l1Net, l1EL, l1CL, l2EL, l2CL)
+	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, l1Net, l1EL, l1CL, l2EL, l2Net, l2CL)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
 	chainA := &MultiChainNodeRuntime{
@@ -155,7 +155,7 @@ func NewSimpleInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChai
 	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, l2ACL, cfg.ProposerOptions...)
 	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL, cfg.BatcherOptions...)
 	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, l2BCL, cfg.ProposerOptions...)
-	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, l1Net, l1EL, l1CL, l2AEL, l2ACL)
+	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, l1Net, l1EL, l1CL, l2AEL, l2ANet, l2ACL)
 	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
 		l1Net.ChainID():  l1EL.UserRPC(),
 		l2ANet.ChainID(): l2AEL.UserRPC(),
@@ -439,7 +439,7 @@ func startL2ELNodeWithSupervisor(
 	key string,
 	identity *ELNodeIdentity,
 	supervisorRPC string,
-) *OpGeth {
+) L2ELNode {
 	cfg := DefaultL2ELConfig()
 	cfg.P2PAddr = "127.0.0.1"
 	cfg.P2PPort = identity.Port

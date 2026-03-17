@@ -52,11 +52,11 @@ func buildPrestate(ctx context.Context, log log.Logger, programELF string, versi
 
 	cannonBin := filepath.Join(root, "cannon", "bin", "cannon")
 	if _, err := os.Stat(cannonBin); err != nil {
-		return fmt.Errorf("cannon binary not found: %w. make sure it's built with `make cannon`", err)
+		return fmt.Errorf("cannon binary not found: %w. make sure it's built with `just cannon`", err)
 	}
 	prestate := filepath.Join(root, "op-program", "bin", "prestate"+suffix+".bin.gz")
 	if _, err := os.Stat(programELF); err != nil {
-		return fmt.Errorf("op-program elf not found: %w. make sure it's built with `make op-program`", err)
+		return fmt.Errorf("op-program elf not found: %w. make sure it's built with `just op-program`", err)
 	}
 	meta := filepath.Join(root, "op-program", "bin", "meta"+suffix+".json")
 

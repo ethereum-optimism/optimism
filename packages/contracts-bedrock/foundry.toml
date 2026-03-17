@@ -69,6 +69,7 @@ fs_permissions = [
   { access='read', path='./kout-deployment' },
   { access='read', path='./test/fixtures' },
   { access='read', path='./lib/superchain-registry/superchain/configs/' },
+  { access='read', path='./lib/superchain-registry/superchain/extra/' },
   { access='read', path='./lib/superchain-registry/validation/standard/' },
 ]
 

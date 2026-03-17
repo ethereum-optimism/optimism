@@ -69,6 +69,7 @@ thiserror.workspace = true
 ark-ff.workspace = true
 
 [dev-dependencies]
+alloy-json-rpc.workspace = true
 proptest.workspace = true
 
 [features]
