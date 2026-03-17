@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
-interface IL2ERC721Bridge is IERC721Bridge {
+interface IL2ERC721Bridge is IERC721Bridge, IProxyAdminOwnedBase {
     function finalizeBridgeERC721(
         address _localToken,
         address _remoteToken,

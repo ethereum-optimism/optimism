@@ -69,8 +69,8 @@ contract FeeSplitter is ProxyAdminOwnedBase, ISemver, Initializable {
         0x21346dddac42cc163a6523eefc19df981df7352c870dc3b0b17a6a92fc6fe813;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice max time between fee disbursements
     uint128 public constant MAX_DISBURSEMENT_INTERVAL = 365 days;

@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
-interface ILiquidityController is ISemver {
+interface ILiquidityController is ISemver, IProxyAdminOwnedBase {
     error LiquidityController_Unauthorized();
 
     event Initialized(uint8 version);
