@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -84,8 +85,11 @@ func (sp *SubProcess) Stop(interrupt bool) error {
 	// process to exit but does not guarantee I/O completion, which causes races
 	// where log output hasn't been written to the LineBuffer yet.
 	waitErr := sp.cmd.Wait()
-	if waitErr != nil && !interrupt {
+	var exitErr *exec.ExitError
+	if waitErr != nil && !(interrupt && errors.As(waitErr, &exitErr)) {
 		sp.p.Logger().Warn("Sub-process exited with error", "err", waitErr)
+	} else if interrupt && waitErr != nil {
+		sp.p.Logger().Info("Sub-process stopped")
 	} else {
 		sp.p.Logger().Info("Sub-process gracefully exited")
 	}
