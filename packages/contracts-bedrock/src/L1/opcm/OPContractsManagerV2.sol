@@ -856,6 +856,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Update the AnchorStateRegistry.
         if (!_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
             // Migration upgrade path: use 5-param initialize to clear anchor game.
+            // Safe to re-run: clearing an already-zero anchorGame is a no-op.
             // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
             // nosemgrep: sol-style-use-abi-encodecall
             _upgrade(
