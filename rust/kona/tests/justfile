@@ -130,7 +130,12 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
     export SKIP_P2P_CONNECTION_CHECK=true
 
     # Run the test with count=1 to avoid caching the test results.
-    cd {{SOURCE}} && go test -count=1 -timeout 40m -v ./$GO_PKG_NAME $FILTER
+    cd {{SOURCE}}
+    mkdir -p ./tmp/test-results ./tmp/testlogs
+    gotestsum --format=testname \
+        --junitfile=./tmp/test-results/results.xml \
+        --jsonfile=./tmp/testlogs/log.json \
+        -- -count=1 -timeout 40m ./$GO_PKG_NAME $FILTER
 
 long-running-test FILTER="" OUTPUT_LOGS_DIR="":
     #!/bin/bash

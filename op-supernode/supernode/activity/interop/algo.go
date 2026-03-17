@@ -73,39 +73,49 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 	}
 
 	for chainID, expectedBlock := range blocksAtTimestamp {
-		db, ok := i.logsDBs[chainID]
-		if !ok {
-			// Skip chains that we don't have a logsDB for
-			// This can happen if blocksAtTimestamp includes chains not registered with the interop activity
-			continue
-		}
-
-		// Get the block from the logsDB
-		blockRef, _, execMsgs, err := db.OpenBlock(expectedBlock.Number)
-		if err != nil {
-			// OpenBlock fails for the first block in the DB because it tries to find the parent.
-			// Handle this by checking if this is the first sealed block and using FirstSealedBlock instead.
-			if errors.Is(err, types.ErrSkipped) {
-				firstBlock, firstErr := db.FirstSealedBlock()
-				if firstErr != nil {
-					return Result{}, fmt.Errorf("chain %s: failed to open block %d and failed to get first block: %w", chainID, expectedBlock.Number, err)
-				}
-				if firstBlock.Number == expectedBlock.Number {
-					// This is the first block in the logsDB. Use FirstSealedBlock info.
-					// The first block has no executing messages (since we can't verify them without prior data).
-					if firstBlock.Hash != expectedBlock.Hash {
-						i.log.Warn("first block hash mismatch",
-							"chain", chainID,
-							"expected", expectedBlock.Hash,
-							"got", firstBlock.Hash,
-						)
-						result.InvalidHeads[chainID] = expectedBlock
-					}
-					result.L2Heads[chainID] = expectedBlock
-					continue
-				}
+		var (
+			blockRef eth.BlockRef
+			execMsgs map[uint32]*types.ExecutingMessage
+			err      error
+		)
+		if frontierBlock, ok := i.frontierView.block(chainID); ok {
+			blockRef = frontierBlock.ref
+			execMsgs = frontierBlock.execMsgs
+		} else {
+			db, ok := i.logsDBs[chainID]
+			if !ok {
+				// Skip chains that we don't have a logsDB for
+				// This can happen if blocksAtTimestamp includes chains not registered with the interop activity
+				continue
 			}
-			return Result{}, fmt.Errorf("chain %s: failed to open block %d: %w", chainID, expectedBlock.Number, err)
+
+			// Get the block from the logsDB
+			blockRef, _, execMsgs, err = db.OpenBlock(expectedBlock.Number)
+			if err != nil {
+				// OpenBlock fails for the first block in the DB because it tries to find the parent.
+				// Handle this by checking if this is the first sealed block and using FirstSealedBlock instead.
+				if errors.Is(err, types.ErrSkipped) {
+					firstBlock, firstErr := db.FirstSealedBlock()
+					if firstErr != nil {
+						return Result{}, fmt.Errorf("chain %s: failed to open block %d and failed to get first block: %w", chainID, expectedBlock.Number, err)
+					}
+					if firstBlock.Number == expectedBlock.Number {
+						// This is the first block in the logsDB. Use FirstSealedBlock info.
+						// The first block has no executing messages (since we can't verify them without prior data).
+						if firstBlock.Hash != expectedBlock.Hash {
+							i.log.Warn("first block hash mismatch",
+								"chain", chainID,
+								"expected", expectedBlock.Hash,
+								"got", firstBlock.Hash,
+							)
+							result.InvalidHeads[chainID] = expectedBlock
+						}
+						result.L2Heads[chainID] = expectedBlock
+						continue
+					}
+				}
+				return Result{}, fmt.Errorf("chain %s: failed to open block %d: %w", chainID, expectedBlock.Number, err)
+			}
 		}
 
 		// Verify the block hash matches what we expect
@@ -175,6 +185,14 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 		LogIdx:    execMsg.LogIdx,
 		Timestamp: execMsg.Timestamp,
 		Checksum:  execMsg.Checksum,
+	}
+
+	// Same-timestamp dependencies may live in the current frontier view rather
+	// than accepted-history logsDB.
+	if execMsg.Timestamp == executingTimestamp {
+		if _, ok := i.frontierView.contains(execMsg.ChainID, query); ok {
+			return nil
+		}
 	}
 
 	// Check if the initiating message exists in the source chain's logsDB

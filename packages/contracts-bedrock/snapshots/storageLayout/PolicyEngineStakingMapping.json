@@ -1,0 +1,9 @@
+[
+  {
+    "bytes": "32",
+    "label": "peData",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(address => struct PolicyEngineStakingMapping.PEData)"
+  }
+]
