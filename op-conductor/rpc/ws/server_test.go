@@ -435,23 +435,50 @@ func TestConcurrentConnections(t *testing.T) {
 	waitForClientCount(t, tracker, 0, 5*time.Second, "All clients disconnected")
 }
 
-// TestBroadcastWithSlowClient tests broadcast behavior when one client is slow
+// TestBroadcastWithSlowClient tests that a slow client (full send channel)
+// is dropped during broadcast without affecting delivery to healthy clients.
+//
+// The original test blasted 300 messages through real WebSocket connections,
+// but under CI load the fast client's writePump also couldn't keep up, causing
+// both clients to be dropped. This rewrite uses the hub's event callbacks to
+// observe broadcast outcomes deterministically: we connect two real WebSocket
+// clients, then send enough messages to fill the slow client's send channel
+// (which has no reader draining it via websocket reads). We use the
+// OnMessageBroadcast callback to detect when a drop actually occurs rather
+// than relying on timing.
 func TestBroadcastWithSlowClient(t *testing.T) {
 	handler, tracker, server, cleanup := setupTestServer(t)
 	defer cleanup()
 
+	// Wrap the broadcast callback to detect drops
+	dropDetected := make(chan struct{}, 1)
+	origBroadcastCb := handler.hub.callbacks.OnMessageBroadcast
+	handler.hub.callbacks.OnMessageBroadcast = func(message []byte, successCount, dropCount int) {
+		if origBroadcastCb != nil {
+			origBroadcastCb(message, successCount, dropCount)
+		}
+		if dropCount > 0 {
+			select {
+			case dropDetected <- struct{}{}:
+			default:
+			}
+		}
+	}
+
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Create fast client
+	// Create fast client that actively reads messages
 	fastClient, err := newTestClient(ctx, wsURL)
 	if err != nil {
 		t.Fatalf("Failed to create fast client: %v", err)
 	}
 	defer fastClient.Close()
 
-	// Create slow client (don't read messages)
+	// Create slow client that never reads messages. Its server-side writePump
+	// will write to the websocket, but once OS buffers fill the writes will
+	// stall, backing up the send channel until the hub drops it.
 	slowConn, resp, err := websocket.Dial(ctx, wsURL, nil)
 	if resp != nil && resp.Body != nil {
 		resp.Body.Close()
@@ -466,26 +493,50 @@ func TestBroadcastWithSlowClient(t *testing.T) {
 		_ = slowConn.CloseNow()
 	}()
 
-	// Wait for both clients to be registered
 	waitForClientCount(t, tracker, 2, 3*time.Second, "Both clients connected")
 
-	// Send many messages to fill up the slow client's buffer
-	for i := 0; i < 300; i++ {
-		message := []byte(fmt.Sprintf("Large message to fill buffer %d", i))
-		handler.BroadcastMessage(message)
-	}
+	// Send large messages in a background goroutine until the slow client is
+	// dropped. Large messages fill the OS socket write buffer faster, which
+	// causes the slow client's writePump to stall and its send channel to back
+	// up. We pace sends with a small sleep to give the fast client's writePump
+	// time to drain its send channel, preventing it from also being dropped.
+	senderStop := make(chan struct{})
+	// 16KB payload fills OS socket buffers quickly (~8 messages for a 128KB buffer)
+	padding := strings.Repeat("x", 16*1024)
+	go func() {
+		for i := 0; ; i++ {
+			select {
+			case <-ctx.Done():
+				return
+			case <-senderStop:
+				return
+			default:
+			}
+			handler.BroadcastMessage([]byte(fmt.Sprintf("msg-%d-%s", i, padding)))
+			// Pace sends so the fast client's writePump can keep up
+			time.Sleep(1 * time.Millisecond)
+		}
+	}()
 
-	// Fast client should still receive some messages
+	// Wait for the slow client to be dropped
 	select {
-	case <-time.After(2 * time.Second):
-		t.Error("Fast client didn't receive any messages")
-	case <-fastClient.messagesReceived:
-		t.Log("Fast client received messages despite slow client")
+	case <-dropDetected:
+		close(senderStop)
+		t.Log("Slow client was dropped as expected")
+	case <-ctx.Done():
+		close(senderStop)
+		t.Fatal("Timeout: slow client was never dropped")
 	}
 
-	// Both clients should still be connected initially
-	if tracker.getClientCount() != 2 {
-		t.Logf("Expected 2 clients, got %d (slow client may have been cleaned up)", tracker.getClientCount())
+	// Verify the fast client is still connected and receiving messages.
+	// It should have already received messages from the burst; check non-blocking first.
+	select {
+	case msg := <-fastClient.messagesReceived:
+		t.Logf("Fast client received: %s", string(msg))
+	default:
+		// Send one more to confirm the fast client is alive
+		handler.BroadcastMessage([]byte("alive-check"))
+		waitForMessage(t, fastClient, "alive-check", 5*time.Second, "Fast client should still receive messages")
 	}
 }
 
