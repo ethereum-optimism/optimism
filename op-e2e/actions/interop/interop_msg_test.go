@@ -413,7 +413,12 @@ func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	actors.ChainA.Sequencer.ActL2StartBlock(t)
 
 	// chain A progressed single unsafe block
-	eventLoggerAddress := DeployEventLogger(t, optsA)
+	// Use a separate user for the deploy to avoid a nonce race: the deploy tx
+	// bypasses the tx pool (via IncludeTx), so PendingNonceAt may return a
+	// stale nonce for alice if the tx pool hasn't synced the new chain head yet.
+	deployer := setupUser(t, is, actors.ChainA, 1)
+	deployOpts, _ := DefaultTxOpts(t, deployer, actors.ChainA)
+	eventLoggerAddress := DeployEventLogger(t, deployOpts)
 	// Also match chain B
 	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
 
@@ -487,7 +492,12 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
 	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	// chain A progressed single unsafe block
-	eventLoggerAddress := DeployEventLogger(t, optsA)
+	// Use a separate user for the deploy to avoid a nonce race: the deploy tx
+	// bypasses the tx pool (via IncludeTx), so PendingNonceAt may return a
+	// stale nonce for alice if the tx pool hasn't synced the new chain head yet.
+	deployer := setupUser(t, is, actors.ChainA, 1)
+	deployOpts, _ := DefaultTxOpts(t, deployer, actors.ChainA)
+	eventLoggerAddress := DeployEventLogger(t, deployOpts)
 
 	// Intent to initiate message(or emit event) on chain A
 	txA := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](optsA)
@@ -629,11 +639,15 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 
 		// first, random or last tx of a single L2 block.
 		indexes := []int{0, 1 + rng.Intn(txCount-1), txCount - 1}
+		execNonce := uint64(0)
 		for blockNumDelta, index := range indexes {
 			actors.ChainB.Sequencer.ActL2StartBlock(t)
 
 			initTx := initTxs[index]
-			execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB)
+			// Use explicit nonces to avoid a tx pool race: IncludeTx bypasses the
+			// tx pool, so PendingNonceAt may return a stale value.
+			execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB, txplan.WithStaticNonce(execNonce))
+			execNonce++
 
 			// Single event in every tx so index is always 0
 			execTx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initTx.Result, 0))
@@ -678,7 +692,12 @@ func TestExpiredMessage(gt *testing.T) {
 	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
 	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	// chain A progressed single unsafe block
-	eventLoggerAddress := DeployEventLogger(t, optsA)
+	// Use a separate user for the deploy to avoid a nonce race: the deploy tx
+	// bypasses the tx pool (via IncludeTx), so PendingNonceAt may return a
+	// stale nonce for alice if the tx pool hasn't synced the new chain head yet.
+	deployer := setupUser(t, is, actors.ChainA, 1)
+	deployOpts, _ := DefaultTxOpts(t, deployer, actors.ChainA)
+	eventLoggerAddress := DeployEventLogger(t, deployOpts)
 
 	// Intent to initiate message(or emit event) on chain A
 	txA := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](optsA)
