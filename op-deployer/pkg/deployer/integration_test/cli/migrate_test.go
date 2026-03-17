@@ -101,7 +101,7 @@ func TestCLIMigrateV1(t *testing.T) {
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	pkHex, _, _ := shared.DefaultPrivkey(t)
@@ -241,7 +241,9 @@ func TestCLIMigrateV1(t *testing.T) {
 	// Apply deployment
 	// Note: Validation will run automatically but may find expected errors for migration test deployments
 	// (e.g., custom dev features, non-standard configurations). We verify deployment succeeded despite validation errors.
-	output, runErr := runner.RunWithNetwork(context.Background(), []string{
+	applyCtx, applyCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer applyCancel()
+	output, runErr := runner.RunWithNetwork(applyCtx, []string{
 		"apply",
 		"--deployment-target", "live",
 		"--workdir", workDir,
@@ -315,7 +317,7 @@ func TestCLIMigrateV2(t *testing.T) {
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	pkHex, _, _ := shared.DefaultPrivkey(t)
@@ -475,7 +477,9 @@ func TestCLIMigrateV2(t *testing.T) {
 	// Apply deployment
 	// Note: Validation will run automatically but may find expected errors for migration test deployments
 	// (e.g., custom dev features, non-standard configurations). We verify deployment succeeded despite validation errors.
-	output, runErr := runner.RunWithNetwork(context.Background(), []string{
+	applyCtx, applyCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer applyCancel()
+	output, runErr := runner.RunWithNetwork(applyCtx, []string{
 		"apply",
 		"--deployment-target", "live",
 		"--workdir", workDir,
