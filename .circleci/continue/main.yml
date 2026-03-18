@@ -74,6 +74,11 @@ parameters:
   c-rust_files_changed:
     type: boolean
     default: false
+  # Set to true by path-filtering when files outside docs/public-docs/ change.
+  # When false, the main workflow is skipped entirely (docs-only PR).
+  c-non_docs_changes:
+    type: boolean
+    default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
@@ -2627,7 +2632,9 @@ workflows:
       and:
         - equal: ["", << pipeline.git.tag >>]
         - or:
-            - equal: ["webhook", << pipeline.trigger_source >>]
+            - and:
+                - equal: ["webhook", << pipeline.trigger_source >>]
+                - << pipeline.parameters.c-non_docs_changes >>
             - and:
                 - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
                 - equal: ["api", << pipeline.trigger_source >>]
