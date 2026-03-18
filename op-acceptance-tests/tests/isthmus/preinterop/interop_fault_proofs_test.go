@@ -5,6 +5,9 @@ import (
 
 	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 func TestPreinteropFaultProofs(gt *testing.T) {
@@ -23,4 +26,17 @@ func TestPreinteropFaultProofs_UnsafeProposal(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newSimpleInteropPreinterop(t)
 	sfp.RunUnsafeProposalTest(t, sys)
+}
+
+func TestPreinteropFaultProofs_VariedBlockTimes(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropIsthmusSuper(
+		t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithL2BlockTimes(map[eth.ChainID]uint64{
+			sysgo.DefaultL2AID: 1,
+			sysgo.DefaultL2BID: 2,
+		}),
+	)
+	sfp.RunVariedBlockTimesTest(t, sys)
 }
