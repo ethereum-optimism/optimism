@@ -389,8 +389,9 @@ func buildTransitionTests(
 // buildAfterChainHeadTests constructs test cases for transitions past the chain head,
 // where the proposed block timestamp exceeds the validated timestamp.
 //
-// l1HeadCurrent is the L1 head with data for endTimestamp only (restricted).
-// l1HeadAdvanced is the L1 head with data for endTimestamp+1.
+// l1HeadCurrent has data for endTimestamp only (sequencers must be stopped before
+// batchers run to ensure the batcher doesn't submit data beyond endTimestamp).
+// l1HeadAdvanced has data for endTimestamp+1.
 func buildAfterChainHeadTests(
 	chains []*chain,
 	end, endNext eth.SuperV1,
@@ -414,7 +415,9 @@ func buildAfterChainHeadTests(
 
 	// Test 1: First chain's optimistic block step at the next timestamp.
 	// When the first chain has a new block at endTimestamp+1, it can't be derived with
-	// the restricted L1 head, so the transition is invalid.
+	// l1HeadCurrent (which only has data up to endTimestamp), so the transition is invalid.
+	// When the first chain does NOT have a new block (uniform block times), the block at
+	// endTimestamp+1 is the same as endTimestamp, so l1HeadCurrent works.
 	disputedChainA := marshalTransition(end, 1, firstOptimisticNext)
 	if firstHasNewBlock {
 		disputedChainA = super.InvalidTransition
@@ -453,9 +456,9 @@ func buildAfterChainHeadTests(
 	})
 
 	// Test 4: First chain's optimistic block step two timestamps ahead.
-	// The block at endTimestamp+2 can't be derived under any available L1 head.
-	// When any chain has a new block at endTimestamp+1 and we use the restricted L1 head,
-	// the trace was already invalid from an earlier step.
+	// The block at endTimestamp+2 can't be derived under l1HeadCurrent.
+	// When any chain has a new block at endTimestamp+1, the trace was already invalid
+	// from an earlier step (with l1HeadCurrent).
 	agreedBlockAfterHead := endNext.Marshal()
 	if anyNewBlock {
 		agreedBlockAfterHead = super.InvalidTransition
@@ -701,6 +704,14 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	}
 
 	// -- Stage 2: Capture L1 heads at different batch-availability points --
+	//
+	// Stop sequencers so the batchers only submit data for blocks up to the current
+	// unsafe heads (approximately endTimestamp). This ensures l1HeadCurrent doesn't
+	// contain batch data for blocks well beyond endTimestamp — which is critical for
+	// the "after chain head" tests that rely on a restricted L1 head.
+	for _, c := range chains {
+		c.CLNode.StopSequencer()
+	}
 
 	// L1 head where neither chain has batch data at endTimestamp.
 	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
@@ -717,11 +728,19 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].Batcher.Stop()
 
 	// -- Stage 2b: Advance safe heads past endTimestamp for "after chain head" tests --
+	// Restart sequencers so they produce blocks at the next timestamp.
+	for _, c := range chains {
+		c.CLNode.StartSequencer()
+	}
 	nextTimestamp := endTimestamp + 1
 	for _, c := range chains {
 		target, err := c.Cfg.TargetBlockNumber(nextTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
+	}
+	// Stop sequencers again to limit what the batchers submit.
+	for _, c := range chains {
+		c.CLNode.StopSequencer()
 	}
 	chains[0].Batcher.Start()
 	chains[1].Batcher.Start()
@@ -729,6 +748,10 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	l1HeadAdvanced := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(nextTimestamp))
 	chains[0].Batcher.Stop()
 	chains[1].Batcher.Stop()
+	// Restart sequencers for cleanup.
+	for _, c := range chains {
+		c.CLNode.StartSequencer()
+	}
 
 	// --- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
@@ -804,6 +827,11 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	}
 
 	// -- Stage 2: Capture L1 heads at different batch-availability points --
+	// Stop sequencers so the batchers only submit data for blocks up to the current
+	// unsafe heads (approximately endTimestamp).
+	for _, c := range chains {
+		c.CLNode.StopSequencer()
+	}
 
 	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
 
@@ -817,11 +845,19 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].Batcher.Stop()
 
 	// -- Stage 2b: Advance safe heads past endTimestamp for "after chain head" tests --
+	// Restart sequencers so they produce blocks at the next timestamp.
+	for _, c := range chains {
+		c.CLNode.StartSequencer()
+	}
 	nextTimestamp := endTimestamp + 1
 	for _, c := range chains {
 		target, err := c.Cfg.TargetBlockNumber(nextTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
+	}
+	// Stop sequencers again to limit what the batchers submit.
+	for _, c := range chains {
+		c.CLNode.StopSequencer()
 	}
 	chains[0].Batcher.Start()
 	chains[1].Batcher.Start()
@@ -829,6 +865,10 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	l1HeadAdvanced := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(nextTimestamp))
 	chains[0].Batcher.Stop()
 	chains[1].Batcher.Stop()
+	// Restart sequencers for cleanup.
+	for _, c := range chains {
+		c.CLNode.StartSequencer()
+	}
 
 	// -- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
