@@ -629,10 +629,8 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 }
 
 // RunVariedBlockTimesTest verifies that the super fault proof system works
-// correctly when chains have different block times. This mirrors
-// TestInteropFaultProofs_VariedBlockTimes from op-e2e, which configures chains
-// with non-uniform block times (e.g. 1s and 2s) to exercise edge cases where
-// not every chain produces a new block at every timestamp.
+// correctly when chains have different block times (e.g. 1s and 2s), exercising
+// edge cases where not every chain produces a new block at every timestamp.
 //
 // The system must be configured with varied block times before calling this
 // function (e.g. via presets.WithL2BlockTimes).
