@@ -170,12 +170,7 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 			"chain B local safe head should be frozen with batcher stopped")
 
 		// Use chain A's ahead timestamp for verification check.
-		// Only check if chain A has advanced past the baseline (already-verified) timestamp,
-		// otherwise the timestamp may already be verified from before we stopped the batcher.
 		aheadTimestamp = newStatusA.LocalSafeL2.Time
-		if aheadTimestamp <= baselineTimestamp {
-			continue
-		}
 
 		// KEY ASSERTION 3: The timestamp should NOT be verified
 		// Even though chain B's unsafe head is past this timestamp,
