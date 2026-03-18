@@ -21,7 +21,10 @@ import {
     ClaimAlreadyResolved,
     GameOver,
     GameNotOver,
-    UnknownChainId
+    UnknownChainId,
+    BondTransferFailed,
+    AlreadyInitialized,
+    IncorrectDisputeGameFactory
 } from "src/dispute/lib/Errors.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 
@@ -174,6 +177,16 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertEq(game.l2ChainId(), l2ChainId);
         assertEq(address(game.weth()), address(delayedWeth));
         assertEq(address(game.anchorStateRegistry()), address(anchorStateRegistry));
+        assertEq(game.parentIndex(), parentGameIndex);
+        assertEq(game.absolutePrestate(), bytes32(0));
+        assertTrue(address(game.verifier()) != address(0));
+        assertEq(game.challengerBond(), 1 ether);
+        assertTrue(game.l1Head().raw() != bytes32(0));
+        assertEq(game.rootClaimByChainId(l2ChainId).raw(), rootClaim.raw());
+
+        // extraData is 36 bytes: l2SequenceNumber (32) + parentIndex (4).
+        bytes memory extra = game.extraData();
+        assertEq(extra.length, 36);
 
         // The parent's sequence number (startingBlockNumber() returns l2SequenceNumber).
         assertEq(game.startingBlockNumber(), parentL2SequenceNumber);
@@ -207,6 +220,28 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         uint256 currentTime = block.timestamp;
         uint256 expectedDeadline = currentTime + maxChallengeDuration.raw();
         assertEq(deadline_.raw(), expectedDeadline);
+    }
+
+    function test_initialize_permissionless_succeeds() public {
+        // Any address can propose (permissionless).
+        address anyUser = address(0x9999);
+        vm.startPrank(anyUser);
+        vm.deal(anyUser, 1 ether);
+
+        ZKDisputeGame newGame = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: 1 ether }(
+                        gameType,
+                        Claim.wrap(keccak256("permissionless-claim")),
+                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+                    )
+                )
+            )
+        );
+        vm.stopPrank();
+
+        assertEq(newGame.gameCreator(), anyUser);
     }
 
     function test_initialize_blockNumberTooSmall_reverts() public {
@@ -292,26 +327,45 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         vm.stopPrank();
     }
 
-    function test_initialize_permissionless_succeeds() public {
-        // Any address can propose (permissionless).
-        address anyUser = address(0x9999);
-        vm.startPrank(anyUser);
-        vm.deal(anyUser, 1 ether);
+    function test_initialize_parentRetired_reverts() public {
+        // Retire all existing games by updating the retirement timestamp.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
 
-        ZKDisputeGame newGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("permissionless-claim")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
-                    )
-                )
-            )
+        // Try to create a new game referencing the (now retired) child game as parent.
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType,
+            Claim.wrap(keccak256("child-of-retired-parent")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
         );
         vm.stopPrank();
+    }
 
-        assertEq(newGame.gameCreator(), anyUser);
+    function test_initialize_parentChallengerWins_reverts() public {
+        // Challenge the child game (our `game`) and let it expire without proof.
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        assertEq(uint8(game.status()), uint8(GameStatus.CHALLENGER_WINS));
+
+        // Trying to create a new game referencing the invalidated game should revert.
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType,
+            Claim.wrap(keccak256("child-of-challenger-wins")),
+            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+        );
+        vm.stopPrank();
     }
 
     function test_initialize_parentDifferentGameType_reverts() public {
@@ -434,6 +488,154 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         );
         vm.stopPrank();
     }
+
+    function test_initialize_alreadyInitialized_reverts() public {
+        // The game is already initialized in setUp. Calling initialize again should revert.
+        vm.expectRevert(AlreadyInitialized.selector);
+        game.initialize{ value: 1 ether }();
+    }
+
+    function test_initialize_calledByEOA_reverts() public {
+        // Deploy a fresh (uninitialized) implementation.
+        ZKDisputeGame freshImpl = new ZKDisputeGame();
+
+        // Calling initialize from an EOA (code.length == 0) should revert.
+        vm.prank(proposer);
+        vm.expectRevert(IncorrectDisputeGameFactory.selector);
+        freshImpl.initialize{ value: 1 ether }();
+    }
+}
+
+/// @title ZKDisputeGame_Challenge_Test
+/// @notice Tests for challenge functionality of ZKDisputeGame.
+contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_TestInit {
+    function test_challenge_permissionless_succeeds() public {
+        // Any address can challenge (permissionless).
+        address anyChallenger = address(0x9999);
+        vm.startPrank(anyChallenger);
+        vm.deal(anyChallenger, 1 ether);
+
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        (,, address challenger_,,,) = game.claimData();
+        assertEq(challenger_, anyChallenger);
+    }
+
+    function test_challenge_alreadyChallenged_reverts() public {
+        // Initially unchallenged.
+        (, ZKDisputeGame.ProposalStatus status_, address challenger_,,,) = game.claimData();
+        assertEq(challenger_, address(0));
+        assertEq(uint8(status_), uint8(ZKDisputeGame.ProposalStatus.Unchallenged));
+
+        // The first challenge is valid.
+        vm.startPrank(challenger);
+        vm.deal(challenger, 2 ether);
+        game.challenge{ value: 1 ether }();
+
+        // A second challenge from any party should revert because the proposal is no longer "Unchallenged".
+        vm.expectRevert(ClaimAlreadyChallenged.selector);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+    }
+
+    function test_challenge_afterDeadline_reverts() public {
+        // Warp past the challenge deadline so the game is over.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        vm.expectRevert(GameOver.selector);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+    }
+
+    function test_challenge_afterProve_reverts() public {
+        // Prove the game so it is over (prover != address(0)).
+        vm.prank(prover);
+        game.prove(bytes(""));
+
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        vm.expectRevert(GameOver.selector);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+    }
+}
+
+/// @title ZKDisputeGame_Prove_Test
+/// @notice Tests for prove functionality of ZKDisputeGame.
+contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
+    function test_prove_afterDeadline_reverts() public {
+        // Challenge first.
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        // Move time forward beyond the prove period.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+
+        vm.startPrank(prover);
+        // Attempting to prove after the deadline is exceeded.
+        vm.expectRevert(GameOver.selector);
+        game.prove(bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_prove_alreadyProved_reverts() public {
+        vm.startPrank(prover);
+        game.prove(bytes(""));
+        vm.expectRevert(GameOver.selector);
+        game.prove(bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_prove_alreadyResolved_reverts() public {
+        // Warp past the challenge deadline so the game is over.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+
+        // Resolve the game.
+        game.resolve();
+
+        // Attempting to prove after resolution should revert.
+        vm.expectRevert(ClaimAlreadyResolved.selector);
+        game.prove(bytes(""));
+    }
+
+    function test_prove_parentChallengerWins_reverts() public {
+        // Create a child game referencing our game as parent.
+        vm.startPrank(proposer);
+        ZKDisputeGame childGame = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: 1 ether }(
+                        gameType,
+                        Claim.wrap(keccak256("child-claim")),
+                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+                    )
+                )
+            )
+        );
+        vm.stopPrank();
+
+        // Challenge the parent game so it resolves as CHALLENGER_WINS.
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        (,,,, Timestamp gameDeadline,) = game.claimData();
+        vm.warp(gameDeadline.raw() + 1);
+        game.resolve();
+
+        // Attempting to prove the child game should revert because parent is invalid.
+        vm.expectRevert(InvalidParentGame.selector);
+        childGame.prove(bytes(""));
+    }
 }
 
 /// @title ZKDisputeGame_Resolve_Test
@@ -552,6 +754,33 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_TestInit {
         assertEq(challenger.balance, 1 ether); // started with 2, spent 1
     }
 
+    function test_resolve_challengedProverIsCreator_succeeds() public {
+        // Challenge the game.
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        // Proposer (game creator) proves their own claim.
+        vm.prank(proposer);
+        game.prove(bytes(""));
+
+        // Resolve the game.
+        game.resolve();
+
+        // Proposer should get the entire totalBonds (2 ether: 1 proposer bond + 1 challenger bond).
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+        uint256 balanceBefore = proposer.balance;
+        _claimCreditTwoPhase(game, proposer);
+
+        assertEq(proposer.balance, balanceBefore + 2 ether);
+        assertEq(uint8(game.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // Challenger gets nothing. Game already closed, so second call reverts.
+        vm.expectRevert(NoCreditToClaim.selector);
+        game.claimCredit(challenger);
+    }
+
     function test_resolve_challengedNoProof_succeeds() public {
         // Challenge the game.
         vm.startPrank(challenger);
@@ -577,6 +806,17 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_TestInit {
 
         // The contract balance is zero.
         assertEq(address(game).balance, 0);
+    }
+
+    function test_resolve_alreadyResolved_reverts() public {
+        // Warp past deadline and resolve.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+
+        // Second resolve should revert.
+        vm.expectRevert(ClaimAlreadyResolved.selector);
+        game.resolve();
     }
 
     function test_resolve_parentGameInProgress_reverts() public {
@@ -656,85 +896,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_TestInit {
         // Bond is in DelayedWETH, game ETH balance is 0.
         assertEq(address(childGame).balance, 0);
     }
-}
 
-/// @title ZKDisputeGame_Challenge_Test
-/// @notice Tests for challenge functionality of ZKDisputeGame.
-contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_TestInit {
-    function test_challenge_alreadyChallenged_reverts() public {
-        // Initially unchallenged.
-        (, ZKDisputeGame.ProposalStatus status_, address challenger_,,,) = game.claimData();
-        assertEq(challenger_, address(0));
-        assertEq(uint8(status_), uint8(ZKDisputeGame.ProposalStatus.Unchallenged));
-
-        // The first challenge is valid.
-        vm.startPrank(challenger);
-        vm.deal(challenger, 2 ether);
-        game.challenge{ value: 1 ether }();
-
-        // A second challenge from any party should revert because the proposal is no longer "Unchallenged".
-        vm.expectRevert(ClaimAlreadyChallenged.selector);
-        game.challenge{ value: 1 ether }();
-        vm.stopPrank();
-    }
-
-    function test_challenge_permissionless_succeeds() public {
-        // Any address can challenge (permissionless).
-        address anyChallenger = address(0x9999);
-        vm.startPrank(anyChallenger);
-        vm.deal(anyChallenger, 1 ether);
-
-        game.challenge{ value: 1 ether }();
-        vm.stopPrank();
-
-        (,, address challenger_,,,) = game.claimData();
-        assertEq(challenger_, anyChallenger);
-    }
-}
-
-/// @title ZKDisputeGame_Prove_Test
-/// @notice Tests for prove functionality of ZKDisputeGame.
-contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
-    function test_prove_afterDeadline_reverts() public {
-        // Challenge first.
-        vm.startPrank(challenger);
-        vm.deal(challenger, 1 ether);
-        game.challenge{ value: 1 ether }();
-        vm.stopPrank();
-
-        // Move time forward beyond the prove period.
-        (,,,, Timestamp deadline,) = game.claimData();
-        vm.warp(deadline.raw() + 1);
-
-        vm.startPrank(prover);
-        // Attempting to prove after the deadline is exceeded.
-        vm.expectRevert(GameOver.selector);
-        game.prove(bytes(""));
-        vm.stopPrank();
-    }
-
-    function test_prove_alreadyProved_reverts() public {
-        vm.startPrank(prover);
-        game.prove(bytes(""));
-        vm.expectRevert(GameOver.selector);
-        game.prove(bytes(""));
-        vm.stopPrank();
-    }
-
-    function test_prove_alreadyResolved_reverts() public {
-        // Warp past the challenge deadline so the game is over.
-        (,,,, Timestamp deadline,) = game.claimData();
-        vm.warp(deadline.raw() + 1);
-
-        // Resolve the game.
-        game.resolve();
-
-        // Attempting to prove after resolution should revert.
-        vm.expectRevert(ClaimAlreadyResolved.selector);
-        game.prove(bytes(""));
-    }
-
-    function test_prove_parentChallengerWins_reverts() public {
+    function test_resolve_parentInvalidChildChallenged_succeeds() public {
         // Create a child game referencing our game as parent.
         vm.startPrank(proposer);
         ZKDisputeGame childGame = ZKDisputeGame(
@@ -742,43 +905,46 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
                 address(
                     disputeGameFactory.create{ value: 1 ether }(
                         gameType,
-                        Claim.wrap(keccak256("child-claim")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+                        Claim.wrap(keccak256("child-of-invalid-parent")),
+                        abi.encodePacked(childL2SequenceNumber + grandchildOffset4, childGameIndex)
                     )
                 )
             )
         );
         vm.stopPrank();
 
-        // Challenge the parent game so it resolves as CHALLENGER_WINS.
+        // Challenge the child game.
         vm.startPrank(challenger);
-        vm.deal(challenger, 1 ether);
+        vm.deal(challenger, 2 ether);
+        childGame.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        // Make the parent game invalid: challenge it and let it expire without proof.
+        vm.startPrank(address(0xABC));
+        vm.deal(address(0xABC), 1 ether);
         game.challenge{ value: 1 ether }();
         vm.stopPrank();
 
         (,,,, Timestamp gameDeadline,) = game.claimData();
         vm.warp(gameDeadline.raw() + 1);
         game.resolve();
+        assertEq(uint8(game.status()), uint8(GameStatus.CHALLENGER_WINS));
 
-        // Attempting to prove the child game should revert because parent is invalid.
-        vm.expectRevert(InvalidParentGame.selector);
-        childGame.prove(bytes(""));
+        // Resolve the child game - parent is invalid so challenger wins everything.
+        childGame.resolve();
+        assertEq(uint8(childGame.status()), uint8(GameStatus.CHALLENGER_WINS));
+
+        // Challenger should get totalBonds (2 ether: proposer bond + challenger bond).
+        vm.warp(childGame.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+        uint256 balanceBefore = challenger.balance;
+        _claimCreditTwoPhase(childGame, challenger);
+        assertEq(challenger.balance, balanceBefore + 2 ether);
     }
 }
 
 /// @title ZKDisputeGame_ClaimCredit_Test
 /// @notice Tests for claimCredit functionality of ZKDisputeGame.
 contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_TestInit {
-    function test_claimCredit_notFinalized_reverts() public {
-        (,,,, Timestamp deadline,) = game.claimData();
-        vm.warp(deadline.raw() + 1);
-        game.resolve();
-
-        // Game is resolved but not finalized - closeGame should revert with GameNotFinalized
-        vm.expectRevert(GameNotFinalized.selector);
-        game.claimCredit(proposer);
-    }
-
     /// @notice Phase 1: claimCredit zeros the credit mapping and unlocks in DelayedWETH,
     ///         then returns early. The recipient's on-chain credit is zeroed immediately.
     function test_claimCredit_phaseOne_succeeds() public {
@@ -855,11 +1021,141 @@ contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_TestInit {
         vm.expectRevert(NoCreditToClaim.selector);
         game.claimCredit(noCredit);
     }
+
+    function test_claimCredit_refundMode_succeeds() public {
+        // Challenge the game so both proposer and challenger have refund credits.
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        // Let the prove deadline expire and resolve.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+
+        // Wait for finality delay.
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // Retire all games to make isGameProper return false.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
+
+        // Close the game - enters REFUND mode.
+        game.closeGame();
+        assertTrue(game.bondDistributionMode() == BondDistributionMode.REFUND);
+
+        // Both proposer and challenger should get their original bonds back.
+        uint256 proposerBalanceBefore = proposer.balance;
+        _claimCreditTwoPhase(game, proposer);
+        assertEq(proposer.balance, proposerBalanceBefore + 1 ether);
+
+        uint256 challengerBalanceBefore = challenger.balance;
+        _claimCreditTwoPhase(game, challenger);
+        assertEq(challenger.balance, challengerBalanceBefore + 1 ether);
+    }
+
+    function test_claimCredit_notFinalized_reverts() public {
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+
+        // Game is resolved but not finalized - closeGame should revert with GameNotFinalized
+        vm.expectRevert(GameNotFinalized.selector);
+        game.claimCredit(proposer);
+    }
+
+    function test_claimCredit_bondTransferFailed_reverts() public {
+        // Deploy a contract that rejects ETH transfers.
+        ZKDisputeGame_RevertOnReceive_Harness revertingRecipient = new ZKDisputeGame_RevertOnReceive_Harness();
+
+        // Create a game where the proposer is the reverting contract.
+        vm.startPrank(address(revertingRecipient));
+        vm.deal(address(revertingRecipient), 1 ether);
+        ZKDisputeGame revertGame = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: 1 ether }(
+                        gameType,
+                        Claim.wrap(keccak256("revert-recipient-claim")),
+                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+                    )
+                )
+            )
+        );
+        vm.stopPrank();
+
+        // Resolve the parent game first (required for child resolution).
+        (,,,, Timestamp parentDeadline,) = game.claimData();
+        vm.warp(parentDeadline.raw() + 1);
+        game.resolve();
+
+        // Let the revertGame expire unchallenged and resolve.
+        (,,,, Timestamp deadline,) = revertGame.claimData();
+        vm.warp(deadline.raw() + 1);
+        revertGame.resolve();
+
+        // Wait for finality delay.
+        vm.warp(revertGame.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // Phase 1: unlock.
+        revertGame.claimCredit(address(revertingRecipient));
+
+        // Wait for DelayedWETH delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
+        // Phase 2: should revert because recipient rejects ETH.
+        vm.expectRevert(BondTransferFailed.selector);
+        revertGame.claimCredit(address(revertingRecipient));
+    }
 }
 
 /// @title ZKDisputeGame_CloseGame_Test
 /// @notice Tests for closeGame functionality of ZKDisputeGame.
 contract ZKDisputeGame_CloseGame_Test is ZKDisputeGame_TestInit {
+    function test_closeGame_updatesAnchorGame_succeeds() public {
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+        game.closeGame();
+
+        assertEq(address(anchorStateRegistry.anchorGame()), address(game));
+    }
+
+    function test_closeGame_refundModeRetired_succeeds() public {
+        // Resolve the game.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+
+        // Wait for finality delay.
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // Retire all existing games by updating the retirement timestamp.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
+
+        // Close the game - it should enter REFUND mode because isGameProper returns false.
+        game.closeGame();
+        assertTrue(game.bondDistributionMode() == BondDistributionMode.REFUND);
+    }
+
+    function test_closeGame_alreadyClosed_succeeds() public {
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+        game.closeGame();
+        assertTrue(game.bondDistributionMode() == BondDistributionMode.NORMAL);
+
+        // Calling closeGame again should return early without reverting.
+        game.closeGame();
+        assertTrue(game.bondDistributionMode() == BondDistributionMode.NORMAL);
+    }
+
     function test_closeGame_notResolved_reverts() public {
         // Game is not resolved, so closeGame should revert with GameNotResolved
         vm.expectRevert(GameNotResolved.selector);
@@ -884,16 +1180,82 @@ contract ZKDisputeGame_CloseGame_Test is ZKDisputeGame_TestInit {
         vm.prank(superchainConfig.guardian());
         superchainConfig.unpause(address(0));
     }
+}
 
-    function test_closeGame_updatesAnchorGame_succeeds() public {
+/// @title ZKDisputeGame_GameOver_Test
+/// @notice Tests for gameOver view function of ZKDisputeGame.
+contract ZKDisputeGame_GameOver_Test is ZKDisputeGame_TestInit {
+    function test_gameOver_beforeDeadline_succeeds() public view {
+        assertFalse(game.gameOver());
+    }
+
+    function test_gameOver_afterDeadline_succeeds() public {
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        assertTrue(game.gameOver());
+    }
+
+    function test_gameOver_afterProve_succeeds() public {
+        vm.prank(prover);
+        game.prove(bytes(""));
+        assertTrue(game.gameOver());
+    }
+}
+
+/// @title ZKDisputeGame_Credit_Test
+/// @notice Tests for credit view function of ZKDisputeGame.
+contract ZKDisputeGame_Credit_Test is ZKDisputeGame_TestInit {
+    function test_credit_normalMode_succeeds() public {
+        // Let the game expire unchallenged.
         (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
         game.resolve();
-
         vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // Close in NORMAL mode (game is proper).
+        game.closeGame();
+        assertTrue(game.bondDistributionMode() == BondDistributionMode.NORMAL);
+
+        // credit() should return normal mode credits.
+        assertEq(game.credit(proposer), 1 ether);
+        assertEq(game.credit(challenger), 0);
+    }
+
+    function test_credit_refundMode_succeeds() public {
+        // Challenge the game.
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        // Resolve.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // Retire and close in REFUND mode.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
         game.closeGame();
 
-        assertEq(address(anchorStateRegistry.anchorGame()), address(game));
+        // credit() should return refund mode credits.
+        assertEq(game.credit(proposer), 1 ether);
+        assertEq(game.credit(challenger), 1 ether);
+    }
+
+    function test_credit_defaultMode_succeeds() public view {
+        // Before closeGame is called, bondDistributionMode is UNDECIDED.
+        // credit() should default to returning normalModeCredit.
+        assertEq(game.credit(proposer), 0);
+    }
+}
+
+/// @title ZKDisputeGame_RevertOnReceive_Harness
+/// @notice Helper contract that rejects ETH transfers.
+contract ZKDisputeGame_RevertOnReceive_Harness {
+    receive() external payable {
+        revert BondTransferFailed();
     }
 }
 
