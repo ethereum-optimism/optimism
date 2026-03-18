@@ -729,11 +729,7 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 
 // RunPreForkActivationTest verifies that super-root transitions produce
 // correct results when the interop fork is scheduled but not yet active.
-// The test is currently skipped pending a fix for non-genesis interop activation proofs.
 func RunPreForkActivationTest(t devtest.T, sys *presets.SimpleInterop) {
-	// TODO(ethereum-optimism/optimism#16166): Fix non-genesis Interop activation proofs
-	t.Skip("non-genesis Interop activation proofs not yet supported")
-
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 
 	chains := orderedChains(sys)
