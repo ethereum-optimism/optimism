@@ -18,6 +18,12 @@ func TestInteropFaultProofs(gt *testing.T) {
 	sfp.RunSuperFaultProofTest(t, sys)
 }
 
+func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled(), presets.WithSuggestedInteropActivationOffset(365*24*60*60))
+	sfp.RunPreForkActivationTest(t, sys)
+}
+
 func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
