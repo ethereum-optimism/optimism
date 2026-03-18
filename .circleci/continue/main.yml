@@ -384,6 +384,7 @@ commands:
               fi
             fi
 
+
   go-restore-cache:
     parameters:
       # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
@@ -1505,64 +1506,16 @@ contracts-bedrock-tests-l2-fork:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
+          checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
-      - check-changed:
-          patterns: contracts-bedrock
-      - install-solc-compilers
-      - run:
-          name: Print dependencies
-          command: just dep-status
-          working_directory: packages/contracts-bedrock
-
-  contracts-bedrock-checks:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          enable-mise-cache: true
-      - install-contracts-dependencies
-      - attach_workspace:
-          at: .
       - check-changed:
           patterns: contracts-bedrock
       - get-target-branch
       - run:
-          name: print forge version
-          command: forge --version
-      - run-contracts-check:
-          command: check-kontrol-summaries-unchanged
-      - run-contracts-check:
-          command: semgrep-test-validity-check
-      - run-contracts-check:
-          command: semgrep
-      - run-contracts-check:
-          command: semver-lock-no-build
-      - run-contracts-check:
-          command: semver-diff-check-no-build
-      - run-contracts-check:
-          command: validate-deploy-configs
-      - run-contracts-check:
-          command: lint
-      - run-contracts-check:
-          command: snapshots-check-no-build
-      - run-contracts-check:
-          command: nut-bundle-check-no-build
-      - run-contracts-check:
-          command: interfaces-check-no-build
-      - run-contracts-check:
-          command: reinitializer-check-no-build
-      - run-contracts-check:
-          command: size-check
-      - run-contracts-check:
-          command: unused-imports-check-no-build
-      - run-contracts-check:
-          command: strict-pragma-check-no-build
-      - run-contracts-check:
-          command: validate-spacers-no-build
-      - run-contracts-check:
-          command: opcm-upgrade-checks-no-build
+          name: upload selectors
+          command: just update-selectors
+          working_directory: packages/contracts-bedrock
 
   contracts-bedrock-checks-fast:
     docker:
@@ -2865,12 +2818,6 @@ workflows:
           l2_fork_rpc: https://op-mainnet-rpc.optimism.io/
           l2_fork_block_number: latest
           test_profile: ci
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-      - contracts-bedrock-checks:
-          requires:
-            - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
