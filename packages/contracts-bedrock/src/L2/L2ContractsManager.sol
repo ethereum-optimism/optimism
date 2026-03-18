@@ -228,8 +228,7 @@ contract L2ContractsManager is ISemver {
 
         // FeeSplitter may not be deployed at the predeploy address, since fee vaults on
         // earlier contract versions only support L1 withdrawals. We initialize with sharesCalculator as address(0)
-        // to preserve this behavior. Enabling revenue sharing requires explicit migration steps outside the
-        // L2ContractsManager upgrade flow.
+        // to preserve this behavior.
         // eip150-safe
         try IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator() returns (
             ISharesCalculator sharesCalculator_
