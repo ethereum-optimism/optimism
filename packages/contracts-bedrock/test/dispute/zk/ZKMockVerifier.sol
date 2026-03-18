@@ -11,8 +11,8 @@ contract ZKMockVerifier is IZKVerifier {
     string public constant version = "1.0.0";
 
     /// @notice Returns the verifier type identifier.
-    function verifierType() external pure returns (bytes32) {
-        return keccak256("ZKMockVerifier");
+    function verifierType() external pure returns (string memory) {
+        return "ZKMockVerifier";
     }
 
     /// @notice Always succeeds (no-op).

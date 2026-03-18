@@ -16,7 +16,7 @@ var superFaultDisputeGame []byte
 //go:embed abi/FaultDisputeGame.json
 var faultDisputeGame []byte
 
-//go:embed abi/OptimisticZkGame.json
+//go:embed abi/ZKDisputeGame.json
 var zkDisputeGame []byte
 
 //go:embed abi/PreimageOracle.json
