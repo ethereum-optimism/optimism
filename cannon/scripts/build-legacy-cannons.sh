@@ -34,7 +34,11 @@ function buildVersion() {
   git checkout "${TAG}" > "${LOG_FILE}" 2>&1
   git submodule update --init --recursive >> "${LOG_FILE}" 2>&1
   rm -rf "${BIN_DIR}/cannon-"*
-  make -C "${REPO_DIR}/cannon" cannon-embeds >> "${LOG_FILE}" 2>&1
+  if [ -f "${REPO_DIR}/cannon/justfile" ] && (cd "${REPO_DIR}/cannon" && just --show cannon-embeds &>/dev/null); then
+    (cd "${REPO_DIR}/cannon" && just cannon-embeds >> "${LOG_FILE}" 2>&1)
+  else
+    make -C "${REPO_DIR}/cannon" cannon-embeds >> "${LOG_FILE}" 2>&1
+  fi
   cp "${BIN_DIR}/cannon-"* "${EMBEDS_DIR}/"
   echo "Built ${TAG} with versions:"
   (cd "${BIN_DIR}" && ls cannon-*)
@@ -52,7 +56,11 @@ done
 cd "${CANNON_DIR}"
 LOG_FILE="${LOGS_DIR}/build-current.txt"
 echo "Building current version of cannon Logs: ${LOG_FILE}"
-make cannon > "${LOG_FILE}" 2>&1
+if [ -f justfile ] && just --show cannon &>/dev/null; then
+  just cannon > "${LOG_FILE}" 2>&1
+else
+  make cannon > "${LOG_FILE}" 2>&1
+fi
 
 echo "All cannon versions successfully built and available in ${EMBEDS_DIR}"
 "${CANNON_DIR}/bin/cannon" list

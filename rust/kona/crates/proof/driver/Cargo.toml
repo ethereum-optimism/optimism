@@ -22,7 +22,7 @@ kona-protocol.workspace = true
 alloy-rlp.workspace = true
 alloy-consensus.workspace = true
 alloy-primitives.workspace = true
-alloy-evm = { workspace = true, features = ["op"] }
+alloy-evm = { workspace = true }
 
 # OP Alloy
 op-alloy-consensus.workspace = true

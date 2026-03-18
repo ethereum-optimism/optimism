@@ -62,6 +62,7 @@ jobs:
           - op-supernode
           - op-test-sequencer
           - cannon
+          - op-deployer
           - op-dripper
           - op-interop-mon
           - op-interop-filter
@@ -110,6 +111,7 @@ jobs:
           - op-supernode
           - op-test-sequencer
           - cannon
+          - op-deployer
           - op-dripper
           - op-interop-mon
           - op-interop-filter
@@ -155,6 +157,7 @@ jobs:
           - op-supernode
           - op-test-sequencer
           - cannon
+          - op-deployer
           - op-dripper
           - op-interop-mon
           - op-interop-filter

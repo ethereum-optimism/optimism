@@ -176,12 +176,44 @@ ARG OP_TEST_SEQUENCER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   cd op-test-sequencer && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_TEST_SEQUENCER_VERSION" just op-test-sequencer
 
+# Compile contracts in a glibc-based image (solc requires glibc, crashes on Alpine musl).
+# Uses BUILDPLATFORM so it runs natively (no QEMU). Contract artifacts are platform-independent.
+FROM --platform=$BUILDPLATFORM golang:1.24.10-bookworm AS op-deployer-contracts
+ARG BUILDARCH
+RUN apt-get update && apt-get install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+WORKDIR /app
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . /app
+# Install forge for the build platform (linux/glibc variant)
+RUN <<-EOF
+    set -e
+    FOUNDRY_VERSION="$(jq -r '.forge' op-deployer/pkg/deployer/forge/version.json)"
+    FOUNDRY_PLATFORM=linux_${BUILDARCH}
+    FOUNDRY_URL="https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_${FOUNDRY_PLATFORM}.tar.gz"
+    DOWNLOAD_PATH="/tmp/forge.tar.gz"
+    curl -fL -o "${DOWNLOAD_PATH}" "${FOUNDRY_URL}"
+    ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
+    EXPECTED_SHA="$(jq -r --arg arch "${FOUNDRY_PLATFORM}" '.checksums[$arch]' op-deployer/pkg/deployer/forge/version.json)"
+    [ "${ACTUAL_SHA}" = "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
+    tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
+    rm "${DOWNLOAD_PATH}"
+EOF
+# Compile contracts and create artifacts tarball
+RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+  go run ./op-deployer/pkg/deployer/artifacts/cmd/mktar \
+    -base ./packages/contracts-bedrock \
+    -out ./op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst \
+    --exclude="*.t.sol"
+
 FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
 ARG OP_DEPLOYER_VERSION=v0.0.0
-COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
+# Copy pre-compiled contract artifacts from the glibc-based contracts stage
+COPY --from=op-deployer-contracts /app/op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" \
-  just op-deployer/build-go
+  just GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" op-deployer/build-go
 
 FROM --platform=$BUILDPLATFORM builder AS op-dripper-builder
 ARG OP_DRIPPER_VERSION=v0.0.0
@@ -296,7 +328,8 @@ CMD ["op-test-sequencer"]
 
 FROM $TARGET_BASE_IMAGE AS op-deployer-target
 RUN apk add --no-cache ca-certificates
-COPY --from=op-deployer-builder /usr/local/bin/forge /app/op-deployer/bin/op-deployer /usr/local/bin/
+COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/
+COPY --from=op-deployer-builder /app/op-deployer/bin/op-deployer /usr/local/bin/
 ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 
