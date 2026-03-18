@@ -605,7 +605,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["L2DevFeatureFlags"] = ImplementationConfig({
             name: "L2DevFeatureFlags",
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 300_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2DevFeatureFlags.sol:L2DevFeatureFlags"), SALT
             )

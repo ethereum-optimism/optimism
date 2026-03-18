@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
@@ -45,8 +46,12 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         generateScript.run();
 
         // Capture feature flags from deploy config (genesis state)
-        commonState.isInteropEnabled = deploy.cfg().useInterop();
+        commonState.isInteropEnabled =
+            DevFeatures.isDevFeatureEnabled(deploy.cfg().devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        console.log("L2GenesisForkUpgrade isInteropEnabled", commonState.isInteropEnabled);
+
         commonState.isCustomGasToken = deploy.cfg().useCustomGasToken();
+        console.log("L2GenesisForkUpgrade: isCustomGasToken", commonState.isCustomGasToken);
     }
 }
 

@@ -69,6 +69,58 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         commonState.isInteropEnabled = forkL2Live.isInteropEnabled();
         commonState.isCustomGasToken = forkL2Live.isCustomGasToken();
     }
+
+    /// @notice Returns true if a predeploy is a feature predeploy and is disabled.
+    /// @param _predeploy The predeploy to check.
+    /// @return True if the predeploy is a feature predeploy and feature is disabled, false otherwise.
+    function _isFeaturePredeployAndDisabled(address _predeploy) internal view returns (bool) {
+        if (!commonState.isCustomGasToken) {
+            if (_predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY || _predeploy == Predeploys.LIQUIDITY_CONTROLLER) {
+                return true;
+            }
+        }
+        if (!commonState.isInteropEnabled) {
+            if (
+                _predeploy == Predeploys.CROSS_L2_INBOX || _predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
+                    || _predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE || _predeploy == Predeploys.ETH_LIQUIDITY
+                    || _predeploy == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY
+                    || _predeploy == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON
+                    || _predeploy == Predeploys.SUPERCHAIN_TOKEN_BRIDGE
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// @notice Helper to get the expected implementation address for a predeploy.
+    /// @dev Handles feature-specific implementations (CGT variants).
+    /// @param _predeploy The predeploy address.
+    /// @param _name The predeploy name.
+    /// @return expectedImpl_ The expected implementation address.
+    function _getExpectedImplementation(
+        address _predeploy,
+        string memory _name
+    )
+        internal
+        view
+        returns (address expectedImpl_)
+    {
+        // Handle feature-specific implementations
+        if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
+            // L1Block uses CGT variant on custom gas token networks
+            string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
+            console.log("hello there", implName);
+            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
+        } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
+            // L2ToL1MessagePasser uses CGT variant on custom gas token networks
+            string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
+            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
+        } else {
+            // Standard implementation lookup
+            (expectedImpl_,,,) = generateScript.implementationConfigs(_name);
+        }
+    }
 }
 
 /// @title L2ForkUpgrade_Versions_Test
@@ -107,14 +159,16 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
     function _verifyAllVersionsUpdated(PreUpgradeVersionState memory _preState) internal view {
         uint256 length = _preState.preUpgradePredeploys.length;
         for (uint256 i = 0; i < length; i++) {
-            if (!commonState.isCustomGasToken) {
-                if (
-                    Predeploys.getUpgradeablePredeploys()[i] == Predeploys.NATIVE_ASSET_LIQUIDITY
-                        || Predeploys.getUpgradeablePredeploys()[i] == Predeploys.LIQUIDITY_CONTROLLER
-                ) {
-                    continue;
-                }
+            if (_isFeaturePredeployAndDisabled(_preState.preUpgradePredeploys[i].predeploy)) {
+                console.log(
+                    "Skipping feature predeploy and disabled: ",
+                    Predeploys.getName(_preState.preUpgradePredeploys[i].predeploy)
+                );
+                console.log("isCustomGasToken: ", commonState.isCustomGasToken);
+                console.log("isInteropEnabled: ", commonState.isInteropEnabled);
+                continue;
             }
+
             string memory newVersion = _getVersion(_preState.preUpgradePredeploys[i].predeploy);
             string memory oldVersion = _preState.preUpgradePredeploys[i].version;
             assertTrue(
@@ -543,18 +597,15 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
         for (uint256 i = 0; i < predeploys.length; i++) {
             address predeploy = predeploys[i];
 
-            // Skip CGT-only predeploys on non-CGT chains
-            if (!commonState.isCustomGasToken) {
-                if (predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY || predeploy == Predeploys.LIQUIDITY_CONTROLLER) {
-                    continue;
-                }
+            if (_isFeaturePredeployAndDisabled(predeploy)) {
+                continue;
             }
 
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
 
             // Get expected implementation from config
-            (address expectedImpl,,,) = generateScript.implementationConfigs(name);
+            address expectedImpl = _getExpectedImplementation(predeploy, name);
 
             // Get actual implementation from proxy
             address actualImpl = address(uint160(uint256(vm.load(predeploy, IMPLEMENTATION_SLOT))));
@@ -604,11 +655,8 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
         for (uint256 i = 0; i < predeploys.length; i++) {
             address predeploy = predeploys[i];
 
-            // Skip CGT-only predeploys on non-CGT chains
-            if (!commonState.isCustomGasToken) {
-                if (predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY || predeploy == Predeploys.LIQUIDITY_CONTROLLER) {
-                    continue;
-                }
+            if (_isFeaturePredeployAndDisabled(predeploy)) {
+                continue;
             }
 
             // Get predeploy name
@@ -648,34 +696,6 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
             // Verify the event was found
             assertTrue(foundEvent, string.concat("Upgraded event not found for ", name, ": ", vm.toString(predeploy)));
-        }
-    }
-
-    /// @notice Helper to get the expected implementation address for a predeploy.
-    /// @dev Handles feature-specific implementations (CGT variants).
-    /// @param _predeploy The predeploy address.
-    /// @param _name The predeploy name.
-    /// @return expectedImpl_ The expected implementation address.
-    function _getExpectedImplementation(
-        address _predeploy,
-        string memory _name
-    )
-        internal
-        view
-        returns (address expectedImpl_)
-    {
-        // Handle feature-specific implementations
-        if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
-            // L1Block uses CGT variant on custom gas token networks
-            string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
-        } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
-            // L2ToL1MessagePasser uses CGT variant on custom gas token networks
-            string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
-        } else {
-            // Standard implementation lookup
-            (expectedImpl_,,,) = generateScript.implementationConfigs(_name);
         }
     }
 }

@@ -269,7 +269,7 @@ abstract contract Setup is FeatureFlags {
         // In fork tests, existing DWETH/ETHLockbox proxies keep their old implementations since the
         // upgrade reuses them. In unoptimized profiles, CREATE2 addresses differ so impls won't match.
         // In both cases we mock getProxyImplementation and version() to satisfy the validator checks.
-        if (!Config.isUnoptimized() && !isForkTest()) return;
+        if (!Config.isUnoptimized() && !isL1ForkTest()) return;
         console.log("Setup: mocking unoptimized proxy implementations");
 
         string memory delayedWETHVersion = ISemver(_delayedWETHImpl).version();

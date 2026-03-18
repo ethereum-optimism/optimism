@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { console2 as console } from "forge-std/console2.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 
 /// @title ForkL2Live
 /// @notice Sets up L2 fork tests by fetching config from the forked L2 chain.
@@ -46,16 +45,16 @@ contract ForkL2Live is Deployer {
             isCustomGasToken = false;
         }
 
-        // Detect interop by checking if CrossL2Inbox implementation has code
-        address crossL2InboxImpl = EIP1967Helper.getImplementation(Predeploys.CROSS_L2_INBOX);
-        isInteropEnabled = crossL2InboxImpl.code.length > 0;
-        if (isInteropEnabled) {
+        try IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
+        returns (bool isInteropEnabled_) {
+            isInteropEnabled = isInteropEnabled_;
             console.log("ForkL2Live: Interop features detected");
+        } catch {
+            isInteropEnabled = false;
         }
 
-        // Log contract versions for key predeploys
-        _logPredeployVersion("CrossL2Inbox", Predeploys.CROSS_L2_INBOX);
         _logPredeployVersion("L1Block", Predeploys.L1_BLOCK_ATTRIBUTES);
+        _logPredeployVersion("L2DevFeatureFlags", Predeploys.L2_DEV_FEATURE_FLAGS);
     }
 
     /// @notice Logs the version of a predeploy contract if available.
