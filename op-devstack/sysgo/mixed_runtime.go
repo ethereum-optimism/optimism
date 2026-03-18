@@ -64,6 +64,20 @@ const (
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
 )
 
+// devstackL2ELKind returns the L2 EL kind requested via the DEVSTACK_L2EL_KIND
+// environment variable. Returns the empty string when the variable is unset,
+// meaning "use the runtime's default".
+func devstackL2ELKind() MixedL2ELKind {
+	return MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar))
+}
+
+// devstackL2CLKind returns the L2 CL kind requested via the DEVSTACK_L2CL_KIND
+// environment variable. Returns the empty string when the variable is unset,
+// meaning "use the runtime's default".
+func devstackL2CLKind() MixedL2CLKind {
+	return MixedL2CLKind(os.Getenv("DEVSTACK_L2CL_KIND"))
+}
+
 type MixedSingleChainNodeSpec struct {
 	ELKey       string
 	CLKey       string

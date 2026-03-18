@@ -1803,7 +1803,7 @@ jobs:
         type: string
         default: ""
       l2_cl_kind:
-        description: "L2 consensus layer client (op-node or kona)"
+        description: "L2 consensus layer client (op-node or kona-node)"
         type: string
         default: "op-node"
       l2_el_kind:
@@ -2792,7 +2792,7 @@ workflows:
       - op-acceptance-tests:
           name: memory-all-kona-op-reth
           gate: "base"
-          l2_cl_kind: kona
+          l2_cl_kind: kona-node
           l2_el_kind: op-reth
           no_output_timeout: 120m
           context:

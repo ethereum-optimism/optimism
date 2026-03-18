@@ -77,8 +77,7 @@ func startDefaultSingleChainPrimary(
 	jwtSecret [32]byte,
 	cfg PresetConfig,
 ) singleChainPrimaryRuntime {
-	sequencerIdentity := NewELNodeIdentity(0)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerIdentity)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
 	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, cfg.GlobalL2CLOptions)
 	return singleChainPrimaryRuntime{
 		EL: l2EL,
@@ -123,9 +122,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
 
-	sequencerCL, ok := primary.CL.(*OpNode)
-	require.True(ok, "single-chain runtime primary CL must be op-node for test sequencer")
-	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, primary.EL, world.L2Network, sequencerCL)
+	testSequencer := startTestSequencerForRPCs(t, keys, "test-sequencer", jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, world.L2Network.ChainID(), primary.EL.UserRPC(), primary.CL.UserRPC())
 	testSequencerRuntime := newTestSequencerRuntime(testSequencer, spec.TestSequencer)
 	faucetService := startFaucets(t, keys, world.L1Network.ChainID(), world.L2Network.ChainID(), l1EL.UserRPC(), primary.EL.UserRPC())
 
