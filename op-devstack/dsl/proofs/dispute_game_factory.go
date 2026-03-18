@@ -164,13 +164,13 @@ func (f *DisputeGameFactory) GameCount() int64 {
 func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameInfo.Proxy), bindings.WithTest(f.t))
-	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
+	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.ethClient, f.getGameHelper, f.honestTraceForGame, game)
 }
 
 func (f *DisputeGameFactory) GameImpl(gameType gameTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))
-	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, f.honestTraceForGame, game)
+	return NewFaultDisputeGame(f.t, f.require, implAddr, f.ethClient, f.getGameHelper, f.honestTraceForGame, game)
 }
 
 func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
@@ -212,7 +212,7 @@ func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTyp
 	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
-	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, f.honestTraceForGame, game)
+	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.ethClient, f.getGameHelper, f.honestTraceForGame, game)
 }
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
@@ -400,7 +400,7 @@ func (f *DisputeGameFactory) startOutputRootGameOfType(
 		rootClaim = common.Hash(response.OutputRoot)
 	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
-	return NewFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, honestTraceProvider, game)
+	return NewFaultDisputeGame(f.t, f.require, addr, f.ethClient, f.getGameHelper, honestTraceProvider, game)
 }
 
 func (f *DisputeGameFactory) createOutputGameExtraData(blockNum uint64, cfg *GameCfg) []byte {

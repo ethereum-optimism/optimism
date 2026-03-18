@@ -91,8 +91,9 @@ func (c *Claim) WaitForCounterClaim(ignoreClaims ...*Claim) *Claim {
 func (c *Claim) WaitForCountered() {
 	timedCtx, cancel := context.WithTimeout(c.t.Ctx(), defaultTimeout)
 	defer cancel()
+	timedGame := c.game.withContext(timedCtx)
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		claim := c.game.claimAtIndex(c.Index)
+		claim := timedGame.claimAtIndex(c.Index)
 		return claim.CounteredBy != common.Address{}, nil
 	})
 	if err != nil { // Avoid waiting time capturing game data when there's no error

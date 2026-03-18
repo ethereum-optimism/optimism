@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 )
 
@@ -18,11 +19,12 @@ func NewSuperFaultDisputeGame(
 	t devtest.T,
 	require *require.Assertions,
 	addr common.Address,
+	ethClient apis.EthClient,
 	helperProvider gameHelperProvider,
 	honestTrace func(game *FaultDisputeGame) types.TraceAccessor,
 	game *bindings.FaultDisputeGame,
 ) *SuperFaultDisputeGame {
-	fdg := NewFaultDisputeGame(t, require, addr, helperProvider, honestTrace, game)
+	fdg := NewFaultDisputeGame(t, require, addr, ethClient, helperProvider, honestTrace, game)
 	return &SuperFaultDisputeGame{
 		FaultDisputeGame: fdg,
 	}

@@ -17,7 +17,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -28,6 +30,7 @@ type FaultDisputeGame struct {
 	t                   devtest.T
 	require             *require.Assertions
 	game                *bindings.FaultDisputeGame
+	ethClient           apis.EthClient
 	Address             common.Address
 	helperProvider      gameHelperProvider
 	honestTraceProvider func() challengerTypes.TraceAccessor
@@ -37,6 +40,7 @@ func NewFaultDisputeGame(
 	t devtest.T,
 	require *require.Assertions,
 	addr common.Address,
+	ethClient apis.EthClient,
 	helperProvider gameHelperProvider,
 	honestTrace func(game *FaultDisputeGame) challengerTypes.TraceAccessor,
 	game *bindings.FaultDisputeGame,
@@ -45,6 +49,7 @@ func NewFaultDisputeGame(
 		t:              t,
 		require:        require,
 		game:           game,
+		ethClient:      ethClient,
 		Address:        addr,
 		helperProvider: helperProvider,
 	}
@@ -53,6 +58,37 @@ func NewFaultDisputeGame(
 	}
 	return fdg
 }
+
+// withContext returns a FaultDisputeGame whose contract-binding RPC calls
+// use the supplied context.  The returned value shares the same on-chain
+// address and helpers but is only suitable for read-only operations (it
+// should not be used to send transactions).
+func (g *FaultDisputeGame) withContext(ctx context.Context) *FaultDisputeGame {
+	ctxTest := &baseTestCtx{ctx: ctx, t: g.t}
+	game := bindings.NewFaultDisputeGame(
+		bindings.WithClient(g.ethClient),
+		bindings.WithTo(g.Address),
+		bindings.WithTest(ctxTest),
+	)
+	return &FaultDisputeGame{
+		t:              g.t,
+		require:        g.require,
+		game:           game,
+		ethClient:      g.ethClient,
+		Address:        g.Address,
+		helperProvider: g.helperProvider,
+	}
+}
+
+// baseTestCtx is a minimal bindings.BaseTest that provides a custom context
+// while delegating assertion handling to the underlying devtest.T.
+type baseTestCtx struct {
+	ctx context.Context
+	t   devtest.T
+}
+
+func (b *baseTestCtx) Ctx() context.Context            { return b.ctx }
+func (b *baseTestCtx) Require() *testreq.Assertions    { return b.t.Require() }
 
 func (g *FaultDisputeGame) GameType() gameTypes.GameType {
 	return gameTypes.GameType(contract.Read(g.game.GameType()))
@@ -166,10 +202,18 @@ func (g *FaultDisputeGame) claimCount() uint64 {
 func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, predicate func(claimIdx uint64, claim bindings.Claim) bool) (uint64, bindings.Claim) {
 	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), timeout)
 	defer cancel()
+
+	// Create a game binding that uses timedCtx for RPC calls.
+	// Without this, allClaims() uses the base test context (which may have a
+	// much longer deadline, e.g. the 2-hour package timeout), so a single
+	// hung RPC call would block the entire polling loop and bypass the
+	// per-wait timeout above.
+	timedGame := g.withContext(timedCtx)
+
 	var matchedClaim bindings.Claim
 	var matchClaimIdx uint64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		claims := g.allClaims()
+		claims := timedGame.allClaims()
 		// Search backwards because the new claims are at the end and more likely the ones we want.
 		for i := len(claims) - 1; i >= 0; i-- {
 			claim := claims[i]
