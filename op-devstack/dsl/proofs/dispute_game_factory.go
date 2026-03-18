@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -179,14 +180,37 @@ func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
 
 func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	initialCount := f.GameCount()
+
+	// Use the test context deadline as the upper timeout bound so we don't
+	// outlive the test, but cap at 10 minutes for a reasonable default.
+	timeout := 10 * time.Minute
+	if deadline, ok := f.t.Ctx().Deadline(); ok {
+		if remaining := time.Until(deadline) - 30*time.Second; remaining > 0 && remaining < timeout {
+			timeout = remaining
+		}
+	}
+
 	f.t.Require().Eventually(func() bool {
-		gameCount := f.GameCount()
+		gameCount := f.gameCountOrDefault(initialCount)
 		check := gameCount > initialCount
-		f.t.Logf("waiting for new game. current=%d new=%d", initialCount, gameCount)
+		f.t.Logf("waiting for new game. initial=%d current=%d", initialCount, gameCount)
 		return check
-	}, time.Minute*10, time.Second*5)
+	}, timeout, time.Second*5)
 
 	return f.GameAtIndex(initialCount)
+}
+
+// gameCountOrDefault reads the game count from the factory, returning the
+// provided fallback on transient errors instead of failing the test. This
+// allows WaitForGame's Eventually loop to keep retrying when the L1 RPC is
+// temporarily unavailable under CI resource contention.
+func (f *DisputeGameFactory) gameCountOrDefault(fallback int64) int64 {
+	count, err := contractio.Read(f.dgf.GameCount(), f.t.Ctx())
+	if err != nil {
+		f.t.Logf("transient error reading game count: %v", err)
+		return fallback
+	}
+	return count.Int64()
 }
 
 func (f *DisputeGameFactory) StartSuperCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
