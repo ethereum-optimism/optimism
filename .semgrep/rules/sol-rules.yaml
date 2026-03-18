@@ -458,18 +458,20 @@ rules:
         # DataAvailabilityChallenge is a beta/non-standard contract.
         - packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
 
-  - id: sol-safety-l2cm-no-storage-variables
+  - id: sol-safety-delegatecall-no-storage-variables
     languages: [generic]
     severity: ERROR
     message: >-
-      L2ContractsManager must not declare storage variables. It executes via DELEGATECALL in
-      L2ProxyAdmin's storage context, so any storage variables would collide with ProxyAdmin
-      slots (e.g., _owner), potentially locking out admin access. Use immutable or constant instead.
+      Contracts that execute via DELEGATECALL must not declare storage variables. Storage variables
+      would collide with the caller's storage slots (e.g., _owner), potentially locking out admin
+      access permanently. Use immutable or constant instead.
     pattern-regex: |
       ^\s+(?!.*\b(?:function|event|error|modifier|constructor)\b)\S.*\b(?:public|internal|private)\b(?:(?!\bimmutable\b|\bconstant\b).)*;\s*$
     paths:
       include:
         - packages/contracts-bedrock/src/L2/L2ContractsManager.sol
+        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtilsCaller.sol
 
   - id: sol-safety-use-deployutils-getcode
     languages: [solidity]
