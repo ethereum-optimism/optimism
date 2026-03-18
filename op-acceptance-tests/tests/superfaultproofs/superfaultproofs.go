@@ -746,8 +746,8 @@ func RunPreForkActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
 
-	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
-	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
 
 	step1 := marshalTransition(start, 1, firstOptimistic)
 	step2 := marshalTransition(start, 2, firstOptimistic, secondOptimistic)

@@ -20,10 +20,6 @@ func TestInteropFaultProofs(gt *testing.T) {
 
 func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(ethereum-optimism/optimism#16166): Fix non-genesis Interop activation proofs.
-	// WithSuggestedInteropActivationOffset is a deployer option, which is not supported
-	// by the supernode proofs preset. Re-enable once the underlying issue is resolved.
-	t.Skip("TODO(ethereum-optimism/optimism#16166): non-genesis Interop activation proofs not yet supported")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled(), presets.WithSuggestedInteropActivationOffset(365*24*60*60))
 	sfp.RunPreForkActivationTest(t, sys)
 }
