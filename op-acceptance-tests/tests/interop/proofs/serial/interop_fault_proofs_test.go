@@ -6,6 +6,8 @@ import (
 	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 func TestInteropFaultProofs(gt *testing.T) {
@@ -20,4 +22,17 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys)
+}
+
+func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(
+		t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithL2BlockTimes(map[eth.ChainID]uint64{
+			sysgo.DefaultL2AID: 1,
+			sysgo.DefaultL2BID: 2,
+		}),
+	)
+	sfp.RunVariedBlockTimesTest(t, sys)
 }
