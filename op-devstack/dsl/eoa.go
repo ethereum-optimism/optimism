@@ -34,6 +34,11 @@ type EOA struct {
 	// el is the execution-layer node that this user operates against.
 	// This may be a L1 or L2 EL node.
 	el ELNode
+
+	// sequencingNonce tracks the next nonce for direct-sequenced transactions.
+	// Initialized lazily on the first call to PlanForSequencing.
+	sequencingNonce    uint64
+	sequencingNonceSet bool
 }
 
 // InitMessage represents an initiating message that has been sent and included on chain.
@@ -149,6 +154,32 @@ func (u *EOA) Plan() txplan.Option {
 		txplan.WithRetrySubmission(elClient, 5, retry.Exponential()),
 		txplan.WithRetryInclusion(elClient, 5, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(elClient),
+	)
+}
+
+// PlanForSequencing creates tx-planning options for transactions that will be
+// directly sequenced into blocks (bypassing the mempool). It uses a local nonce
+// counter instead of querying PendingNonceAt, avoiding races when multiple txs
+// from the same EOA are planned before any are included. It also omits
+// submission and inclusion retries since those are handled by the sequencer.
+func (u *EOA) PlanForSequencing() txplan.Option {
+	elClient := u.el.stackEL().EthClient()
+
+	if !u.sequencingNonceSet {
+		nonce, err := elClient.PendingNonceAt(u.ctx, u.Address())
+		u.require.NoError(err, "failed to get pending nonce for sequencing")
+		u.sequencingNonce = nonce
+		u.sequencingNonceSet = true
+	}
+	nonce := u.sequencingNonce
+	u.sequencingNonce++
+
+	return txplan.Combine(
+		txplan.WithChainID(elClient),
+		u.key.Plan(),
+		txplan.WithNonce(nonce),
+		txplan.WithAgainstLatestBlock(elClient),
+		txplan.WithEstimator(elClient, true),
 	)
 }
 
@@ -496,42 +527,41 @@ func (u *EOA) PrepareSameTimestampInit(
 	}
 }
 
-// SubmitInit submits the init message without waiting for inclusion.
-// Returns the planned tx which can be used to wait for inclusion later.
+// SubmitInit signs the init message for direct sequencing into a block.
+// Returns the planned tx whose Signed field can be evaluated to get the signed tx bytes.
 func (p *SameTimestampPair) SubmitInit() *txplan.PlannedTx {
-	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](p.eoa.Plan())
+	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](p.eoa.PlanForSequencing())
 	tx.Content.Set(p.Trigger)
-	_, err := tx.PlannedTx.Submitted.Eval(p.eoa.ctx)
-	p.eoa.require.NoError(err, "failed to submit init message")
+	_, err := tx.PlannedTx.Signed.Eval(p.eoa.ctx)
+	p.eoa.require.NoError(err, "failed to sign init message")
 	return tx.PlannedTx
 }
 
-// SubmitExecTo submits an exec message to the given EOA's chain, referencing this init.
-// The exec is submitted without waiting for inclusion.
-// Returns the planned tx which can be used to wait for inclusion later.
+// SubmitExecTo signs an exec message on the executor's chain, referencing this init.
+// Returns the planned tx whose Signed field can be evaluated to get the signed tx bytes.
 func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.PlanForSequencing())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      p.Message,
 	})
-	_, err := tx.PlannedTx.Submitted.Eval(executor.ctx)
-	executor.require.NoError(err, "failed to submit exec message")
+	_, err := tx.PlannedTx.Signed.Eval(executor.ctx)
+	executor.require.NoError(err, "failed to sign exec message")
 	return tx.PlannedTx
 }
 
-// SubmitInvalidExecTo submits an exec message with an invalid log index.
+// SubmitInvalidExecTo signs an exec message with an invalid log index for direct sequencing.
 // This creates an exec that references a non-existent log, which should be detected as invalid.
-// Returns the planned tx which can be used to wait for inclusion later.
+// Returns the planned tx whose Signed field can be evaluated to get the signed tx bytes.
 func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx {
 	invalidMsg := MakeInvalidLogIndex(p.Message)
 
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.PlanForSequencing())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      invalidMsg,
 	})
-	_, err := tx.PlannedTx.Submitted.Eval(executor.ctx)
-	executor.require.NoError(err, "failed to submit invalid exec message")
+	_, err := tx.PlannedTx.Signed.Eval(executor.ctx)
+	executor.require.NoError(err, "failed to sign invalid exec message")
 	return tx.PlannedTx
 }
