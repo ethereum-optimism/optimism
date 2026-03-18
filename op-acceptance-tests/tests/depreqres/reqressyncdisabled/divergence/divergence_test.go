@@ -2,35 +2,21 @@ package divergence
 
 import (
 	"testing"
+	"time"
 
-	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
-	"github.com/ethereum-optimism/optimism/op-devstack/compat"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/common"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 )
 
-func TestMain(m *testing.M) {
-	// No ELP2P, CLP2P to control the supply of unsafe payload to the CL
-	presets.DoMain(m, presets.WithSingleChainMultiNodeWithoutP2P(),
-		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithExecutionLayerSyncOnVerifiers(),
-		presets.WithReqRespSyncDisabled(),
-		presets.WithNoDiscovery(),
-		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.ComponentID, cfg *bss.CLIConfig) {
-			cfg.Stopped = true
-		})),
-	)
-}
-
 // TestCLELDivergence tests that the CL and EL diverge when the CL advances the unsafe head, due to accepting SYNCING response from the EL, but the EL cannot validate the block (yet), does not canonicalize it, and doesn't serve it.
 func TestCLELDivergence(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 	require := t.Require()
 	l := t.Logger()
 
@@ -49,19 +35,22 @@ func TestCLELDivergence(gt *testing.T) {
 
 	for _, delta := range []uint64{3, 4, 5} {
 		targetNumber := startNum + delta
+		targetBlock := sys.L2EL.BlockRefByNumber(targetNumber)
+
 		l.Info("Sending payload ", "target", targetNumber, "startNum", startNum)
 		sys.L2CLB.SignalTarget(sys.L2EL, targetNumber)
 
 		// Canonical unsafe head never advances because of the gap
 		require.Equal(startNum+1, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
 
-		// Unsafe head on CL advanced, but on EL we cannot fetch state for the unsafe block hash yet
-		targetBlock := sys.L2EL.BlockRefByNumber(targetNumber)
-
-		// Confirm that L2CLB SyncStatus returns the newest unsafe block number and hash
-		ss := sys.L2CLB.SyncStatus()
-		require.Equal(targetNumber, ss.UnsafeL2.Number)
-		require.Equal(targetBlock.Hash, ss.UnsafeL2.Hash)
+		// EL-sync can quickly reset the status tracker after exposing the posted
+		// unsafe head, so poll tightly and without extra RPCs between the post and
+		// the SyncStatus check.
+		var ss *eth.SyncStatus
+		require.Eventually(func() bool {
+			ss = sys.L2CLB.SyncStatus()
+			return ss.UnsafeL2.Number == targetNumber && ss.UnsafeL2.Hash == targetBlock.Hash
+		}, 2*time.Second, 10*time.Millisecond, "L2CLB unsafe head did not expose target block")
 
 		// Confirm that L2ELB cannot fetch the block by hash yet, because the block is not canonicalized, even though the CL reference is set to it.
 		_, err := sys.L2ELB.Escape().L2EthClient().L2BlockRefByHash(t.Ctx(), ss.UnsafeL2.Hash)

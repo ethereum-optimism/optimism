@@ -3,11 +3,7 @@ package presets
 import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type SingleChainMultiNode struct {
@@ -17,45 +13,38 @@ type SingleChainMultiNode struct {
 	L2CLB *dsl.L2CLNode
 }
 
-func WithSingleChainMultiNode() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSingleChainMultiNodeSystem(&sysgo.DefaultSingleChainMultiNodeSystemIDs{}))
+// NewSingleChainMultiNode creates a fresh SingleChainMultiNode target for the current
+// test.
+//
+// The target is created from the runtime plus any additional preset options.
+func NewSingleChainMultiNode(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNode", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeRuntimeWithConfig(t, true, presetCfg), true)
+	presetOpts.applyPreset(out)
+	return out
 }
 
-func NewSingleChainMultiNode(t devtest.T) *SingleChainMultiNode {
-	preset := NewSingleChainMultiNodeWithoutCheck(t)
-	// Ensure the follower node is in sync with the sequencer before starting tests
-	dsl.CheckAll(t,
-		preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, 30),
-		preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, 30),
-	)
-	return preset
+// NewSingleChainMultiNodeWithoutCheck creates a fresh SingleChainMultiNode target for the
+// current test, without running the initial verifier sync checks.
+//
+// The target is created from the runtime plus any additional preset options.
+func NewSingleChainMultiNodeWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeRuntimeWithConfig(t, true, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
 }
 
-func NewSingleChainMultiNodeWithoutCheck(t devtest.T) *SingleChainMultiNode {
-	system := shim.NewSystem(t)
-	orch := Orchestrator()
-	orch.Hydrate(system)
-	minimal := minimalFromSystem(t, system, orch)
-	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
-	verifierCL := l2.L2CLNode(match.Assume(t,
-		match.And(
-			match.Not(match.WithSequencerActive(t.Ctx())),
-			match.Not(stack.ByID[stack.L2CLNode](minimal.L2CL.ID())),
-		)))
-	verifierEL := l2.L2ELNode(match.Assume(t,
-		match.And(
-			match.EngineFor(verifierCL),
-			match.Not(stack.ByID[stack.L2ELNode](minimal.L2EL.ID())))))
-	preset := &SingleChainMultiNode{
-		Minimal: *minimal,
-		L2ELB:   dsl.NewL2ELNode(verifierEL, orch.ControlPlane()),
-		L2CLB:   dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
-	}
-	return preset
-}
-
-func WithSingleChainMultiNodeWithoutP2P() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSingleChainMultiNodeSystemWithoutP2P(&sysgo.DefaultSingleChainMultiNodeSystemIDs{}))
+// NewSingleChainMultiNodeWithoutP2PWithoutCheck creates a fresh SingleChainMultiNode
+// target without preconfigured sequencer/verifier P2P links and without running initial sync
+// checks.
+//
+// The target is created from the runtime plus any additional preset options.
+func NewSingleChainMultiNodeWithoutP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeWithoutP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeRuntimeWithConfig(t, false, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
 }
 
 type SingleChainMultiNodeWithTestSeq struct {
@@ -64,33 +53,13 @@ type SingleChainMultiNodeWithTestSeq struct {
 	TestSequencer *dsl.TestSequencer
 }
 
-func NewSingleChainMultiNodeWithTestSeq(t devtest.T) *SingleChainMultiNodeWithTestSeq {
-	system := shim.NewSystem(t)
-	orch := Orchestrator()
-	orch.Hydrate(system)
-	minimal := minimalFromSystem(t, system, orch)
-	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
-	verifierCL := l2.L2CLNode(match.Assume(t,
-		match.And(
-			match.Not(match.WithSequencerActive(t.Ctx())),
-			match.Not(stack.ByID[stack.L2CLNode](minimal.L2CL.ID())),
-		)))
-	verifierEL := l2.L2ELNode(match.Assume(t,
-		match.And(
-			match.EngineFor(verifierCL),
-			match.Not(stack.ByID[stack.L2ELNode](minimal.L2EL.ID())))))
-	preset := &SingleChainMultiNode{
-		Minimal: *minimal,
-		L2ELB:   dsl.NewL2ELNode(verifierEL, orch.ControlPlane()),
-		L2CLB:   dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
-	}
-	out := &SingleChainMultiNodeWithTestSeq{
-		SingleChainMultiNode: *preset,
-		TestSequencer:        dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
-	}
+// NewSingleChainMultiNodeWithTestSeq creates a fresh
+// SingleChainMultiNodeWithTestSeq target for the current test.
+//
+// The target is created from the runtime plus any additional preset options.
+func NewSingleChainMultiNodeWithTestSeq(t devtest.T, opts ...Option) *SingleChainMultiNodeWithTestSeq {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeWithTestSeq", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeWithTestSeqFromRuntime(t, sysgo.NewSingleChainMultiNodeRuntimeWithConfig(t, true, presetCfg))
+	presetOpts.applyPreset(out)
 	return out
-}
-
-func WithNewSingleChainMultiNodeWithTestSeq() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSingleChainMultiNodeWithTestSeqSystem(&sysgo.DefaultSingleChainMultiNodeWithTestSeqSystemIDs{}))
 }

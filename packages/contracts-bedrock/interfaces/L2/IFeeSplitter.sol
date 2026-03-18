@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
-interface IFeeSplitter is ISemver {
+interface IFeeSplitter is ISemver, IProxyAdminOwnedBase {
     event Initialized(uint8 version);
     error FeeSplitter_ExceedsMaxFeeDisbursementTime();
     error FeeSplitter_FeeDisbursementIntervalCannotBeZero();

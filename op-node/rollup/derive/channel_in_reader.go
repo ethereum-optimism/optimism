@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -59,7 +60,6 @@ func (cr *ChannelInReader) WriteChannel(data []byte) error {
 		cr.metrics.RecordChannelInputBytes(len(data))
 		return nil
 	} else {
-		cr.log.Error("Error creating batch reader from channel data", "err", err)
 		return err
 	}
 }
@@ -81,7 +81,8 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 			return nil, err
 		} else {
 			if err := cr.WriteChannel(data); err != nil {
-				return nil, NewTemporaryError(err)
+				cr.log.Warn("failed to create batch reader from channel data, dropping channel", "err", err, "origin", cr.Origin())
+				return nil, NotEnoughData
 			}
 		}
 	}
@@ -110,14 +111,16 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		return batch, nil
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsDelta(origin.Time) {
-			// Check hard fork activation with the L1 inclusion block time instead of the L1 origin block time.
-			// Therefore, even if the batch passed this rule, it can be dropped in the batch queue.
-			// This is just for early dropping invalid batches as soon as possible.
-			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
+			cr.log.Warn("dropping span batch before Delta activation", "origin", origin)
+			return nil, NotEnoughData
 		}
 		batch.Batch, err = DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
 		if err != nil {
-			return nil, err
+			if errors.Is(err, ErrCritical) {
+				return nil, err
+			}
+			cr.log.Warn("dropping malformed span batch", "err", err)
+			return nil, NotEnoughData
 		}
 		batch.LogContext(cr.log).Info("decoded span batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("span")

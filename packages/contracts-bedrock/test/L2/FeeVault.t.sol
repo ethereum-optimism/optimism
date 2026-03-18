@@ -15,6 +15,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Features } from "src/libraries/Features.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 /// @title FeeVault_Uncategorized_Test
 /// @notice Abstract test contract for fee feeVault testing.
@@ -238,7 +239,7 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         uint256 initialAmount = feeVault.minWithdrawalAmount();
 
         vm.prank(_caller);
-        vm.expectRevert(IFeeVault.FeeVault_OnlyProxyAdminOwner.selector);
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
         IFeeVault(payable(address(feeVault))).setMinWithdrawalAmount(_newAmount);
 
         // Verify the value and boolean flag were NOT changed
@@ -264,7 +265,7 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         address initialRecipient = feeVault.recipient();
 
         vm.prank(_caller);
-        vm.expectRevert(IFeeVault.FeeVault_OnlyProxyAdminOwner.selector);
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
         IFeeVault(payable(address(feeVault))).setRecipient(_newRecipient);
 
         // Verify the value and boolean flag were NOT changed
@@ -298,7 +299,7 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         Types.WithdrawalNetwork initialNetwork = feeVault.withdrawalNetwork();
 
         vm.prank(_caller);
-        vm.expectRevert(IFeeVault.FeeVault_OnlyProxyAdminOwner.selector);
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
         IFeeVault(payable(address(feeVault))).setWithdrawalNetwork(newNetwork);
 
         // Verify the value and boolean flag were NOT changed

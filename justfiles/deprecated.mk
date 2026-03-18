@@ -16,12 +16,11 @@ define make-deprecated-target
 $1:
 	@echo
 	@printf %s\\n '$(call banner-style,Deprecated make call: make $1 $(JUSTFLAGS))'
-	@printf %s\\n '$(call banner-style,Consider using just instead: just $(JUSTFLAGS) $1)'
+	@printf %s\\n '$(call banner-style,Consider using just instead: just $1)'
 	@echo
-	just $(JUSTFLAGS) $1
+	env $(JUSTFLAGS) just $1
 endef
 
 $(foreach element,$(DEPRECATED_TARGETS),$(eval $(call make-deprecated-target,$(element))))
 
-.PHONY:
-	$(DEPRECATED_TARGETS)
+.PHONY: $(DEPRECATED_TARGETS)

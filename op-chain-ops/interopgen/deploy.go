@@ -344,7 +344,6 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		OperatorFeeVaultWithdrawalNetwork:        big.NewInt(int64(cfg.OperatorFeeVaultWithdrawalNetwork.ToUint8())),
 		GovernanceTokenOwner:                     cfg.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
-		DeployCrossL2Inbox:                       multichainDepSet,
 		EnableGovernance:                         cfg.EnableGovernance,
 		FundDevAccounts:                          cfg.FundDevAccounts,
 		UseRevenueShare:                          cfg.UseRevenueShare,
@@ -355,12 +354,24 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		UseL2CM:                                  false, // TODO(#19102): add support for L2CM
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet), // TODO(#19102): add support for L2CM
+		UseInterop:                               multichainDepSet,
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}
 
 	return nil
+}
+
+// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on the multichain deployment set.
+// If the multichain deployment set is true, the dev feature bitmap will be the OptimismPortalInteropDevFlag.
+func devFeatureBitmapForL2Genesis(multichainDepSet bool) common.Hash {
+	// TODO(#19102): add support for L2CM
+	var bitmap common.Hash
+	if multichainDepSet {
+		bitmap = deployer.EnableDevFeature(bitmap, deployer.OptimismPortalInteropDevFlag)
+	}
+	return bitmap
 }
 
 func CompleteL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {

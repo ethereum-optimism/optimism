@@ -28,7 +28,7 @@ alloy-eips.workspace = true
 alloy-primitives.workspace = true
 alloy-consensus.workspace = true
 alloy-rpc-types-engine.workspace = true
-alloy-evm = { workspace = true, features = ["op"] }
+alloy-evm = { workspace = true }
 
 # OP Alloy
 op-alloy-consensus.workspace = true

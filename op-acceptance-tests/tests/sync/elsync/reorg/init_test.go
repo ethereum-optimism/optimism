@@ -1,16 +1,19 @@
 package reorg
 
 import (
-	"testing"
-
-	"github.com/ethereum-optimism/optimism/op-devstack/compat"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
-func TestMain(m *testing.M) {
-	presets.DoMain(m,
-		presets.WithNewSingleChainMultiNodeWithTestSeq(),
-		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithNoDiscovery(),
-	)
+func reorgOpts() []presets.Option {
+	return []presets.Option{
+		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.NoDiscovery = true
+		})),
+	}
+}
+
+func newReorgSystem(t devtest.T) *presets.SingleChainMultiNodeWithTestSeq {
+	return presets.NewSingleChainMultiNodeWithTestSeq(t, reorgOpts()...)
 }

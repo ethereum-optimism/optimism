@@ -1,7 +1,6 @@
 package interop
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
-	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -489,70 +486,6 @@ func TestProcessBlockLogs(t *testing.T) {
 }
 
 // =============================================================================
-// TestLoadLogs_ParentHashMismatch
-// =============================================================================
-
-func TestLoadLogs_ParentHashMismatch(t *testing.T) {
-	t.Parallel()
-	dataDir := t.TempDir()
-
-	chainID := eth.ChainIDFromUInt64(10)
-	firstBlockHash := common.Hash{0x01}
-	wrongParentHash := common.Hash{0xFF}
-
-	callCount := 0
-	mockChain := &statefulMockChainContainer{
-		id: chainID,
-		blockAtTimestampFn: func(ts uint64) (eth.L2BlockRef, error) {
-			if ts == 1000 {
-				return eth.L2BlockRef{
-					Hash:   firstBlockHash,
-					Number: 100,
-					Time:   1000,
-				}, nil
-			}
-			return eth.L2BlockRef{
-				Hash:   common.Hash{0x02},
-				Number: 101,
-				Time:   1001,
-			}, nil
-		},
-		fetchReceiptsFn: func(blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
-			callCount++
-			if callCount == 1 {
-				return &testBlockInfo{
-					hash:       firstBlockHash,
-					parentHash: common.Hash{},
-					number:     100,
-					timestamp:  1000,
-				}, types.Receipts{}, nil
-			}
-			return &testBlockInfo{
-				hash:       common.Hash{0x02},
-				parentHash: wrongParentHash, // Wrong parent!
-				number:     101,
-				timestamp:  1001,
-			}, types.Receipts{}, nil
-		},
-	}
-
-	chains := map[eth.ChainID]cc.ChainContainer{chainID: mockChain}
-	interop := New(gethlog.New(), 1000, chains, dataDir)
-	require.NotNil(t, interop)
-	interop.ctx = context.Background()
-	defer func() { _ = interop.Stop(context.Background()) }()
-
-	// Load logs for activation timestamp
-	err := interop.loadLogs(1000)
-	require.NoError(t, err)
-
-	// Try to load logs for 1001 - should fail due to parent hash mismatch
-	err = interop.loadLogs(1001)
-	require.Error(t, err)
-	require.ErrorIs(t, err, ErrParentHashMismatch)
-}
-
-// =============================================================================
 // Mock Types for LogsDB Tests
 // =============================================================================
 
@@ -635,55 +568,3 @@ func (m *mockLogsDB) Clear(inv reads.Invalidator) error                       { 
 func (m *mockLogsDB) Close() error                                            { return nil }
 
 var _ LogsDB = (*mockLogsDB)(nil)
-
-// statefulMockChainContainer allows dynamic behavior based on test state
-type statefulMockChainContainer struct {
-	id                 eth.ChainID
-	blockAtTimestampFn func(ts uint64) (eth.L2BlockRef, error)
-	fetchReceiptsFn    func(blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error)
-}
-
-func (m *statefulMockChainContainer) ID() eth.ChainID                                  { return m.id }
-func (m *statefulMockChainContainer) Start(ctx context.Context) error                  { return nil }
-func (m *statefulMockChainContainer) Stop(ctx context.Context) error                   { return nil }
-func (m *statefulMockChainContainer) Pause(ctx context.Context) error                  { return nil }
-func (m *statefulMockChainContainer) Resume(ctx context.Context) error                 { return nil }
-func (m *statefulMockChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *statefulMockChainContainer) VerifierCurrentL1s() []eth.BlockID                { return nil }
-func (m *statefulMockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	return m.blockAtTimestampFn(ts)
-}
-func (m *statefulMockChainContainer) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
-func (m *statefulMockChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
-	return eth.BlockID{}, nil
-}
-func (m *statefulMockChainContainer) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
-func (m *statefulMockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
-	return eth.Bytes32{}, nil
-}
-func (m *statefulMockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
-	return nil, nil
-}
-func (m *statefulMockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
-	return m.fetchReceiptsFn(blockID)
-}
-func (m *statefulMockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	return &eth.SyncStatus{}, nil
-}
-func (m *statefulMockChainContainer) BlockTime() uint64 { return 1 }
-func (m *statefulMockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
-	return nil
-}
-func (m *statefulMockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
-	return false, nil
-}
-func (m *statefulMockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
-	return false, nil
-}
-func (m *statefulMockChainContainer) SetResetCallback(cb cc.ResetCallback) {}
-
-var _ cc.ChainContainer = (*statefulMockChainContainer)(nil)

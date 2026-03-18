@@ -96,6 +96,10 @@ pub struct InteropHost {
     /// The l1 config should be stored as serde-JSON serialized files.
     #[arg(long, alias = "l1-cfg")]
     pub l1_config_path: Option<PathBuf>,
+    /// Optionally enables the use of `debug_executePayload` to collect the execution witness from
+    /// the execution layer.
+    #[arg(long, env)]
+    pub enable_experimental_witness_endpoint: bool,
 }
 
 /// An error that can occur when handling interop hosts
@@ -171,7 +175,8 @@ impl InteropHost {
                 providers,
                 InteropHintHandler,
             )
-            .with_proactive_hint(HintType::L2BlockData);
+            .with_proactive_hint(HintType::L2BlockData)
+            .with_proactive_hint(HintType::L2PayloadWitness);
 
             task::spawn(async {
                 PreimageServer::new(

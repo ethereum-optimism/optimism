@@ -32,7 +32,7 @@ parameters:
   c-sdk_dispatch:
     type: boolean
     default: false
-  c-docker_publish_dispatch:
+  c-publish_contract_artifacts_dispatch:
     type: boolean
     default: false
   c-stale_check_dispatch:
@@ -42,9 +42,6 @@ parameters:
     type: boolean
     default: false
   c-heavy_fuzz_dispatch:
-    type: boolean
-    default: false
-  c-sync_test_op_node_dispatch:
     type: boolean
     default: false
   c-ai_contracts_test_dispatch:
@@ -79,6 +76,82 @@ parameters:
     default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
+    type: string
+    default: "v0.0"
+  # Passthrough declarations for setup config parameters.
+  # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
+  # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
+  # These are not referenced by any job — the c- prefixed versions above are used instead.
+  default_docker_image:
+    type: string
+    default: cimg/base:2026.03
+  base_image:
+    type: string
+    default: default
+  main_dispatch:
+    type: boolean
+    default: true
+  fault_proofs_dispatch:
+    type: boolean
+    default: false
+  reproducibility_dispatch:
+    type: boolean
+    default: false
+  kontrol_dispatch:
+    type: boolean
+    default: false
+  cannon_full_test_dispatch:
+    type: boolean
+    default: false
+  sdk_dispatch:
+    type: boolean
+    default: false
+  docker_publish_dispatch:
+    type: boolean
+    default: false
+  stale_check_dispatch:
+    type: boolean
+    default: false
+  contracts_coverage_dispatch:
+    type: boolean
+    default: false
+  heavy_fuzz_dispatch:
+    type: boolean
+    default: false
+  sync_test_op_node_dispatch:
+    type: boolean
+    default: false
+  ai_contracts_test_dispatch:
+    type: boolean
+    default: false
+  rust_ci_dispatch:
+    type: boolean
+    default: false
+  rust_e2e_dispatch:
+    type: boolean
+    default: false
+  github-event-type:
+    type: string
+    default: "__not_set__"
+  github-event-action:
+    type: string
+    default: "__not_set__"
+  github-event-base64:
+    type: string
+    default: "__not_set__"
+  devnet-metrics-collect:
+    type: boolean
+    default: false
+  flake-shake-dispatch:
+    type: boolean
+    default: false
+  flake-shake-iterations:
+    type: integer
+    default: 300
+  flake-shake-workers:
+    type: integer
+    default: 50
+  go-cache-version:
     type: string
     default: "v0.0"
 
@@ -305,24 +378,6 @@ commands:
               fi
             fi
 
-  run-contracts-check:
-    parameters:
-      command:
-        description: Just command that runs the check
-        type: string
-    steps:
-      - run:
-          name: <<parameters.command>>
-          command: |
-            git reset --hard
-            git clean -df
-            just <<parameters.command>>
-            git status --porcelain
-            [ -z "$(git status --porcelain)" ] || exit 1
-          working_directory: packages/contracts-bedrock
-          when: always
-          environment:
-            FOUNDRY_PROFILE: ci
 
   go-restore-cache:
     parameters:
@@ -863,12 +918,12 @@ jobs:
             mkdir -p ./tmp/testlogs
       - run:
           name: build Cannon example binaries
-          command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
+          command: just elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
           working_directory: cannon/testdata
       - run:
           name: Cannon Go lint
           command: |
-            make lint
+            just lint
           working_directory: cannon
       - run:
           name: Cannon Go 64-bit tests
@@ -879,7 +934,7 @@ jobs:
             if [ "$SKIP_SLOW_TESTS" = "false" ]; then
               TIMEOUT="45m"
             fi
-            gotestsum --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
+            ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
             -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
           working_directory: cannon
       - codecov/upload:
@@ -963,245 +1018,6 @@ jobs:
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "@security-oncall"
-
-  docker-build:
-    environment:
-      DOCKER_BUILDKIT: 1
-    parameters:
-      docker_tags:
-        description: Docker image tags, comma-separated
-        type: string
-      docker_name:
-        description: "Docker buildx bake target"
-        type: string
-        default: ""
-      registry:
-        description: Docker registry
-        type: string
-        default: "us-docker.pkg.dev"
-      repo:
-        description: Docker repo
-        type: string
-        default: "oplabs-tools-artifacts/images"
-      save_image_tag:
-        description: Save docker image with given tag
-        type: string
-        default: ""
-      platforms:
-        description: Platforms to build for, comma-separated
-        type: string
-        default: "linux/amd64"
-      publish:
-        description: Publish the docker image (multi-platform, all tags)
-        type: boolean
-        default: false
-      release:
-        description: Run the release script
-        type: boolean
-        default: false
-      resource_class:
-        description: Docker resource class
-        type: string
-        default: medium
-    machine:
-      image: <<pipeline.parameters.c-base_image>>
-      resource_class: "<<parameters.resource_class>>"
-      docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - attach_workspace:
-          at: .
-      - run:
-          command: mkdir -p /tmp/docker_images
-      - when:
-          condition:
-            or:
-              - "<<parameters.publish>>"
-              - "<<parameters.release>>"
-          steps:
-            - gcp-cli/install
-      - when:
-          condition:
-            or:
-              - "<<parameters.publish>>"
-              - "<<parameters.release>>"
-          steps:
-            - gcp-oidc-authenticate
-      - run:
-          name: Build
-          command: |
-            # Check to see if DOCKER_HUB_READ_ONLY_TOKEN is set (i.e. we are in repo) before attempting to use secrets.
-            # Building should work without this read only login, but may get rate limited.
-            if [[ -v DOCKER_HUB_READ_ONLY_TOKEN ]]; then
-              echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
-            fi
-
-            export REGISTRY="<<parameters.registry>>"
-            export REPOSITORY="<<parameters.repo>>"
-            export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
-            export GIT_COMMIT="$(git rev-parse HEAD)"
-            export GIT_DATE="$(git show -s --format='%ct')"
-            export PLATFORMS="<<parameters.platforms>>"
-
-            echo "Checking git tags pointing at $GIT_COMMIT:"
-            tags_at_commit=$(git tag --points-at $GIT_COMMIT)
-            echo "Tags at commit:\n$tags_at_commit"
-
-            filtered_tags=$(echo "$tags_at_commit" | grep "^<<parameters.docker_name>>/" || true)
-            echo "Filtered tags: $filtered_tags"
-
-            if [ -z "$filtered_tags" ]; then
-              export GIT_VERSION="untagged"
-            else
-              sorted_tags=$(echo "$filtered_tags" | sed "s/<<parameters.docker_name>>\///" | sort -V)
-              echo "Sorted tags: $sorted_tags"
-
-              # prefer full release tag over "-rc" release candidate tag if both exist
-              full_release_tag=$(echo "$sorted_tags" | grep -v -- "-rc" || true)
-              if [ -z "$full_release_tag" ]; then
-                export GIT_VERSION=$(echo "$sorted_tags" | tail -n 1)
-              else
-                export GIT_VERSION=$(echo "$full_release_tag" | tail -n 1)
-              fi
-            fi
-
-            echo "Setting GIT_VERSION=$GIT_VERSION"
-
-            # Create, start (bootstrap) and use a *named* docker builder
-            # This allows us to cross-build multi-platform,
-            # and naming allows us to use the DLC (docker-layer-cache)
-            docker buildx create --driver=docker-container --name=buildx-build --bootstrap --use
-
-            DOCKER_OUTPUT_DESTINATION=""
-            if [ "<<parameters.publish>>" == "true" ]; then
-              gcloud auth configure-docker <<parameters.registry>>
-              echo "Building for platforms $PLATFORMS and then publishing to registry"
-              DOCKER_OUTPUT_DESTINATION="--push"
-              if [ "<<parameters.save_image_tag>>" != "" ]; then
-                echo "ERROR: cannot save image to docker when publishing to registry"
-                exit 1
-              fi
-            else
-              if [ "<<parameters.save_image_tag>>" == "" ]; then
-                echo "Running $PLATFORMS build without destination (cache warm-up)"
-                DOCKER_OUTPUT_DESTINATION=""
-              elif [[ $PLATFORMS == *,* ]]; then
-                echo "ERROR: cannot perform multi-arch (platforms: $PLATFORMS) build while also loading the result into regular docker"
-                exit 1
-              else
-                echo "Running single-platform $PLATFORMS build and loading into docker"
-                DOCKER_OUTPUT_DESTINATION="--load"
-              fi
-            fi
-
-            # Let them cook!
-            docker buildx bake \
-              --progress plain \
-              --builder=buildx-build \
-              -f docker-bake.hcl \
-              $DOCKER_OUTPUT_DESTINATION \
-              <<parameters.docker_name>>
-
-          no_output_timeout: 45m
-      - when:
-          condition: "<<parameters.publish>>"
-          steps:
-            - notify-failures-on-develop
-      - when:
-          condition: "<<parameters.save_image_tag>>"
-          steps:
-            - run:
-                name: Save
-                command: |
-                  IMAGE_NAME="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
-                  docker save -o /tmp/docker_images/<<parameters.docker_name>>.tar $IMAGE_NAME
-            - persist_to_workspace:
-                root: /tmp/docker_images
-                paths: # only write the one file, to avoid concurrent workspace-file additions
-                  - "<<parameters.docker_name>>.tar"
-      - when:
-          condition: "<<parameters.release>>"
-          steps:
-            - run:
-                name: Tag
-                command: |
-                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
-      - when:
-          condition:
-            or:
-              - and:
-                  - "<<parameters.publish>>"
-                  - "<<parameters.release>>"
-              - and:
-                  - "<<parameters.publish>>"
-                  - equal: [develop, << pipeline.git.branch >>]
-          steps:
-            - gcp-oidc-authenticate:
-                service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
-            - run:
-                name: Sign
-                command: |
-                  VER=$(yq '.tools.binary_signer' mise.toml)
-                  wget -O - "https://github.com/ethereum-optimism/binary_signer/archive/refs/tags/v${VER}.tar.gz" | tar xz
-                  cd "binary_signer-${VER}/signer"
-
-                  IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
-                  echo $IMAGE_PATH
-                  pip3 install -r requirements.txt
-
-                  python3 ./sign_image.py --command="sign"\
-                      --attestor-project-name="$ATTESTOR_PROJECT_NAME"\
-                      --attestor-name="$ATTESTOR_NAME"\
-                      --image-path="$IMAGE_PATH"\
-                      --signer-logging-level="INFO"\
-                      --attestor-key-id="//cloudkms.googleapis.com/v1/projects/$ATTESTOR_PROJECT_NAME/locations/global/keyRings/$ATTESTOR_NAME-key-ring/cryptoKeys/$ATTESTOR_NAME-key/cryptoKeyVersions/1"
-
-  # Verify newly published images (built on AMD machine) will run on ARM
-  check-cross-platform:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: arm.medium
-    parameters:
-      registry:
-        description: Docker registry
-        type: string
-        default: "us-docker.pkg.dev"
-      repo:
-        description: Docker repo
-        type: string
-        default: "oplabs-tools-artifacts/images"
-      op_component:
-        description: "Name of op-stack component (e.g. op-node)"
-        type: string
-        default: ""
-      docker_tag:
-        description: "Tag of docker image"
-        type: string
-        default: "<<pipeline.git.revision>>"
-    steps:
-      - setup_remote_docker
-      - run:
-          name: "Verify Image Platform"
-          command: |
-            image_name="<<parameters.registry>>/<<parameters.repo>>/<<parameters.op_component>>:<<parameters.docker_tag>>"
-            echo "Retrieving Docker image manifest: $image_name"
-            MANIFEST=$(docker manifest inspect $image_name)
-
-            echo "Verifying 'linux/arm64' is supported..."
-            SUPPORTED_PLATFORM=$(echo "$MANIFEST" | jq -r '.manifests[] | select(.platform.architecture == "arm64" and .platform.os == "linux")')
-            echo $SUPPORT_PLATFORM
-            if [ -z "$SUPPORTED_PLATFORM" ]; then
-              echo "Platform 'linux/arm64' not supported by this image"
-              exit 1
-            fi
-      - run:
-          name: "Pull and run docker image"
-          command: |
-            image_name="<<parameters.registry>>/<<parameters.repo>>/<<parameters.op_component>>:<<parameters.docker_tag>>"
-            docker pull $image_name || exit 1
-            docker run $image_name <<parameters.op_component>> --version || exit 1
 
   contracts-bedrock-tests:
     circleci_ip_ranges: true
@@ -1336,6 +1152,12 @@ jobs:
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "~/.cache/go-build"
+      # Store raw JUnit XML as artifact for debugging when store_test_results
+      # shows 0 results (see ethereum-optimism/optimism#19577)
+      - store_artifacts:
+          path: packages/contracts-bedrock/results
+          destination: junit-results
+          when: always
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
@@ -1564,6 +1386,12 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
+      # Store raw JUnit XML as artifact for debugging when store_test_results
+      # shows 0 results (see ethereum-optimism/optimism#19577)
+      - store_artifacts:
+          path: packages/contracts-bedrock/results
+          destination: junit-results
+          when: always
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
@@ -1585,55 +1413,6 @@ jobs:
           name: upload selectors
           command: just update-selectors
           working_directory: packages/contracts-bedrock
-
-  contracts-bedrock-checks:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          enable-mise-cache: true
-      - install-contracts-dependencies
-      - attach_workspace:
-          at: .
-      - check-changed:
-          patterns: contracts-bedrock
-      - get-target-branch
-      - run:
-          name: print forge version
-          command: forge --version
-      - run-contracts-check:
-          command: check-kontrol-summaries-unchanged
-      - run-contracts-check:
-          command: semgrep-test-validity-check
-      - run-contracts-check:
-          command: semgrep
-      - run-contracts-check:
-          command: semver-lock-no-build
-      - run-contracts-check:
-          command: semver-diff-check-no-build
-      - run-contracts-check:
-          command: validate-deploy-configs
-      - run-contracts-check:
-          command: lint
-      - run-contracts-check:
-          command: snapshots-check-no-build
-      - run-contracts-check:
-          command: nut-bundle-check-no-build
-      - run-contracts-check:
-          command: interfaces-check-no-build
-      - run-contracts-check:
-          command: reinitializer-check-no-build
-      - run-contracts-check:
-          command: size-check
-      - run-contracts-check:
-          command: unused-imports-check-no-build
-      - run-contracts-check:
-          command: strict-pragma-check-no-build
-      - run-contracts-check:
-          command: validate-spacers-no-build
-      - run-contracts-check:
-          command: opcm-upgrade-checks-no-build
 
   contracts-bedrock-checks-fast:
     docker:
@@ -1704,7 +1483,7 @@ jobs:
           name: Fuzz
           no_output_timeout: 15m
           command: |
-            make fuzz
+            just fuzz
           working_directory: "<<parameters.package_name>>"
       - go-save-cache:
           namespace: fuzz-<<parameters.package_name>>
@@ -1731,7 +1510,7 @@ jobs:
       - run:
           name: run Go linter
           command: |
-            make lint-go
+            just lint-go
       - save_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
           paths:
@@ -1749,7 +1528,7 @@ jobs:
           namespace: sysgo-go-binaries
       - run:
           name: Build Go binaries for sysgo
-          command: make cannon op-program
+          command: just cannon op-program
       - go-save-cache:
           namespace: sysgo-go-binaries
       - persist_to_workspace:
@@ -1770,7 +1549,7 @@ jobs:
       - run:
           name: check op-geth version
           command: |
-            make check-op-geth-version
+            just check-op-geth-version
 
   check-nut-locks:
     docker:
@@ -1829,7 +1608,7 @@ jobs:
       - restore_cache:
           key: go-tests-v2-{{ checksum "go.mod" }}
       - run:
-          name: Run Go tests via Makefile
+          name: Run Go tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
             <<parameters.environment_overrides>>
@@ -1837,7 +1616,7 @@ jobs:
             # set to less than number CPUs (xlarge Docker is 16 CPU) so there's some buffer for things
             # like Geth
             export PARALLEL=12
-            make <<parameters.rule>>
+            just <<parameters.rule>>
       - save_cache:
           key: go-tests-v2-{{ checksum "go.mod" }}
           paths:
@@ -1847,12 +1626,7 @@ jobs:
           path: ./tmp/test-results
       - run:
           name: Compress test logs
-          command: |
-            if [ -n "$CIRCLE_NODE_TOTAL" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-              tar -czf testlogs-${CIRCLE_NODE_INDEX}-of-${CIRCLE_NODE_TOTAL}.tar.gz -C ./tmp testlogs
-            else
-              tar -czf testlogs.tar.gz -C ./tmp testlogs
-            fi
+          command: tar -czf testlogs.tar.gz -C ./tmp testlogs
           when: always
       - run:
           name: Clean up op-deployer artifacts
@@ -1860,7 +1634,7 @@ jobs:
             rm -rf ~/.op-deployer/*
           when: always
       - store_artifacts:
-          path: testlogs*.tar.gz
+          path: testlogs.tar.gz
           when: always
       - when:
           condition: "<<parameters.notify>>"
@@ -1904,22 +1678,22 @@ jobs:
           at: .
       - run:
           name: build op-program-client
-          command: make op-program-client
+          command: just op-program-client
           working_directory: op-program
       - run:
           name: build op-program-host
-          command: make op-program-host
+          command: just op-program-host
           working_directory: op-program
       - run:
           name: build cannon
-          command: make cannon
+          command: just cannon
       - run:
           name: run tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
-            make go-tests-fraud-proofs-ci
+            just go-tests-fraud-proofs-ci
       - codecov/upload:
           disable_search: true
           files: ./coverage.out
@@ -1938,133 +1712,12 @@ jobs:
             - notify-failures-on-develop:
                 mentions: "<<parameters.mentions>>"
 
-  op-acceptance-sync-tests-docker:
-    parameters:
-      gate:
-        description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
-        type: string
-        default: ""
-      l2_cl_kind:
-        description: "L2 consensus layer client (op-node or kona)"
-        type: string
-        default: "op-node"
-      l2_el_kind:
-        description: "L2 execution layer client (op-geth or op-reth)"
-        type: string
-        default: "op-geth"
-      no_output_timeout:
-        description: Timeout for when CircleCI kills the job if there's no output
-        type: string
-        default: 30m
-      # Optional sync test configuration parameters
-      network_preset:
-        description: Network preset
-        type: string
-        default: ""
-      l2_cl_syncmode:
-        description: L2 CL Sync mode - can be EL Sync or CL Sync
-        type: string
-        default: ""
-    resource_class: xlarge
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    circleci_ip_ranges: true
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      # Restore cached Go modules
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
-      # Download Go dependencies
-      - run:
-          name: Download Go dependencies
-          working_directory: op-acceptance-tests
-          command: go mod download
-      - run:
-          name: Lint/Vet/Build op-acceptance-tests/cmd
-          working_directory: op-acceptance-tests
-          command: |
-            just cmd-check
-      # Persist schedule name into env var
-      - run:
-          name: Persist schedule name into env var
-          command: |
-            echo 'export CIRCLECI_PIPELINE_SCHEDULE_NAME="<< pipeline.schedule.name >>"' >> $BASH_ENV
-            echo 'export CIRCLECI_PARAMETERS_SYNC_TEST_OP_NODE_DISPATCH="<< pipeline.parameters.c-sync_test_op_node_dispatch >>"' >> $BASH_ENV
-      - run:
-          name: Configure L2 stack
-          command: |
-            echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
-            echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
-      # Run the acceptance tests
-      - run:
-          name: Run acceptance tests (gate=<<parameters.gate>>)
-          working_directory: op-acceptance-tests
-          no_output_timeout: 1h
-          environment:
-            GOFLAGS: "-mod=mod"
-            GO111MODULE: "on"
-            GOGC: "0"
-            # Optional sync test configuration environment variables (only set if parameters are provided)
-            NETWORK_PRESET: "<<parameters.network_preset>>"
-            L2_CL_SYNCMODE: "<<parameters.l2_cl_syncmode>>"
-          command: |
-            # Run the tests
-            LOG_LEVEL=debug just acceptance-test "" "<<parameters.gate>>"
-      - run:
-          name: Print results (summary)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/summary.log" || true
-      - run:
-          name: Print results (failures)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/failed/*.log" || true
-          when: on_fail
-      - run:
-          name: Print results (all)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/all.log" || true
-      - run:
-          name: Generate JUnit XML test report for CircleCI
-          working_directory: op-acceptance-tests
-          when: always
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
-      # Save the module cache for future runs
-      - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
-      # Store test results and artifacts
-      - when:
-          condition: always
-          steps:
-            - store_test_results:
-                path: ./op-acceptance-tests/results
-      - when:
-          condition: always
-          steps:
-            - store_artifacts:
-                path: ./op-acceptance-tests/logs
-      - notify-failures-on-develop:
-          mentions: "@changwan <@U08L5U8070U>" # @changwan @Anton Evangelatov
-
   op-acceptance-tests:
     parameters:
       gate:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
-        default: ""
+        default: "base"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona)"
         type: string
@@ -2073,6 +1726,10 @@ jobs:
         description: "L2 execution layer client (op-geth or op-reth)"
         type: string
         default: "op-geth"
+      run_all:
+        description: When true, run all tests in gateless mode.
+        type: boolean
+        default: false
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -2124,16 +1781,17 @@ jobs:
           command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
-          name: Run acceptance tests (gate=<<parameters.gate>>)
+          name: Run acceptance tests
           working_directory: op-acceptance-tests
           no_output_timeout: 1h
           command: |
-            if [[ "<<parameters.gate>>" == "" ]]; then
+            if <<parameters.run_all>>; then
               echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
+              LOG_LEVEL=info just acceptance-test-all
             else
               echo "Running in gate mode (gate=<<parameters.gate>>)"
+              LOG_LEVEL=info just acceptance-test "<<parameters.gate>>"
             fi
-            LOG_LEVEL=info just acceptance-test "" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2250,7 +1908,6 @@ jobs:
               --flake-shake \
               --flake-shake-iterations "$FLAKE_SHAKE_ITERATIONS" \
               --log.level debug \
-              --orchestrator sysgo \
               --logdir "./$OUTPUT_DIR"
       - persist_to_workspace:
           root: op-acceptance-tests
@@ -2409,13 +2066,13 @@ jobs:
             sudo apt-get install -y binutils-mips-linux-gnu
       - run:
           name: Build cannon
-          command: make cannon
+          command: just cannon
       - run:
           name: Build op-program
-          command: make op-program
+          command: just op-program
       - run:
           name: Sanitize op-program client
-          command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client64.elf
+          command: GUEST_PROGRAM=../op-program/bin/op-program-client64.elf just sanitize-program
           working_directory: cannon
 
   cannon-prestate:
@@ -2427,7 +2084,7 @@ jobs:
           enable-mise-cache: true
       - run:
           name: Build prestates
-          command: make -j reproducible-prestate
+          command: just reproducible-prestate
       - persist_to_workspace:
           root: .
           paths:
@@ -2529,7 +2186,8 @@ jobs:
           enable-mise-cache: true
       - run:
           name: Verify reproducibility
-          command: make -C op-program verify-reproducibility
+          command: just verify-reproducibility
+          working_directory: op-program
       - store_artifacts:
           path: ./op-program/temp/logs
           when: always
@@ -2546,10 +2204,11 @@ jobs:
       - setup_remote_docker
       - run:
           name: Build cannon
-          command: make cannon
+          command: just cannon
       - run:
           name: Verify the Cannon STF
-          command: make -C ./cannon cannon-stf-verify
+          command: just cannon-stf-verify
+          working_directory: cannon
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
@@ -2616,7 +2275,7 @@ jobs:
       - run:
           name: Run Analyzer
           command: |
-            make run-vm-compat
+            just run-vm-compat
           working_directory: op-program
       - store_artifacts:
           path: op-program/bin/vm-compat-output/vm-compat-findings.json
@@ -2634,7 +2293,7 @@ jobs:
       - run:
           name: Verify Compatibility
           command: |
-            make verify-compat
+            just verify-compat
           working_directory: op-program
 
   check-generated-mocks-op-node:
@@ -2649,7 +2308,7 @@ jobs:
           patterns: op-node
       - run:
           name: check-generated-mocks
-          command: make generate-mocks-op-node && git diff --exit-code
+          command: just generate-mocks-op-node && git diff --exit-code
 
   check-generated-mocks-op-service:
     docker:
@@ -2663,7 +2322,7 @@ jobs:
           patterns: op-service
       - run:
           name: check-generated-mocks
-          command: make generate-mocks-op-service && git diff --exit-code
+          command: just generate-mocks-op-service && git diff --exit-code
 
   op-deployer-forge-version:
     docker:
@@ -2846,7 +2505,7 @@ jobs:
       - run:
           name: Collect devnet metrics for op-acceptance-tests
           command: |
-            ./devnet-sdk/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
+            ./op-acceptance-tests/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
             echo "Wrote file .metrics--authorship--op-acceptance-tests"
       - gcp-cli/install
       - gcp-oidc-authenticate:
@@ -3049,12 +2708,6 @@ workflows:
           filters:
             branches:
               only: develop
-      - contracts-bedrock-checks:
-          requires:
-            - contracts-bedrock-build
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
       - contracts-bedrock-checks-fast:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3171,18 +2824,6 @@ workflows:
             - sanitize-op-program
           context:
             - circleci-repo-readonly-authenticated-github-tokens
-      - docker-build:
-          name: <<matrix.docker_name>>-docker-build
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>>
-          matrix:
-            parameters:
-              docker_name:
-                - op-deployer
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3254,7 +2895,7 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
-          gate: "" # Empty gate = gateless mode
+          run_all: true
           no_output_timeout: 120m # Allow longer runs for memory-all gate
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3372,47 +3013,6 @@ workflows:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
-      - contracts-bedrock-build:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-          filters:
-            tags:
-              only: /^op-deployer.*/ # ensure contract artifacts are embedded in op-deployer binary
-            branches:
-              ignore: /.*/
-      - docker-build:
-          matrix:
-            parameters:
-              docker_name:
-                - op-deployer
-          name: <<matrix.docker_name>>-docker-release
-          docker_tags: <<pipeline.git.revision>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          filters:
-            tags:
-              only: /^<<matrix.docker_name>>\/v.*/
-            branches:
-              ignore: /.*/
-          context:
-            - oplabs-gcr-release
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-            - contracts-bedrock-build
-      - check-cross-platform:
-          matrix:
-            parameters:
-              op_component:
-                - op-deployer
-          name: <<matrix.op_component>>-cross-platform
-          requires:
-            - op-deployer-docker-release
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
           filters:
             tags:
@@ -3537,42 +3137,6 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
 
-  scheduled-docker-publish:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-docker_publish_dispatch >>]
-    jobs:
-      - contracts-bedrock-build:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - docker-build:
-          matrix:
-            parameters:
-              docker_name:
-                - op-deployer
-          name: <<matrix.docker_name>>-docker-publish
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-      - check-cross-platform:
-          matrix:
-            parameters:
-              op_component:
-                - op-deployer
-          name: <<matrix.op_component>>-cross-platform
-          requires:
-            - <<matrix.op_component>>-docker-publish
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
   scheduled-flake-shake:
     when:
       or:
@@ -3646,40 +3210,6 @@ workflows:
       - stale-check:
           context:
             - circleci-repo-optimism
-
-  scheduled-sync-test-op-node:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-sync_test_op_node_dispatch >>]
-    jobs:
-      - contracts-bedrock-build: # needed for sysgo tests
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate: # needed for sysgo tests
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - op-acceptance-sync-tests-docker:
-          name: "sync-test-<<matrix.network_preset>>-daily-<<matrix.l2_cl_syncmode>>"
-          gate: sync-test-op-node
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-          matrix:
-            parameters:
-              network_preset:
-                [
-                  "op-sepolia",
-                  "unichain-sepolia",
-                  "op-mainnet",
-                ]
-              l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
   scheduled-heavy-fuzz-tests:
     when:

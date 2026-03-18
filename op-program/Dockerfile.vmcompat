@@ -6,7 +6,7 @@ FROM golang:${GO_VERSION} AS builder
 ARG VM_TARGET
 
 # Install dependencies
-RUN apk add --no-cache make git bash jq llvm
+RUN apk add --no-cache make git bash jq llvm just
 
 # Build vm-compat binary
 RUN mkdir -p /tmp/vm-compat && \
@@ -31,7 +31,7 @@ WORKDIR /app/op-program
 ENV FINDINGS_OUTPUT_PATH=/app/op-program/vm-compat-findings.json
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   touch $FINDINGS_OUTPUT_PATH && \
-  make "analyze-op-program-client-${VM_TARGET}"; echo $? > /app/op-program/vm-compat-exit-code
+  just "analyze-op-program-client-${VM_TARGET}"; echo $? > /app/op-program/vm-compat-exit-code
 
 FROM scratch AS export
 COPY --from=builder /app/op-program/vm-compat-findings.json .

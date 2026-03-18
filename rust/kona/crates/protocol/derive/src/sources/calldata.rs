@@ -49,6 +49,7 @@ impl<CP: ChainProvider + Send> CalldataSource<CP> {
                     TxEnvelope::Legacy(tx) => (tx.tx().to(), tx.tx().input()),
                     TxEnvelope::Eip2930(tx) => (tx.tx().to(), tx.tx().input()),
                     TxEnvelope::Eip1559(tx) => (tx.tx().to(), tx.tx().input()),
+                    TxEnvelope::Eip4844(tx) => (tx.tx().to(), tx.tx().input()),
                     _ => return None,
                 };
                 let to = tx_kind?;
@@ -237,7 +238,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_load_calldata_blob_tx_ignored() {
+    async fn test_load_calldata_valid_blob_tx() {
         let batch_inbox_address = address!("0123456789012345678901234567890123456789");
         let mut source = default_test_calldata_source();
         source.batch_inbox_address = batch_inbox_address;
@@ -248,7 +249,7 @@ mod tests {
         assert!(
             source.load_calldata(&BlockInfo::default(), tx.recover_signer().unwrap()).await.is_ok()
         );
-        assert!(source.calldata.is_empty());
+        assert!(!source.calldata.is_empty()); // Calldata is NOT empty.
         assert!(source.open);
     }
 

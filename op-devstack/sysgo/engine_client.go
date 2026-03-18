@@ -68,25 +68,25 @@ func (e *engineClient) GetPayloadV5(id engine.PayloadID) (*engine.ExecutionPaylo
 	return e.getPayload(id, "engine_getPayloadV5")
 }
 
-func (e *engineClient) NewPayloadV2(data engine.ExecutableData) (engine.PayloadStatusV1, error) {
+func (e *engineClient) NewPayloadV2(ctx context.Context, data engine.ExecutableData) (engine.PayloadStatusV1, error) {
 	var result engine.PayloadStatusV1
-	if err := e.inner.CallContext(context.Background(), &result, "engine_newPayloadV2", data); err != nil {
+	if err := e.inner.CallContext(ctx, &result, "engine_newPayloadV2", data); err != nil {
 		return engine.PayloadStatusV1{}, err
 	}
 	return result, nil
 }
 
-func (e *engineClient) NewPayloadV3(data engine.ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash) (engine.PayloadStatusV1, error) {
+func (e *engineClient) NewPayloadV3(ctx context.Context, data engine.ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash) (engine.PayloadStatusV1, error) {
 	var result engine.PayloadStatusV1
-	if err := e.inner.CallContext(context.Background(), &result, "engine_newPayloadV3", data, versionedHashes, beaconRoot); err != nil {
+	if err := e.inner.CallContext(ctx, &result, "engine_newPayloadV3", data, versionedHashes, beaconRoot); err != nil {
 		return engine.PayloadStatusV1{}, err
 	}
 	return result, nil
 }
 
-func (e *engineClient) NewPayloadV4(data engine.ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (engine.PayloadStatusV1, error) {
+func (e *engineClient) NewPayloadV4(ctx context.Context, data engine.ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (engine.PayloadStatusV1, error) {
 	var result engine.PayloadStatusV1
-	if err := e.inner.CallContext(context.Background(), &result, "engine_newPayloadV4", data, versionedHashes, beaconRoot, executionRequests); err != nil {
+	if err := e.inner.CallContext(ctx, &result, "engine_newPayloadV4", data, versionedHashes, beaconRoot, executionRequests); err != nil {
 		return engine.PayloadStatusV1{}, err
 	}
 	return result, nil

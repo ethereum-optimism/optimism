@@ -13,6 +13,8 @@ use kona_genesis::RollupConfig;
 use kona_mpt::{NoopTrieHinter, TrieNode, TrieProvider};
 use kona_registry::ROLLUP_CONFIGS;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
+use op_revm::OpTransaction;
+use revm::context::TxEnv;
 use rocksdb::{DB, Options};
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc};
@@ -45,7 +47,7 @@ pub async fn run_test_fixture(fixture_path: PathBuf) {
 
     let mut executor = StatelessL2Builder::new(
         &fixture.rollup_config,
-        OpEvmFactory::default(),
+        OpEvmFactory::<OpTransaction<TxEnv>>::default(),
         provider,
         NoopTrieHinter,
         fixture.parent_header.seal_slow(),
@@ -181,7 +183,7 @@ impl ExecutorTestFixtureCreator {
 
         let mut executor = StatelessL2Builder::new(
             rollup_config,
-            OpEvmFactory::default(),
+            OpEvmFactory::<OpTransaction<TxEnv>>::default(),
             self,
             NoopTrieHinter,
             parent_header,

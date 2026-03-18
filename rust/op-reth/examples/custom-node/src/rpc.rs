@@ -37,7 +37,7 @@ impl TryIntoTxEnv<CustomTxEnv> for OpTransactionRequest {
         self,
         evm_env: &EvmEnv<Spec, BlockEnv>,
     ) -> Result<CustomTxEnv, Self::Err> {
-        Ok(CustomTxEnv::Op(self.try_into_tx_env(evm_env)?))
+        Ok(CustomTxEnv::Op(reth_optimism_evm::OpTx(self.try_into_tx_env(evm_env)?)))
     }
 }
 

@@ -94,6 +94,7 @@ type Intent struct {
 	L2ContractsLocator    *artifacts.Locator         `json:"l2ContractsLocator" toml:"l2ContractsLocator"`
 	Chains                []*ChainIntent             `json:"chains" toml:"chains"`
 	GlobalDeployOverrides map[string]any             `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
+	UseInterop            bool                       `json:"useInterop" toml:"useInterop"`
 
 	// L1DevGenesisParams is optional. This may be used to customize the L1 genesis when
 	// the deployer output is directed to produce a L1 genesis state for development.
@@ -195,6 +196,10 @@ func (c *Intent) validateStandardValues() error {
 		if chain.IsCustomGasTokenEnabled() {
 			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
 		}
+	}
+
+	if c.UseInterop {
+		return fmt.Errorf("%w: useInterop must be disabled for standard chains", ErrNonStandardValue)
 	}
 
 	challenger, _ := standard.ChallengerAddressFor(c.L1ChainID)

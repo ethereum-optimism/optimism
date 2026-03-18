@@ -65,6 +65,10 @@ func Main(version string) cliapp.LifecycleAction {
 
 		l.Info("Initializing op-interop-filter", "version", version)
 
+		if cfg.Passthrough {
+			l.Warn("PASSTHROUGH MODE ENABLED: all transactions will bypass interop filtering")
+		}
+
 		if !cfg.MessageExpiryWindowExplicit {
 			l.Debug("Using default message expiry window", "window", DefaultMessageExpiryWindow)
 		} else {
@@ -219,6 +223,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		Metrics:        s.metrics,
 		Chains:         chains,
 		CrossValidator: crossValidator,
+		Passthrough:    cfg.Passthrough,
 	})
 
 	s.log.Info("Created backend", "chains", len(chains))

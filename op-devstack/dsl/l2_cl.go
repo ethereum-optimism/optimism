@@ -19,25 +19,25 @@ import (
 // L2CLNode wraps a stack.L2CLNode interface for DSL operations
 type L2CLNode struct {
 	commonImpl
-	inner   stack.L2CLNode
-	control stack.ControlPlane
+	inner        stack.L2CLNode
+	managedPeers map[string]*L2CLNode
 }
 
 // NewL2CLNode creates a new L2CLNode DSL wrapper
-func NewL2CLNode(inner stack.L2CLNode, control stack.ControlPlane) *L2CLNode {
+func NewL2CLNode(inner stack.L2CLNode) *L2CLNode {
 	return &L2CLNode{
-		commonImpl: commonFromT(inner.T()),
-		inner:      inner,
-		control:    control,
+		commonImpl:   commonFromT(inner.T()),
+		inner:        inner,
+		managedPeers: make(map[string]*L2CLNode),
 	}
 }
 
-func (cl *L2CLNode) ID() stack.ComponentID {
-	return cl.inner.ID()
+func (cl *L2CLNode) Name() string {
+	return cl.inner.Name()
 }
 
 func (cl *L2CLNode) String() string {
-	return cl.inner.ID().String()
+	return cl.inner.Name()
 }
 
 // Escape returns the underlying stack.L2CLNode
@@ -50,11 +50,28 @@ func (cl *L2CLNode) SafeL2BlockRef() eth.L2BlockRef {
 }
 
 func (cl *L2CLNode) Start() {
-	cl.control.L2CLNodeState(cl.inner.ID(), stack.Start)
+	lifecycle, ok := cl.inner.(stack.Lifecycle)
+	cl.require.Truef(ok, "L2CL node %s is not lifecycle-controllable", cl.inner.Name())
+	lifecycle.Start()
+	cl.restoreManagedPeers()
 }
 
 func (cl *L2CLNode) Stop() {
-	cl.control.L2CLNodeState(cl.inner.ID(), stack.Stop)
+	lifecycle, ok := cl.inner.(stack.Lifecycle)
+	cl.require.Truef(ok, "L2CL node %s is not lifecycle-controllable", cl.inner.Name())
+	lifecycle.Stop()
+}
+
+func (cl *L2CLNode) ManagePeer(peer *L2CLNode) {
+	cl.managedPeers[peer.Name()] = peer
+	peer.managedPeers[cl.Name()] = cl
+}
+
+func (cl *L2CLNode) restoreManagedPeers() {
+	for _, peer := range cl.managedPeers {
+		cl.connectPeerRaw(peer)
+		peer.connectPeerRaw(cl)
+	}
 }
 
 func (cl *L2CLNode) StartSequencer() {
@@ -125,7 +142,7 @@ func (cl *L2CLNode) HeadBlockRef(lvl types.SafetyLevel) eth.L2BlockRef {
 }
 
 func (cl *L2CLNode) ChainID() eth.ChainID {
-	return cl.inner.ID().ChainID()
+	return cl.inner.ChainID()
 }
 
 func (cl *L2CLNode) AwaitMinL1Processed(minL1 uint64) {
@@ -144,7 +161,7 @@ func (cl *L2CLNode) AdvancedFn(lvl types.SafetyLevel, delta uint64, attempts int
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		target := initial.Number + delta
-		cl.log.Info("Expecting chain to advance", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "delta", delta)
+		cl.log.Info("Expecting chain to advance", "name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "delta", delta)
 		return cl.ReachedFn(lvl, target, attempts)()
 	}
 }
@@ -152,7 +169,7 @@ func (cl *L2CLNode) AdvancedFn(lvl types.SafetyLevel, delta uint64, attempts int
 func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
-		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
 		logger.Info("Expecting chain not to advance")
 		for range attempts {
 			time.Sleep(2 * time.Second)
@@ -191,7 +208,7 @@ func (cl *L2CLNode) WaitForStall(lvl types.SafetyLevel) {
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
 	return func() error {
-		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "target", target)
 		logger.Info("Expecting chain to reach")
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
@@ -234,7 +251,7 @@ func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int
 		initial := cl.HeadBlockRef(lvl)
 		cl.require.GreaterOrEqual(initial.Number, delta, "cannot rewind before genesis")
 		target := initial.Number - delta
-		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl)
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl)
 		logger.Info("Expecting chain to rewind", "target", target, "delta", delta)
 		// check rewind more aggressively, in shorter interval
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 250 * time.Millisecond},
@@ -284,7 +301,7 @@ func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) 
 
 // ChainSyncStatus satisfies that the L2CLNode can provide sync status per chain
 func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
-	cl.require.Equal(chainID, cl.inner.ID().ChainID(), "chain ID mismatch")
+	cl.require.Equal(chainID, cl.inner.ChainID(), "chain ID mismatch")
 	return cl.HeadBlockRef(lvl).ID()
 }
 
@@ -338,6 +355,12 @@ func (cl *L2CLNode) Peers() *apis.PeerDump {
 }
 
 func (cl *L2CLNode) DisconnectPeer(peer *L2CLNode) {
+	delete(cl.managedPeers, peer.Name())
+	delete(peer.managedPeers, cl.Name())
+	cl.disconnectPeerRaw(peer)
+}
+
+func (cl *L2CLNode) disconnectPeerRaw(peer *L2CLNode) {
 	peerInfo := peer.PeerInfo()
 	err := retry.Do0(cl.ctx, 3, retry.Exponential(), func() error {
 		return cl.inner.P2PAPI().DisconnectPeer(cl.ctx, peerInfo.PeerID)
@@ -346,6 +369,12 @@ func (cl *L2CLNode) DisconnectPeer(peer *L2CLNode) {
 }
 
 func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
+	cl.managedPeers[peer.Name()] = peer
+	peer.managedPeers[cl.Name()] = cl
+	cl.connectPeerRaw(peer)
+}
+
+func (cl *L2CLNode) connectPeerRaw(peer *L2CLNode) {
 	peerInfo := peer.PeerInfo()
 	cl.require.NotZero(len(peerInfo.Addresses), "failed to get peer address")
 	// graceful backoff for p2p connection, to avoid dial backoff or connection refused error

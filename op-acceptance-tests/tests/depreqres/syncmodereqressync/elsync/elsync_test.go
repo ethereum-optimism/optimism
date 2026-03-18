@@ -9,13 +9,13 @@ import (
 )
 
 func TestUnsafeChainNotStalling_ELSync_Short(gt *testing.T) {
-	common.UnsafeChainNotStalling_Disconnect(gt, sync.ELSync, 20*time.Second)
+	common.UnsafeChainNotStalling_Disconnect(gt, sync.ELSync, 20*time.Second, common.SyncModeReqRespSyncOpts(sync.ELSync)...)
 }
 
 func TestUnsafeChainNotStalling_ELSync_Long(gt *testing.T) {
-	common.UnsafeChainNotStalling_Disconnect(gt, sync.ELSync, 95*time.Second)
+	common.UnsafeChainNotStalling_Disconnect(gt, sync.ELSync, 95*time.Second, common.SyncModeReqRespSyncOpts(sync.ELSync)...)
 }
 
 func TestUnsafeChainNotStalling_ELSync_RestartOpNode_Long(gt *testing.T) {
-	common.UnsafeChainNotStalling_RestartOpNode(gt, sync.ELSync, 95*time.Second)
+	common.UnsafeChainNotStalling_RestartOpNode(gt, sync.ELSync, 95*time.Second, common.SyncModeReqRespSyncOpts(sync.ELSync)...)
 }

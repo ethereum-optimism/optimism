@@ -29,6 +29,9 @@ type Backend struct {
 	// Manual failsafe override
 	manualFailsafe atomic.Bool
 
+	// Passthrough mode: all transactions pass without filtering
+	passthrough bool
+
 	cancel context.CancelFunc
 }
 
@@ -38,6 +41,7 @@ type BackendParams struct {
 	Metrics        metrics.Metricer
 	Chains         map[eth.ChainID]ChainIngester
 	CrossValidator CrossValidator
+	Passthrough    bool
 }
 
 // NewBackend creates a new Backend instance with the provided components.
@@ -49,6 +53,7 @@ func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 		metrics:        params.Metrics,
 		chains:         params.Chains,
 		crossValidator: params.CrossValidator,
+		passthrough:    params.Passthrough,
 		cancel:         cancel,
 	}
 }
@@ -132,6 +137,11 @@ func supportedSafetyLevel(level types.SafetyLevel) bool {
 // CheckAccessList validates the given access list entries.
 func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error {
+
+	if b.passthrough {
+		b.metrics.RecordCheckAccessList(true)
+		return nil
+	}
 
 	if b.FailsafeEnabled() {
 		b.metrics.RecordCheckAccessList(false)

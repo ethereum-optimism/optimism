@@ -78,7 +78,7 @@ func getAvailableLocalPort() (string, error) {
 }
 
 // waitTCPReady parses a URL and waits for its TCP endpoint to become ready using EventuallyWithT.
-func waitTCPReady(p devtest.P, rawURL string, timeout time.Duration) {
+func waitTCPReady(p devtest.CommonT, rawURL string, timeout time.Duration) {
 	p.Helper()
 	u, err := url.Parse(rawURL)
 	p.Require().NoError(err, "parse URL: %s", rawURL)

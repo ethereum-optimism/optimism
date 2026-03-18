@@ -83,14 +83,10 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	cgt := buildCGTConfig(thisIntent)
 
-	// Check if L2CM feature is enabled
-	var useL2CM bool
-	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
-		// TODO(#19151): Replace this with the L2CMDevFlag constant when we fix import cycles.
-		l2CMFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
-		if isDevFeatureEnabled(devFeatureBitmap, l2CMFlag) {
-			useL2CM = true
-		}
+	devFeatureBitmap, err := buildDevFeatureBitmap(intent)
+
+	if err != nil {
+		return err
 	}
 
 	if err := script.Run(opcm.L2GenesisInput{
@@ -114,7 +110,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		OperatorFeeVaultRecipient:                thisIntent.OperatorFeeVaultRecipient,
 		GovernanceTokenOwner:                     overrides.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
-		DeployCrossL2Inbox:                       len(intent.Chains) > 1,
 		EnableGovernance:                         overrides.EnableGovernance,
 		FundDevAccounts:                          overrides.FundDevAccounts,
 		UseRevenueShare:                          thisIntent.UseRevenueShare,
@@ -126,7 +121,8 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		GasPayingTokenSymbol:       cgt.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount: cgt.NativeAssetLiquidityAmount,
 		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
-		UseL2CM:                    useL2CM,
+		DevFeatureBitmap:           devFeatureBitmap,
+		UseInterop:                 intent.UseInterop,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -205,6 +201,28 @@ func shouldGenerateL2Genesis(thisChainState *state.ChainState) bool {
 func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	n := wd.ToUint8()
 	return big.NewInt(int64(n))
+}
+
+// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and returns an error if the interop feature
+// bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
+func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
+	var devFeatureBitmap common.Hash
+	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
+	case common.Hash:
+		devFeatureBitmap = v
+	case string:
+		devFeatureBitmap = common.HexToHash(v)
+	}
+
+	// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
+	interopFeatureFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+	interopBitEnabled := isDevFeatureEnabled(devFeatureBitmap, interopFeatureFlag)
+
+	if intent.UseInterop != interopBitEnabled {
+		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
+	}
+
+	return devFeatureBitmap, nil
 }
 
 func defaultOverrides() l2GenesisOverrides {

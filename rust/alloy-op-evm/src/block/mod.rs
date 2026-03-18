@@ -506,7 +506,7 @@ mod tests {
         let executor_factory = OpBlockExecutorFactory::new(
             OpAlloyReceiptBuilder::default(),
             OpChainHardforks::op_mainnet(),
-            OpEvmFactory::default(),
+            OpEvmFactory::<OpTransaction<revm::context::TxEnv>>::default(),
         );
         let mut db = State::builder().with_database(CacheDB::<EmptyDB>::default()).build();
         let evm = executor_factory.evm_factory.create_evm(&mut db, EvmEnv::default());

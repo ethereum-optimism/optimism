@@ -9,8 +9,7 @@ the [fault proof specs][proof-specs].
 
 ## Quickstart
 
-To build the `op-challenger`, run `make` (which executes the `make build`
-[Makefile](./Makefile) target). To view a list of available commands and
+To build the `op-challenger`, run `just op-challenger`. To view a list of available commands and
 options, run `./bin/op-challenger --help`.
 
 ## Usage
@@ -21,14 +20,10 @@ accessed by running `./op-challenger --help`.
 
 ### Running with Cannon on Local Devnet
 
-To run `op-challenger` against the local devnet, first clean and run
-the devnet. From the root of the repository run:
+To run `op-challenger` against a local devnet, first start a local devnet
+that exposes the `simple-devnet` enclave.
 
-```shell
-cd kurtosis-devnet && just simple-devnet
-```
-
-Then build the `op-challenger` with `make op-challenger`.
+Then build the `op-challenger` with `just op-challenger`.
 
 Run the `op-challenger` with:
 

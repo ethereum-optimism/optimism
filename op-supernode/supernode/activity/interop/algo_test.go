@@ -896,6 +896,7 @@ func (m *algoMockChain) Start(ctx context.Context) error                  { retu
 func (m *algoMockChain) Stop(ctx context.Context) error                   { return nil }
 func (m *algoMockChain) Pause(ctx context.Context) error                  { return nil }
 func (m *algoMockChain) Resume(ctx context.Context) error                 { return nil }
+func (m *algoMockChain) PauseAndStopVN(ctx context.Context) error         { return nil }
 func (m *algoMockChain) RegisterVerifier(v activity.VerificationActivity) {}
 func (m *algoMockChain) VerifierCurrentL1s() []eth.BlockID                { return nil }
 func (m *algoMockChain) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
@@ -929,8 +930,11 @@ func (m *algoMockChain) RewindEngine(ctx context.Context, timestamp uint64, inva
 	return nil
 }
 func (m *algoMockChain) BlockTime() uint64 { return 1 }
-func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64) (bool, error) {
 	return false, nil
+}
+func (m *algoMockChain) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
+	return nil, nil
 }
 func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil

@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
-import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { LibClone } from "@solady/utils/LibClone.sol";
@@ -56,8 +56,8 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.6.0
-    string public constant version = "1.6.0";
+    /// @custom:semver 1.6.1
+    string public constant version = "1.6.1";
 
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective
     ///         `IDisputeGame` implementations.

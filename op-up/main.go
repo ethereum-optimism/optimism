@@ -4,9 +4,9 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,10 +19,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -34,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -105,50 +103,27 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
 	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
 		return fmt.Errorf("create the op-up dir: %w", err)
 	}
-	deployerCacheDir := filepath.Join(opUpDir, "deployer", "cache")
-	if err := os.MkdirAll(deployerCacheDir, 0o755); err != nil {
-		return fmt.Errorf("create the deployer cache dir: %w", err)
+	tempRoot := filepath.Join(opUpDir, "tmp")
+	if err := os.MkdirAll(tempRoot, 0o755); err != nil {
+		return fmt.Errorf("create the op-up temp dir: %w", err)
 	}
 
 	devtest.RootContext = ctx
+	t := newTestingT(ctx, stderr, tempRoot)
+	defer t.doCleanup()
 
-	p := newP(ctx, stderr)
-	defer p.Close()
-
-	ids := sysgo.NewDefaultMinimalSystemIDs(sysgo.DefaultL1ID, sysgo.DefaultL2AID)
-	opts := stack.Combine(
-		sysgo.WithMnemonicKeys(devkeys.TestMnemonic),
-
-		sysgo.WithDeployer(),
-		sysgo.WithDeployerOptions(
-			sysgo.WithEmbeddedContractSources(),
-			sysgo.WithCommons(ids.L1.ChainID()),
-			sysgo.WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
-		),
-		sysgo.WithDeployerPipelineOption(sysgo.WithDeployerCacheDir(deployerCacheDir)),
-
-		sysgo.WithL1Nodes(ids.L1EL, ids.L1CL),
-
-		sysgo.WithL2ELNode(ids.L2EL),
-		sysgo.WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, sysgo.L2CLSequencer()),
-		sysgo.WithL2MetricsDashboard(),
-
-		sysgo.WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL),
-		sysgo.WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
-
-		sysgo.WithFaucets([]stack.ComponentID{ids.L1EL}, []stack.ComponentID{ids.L2EL}),
-	)
-
-	orch := sysgo.NewOrchestrator(p, opts)
-	stack.ApplyOptionLifecycle[*sysgo.Orchestrator](opts, orch)
-	if err := runSysgo(ctx, stderr, orch); err != nil {
+	sys, err := newMinimalSystem(t)
+	if err != nil {
+		return err
+	}
+	if err := runSystem(ctx, stderr, sys); err != nil {
 		return err
 	}
 	fmt.Fprintf(stderr, "\nPlease consider filling out this survey to influence future development: https://www.surveymonkey.com/r/JTGHFK3\n")
 	return nil
 }
 
-func newP(ctx context.Context, stderr io.Writer) devtest.P {
+func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 	logHandler := oplog.NewLogHandler(stderr, oplog.DefaultCLIConfig())
 	logHandler = logfilter.WrapFilterHandler(logHandler)
 	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
@@ -156,26 +131,30 @@ func newP(ctx context.Context, stderr io.Writer) devtest.P {
 	logger := log.NewLogger(logHandler)
 	oplog.SetGlobalLogHandler(logHandler)
 	logger.SetContext(ctx)
-	onFail := func(now bool) {
-		logger.Error("Main failed")
-		debug.PrintStack()
-		if now {
-			panic("critical Main fail")
-		}
-	}
-	p := devtest.NewP(ctx, logger, onFail, func() {
-		onFail(true)
-	})
-	return p
+	return logger
 }
 
-func runSysgo(ctx context.Context, stderr io.Writer, orch *sysgo.Orchestrator) error {
+func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			var failure testingFailure
+			if errors.As(asError(recovered), &failure) {
+				err = failure.err
+				return
+			}
+			panic(recovered)
+		}
+	}()
+	return presets.NewMinimal(t), nil
+}
+
+func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal) error {
 	// Print available account.
 	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	if err != nil {
 		return fmt.Errorf("new mnemonic dev keys: %w", err)
 	}
-	const funderIndex = 10_000 // see sysgo/deployer.go.
+	const funderIndex = 10_000
 	funderUserKey := devkeys.UserKey(funderIndex)
 	funderAddress, err := hd.Address(funderUserKey)
 	if err != nil {
@@ -190,19 +169,7 @@ func runSysgo(ctx context.Context, stderr io.Writer, orch *sysgo.Orchestrator) e
 	fmt.Fprintf(stderr, "Test Account Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(funderPrivKey)))
 	fmt.Fprintf(stderr, "EL Node URL: %s\n", "http://localhost:8545")
 
-	t := &testingT{
-		ctx:      ctx,
-		cleanups: make([]func(), 0),
-	}
-	defer t.doCleanup()
-	sys := shim.NewSystem(t)
-	orch.Hydrate(sys)
-	l2Networks := sys.L2Networks()
-	if len(l2Networks) != 1 {
-		return fmt.Errorf("need one l2 network, got: %d", len(l2Networks))
-	}
-	l2Net := l2Networks[0]
-	elNode := l2Net.L2ELNode(match.FirstL2EL)
+	elNode := sys.L2EL
 
 	// Log on new blocks.
 	go func() {
@@ -227,7 +194,7 @@ func runSysgo(ctx context.Context, stderr io.Writer, orch *sysgo.Orchestrator) e
 
 	// Proxy L2 EL requests.
 	go func() {
-		if err := proxyEL(stderr, elNode.L2EthClient().RPC()); err != nil {
+		if err := proxyEL(ctx, stderr, elNode.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			fmt.Fprintf(stderr, "error: %v", err)
 		}
 	}()
@@ -239,9 +206,10 @@ func runSysgo(ctx context.Context, stderr io.Writer, orch *sysgo.Orchestrator) e
 
 // proxyEL is a hacky way to intercept EL json rpc requests for logging to get around log filtering
 // bugs.
-func proxyEL(stderr io.Writer, client client.RPC) error {
+func proxyEL(ctx context.Context, stderr io.Writer, client client.RPC) error {
+	mux := http.NewServeMux()
 	// Set up the HTTP handler for all incoming requests.
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Ensure the request method is POST, as JSON RPC typically uses POST.
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -348,35 +316,98 @@ func proxyEL(stderr io.Writer, client client.RPC) error {
 		}
 	})
 
-	// Start the HTTP server.
-	if err := http.ListenAndServe("localhost:8545", nil); err != nil {
-		return fmt.Errorf("listen and server: %w", err)
+	server := &http.Server{Addr: "localhost:8545", Handler: mux}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.ListenAndServe()
+	}()
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("shutdown proxy server: %w", err)
+		}
+		return <-errCh
+	case err := <-errCh:
+		if err != nil {
+			return fmt.Errorf("listen and serve: %w", err)
+		}
+		return nil
+	}
+}
+
+type testingT struct {
+	state  *testingState
+	ctx    context.Context
+	logger log.Logger
+	tracer trace.Tracer
+	req    *testreq.Assertions
+	gate   *testreq.Assertions
+}
+
+type testingState struct {
+	mu       sync.Mutex
+	tempRoot string
+	cleanups []func()
+}
+
+type testingFailure struct {
+	err error
+}
+
+func (f testingFailure) Error() string {
+	return f.err.Error()
+}
+
+func asError(v any) error {
+	if err, ok := v.(error); ok {
+		return err
 	}
 	return nil
 }
 
-type testingT struct {
-	mu       sync.Mutex
-	ctx      context.Context
-	cleanups []func()
+func newTestingT(ctx context.Context, stderr io.Writer, tempRoot string) *testingT {
+	logger := newLogger(ctx, stderr)
+	t := &testingT{
+		state: &testingState{
+			tempRoot: tempRoot,
+			cleanups: make([]func(), 0),
+		},
+		ctx:    ctx,
+		logger: logger,
+		tracer: otel.Tracer("op-up"),
+	}
+	t.req = testreq.New(t)
+	t.gate = testreq.New(t)
+	return t
+}
+
+func (t *testingT) failf(format string, args ...any) {
+	err := fmt.Errorf(format, args...)
+	t.logger.Error("op-up runtime failure", "err", err)
+	debug.PrintStack()
+	panic(testingFailure{err: err})
 }
 
 var _ devtest.T = (*testingT)(nil)
 var _ testreq.TestingT = (*testingT)(nil)
 
 func (t *testingT) doCleanup() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	for _, cleanup := range slices.Backward(t.cleanups) {
+	t.state.mu.Lock()
+	cleanups := append([]func(){}, t.state.cleanups...)
+	t.state.cleanups = nil
+	t.state.mu.Unlock()
+	for _, cleanup := range slices.Backward(cleanups) {
 		cleanup()
 	}
 }
 
 // Cleanup implements devtest.T.
 func (t *testingT) Cleanup(fn func()) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.cleanups = append(t.cleanups, fn)
+	t.state.mu.Lock()
+	defer t.state.mu.Unlock()
+	t.state.cleanups = append(t.state.cleanups, fn)
 }
 
 // Ctx implements devtest.T.
@@ -391,23 +422,27 @@ func (t *testingT) Deadline() (deadline time.Time, ok bool) {
 
 // Error implements devtest.T.
 func (t *testingT) Error(args ...any) {
+	t.failf("%s", fmt.Sprint(args...))
 }
 
 // Errorf implements devtest.T.
 func (t *testingT) Errorf(format string, args ...any) {
+	t.failf(format, args...)
 }
 
 // Fail implements devtest.T.
 func (t *testingT) Fail() {
+	t.failf("test failed")
 }
 
 // FailNow implements devtest.T.
 func (t *testingT) FailNow() {
+	t.failf("test failed immediately")
 }
 
 // Gate implements devtest.T.
 func (t *testingT) Gate() *testreq.Assertions {
-	return testreq.New(t)
+	return t.gate
 }
 
 // Helper implements devtest.T.
@@ -416,14 +451,16 @@ func (t *testingT) Helper() {
 
 // Log implements devtest.T.
 func (t *testingT) Log(args ...any) {
+	t.logger.Info(fmt.Sprint(args...))
 }
 
 // Logf implements devtest.T.
 func (t *testingT) Logf(format string, args ...any) {
+	t.logger.Info(fmt.Sprintf(format, args...))
 }
 
 func (t *testingT) Logger() log.Logger {
-	return log.NewLogger(slog.NewTextHandler(io.Discard, nil))
+	return t.logger
 }
 
 func (t *testingT) Name() string {
@@ -434,24 +471,25 @@ func (t *testingT) Parallel() {
 }
 
 func (t *testingT) Require() *testreq.Assertions {
-	return testreq.New(t)
+	return t.req
 }
 
 func (t *testingT) Run(name string, fn func(devtest.T)) {
-	panic("unimplemented")
+	subCtx := devtest.AddTestScope(t.ctx, name)
+	fn(t.WithCtx(subCtx))
 }
 
 func (t *testingT) Skip(args ...any) {
-	panic("unimplemented")
+	t.failf("unexpected skip: %s", fmt.Sprint(args...))
 }
 
 func (t *testingT) SkipNow() {
-	panic("unimplemented")
+	t.failf("unexpected skip")
 }
 
 // Skipf implements devtest.T.
 func (t *testingT) Skipf(format string, args ...any) {
-	panic("unimplemented")
+	t.failf("unexpected skip: "+format, args...)
 }
 
 // Skipped implements devtest.T.
@@ -461,17 +499,36 @@ func (t *testingT) Skipped() bool {
 
 // TempDir implements devtest.T.
 func (t *testingT) TempDir() string {
-	panic("unimplemented")
+	dir, err := os.MkdirTemp(t.state.tempRoot, "op-up-*")
+	if err != nil {
+		t.failf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.logger.Error("failed to clean up temp dir", "dir", dir, "err", err)
+		}
+	})
+	return dir
 }
 
 // Tracer implements devtest.T.
 func (t *testingT) Tracer() trace.Tracer {
-	panic("unimplemented")
+	return t.tracer
 }
 
 // WithCtx implements devtest.T.
 func (t *testingT) WithCtx(ctx context.Context) devtest.T {
-	return t
+	logger := t.logger.New()
+	logger.SetContext(ctx)
+	out := &testingT{
+		state:  t.state,
+		ctx:    ctx,
+		logger: logger,
+		tracer: t.tracer,
+	}
+	out.req = testreq.New(out)
+	out.gate = testreq.New(out)
+	return out
 }
 
 // _TestOnly implements devtest.T.

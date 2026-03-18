@@ -23,7 +23,7 @@ The `op-supervisor` functions as a [superchain backend], implementing the [inter
 ## Quickstart
 
 ```bash
-make op-supervisor
+just op-supervisor
 
 # Key configurables:
 # datadir: where to store indexed interop data
@@ -43,7 +43,7 @@ make op-supervisor
 
 ```bash
 # from op-supervisor dir:
-make op-supervisor
+just op-supervisor
 ./bin/op-supervisor --help
 ```
 
@@ -350,4 +350,3 @@ sequenceDiagram
 
 - `op-e2e/interop`: Go interop system-tests, focused on offchain aspects of services to run end to end.
 - `op-e2e/actions/interop`: Go interop action-tests, focused on onchain aspects such as safety and state-transition.
-- `kurtosis-devnet/interop.yaml`: Kurtosis configuration to run interoperable chains locally.

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -15,7 +14,7 @@ import (
 // Also verifies that VerifiedAt (via superroot_atTimestamp) works correctly.
 func TestSupernodeInteropActivationAtGenesis(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	sys := newSupernodeInteropWithTimeTravel(t, 0)
 
 	genesisTime := sys.L2A.Escape().RollupConfig().Genesis.L2Time
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime

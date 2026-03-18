@@ -22,6 +22,29 @@ type Result struct {
 	InvalidHeads map[eth.ChainID]eth.BlockID `json:"invalidHeads"`
 }
 
+// PendingTransition is the generic write-ahead-log entry for an effectful
+// interop decision. Recovery and steady-state both use the same apply path.
+//
+// Phase 2 keeps this intentionally small:
+// - advance/invalidate carry their Result directly
+// - rewind carries the accepted timestamp to rewind from
+// Later phases can expand this into a richer explicit transition plan.
+type PendingTransition struct {
+	Decision Decision    `json:"decision"`
+	Result   *Result     `json:"result,omitempty"`
+	Rewind   *RewindPlan `json:"rewind,omitempty"`
+}
+
+// RewindPlan is the explicit rewind transition persisted in the WAL.
+// It captures the target verified frontier and per-chain logsDB target heads so
+// recovery can apply the same rewind path without recomputing it from live
+// state.
+type RewindPlan struct {
+	RewindAtOrAfter  uint64                      `json:"rewindAtOrAfter"`
+	ResetAllChainsTo *uint64                     `json:"resetAllChainsTo,omitempty"`
+	TargetHeads      map[eth.ChainID]eth.BlockID `json:"targetHeads,omitempty"`
+}
+
 func (r *Result) IsValid() bool {
 	return len(r.InvalidHeads) == 0
 }
