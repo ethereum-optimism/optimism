@@ -1058,9 +1058,9 @@ func TestProgressAndRecord(t *testing.T) {
 				// interop.currentL1 must be capped at 990 so it never exceeds any node's CurrentL1.
 				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
 					return Result{
-						Timestamp:    ts,
-						L1Inclusion:  eth.BlockID{Number: 1000, Hash: common.HexToHash("0xleading")},
-						L2Heads:      blocks,
+						Timestamp:   ts,
+						L1Inclusion: eth.BlockID{Number: 1000, Hash: common.HexToHash("0xleading")},
+						L2Heads:     blocks,
 					}, nil
 				}
 
