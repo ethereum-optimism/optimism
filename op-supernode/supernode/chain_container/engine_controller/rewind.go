@@ -123,8 +123,19 @@ func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blo
 	newPayload := *(envelope.ExecutionPayload)
 	newEnvelope.ExecutionPayload = &newPayload
 
-	// Modify the cloned payload to create a synthetic block with a different hash
-	newPayload.FeeRecipient = common.MaxAddress
+	// Modify ExtraData to produce a different block hash without affecting the state root.
+	// We must only change header fields that are not accessible via EVM opcodes. Fields
+	// that are EVM-accessible (e.g. coinbase, timestamp, prevrandao) influence execution
+	// and would cause the recomputed state root to diverge from the one in the payload,
+	// causing the engine to reject it. ExtraData has no EVM opcode and is safe to modify.
+	extra := make([]byte, len(newPayload.ExtraData))
+	copy(extra, newPayload.ExtraData)
+	if len(extra) == 0 {
+		extra = []byte{0x00}
+	} else {
+		extra[len(extra)-1] ^= 0xff
+	}
+	newPayload.ExtraData = extra
 	syntheticHash, _ := newEnvelope.CheckBlockHash() // ignore "ok" since we know it won't match
 	newPayload.BlockHash = syntheticHash
 

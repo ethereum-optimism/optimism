@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -50,8 +50,8 @@ contract FeesDepositor is ProxyAdminOwnedBase, Initializable, ReinitializableBas
     event GasLimitUpdated(uint32 oldGasLimit, uint32 newGasLimit);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Constructs the FeesDepositor contract.
     constructor() ReinitializableBase(1) {

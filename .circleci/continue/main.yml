@@ -384,25 +384,6 @@ commands:
               fi
             fi
 
-  run-contracts-check:
-    parameters:
-      command:
-        description: Just command that runs the check
-        type: string
-    steps:
-      - run:
-          name: <<parameters.command>>
-          command: |
-            git reset --hard
-            git clean -df
-            just <<parameters.command>>
-            git status --porcelain
-            [ -z "$(git status --porcelain)" ] || exit 1
-          working_directory: packages/contracts-bedrock
-          when: always
-          environment:
-            FOUNDRY_PROFILE: ci
-
   go-restore-cache:
     parameters:
       # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
@@ -958,7 +939,7 @@ jobs:
             if [ "$SKIP_SLOW_TESTS" = "false" ]; then
               TIMEOUT="45m"
             fi
-            gotestsum --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
+            ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
             -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
           working_directory: cannon
       - codecov/upload:
@@ -1421,8 +1402,7 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "@security-oncall"
-
-  contracts-bedrock-tests-l2-fork:
+contracts-bedrock-tests-l2-fork:
     circleci_ip_ranges: true
     parameters:
       fork_op_chain:
@@ -1525,15 +1505,14 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise:
-          checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
-      - get-target-branch
+      - install-solc-compilers
       - run:
-          name: upload selectors
-          command: just update-selectors
+          name: Print dependencies
+          command: just dep-status
           working_directory: packages/contracts-bedrock
 
   contracts-bedrock-checks:
@@ -1797,12 +1776,7 @@ jobs:
           path: ./tmp/test-results
       - run:
           name: Compress test logs
-          command: |
-            if [ -n "$CIRCLE_NODE_TOTAL" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-              tar -czf testlogs-${CIRCLE_NODE_INDEX}-of-${CIRCLE_NODE_TOTAL}.tar.gz -C ./tmp testlogs
-            else
-              tar -czf testlogs.tar.gz -C ./tmp testlogs
-            fi
+          command: tar -czf testlogs.tar.gz -C ./tmp testlogs
           when: always
       - run:
           name: Clean up op-deployer artifacts
@@ -1810,7 +1784,7 @@ jobs:
             rm -rf ~/.op-deployer/*
           when: always
       - store_artifacts:
-          path: testlogs*.tar.gz
+          path: testlogs.tar.gz
           when: always
       - when:
           condition: "<<parameters.notify>>"

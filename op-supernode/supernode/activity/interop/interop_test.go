@@ -1043,6 +1043,36 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 		},
 		{
+			name: "valid result caps L1 at min node CurrentL1 when L1Inclusion exceeds it",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xleading")}
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2a")}
+				}).WithChain(8453, func(m *mockChainContainer) {
+					m.currentL1 = eth.BlockRef{Number: 990, Hash: common.HexToHash("0xlagging")}
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0xL2b")}
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				// L1Inclusion is 1000 (from the leading chain) but chain 8453 is only at 990.
+				// interop.currentL1 must be capped at 990 so it never exceeds any node's CurrentL1.
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+					return Result{
+						Timestamp:   ts,
+						L1Inclusion: eth.BlockID{Number: 1000, Hash: common.HexToHash("0xleading")},
+						L2Heads:     blocks,
+					}, nil
+				}
+
+				madeProgress, err := h.interop.progressAndRecord()
+				require.NoError(t, err)
+				require.True(t, madeProgress)
+
+				require.Equal(t, uint64(990), h.interop.currentL1.Number)
+				require.Equal(t, common.HexToHash("0xlagging"), h.interop.currentL1.Hash)
+			},
+		},
+		{
 			name: "invalid result does not update L1",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {

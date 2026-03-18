@@ -10,6 +10,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -388,11 +389,18 @@ func (s *Supernode) initBeaconClient(ctx context.Context, cfg *config.CLIConfig)
 	basicClient := client.NewBasicHTTPClient(cfg.L1BeaconAddr, s.log)
 	beaconHTTPClient := sources.NewBeaconHTTPClient(basicClient)
 
+	// Create fallback beacon clients (e.g. blob archiver)
+	var fallbacks []apis.BeaconClient
+	for _, addr := range cfg.L1BeaconFallbackAddrs {
+		fb := client.NewBasicHTTPClient(addr, s.log)
+		fallbacks = append(fallbacks, sources.NewBeaconHTTPClient(fb))
+	}
+
 	// Create L1 Beacon client with default config
 	beaconCfg := sources.L1BeaconClientConfig{
 		FetchAllSidecars: false,
 	}
-	s.beaconClient = sources.NewL1BeaconClient(beaconHTTPClient, beaconCfg)
+	s.beaconClient = sources.NewL1BeaconClient(beaconHTTPClient, beaconCfg, fallbacks...)
 
 	s.log.Info("L1 Beacon client initialized successfully")
 	return nil

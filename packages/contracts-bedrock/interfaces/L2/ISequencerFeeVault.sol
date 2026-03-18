@@ -2,10 +2,9 @@
 pragma solidity ^0.8.0;
 
 import { Types } from "src/libraries/Types.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
-interface ISequencerFeeVault {
-    error FeeVault_OnlyProxyAdminOwner();
-
+interface ISequencerFeeVault is IProxyAdminOwnedBase {
     error InvalidInitialization();
     error NotInitializing();
 

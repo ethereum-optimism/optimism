@@ -76,14 +76,16 @@ macro_rules! define_dup_cursor_iter {
                     return Some(res);
                 }
 
-                // If no more duplicates, find the next key with values
-                let Some(Ok((next_key, _))) = self.0.next_no_dup().transpose() else {
-                    // If no more entries, return None
-                    return None;
-                };
-
-                // If found, seek to the first duplicate for this key
-                return self.0.seek(next_key).transpose();
+                // If no more duplicates, find the next key with values.
+                // Use explicit match to propagate MDBX errors
+                match self.0.next_no_dup() {
+                    Ok(Some((next_key, _))) => {
+                        // Seek to the first duplicate for this key
+                        self.0.seek(next_key).transpose()
+                    }
+                    Ok(None) => None,
+                    Err(e) => Some(Err(e)),
+                }
             }
         }
     };

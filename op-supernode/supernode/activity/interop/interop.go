@@ -522,8 +522,20 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, fmt.Errorf("clear pending transition: %w", err)
 		}
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
+		// L1Inclusion is the max L1 block used for derivation across all chains at this
+		// timestamp. It can exceed some chains' actual CurrentL1 — e.g. chain A derived
+		// from L1 1000 while chain B derived from L1 990. Chain B may then advance to
+		// the next timestamp (finding its batch at L1 995) without ever reaching L1 1000.
+		// Cap at the min of all nodes' CurrentL1 so this field is individually safe, not
+		// just safe when aggregated with chain CurrentL1s via syncstatus.Aggregate.
+		currentL1 := pending.Result.L1Inclusion
+		if localL1, err := i.collectCurrentL1(); err != nil {
+			i.log.Warn("failed to collect node CurrentL1 on advance, using L1Inclusion", "err", err)
+		} else if localL1.Number < currentL1.Number {
+			currentL1 = localL1
+		}
 		i.mu.Lock()
-		i.currentL1 = pending.Result.L1Inclusion
+		i.currentL1 = currentL1
 		i.mu.Unlock()
 		return true, nil
 	}

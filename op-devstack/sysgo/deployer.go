@@ -255,6 +255,9 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 			bitmap = currentValue.(common.Hash)
 		}
 		builder.WithGlobalOverride(devFeatureBitmapKey, deployer.EnableDevFeature(bitmap, flag))
+		if flag == deployer.OptimismPortalInteropDevFlag {
+			builder.WithUseInterop(true)
+		}
 	}
 }
 
