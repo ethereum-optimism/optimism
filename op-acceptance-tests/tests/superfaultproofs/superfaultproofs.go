@@ -386,6 +386,119 @@ func buildTransitionTests(
 	}
 }
 
+// buildAfterChainHeadTests constructs test cases for transitions past the chain head,
+// where the proposed block timestamp exceeds the validated timestamp.
+//
+// l1HeadCurrent is the L1 head with data for endTimestamp only (restricted).
+// l1HeadAdvanced is the L1 head with data for endTimestamp+1.
+func buildAfterChainHeadTests(
+	chains []*chain,
+	end, endNext eth.SuperV1,
+	endTimestamp uint64,
+	l1HeadCurrent, l1HeadAdvanced eth.BlockID,
+	firstOptimisticNext, secondOptimisticNext interopTypes.OptimisticBlock,
+) []*transitionTest {
+	// Determine if each chain produces a new block at endTimestamp+1.
+	firstBlockAtEnd, _ := chains[0].Cfg.TargetBlockNumber(endTimestamp)
+	firstBlockAtNext, _ := chains[0].Cfg.TargetBlockNumber(endTimestamp + 1)
+	firstHasNewBlock := firstBlockAtEnd != firstBlockAtNext
+
+	secondBlockAtEnd, _ := chains[1].Cfg.TargetBlockNumber(endTimestamp)
+	secondBlockAtNext, _ := chains[1].Cfg.TargetBlockNumber(endTimestamp + 1)
+	secondHasNewBlock := secondBlockAtEnd != secondBlockAtNext
+	anyNewBlock := firstHasNewBlock || secondHasNewBlock
+
+	claimTimestamp := endTimestamp + 100
+
+	tests := make([]*transitionTest, 0, 6)
+
+	// Test 1: First chain's optimistic block step at the next timestamp.
+	// When the first chain has a new block at endTimestamp+1, it can't be derived with
+	// the restricted L1 head, so the transition is invalid.
+	disputedChainA := marshalTransition(end, 1, firstOptimisticNext)
+	if firstHasNewBlock {
+		disputedChainA = super.InvalidTransition
+	}
+	tests = append(tests, &transitionTest{
+		Name:               "DisputeTimestampAfterChainHeadChainA",
+		AgreedClaim:        end.Marshal(),
+		DisputedClaim:      disputedChainA,
+		L1Head:             l1HeadCurrent,
+		ClaimTimestamp:     claimTimestamp,
+		DisputedTraceIndex: consolidateStep + 1,
+		ExpectValid:        true,
+	})
+
+	// Test 2: Second chain's optimistic block step at the next timestamp.
+	// Uses the advanced L1 head so both chains' data is derivable.
+	tests = append(tests, &transitionTest{
+		Name:               "DisputeTimestampAfterChainHeadChainB",
+		AgreedClaim:        marshalTransition(end, 1, firstOptimisticNext),
+		DisputedClaim:      marshalTransition(end, 2, firstOptimisticNext, secondOptimisticNext),
+		L1Head:             l1HeadAdvanced,
+		ClaimTimestamp:     claimTimestamp,
+		DisputedTraceIndex: consolidateStep + 2,
+		ExpectValid:        true,
+	})
+
+	// Test 3: Consolidation step at the next timestamp.
+	tests = append(tests, &transitionTest{
+		Name:               "DisputeTimestampAfterChainHeadConsolidate",
+		AgreedClaim:        marshalTransition(end, consolidateStep, firstOptimisticNext, secondOptimisticNext),
+		DisputedClaim:      endNext.Marshal(),
+		L1Head:             l1HeadAdvanced,
+		ClaimTimestamp:     claimTimestamp,
+		DisputedTraceIndex: 2*stepsPerTimestamp - 1,
+		ExpectValid:        true,
+	})
+
+	// Test 4: First chain's optimistic block step two timestamps ahead.
+	// The block at endTimestamp+2 can't be derived under any available L1 head.
+	// When any chain has a new block at endTimestamp+1 and we use the restricted L1 head,
+	// the trace was already invalid from an earlier step.
+	agreedBlockAfterHead := endNext.Marshal()
+	if anyNewBlock {
+		agreedBlockAfterHead = super.InvalidTransition
+	}
+	tests = append(tests, &transitionTest{
+		Name:               "DisputeBlockAfterChainHead-FirstChain",
+		AgreedClaim:        agreedBlockAfterHead,
+		DisputedClaim:      super.InvalidTransition,
+		L1Head:             l1HeadCurrent,
+		ClaimTimestamp:     claimTimestamp,
+		DisputedTraceIndex: 2 * stepsPerTimestamp,
+		ExpectValid:        true,
+	})
+
+	// Test 5: Consolidation step far past the chain head.
+	l1HeadConsolidate := l1HeadAdvanced
+	if anyNewBlock {
+		l1HeadConsolidate = l1HeadCurrent
+	}
+	tests = append(tests, &transitionTest{
+		Name:               "AgreedBlockAfterChainHead-Consolidate",
+		AgreedClaim:        super.InvalidTransition,
+		DisputedClaim:      super.InvalidTransition,
+		L1Head:             l1HeadConsolidate,
+		ClaimTimestamp:     claimTimestamp,
+		DisputedTraceIndex: 4*stepsPerTimestamp - 1,
+		ExpectValid:        true,
+	})
+
+	// Test 6: Optimistic block step far past the chain head.
+	tests = append(tests, &transitionTest{
+		Name:               "AgreedBlockAfterChainHead-Optimistic",
+		AgreedClaim:        super.InvalidTransition,
+		DisputedClaim:      super.InvalidTransition,
+		L1Head:             l1HeadAdvanced,
+		ClaimTimestamp:     claimTimestamp,
+		DisputedTraceIndex: 4*stepsPerTimestamp + 1,
+		ExpectValid:        true,
+	})
+
+	return tests
+}
+
 // RunTraceExtensionActivationTest verifies that trace extension correctly
 // activates (or not) based on whether the claim timestamp has been reached.
 func RunTraceExtensionActivationTest(t devtest.T, sys *presets.SimpleInterop) {
@@ -603,6 +716,20 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
 	chains[1].Batcher.Stop()
 
+	// -- Stage 2b: Advance safe heads past endTimestamp for "after chain head" tests --
+	nextTimestamp := endTimestamp + 1
+	for _, c := range chains {
+		target, err := c.Cfg.TargetBlockNumber(nextTimestamp)
+		t.Require().NoError(err)
+		c.EL.Reached(eth.Unsafe, target, 60)
+	}
+	chains[0].Batcher.Start()
+	chains[1].Batcher.Start()
+	sys.SuperRoots.AwaitValidatedTimestamp(nextTimestamp)
+	l1HeadAdvanced := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(nextTimestamp))
+	chains[0].Batcher.Stop()
+	chains[1].Batcher.Stop()
+
 	// --- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
@@ -616,9 +743,16 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 		return marshalTransition(start, step, firstOptimistic, secondOptimistic)
 	}
 
+	firstOptimisticNext := optimisticBlockAtTimestamp(t, chains[0], nextTimestamp)
+	secondOptimisticNext := optimisticBlockAtTimestamp(t, chains[1], nextTimestamp)
+	endNext := superRootAtTimestamp(t, chains, nextTimestamp)
+
 	// --- Stage 4: Transition test cases ------------------------------------
 	tests := buildTransitionTests(start, end, step1, step2, padding,
 		l1HeadCurrent, l1HeadBefore, l1HeadAfterFirst, endTimestamp)
+	tests = append(tests, buildAfterChainHeadTests(
+		chains, end, endNext, endTimestamp, l1HeadCurrent, l1HeadAdvanced,
+		firstOptimisticNext, secondOptimisticNext)...)
 
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
@@ -682,6 +816,20 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
 	chains[1].Batcher.Stop()
 
+	// -- Stage 2b: Advance safe heads past endTimestamp for "after chain head" tests --
+	nextTimestamp := endTimestamp + 1
+	for _, c := range chains {
+		target, err := c.Cfg.TargetBlockNumber(nextTimestamp)
+		t.Require().NoError(err)
+		c.EL.Reached(eth.Unsafe, target, 60)
+	}
+	chains[0].Batcher.Start()
+	chains[1].Batcher.Start()
+	sys.SuperRoots.AwaitValidatedTimestamp(nextTimestamp)
+	l1HeadAdvanced := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(nextTimestamp))
+	chains[0].Batcher.Stop()
+	chains[1].Batcher.Stop()
+
 	// -- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
@@ -695,9 +843,16 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 		return marshalTransition(start, step, firstOptimistic, secondOptimistic)
 	}
 
+	firstOptimisticNext := optimisticBlockAtTimestamp(t, chains[0], nextTimestamp)
+	secondOptimisticNext := optimisticBlockAtTimestamp(t, chains[1], nextTimestamp)
+	endNext := superRootAtTimestamp(t, chains, nextTimestamp)
+
 	// -- Stage 4: Transition test cases ------------------------------------
 	tests := buildTransitionTests(start, end, step1, step2, padding,
 		l1HeadCurrent, l1HeadBefore, l1HeadAfterFirst, endTimestamp)
+	tests = append(tests, buildAfterChainHeadTests(
+		chains, end, endNext, endTimestamp, l1HeadCurrent, l1HeadAdvanced,
+		firstOptimisticNext, secondOptimisticNext)...)
 
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
