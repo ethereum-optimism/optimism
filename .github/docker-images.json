@@ -80,6 +80,11 @@
       "check": "go",
       "paths": ["cannon/**", "op-preimage/**"]
     },
+    "op-deployer": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-deployer/**", "packages/contracts-bedrock/**"]
+    },
     "op-dripper": {
       "type": "go",
       "check": "go",

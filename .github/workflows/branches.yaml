@@ -10,6 +10,7 @@ on:
     paths:
       - 'op-*/**'
       - 'cannon/**'
+      - 'packages/contracts-bedrock/**'
       - 'rust/**'
       - 'ops/docker/**'
       - 'ops/scripts/compute-git-versions.sh'
