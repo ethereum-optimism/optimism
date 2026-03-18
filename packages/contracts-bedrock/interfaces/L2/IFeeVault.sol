@@ -5,7 +5,6 @@ import { Types } from "src/libraries/Types.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 interface IFeeVault is IProxyAdminOwnedBase {
-    error FeeVault_OnlyProxyAdminOwner();
     error InvalidInitialization();
     error NotInitializing();
 

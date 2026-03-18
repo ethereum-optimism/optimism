@@ -349,11 +349,6 @@
   },
   {
     "inputs": [],
-    "name": "FeeVault_OnlyProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
