@@ -40,3 +40,16 @@ func TestPreinteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 	)
 	sfp.RunVariedBlockTimesTest(t, sys)
 }
+
+func TestPreinteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropIsthmusSuper(
+		t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithL2BlockTimes(map[eth.ChainID]uint64{
+			sysgo.DefaultL2AID: 2,
+			sysgo.DefaultL2BID: 1,
+		}),
+	)
+	sfp.RunVariedBlockTimesTest(t, sys)
+}
