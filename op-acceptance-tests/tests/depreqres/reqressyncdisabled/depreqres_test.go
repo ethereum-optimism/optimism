@@ -28,6 +28,10 @@ func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 	sys.L2CLB.DisconnectPeer(sys.L2CL)
 	sys.L2CL.DisconnectPeer(sys.L2CLB)
 
+	l.Info("Wait for the CL nodes to be disconnected")
+	sys.L2CL.WaitForPeerDisconnected(sys.L2CLB)
+	sys.L2CLB.WaitForPeerDisconnected(sys.L2CL)
+
 	l.Info("Wait for L2CLB unsafe head to stall after disconnect")
 	sys.L2CLB.WaitForStall(types.LocalUnsafe)
 
