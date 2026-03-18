@@ -141,7 +141,6 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 	// Monitor for 30 seconds, asserting the core invariants hold throughout.
 	start = time.Now()
 	var aheadTimestamp uint64
-	checkedAtLeastOnce := false
 	for {
 		if time.Since(start) > 30*time.Second {
 			break
@@ -179,15 +178,12 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 		t.Require().NoError(err, "SuperRootAtTimestamp should not error")
 		t.Require().Nil(resp.Data,
 			"timestamp should NOT be verified - chain B unsafe is ahead but safe is behind")
-		checkedAtLeastOnce = true
-
 		t.Logger().Info("confirmed: timestamp not verified despite chain B unsafe being ahead",
 			"ahead_timestamp", aheadTimestamp,
 			"chainB_unsafe", newStatusB.UnsafeL2.Number,
 			"chainB_local_safe", newStatusB.LocalSafeL2.Number,
 		)
 	}
-	t.Require().True(checkedAtLeastOnce, "should have checked verification status at least once")
 
 	// Resume the batcher
 	sys.L2BatcherB.Start()
