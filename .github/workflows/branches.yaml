@@ -316,7 +316,9 @@ jobs:
       IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
     steps:
       - name: Run image
-        run: docker run $IMAGE ${{ matrix.image_name }} --version
+        env:
+          IMAGE_NAME: ${{ matrix.image_name }}
+        run: docker run "$IMAGE" "$IMAGE_NAME" --version
 
   # Separate cross-platform check for Rust images (they use ENTRYPOINT instead of CMD)
   check-cross-platform-rust:
@@ -337,7 +339,7 @@ jobs:
       IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
     steps:
       - name: Run image
-        run: docker run $IMAGE --version
+        run: docker run "$IMAGE" --version
 
   # Gate job for branch protection — provides a stable check name regardless of dynamic matrix contents
   docker-build-result:
@@ -346,42 +348,52 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check results
+        env:
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
+          HAS_IMAGES: ${{ needs.detect-changes.outputs.has_images }}
+          IS_FORK: ${{ needs.detect-changes.outputs.is_fork }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          BUILD_FORK_RESULT: ${{ needs.build-fork.result }}
+          HAS_GO: ${{ needs.detect-changes.outputs.has_go_check_images }}
+          HAS_RUST: ${{ needs.detect-changes.outputs.has_rust_check_images }}
+          GO_CHECK_RESULT: ${{ needs.check-cross-platform.result }}
+          RUST_CHECK_RESULT: ${{ needs.check-cross-platform-rust.result }}
         run: |
           # Fail if detect-changes itself failed (otherwise empty outputs silently pass)
-          if [[ "${{ needs.detect-changes.result }}" != "success" ]]; then
-            echo "detect-changes failed: ${{ needs.detect-changes.result }}"
+          if [[ "$DETECT_RESULT" != "success" ]]; then
+            echo "detect-changes failed: $DETECT_RESULT"
             exit 1
           fi
 
           # If no images needed building, that's a success
-          if [[ "${{ needs.detect-changes.outputs.has_images }}" != "true" ]]; then
+          if [[ "$HAS_IMAGES" != "true" ]]; then
             echo "No images needed building — success"
             exit 0
           fi
 
           # Check that the applicable build job succeeded
-          if [[ "${{ needs.detect-changes.outputs.is_fork }}" == "true" ]]; then
-            BUILD_RESULT="${{ needs.build-fork.result }}"
+          if [[ "$IS_FORK" == "true" ]]; then
+            RESULT="$BUILD_FORK_RESULT"
           else
-            BUILD_RESULT="${{ needs.build.result }}"
+            RESULT="$BUILD_RESULT"
           fi
 
-          if [[ "$BUILD_RESULT" != "success" ]]; then
-            echo "Build failed with result: $BUILD_RESULT"
+          if [[ "$RESULT" != "success" ]]; then
+            echo "Build failed with result: $RESULT"
             exit 1
           fi
 
           # Check cross-platform results (they use always() so check explicitly)
-          if [[ "${{ needs.detect-changes.outputs.has_go_check_images }}" == "true" ]]; then
-            if [[ "${{ needs.check-cross-platform.result }}" != "success" ]]; then
-              echo "Go cross-platform check failed: ${{ needs.check-cross-platform.result }}"
+          if [[ "$HAS_GO" == "true" ]]; then
+            if [[ "$GO_CHECK_RESULT" != "success" ]]; then
+              echo "Go cross-platform check failed: $GO_CHECK_RESULT"
               exit 1
             fi
           fi
 
-          if [[ "${{ needs.detect-changes.outputs.has_rust_check_images }}" == "true" ]]; then
-            if [[ "${{ needs.check-cross-platform-rust.result }}" != "success" ]]; then
-              echo "Rust cross-platform check failed: ${{ needs.check-cross-platform-rust.result }}"
+          if [[ "$HAS_RUST" == "true" ]]; then
+            if [[ "$RUST_CHECK_RESULT" != "success" ]]; then
+              echo "Rust cross-platform check failed: $RUST_CHECK_RESULT"
               exit 1
             fi
           fi

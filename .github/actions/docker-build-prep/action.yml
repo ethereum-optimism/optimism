@@ -27,8 +27,10 @@ runs:
     - name: Compute GIT_VERSION for all images
       id: compute_versions
       shell: bash
+      env:
+        GIT_COMMIT: ${{ github.sha }}
       run: |
-        VERSIONS=$(GIT_COMMIT="${{ github.sha }}" just compute-git-versions)
+        VERSIONS=$(just compute-git-versions)
         echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
         echo "Computed versions: $VERSIONS"
 
