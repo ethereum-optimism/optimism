@@ -135,9 +135,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when a chain attempts to upgrade to custom gas token after initial deployment.
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
 
-    /// @notice Thrown when incompatible dev features are enabled simultaneously.
-    error OPContractsManagerV2_IncompatibleDevFeatures();
-
     /// @notice Thrown when an invalid upgrade sequence is provided.
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
 
@@ -699,14 +696,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         returns (ChainContracts memory)
     {
-        // SUPER_ROOT_GAMES_MIGRATION and OPTIMISM_PORTAL_INTEROP are mutually exclusive.
-        if (
-            isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-                && isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
-        ) {
-            revert OPContractsManagerV2_IncompatibleDevFeatures();
-        }
-
         // Validate the config based on mode.
         if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION) && _isInitialDeployment) {
             // Initial deploy with migration flag: validate SUPER_ game types.

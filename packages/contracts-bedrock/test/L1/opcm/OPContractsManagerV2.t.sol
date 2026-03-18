@@ -472,9 +472,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
 /// @title OPContractsManagerV2_FeatSuperRootMigration_Test
 /// @notice Tests the super root games migration mode in OPContractsManagerV2.upgrade.
 contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV2_Upgrade_TestInit {
-    /// @notice The container address cached for mocking feature flags
-    address containerAddr;
-
     /// @notice This test IS a migration mode test.
     function _isMigrationModeTest() internal pure override returns (bool) {
         return true;
@@ -490,27 +487,6 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
 
         // Run all past upgrades first.
         runPastUpgrades(chainPAO);
-
-        // Cache the container address for mocking (used by interop-incompatibility test).
-        containerAddr = address(opcmV2.contractsContainer());
-    }
-
-    /// @notice Tests that the migration flag cannot be used with the interop flag.
-    function test_upgrade_superRootMigrationWithInteropFlag_reverts() public {
-        // Mock the container to also report INTEROP as enabled alongside SUPER_ROOT_GAMES_MIGRATION.
-        // NOTE: This is the one case where mocking is unavoidable — we need BOTH flags enabled on
-        // the same container, but env vars alone would break other tests in this contract.
-        vm.mockCall(
-            containerAddr,
-            abi.encodeCall(IOPContractsManagerV2.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
-            abi.encode(true)
-        );
-
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            chainPAO,
-            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_IncompatibleDevFeatures.selector)
-        );
     }
 
     /// @notice Tests that malformed SUPER_ game configs are rejected on initial deploy.
