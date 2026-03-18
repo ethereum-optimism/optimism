@@ -44,9 +44,6 @@ parameters:
   c-heavy_fuzz_dispatch:
     type: boolean
     default: false
-  c-sync_test_op_node_dispatch:
-    type: boolean
-    default: false
   c-ai_contracts_test_dispatch:
     type: boolean
     default: false
@@ -3405,35 +3402,6 @@ workflows:
       - stale-check:
           context:
             - circleci-repo-optimism
-
-  scheduled-sync-test-op-node:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-sync_test_op_node_dispatch >>]
-    jobs:
-      - contracts-bedrock-build: # needed for sysgo tests
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate: # needed for sysgo tests
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - op-acceptance-sync-tests-docker:
-          name: "sync-test-<<matrix.network_preset>>-daily-<<matrix.l2_cl_syncmode>>"
-          gate: sync-test-op-node
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-          matrix:
-            parameters:
-              network_preset: ["op-sepolia", "unichain-sepolia", "op-mainnet"]
-              l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
   scheduled-heavy-fuzz-tests:
     when:
