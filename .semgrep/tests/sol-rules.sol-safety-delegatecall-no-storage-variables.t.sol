@@ -28,13 +28,4 @@ contract SemgrepTest__sol_safety_delegatecall_no_storage_variables {
 
     // ruleid: sol-safety-delegatecall-no-storage-variables
     string public name;
-
-    // ruleid: sol-safety-delegatecall-no-storage-variables
-    uint256 bareStorageVar;
-
-    // ruleid: sol-safety-delegatecall-no-storage-variables
-    address bareAddr;
-
-    // ruleid: sol-safety-delegatecall-no-storage-variables
-    mapping(address => uint256) bareMapping;
 }

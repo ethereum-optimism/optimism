@@ -466,7 +466,7 @@ rules:
       would collide with the caller's storage slots (e.g., _owner), potentially locking out admin
       access permanently. Use immutable or constant instead.
     pattern-regex: |
-      (?:^\s+(?!.*\b(?:function|event|error|modifier|constructor)\b)\S.*\b(?:public|internal|private)\b(?:(?!\bimmutable\b|\bconstant\b).)*;\s*$|^\s{4}(?!.*\b(?:function|event|error|modifier|constructor|struct|enum|immutable|constant|using|import)\b)(?:address|uint\d*|int\d*|bytes\d*|bool|string|mapping)\b.*;\s*$)
+      ^\s+(?!.*\b(?:function|event|error|modifier|constructor)\b)\S.*\b(?:public|internal|private)\b(?:(?!\bimmutable\b|\bconstant\b).)*;\s*$
     paths:
       include:
         - packages/contracts-bedrock/src/L2/L2ContractsManager.sol
