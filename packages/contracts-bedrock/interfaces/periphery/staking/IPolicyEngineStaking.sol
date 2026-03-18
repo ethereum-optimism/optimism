@@ -83,8 +83,8 @@ interface IPolicyEngineStaking is ISemver {
     ///         `acceptOwnership` to finalize the transfer (two-step pattern). Only callable
     ///         by owner.
     ///
-    /// @param _newOwner The address of the nominated owner.
-    function transferOwnership(address _newOwner) external;
+    /// @param newOwner The address of the nominated owner.
+    function transferOwnership(address newOwner) external;
 
     /// @notice Accepts ownership after being nominated via `transferOwnership`.
     ///         Only callable by the pending owner.
