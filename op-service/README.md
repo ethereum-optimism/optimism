@@ -61,9 +61,9 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 From `op-service` dir:
 ```bash
 # Run Go tests
-make test
+just test
 # Run Go fuzz tests
-make fuzz
+just fuzz
 ```
 
 ## Product

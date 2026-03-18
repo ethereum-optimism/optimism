@@ -952,7 +952,7 @@ jobs:
             if [ "$SKIP_SLOW_TESTS" = "false" ]; then
               TIMEOUT="45m"
             fi
-            gotestsum --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
+            ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
             -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
           working_directory: cannon
       - codecov/upload:
@@ -1693,12 +1693,7 @@ jobs:
           path: ./tmp/test-results
       - run:
           name: Compress test logs
-          command: |
-            if [ -n "$CIRCLE_NODE_TOTAL" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-              tar -czf testlogs-${CIRCLE_NODE_INDEX}-of-${CIRCLE_NODE_TOTAL}.tar.gz -C ./tmp testlogs
-            else
-              tar -czf testlogs.tar.gz -C ./tmp testlogs
-            fi
+          command: tar -czf testlogs.tar.gz -C ./tmp testlogs
           when: always
       - run:
           name: Clean up op-deployer artifacts
@@ -1706,7 +1701,7 @@ jobs:
             rm -rf ~/.op-deployer/*
           when: always
       - store_artifacts:
-          path: testlogs*.tar.gz
+          path: testlogs.tar.gz
           when: always
       - when:
           condition: "<<parameters.notify>>"

@@ -4,7 +4,9 @@ pragma solidity ^0.8.0;
 import { IOptimismMintableERC721FactoryLegacyMapping } from
     "interfaces/L2/IOptimismMintableERC721FactoryLegacyMapping.sol";
 
-interface IOptimismMintableERC721Factory is IOptimismMintableERC721FactoryLegacyMapping {
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+
+interface IOptimismMintableERC721Factory is IOptimismMintableERC721FactoryLegacyMapping, IProxyAdminOwnedBase {
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     event Initialized(uint8 version);

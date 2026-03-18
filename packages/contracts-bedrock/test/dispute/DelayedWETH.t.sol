@@ -13,7 +13,7 @@ import "src/dispute/lib/Errors.sol";
 
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @title DelayedWETH_FallbackGasUser_Harness

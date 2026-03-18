@@ -2,10 +2,9 @@
 pragma solidity ^0.8.0;
 
 import { Types } from "src/libraries/Types.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
-interface IBaseFeeVault {
-    error FeeVault_OnlyProxyAdminOwner();
-
+interface IBaseFeeVault is IProxyAdminOwnedBase {
     error InvalidInitialization();
     error NotInitializing();
 

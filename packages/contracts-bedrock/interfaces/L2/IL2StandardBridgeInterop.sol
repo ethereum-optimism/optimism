@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
-interface IL2StandardBridgeInterop is IStandardBridge {
+interface IL2StandardBridgeInterop is IStandardBridge, IProxyAdminOwnedBase {
     error InvalidDecimals();
     error InvalidLegacyERC20Address();
     error InvalidSuperchainERC20Address();

@@ -15,6 +15,7 @@ import { ReentrantMockFeeVault } from "test/mocks/ReentrantMockFeeVault.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
@@ -112,6 +113,8 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
         // Deploy a fresh instance for testing initialization
         address impl = address(uint160(uint256(keccak256("FeeSplitterTestImpl3"))));
         vm.etch(impl, vm.getDeployedCode("FeeSplitter.sol:FeeSplitter"));
+        // Set EIP-1967 admin slot so ProxyAdminOwnedBase.proxyAdmin() resolves correctly
+        vm.store(impl, bytes32(Constants.PROXY_OWNER_ADDRESS), bytes32(uint256(uint160(Predeploys.PROXY_ADMIN))));
 
         vm.prank(_owner);
         IFeeSplitter(payable(impl)).initialize(ISharesCalculator(address(_defaultSharesCalculator)));
