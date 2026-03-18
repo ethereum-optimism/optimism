@@ -108,9 +108,7 @@ abstract contract FeeVault is ProxyAdminOwnedBase, Initializable {
     /// @dev If integrating the FeeSplitter contract, the minimum withdrawal amount must be set to 0 to
     /// avoid blocking withdrawals and disbursements for all vaults if one vault doesn't reach the threshold.
     function setMinWithdrawalAmount(uint256 _newMinWithdrawalAmount) external {
-        if (msg.sender != IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
-            revert FeeVault_OnlyProxyAdminOwner();
-        }
+        _assertOnlyProxyAdminOwner();
 
         uint256 oldWithdrawalAmount = minWithdrawalAmount;
         minWithdrawalAmount = _newMinWithdrawalAmount;
