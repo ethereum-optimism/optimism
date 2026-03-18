@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -37,6 +38,9 @@ func NewSingleChainInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Mult
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
+	cfg.DeployerOptions = append([]DeployerOption{
+		WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+	}, cfg.DeployerOptions...)
 	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
@@ -107,6 +111,9 @@ func NewSimpleInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChai
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
+	cfg.DeployerOptions = append([]DeployerOption{
+		WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+	}, cfg.DeployerOptions...)
 	migration, l1Net, l2ANet, l2BNet, fullCfgSet := buildTwoL2WorldWithState(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2ANet, l2BNet)
 	depSet := fullCfgSet.DependencySet
