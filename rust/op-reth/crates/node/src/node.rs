@@ -1022,7 +1022,52 @@ where
 
         let transaction_pool = TxPoolBuilder::new(ctx)
             .with_validator(validator)
-            .build_and_spawn_maintenance_task(blob_store, final_pool_config)?;
+            .build(blob_store, final_pool_config.clone());
+
+        if !ctx.config().txpool.disable_transactions_backup {
+            let data_dir = ctx.config().datadir();
+            let transactions_path = ctx
+                .config()
+                .txpool
+                .transactions_backup_path
+                .clone()
+                .unwrap_or_else(|| data_dir.txpool_transactions());
+            let transactions_backup_config =
+                reth_transaction_pool::maintain::LocalTransactionBackupConfig::with_local_txs_backup(
+                    transactions_path,
+                );
+
+            ctx.task_executor().spawn_critical_with_graceful_shutdown_signal(
+                "local transactions backup task",
+                {
+                    let transaction_pool = transaction_pool.clone();
+                    move |shutdown| {
+                        reth_transaction_pool::maintain::backup_local_transactions_task(
+                            shutdown,
+                            transaction_pool.clone(),
+                            transactions_backup_config,
+                        )
+                    }
+                },
+            );
+        }
+
+        let chain_events = ctx.provider().canonical_state_stream();
+        let client = ctx.provider().clone();
+        ctx.task_executor().spawn_critical_task(
+            "txpool maintenance task",
+            reth_optimism_txpool::maintain::op_maintain_transaction_pool_future(
+                client,
+                transaction_pool.clone(),
+                chain_events,
+                ctx.task_executor().clone(),
+                reth_transaction_pool::maintain::MaintainPoolConfig {
+                    max_tx_lifetime: final_pool_config.max_queued_lifetime,
+                    no_local_exemptions: final_pool_config.local_transactions_config.no_exemptions,
+                    ..Default::default()
+                },
+            ),
+        );
 
         info!(target: "reth::cli", "Transaction pool initialized");
         debug!(target: "reth::cli", "Spawned txpool maintenance task");
