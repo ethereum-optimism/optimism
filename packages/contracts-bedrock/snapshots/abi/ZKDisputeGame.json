@@ -672,6 +672,11 @@
   },
   {
     "inputs": [],
+    "name": "IncorrectDisputeGameFactory",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidBondDistributionMode",
     "type": "error"
   },
@@ -693,6 +698,11 @@
   {
     "inputs": [],
     "name": "ParentGameNotResolved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnexpectedGameType",
     "type": "error"
   },
   {

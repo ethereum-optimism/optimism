@@ -21,9 +21,11 @@ import {
     GameNotResolved,
     GamePaused,
     IncorrectBondAmount,
+    IncorrectDisputeGameFactory,
     InvalidBondDistributionMode,
     NoCreditToClaim,
     UnexpectedRootClaim,
+    UnexpectedGameType,
     UnknownChainId,
     ClaimAlreadyChallenged,
     InvalidParentGame,
@@ -46,6 +48,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 ///         with Clone-With-Immutable-Args (CWIA). Replaces OptimisticZkGame with a
 ///         spec-compliant, permissionless design that uses a generic IZKVerifier and
 ///         DelayedWETH for bond custody.
+/// @dev Derived from https://github.com/succinctlabs/op-succinct (at commit c13844a9bbc330cca69eef2538d8f8ec123e1653)
 contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
     //                         Enums                              //
@@ -131,9 +134,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
 
-    /// @notice A mapping of whether a claimant has unlocked their credit.
-    mapping(address => bool) public hasUnlockedCredit;
-
     /// @notice The dispute game factory that created this game.
     IDisputeGameFactory public disputeGameFactory;
 
@@ -169,6 +169,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice The L2 sequence number for which this game proposes an output root.
+    /// @dev Per spec, this value must fit within a uint64.
     function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
         l2SequenceNumber_ = _getArgUint256(0x58);
     }
@@ -273,6 +274,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
 
+        // INVARIANT: The game must be initialized by the dispute game factory.
+        if (msg.sender.code.length == 0) revert IncorrectDisputeGameFactory();
+
         // Revert if the calldata size is not the expected length.
         //
         // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
@@ -315,7 +319,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
             // INVARIANT: The parent game must be of the same game type.
             if (ZKDisputeGame(payable(address(proxy))).gameType().raw() != gameType().raw()) {
-                revert InvalidParentGame();
+                revert UnexpectedGameType();
             }
 
             startingProposal = Proposal({
@@ -541,13 +545,12 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             revert InvalidBondDistributionMode();
         }
 
-        // TODO: if this is not necessary
-        // https://github.com/ethereum-optimism/specs/pull/896/changes/BASE..2c12ff62d627e2b5ec275374b458e8cd692ec515#r2922194162
-        // we can optimize it
-
-        // Phase 1: Unlock the credit in DelayedWETH and return early.
-        if (!hasUnlockedCredit[_recipient]) {
-            hasUnlockedCredit[_recipient] = true;
+        // Phase 1: If the recipient still has credit, zero it out and unlock in DelayedWETH.
+        // Credits are only assigned once per address, so a non-zero balance means the unlock
+        // hasn't happened yet.
+        if (recipientCredit > 0) {
+            refundModeCredit[_recipient] = 0;
+            normalModeCredit[_recipient] = 0;
             weth().unlock(_recipient, recipientCredit);
             return;
         }
@@ -563,15 +566,11 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             revert NoCreditToClaim();
         }
 
-        // Set the recipient's credit balances to 0.
-        refundModeCredit[_recipient] = 0;
-        normalModeCredit[_recipient] = 0;
-
-        // Phase 2: Withdraw the WETH amount so it can be used here.
-        weth().withdraw(_recipient, recipientCredit);
+        // Withdraw the WETH amount so it can be used here.
+        weth().withdraw(_recipient, amount);
 
         // Transfer the credit to the recipient.
-        (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
+        (bool success,) = _recipient.call{ value: amount }(hex"");
         if (!success) revert BondTransferFailed();
     }
 

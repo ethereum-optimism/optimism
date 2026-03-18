@@ -6,10 +6,11 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Claim, Duration, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
+import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
 import {
     IncorrectBondAmount,
     UnexpectedRootClaim,
+    UnexpectedGameType,
     NoCreditToClaim,
     GameNotFinalized,
     GameNotResolved,
@@ -341,7 +342,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Try to create a game of differentGameType referencing childGameIndex (which is gameType).
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(InvalidParentGame.selector);
+        vm.expectRevert(UnexpectedGameType.selector);
         disputeGameFactory.create{ value: 1 ether }(
             differentGameType,
             Claim.wrap(keccak256("different-type-claim")),
@@ -776,6 +777,83 @@ contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_TestInit {
         // Game is resolved but not finalized - closeGame should revert with GameNotFinalized
         vm.expectRevert(GameNotFinalized.selector);
         game.claimCredit(proposer);
+    }
+
+    /// @notice Phase 1: claimCredit zeros the credit mapping and unlocks in DelayedWETH,
+    ///         then returns early. The recipient's on-chain credit is zeroed immediately.
+    function test_claimCredit_phaseOne_succeeds() public {
+        // Resolve and finalize the game so it can be closed.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // Before phase 1: proposer has non-zero refund credit.
+        assertGt(game.refundModeCredit(proposer), 0);
+
+        // Phase 1: credit is zeroed and unlock is queued in DelayedWETH.
+        game.claimCredit(proposer);
+
+        // After phase 1: on-chain credit mappings are zeroed.
+        assertEq(game.refundModeCredit(proposer), 0);
+        assertEq(game.normalModeCredit(proposer), 0);
+
+        // A pending withdrawal should exist in DelayedWETH.
+        (uint256 amount,) = delayedWeth.withdrawals(address(game), proposer);
+        assertGt(amount, 0);
+    }
+
+    /// @notice Phase 2: after the DelayedWETH delay, claimCredit withdraws and transfers ETH.
+    function test_claimCredit_phaseTwo_succeeds() public {
+        // Resolve and finalize the game.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        uint256 expectedCredit = game.refundModeCredit(proposer);
+
+        // Phase 1: unlock.
+        game.claimCredit(proposer);
+
+        // Warp past DelayedWETH delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+
+        uint256 balanceBefore = proposer.balance;
+
+        // Phase 2: withdraw and transfer.
+        game.claimCredit(proposer);
+
+        // Proposer received the ETH.
+        assertEq(proposer.balance, balanceBefore + expectedCredit);
+
+        // No pending withdrawal remains.
+        (uint256 remaining,) = delayedWeth.withdrawals(address(game), proposer);
+        assertEq(remaining, 0);
+    }
+
+    /// @notice claimCredit can be used to close the game even when the recipient has no credit.
+    ///         First call closes the game and returns without reverting; second call reverts.
+    function test_claimCredit_noCredit_succeeds() public {
+        // Resolve and finalize the game.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        address noCredit = address(0xdead);
+
+        assertTrue(game.bondDistributionMode() == BondDistributionMode.UNDECIDED);
+
+        // Game is open (UNDECIDED). First call closes it and returns without reverting.
+        game.claimCredit(noCredit);
+
+        // Game is now closed.
+        assertTrue(game.bondDistributionMode() != BondDistributionMode.UNDECIDED);
+
+        // Second call: game already closed, no credit → revert.
+        vm.expectRevert(NoCreditToClaim.selector);
+        game.claimCredit(noCredit);
     }
 }
 
