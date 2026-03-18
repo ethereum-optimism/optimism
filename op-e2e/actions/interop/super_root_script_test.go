@@ -108,8 +108,6 @@ func waitForSuperRootAtTimestamp(
 	timestamp uint64,
 	check func(*assert.CollectT, eth.SuperRootAtTimestampResponse),
 ) eth.SuperRootAtTimestampResponse {
-	t.Helper()
-
 	var resp eth.SuperRootAtTimestampResponse
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var err error
