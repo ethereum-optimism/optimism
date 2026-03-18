@@ -1,4 +1,4 @@
-contract SemgrepTest__sol_safety_l2cm_no_storage_variables {
+contract SemgrepTest__sol_safety_delegatecall_no_storage_variables {
     // ok: sol-safety-delegatecall-no-storage-variables
     address internal immutable THIS_L2CM;
 
@@ -28,4 +28,13 @@ contract SemgrepTest__sol_safety_l2cm_no_storage_variables {
 
     // ruleid: sol-safety-delegatecall-no-storage-variables
     string public name;
+
+    // ruleid: sol-safety-delegatecall-no-storage-variables
+    uint256 bareStorageVar;
+
+    // ruleid: sol-safety-delegatecall-no-storage-variables
+    address bareAddr;
+
+    // ruleid: sol-safety-delegatecall-no-storage-variables
+    mapping(address => uint256) bareMapping;
 }
