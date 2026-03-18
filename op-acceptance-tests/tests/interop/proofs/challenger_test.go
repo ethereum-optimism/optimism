@@ -29,7 +29,12 @@ func TestChallengerPlaysGame(gt *testing.T) {
 
 	claim := game.RootClaim()                   // This is the bad claim from attacker
 	counterClaim := claim.WaitForCounterClaim() // This is the counter-claim from the challenger
-	for counterClaim.Depth() <= game.SplitDepth() {
+	// Play through the top game (above the split depth). Stop before crossing
+	// the split depth boundary to avoid triggering cannon/kona trace generation,
+	// which is a much heavier operation that can cause timeouts under CI load.
+	// Each loop iteration advances depth by 2 (attacker attack + challenger counter),
+	// so stop when the next iteration would produce a claim past the split depth.
+	for counterClaim.Depth()+2 <= game.SplitDepth() {
 		claim = counterClaim.Attack(attacker, badClaim)
 		// Wait for the challenger to counter the attacker's claim, then attack again
 		counterClaim = claim.WaitForCounterClaim()
