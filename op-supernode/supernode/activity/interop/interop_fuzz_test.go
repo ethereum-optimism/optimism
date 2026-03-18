@@ -19,6 +19,34 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+func FuzzVerifyInteropMessages(f *testing.F) {
+	f.Fuzz(func(t *testing.T, seed int64, numChainsRaw uint8) {
+		params := RandomChainParams {
+			chainCount:             max(2, int(numChainsRaw)),
+			minLength:              20,
+			maxLength:              40,
+			sameTimestampFrequency: 5,
+			dependencyChance:       8,
+		}
+
+		fuzzInterop := newInteropFuzzHarness(t).WithParams(params).WithSeed(seed)
+
+		fuzzInterop.Build()
+
+		interop := fuzzInterop.interop
+
+		blocksAtTimestamp, _ := interop.checkChainsReady(10000)
+		result, err := interop.verifyInteropMessages(10000, blocksAtTimestamp)
+		require.NoError(t, err)
+
+		// P1: Valid messages never produce InvalidHeads
+		require.True(t, result.IsValid(), "P1: valid messages should produce valid result, got InvalidHeads: %v", result.InvalidHeads)
+
+		// P3: IsValid() ↔ len(InvalidHeads) == 0
+		require.Empty(t, result.InvalidHeads, "P3: InvalidHeads should be empty for valid result")
+	})
+}
+
 // =============================================================================
 // Test Harness
 // =============================================================================
@@ -29,7 +57,7 @@ type interopFuzzHarness struct {
 	params         RandomChainParams
 	seed           int64
 	randomChain    RandomChain
-	mocks          map[eth.ChainID]*RandomChainContainer
+	mocks          map[eth.ChainID]cc.ChainContainer
 	activationTime uint64
 	dataDir        string
 	skipBuild      bool // for tests that need custom construction
@@ -41,7 +69,7 @@ func newInteropFuzzHarness(t *testing.T) *interopFuzzHarness {
 	t.Parallel()
 	return &interopFuzzHarness{
 		t:              t,
-		mocks:          make(map[eth.ChainID]*RandomChainContainer),
+		mocks:          make(map[eth.ChainID]cc.ChainContainer),
 		activationTime: 1000,
 		dataDir:        t.TempDir(),
 	}
@@ -87,11 +115,9 @@ func (h *interopFuzzHarness) Build() *interopFuzzHarness {
 	if h.skipBuild {
 		return h
 	}
-	chains := make(map[eth.ChainID]cc.ChainContainer)
-	for id, mock := range h.mocks {
-		chains[id] = mock
-	}
-	h.interop = New(testLogger(), h.activationTime, chains, h.dataDir)
+	h.randomChain = h.params.MakeRandomChain(h.seed)
+	h.mocks = h.randomChain.GetContainers()
+	h.interop = New(testLogger(), h.activationTime, h.mocks, h.dataDir)
 	if h.interop != nil {
 		h.interop.ctx = context.Background()
 		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
@@ -109,7 +135,7 @@ func (h *interopFuzzHarness) Chains() map[eth.ChainID]cc.ChainContainer {
 }
 
 // Mock returns the mock for a given chain ID.
-func (h *interopFuzzHarness) Mock(id uint64) *RandomChainContainer {
+func (h *interopFuzzHarness) Mock(id uint64) cc.ChainContainer {
 	return h.mocks[eth.ChainIDFromUInt64(id)]
 }
 
@@ -181,19 +207,21 @@ type RandomChain struct {
 	receipts      map[eth.ChainID]map[eth.BlockID]types2.Receipts
 }
 
+var _ cc.ChainContainer = RandomChainContainer{}
+
 type RandomChainContainer struct {
 	chainID            eth.ChainID
 	randomChain        *RandomChain
 }
 
-func (c *RandomChainContainer) ID() eth.ChainID                                  { return c.chainID }
-func (c *RandomChainContainer) Start(ctx context.Context) error                  { return nil }
-func (c *RandomChainContainer) Stop(ctx context.Context) error                   { return nil }
-func (c *RandomChainContainer) Pause(ctx context.Context) error                  { return nil }
-func (c *RandomChainContainer) Resume(ctx context.Context) error                 { return nil }
-func (c *RandomChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
+func (c RandomChainContainer) ID() eth.ChainID                                  { return c.chainID }
+func (c RandomChainContainer) Start(ctx context.Context) error                  { return nil }
+func (c RandomChainContainer) Stop(ctx context.Context) error                   { return nil }
+func (c RandomChainContainer) Pause(ctx context.Context) error                  { return nil }
+func (c RandomChainContainer) Resume(ctx context.Context) error                 { return nil }
+func (c RandomChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
 
-func (c *RandomChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+func (c RandomChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	var theblock *eth.L2BlockRef = nil;
 	for _, block := range c.randomChain.chainBlocks[c.chainID] {
 		if block.Time <= ts {
@@ -208,70 +236,70 @@ func (c *RandomChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts
 	return eth.L2BlockRef{}, nil
 }
 
-func (c *RandomChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+func (c RandomChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	//TODO
 	return nil, nil
 }
 
-func (c *RandomChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+func (c RandomChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	//TODO
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 
-func (c *RandomChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+func (c RandomChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	//TODO
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 
-func (c *RandomChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (c RandomChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	//TODO
 	return eth.Bytes32{}, nil
 }
 
-func (c *RandomChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+func (c RandomChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
 	//TODO
 	return nil, nil
 }
 
-func (c *RandomChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
+func (c RandomChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	//TODO?
 	return nil
 }
 
-func (c *RandomChainContainer) FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types2.Receipts, error) {
+func (c RandomChainContainer) FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types2.Receipts, error) {
 	//TODO
 	myReceipts := c.randomChain.receipts[c.chainID];
 	receipt := myReceipts[blockHash];
 	return nil, receipt, nil
 }
 
-func (c *RandomChainContainer) BlockTime() uint64 {
+func (c RandomChainContainer) BlockTime() uint64 {
 	//TODO
 	return 1
 }
 
-func (c *RandomChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (c RandomChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
 	//TODO
 	return true, nil
 }
 
-func (c *RandomChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
+func (c RandomChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	//TODO
 	return false, nil
 }
 
-func (c *RandomChainContainer) SetResetCallback(cb cc.ResetCallback) {
+func (c RandomChainContainer) SetResetCallback(cb cc.ResetCallback) {
 	//TODO
 }
 
-func (rc *RandomChain) GetContainers() (map[eth.ChainID]*RandomChainContainer) {
-	chains := make(map[eth.ChainID]*RandomChainContainer);
+func (rc *RandomChain) GetContainers() (map[eth.ChainID]cc.ChainContainer) {
+	chains := make(map[eth.ChainID]cc.ChainContainer);
 	for _, chain := range rc.chainIDs {
 		container := RandomChainContainer {
 			chainID:     chain,
 			randomChain: rc,
 		}
-		chains[chain] = &container
+		chains[chain] = container
 	}
 	return chains
 }
