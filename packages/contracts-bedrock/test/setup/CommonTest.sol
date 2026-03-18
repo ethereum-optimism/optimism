@@ -109,6 +109,10 @@ abstract contract CommonTest is Test, Setup, Events {
         }
 
         if (useInteropOverride) {
+            // OPTIMISM_PORTAL_INTEROP and SUPER_ROOT_GAMES_MIGRATION are mutually exclusive.
+            if (Config.devFeatureSuperRootGamesMigration()) {
+                vm.skip(true);
+            }
             console.log("CommonTest: enabling interop");
             devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
             deploy.cfg().setUseInterop(true);
