@@ -137,6 +137,18 @@ func (n *OpGeth) Stop() {
 		n.logger.Warn("op-geth already stopped")
 		return
 	}
+	// Close proxies first to sever any lingering client connections (e.g. from
+	// kona-host or the challenger) before shutting down geth. Geth's
+	// node.Close() waits for all active HTTP/WS handlers to finish; if a
+	// client connected through the proxy hasn't closed its WebSocket, Close()
+	// blocks indefinitely. Closing the proxy forcefully terminates the TCP
+	// connections, allowing geth to shut down promptly.
+	if n.userProxy != nil {
+		n.userProxy.Close()
+	}
+	if n.authProxy != nil {
+		n.authProxy.Close()
+	}
 	n.logger.Info("Closing op-geth", "name", n.name, "chain", n.l2Net.ChainID())
 	closeErr := n.l2Geth.Close()
 	n.logger.Info("Closed op-geth", "name", n.name, "chain", n.l2Net.ChainID(), "err", closeErr)

@@ -131,6 +131,14 @@ func (n *OpReth) Start() {
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	// Close proxies first to sever lingering client connections before
+	// stopping the subprocess. See OpGeth.Stop for full rationale.
+	if n.userProxy != nil {
+		n.userProxy.Close()
+	}
+	if n.authProxy != nil {
+		n.authProxy.Close()
+	}
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
