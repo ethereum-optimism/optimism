@@ -87,6 +87,9 @@ parameters:
 
 orbs:
   path-filtering: circleci/path-filtering@3.0.0
+  utils: ethereum-optimism/circleci-utils@1.0.24
+  gcp-cli: circleci/gcp-cli@3.0.1
+  codecov: codecov/codecov@5.0.3
 
 workflows:
   setup:
