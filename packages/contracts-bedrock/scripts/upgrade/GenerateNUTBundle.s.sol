@@ -30,9 +30,6 @@ contract GenerateNUTBundle is Script {
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
 
-    /// @notice Current bundle artifact path.
-    string public constant CURRENT_BUNDLE_PATH = "snapshots/upgrades/current-upgrade-bundle.json";
-
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
     struct Output {
@@ -121,7 +118,7 @@ contract GenerateNUTBundle is Script {
         // Write transactions to artifact with metadata
         NetworkUpgradeTxns.BundleMetadata memory metadata =
             NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
-        NetworkUpgradeTxns.writeArtifact(txns, metadata, CURRENT_BUNDLE_PATH);
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, Constants.CURRENT_BUNDLE_PATH);
     }
 
     /// @notice Asserts the output is valid.

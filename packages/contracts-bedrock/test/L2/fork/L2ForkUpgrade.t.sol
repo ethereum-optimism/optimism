@@ -9,9 +9,11 @@ import { console } from "forge-std/console.sol";
 // Scripts
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
+import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -720,7 +722,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
     function test_l2ForkUpgrade_gasProfile_succeeds() public {
         // Read the bundle
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
-            NetworkUpgradeTxns.readArtifact(generateScript.CURRENT_BUNDLE_PATH());
+            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
 
         console.log(repeat("=", 100));
         console.log("GAS PROFILING REPORT");
@@ -747,7 +749,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit }(txn.data);
             uint256 gasAfter = gasleft();
 
-            require(success, string.concat("Transaction failed: ", txn.intent, " - ", _getRevertReason(returnData)));
+            require(success, string.concat("Transaction failed: ", txn.intent, " - ", UpgradeUtils.getRevertReason(returnData)));
 
             // Calculate gas used (including overhead)
             uint64 gasUsed = uint64(gasBefore - gasAfter);
@@ -819,35 +821,4 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         }
     }
 
-    /// @notice Extracts a revert reason from return data.
-    /// @param _returnData The return data from a failed call.
-    /// @return reason_ The revert reason string, or a default message if unavailable.
-    function _getRevertReason(bytes memory _returnData) internal pure returns (string memory reason_) {
-        if (_returnData.length >= 68) {
-            bytes4 errorSelector = bytes4(_returnData);
-            if (errorSelector == 0x08c379a0) {
-                assembly {
-                    reason_ := add(_returnData, 0x44)
-                }
-                return reason_;
-            }
-        }
-        if (_returnData.length > 0) {
-            return string(abi.encodePacked("0x", _toHexString(_returnData)));
-        }
-        return "Unknown error";
-    }
-
-    /// @notice Converts bytes to hex string.
-    /// @param _data The bytes to convert.
-    /// @return hex_ The hex string representation.
-    function _toHexString(bytes memory _data) internal pure returns (string memory hex_) {
-        bytes memory hexChars = "0123456789abcdef";
-        bytes memory result = new bytes(_data.length * 2);
-        for (uint256 i = 0; i < _data.length; i++) {
-            result[i * 2] = hexChars[uint8(_data[i] >> 4)];
-            result[i * 2 + 1] = hexChars[uint8(_data[i] & 0x0f)];
-        }
-        return string(result);
-    }
 }

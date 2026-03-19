@@ -194,6 +194,49 @@ library UpgradeUtils {
         });
     }
 
+    /// @notice Extracts a revert reason from return data.
+    /// @param _returnData The return data from a failed call.
+    /// @return reason_ The revert reason string, or a default message if unavailable.
+    function getRevertReason(bytes memory _returnData) internal pure returns (string memory reason_) {
+        // If the return data is at least 68 bytes, it might contain a revert reason
+        // 4 bytes for Error(string) selector + 32 bytes for offset + 32 bytes for length
+        if (_returnData.length >= 68) {
+            // Check if it's an Error(string) revert
+            bytes4 errorSelector = bytes4(_returnData);
+            if (errorSelector == 0x08c379a0) {
+                // Decode the string
+                assembly {
+                    // Skip the first 68 bytes (4 byte selector + 32 byte offset + 32 byte length)
+                    // to get to the actual string data
+                    reason_ := add(_returnData, 0x44)
+                }
+                return reason_;
+            }
+        }
+
+        // If we can't decode a revert reason, return hex representation
+        if (_returnData.length > 0) {
+            return string(abi.encodePacked("0x", toHexString(_returnData)));
+        }
+
+        return "Unknown error";
+    }
+
+    /// @notice Converts bytes to hex string.
+    /// @param _data The bytes to convert.
+    /// @return hex_ The hex string representation.
+    function toHexString(bytes memory _data) internal pure returns (string memory hex_) {
+        bytes memory hexChars = "0123456789abcdef";
+        bytes memory result = new bytes(_data.length * 2);
+
+        for (uint256 i = 0; i < _data.length; i++) {
+            result[i * 2] = hexChars[uint8(_data[i] >> 4)];
+            result[i * 2 + 1] = hexChars[uint8(_data[i] & 0x0f)];
+        }
+
+        return string(result);
+    }
+
     /// @notice Creates an upgrade transaction for a proxy contract.
     /// @dev The transaction calls IProxy(proxy).upgradeTo(implementation).
     ///      For the ProxyAdmin upgrade, the sender must be address(0) to use the
