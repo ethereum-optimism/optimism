@@ -42,10 +42,20 @@ import (
 
 type MixedL2ELKind string
 
+const DevstackL2ELKindEnvVar = "DEVSTACK_L2EL_KIND"
+
 const (
 	MixedL2ELOpGeth MixedL2ELKind = "op-geth"
 	MixedL2ELOpReth MixedL2ELKind = "op-reth"
 )
+
+// SkipOnOpReth skips the test when the L2 execution layer is op-reth
+// (i.e. DEVSTACK_L2EL_KIND is not "op-geth").
+func SkipOnOpReth(t devtest.T, reason string) {
+	if MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar)) == MixedL2ELOpReth {
+		t.Skipf("skipping on op-reth: %s", reason)
+	}
+}
 
 type MixedL2CLKind string
 

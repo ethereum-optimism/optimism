@@ -101,7 +101,7 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 // startSupernodeEL starts an L2 EL node for the supernode runtime.
 // It respects the DEVSTACK_L2EL_KIND env var: "op-geth" uses op-geth, otherwise op-reth is used.
 func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
-	if os.Getenv("DEVSTACK_L2EL_KIND") == string(MixedL2ELOpGeth) {
+	if MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar)) == MixedL2ELOpGeth {
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 	}
 	return startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil)
