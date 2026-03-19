@@ -18,7 +18,8 @@ contract ExecuteNUTBundle is Script {
     /// @notice Executes transactions from the current bundle artifact.
     function execute() public {
         console.log("ExecuteNUTBundle: Reading bundle from", Constants.CURRENT_BUNDLE_PATH);
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
+            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
         console.log("ExecuteNUTBundle: Loaded", txns.length, "transactions");
         _executeAll(txns);
     }

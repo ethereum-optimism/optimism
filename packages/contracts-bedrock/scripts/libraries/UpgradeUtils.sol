@@ -8,6 +8,7 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -216,25 +217,10 @@ library UpgradeUtils {
 
         // If we can't decode a revert reason, return hex representation
         if (_returnData.length > 0) {
-            return string(abi.encodePacked("0x", toHexString(_returnData)));
+            return string(abi.encodePacked(LibString.toHexString(_returnData)));
         }
 
         return "Unknown error";
-    }
-
-    /// @notice Converts bytes to hex string.
-    /// @param _data The bytes to convert.
-    /// @return hex_ The hex string representation.
-    function toHexString(bytes memory _data) internal pure returns (string memory hex_) {
-        bytes memory hexChars = "0123456789abcdef";
-        bytes memory result = new bytes(_data.length * 2);
-
-        for (uint256 i = 0; i < _data.length; i++) {
-            result[i * 2] = hexChars[uint8(_data[i] >> 4)];
-            result[i * 2 + 1] = hexChars[uint8(_data[i] & 0x0f)];
-        }
-
-        return string(result);
     }
 
     /// @notice Creates an upgrade transaction for a proxy contract.

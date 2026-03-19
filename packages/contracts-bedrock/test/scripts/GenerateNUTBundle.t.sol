@@ -10,6 +10,7 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title GenerateNUTBundleTest
 /// @notice Tests that GenerateNUTBundle correctly generates Network Upgrade Transaction bundles
@@ -30,7 +31,7 @@ contract GenerateNUTBundleTest is Test {
 
         // Verify artifact written correctly
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns =
-            NetworkUpgradeTxns.readArtifact(script.CURRENT_BUNDLE_PATH());
+            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
         assertEq(readTxns.length, output.txns.length, "Transaction count mismatch");
         for (uint256 i = 0; i < readTxns.length; i++) {
             assertEq(readTxns[i].intent, output.txns[i].intent, "Intent mismatch");
