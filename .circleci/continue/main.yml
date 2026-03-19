@@ -3284,8 +3284,7 @@ workflows:
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
-      # To add a new mandatory check: add it to requires here AND to the job's
-      # REQUIRED_JOBS list above. No GitHub ruleset changes needed.
+      # To add a new mandatory check: add it to requires here. No GitHub ruleset changes needed.
       - ci-gate-test-fail:
           filters:
             branches:
