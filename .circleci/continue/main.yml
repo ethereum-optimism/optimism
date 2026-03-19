@@ -155,6 +155,16 @@ parameters:
     type: string
     default: "v0.0"
 
+orbs:
+  utils: ethereum-optimism/circleci-utils@dev:do-not-exists
+  go: circleci/go@1.8.0
+  gcp-cli: circleci/gcp-cli@3.0.1
+  slack: circleci/slack@6.0.0
+  shellcheck: circleci/shellcheck@3.2.0
+  codecov: codecov/codecov@5.0.3
+  docker: circleci/docker@2.8.2
+  github-cli: circleci/github-cli@2.7.0
+
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
