@@ -34,6 +34,10 @@ func TestFollowClient_GetFollowStatus(t *testing.T) {
 				Hash:   common.Hash{0x03},
 				Number: 45, // LocalSafe can be different from (cross) Safe
 			},
+			PendingSafeL2: eth.L2BlockRef{
+				Hash:   common.Hash{0x05},
+				Number: 42,
+			},
 			FinalizedL2: eth.L2BlockRef{
 				Hash:   common.Hash{0x04},
 				Number: 40,
@@ -54,6 +58,7 @@ func TestFollowClient_GetFollowStatus(t *testing.T) {
 		require.Equal(t, mockSyncStatus.SafeL2, status.SafeL2, "SafeL2 should be copied")
 		require.Equal(t, mockSyncStatus.FinalizedL2, status.FinalizedL2, "FinalizedL2 should be copied")
 		require.Equal(t, mockSyncStatus.LocalSafeL2, status.LocalSafeL2, "LocalSafeL2 should be copied")
+		require.Equal(t, mockSyncStatus.PendingSafeL2, status.PendingSafeL2, "PendingSafeL2 should be copied")
 	})
 
 	t.Run("Error", func(t *testing.T) {
