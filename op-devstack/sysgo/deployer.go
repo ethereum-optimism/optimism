@@ -317,6 +317,18 @@ func WithDeployerMatchL1PAO() DeployerPipelineOption {
 	}
 }
 
+// WithL2BlockTimes sets per-chain L2 block times. The map keys are L2 chain
+// IDs and values are the desired block time in seconds for that chain.
+func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			if bt, ok := blockTimes[l2Cfg.ChainID()]; ok {
+				l2Cfg.WithBlockTime(bt)
+			}
+		}
+	}
+}
+
 // WithFinalizationPeriodSeconds overrides the number of L1 blocks in a sequencing window, applied to all L2s.
 func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {

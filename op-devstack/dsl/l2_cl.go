@@ -399,7 +399,7 @@ func (cl *L2CLNode) IsP2PConnected(peer *L2CLNode) {
 	cl.require.NoError(err, "peer not connected")
 }
 
-func (cl *L2CLNode) IsP2PDisconnected(peer *L2CLNode) {
+func (cl *L2CLNode) WaitForPeerDisconnected(peer *L2CLNode) {
 	myInfo := cl.PeerInfo()
 	strategy := &retry.ExponentialStrategy{Min: 10 * time.Second, Max: 30 * time.Second, MaxJitter: 250 * time.Millisecond}
 	err := retry.Do0(cl.ctx, 5, strategy, func() error {

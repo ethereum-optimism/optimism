@@ -3,6 +3,7 @@ package presets
 import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type Option interface {
@@ -262,4 +263,11 @@ func WithRequireInteropNotAtGenesis() Option {
 			cfg.RequireInteropNotAtGen = true
 		},
 	}
+}
+
+// WithL2BlockTimes configures per-chain L2 block times via the deployer.
+// The blockTimes map keys are L2 chain IDs and values are the desired block
+// time in seconds for that chain.
+func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) Option {
+	return WithDeployerOptions(sysgo.WithL2BlockTimes(blockTimes))
 }
