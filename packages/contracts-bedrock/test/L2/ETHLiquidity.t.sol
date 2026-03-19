@@ -92,20 +92,17 @@ contract ETHLiquidity_Burn_Test is ETHLiquidity_TestInit {
 /// @title ETHLiquidity_Mint_Test
 /// @notice Tests the `mint` function of the `ETHLiquidity` contract.
 contract ETHLiquidity_Mint_Test is ETHLiquidity_TestInit {
-    /// @notice Tests that the mint function fails when the amount requested is greater than the
-    ///         available balance. In practice this should never happen because the starting
-    ///         balance is expected to be uint248 wei, the total ETH supply is far less than that
-    ///         amount, and the only contract that pulls from here is the SuperchainETHBridge
-    ///         contract which will always burn ETH somewhere before minting it somewhere else. It
-    ///         needs to be a system-wide invariant that this condition is never triggered in the
-    ///         first place but it is the behavior we expect if it does happen.
-    function test_mint_moreThanAvailableBalance_fails() public {
-        // Arrange
-        uint256 amount = STARTING_LIQUIDITY_BALANCE + 1;
+    /// @notice Tests that the mint function fails when the amount
+    ///         requested is greater than the available balance.
+    /// @param _amount Amount of ETH exceeding the available balance.
+    function testFuzz_mint_moreThanAvailableBalance_reverts(uint256 _amount) public {
+        // Bound
+        _amount = bound(_amount, STARTING_LIQUIDITY_BALANCE + 1, type(uint256).max);
 
         // Act
+        vm.prank(address(superchainETHBridge));
         vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
-        ethLiquidity.mint(amount);
+        ethLiquidity.mint(_amount);
 
         // Assert
         assertEq(address(superchainETHBridge).balance, 0);
