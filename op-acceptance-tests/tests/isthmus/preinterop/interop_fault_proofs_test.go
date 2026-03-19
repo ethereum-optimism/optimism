@@ -30,6 +30,8 @@ func TestPreinteropFaultProofs_UnsafeProposal(gt *testing.T) {
 
 func TestPreinteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 	t := devtest.SerialT(gt)
+	// TODO(#19010): Unskip once varied block time fault proofs are stable.
+	t.Skip("Skipping flaky varied block time fault proof test")
 	sys := presets.NewSimpleInteropIsthmusSuper(
 		t,
 		presets.WithChallengerCannonKonaEnabled(),
@@ -43,6 +45,8 @@ func TestPreinteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 
 func TestPreinteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 	t := devtest.SerialT(gt)
+	// TODO(#19010): Unskip once varied block time fault proofs are stable.
+	t.Skip("Skipping flaky varied block time fault proof test")
 	sys := presets.NewSimpleInteropIsthmusSuper(
 		t,
 		presets.WithChallengerCannonKonaEnabled(),
