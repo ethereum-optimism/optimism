@@ -697,21 +697,17 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	startTimestamp := endTimestamp - 1
 
 	// Ensure both chains have produced the target blocks as unsafe.
+	// Stop each sequencer immediately after reaching the target to prevent producing
+	// blocks beyond endTimestamp — which would cause batchers to submit extra data
+	// and make l1HeadCurrent cover more timestamps than intended.
 	for _, c := range chains {
 		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
+		c.CLNode.StopSequencer()
 	}
 
 	// -- Stage 2: Capture L1 heads at different batch-availability points --
-	//
-	// Stop sequencers so the batchers only submit data for blocks up to the current
-	// unsafe heads (approximately endTimestamp). This ensures l1HeadCurrent doesn't
-	// contain batch data for blocks well beyond endTimestamp — which is critical for
-	// the "after chain head" tests that rely on a restricted L1 head.
-	for _, c := range chains {
-		c.CLNode.StopSequencer()
-	}
 
 	// L1 head where neither chain has batch data at endTimestamp.
 	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
@@ -728,18 +724,14 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].Batcher.Stop()
 
 	// -- Stage 2b: Advance safe heads past endTimestamp for "after chain head" tests --
-	// Restart sequencers so they produce blocks at the next timestamp.
-	for _, c := range chains {
-		c.CLNode.StartSequencer()
-	}
+	// Start each sequencer just long enough to produce the next block, then stop it
+	// immediately to prevent blocks beyond nextTimestamp.
 	nextTimestamp := endTimestamp + 1
 	for _, c := range chains {
+		c.CLNode.StartSequencer()
 		target, err := c.Cfg.TargetBlockNumber(nextTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
-	}
-	// Stop sequencers again to limit what the batchers submit.
-	for _, c := range chains {
 		c.CLNode.StopSequencer()
 	}
 	chains[0].Batcher.Start()
@@ -748,10 +740,6 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	l1HeadAdvanced := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(nextTimestamp))
 	chains[0].Batcher.Stop()
 	chains[1].Batcher.Stop()
-	// Restart sequencers for cleanup.
-	for _, c := range chains {
-		c.CLNode.StartSequencer()
-	}
 
 	// --- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
@@ -820,18 +808,17 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	startTimestamp := endTimestamp - 1
 
 	// Ensure both chains have produced the target blocks as unsafe.
+	// Stop each sequencer immediately after reaching the target to prevent producing
+	// blocks beyond endTimestamp — which would cause batchers to submit extra data
+	// and make l1HeadCurrent cover more timestamps than intended.
 	for _, c := range chains {
 		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
+		c.CLNode.StopSequencer()
 	}
 
 	// -- Stage 2: Capture L1 heads at different batch-availability points --
-	// Stop sequencers so the batchers only submit data for blocks up to the current
-	// unsafe heads (approximately endTimestamp).
-	for _, c := range chains {
-		c.CLNode.StopSequencer()
-	}
 
 	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
 
@@ -845,18 +832,14 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].Batcher.Stop()
 
 	// -- Stage 2b: Advance safe heads past endTimestamp for "after chain head" tests --
-	// Restart sequencers so they produce blocks at the next timestamp.
-	for _, c := range chains {
-		c.CLNode.StartSequencer()
-	}
+	// Start each sequencer just long enough to produce the next block, then stop it
+	// immediately to prevent blocks beyond nextTimestamp.
 	nextTimestamp := endTimestamp + 1
 	for _, c := range chains {
+		c.CLNode.StartSequencer()
 		target, err := c.Cfg.TargetBlockNumber(nextTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
-	}
-	// Stop sequencers again to limit what the batchers submit.
-	for _, c := range chains {
 		c.CLNode.StopSequencer()
 	}
 	chains[0].Batcher.Start()
@@ -865,10 +848,6 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	l1HeadAdvanced := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(nextTimestamp))
 	chains[0].Batcher.Stop()
 	chains[1].Batcher.Stop()
-	// Restart sequencers for cleanup.
-	for _, c := range chains {
-		c.CLNode.StartSequencer()
-	}
 
 	// -- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
