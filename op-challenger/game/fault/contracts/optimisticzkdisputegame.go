@@ -51,11 +51,11 @@ var (
 
 type claimData struct {
 	ParentIndex uint32
-	CounteredBy common.Address
-	Prover      common.Address
-	Claim       common.Hash
 	Status      ProposalStatus
+	Challenger  common.Address
+	Prover      common.Address
 	Deadline    uint64
+	Claim       common.Hash
 }
 
 type OptimisticZKDisputeGameContract interface {
@@ -293,18 +293,18 @@ func (g *OptimisticZKDisputeGameContractLatest) resolveCall() *batching.Contract
 
 func (g *OptimisticZKDisputeGameContractLatest) decodeClaimData(result *batching.CallResult) claimData {
 	parentIndex := result.GetUint32(0)
-	counteredBy := result.GetAddress(1)
-	prover := result.GetAddress(2)
-	claim := result.GetHash(3)
-	status := result.GetUint8(4)
-	deadline := result.GetUint64(5)
+	status := result.GetUint8(1)
+	challenger := result.GetAddress(2)
+	prover := result.GetAddress(3)
+	deadline := result.GetUint64(4)
+	claim := result.GetHash(5)
 	return claimData{
 		ParentIndex: parentIndex,
-		CounteredBy: counteredBy,
-		Prover:      prover,
-		Claim:       claim,
 		Status:      ProposalStatus(status),
+		Challenger:  challenger,
+		Prover:      prover,
 		Deadline:    deadline,
+		Claim:       claim,
 	}
 }
 

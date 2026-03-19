@@ -168,14 +168,14 @@ func TestZKGetChallengerMetadata(t *testing.T) {
 			stubRpc, contract := setupZKDisputeGameTest(t, version)
 			expectedParentIndex := uint32(525)
 			expectedProposalStatus := ProposalStatusChallengedAndValidProofProvided
-			counteredBy := common.Address{0xad}
+			challenger := common.Address{0xad}
 			prover := common.Address{0xac}
 			expectedL2BlockNumber := uint64(123)
 			expectedRootClaim := common.Hash{0x01, 0x02}
 			expectedDeadline := time.Unix(84928429020, 0)
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(zkGameAddr, methodClaimData, block, nil, []interface{}{
-				expectedParentIndex, counteredBy, prover, expectedRootClaim, expectedProposalStatus, uint64(expectedDeadline.Unix()),
+				expectedParentIndex, expectedProposalStatus, challenger, prover, uint64(expectedDeadline.Unix()), expectedRootClaim,
 			})
 			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 			actual, err := contract.GetChallengerMetadata(context.Background(), block)
