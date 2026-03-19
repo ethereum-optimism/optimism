@@ -21,7 +21,7 @@ const (
 	SuperAsteriscKonaGameType GameType = 7 // Not supported by op-challenger
 	CannonKonaGameType        GameType = 8
 	SuperCannonKonaGameType   GameType = 9
-	ZKDisputeGameType      GameType = 10
+	ZKDisputeGameType         GameType = 10
 	FastGameType              GameType = 254
 	AlphabetGameType          GameType = 255
 	KailuaGameType            GameType = 1337           // Not supported by op-challenger
