@@ -156,7 +156,7 @@ parameters:
     default: "v0.0"
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@dev:do-not-exists
+  utils: ethereum-optimism/circleci-utils@dev:verify-required-job
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
