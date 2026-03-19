@@ -4,6 +4,9 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
 
+// Libraries
+import { SemverComp } from "src/libraries/SemverComp.sol";
+
 // Error imports
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 import { InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
@@ -40,6 +43,15 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
     function test_setup_succeeds() public view {
         // Assert
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
+    }
+}
+
+/// @title ETHLiquidity_Version_Test
+/// @notice Tests the `version` function of the `ETHLiquidity` contract.
+contract ETHLiquidity_Version_Test is ETHLiquidity_TestInit {
+    /// @notice Tests that the version returns a valid semver string.
+    function test_version_validSemver_succeeds() external view {
+        SemverComp.parse(ethLiquidity.version());
     }
 }
 
