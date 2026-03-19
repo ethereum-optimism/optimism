@@ -90,6 +90,11 @@ orbs:
   utils: ethereum-optimism/circleci-utils@1.0.24
   gcp-cli: circleci/gcp-cli@3.0.1
   codecov: codecov/codecov@5.0.3
+  go: circleci/go@1.8.0
+  slack: circleci/slack@6.0.0
+  shellcheck: circleci/shellcheck@3.2.0
+  docker: circleci/docker@2.8.2
+  github-cli: circleci/github-cli@2.7.0
 
 workflows:
   setup:
