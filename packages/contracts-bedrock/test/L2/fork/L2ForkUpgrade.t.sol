@@ -110,7 +110,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
             // L1Block uses CGT variant on custom gas token networks
             string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
-            console.log("hello there", implName);
             (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
         } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
             // L2ToL1MessagePasser uses CGT variant on custom gas token networks
