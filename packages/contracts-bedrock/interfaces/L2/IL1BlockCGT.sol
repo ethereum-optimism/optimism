@@ -37,6 +37,8 @@ interface IL1BlockCGT {
     function setL1BlockValuesJovian() external;
     function setCustomGasToken() external;
     function gasPayingToken() external view returns (address, uint8);
+    function enableFeature(string memory _feature) external;
+    function isFeatureEnabled(string memory _feature) external view returns (bool enabled_);
 
     function __constructor__() external;
 }

@@ -91,6 +91,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_feature",
+        "type": "string"
+      }
+    ],
+    "name": "enableFeature",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "gasPayingToken",
     "outputs": [
@@ -154,6 +167,25 @@
       {
         "internalType": "bool",
         "name": "isCustom_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_feature",
+        "type": "string"
+      }
+    ],
+    "name": "isFeatureEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "enabled_",
         "type": "bool"
       }
     ],
@@ -339,5 +371,28 @@
     ],
     "stateMutability": "pure",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "feature",
+        "type": "string"
+      }
+    ],
+    "name": "FeatureEnabled",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "L1Block_FeatureAlreadyEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotDepositor",
+    "type": "error"
   }
 ]

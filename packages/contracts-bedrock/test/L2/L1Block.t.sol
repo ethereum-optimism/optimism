@@ -8,6 +8,7 @@ import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 import { Features } from "src/libraries/Features.sol";
 
@@ -500,5 +501,61 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
         vm.expectRevert("L1Block: only the depositor account can set isCustomGasToken flag");
         vm.prank(nonDepositor);
         l1BlockCGT.setCustomGasToken();
+    }
+}
+
+/// @title L1Block_EnableFeature_Test
+/// @notice Tests for the system customization feature enable/disable functionality.
+contract L1Block_EnableFeature_Test is L1Block_TestInit {
+    /// @notice Redeclare the event for expectEmit.
+    event FeatureEnabled(string indexed feature);
+
+    /// @notice Tests that enableFeature succeeds when called by the depositor.
+    function test_enableFeature_succeeds() external {
+        vm.expectEmit(Predeploys.L1_BLOCK_ATTRIBUTES);
+        emit FeatureEnabled("INTEROP");
+
+        vm.prank(depositor);
+        l1Block.enableFeature("INTEROP");
+
+        assertTrue(l1Block.isFeatureEnabled("INTEROP"));
+    }
+
+    /// @notice Tests that enableFeature reverts when called by a non-depositor.
+    function test_enableFeature_notDepositor_reverts() external {
+        vm.expectRevert(NotDepositor.selector);
+        l1Block.enableFeature("INTEROP");
+    }
+
+    /// @notice Tests that enableFeature reverts when the feature is already enabled.
+    function test_enableFeature_alreadyEnabled_reverts() external {
+        vm.prank(depositor);
+        l1Block.enableFeature("INTEROP");
+
+        vm.prank(depositor);
+        vm.expectRevert(L1Block_FeatureAlreadyEnabled.selector);
+        l1Block.enableFeature("INTEROP");
+    }
+
+    /// @notice Tests that isFeatureEnabled returns false by default.
+    function test_isFeatureEnabled_defaultFalse_succeeds() external view {
+        assertFalse(l1Block.isFeatureEnabled("INTEROP"));
+    }
+
+    /// @notice Tests that multiple features can be enabled independently.
+    function test_enableFeature_multipleFeatures_succeeds() external {
+        vm.startPrank(depositor);
+        l1Block.enableFeature("INTEROP");
+        l1Block.enableFeature("OTHER");
+        vm.stopPrank();
+
+        assertTrue(l1Block.isFeatureEnabled("INTEROP"));
+        assertTrue(l1Block.isFeatureEnabled("OTHER"));
+        assertFalse(l1Block.isFeatureEnabled("UNSET"));
+    }
+
+    /// @notice Tests that isFeatureEnabled with an empty string returns false.
+    function test_isFeatureEnabled_emptyString_succeeds() external view {
+        assertFalse(l1Block.isFeatureEnabled(""));
     }
 }

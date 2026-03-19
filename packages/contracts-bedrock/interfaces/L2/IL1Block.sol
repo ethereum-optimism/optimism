@@ -36,6 +36,8 @@ interface IL1Block {
     function setL1BlockValuesJovian() external;
     function timestamp() external view returns (uint64);
     function version() external pure returns (string memory);
+    function enableFeature(string memory _feature) external;
+    function isFeatureEnabled(string memory _feature) external view returns (bool enabled_);
 
     function __constructor__() external;
 }

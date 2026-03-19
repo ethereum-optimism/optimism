@@ -222,6 +222,13 @@ contract L2Genesis is Script {
     //          script didn't set the nonce and we didn't want to change that behavior when
     ///         migrating genesis generation to Solidity.
     function setPredeployProxies(Input memory _input) internal {
+        // Enable system customizations on L1Block before reading them
+        if (_input.useInterop) {
+            vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).enableFeature("INTEROP");
+            vm.stopPrank();
+        }
+
         bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
         uint160 prefix = uint160(0x420) << 148;
 
@@ -289,10 +296,11 @@ contract L2Genesis is Script {
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         setFeeSplitter(_input); // 2B: FeeSplitter
         if (
-            _input.fork >= uint256(Fork.INTEROP) && _input.useInterop
+            _input.fork >= uint256(Fork.INTEROP)
                 && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+                && IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled("INTEROP")
         ) {
-            // Both flags must be explicitly set in order to enable Interop
+            // Both dev flag and system customization must be set to enable Interop
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24

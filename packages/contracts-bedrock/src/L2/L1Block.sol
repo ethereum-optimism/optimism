@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { NotDepositor, L1Block_FeatureAlreadyEnabled } from "src/libraries/L1BlockErrors.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -64,9 +65,16 @@ contract L1Block is ISemver {
     /// @notice The DA footprint gas scalar.
     uint16 public daFootprintGasScalar;
 
-    /// @custom:semver 1.8.0
+    /// @notice Mapping of system customization feature names to their enabled status.
+    ///         Once a feature is enabled, it cannot be disabled.
+    mapping(string => bool) private _enabledFeatures;
+
+    /// @notice Emitted when a system customization feature is enabled.
+    event FeatureEnabled(string indexed feature);
+
+    /// @custom:semver 1.9.0
     function version() public pure virtual returns (string memory) {
-        return "1.8.0";
+        return "1.9.0";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -214,5 +222,25 @@ contract L1Block is ISemver {
 
             sstore(operatorFeeConstant.slot, slotVal)
         }
+    }
+
+    /// @notice Enables a system customization feature. Only callable by the depositor account.
+    ///         Once enabled, a feature cannot be disabled.
+    ///
+    /// @param _feature The name of the feature to enable.
+    function enableFeature(string memory _feature) external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        if (_enabledFeatures[_feature]) revert L1Block_FeatureAlreadyEnabled();
+        _enabledFeatures[_feature] = true;
+        emit FeatureEnabled(_feature);
+    }
+
+    /// @notice Returns whether a system customization feature is enabled on this chain.
+    ///
+    /// @param _feature The name of the feature to check.
+    ///
+    /// @return enabled_ True if the feature has been enabled.
+    function isFeatureEnabled(string memory _feature) public view returns (bool enabled_) {
+        enabled_ = _enabledFeatures[_feature];
     }
 }

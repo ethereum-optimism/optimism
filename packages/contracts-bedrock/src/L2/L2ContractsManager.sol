@@ -241,7 +241,8 @@ contract L2ContractsManager is ISemver {
     /// @param _config The full configuration for the L2 Predeploys.
     function _apply(L2ContractsManagerTypes.FullConfig memory _config) internal {
         // Read any dev flags
-        bool _useInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        bool _useInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            && IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled("INTEROP");
 
         // Initializable predeploys.
 
