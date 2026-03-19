@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -180,13 +181,34 @@ func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
 func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	initialCount := f.GameCount()
 	f.t.Require().Eventually(func() bool {
-		gameCount := f.GameCount()
+		// Use gameCountOrError to avoid calling FailNow inside Eventually's goroutine.
+		// testify's Eventually runs the condition in a separate goroutine; if FailNow
+		// (runtime.Goexit) fires there, the goroutine silently dies and Eventually
+		// blocks forever because it never receives from the result channel.
+		gameCount, err := f.gameCountOrError()
+		if err != nil {
+			f.t.Logf("transient error reading game count (will retry): %v", err)
+			return false
+		}
 		check := gameCount > initialCount
 		f.t.Logf("waiting for new game. current=%d new=%d", initialCount, gameCount)
 		return check
 	}, time.Minute*10, time.Second*5)
 
 	return f.GameAtIndex(initialCount)
+}
+
+// gameCountOrError returns the game count or an error, without calling FailNow.
+// This is safe to use inside Eventually conditions where FailNow would kill
+// the goroutine and cause the test to hang indefinitely.
+func (f *DisputeGameFactory) gameCountOrError() (int64, error) {
+	ctx, cancel := context.WithTimeout(f.t.Ctx(), contract.ReadTimeout)
+	defer cancel()
+	result, err := contractio.Read(f.dgf.GameCount(), ctx)
+	if err != nil {
+		return 0, err
+	}
+	return result.Int64(), nil
 }
 
 func (f *DisputeGameFactory) StartSuperCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
@@ -238,7 +260,10 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 func (f *DisputeGameFactory) awaitMinVerifiedTimestamp(timestamp uint64) {
 	f.t.Require().Eventually(func() bool {
 		resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), timestamp)
-		f.require.NoError(err, "Failed to fetch supernode status (superroot_atTimestamp)")
+		if err != nil {
+			f.t.Logf("transient error fetching supernode status (will retry): %v", err)
+			return false
+		}
 		return resp.Data != nil
 	}, 2*time.Minute, 1*time.Second)
 }

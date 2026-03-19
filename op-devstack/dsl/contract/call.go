@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	// readTimeout bounds individual contract read calls to prevent tests from
+	// ReadTimeout bounds individual contract read calls to prevent tests from
 	// hanging when an in-memory geth node stalls under CI resource contention.
-	readTimeout = 60 * time.Second
+	ReadTimeout = 60 * time.Second
 	// writeTimeout bounds contract write calls (transaction submission + mining).
 	writeTimeout = 5 * time.Minute
 )
@@ -37,10 +37,10 @@ func checkTestable[O any](call bindings.TypedCall[O]) {
 }
 
 // Read executes a new message call without creating a transaction on the blockchain.
-// Each call is bounded by readTimeout to prevent hangs under CI resource contention.
+// Each call is bounded by ReadTimeout to prevent hangs under CI resource contention.
 func Read[O any](call bindings.TypedCall[O], opts ...txplan.Option) O {
 	checkTestable(call)
-	ctx, cancel := context.WithTimeout(call.Test().Ctx(), readTimeout)
+	ctx, cancel := context.WithTimeout(call.Test().Ctx(), ReadTimeout)
 	defer cancel()
 	o, err := contractio.Read(call, ctx, opts...)
 	call.Test().Require().NoError(err)
@@ -48,11 +48,11 @@ func Read[O any](call bindings.TypedCall[O], opts ...txplan.Option) O {
 }
 
 // ReadArray retrieves all data from an array in batches.
-// Each call is bounded by readTimeout to prevent hangs under CI resource contention.
+// Each call is bounded by ReadTimeout to prevent hangs under CI resource contention.
 func ReadArray[T any](countCall bindings.TypedCall[*big.Int], elemCall func(i *big.Int) bindings.TypedCall[T]) []T {
 	checkTestable(countCall)
 	test := countCall.Test()
-	ctx, cancel := context.WithTimeout(countCall.Test().Ctx(), readTimeout)
+	ctx, cancel := context.WithTimeout(countCall.Test().Ctx(), ReadTimeout)
 	defer cancel()
 
 	caller := countCall.Client().NewMultiCaller(batching.DefaultBatchSize)
