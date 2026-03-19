@@ -49,6 +49,7 @@ func (p *Proxy) Start() error {
 		return fmt.Errorf("could not listen: %w", err)
 	}
 	p.lis = lis
+	p.lgr.Info("proxy listening", "addr", lis.Addr().String())
 
 	p.wg.Add(1)
 	go func() {
@@ -57,10 +58,11 @@ func (p *Proxy) Start() error {
 		for {
 			downConn, err := p.lis.Accept()
 			if p.stopped.Load() {
+				p.lgr.Info("accept loop exiting: proxy stopped")
 				return
 			}
 			if err != nil {
-				p.lgr.Error("failed to accept downstream", "err", err)
+				p.lgr.Error("accept failed", "err", err, "addr", p.lis.Addr().String(), "stopped", p.stopped.Load())
 				continue
 			}
 
@@ -134,6 +136,7 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 }
 
 func (p *Proxy) Close() error {
+	p.lgr.Info("closing proxy", "addr", p.lis.Addr().String())
 	p.stopped.Store(true)
 	p.lis.Close()
 
