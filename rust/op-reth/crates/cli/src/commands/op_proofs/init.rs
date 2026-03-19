@@ -7,9 +7,7 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
-use reth_optimism_trie::{
-    InitializationJob, OpProofsStorage, OpProofsStore, db::MdbxProofsStorage,
-};
+use reth_optimism_trie::{InitializationJob, OpProofsStore, db::MdbxProofsStorage};
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
 use std::{path::PathBuf, sync::Arc};
 use tracing::info;
@@ -46,12 +44,14 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
         // Initialize the environment with read-only access
         let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO)?;
 
-        // Create the proofs storage
-        let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = Arc::new(
+        // Create the proofs storage without the metrics wrapper.
+        // During initialization we write billions of entries; the metrics layer's
+        // `AtomicBucket::push` (used by `Histogram::record_many`) is append-only and
+        // would accumulate ~19 bytes per observation, causing OOM on large chains.
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
             MdbxProofsStorage::new(&self.storage_path)
                 .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-        )
-        .into();
+        );
 
         // Check if already initialized
         if let Some((block_number, block_hash)) = storage.get_earliest_block_number()? {

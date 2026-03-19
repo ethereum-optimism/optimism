@@ -16,6 +16,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 // Libraries
 import { Config } from "scripts/libraries/Config.sol";
 import { console } from "forge-std/console.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOptimismMintableERC20Full } from "interfaces/universal/IOptimismMintableERC20Full.sol";
@@ -76,9 +77,6 @@ abstract contract CommonTest is Test, Setup, Events {
         if (useAltDAOverride) {
             deploy.cfg().setUseAltDA(true);
         }
-        if (useInteropOverride) {
-            deploy.cfg().setUseInterop(true);
-        }
         if (useRevenueShareOverride) {
             // Revenue share is not supported when custom gas token is enabled
             if (Config.sysFeatureCustomGasToken()) {
@@ -107,8 +105,17 @@ abstract contract CommonTest is Test, Setup, Events {
 
         if (Config.devFeatureL2CM()) {
             console.log("CommonTest: enabling l2cm");
-            deploy.cfg().setUseL2CM(true);
+            devFeatureBitmap |= DevFeatures.L2CM;
         }
+
+        if (useInteropOverride) {
+            console.log("CommonTest: enabling interop");
+            devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
+            deploy.cfg().setUseInterop(true);
+        }
+
+        // Sync the bitmap to deploy config after overrides
+        deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
 
         if (isForkTest()) {
             // Skip any test suite which uses a nonstandard configuration.

@@ -35,7 +35,7 @@ revm.workspace = true
 
 # alloy-evm
 alloy-op-evm.workspace = true
-alloy-evm = { workspace = true, features = ["op"] }
+alloy-evm = { workspace = true }
 
 # General
 thiserror.workspace = true

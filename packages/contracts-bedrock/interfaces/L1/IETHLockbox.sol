@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";

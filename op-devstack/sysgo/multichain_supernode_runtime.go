@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
@@ -263,6 +264,9 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2BID, wb.builder)
 	if enableInterop {
+		deployerOpts = append([]DeployerOption{
+			WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
 			l2Cfg.WithForkAtGenesis(opforks.Interop)
 		}

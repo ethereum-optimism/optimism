@@ -6,7 +6,7 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
-use reth_optimism_trie::{OpProofsStorage, OpProofsStore, db::MdbxProofsStorage};
+use reth_optimism_trie::{OpProofsStore, db::MdbxProofsStorage};
 use reth_provider::{BlockReader, TransactionVariant};
 use std::{path::PathBuf, sync::Arc};
 use tracing::{info, warn};
@@ -36,10 +36,7 @@ pub struct UnwindCommand<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Validates that the target block number is within a valid range for unwinding.
-    fn validate_unwind_range<Store: OpProofsStore>(
-        &self,
-        storage: &OpProofsStorage<Store>,
-    ) -> eyre::Result<bool> {
+    fn validate_unwind_range<Store: OpProofsStore>(&self, storage: Store) -> eyre::Result<bool> {
         let (Some((earliest, _)), Some((latest, _))) =
             (storage.get_earliest_block_number()?, storage.get_latest_block_number()?)
         else {
@@ -73,14 +70,13 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
         let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO)?;
 
         // Create the proofs storage
-        let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = Arc::new(
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
             MdbxProofsStorage::new(&self.storage_path)
                 .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-        )
-        .into();
+        );
 
         // Validate that the target block is within a valid range for unwinding
-        if !self.validate_unwind_range(&storage)? {
+        if !self.validate_unwind_range(storage.clone())? {
             return Ok(());
         }
 

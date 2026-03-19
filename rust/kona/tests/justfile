@@ -132,7 +132,7 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}}
     mkdir -p ./tmp/test-results ./tmp/testlogs
-    gotestsum --format=testname \
+    {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
         --junitfile=./tmp/test-results/results.xml \
         --jsonfile=./tmp/testlogs/log.json \
         -- -count=1 -timeout 40m ./$GO_PKG_NAME $FILTER
@@ -225,11 +225,14 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
       --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
       -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
       < /tmp/tests_shard.txt
+    # xargs calls gotestsum multiple times appending to the same jsonfile,
+    # so split once at the end rather than wrapping each call.
+    {{SOURCE}}/../../../ops/scripts/split-test-logs.sh ./tmp/testlogs/log-$NODE_INDEX.json
 
     exit 0
   fi
 
-  gotestsum --format=testname \
+  {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
     --junitfile=./tmp/test-results/results.xml \
     --jsonfile=./tmp/testlogs/log.json \
     -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
@@ -248,7 +251,7 @@ action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/../../op-e2e/actions/interop && GITHUB_ACTIONS=false gotestsum --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
+  cd {{SOURCE}}/../../op-e2e/actions/interop && GITHUB_ACTIONS=false {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
 
 update-packages:
     #!/bin/bash

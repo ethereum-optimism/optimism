@@ -2,8 +2,9 @@
 pragma solidity ^0.8.0;
 
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
-interface IL2StandardBridge is IStandardBridge {
+interface IL2StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     event DepositFinalized(
         address indexed l1Token,
         address indexed l2Token,

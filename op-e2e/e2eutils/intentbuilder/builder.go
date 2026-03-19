@@ -113,6 +113,7 @@ type Builder interface {
 
 	WithGlobalOverride(key string, value any) Builder
 	GlobalOverride(key string) any
+	WithUseInterop(enabled bool) Builder
 }
 
 func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
@@ -237,6 +238,11 @@ func (b *intentBuilder) WithGlobalOverride(key string, value any) Builder {
 
 func (b *intentBuilder) GlobalOverride(key string) any {
 	return b.intent.GlobalDeployOverrides[key]
+}
+
+func (b *intentBuilder) WithUseInterop(enabled bool) Builder {
+	b.intent.UseInterop = enabled
+	return b
 }
 
 func (b *intentBuilder) Build() (*state.Intent, error) {

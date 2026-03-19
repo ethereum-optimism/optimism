@@ -467,12 +467,33 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		sort.Slice(invalidations, func(i, j int) bool {
 			return invalidations[i].ChainID.Cmp(invalidations[j].ChainID) < 0
 		})
+		// Freeze ALL chains' VNs before rewinding any. Without this, a non-invalidated
+		// chain's still-running VN can observe the interop state change from onReset and
+		// issue a ForkchoiceUpdate that advances its safe head. If that chain is later
+		// invalidated (e.g. transitive invalidation across multiple rounds), its rewind
+		// will be rejected because the safe head was already advanced.
+		// This is broader than freezing only invalid chains because transitive invalidation
+		// requires multiple verification rounds — a chain valid in round N may become
+		// invalid in round N+1 after its dependency is replaced.
+		for chainID, chain := range i.chains {
+			if err := chain.PauseAndStopVN(i.ctx); err != nil {
+				i.log.Error("failed to freeze chain before rewind", "chainID", chainID, "err", err)
+			}
+		}
 		var failedAny bool
 		for _, p := range invalidations {
 			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp); err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
+			}
+		}
+		// Resume non-invalidated chains. Invalidated chains are resumed by RewindEngine.
+		for chainID, chain := range i.chains {
+			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
+				if err := chain.Resume(i.ctx); err != nil {
+					i.log.Error("failed to resume chain after rewind", "chainID", chainID, "err", err)
+				}
 			}
 		}
 		if failedAny {
@@ -501,8 +522,20 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, fmt.Errorf("clear pending transition: %w", err)
 		}
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
+		// L1Inclusion is the max L1 block used for derivation across all chains at this
+		// timestamp. It can exceed some chains' actual CurrentL1 — e.g. chain A derived
+		// from L1 1000 while chain B derived from L1 990. Chain B may then advance to
+		// the next timestamp (finding its batch at L1 995) without ever reaching L1 1000.
+		// Cap at the min of all nodes' CurrentL1 so this field is individually safe, not
+		// just safe when aggregated with chain CurrentL1s via syncstatus.Aggregate.
+		currentL1 := pending.Result.L1Inclusion
+		if localL1, err := i.collectCurrentL1(); err != nil {
+			i.log.Warn("failed to collect node CurrentL1 on advance, using L1Inclusion", "err", err)
+		} else if localL1.Number < currentL1.Number {
+			currentL1 = localL1
+		}
 		i.mu.Lock()
-		i.currentL1 = pending.Result.L1Inclusion
+		i.currentL1 = currentL1
 		i.mu.Unlock()
 		return true, nil
 	}

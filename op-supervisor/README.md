@@ -23,7 +23,7 @@ The `op-supervisor` functions as a [superchain backend], implementing the [inter
 ## Quickstart
 
 ```bash
-make op-supervisor
+just op-supervisor
 
 # Key configurables:
 # datadir: where to store indexed interop data
@@ -43,7 +43,7 @@ make op-supervisor
 
 ```bash
 # from op-supervisor dir:
-make op-supervisor
+just op-supervisor
 ./bin/op-supervisor --help
 ```
 

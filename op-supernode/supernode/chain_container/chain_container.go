@@ -71,6 +71,10 @@ type ChainContainer interface {
 	// PruneDeniedAtOrAfterTimestamp removes deny-list entries with DecisionTimestamp >= timestamp.
 	// Returns map of removed hashes by height.
 	PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error)
+	// PauseAndStopVN pauses the chain container restart loop and stops the virtual node.
+	// This is used to freeze a chain's VN before a multi-chain rewind begins, preventing
+	// the VN from issuing forkchoice updates that race with the rewind of a peer chain.
+	PauseAndStopVN(ctx context.Context) error
 	// IsDenied checks if a block hash is on the deny list at the given height.
 	IsDenied(height uint64, payloadHash common.Hash) (bool, error)
 	// SetResetCallback sets a callback that is invoked when the chain resets.
@@ -589,6 +593,20 @@ retryLoop:
 	c.log.Info("chain_container/RewindEngine: resumed container")
 
 	return nil
+}
+
+// PauseAndStopVN pauses the container restart loop and stops the running virtual node.
+// This must be called before a multi-chain rewind to prevent a peer chain's VN from
+// issuing forkchoice updates that race with the rewind operation.
+// RewindEngine's own Pause+Stop calls are idempotent when called after this.
+func (c *simpleChainContainer) PauseAndStopVN(ctx context.Context) error {
+	if err := c.Pause(ctx); err != nil {
+		return err
+	}
+	if c.vn == nil {
+		return nil
+	}
+	return c.vn.Stop(ctx)
 }
 
 // SetResetCallback sets a callback that is invoked when the chain resets.

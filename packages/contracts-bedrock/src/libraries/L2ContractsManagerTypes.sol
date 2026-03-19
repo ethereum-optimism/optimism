@@ -103,5 +103,6 @@ library L2ContractsManagerTypes {
         address liquidityControllerImpl;
         address feeSplitterImpl;
         address conditionalDeployerImpl;
+        address l2DevFeatureFlagsImpl;
     }
 }
