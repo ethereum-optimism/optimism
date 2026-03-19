@@ -10,12 +10,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
 )
 
 // Compile-time interface conformance assertions.
@@ -26,16 +24,6 @@ var (
 	errorBackoffPeriod                               = 2 * time.Second // backoff on errors
 )
 
-// InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
-var InteropActivationTimestampFlag = &cli.Uint64Flag{
-	Name:  "interop.activation-timestamp",
-	Usage: "The timestamp at which interop should start",
-	Value: 0,
-}
-
-func init() {
-	flags.RegisterActivityFlags(InteropActivationTimestampFlag)
-}
 
 // chainsReadyResult holds the parallel query results from checkChainsReady.
 type chainsReadyResult struct {
