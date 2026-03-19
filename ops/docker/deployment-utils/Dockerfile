@@ -1,4 +1,4 @@
-FROM dhi.io/golang:1.24.13-debian12-dev AS go-base
+FROM golang:1.24.13-bookworm AS go-base
 
 RUN go install github.com/tomwright/dasel/v2/cmd/dasel@master
 

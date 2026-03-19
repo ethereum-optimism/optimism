@@ -1,4 +1,4 @@
-FROM dhi.io/golang:1.24.13-alpine3.22-dev AS builder
+FROM golang:1.24.13-alpine3.22 AS builder
 
 # Install just from GitHub releases to match the version pinned in mise.toml.
 # The Alpine package is too old and doesn't support the [script] attribute
