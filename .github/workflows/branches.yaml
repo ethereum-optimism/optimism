@@ -8,19 +8,224 @@ on:
     branches:
       - 'develop'
     paths:
-      - 'ops/docker/**'
+      - 'op-*/**'
+      - 'cannon/**'
       - 'packages/contracts-bedrock/**'
-      - 'docker-bake.hcl'
-      - '.github/workflows/branches.yaml'
-      - '.github/actions/docker-build-prep/**'
-      - 'ops/scripts/compute-git-versions.sh'
-      - 'op-rbuilder/**'
       - 'rust/**'
+      - 'ops/docker/**'
+      - 'ops/scripts/compute-git-versions.sh'
+      - 'docker-bake.hcl'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/branches.yaml'
+      - '.github/docker-images.json'
+      - '.github/actions/docker-build-prep/**'
   schedule:
     # Daily builds at 2 AM UTC (matches CircleCI schedule)
     - cron: '0 2 * * *'
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      images_json: ${{ steps.detect.outputs.images_json }}
+      go_check_images_json: ${{ steps.detect.outputs.go_check_images_json }}
+      rust_check_images_json: ${{ steps.detect.outputs.rust_check_images_json }}
+      has_images: ${{ steps.detect.outputs.has_images }}
+      has_go_check_images: ${{ steps.detect.outputs.has_go_check_images }}
+      has_rust_check_images: ${{ steps.detect.outputs.has_rust_check_images }}
+      is_fork: ${{ steps.detect.outputs.is_fork }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
+      - name: Detect affected images
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          CONFIG=".github/docker-images.json"
+
+          # Determine if this is a fork PR
+          IS_FORK="false"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$HEAD_REPO" != "$THIS_REPO" ]]; then
+              IS_FORK="true"
+            fi
+          fi
+          echo "is_fork=$IS_FORK" >> "$GITHUB_OUTPUT"
+
+          # For push to develop or scheduled builds, build all images
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "Non-PR event ($EVENT_NAME): building all images"
+            ALL_IMAGES=$(jq -c '[.images | keys[]]' "$CONFIG")
+            GO_CHECK=$(jq -c '[.images | to_entries[] | select(.value.check == "go") | .key]' "$CONFIG")
+            RUST_CHECK=$(jq -c '[.images | to_entries[] | select(.value.check == "rust") | .key]' "$CONFIG")
+
+            echo "images_json=$ALL_IMAGES" >> "$GITHUB_OUTPUT"
+            echo "go_check_images_json=$GO_CHECK" >> "$GITHUB_OUTPUT"
+            echo "rust_check_images_json=$RUST_CHECK" >> "$GITHUB_OUTPUT"
+            echo "has_images=true" >> "$GITHUB_OUTPUT"
+            echo "has_go_check_images=true" >> "$GITHUB_OUTPUT"
+            echo "has_rust_check_images=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # For PRs, detect which files changed (three-dot diff = only the PR's changes)
+          CHANGED_FILES=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}" 2>/dev/null || true)
+
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "WARNING: Could not detect changed files — building all images as fallback"
+            ALL_IMAGES=$(jq -c '[.images | keys[]]' "$CONFIG")
+            GO_CHECK=$(jq -c '[.images | to_entries[] | select(.value.check == "go") | .key]' "$CONFIG")
+            RUST_CHECK=$(jq -c '[.images | to_entries[] | select(.value.check == "rust") | .key]' "$CONFIG")
+
+            echo "images_json=$ALL_IMAGES" >> "$GITHUB_OUTPUT"
+            echo "go_check_images_json=$GO_CHECK" >> "$GITHUB_OUTPUT"
+            echo "rust_check_images_json=$RUST_CHECK" >> "$GITHUB_OUTPUT"
+            echo "has_images=true" >> "$GITHUB_OUTPUT"
+            echo "has_go_check_images=true" >> "$GITHUB_OUTPUT"
+            echo "has_rust_check_images=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES" | head -50
+          TOTAL=$(echo "$CHANGED_FILES" | wc -l)
+          echo "($TOTAL files total)"
+
+          # matches_pattern checks if a file matches a path pattern
+          # "foo/**" matches any file under foo/
+          # "foo" matches the exact file foo
+          matches_pattern() {
+            local file="$1"
+            local pattern="$2"
+            if [[ "$pattern" == *"/**" ]]; then
+              local prefix="${pattern%/**}"
+              [[ "$file" == "$prefix/"* ]] && return 0
+            else
+              [[ "$file" == "$pattern" ]] && return 0
+            fi
+            return 1
+          }
+
+          BUILD_ALL=false
+          BUILD_ALL_GO=false
+
+          # Check shared paths (trigger all images)
+          SHARED_PATHS=$(jq -r '.shared_paths[]' "$CONFIG")
+          while IFS= read -r pattern; do
+            while IFS= read -r file; do
+              if matches_pattern "$file" "$pattern"; then
+                echo "Shared path match: $file matches $pattern → building all images"
+                BUILD_ALL=true
+                break 2
+              fi
+            done <<< "$CHANGED_FILES"
+          done <<< "$SHARED_PATHS"
+
+          # Check shared Go paths (trigger all Go images)
+          if [[ "$BUILD_ALL" != "true" ]]; then
+            SHARED_GO_PATHS=$(jq -r '.shared_go_paths[]' "$CONFIG")
+            while IFS= read -r pattern; do
+              while IFS= read -r file; do
+                if matches_pattern "$file" "$pattern"; then
+                  echo "Shared Go path match: $file matches $pattern → building all Go images"
+                  BUILD_ALL_GO=true
+                  break 2
+                fi
+              done <<< "$CHANGED_FILES"
+            done <<< "$SHARED_GO_PATHS"
+          fi
+
+          # Collect affected images
+          declare -A AFFECTED
+
+          if [[ "$BUILD_ALL" == "true" ]]; then
+            # All images affected
+            while IFS= read -r name; do
+              AFFECTED["$name"]=1
+            done < <(jq -r '.images | keys[]' "$CONFIG")
+          else
+            if [[ "$BUILD_ALL_GO" == "true" ]]; then
+              # All Go images affected
+              while IFS= read -r name; do
+                AFFECTED["$name"]=1
+              done < <(jq -r '.images | to_entries[] | select(.value.type == "go") | .key' "$CONFIG")
+            fi
+
+            # Check per-image paths for remaining images
+            while IFS= read -r entry; do
+              name=$(echo "$entry" | jq -r '.key')
+              # Skip if already affected
+              [[ -n "${AFFECTED[$name]+x}" ]] && continue
+
+              paths=$(echo "$entry" | jq -r '.value.paths[]')
+              while IFS= read -r pattern; do
+                while IFS= read -r file; do
+                  if matches_pattern "$file" "$pattern"; then
+                    echo "Image path match: $file matches $pattern → building $name"
+                    AFFECTED["$name"]=1
+                    break 2
+                  fi
+                done <<< "$CHANGED_FILES"
+              done <<< "$paths"
+            done < <(jq -c '.images | to_entries[]' "$CONFIG")
+          fi
+
+          # Build output arrays
+          AFFECTED_LIST=$(printf '%s\n' "${!AFFECTED[@]}" | sort)
+
+          IMAGES_JSON="[]"
+          GO_CHECK_JSON="[]"
+          RUST_CHECK_JSON="[]"
+
+          if [[ -n "$AFFECTED_LIST" ]]; then
+            IMAGES_JSON=$(echo "$AFFECTED_LIST" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+            GO_CHECK_JSON=$(echo "$AFFECTED_LIST" | while IFS= read -r name; do
+              [[ -z "$name" ]] && continue
+              check=$(jq -r --arg n "$name" '.images[$n].check' "$CONFIG")
+              if [[ "$check" == "go" ]]; then echo "$name"; fi
+            done | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+            RUST_CHECK_JSON=$(echo "$AFFECTED_LIST" | while IFS= read -r name; do
+              [[ -z "$name" ]] && continue
+              check=$(jq -r --arg n "$name" '.images[$n].check' "$CONFIG")
+              if [[ "$check" == "rust" ]]; then echo "$name"; fi
+            done | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          echo "Affected images: $IMAGES_JSON"
+          echo "Go check images: $GO_CHECK_JSON"
+          echo "Rust check images: $RUST_CHECK_JSON"
+
+          echo "images_json=$IMAGES_JSON" >> "$GITHUB_OUTPUT"
+          echo "go_check_images_json=$GO_CHECK_JSON" >> "$GITHUB_OUTPUT"
+          echo "rust_check_images_json=$RUST_CHECK_JSON" >> "$GITHUB_OUTPUT"
+
+          HAS_IMAGES=$( [[ $(echo "$IMAGES_JSON" | jq 'length') -gt 0 ]] && echo "true" || echo "false" )
+          HAS_GO=$( [[ $(echo "$GO_CHECK_JSON" | jq 'length') -gt 0 ]] && echo "true" || echo "false" )
+          HAS_RUST=$( [[ $(echo "$RUST_CHECK_JSON" | jq 'length') -gt 0 ]] && echo "true" || echo "false" )
+
+          echo "has_images=$HAS_IMAGES" >> "$GITHUB_OUTPUT"
+          echo "has_go_check_images=$HAS_GO" >> "$GITHUB_OUTPUT"
+          echo "has_rust_check_images=$HAS_RUST" >> "$GITHUB_OUTPUT"
+
   prep:
     runs-on: ubuntu-latest
     permissions:
@@ -42,36 +247,14 @@ jobs:
         id: prep
 
   build:
-    needs: prep
-    # only build if push to develop, scheduled run, or PR from a local branch (not a fork)
-    if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    needs: [prep, detect-changes]
+    if: |
+      needs.detect-changes.outputs.is_fork == 'false'
+      && needs.detect-changes.outputs.has_images == 'true'
     strategy:
       fail-fast: false
       matrix:
-        image_name:
-          - op-node
-          - op-batcher
-          - op-faucet
-          - op-program
-          - op-proposer
-          - op-challenger
-          - op-dispute-mon
-          - op-conductor
-          - da-server
-          - op-supervisor
-          - op-supernode
-          - op-test-sequencer
-          - cannon
-          - op-deployer
-          - op-dripper
-          - op-interop-mon
-          - op-interop-filter
-          - op-rbuilder
-          - kona-node
-          - kona-client
-          - kona-host
-          - op-reth
-          - cannon-builder
+        image_name: ${{ fromJson(needs.detect-changes.outputs.images_json) }}
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
@@ -91,36 +274,14 @@ jobs:
       attestations: write
 
   build-fork:
-    needs: prep
-    # only build if PR from a fork
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    needs: [prep, detect-changes]
+    if: |
+      needs.detect-changes.outputs.is_fork == 'true'
+      && needs.detect-changes.outputs.has_images == 'true'
     strategy:
       fail-fast: false
       matrix:
-        image_name:
-          - op-node
-          - op-batcher
-          - op-faucet
-          - op-program
-          - op-proposer
-          - op-challenger
-          - op-dispute-mon
-          - op-conductor
-          - da-server
-          - op-supervisor
-          - op-supernode
-          - op-test-sequencer
-          - cannon
-          - op-deployer
-          - op-dripper
-          - op-interop-mon
-          - op-interop-filter
-          - op-rbuilder
-          - kona-node
-          - kona-client
-          - kona-host
-          - op-reth
-          - cannon-builder
+        image_name: ${{ fromJson(needs.detect-changes.outputs.images_json) }}
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
     with:
       mode: bake
@@ -138,62 +299,38 @@ jobs:
       contents: read
 
   check-cross-platform:
-    needs: [build, build-fork]
-    if: always() && (needs.build.result == 'success' || needs.build-fork.result == 'success')
+    needs: [build, build-fork, detect-changes]
+    if: |
+      always()
+      && needs.detect-changes.outputs.has_go_check_images == 'true'
+      && (needs.build.result == 'success' || needs.build-fork.result == 'success')
     strategy:
       fail-fast: false
       matrix:
-        image_name:
-          - op-node
-          - op-batcher
-          - op-faucet
-          - op-program
-          - op-proposer
-          - op-challenger
-          - op-dispute-mon
-          - op-conductor
-          - da-server
-          - op-supervisor
-          - op-supernode
-          - op-test-sequencer
-          - cannon
-          - op-deployer
-          - op-dripper
-          - op-interop-mon
-          - op-interop-filter
-          - op-rbuilder
-          - kona-node
-          - kona-host
-          - op-reth
+        image_name: ${{ fromJson(needs.detect-changes.outputs.go_check_images_json) }}
         runner:
           - ubuntu-24.04
           - ubuntu-24.04-arm
-        exclude:
-          # Rust images use ENTRYPOINT, so the version check command differs
-          - image_name: op-rbuilder
-          - image_name: kona-node
-          - image_name: kona-host
-          - image_name: op-reth
-          - image_name: cannon-builder
     runs-on: ${{ matrix.runner }}
     env:
       IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
     steps:
       - name: Run image
-        run: docker run $IMAGE ${{ matrix.image_name }} --version
+        env:
+          IMAGE_NAME: ${{ matrix.image_name }}
+        run: docker run "$IMAGE" "$IMAGE_NAME" --version
 
   # Separate cross-platform check for Rust images (they use ENTRYPOINT instead of CMD)
   check-cross-platform-rust:
-    needs: [build, build-fork]
-    if: always() && (needs.build.result == 'success' || needs.build-fork.result == 'success')
+    needs: [build, build-fork, detect-changes]
+    if: |
+      always()
+      && needs.detect-changes.outputs.has_rust_check_images == 'true'
+      && (needs.build.result == 'success' || needs.build-fork.result == 'success')
     strategy:
       fail-fast: false
       matrix:
-        image_name:
-          - op-rbuilder
-          - kona-node
-          - kona-host
-          - op-reth
+        image_name: ${{ fromJson(needs.detect-changes.outputs.rust_check_images_json) }}
         runner:
           - ubuntu-24.04
           - ubuntu-24.04-arm
@@ -202,4 +339,63 @@ jobs:
       IMAGE: ${{ needs.build-fork.result == 'success' && format('ttl.sh/{0}/{1}:24h', github.sha, matrix.image_name) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
     steps:
       - name: Run image
-        run: docker run $IMAGE --version
+        run: docker run "$IMAGE" --version
+
+  # Gate job for branch protection — provides a stable check name regardless of dynamic matrix contents
+  docker-build-result:
+    needs: [detect-changes, build, build-fork, check-cross-platform, check-cross-platform-rust]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        env:
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
+          HAS_IMAGES: ${{ needs.detect-changes.outputs.has_images }}
+          IS_FORK: ${{ needs.detect-changes.outputs.is_fork }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          BUILD_FORK_RESULT: ${{ needs.build-fork.result }}
+          HAS_GO: ${{ needs.detect-changes.outputs.has_go_check_images }}
+          HAS_RUST: ${{ needs.detect-changes.outputs.has_rust_check_images }}
+          GO_CHECK_RESULT: ${{ needs.check-cross-platform.result }}
+          RUST_CHECK_RESULT: ${{ needs.check-cross-platform-rust.result }}
+        run: |
+          # Fail if detect-changes itself failed (otherwise empty outputs silently pass)
+          if [[ "$DETECT_RESULT" != "success" ]]; then
+            echo "detect-changes failed: $DETECT_RESULT"
+            exit 1
+          fi
+
+          # If no images needed building, that's a success
+          if [[ "$HAS_IMAGES" != "true" ]]; then
+            echo "No images needed building — success"
+            exit 0
+          fi
+
+          # Check that the applicable build job succeeded
+          if [[ "$IS_FORK" == "true" ]]; then
+            RESULT="$BUILD_FORK_RESULT"
+          else
+            RESULT="$BUILD_RESULT"
+          fi
+
+          if [[ "$RESULT" != "success" ]]; then
+            echo "Build failed with result: $RESULT"
+            exit 1
+          fi
+
+          # Check cross-platform results (they use always() so check explicitly)
+          if [[ "$HAS_GO" == "true" ]]; then
+            if [[ "$GO_CHECK_RESULT" != "success" ]]; then
+              echo "Go cross-platform check failed: $GO_CHECK_RESULT"
+              exit 1
+            fi
+          fi
+
+          if [[ "$HAS_RUST" == "true" ]]; then
+            if [[ "$RUST_CHECK_RESULT" != "success" ]]; then
+              echo "Rust cross-platform check failed: $RUST_CHECK_RESULT"
+              exit 1
+            fi
+          fi
+
+          echo "All builds and checks passed"

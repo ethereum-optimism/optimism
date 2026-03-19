@@ -749,7 +749,10 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit }(txn.data);
             uint256 gasAfter = gasleft();
 
-            require(success, string.concat("Transaction failed: ", txn.intent, " - ", UpgradeUtils.getRevertReason(returnData)));
+            require(
+                success,
+                string.concat("Transaction failed: ", txn.intent, " - ", UpgradeUtils.getRevertReason(returnData))
+            );
 
             // Calculate gas used (including overhead)
             uint64 gasUsed = uint64(gasBefore - gasAfter);
@@ -820,5 +823,4 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             repeated_ = string.concat(repeated_, _str);
         }
     }
-
 }

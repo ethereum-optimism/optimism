@@ -23,7 +23,7 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -38,7 +38,7 @@ import { L1BlockCGT } from "src/L2/L1BlockCGT.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { L2ToL1MessagePasserCGT } from "src/L2/L2ToL1MessagePasserCGT.sol";
 import { OptimismMintableERC721Factory } from "src/L2/OptimismMintableERC721Factory.sol";
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { L2ProxyAdmin } from "src/L2/L2ProxyAdmin.sol";
 import { SuperchainETHBridge } from "src/L2/SuperchainETHBridge.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
@@ -125,7 +125,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.l2ToL1MessagePasserImpl = address(new L2ToL1MessagePasser());
         implementations.l2ToL1MessagePasserCGTImpl = address(new L2ToL1MessagePasserCGT());
         implementations.optimismMintableERC721FactoryImpl = address(new OptimismMintableERC721Factory());
-        implementations.proxyAdminImpl = address(new ProxyAdmin(address(0)));
+        implementations.proxyAdminImpl = address(new L2ProxyAdmin());
         implementations.superchainETHBridgeImpl = address(new SuperchainETHBridge());
         implementations.ethLiquidityImpl = address(new ETHLiquidity());
         implementations.optimismSuperchainERC20BeaconImpl = address(new OptimismSuperchainERC20Beacon());
@@ -497,7 +497,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         uint256 customMinWithdrawal = 50 ether;
 
         // Get the ProxyAdmin owner
-        address proxyAdminOwner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+        address proxyAdminOwner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
 
         // Set non-default values on all fee vaults before upgrade
         vm.startPrank(proxyAdminOwner);
