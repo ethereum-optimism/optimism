@@ -38,7 +38,7 @@ parameters:
   sdk_dispatch:
     type: boolean
     default: false
-  docker_publish_dispatch:
+  publish_contract_artifacts_dispatch:
     type: boolean
     default: false
   stale_check_dispatch:
@@ -105,8 +105,7 @@ workflows:
             .* c-kontrol_dispatch << pipeline.parameters.kontrol_dispatch >> .circleci/continue/main.yml
             .* c-cannon_full_test_dispatch << pipeline.parameters.cannon_full_test_dispatch >> .circleci/continue/main.yml
             .* c-sdk_dispatch << pipeline.parameters.sdk_dispatch >> .circleci/continue/main.yml
-            .* c-docker_publish_dispatch << pipeline.parameters.docker_publish_dispatch >> .circleci/continue/main.yml
-
+            .* c-publish_contract_artifacts_dispatch << pipeline.parameters.publish_contract_artifacts_dispatch >> .circleci/continue/main.yml
             .* c-stale_check_dispatch << pipeline.parameters.stale_check_dispatch >> .circleci/continue/main.yml
             .* c-contracts_coverage_dispatch << pipeline.parameters.contracts_coverage_dispatch >> .circleci/continue/main.yml
             .* c-heavy_fuzz_dispatch << pipeline.parameters.heavy_fuzz_dispatch >> .circleci/continue/main.yml
@@ -120,6 +119,7 @@ workflows:
             .* c-flake-shake-workers << pipeline.parameters.flake-shake-workers >> .circleci/continue/main.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
             rust/.* c-rust_files_changed true .circleci/continue/main.yml
+            ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/main.yml
 
             # Rust CI — always include config, gate jobs via c-rust_changes_detected
             .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
@@ -127,12 +127,14 @@ workflows:
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-ci.yml
             .* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
             (rust|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-ci.yml
+            ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/rust-ci.yml
 
             # Rust E2E — always include config, gate jobs via c-rust_changes_detected
             .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
             .* c-rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
             (rust|op-e2e|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-e2e.yml
+            ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/rust-e2e.yml
 
   setup-tag:
     when:
