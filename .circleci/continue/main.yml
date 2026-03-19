@@ -161,7 +161,7 @@ orbs:
   slack: circleci/slack@6.0.0
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-  utils: ethereum-optimism/circleci-utils@1.0.24
+  utils: ethereum-optimism/circleci-utils@dev:verify-required-job
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
 
@@ -2421,35 +2421,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
     steps:
-      - run:
-          name: Verify all required jobs passed
-          command: |
-            JOBS=$(curl -sf \
-              -H "Circle-Token: $CIRCLECI_API_TOKEN" \
-              "https://circleci.com/api/v2/workflow/$CIRCLE_WORKFLOW_ID/job")
-
-            # Derive required jobs from ci-gate's own dependencies field in the API response.
-            # The requires:terminal list in the workflow is the single source of truth.
-            DEP_IDS=$(echo "$JOBS" | jq -r \
-              '.items[] | select(.name == "ci-gate") | .dependencies[]')
-
-            ALL_PASSED=true
-            for dep_id in $DEP_IDS; do
-              NAME=$(echo "$JOBS" | jq -r --arg id "$dep_id" \
-                '.items[] | select(.id == $id) | .name')
-              STATUS=$(echo "$JOBS" | jq -r --arg id "$dep_id" \
-                '.items[] | select(.id == $id) | .status')
-              if [ "$STATUS" != "success" ]; then
-                echo "REQUIRED JOB NOT PASSED: '$NAME' status='$STATUS'"
-                ALL_PASSED=false
-              fi
-            done
-
-            if [ "$ALL_PASSED" = "false" ]; then
-              exit 1
-            fi
-            echo "All required jobs passed"
-
+      - utils/verify-required-jobs
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
   rust-binaries-for-sysgo:
     docker:
