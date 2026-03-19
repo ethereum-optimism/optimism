@@ -384,7 +384,6 @@ commands:
               fi
             fi
 
-
   go-restore-cache:
     parameters:
       # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
@@ -1403,7 +1402,7 @@ jobs:
           when: always
       - notify-failures-on-develop:
           mentions: "@security-oncall"
-contracts-bedrock-tests-l2-fork:
+  contracts-bedrock-tests-l2-fork:
     circleci_ip_ranges: true
     parameters:
       fork_op_chain:
