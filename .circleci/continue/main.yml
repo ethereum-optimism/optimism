@@ -2415,7 +2415,6 @@ jobs:
   # Runs unconditionally (terminal requires) then queries the CircleCI API to verify
   # all upstream jobs passed — giving the merge queue an immediate failure signal
   # instead of a timeout.
-  # To add a new mandatory check: add it to the workflow requires list below. No GitHub ruleset changes needed.
   ci-gate:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
