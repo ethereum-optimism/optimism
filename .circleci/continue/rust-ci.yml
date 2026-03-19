@@ -4,7 +4,7 @@ version: 2.1
 # This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.24
+  utils: ethereum-optimism/circleci-utils@dev:do-not-exists
   gcp-cli: circleci/gcp-cli@3.0.1
   codecov: codecov/codecov@5.0.3
 
@@ -1033,7 +1033,6 @@ jobs:
           path: op-reth/docs/vocs/docs/dist
           destination: op-reth-docs
 
-
   # Kona Link Checker
   kona-link-checker:
     docker:
@@ -1328,7 +1327,6 @@ workflows:
             - op-reth-tests-edge
             - kona-build-fpvm-cannon-client
 
-
   # ==========================================================================
   # Kona scheduled workflows
   # ==========================================================================
@@ -1346,7 +1344,7 @@ workflows:
       and:
         - equal: ["develop", <<pipeline.git.branch>>]
         - equal: ["webhook", << pipeline.trigger_source >>] # Only trigger on push to develop, not scheduled runs
-        - << pipeline.parameters.c-rust_changes_detected >>  # Only publish when rust paths changed
+        - << pipeline.parameters.c-rust_changes_detected >> # Only publish when rust paths changed
     jobs:
       - kona-publish-prestate-artifacts:
           name: kona-publish-<<matrix.version>>
@@ -1356,4 +1354,3 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
-
