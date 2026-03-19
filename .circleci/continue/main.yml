@@ -2412,10 +2412,10 @@ jobs:
           command: exit 1
 
   # Gate job - single stable job used as GitHub required status check for develop.
-  # Uses terminal requires so it always runs (even when deps fail), then explicitly
-  # fails via the CircleCI API check — giving the merge queue an immediate signal
-  # instead of waiting for a timeout.
-  # Add new mandatory checks to the workflow entry below; no GitHub ruleset changes needed.
+  # Runs unconditionally (terminal requires) then queries the CircleCI API to verify
+  # all upstream jobs passed — giving the merge queue an immediate failure signal
+  # instead of a timeout.
+  # To add a new mandatory check: add it to the workflow requires list below. No GitHub ruleset changes needed.
   ci-gate:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
