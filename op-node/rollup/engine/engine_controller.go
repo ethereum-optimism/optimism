@@ -1208,7 +1208,7 @@ func (e *EngineController) startPayload(ctx context.Context, fc eth.ForkchoiceSt
 	}
 }
 
-func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalizedRef eth.L2BlockRef) {
+func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, ePendingSafeRef, eFinalizedRef eth.L2BlockRef) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -1219,6 +1219,9 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 			e.tryUpdateUnsafe(e.ctx, eLocalSafeRef)
 		}
 		e.tryUpdateLocalSafe(e.ctx, eLocalSafeRef, true, eth.L1BlockRef{})
+		// In follow-source mode, pending_safe should track the upstream's
+		// pending_safe since there is no local derivation pipeline.
+		e.tryUpdatePendingSafe(e.ctx, ePendingSafeRef, true, eth.L1BlockRef{})
 		// Inject external cross-safe. Must happen before promoteFinalized
 		// (which rejects finalized > SafeL2Head).
 		if eSafeBlockRef.Number > e.deprecatedSafeHead.Number {

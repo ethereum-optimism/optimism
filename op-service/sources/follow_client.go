@@ -13,10 +13,11 @@ type FollowClient struct {
 }
 
 type FollowStatus struct {
-	SafeL2      eth.L2BlockRef
-	LocalSafeL2 eth.L2BlockRef
-	FinalizedL2 eth.L2BlockRef
-	CurrentL1   eth.L1BlockRef
+	SafeL2        eth.L2BlockRef
+	LocalSafeL2   eth.L2BlockRef
+	PendingSafeL2 eth.L2BlockRef
+	FinalizedL2   eth.L2BlockRef
+	CurrentL1     eth.L1BlockRef
 }
 
 func NewFollowClient(client client.RPC) (*FollowClient, error) {
@@ -30,9 +31,10 @@ func (s *FollowClient) GetFollowStatus(ctx context.Context) (*FollowStatus, erro
 		return nil, fmt.Errorf("failed to fetch external syncStatus: %w", err)
 	}
 	return &FollowStatus{
-		FinalizedL2: status.FinalizedL2,
-		SafeL2:      status.SafeL2,
-		LocalSafeL2: status.LocalSafeL2,
-		CurrentL1:   status.CurrentL1,
+		FinalizedL2:   status.FinalizedL2,
+		SafeL2:        status.SafeL2,
+		LocalSafeL2:   status.LocalSafeL2,
+		PendingSafeL2: status.PendingSafeL2,
+		CurrentL1:     status.CurrentL1,
 	}, nil
 }

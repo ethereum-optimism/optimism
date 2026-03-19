@@ -480,17 +480,98 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
 	)
 
-	// Call FollowSource with divergent cross-safe (block4) and local-safe (block5)
-	ec.FollowSource(block4, block5, block3)
+	// Call FollowSource with divergent cross-safe (block4), local-safe (block5), pending-safe (block5), finalized (block3)
+	ec.FollowSource(block4, block5, block5, block3)
 
 	// Assert the final head state
 	require.Equal(t, block5, ec.localSafeHead, "localSafeHead should be updated to block5")
+	require.Equal(t, block5, ec.pendingSafeHead, "pendingSafeHead should track upstream pending_safe")
 	require.Equal(t, block4, ec.deprecatedSafeHead, "deprecatedSafeHead (cross-safe) should be updated to block4")
 	require.Equal(t, block3, ec.deprecatedFinalizedHead, "deprecatedFinalizedHead (cross-finalized) should be updated to block3")
 
 	// Assert the invariant: cross-safe <= local-safe
 	require.LessOrEqual(t, ec.deprecatedSafeHead.Number, ec.localSafeHead.Number,
 		"invariant: cross-safe (deprecatedSafeHead) must not exceed local-safe")
+}
+
+// TestFollowSource_PendingSafeTracksUpstream verifies that pending_safe advances
+// from genesis when FollowSource is called with a non-zero ePendingSafeRef.
+// This is a regression test for the bug where pending_safe stayed at genesis
+// in follow-source (light CL) mode.
+func TestFollowSource_PendingSafeTracksUpstream(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(1234))
+
+	l1Origin := testutils.RandomBlockRef(rng)
+
+	genesis := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 0,
+		ParentHash: common.Hash{}, Time: l1Origin.Time,
+		L1Origin: l1Origin.ID(), SequenceNumber: 0,
+	}
+	block100 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 100,
+		ParentHash: testutils.RandomHash(rng), Time: l1Origin.Time + 200,
+		L1Origin: l1Origin.ID(), SequenceNumber: 100,
+	}
+	block99 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 99,
+		ParentHash: testutils.RandomHash(rng), Time: l1Origin.Time + 198,
+		L1Origin: l1Origin.ID(), SequenceNumber: 99,
+	}
+	block90 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 90,
+		ParentHash: testutils.RandomHash(rng), Time: l1Origin.Time + 180,
+		L1Origin: l1Origin.ID(), SequenceNumber: 90,
+	}
+
+	interopTime := uint64(0)
+	cfg := &rollup.Config{InteropTime: &interopTime}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, false, &testutils.MockL1Source{}, emitter, nil)
+
+	// Initial state: simulates a fresh light node with pending_safe at genesis
+	ec.unsafeHead = block100
+	ec.pendingSafeHead = genesis
+	ec.SetLocalSafeHead(genesis)
+	ec.SetSafeHead(genesis)
+	ec.SetFinalizedHead(genesis)
+	ec.needFCUCall = false
+
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+
+	// Consolidation lookup for eLocalSafeRef
+	mockEngine.ExpectL2BlockRefByNumber(block99.Number, block99, nil)
+
+	// FCU from PromoteSafe (cross-safe = block90)
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      block100.Hash,
+			SafeBlockHash:      block90.Hash,
+			FinalizedBlockHash: genesis.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+
+	// FCU from promoteFinalized (finalized stays at genesis since eFinalizedRef=genesis)
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      block100.Hash,
+			SafeBlockHash:      block90.Hash,
+			FinalizedBlockHash: genesis.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+
+	// Call FollowSource: cross-safe=block90, local-safe=block99, pending-safe=block99, finalized=genesis
+	ec.FollowSource(block90, block99, block99, genesis)
+
+	// The key assertion: pending_safe should advance from genesis to block99
+	require.Equal(t, block99, ec.pendingSafeHead, "pendingSafeHead should advance from genesis to upstream pending_safe")
+	require.Equal(t, block99, ec.localSafeHead, "localSafeHead should be updated")
+	require.Equal(t, block90, ec.deprecatedSafeHead, "cross-safe should be updated")
 }
 
 // TestEngineController_FinalizedHead tests FinalizedHead behavior with various configurations
