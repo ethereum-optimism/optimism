@@ -49,8 +49,8 @@ func NewDisputeGameContract(ctx context.Context, metrics metrics.ContractMetrice
 		gameTypes.AlphabetGameType,
 		gameTypes.FastGameType:
 		return NewPreInteropFaultDisputeGameContract(ctx, metrics, addr, caller)
-	case gameTypes.OptimisticZKGameType:
-		return NewOptimisticZKDisputeGameContract(metrics, addr, caller)
+	case gameTypes.ZKDisputeGameType:
+		return NewZKDisputeGameContract(metrics, addr, caller)
 	default:
 		return nil, ErrUnsupportedGameType
 	}
