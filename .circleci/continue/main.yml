@@ -2423,7 +2423,7 @@ jobs:
     steps:
       - run:
           command: echo "ok"
-      # - utils/verify-required-jobs
+      - utils/verify-required-jobs
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
   rust-binaries-for-sysgo:
     docker:
