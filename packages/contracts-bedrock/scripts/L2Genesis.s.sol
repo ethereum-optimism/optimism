@@ -142,6 +142,13 @@ contract L2Genesis is Script {
         setPredeployProxies(_input);
         vm.stopPrank();
 
+        // Enable system customizations on L1Block before predeploy implementations are set.
+        // CUSTOM_GAS_TOKEN is set later by setL1Block() -> setCustomGasToken() -> _setFeature().
+        if (_input.useInterop) {
+            vm.prank(Constants.DEPOSITOR_ACCOUNT);
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).enableFeature("INTEROP");
+        }
+
         // Set L1 Block has its own pranking requirements which it handles internally
         setPredeployImplementations(_input);
 
@@ -222,13 +229,6 @@ contract L2Genesis is Script {
     //          script didn't set the nonce and we didn't want to change that behavior when
     ///         migrating genesis generation to Solidity.
     function setPredeployProxies(Input memory _input) internal {
-        // Enable system customizations on L1Block before reading them
-        if (_input.useInterop) {
-            vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).enableFeature("INTEROP");
-            vm.stopPrank();
-        }
-
         bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
         uint160 prefix = uint160(0x420) << 148;
 

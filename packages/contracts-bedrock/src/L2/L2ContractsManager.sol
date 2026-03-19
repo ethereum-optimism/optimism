@@ -157,11 +157,9 @@ contract L2ContractsManager is ISemver {
     /// @notice Loads the full configuration for the L2 Predeploys.
     /// @return fullConfig_ The full configuration.
     function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
-        // Note: Currently, this is the only way to determine if the network is a custom gas token network.
-        // We need our upgrades be able to determine if the network is a custom gas token network so that we can
-        // apply the appropriate configuration to the LiquidityController predeploy. In networks without custom gas
-        // tokens, the LiquidityController predeploy is not used and points to address(0).
-        fullConfig_.isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
+        // Read system customization flags from L1Block
+        fullConfig_.isCustomGasToken =
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled("CUSTOM_GAS_TOKEN");
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({

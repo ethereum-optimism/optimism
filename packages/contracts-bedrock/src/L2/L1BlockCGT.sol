@@ -68,5 +68,8 @@ contract L1BlockCGT is L1Block {
         assembly {
             sstore(slot, 1)
         }
+
+        // Mirror the legacy flag into the system customization mapping
+        _setFeature("CUSTOM_GAS_TOKEN");
     }
 }

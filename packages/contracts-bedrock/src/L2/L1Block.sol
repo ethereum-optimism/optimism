@@ -230,6 +230,13 @@ contract L1Block is ISemver {
     /// @param _feature The name of the feature to enable.
     function enableFeature(string memory _feature) external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        _setFeature(_feature);
+    }
+
+    /// @notice Internal helper to enable a feature. Reverts if already enabled.
+    ///
+    /// @param _feature The name of the feature to enable.
+    function _setFeature(string memory _feature) internal {
         if (_enabledFeatures[_feature]) revert L1Block_FeatureAlreadyEnabled();
         _enabledFeatures[_feature] = true;
         emit FeatureEnabled(_feature);
