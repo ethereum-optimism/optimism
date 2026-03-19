@@ -178,6 +178,12 @@ func runKonaInteropProgram(t devtest.T, cfg vm.Config, l1Head common.Hash, agree
 	cmd := exec.CommandContext(ctx, exePath, argv[1:]...)
 	cmd.Dir = tmpDir
 	cmd.Env = append(append(cmd.Env, os.Environ()...), "NO_COLOR=1")
+	// WaitDelay bounds how long CombinedOutput waits for I/O pipes to close
+	// after the process exits or the context is cancelled. Without this, if
+	// the context timeout fires and the process is killed, CombinedOutput
+	// can block indefinitely waiting for pipe EOF (e.g. if a child process
+	// or unclosed descriptor keeps the pipe open).
+	cmd.WaitDelay = 10 * time.Second
 
 	out, runErr := cmd.CombinedOutput()
 	if expectValid {
