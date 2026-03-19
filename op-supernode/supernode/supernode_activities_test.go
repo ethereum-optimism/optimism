@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,23 +21,28 @@ import (
 
 // mock runnable activity
 type mockRunnable struct {
+	mu      sync.Mutex
 	ctx     context.Context
 	cancel  context.CancelFunc
 	started int
 	stopped int
 }
 
-func (mockRunnable) Name() string {
+func (*mockRunnable) Name() string {
 	return "mockRunnable"
 }
 
 func (m *mockRunnable) Start(ctx context.Context) error {
+	m.mu.Lock()
 	m.started++
 	m.ctx, m.cancel = context.WithCancel(ctx)
+	m.mu.Unlock()
 	<-m.ctx.Done()
 	return m.ctx.Err()
 }
 func (m *mockRunnable) Stop(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.stopped++
 	if m.cancel != nil {
 		m.cancel()

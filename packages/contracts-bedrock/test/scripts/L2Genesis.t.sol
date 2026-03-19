@@ -11,6 +11,7 @@ import { LATEST_FORK } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
@@ -72,7 +73,7 @@ abstract contract L2Genesis_TestInit is Test {
             // If it's not a supported predeploy, skip next checks.
             if (
                 !Predeploys.isSupportedPredeploy(
-                    addr, uint256(LATEST_FORK), true, input.useCustomGasToken, input.useL2CM
+                    addr, uint256(LATEST_FORK), input.useCustomGasToken, input.useInterop, input.devFeatureBitmap
                 )
             ) {
                 continue;
@@ -253,18 +254,18 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             operatorFeeVaultWithdrawalNetwork: 1,
             governanceTokenOwner: address(0x0000000000000000000000000000000000000009),
             fork: uint256(LATEST_FORK),
-            deployCrossL2Inbox: true,
             enableGovernance: true,
             fundDevAccounts: true,
             useRevenueShare: true,
             chainFeesRecipient: address(0x000000000000000000000000000000000000000b),
             l1FeesDepositor: address(0x000000000000000000000000000000000000000C),
             useCustomGasToken: false,
+            useInterop: false,
             gasPayingTokenName: "",
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
-            useL2CM: false
+            devFeatureBitmap: bytes32(0)
         });
     }
 
@@ -382,6 +383,33 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         genesis.run(input);
     }
 
+    /// @notice Helper function to configure input for interop enabled tests.
+    function _setInputInteropEnabled() internal {
+        input.useInterop = true;
+        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
+    /// @notice Asserts that the interop predeploys are present in genesis.
+    function testInterop() internal view {
+        assertGt(Predeploys.CROSS_L2_INBOX.code.length, 0, "CrossL2Inbox must have code");
+        assertGt(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.code.length, 0, "L2ToL2CrossDomainMessenger must have code");
+    }
+
+    /// @notice Tests that the run function succeeds when interop is enabled.
+    function test_run_withInterop_succeeds() external {
+        _setInputInteropEnabled();
+        genesis.run(input);
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaultsWithRevenueShare();
+        testGovernance();
+        testFactories();
+        testForks();
+        testFeeSplitter();
+        testInterop();
+    }
+
     /// @notice Helper function to configure input for CGT enabled tests.
     function _setInputCGTEnabled() internal {
         input.useCustomGasToken = true;
@@ -447,7 +475,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
 
     /// @notice Tests that enabling l2cm succeeds.
     function test_run_l2cm_succeeds() external {
-        input.useL2CM = true;
+        input.devFeatureBitmap |= DevFeatures.L2CM;
         genesis.run(input);
 
         testProxyAdmin();

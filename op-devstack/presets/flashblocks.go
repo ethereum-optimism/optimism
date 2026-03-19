@@ -88,6 +88,7 @@ func singleChainWithFlashblocksFromRuntime(t devtest.T, runtime *sysgo.SingleCha
 		l2ChainID,
 		runtime.Flashblocks.Builder.UserRPC(),
 		runtime.Flashblocks.Builder.FlashblocksWSURL(),
+		runtime.Flashblocks.Builder.UpdateRuleSet,
 		runtime.L2Network.RollupConfig(),
 		runtime.Flashblocks.Builder,
 	)

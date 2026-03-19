@@ -1,0 +1,136 @@
+---
+title: Set the DA Footprint Gas Scalar
+description: Learn how to set a Data Availability (DA) Footprint on your OP-Stack Chain
+---
+
+## Overview
+
+| Parameter | Type | Default | Recommended | Units |
+| ---------- | ---- | -------- | ------------ | ------------ |
+|<Tooltip tip="The default value of 0 is the same as setting the scalar to `400`. In order to effectively disable this feature, set the scalar to a very low value such as 1." cta="See the specs for more detail" href="https://specs.optimism.io/protocol/jovian/l1-attributes.html" > `daFootprintGasScalar` </Tooltip>| Number | `0` (`400`)  | `400` | gas per byte |
+
+<Warning>
+The default value of `0` is the same as setting the scalar to `400`. In order to effectively disable this feature, set the scalar to a very low value such as `1`.
+See the [specs for more detail](https://specs.optimism.io/protocol/jovian/l1-attributes.html).
+</Warning>
+
+The <strong>Data Availability (DA) Footprint Block Limit</strong> was introduced in the <strong>[Jovian hardfork](https://docs.optimism.io/notices/upgrade-17)</strong> to limit the total amount of transaction data that can fit into a block based on a scaled estimate of the compressed size (or "data availability footprint") of that data.
+When an OP Stack chain receives more calldata-heavy transactions than can fit into the L1s available blob space, the [Batcher can throttle the chains throughput](https://docs.optimism.io/chain-operators/guides/configuration/batcher#batcher-sequencer-throttling).
+
+However, continuous batcher throttling may cause the base fee to drop to the [minimum base fee](https://docs.optimism.io/chain-operators/guides/features/setting-min-base-fee),
+causing unnecessary losses for the chain operator and negative user experiences such as priority fee auctions.
+And without throttling, the batcher runs the risk of becoming overwhelmed with chain data to batch to the blob space.
+Limiting the amount of (estimated compressed) calldata taken up by transactions in a block using their total DA Footprint can reduce the need for batcher throttling and its related issues.
+
+## DA Footprint Calculation
+
+For all [non-deposit transactions](https://docs.optimism.io/reference/glossary#deposited-transaction) processed by an OP Stack chain, a DA Footprint value is recorded alongside the transaction's gas usage.
+The DA Footprint can be configured via the `daFootprintGasScalar` variable in the `SystemConfig` contract on the L1 chain.
+The DA Footprint is automatically calculated for every transaction first by calculating a `daUsageEstimate` for that transaction:
+
+```python
+daUsageEstimate = max(
+          minTransactionSize,
+          (intercept + fastlzCoef * tx.fastlzSize) // 1e6
+      )
+```
+
+where the `minTransactionSize`, `intercept`, `fastlzCoef`, and `tx.fastlzSize` are as specified in the [Fjord specs](https://specs.optimism.io/protocol/fjord/exec-engine.html#fees).
+Then the `daUsageEstimate` is then multiplied by the `daFootprintGasScalar` to get the `daFootprint` for that individual transaction.
+
+```python
+      daFootprint += daUsageEstimate * daFootprintGasScalar
+```
+
+The `daFootprint` for all the transactions in a block are then added together to calculate that block's total `daFootprint`.
+With the block's total `daFootprint` calculated:
+
+<Info>
+- The block's total `daFootprint` must stay below its `gasLimit`.
+- The `blobGasUsed` property of each block header is set to that block's `daFootprint`.
+- The base fee update calculation then uses `gasMetered := max(gasUsed, blobGasUsed)` as a replacement for the `gasUsed` variable.
+</Info>
+
+From Jovian, transaction receipts also record the transaction's DA Footprint in the receipt's `blobGasUsed` field, as well as the block's `daFootprintGasScalar` in a new field with the same name.
+
+## The DA Footprint Gas Scalar
+
+<Warning>
+  - If no limit is set, or the value 0 is set for the `daFootprintGasScalar` in the `SystemConfig`, the default value of `400` is used
+  - In order to effectively disable this feature, set the scalar to a very low value such as `1`.
+  - Setting the `daFootprintGasScalar` too high may exclude too many transactions from your blocks.
+  - Setting the `daFootprintGasScalar` too low may prove ineffective at preventing batcher throttling or protecting against continuous DA heavy transactions.
+  - When a chain's gas limit is changed, the DA footprint scales proportionally by design. However, if you want to retain the same absolute DA footprint limit, then you must also scale the `daFootprintGasScalar` accordingly.
+</Warning>
+
+The _DA footprint gas scalar_ scales the _estimated DA usage in bytes_ to the gas dimension, and this scaled estimate of the DA usage is what we call the _DA footprint_.
+This allows us to limit the estimated DA usage using the block's `gasLimit`: the effective limit of estimated DA usage per block is `gasLimit / daFootprintGasScalar` bytes.
+So _increasing_ this scalar makes DA usage more gas-heavy, so _decreases_ the limit, and vice versa.
+
+This is closely related to how the calldata (floor) cost of `40` gas per non-zero byte limits the total amount of calldata in a block.
+A DA footprint gas scalar of `400` effectively limits _incompressible_ calldata by a factor of `10` compared to its limit without a DA footprint block limit.
+As such, the feature can be seen as an extension of the existing calldata limit.
+But instead of repricing the calldata (floor) gas cost, the limit is accounted in parallel to EVM execution gas, and is based on the more relevant FastLZ-based DA usage estimate instead of simply counting zero and non-zero bytes.
+
+### Default Value `400`
+
+The default scalar of `400` was chosen so that it protects chains in worst-case DA spam scenarios, but has negligible to no impact during normal operation.
+Careful [analyses](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/da-footprint-block-limit.md) have been done to estimate the impact on current OP Stack chains and pick the right default.
+Only high-throughput chains would occasionally even see a small impact from the resulting DA footprint limit (as slightly faster rising base fees). The DA footprint limit is mostly invisible.
+On mid to low-throughput chains, the feature is expected to have no impact under normal usage conditions.
+It acts more like an insurance to protect against worst-case _incompressible_ DA spam.
+
+### How to Update the `daFootprintGasScalar`
+
+The steps below explain how to update the `daFootprintGasScalar` parameter on-chain using the `SystemConfig` contract.
+
+<Steps>
+  <Step title="Find your SystemConfig contract address">
+    The [SystemConfig](https://specs.optimism.io/protocol/system-config.html) contract stores configurable protocol parameters such as gas limits and fee settings.  
+    You can find its proxy address in the [state.json generated by op-deployer](https://docs.optimism.io/chain-operators/tutorials/create-l2-rollup/op-deployer-setup#deploy-l1-contracts).
+  </Step>
+
+  <Step title="Call the setDAFootprintGasScalar() method">
+   <Info>
+    The [SystemConfig owner](/op-stack/protocol/privileged-roles) is the only address that can make these changes.
+    </Info>
+    To update the `daFootprintGasScalar`, call the following method on the `SystemConfig` contract:
+
+    `setDAFootprintGasScalar(uint16 daFootprintGasScalar) external onlyOwner;`
+   
+    Example (using [cast](https://getfoundry.sh/cast/reference/cast/)) to double the scalar, so lower the effective DA usage limit by half:
+
+    ```bash title="Cast"
+    cast send -r <L1_RPC_URL> <SYSTEM_CONFIG_PROXY_ADDRESS> "daFootprintGasScalar(uint16)" 800 
+    ```
+  </Step>
+
+  <Step title="Verify the new value">
+    After the transaction confirms, verify the current value by calling the following getter method on the `SystemConfig` contract:
+    
+    `function daFootprintGasScalar() external view returns (uint16);`
+
+    Example (using [cast](https://getfoundry.sh/cast/reference/cast/)):
+
+    ```bash title="cast"
+    cast call -r <L1_RPC_URL> <SYSTEM_CONFIG_PROXY_ADDRESS> "daFootprintGasScalar()"
+    ```
+
+    And on your L2 chain you can query the scalar at the [L1Block predeploy](https://specs.optimism.io/protocol/predeploys.html#l1block) to confirm the new scalar has been propagated to the chain:
+
+    ```bash title="cast"
+    cast call -r <L2_RPC_URL> 0x4200000000000000000000000000000000000015 "daFootprintGasScalar()"
+    ```
+  </Step>
+</Steps>
+
+###
+
+---
+
+## References
+
+* [DA Footprint Configuration Spec](https://specs.optimism.io/protocol/jovian/system-config.html#da-footprint-configuration)
+* [Jovian Upgrade Spec](https://specs.optimism.io/protocol/jovian/overview.html)
+* [SystemConfig Contract Spec](https://specs.optimism.io/protocol/system-config.html)
+* [Design Doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/da-footprint-block-limit.md)

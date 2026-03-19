@@ -1,0 +1,102 @@
+---
+title: op-reth historical proof configuration
+description: Configuration options for historical proofs using ExEx in op-reth (op-rs fork).
+---
+
+This page provides documentation for the configuration options available in [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth) for supporting historical proofs via ExEx.
+
+By enabling this Execution Extension (ExEx), the node initializes a separate storage database specifically for historical trie nodes. This allows the node to **generate and serve historical proofs** efficiently, which is critical for applications requiring historical state access, such as fault proof systems.
+
+For a complete setup guide, see the tutorial on [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
+
+<Info>
+This fork inherits all standard op-reth configuration options. See the [op-reth configuration reference](/node-operators/reference/op-reth-config).
+</Info>
+
+## Proof History
+
+Options for configuring the proof history ExEx.
+
+### proofs-history
+
+If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history`</Tab>
+</Tabs>
+
+### proofs-history.storage-path
+
+The path to the storage DB for proofs history.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH>`</Tab>
+</Tabs>
+
+### proofs-history.window
+
+The window to span blocks for proofs history. Value is the number of blocks. 
+Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1,296,000`).
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.window <PROOFS_HISTORY_WINDOW>`</Tab>
+  <Tab title="Default">`1296000`</Tab>
+</Tabs>
+
+### proofs-history.prune-interval
+
+Interval between proof-storage prune runs. Accepts human-friendly durations like "100s", "5m", "1h".
+
+- Shorter intervals prune smaller batches more often.
+- Longer intervals prune larger batches less often.
+
+A shorter interval is preferred so that prune runs stay small and don’t stall writes for too long.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.prune-interval <PROOFS_HISTORY_PRUNE_INTERVAL>`</Tab>
+  <Tab title="Default">`15s`</Tab>
+</Tabs>
+
+### proofs-history.verification-interval
+
+Verification interval: perform full block execution every N blocks for data integrity.
+
+- `0`: Disabled (Default). Always use fast path with pre-computed data.
+- `1`: Always verify. Always execute blocks.
+- `N`: Verify every Nth block (e.g., 100 = every 100 blocks).
+
+Periodic verification helps catch data corruption while maintaining good performance.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL>`</Tab>
+  <Tab title="Default">`0`</Tab>
+</Tabs>
+
+
+## Management Commands
+
+The `op-reth proofs` command allows you to manage the storage of historical proofs.
+
+### init
+
+Initialize the proofs storage with the current state of the chain.
+
+```bash
+op-reth proofs init --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> 
+```
+
+### prune
+
+Prune old proof history to reclaim space.
+
+```bash
+op-reth proofs prune --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> --proofs-history.window <PROOFS_HISTORY_WINDOW>
+```
+
+### unwind
+
+Unwind the proofs storage to a specific block
+
+```bash
+op-reth proofs unwind --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> --target <TARGET_BLOCK>
+```

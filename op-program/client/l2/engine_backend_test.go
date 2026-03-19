@@ -85,7 +85,7 @@ func TestAppendToChain(t *testing.T) {
 	newBlock := blocks[4]
 	require.Nil(t, chain.GetBlock(newBlock.Hash(), newBlock.NumberU64()), "block unknown before being added")
 
-	_, err := chain.InsertBlockWithoutSetHead(newBlock, false)
+	_, err := chain.InsertBlockWithoutSetHead(t.Context(), newBlock, false)
 	require.NoError(t, err)
 	require.Equal(t, blocks[3].Header(), chain.CurrentHeader(), "should not update chain head yet")
 	require.Equal(t, common.Hash{}, chain.GetCanonicalHash(uint64(4)), "not yet a canonical hash")
@@ -102,7 +102,7 @@ func TestAppendToChain(t *testing.T) {
 func TestSetFinalized(t *testing.T) {
 	blocks, chain := setupOracleBackedChainWithLowerHead(t, 5, 0)
 	for _, block := range blocks[1:] {
-		_, err := chain.InsertBlockWithoutSetHead(block, false)
+		_, err := chain.InsertBlockWithoutSetHead(t.Context(), block, false)
 		require.NoError(t, err)
 	}
 	chain.SetFinalized(blocks[2].Header())
@@ -112,7 +112,7 @@ func TestSetFinalized(t *testing.T) {
 func TestSetSafe(t *testing.T) {
 	blocks, chain := setupOracleBackedChainWithLowerHead(t, 5, 0)
 	for _, block := range blocks[1:] {
-		_, err := chain.InsertBlockWithoutSetHead(block, false)
+		_, err := chain.InsertBlockWithoutSetHead(t.Context(), block, false)
 		require.NoError(t, err)
 	}
 	chain.SetSafe(blocks[2].Header())
@@ -122,7 +122,7 @@ func TestSetSafe(t *testing.T) {
 func TestGetReceiptsByBlockHash(t *testing.T) {
 	blocks, chain := setupOracleBackedChain(t, 1)
 
-	_, err := chain.InsertBlockWithoutSetHead(blocks[1], false)
+	_, err := chain.InsertBlockWithoutSetHead(t.Context(), blocks[1], false)
 	require.NoError(t, err)
 	require.Equal(t,
 		blocks[1].ReceiptHash(),
@@ -132,7 +132,7 @@ func TestGetReceiptsByBlockHash(t *testing.T) {
 
 	// create block with txs/receipts
 	newBlock := createBlock(t, chain)
-	_, err = chain.InsertBlockWithoutSetHead(newBlock, false)
+	_, err = chain.InsertBlockWithoutSetHead(t.Context(), newBlock, false)
 	require.NoError(t, err)
 	receipts := chain.GetReceiptsByBlockHash(newBlock.Hash())
 	require.NotNil(t, receipts)
@@ -152,7 +152,7 @@ func TestUpdateStateDatabaseWhenImportingBlock(t *testing.T) {
 
 	require.False(t, chain.HasBlockAndState(newBlock.Root(), newBlock.NumberU64()), "state from non-imported block should not be available")
 
-	_, err = chain.InsertBlockWithoutSetHead(newBlock, false)
+	_, err = chain.InsertBlockWithoutSetHead(t.Context(), newBlock, false)
 	require.NoError(t, err)
 	db, err = chain.StateAt(newBlock.Root())
 	require.NoError(t, err, "state should be available after importing")
@@ -166,7 +166,7 @@ func TestRejectBlockWithStateRootMismatch(t *testing.T) {
 	// Create invalid block by keeping the modified state root but exclude the transaction
 	invalidBlock := types.NewBlockWithHeader(newBlock.Header())
 
-	_, err := chain.InsertBlockWithoutSetHead(invalidBlock, false)
+	_, err := chain.InsertBlockWithoutSetHead(t.Context(), invalidBlock, false)
 	require.ErrorIs(t, err, ErrUnexpectedBlockHash)
 }
 
@@ -191,7 +191,7 @@ func TestGetHeaderByNumber(t *testing.T) {
 
 		// Append a block
 		newBlock := createBlock(t, chain)
-		_, err := chain.InsertBlockWithoutSetHead(newBlock, false)
+		_, err := chain.InsertBlockWithoutSetHead(t.Context(), newBlock, false)
 		require.NoError(t, err)
 		_, err = chain.SetCanonical(newBlock)
 		require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestGetHeaderByNumber(t *testing.T) {
 
 		// Append a block
 		newBlock := createBlock(t, chain)
-		_, err := chain.InsertBlockWithoutSetHead(newBlock, false)
+		_, err := chain.InsertBlockWithoutSetHead(t.Context(), newBlock, false)
 		require.NoError(t, err)
 		_, err = chain.SetCanonical(newBlock)
 		require.NoError(t, err)
@@ -219,11 +219,11 @@ func TestGetHeaderByNumber(t *testing.T) {
 		newBlock1 := blocks[3]
 		newBlock2 := blocks[4]
 		newBlock3 := blocks[5]
-		_, err := chain.InsertBlockWithoutSetHead(newBlock1, false)
+		_, err := chain.InsertBlockWithoutSetHead(t.Context(), newBlock1, false)
 		require.NoError(t, err)
-		_, err = chain.InsertBlockWithoutSetHead(newBlock2, false)
+		_, err = chain.InsertBlockWithoutSetHead(t.Context(), newBlock2, false)
 		require.NoError(t, err)
-		_, err = chain.InsertBlockWithoutSetHead(newBlock3, false)
+		_, err = chain.InsertBlockWithoutSetHead(t.Context(), newBlock3, false)
 		require.NoError(t, err)
 
 		_, err = chain.SetCanonical(newBlock3)
@@ -285,7 +285,7 @@ func TestPrecompileOracle(t *testing.T) {
 			require.NoError(t, err)
 
 			newBlock := createBlock(t, chain, WithInput(test.input), WithTargetAddress(test.target))
-			_, err = chain.InsertBlockWithoutSetHead(newBlock, false)
+			_, err = chain.InsertBlockWithoutSetHead(t.Context(), newBlock, false)
 			require.NoError(t, err)
 			require.Equal(t, 1, precompileOracle.Calls)
 		})

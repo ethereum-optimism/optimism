@@ -19,6 +19,9 @@ parameters:
   c-rust_changes_detected:
     type: boolean
     default: false
+  c-non_docs_changes:
+    type: boolean
+    default: false
   # Passthrough declarations for setup config parameters.
   # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
   # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
@@ -186,6 +189,11 @@ jobs:
                   cd rust/kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
       - go-save-cache:
           namespace: kona-ci
+      - store_test_results:
+          path: rust/kona/tests/tmp/test-results
+      - store_artifacts:
+          path: rust/kona/tests/tmp/testlogs
+          when: always
 
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
   rust-restart-sysgo-tests:
@@ -211,6 +219,11 @@ jobs:
             cd rust/kona && just test-e2e-sysgo node node/restart
       - go-save-cache:
           namespace: kona-ci
+      - store_test_results:
+          path: rust/kona/tests/tmp/test-results
+      - store_artifacts:
+          path: rust/kona/tests/tmp/testlogs
+          when: always
 
   # op-reth E2E Sysgo Tests
   op-reth-e2e-sysgo-tests:
@@ -234,9 +247,14 @@ jobs:
           no_output_timeout: 60m
           command: |
             export OP_RETH_EXEC_PATH="$(pwd)/../../target/release/op-reth"
-            make test-e2e-sysgo
+            just test-e2e-sysgo
       - go-save-cache:
           namespace: op-reth-e2e
+      - store_test_results:
+          path: rust/op-reth/tests/tmp/test-results
+      - store_artifacts:
+          path: rust/op-reth/tests/tmp/testlogs
+          when: always
 
   # Kona Proof Action Tests (from proof.yaml)
   kona-proof-action-tests:
@@ -268,6 +286,11 @@ jobs:
             just action-tests-<<parameters.kind>>-run
       - go-save-cache:
           namespace: kona-ci
+      - store_test_results:
+          path: op-e2e/actions/proofs/tmp/test-results
+      - store_artifacts:
+          path: op-e2e/actions/proofs/tmp/testlogs
+          when: always
 
   required-rust-e2e:
     docker:
@@ -287,6 +310,7 @@ workflows:
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - << pipeline.parameters.c-rust_changes_detected >>
+            - << pipeline.parameters.c-non_docs_changes >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -322,7 +346,7 @@ workflows:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:
             parameters:
-              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer", "large-kona-sequencer"]
+              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -361,7 +385,6 @@ workflows:
             - rust-e2e-simple-kona
             - rust-e2e-simple-kona-geth
             - rust-e2e-simple-kona-sequencer
-            - rust-e2e-large-kona-sequencer
             - rust-e2e-restart
             - kona-proof-action-single
 

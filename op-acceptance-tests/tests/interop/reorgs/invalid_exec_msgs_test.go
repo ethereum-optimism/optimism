@@ -214,7 +214,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	sys.L2BatcherA.Start()
 
 	// wait for reorg on chain A
-	sys.L2ELA.ReorgTriggered(eth.L2BlockRef{
+	sys.L2ELA.ReorgExact(eth.L2BlockRef{
 		Number:     divergenceBlockNumber_A,
 		Hash:       originalHash_A,
 		ParentHash: originalParentHash_A,

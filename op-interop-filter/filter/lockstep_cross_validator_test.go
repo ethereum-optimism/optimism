@@ -222,6 +222,30 @@ func TestCrossValidator_ValidationFailureSetsError(t *testing.T) {
 	require.Equal(t, uint64(101), ts, "cross-validated timestamp should not advance after failure")
 }
 
+func TestCrossValidator_StartTimestampZeroStillAdvances(t *testing.T) {
+	mock := newMockChainIngester()
+	mock.SetLatestTimestamp(1)
+
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := newTestCrossValidator(chains, testExpiryWindow, 0)
+
+	// First advancement initializes the validator at timestamp 0.
+	cv.advanceValidation()
+
+	ts, ok := cv.CrossValidatedTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(0), ts)
+
+	// Second advancement should move past 0 once chains have ingested timestamp 1.
+	cv.advanceValidation()
+
+	ts, ok = cv.CrossValidatedTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(1), ts)
+}
+
 // =============================================================================
 // ValidateAccessEntry Timestamp Ingestion Tests
 // =============================================================================

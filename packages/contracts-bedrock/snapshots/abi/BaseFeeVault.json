@@ -80,6 +80,32 @@
   },
   {
     "inputs": [],
+    "name": "proxyAdmin",
+    "outputs": [
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proxyAdminOwner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "recipient",
     "outputs": [
       {
@@ -310,17 +336,42 @@
   },
   {
     "inputs": [],
-    "name": "FeeVault_OnlyProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "NotInitializing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdmin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotResolvedDelegateProxy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotSharedProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProxyAdminOwnedBase_ProxyAdminNotFound",
     "type": "error"
   }
 ]

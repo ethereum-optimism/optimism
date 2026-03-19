@@ -2,11 +2,13 @@ package proofs
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
+	"time"
 
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -22,6 +24,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
+
+// txTimeout is the maximum time to wait for a single transaction to be
+// estimated, submitted, and included. Without this, transactions inherit the
+// test's full context deadline (~2 hours in CI) and a hanging RPC call
+// (e.g. eth_estimateGas for an EIP-7702 delegated EOA) blocks silently
+// for the entire duration.
+const txTimeout = 5 * time.Minute
 
 type GameHelperMove struct {
 	ParentIdx *big.Int
@@ -60,7 +69,9 @@ func DeployGameHelper(t devtest.T, deployer *dsl.EOA, honestTraceProvider func(g
 	)
 
 	deployTx := txplan.NewPlannedTx(deployTxOpts)
-	receipt, err := deployTx.Included.Eval(t.Ctx())
+	deployCtx, deployCancel := context.WithTimeout(t.Ctx(), txTimeout)
+	defer deployCancel()
+	receipt, err := deployTx.Included.Eval(deployCtx)
 	req.NoError(err, "Failed to deploy GameHelper contract")
 
 	req.Equal(types.ReceiptStatusSuccessful, receipt.Status, "GameHelper deployment failed")
@@ -125,7 +136,9 @@ func getGameHelperArtifactPath(t devtest.T) string {
 
 func (gs *GameHelper) AuthEOA(eoa *dsl.EOA) *GameHelper {
 	tx := txplan.NewPlannedTx(eoa.PlanAuth(gs.contractAddr))
-	receipt, err := tx.Included.Eval(gs.t.Ctx())
+	authCtx, authCancel := context.WithTimeout(gs.t.Ctx(), txTimeout)
+	defer authCancel()
+	receipt, err := tx.Included.Eval(authCtx)
 	gs.require.NoError(err)
 	gs.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 	return &GameHelper{
@@ -160,7 +173,9 @@ func (gs *GameHelper) CreateGameWithClaims(
 			txplan.WithData(data),
 		),
 	)
-	receipt, err := tx.Included.Eval(gs.t.Ctx())
+	createCtx, createCancel := context.WithTimeout(gs.t.Ctx(), txTimeout)
+	defer createCancel()
+	receipt, err := tx.Included.Eval(createCtx)
 	gs.require.NoError(err)
 	gs.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
@@ -307,7 +322,9 @@ func (gs *GameHelper) PerformMoves(eoa *dsl.EOA, game *FaultDisputeGame, moves [
 		),
 	)
 	preClaimCount := game.claimCount()
-	receipt, err := tx.Included.Eval(gs.t.Ctx())
+	moveCtx, moveCancel := context.WithTimeout(gs.t.Ctx(), txTimeout)
+	defer moveCancel()
+	receipt, err := tx.Included.Eval(moveCtx)
 	gs.require.NoError(err)
 	gs.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 	postClaimCount := game.claimCount()

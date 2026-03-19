@@ -1,0 +1,50 @@
+---
+title: Node Operator Overview
+description: Learn about running nodes on OP Stack networks.
+---
+
+## Overview
+
+This section of the documentation is dedicated to node operators who want to learn about configuring and running nodes on OP Stack networks.
+Because the OP Stack is an open-source, modular, and extensible stack, there are many different clients, configurations, and requirements depending on your goals and the specific network you're targeting.
+The information provided in this section covers standard configurations and features on the OP Stack.
+
+## Why Run a Node?
+
+Running your own node gives you the benefit of trustless verification, enhanced privacy, and gives you local access to the blockchain.
+However, it also requires time and resources to set up and maintain.
+So you should consider your goals and use cases before deciding to run a node because there are many third-party RPC providers available.
+
+## Node Architecture
+
+Regardless of which OP Stack network you're running a node for, all nodes share the same fundamental two-client architecture.
+There is the consensus client and the execution client, which communicate via the Engine API with JWT authentication.
+
+### Consensus Layer (Rollup Node)
+
+The consensus layer builds, relays and verifies the canonical chain of blocks. 
+The following are the most popular implementations:
+
+* **[op-node](https://github.com/ethereum-optimism/optimism/tree/develop/op-node)** 
+* **[kona-node](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/node)** 
+
+### Execution Layer 
+
+The execution layer provides the evm execution environment. 
+The following are the most popular implementations:
+
+* **[op-geth](https://github.com/ethereum-optimism/op-geth)** 
+* **[op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth)**
+* **[Nethermind](https://github.com/NethermindEth/nethermind)** 
+
+## Node Types
+
+Different node types serve different purposes:
+
+* **Full node**: keeps a complete copy of the blockchain, validates all transactions and blocks, and participates on the P2P network.
+* **Archive node**: additionally retains all historical state for every block.
+* **Sequencer node**: can be a full or archive node, but it can create new L2 blocks.
+
+## Next steps
+
+*   [**Run a Node from Docker**](/node-operators/tutorials/node-from-docker)

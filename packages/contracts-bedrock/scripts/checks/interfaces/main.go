@@ -33,6 +33,9 @@ var excludeContracts = []string{
 	// Constructor inheritance differences
 	"IL2ProxyAdmin",
 
+	// OZ v4/v5 Ownable mismatch: IOwnable has v5 errors, AddressManager uses v4 Ownable
+	"IAddressManager",
+
 	// TODO: Interfaces that need to be fixed
 	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
 	"KontrolCheatsBase", "IResolvedDelegateProxy",
@@ -41,7 +44,7 @@ var excludeContracts = []string{
 // excludeSourceContracts is a list of contracts that are allowed to not have interfaces
 var excludeSourceContracts = []string{
 	// Base contracts with no external functions
-	"CrossDomainOwnable", "CrossDomainOwnable2", "CrossDomainOwnable3", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1",
+	"CrossDomainOwnable", "CrossDomainOwnable2", "CrossDomainOwnable3", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1", "PolicyEngineStakingMapping",
 
 	// Helper contracts
 	"SafeSend", "EventLogger", "StorageSetter", "DisputeMonitorHelper", "GameHelper",

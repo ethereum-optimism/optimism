@@ -1,0 +1,66 @@
+---
+title: Troubleshooting chain operations
+description: Learn solutions to common problems when troubleshooting chain operations.
+---
+
+This page lists common troubleshooting scenarios and solutions for chain operators.
+
+## EvmError in contract deployment
+
+L1 smart contract deployment fails with the following error:
+
+```text
+EvmError: Revert
+```
+
+### Solution
+
+The OP Stack uses deterministic smart contract deployments to guarantee that all contract addresses can be computed ahead of time based on a "salt" value that is provided at deployment time.
+Each OP Stack chain must have a unique salt value to ensure that the contract addresses do not collide with other OP Stack chains.
+
+You can avoid this error by changing the salt used when deploying the L1 smart contracts.
+The salt value is set by the `IMPL_SALT` environment variable when deploying the contracts.
+The `IMPL_SALT` value must be a 32 byte hex string.
+
+You can generate a random salt value using the following command:
+
+```bash
+export IMPL_SALT=$(openssl rand -hex 32)
+```
+
+## Failed to find the L2 Heads to start from
+
+`op-node` fails to execute the derivation process with the following error:
+
+```text
+WARN [02-16|21:22:02.868] Derivation process temporary error       attempts=14 err="stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch L2 block by hash 0x0000000000000000000000000000000000000000000000000000000000000000: failed to determine block-hash of hash 0x0000000000000000000000000000000000000000000000000000000000000000, could not get payload: not found"
+```
+
+### Solution
+
+This error can occur when the data directory for `op-geth` becomes corrupted (for example, as a result of a computer crash).
+You will need to reinitialize the data directory.
+
+If you are following the tutorial for [Creating Your Own L2 Rollup](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup), make sure to rerun the commands within the [Initialize `op-geth`](/operators/chain-operators/tutorials/create-l2-rollup#initialize-op-geth) section.
+
+If you are not following the tutorial, make sure to take the following steps:
+
+1.  Stop `op-node` and `op-geth`.
+2.  Delete the corresponding `op-geth` data directory.
+3.  If running a Sequencer node, import the Sequencer key into the `op-geth` keychain.
+4.  Reinitialize `op-geth` with the `genesis.json` file.
+5.  Restart `op-geth` and `op-node`.
+
+## Batcher unable to publish transaction
+
+`op-batcher` fails to publish transactions with the following error:
+
+```text
+INFO [03-21|14:22:32.754] publishing transaction                   service=batcher txHash=2ace6d..7eb248 nonce=2516 gasTipCap=2,340,741 gasFeeCap=172,028,434,515
+ERROR[03-21|14:22:32.844] unable to publish transaction            service=batcher txHash=2ace6d..7eb248 nonce=2516 gasTipCap=2,340,741 gasFeeCap=172,028,434,515 err="insufficient funds for gas * price + value"
+```
+
+### Solution
+
+You will observe this error if the `op-batcher` runs out of ETH to publish transactions to L1.
+This problem can be resolved by sending additional ETH to the `op-batcher` address.

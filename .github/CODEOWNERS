@@ -21,5 +21,8 @@
 # Security docs
 /docs/security-reviews @ethereum-optimism/evm-safety
 
+# Public developer documentation
+/docs/public-docs/  @ethereum-optimism/solutions
+
 # Must come last to avoid being overridden
 /.github/CODEOWNERS  @ethereum-optimism/cloud-security

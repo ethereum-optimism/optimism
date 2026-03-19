@@ -1,0 +1,75 @@
+---
+title: Network upgrades
+description: Learn more about OP Stack network activations.
+---
+
+
+
+
+
+
+
+# Network upgrade overview
+
+This page provides hardfork activation timestamps and links to detailed specifications.
+The documentation outlines the hardfork release process.
+The network upgrade naming scheme after the Bedrock upgrade follows a geology theme based on the next letter in the English alphabet.
+
+## Activations
+
+Network upgrades are activated by timestamps. Failing to upgrade your OP Stack software before the timestamp will cause a chain divergence and you will need to resync the chain. Optimistic activation times refer to times that are pending governance approval.
+
+| Upgrade                                                                                                   | Governance Approval                                                                                                          | [Mainnet Activations](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/superchain.toml) | [Sepolia Activations](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/sepolia/superchain.toml) |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| [Jovian](https://specs.optimism.io/protocol/jovian/overview.html?utm_source=op-docs%5C&utm_medium=docs)   | [approved](https://vote.optimism.io/proposals/3118571676657709551286937570456546163542507117143005939043790253732885172699)  | Tue Dec 2 16:00:01 UTC 2025 (`1764691201`)                                                                                           | Wed Nov 19 16:00:01 UTC 2025 (`1763568001`)                                                                                          |
+| [Isthmus](https://specs.optimism.io/protocol/isthmus/overview.html?utm_source=op-docs\&utm_medium=docs)   | [approved](https://vote.optimism.io/proposals/8705916809146420472067303211131851783087744913535435360574720946039078686841)  | Fri May 9 16:00:01 UTC 2025 (`1746806401`)                                                                                           | Thu Apr 17 16:00:00 UTC 2025 (`1744905600`)                                                                                          |
+| [Holocene](https://specs.optimism.io/protocol/holocene/overview.html?utm_source=op-docs\&utm_medium=docs) | [approved](https://vote.optimism.io/proposals/20127877429053636874064552098716749508236019236440427814457915785398876262515) | Thu Jan 9 18:00:01 UTC 2025  (`1736445601`)                                                                                          | Tue Nov 26 15:00:00 UTC 2024 (`1732633200`)                                                                                          |
+| [Granite](https://specs.optimism.io/protocol/granite/overview.html?utm_source=op-docs\&utm_medium=docs)   | [approved](https://gov.optimism.io/t/upgrade-proposal-10-granite-network-upgrade/8733)                                       | Wed Sep 11 16:00:01 UTC 2024 (`1726070401`) around block `125235812`                                                                 | Mon Aug 12 16:00:00 UTC 2024 (`1723478400`) around block `15837930`                                                                  |
+| [Fjord](https://specs.optimism.io/protocol/fjord/overview.html?utm_source=op-docs\&utm_medium=docs)       | [approved](https://gov.optimism.io/t/upgrade-proposal-9-fjord-network-upgrade/8236)                                          | Wed Jul 10 16:00:01 UTC 2024 (`1720627201`) around block `122514212`                                                                 | Wed May 29 16:00:00 UTC 2024 (`1716998400`) around block `12597930`                                                                  |
+| [Ecotone](https://specs.optimism.io/protocol/ecotone/overview.html?utm_source=op-docs\&utm_medium=docs)   | [approved](https://gov.optimism.io/t/upgrade-proposal-5-ecotone-network-upgrade/7669)                                        | Thu Mar 14 00:00:01 UTC 2024 (`1710374401`) around block `117387812`                                                                 | Wed Feb 21 17:00:00 UTC 2024 (`1708534800`) around block `8366130`                                                                   |
+| [Delta](https://specs.optimism.io/protocol/delta/overview.html?utm_source=op-docs\&utm_medium=docs)       | [approved](https://gov.optimism.io/t/final-upgrade-proposal-3-delta-network-upgrade/7310)                                    | Thu Feb 22 00:00:00 UTC 2024 (`1708560000`) around block `116480612`                                                                 | Fri Dec 22 00:00:00 UTC 2023 (`1703203200`) around block `5700330`                                                                   |
+| [Canyon](https://specs.optimism.io/protocol/canyon/overview.html?utm_source=op-docs\&utm_medium=docs)     | [approved](https://gov.optimism.io/t/final-upgrade-proposal-2-canyon-network-upgrade/7088)                                   | Thu Jan 11 17:00:01 UTC 2024 (`1704992401`) around block `114696812`                                                                 | Tue Nov 14 17:00:00 UTC 2023 (`1699981200`) around block `4089330`                                                                   |
+| Bedrock                                                                                                   | [approved](https://gov.optimism.io/t/final-upgrade-1-bedrock-protocol-upgrade-v2/5548)                                       | Tue Jun 06 2023 16:28:23 UTC (`1686079703`) at block `105235063`                                                                     | N/A                                                                                                                                  |
+
+## Upgrade process
+
+Network upgrades follow this general process in which the features included in
+the upgrade are put into a release version cut from the `develop` branch and
+then the software is deployed on production networks.
+
+<Info>
+  "Baking" on a network means the node software has been deployed and is live.
+  Engineers take this time to observe the behavior of the software on
+  production networks.
+</Info>
+
+<Image src="/public/img/builders/node-operators/network-upgrades/node-software-release-timeline.png" alt="Node Software Release Timeline" width={0} height={0} sizes="100vw" style={{ width: '100%', height: 'auto' }} quality={100} />
+
+<Steps>
+  <Step title="Devnet">
+  *   `Devnet Upgrade Notice Period` is for core developers to upgrade the
+        node software on an internal devnet prior to the activation timestamp.
+    *   `Upgrade Activates on Devnet`
+    *   `Baking on Devnet`
+  </Step>
+
+  <Step title="Testnet">
+  *   `Testnet Upgrade Notice Period` is to allow testnet node operators to
+        upgrade the node software on testnet prior to the activation timestamp.
+    *   `Upgrade Activates on Testnet`
+    *   `Baking on Testnet`
+  </Step>
+
+  <Step title="Mainnet">
+  *   `Governance Voting Review Period` is when the Optimism Collective's
+        governance system reviews proposals, including network upgrade proposals.
+    *   `Governance Voting Period` is when the Optimism Collective's governance
+        system votes on proposals.
+    *   `Veto Period` is when the Citizens' House of the governance system can
+        veto a protocol upgrade that has been approved by the Token House.
+    *   `Cut Mainnet Release`
+    *   `Mainnet Upgrade Notice Period` is to allow mainnet node operators to
+        upgrade the node software on mainnet prior to the activation timestamp.
+    *   `Upgrade Activated`
+  </Step>
+</Steps>

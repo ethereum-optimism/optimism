@@ -36,6 +36,7 @@ type Config struct {
 	Version                     string
 	PollInterval                time.Duration // Interval for polling new blocks (default: 2s)
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
+	Passthrough                 bool          // If true, all transactions pass through without filtering
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -132,6 +133,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		Version:                     version,
 		PollInterval:                pollInterval,
 		ValidationInterval:          validationInterval,
+		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
 		LogConfig:                   oplog.ReadCLIConfig(ctx),
 		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                 oppprof.ReadCLIConfig(ctx),

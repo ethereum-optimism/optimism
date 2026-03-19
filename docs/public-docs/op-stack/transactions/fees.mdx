@@ -1,0 +1,303 @@
+---
+title: Transaction fees on OP Mainnet
+description: Learn how transaction fees work on OP Mainnet.
+---
+
+<Info>
+  The OP Stack maintains a distinct gas limit compared to the Ethereum mainnet.
+  While both chains use the same underlying transaction formats, Optimism's gas limits are tailored for optimal Layer 2 performance and scalability.
+  As a result, transactions on Optimism may behave differently from the mainnet regarding gas usage and fee estimation.
+  For a detailed comparison of gas limits between Optimism and Ethereum, see the [Differences between Ethereum and OP Stack Chains](/op-stack/protocol/differences).
+</Info>
+OP Mainnet is designed to be [EVM equivalent](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306), which means it reuses the same Ethereum code you're already familiar with and behaves as much like Ethereum as possible.
+However, transaction fees on all Layer 2 systems need to diverge from Ethereum to some extent for a number of reasons.
+This page provides a detailed look at exactly how transaction fees work on OP Mainnet so you can properly account for them in your application.
+
+OP Mainnet transaction fees are composed of an [Execution gas fee](#execution-gas-fee), an [L1 data fee](#l1-data-fee), and after the [Isthmus upgrade](/notices/upgrade-14#operator-fee), an [operator fee](#operator-fee).
+The total cost of a transaction is the sum of these fee components:
+
+**Before Isthmus:**
+
+```
+totalFee = gasUsed * (baseFee + priorityFee) + l1Fee
+```
+
+**After Isthmus:**
+
+```
+totalFee = operatorFee + gasUsed * (baseFee + priorityFee) + l1Fee
+```
+
+Continue reading to learn more about exactly how each of these fee components are charged.
+
+## Execution gas fee
+
+A transaction's execution gas fee is exactly the same fee that you would pay for the same transaction on Ethereum.
+This fee is equal to the amount of gas used by the transaction multiplied by the gas price attached to the transaction.
+Like Ethereum, OP Mainnet uses the [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559) mechanism to set the [base fee](https://ethereum.org/en/developers/docs/gas/#base-fee) for transactions.
+The total price per unit gas that a transaction pays is the sum of the [base fee](https://ethereum.org/en/developers/docs/gas/#base-fee) and the optional additional [priority fee](https://ethereum.org/en/developers/docs/gas/#priority-fee).
+
+Because OP Mainnet is EVM equivalent, **the gas used by a transaction on OP Mainnet is exactly the same as the gas used by the same transaction on Ethereum**.
+If a transaction costs 100,000 gas on Ethereum, it will cost 100,000 gas on OP Mainnet.
+The only difference is that the gas price on OP Mainnet is much lower than the gas price on Ethereum so you'll end up paying much less in ETH.
+
+For this component of the fee, you can estimate the total cost of a transaction using the same tools you would use to estimate the cost of a transaction on Ethereum.
+You can read more about how Ethereum's gas fees work over on [Ethereum.org](https://ethereum.org/en/developers/docs/gas/).
+
+### Base fee
+
+The [base fee](https://ethereum.org/en/developers/docs/gas/#base-fee) is the minimum price per unit of gas that a transaction must pay to be included in a block.
+Transactions must specify a maximum base fee higher than the block base fee to be included.
+The actual fee charged is the block base fee, even if the transaction specifies a higher maximum base fee.
+
+The OP Mainnet base fee behaves exactly like the Ethereum base fee, with a few small parameter changes to account for the much shorter block times on OP Mainnet.
+None of these parameters should significantly impact your application, but you can read more about each of these parameters on the [OP Mainnet differences](/op-stack/protocol/differences#eip-1559-parameters) page.
+Read more about the base fee in the [Ethereum.org documentation](https://ethereum.org/en/developers/docs/gas/#base-fee).
+
+### Priority fee
+
+Just like on Ethereum, OP Mainnet transactions can specify a **priority fee**.
+This priority fee is a price per unit of gas that is paid on top of the base fee.
+For example, if the block base fee is 1 gwei and the transaction specifies a priority fee of 1 gwei, the total price per unit of gas is 2 gwei.
+The priority fee (i.e. tip) is an optional component of the execution gas fee and can technically be set to 0.
+However, while EIP-1559 does not define a minimum priority fee, certain wallets and mempool implementations (like Geth) may enforce a minimum value. For instance, Geth typically defaults to a minimum priority fee of 1 gwei, but this can be configured to other values.
+
+**The OP Mainnet sequencer will prioritize transactions with a higher priority fee** and execute them before any transactions with a lower priority fee.
+If transaction speed is important to your application, you may want to set a higher priority fee to ensure that your transaction is included more quickly.
+The [`eth_maxPriorityFeePerGas`](https://docs.alchemy.com/reference/eth-maxpriorityfeepergas) RPC method can be used to estimate a priority fee that will get your transaction included quickly.
+
+## L1 data fee
+
+The L1 Data Fee is the only part of the OP Mainnet transaction fee that differs from the Ethereum transaction fee.
+This fee arises from the fact that the transaction data for all OP Mainnet transactions is published to Ethereum.
+This guarantees that the transaction data is available for nodes to download and execute.
+The L1 Data Fee accounts for the cost to publish an OP Mainnet transaction to Ethereum and is primarily determined
+by the current base fee on Ethereum. After the Ecotone upgrade, OP Stack chains will have the option of posting
+transactions using [`blobs`](https://www.eip4844.com/). For blob-enabled chains, the current Ethereum blob data
+gas price will largely determine the L1 Data Fee.
+
+### Mechanism
+
+The L1 Data Fee is automatically charged for any transaction that is included in an OP Mainnet block.
+This fee is deducted directly from the address that sent the transaction.
+The exact amount paid depends on the estimated size of the transaction in bytes after compression,
+the current Ethereum gas price and/or blob gas price, and several small parameters.
+
+The L1 Data Fee is most heavily influenced by the Ethereum base fee that is continuously and trustlessly relayed from Ethereum to
+OP Mainnet.  With the Ecotone upgrade, the Ethereum blob base fee also gets relayed to OP Mainnet, and will become the most
+important factor for chains configured to use blobs instead of base fee.  The base fee and blob base fee are updated on OP
+Mainnet for every Ethereum block, and each fluctuates at most by 12.5% between updates.  As a result, short-term fluctuations of
+the L1 Data Fee are generally quite small and should not impact the average transaction.
+
+<Info>
+  The L1 Data Fee is charged automatically.
+  **It is currently not possible to limit the maximum L1 Data Fee that a transaction is willing to pay.**
+  This is the result of limitations in existing Ethereum transaction formats and tradeoffs that the OP Stack makes to retain better EVM equivalence.
+  Work is underway to improve this situation with the introduction of a new standardized transaction type.
+  For now, you should be aware that the L1 Data Fee can fluctuate with the Ethereum gas price.
+</Info>
+
+### Formula
+
+#### Bedrock
+
+<Info>
+  The L1 Data Fee formula changed with the Ecotone upgrade.
+  Refer to the [Network upgrade overview](/op-stack/protocol/network-upgrades) for network upgrade activation timestamps for OP Sepolia and OP Mainnet.
+</Info>
+
+Prior to the Ecotone upgrade, the L1 Data Fee is calculated based on the following parameters:
+
+*   The **signed** transaction, serialized according to [the standard Ethereum transaction RLP encoding](https://github.com/ethereum-optimism/op-geth/blob/11a890f1ee0348a17687149abc72f394f9faa5ce/core/types/transaction.go#L131-L141).
+*   The current Ethereum base fee  (trustlessly relayed from Ethereum).
+*   A fixed overhead cost for publishing a transaction (currently set to 188 gas).
+*   A dynamic overhead cost which scales with the size of the transaction (currently set to 0.684).
+
+The L1 Data Fee calculation first begins with counting the number of zero bytes and non-zero bytes in the transaction data.
+Each zero byte costs 4 gas and each non-zero byte costs 16 gas.
+This is the same way that Ethereum calculates the gas cost of transaction data.
+
+```python
+tx_data_gas = count_zero_bytes(tx_data) * 4 + count_non_zero_bytes(tx_data) * 16
+```
+
+After calculating the gas cost of the transaction data, the fixed and dynamic overhead values are applied.
+
+```python
+tx_total_gas = (tx_data_gas + fixed_overhead) * dynamic_overhead
+```
+
+Finally, the total L1 Data Fee is calculated by multiplying the total gas cost by the current Ethereum base fee.
+
+```python
+l1_data_fee = tx_total_gas * ethereum_base_fee
+```
+
+#### Ecotone
+
+<Info>
+  The L1 Data Fee formula changed with the Ecotone upgrade.
+  Refer to the [Network Upgrade Overview](/op-stack/protocol/network-upgrades) for network upgrade activation timestamps for OP Sepolia and OP Mainnet.
+</Info>
+
+The pricing function changes with Ecotone upgrade because of the introduction of the option to
+post transaction batches to the L1 using blobs instead of through L1 calldata. This updated
+function uses the following parameters:
+
+*   The **signed** transaction serialized according to [the standard Ethereum transaction RLP encoding](https://github.com/ethereum-optimism/op-geth/blob/11a890f1ee0348a17687149abc72f394f9faa5ce/core/types/transaction.go#L131-L141).
+*   The current Ethereum base fee and/or blob base fee (trustlessly relayed from Ethereum).
+*   Two new scalar parameters that independently scale the **base fee** and **blob base fee**.
+
+At the exact point of the Ecotone upgrade, the dynamic overhead parameter value is used to
+initialize the Ecotone base fee scalar, and blob base fee is set to 0. The overhead parameter from
+the previous function becomes ignored.
+
+The Ecotone L1 Data Fee calculation begins with counting the number of zero bytes and non-zero
+bytes in the transaction data.  Each zero byte costs 4 gas and each non-zero byte costs 16
+gas. This value, when divided by 16, can be thought of as a rough estimate of the size of the
+transaction data after compression.
+
+```python
+tx_compressed_size = [(count_zero_bytes(tx_data)*4 + count_non_zero_bytes(tx_data)*16)] / 16
+```
+
+Next, the two scalars are applied to the base fee and blob base fee parameters to compute a weighted
+gas price multiplier.
+
+```python
+weighted_gas_price = 16*base_fee_scalar*base_fee + blob_base_fee_scalar*blob_base_fee
+```
+
+The L1 Data Fee is then:
+
+```python
+l1_data_fee = tx_compressed_size * weighted_gas_price
+```
+
+Recall that base\_fee\_scalar is set to dynamic\_overhead and blob\_base\_fee\_scalar is 0 immediately
+following the upgrade. Because the old overhead parameter becomes ignored, new L1 data prices will
+be (slightly, since overhead is typically very small) lower than before the fork.  Chain
+operators will likely want to retune the parameters appropriately after the fork, particularly if
+they plan on [enabling blobs](/chain-operators/guides/features/blobs).
+Chain operators can use the [Ecotone fee parameter calculator](https://docs.google.com/spreadsheets/d/12VIiXHaVECG2RUunDSVJpn67IQp9NHFJqUsma2PndpE/edit#gid=186414307) to get a better estimate of scalar values to use for your chain.&#x20;
+
+#### Fjord
+
+<Info>
+  The L1 Data Fee formula changed with the Fjord upgrade. Refer to the [Network Upgrade Overview](/op-stack/protocol/network-upgrades) for network upgrade activation timestamps for OP Sepolia and OP Mainnet.
+</Info>
+
+The pricing function changes with the Fjord upgrade because of the FastLZ compression estimator, which more accurately charges for L1 data usage on a per-transaction basis.
+The updated function uses the following parameters:
+
+*   The FastLZ-compressed size of the signed transaction.
+*   The current Ethereum base fee and/or blob base fee (trustlessly relayed from Ethereum).
+
+The Fjord L1 Data Fee calculation begins with estimating the transaction size using a linear model over the FastLZ-compressed transaction size.
+
+```
+estimatedSizeScaled = max(minTransactionSize * 1e6, intercept + fastlzCoef*fastlzSize)
+```
+
+The model parameters `intercept` and `fastlzCoef` were determined by performing a linear regression analysis over a dataset of previous L2 transactions minimizing the root mean square error against the change in batch size, when compressed with Brotli, over historical OP mainnet data. These parameters are fixed in Fjord. The `minTransactionSize`, `intercept`, and `fastlzCoef` values are scaled by 1e6.
+
+Next, the two chain parameters **base fee scalar** and **blob base fee scalar** are used to compute a weighted gas price multiplier.
+
+```
+l1FeeScaled = baseFeeScalar*l1BaseFee*16 + blobFeeScalar*l1BlobBaseFee
+```
+
+Both scalars are scaled by 1e6. The final L1 Data Fee is then
+
+```
+l1Cost = estimatedSizeScaled * l1FeeScaled / 1e12
+```
+
+The new cost function takes into account the compression ratio, so chain operators will need to adjust their `baseFeeScalar` and `blobFeeScalar`  to account for any previous compression ratios that they encountered on their chains. Chain operators can use the [Fjord fee parameter calculator](https://docs.google.com/spreadsheets/d/1V3CWpeUzXv5Iopw8lBSS8tWoSzyR4PDDwV9cu2kKOrs/edit#gid=186414307) to get a better estimate of scalar values to use for their chain.
+
+## Operator fee
+
+<Info>
+  The Operator fee was introduced with the [Isthmus upgrade](/notices/upgrade-14#operator-fee) and modified with the [Jovian upgrade](/notices/upgrade-17#breaking-changes).
+  It provides OP Stack chains with more flexible pricing models.
+  Refer to the [Network upgrade overview](/op-stack/protocol/network-upgrades) for network upgrade activation timestamps.
+</Info>
+
+The Operator fee is a new fee component which enables more customizable fee structures for OP Stack chains. This fee is integrated directly into the EVM alongside the standard gas fee and L1 data fee, allowing chain operators to implement additional revenue models or cover specific operational costs.
+
+### Mechanism
+
+The Operator fee is automatically charged for any transaction that is included in a block after the Isthmus activation. This fee is deducted directly from the address that sent the transaction and follows the same semantics as existing fees charged in the EVM. The collected operator fees are sent to the **Operator Fee Vault**, a new vault similar to existing fee vaults.
+
+<Info>
+  **Deposit transactions do not get charged operator fees.** For all deposit transactions, regardless of the operator fee parameter configuration, the operator fee is always zero.
+</Info>
+
+### Formula
+The Operator fee is calculated using the following formula, depending on the active fork:
+
+**After Isthmus:**
+
+```
+operatorFee = operatorFeeConstant + (gasUsed × operatorFeeScalar ÷ 10^6)
+```
+
+**After Jovian:**
+
+```
+operatorFee = operatorFeeConstant + (gasUsed × operatorFeeScalar × 100)
+```
+
+
+Where:
+
+*   `gasUsed` is the amount of gas that the transaction used
+*   `operatorFeeScalar` is a `uint32` scalar set by the chain operator, scaled by 1e6
+*   `operatorFeeConstant` is a `uint64` scalar set by the chain operator
+
+### Configuration
+
+The `operatorFeeScalar` and `operatorFeeConstant` parameters can be accessed in two ways:
+
+1.  **From deposited L1 attributes** of the current L2 block
+2.  **From the L1 Block Info contract** (`0x4200000000000000000000000000000000000015`):
+    *   Using solidity getter functions (`operatorFeeScalar`, `operatorFeeConstant`)
+    *   Using direct storage reads:
+    *   Operator fee scalar as big-endian `uint32` in slot `8` at offset `0`
+    *   Operator fee constant as big-endian `uint64` in slot `8` at offset `4`
+
+### EVM Integration
+
+The Operator fee follows standard EVM fee semantics:
+
+1.  **Pre-execution validation**: Account must have enough ETH to cover worst-case gas + L1 data fees + worst-case operator fee
+2.  **Gas purchase**: Account is charged the worst-case operator fee before execution
+3.  **Refunds**: After execution, unused operator fee gas is refunded to the account
+4.  **Fee distribution**: The spent operator fee is sent to the Operator Fee Vault
+
+### Transaction pool impact
+
+Transaction pools must account for the additional operator fee when validating transactions. Transactions without sufficient balance to cover the worst-case total cost (including operator fee) will be rejected.
+
+## Sequencer fee vault
+
+The Sequencer fee vault collects and holds transaction fees paid to the sequencer during block production on OP Mainnet. These fees cover the cost of posting transaction data to L1, ensuring network sustainability and data availability.
+
+### Fee collection and distribution
+
+*   **Purpose**: The sequencer deposits collected fees into the Sequencer fee vault. These fees reimburse the sequencer for gas costs when submitting transaction batches to L1.
+*   **Vault address**: The Sequencer fee vault is predeployed at the address `0x4200000000000000000000000000000000000011` on the OP Mainnet.
+*   **Fee usage**: Stored fees are eventually transferred to a designated recipient address (e.g., a treasury or distribution contract).
+
+### How it works
+
+1.  **Fee collection**: During the processing of transactions, the sequencer collects fees from users as part of their transaction costs. These fees are primarily used to cover the gas expenses of posting transaction data to Ethereum L1.
+2.  **Storage**: Collected fees are deposited into the Sequencer fee vault contract.
+3.  **Distribution**: The fees are later distributed to the appropriate recipient, typically covering operational costs like L1 gas fees for data availability.
+
+This system ensures effective fee management, maintaining the security and operation of the Optimism network.
+
+## Next steps
+
+*   Read the [differences between Ethereum and OP Stack Chains](/op-stack/protocol/differences) guide.
+*   Read the [L2 to L1 Transactions](/app-developers/bridging/messaging#for-l1-to-l2-transactions) guide.

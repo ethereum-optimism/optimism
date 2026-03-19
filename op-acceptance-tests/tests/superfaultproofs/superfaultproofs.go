@@ -178,6 +178,12 @@ func runKonaInteropProgram(t devtest.T, cfg vm.Config, l1Head common.Hash, agree
 	cmd := exec.CommandContext(ctx, exePath, argv[1:]...)
 	cmd.Dir = tmpDir
 	cmd.Env = append(append(cmd.Env, os.Environ()...), "NO_COLOR=1")
+	// WaitDelay bounds how long CombinedOutput waits for I/O pipes to close
+	// after the process exits or the context is cancelled. Without this, if
+	// the context timeout fires and the process is killed, CombinedOutput
+	// can block indefinitely waiting for pipe EOF (e.g. if a child process
+	// or unclosed descriptor keeps the pipe open).
+	cmd.WaitDelay = 60 * time.Second
 
 	out, runErr := cmd.CombinedOutput()
 	if expectValid {
@@ -610,6 +616,85 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	}
 
 	// --- Stage 4: Transition test cases ------------------------------------
+	tests := buildTransitionTests(start, end, step1, step2, padding,
+		l1HeadCurrent, l1HeadBefore, l1HeadAfterFirst, endTimestamp)
+
+	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
+	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
+
+	for _, test := range tests {
+		t.Run(test.Name+"-fpp", func(t devtest.T) {
+			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
+				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
+				test.ClaimTimestamp, test.ExpectValid)
+		})
+		t.Run(test.Name+"-challenger", func(t devtest.T) {
+			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
+		})
+	}
+}
+
+// RunVariedBlockTimesTest verifies that the super fault proof system works
+// correctly when chains have different block times (e.g. 1s and 2s), exercising
+// edge cases where not every chain produces a new block at every timestamp.
+//
+// The system must be configured with varied block times before calling this
+// function (e.g. via presets.WithL2BlockTimes).
+func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	// Verify chains have different block times.
+	t.Require().NotEqual(chains[0].Cfg.BlockTime, chains[1].Cfg.BlockTime,
+		"this test requires chains with different block times")
+
+	// -- Stage 1: Freeze batch submission ----------------------------------
+	chains[1].Batcher.Stop()
+	t.Cleanup(chains[1].Batcher.Start)
+	chains[1].CLNode.WaitForStall(types.CrossSafe)
+	chains[0].Batcher.Stop()
+	t.Cleanup(chains[0].Batcher.Start)
+	chains[0].CLNode.WaitForStall(types.LocalSafe)
+
+	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
+	startTimestamp := endTimestamp - 1
+
+	// Ensure both chains have produced the target blocks as unsafe.
+	for _, c := range chains {
+		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
+		t.Require().NoError(err)
+		c.EL.Reached(eth.Unsafe, target, 60)
+	}
+
+	// -- Stage 2: Capture L1 heads at different batch-availability points --
+
+	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
+
+	chains[0].Batcher.Start()
+	l1HeadAfterFirst := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, []eth.ChainID{chains[0].ID}, []eth.ChainID{chains[1].ID})
+	chains[0].Batcher.Stop()
+
+	chains[1].Batcher.Start()
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
+	chains[1].Batcher.Stop()
+
+	// -- Stage 3: Build expected transition states --------------------------
+	start := superRootAtTimestamp(t, chains, startTimestamp)
+	end := superRootAtTimestamp(t, chains, endTimestamp)
+
+	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+
+	step1 := marshalTransition(start, 1, firstOptimistic)
+	step2 := marshalTransition(start, 2, firstOptimistic, secondOptimistic)
+	padding := func(step uint64) []byte {
+		return marshalTransition(start, step, firstOptimistic, secondOptimistic)
+	}
+
+	// -- Stage 4: Transition test cases ------------------------------------
 	tests := buildTransitionTests(start, end, step1, step2, padding,
 		l1HeadCurrent, l1HeadBefore, l1HeadAfterFirst, endTimestamp)
 

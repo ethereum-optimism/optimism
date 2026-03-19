@@ -123,17 +123,34 @@ func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blo
 	newPayload := *(envelope.ExecutionPayload)
 	newEnvelope.ExecutionPayload = &newPayload
 
-	// Modify the cloned payload to create a synthetic block with a different hash
-	newPayload.FeeRecipient = common.MaxAddress
+	// Modify ExtraData to produce a different block hash without affecting the state root.
+	// We must only change header fields that are not accessible via EVM opcodes. Fields
+	// that are EVM-accessible (e.g. coinbase, timestamp, prevrandao) influence execution
+	// and would cause the recomputed state root to diverge from the one in the payload,
+	// causing the engine to reject it. ExtraData has no EVM opcode and is safe to modify.
+	extra := make([]byte, len(newPayload.ExtraData))
+	copy(extra, newPayload.ExtraData)
+	if len(extra) == 0 {
+		extra = []byte{0x00}
+	} else {
+		extra[len(extra)-1] ^= 0xff
+	}
+	newPayload.ExtraData = extra
 	syntheticHash, _ := newEnvelope.CheckBlockHash() // ignore "ok" since we know it won't match
 	newPayload.BlockHash = syntheticHash
 
+	e.log.Info("inserting synthetic payload", "blockNumber", blockNumber, "parentHash", newPayload.ParentHash, "syntheticHash", syntheticHash)
 	status, err := e.l2.NewPayload(ctx, &newPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("%w: %w", ErrRewindInsertSyntheticFailed, err)
 	}
 	if status.Status != eth.ExecutionValid {
-		return common.Hash{}, fmt.Errorf("%w: status=%s", ErrRewindSyntheticPayloadRejected, status.Status)
+		validationErr := ""
+		if status.ValidationError != nil {
+			validationErr = *status.ValidationError
+		}
+		return common.Hash{}, fmt.Errorf("%w: status=%s validationError=%q blockNumber=%d parentHash=%s syntheticHash=%s",
+			ErrRewindSyntheticPayloadRejected, status.Status, validationErr, blockNumber, newPayload.ParentHash, syntheticHash)
 	}
 
 	return syntheticHash, nil
@@ -189,7 +206,12 @@ func (e *simpleEngineController) forkchoiceUpdate(ctx context.Context, head, saf
 		return err
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return fmt.Errorf("%w: status=%s", ErrRewindFCURejected, res.PayloadStatus.Status)
+		validationErr := ""
+		if res.PayloadStatus.ValidationError != nil {
+			validationErr = *res.PayloadStatus.ValidationError
+		}
+		return fmt.Errorf("%w: status=%s validationError=%q head=%s safe=%s finalized=%s",
+			ErrRewindFCURejected, res.PayloadStatus.Status, validationErr, head, safe, finalized)
 	}
 	return nil
 }

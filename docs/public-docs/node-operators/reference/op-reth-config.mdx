@@ -1,0 +1,2316 @@
+---
+title: op-reth configuration options
+description: Complete reference for all op-reth command-line flags.
+---
+
+This page provides detailed documentation for all available op-reth configuration options, organized by functionality.
+The following options are from [v1.10.1](https://github.com/paradigmxyz/reth/releases/tag/v1.10.1)
+
+## General Options
+
+options for configuring the node instance and chain.
+
+### config
+
+The path to the configuration file to use.
+
+<Tabs>
+  <Tab title="Syntax">`--config <FILE>`</Tab>
+</Tabs>
+
+### chain
+
+The chain this node is running. Possible values are either a built-in chain or the path to a chain specification file.
+
+Built-in chains: `optimism`, `optimism_sepolia`, `base`, `base_sepolia`, `dev`, etc.
+
+<Tabs>
+  <Tab title="Syntax">`--chain <CHAIN_OR_PATH>`</Tab>
+  <Tab title="Default">`optimism`</Tab>
+</Tabs>
+
+### instance
+
+Add a new instance of a node. Configures the ports of the node to avoid conflicts with the defaults.
+
+<Tabs>
+  <Tab title="Syntax">`--instance <INSTANCE>`</Tab>
+</Tabs>
+
+### with-unused-ports
+
+Sets all ports to unused, allowing the OS to choose random unused ports when sockets are bound. Mutually exclusive with `--instance`.
+
+<Tabs>
+  <Tab title="Syntax">`--with-unused-ports`</Tab>
+</Tabs>
+
+## Metrics
+
+Options for Prometheus metrics.
+
+### metrics
+
+Enable Prometheus metrics. The metrics will be served at the given interface and port.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics <PROMETHEUS>`</Tab>
+</Tabs>
+
+### metrics.prometheus.push.url
+
+URL for pushing Prometheus metrics to a push gateway.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.prometheus.push.url <PUSH_GATEWAY_URL>`</Tab>
+</Tabs>
+
+### metrics.prometheus.push.interval
+
+Interval in seconds for pushing metrics to push gateway.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.prometheus.push.interval <SECONDS>`</Tab>
+  <Tab title="Default">`5`</Tab>
+</Tabs>
+
+## Datadir
+
+Options for data storage.
+
+### datadir
+
+The path to the data dir for all reth files and subdirectories.
+
+Defaults to the OS-specific data directory:
+- Linux: `$XDG_DATA_HOME/reth/` or `$HOME/.local/share/reth/`
+- Windows: `{FOLDERID_RoamingAppData}/reth/`
+- macOS: `$HOME/Library/Application Support/reth/`
+
+<Tabs>
+  <Tab title="Syntax">`--datadir <DATA_DIR>`</Tab>
+  <Tab title="Default">`default`</Tab>
+</Tabs>
+
+### datadir.static-files
+
+The absolute path to store static files in.
+
+<Tabs>
+  <Tab title="Syntax">`--datadir.static-files <PATH>`</Tab>
+</Tabs>
+
+### datadir.rocksdb
+
+The absolute path to store `RocksDB` database in.
+
+<Tabs>
+  <Tab title="Syntax">`--datadir.rocksdb <PATH>`</Tab>
+</Tabs>
+
+### datadir.pprof-dumps
+
+The absolute path to store pprof dumps in.
+
+<Tabs>
+  <Tab title="Syntax">`--datadir.pprof-dumps <PATH>`</Tab>
+</Tabs>
+
+## Networking
+
+Options for P2P networking and discovery.
+
+### disable-discovery
+
+Disable the discovery service.
+
+<Tabs>
+  <Tab title="Syntax">`--disable-discovery`</Tab>
+</Tabs>
+
+### disable-dns-discovery
+
+Disable the DNS discovery.
+
+<Tabs>
+  <Tab title="Syntax">`--disable-dns-discovery`</Tab>
+</Tabs>
+
+### disable-discv4-discovery
+
+Disable Discv4 discovery.
+
+<Tabs>
+  <Tab title="Syntax">`--disable-discv4-discovery`</Tab>
+</Tabs>
+
+### enable-discv5-discovery
+
+Enable Discv5 discovery.
+
+<Tabs>
+  <Tab title="Syntax">`--enable-discv5-discovery`</Tab>
+</Tabs>
+
+### disable-nat
+
+Disable NAT discovery.
+
+<Tabs>
+  <Tab title="Syntax">`--disable-nat`</Tab>
+</Tabs>
+
+### discovery.addr
+
+The UDP address to use for devp2p peer discovery version 4.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.addr <DISCOVERY_ADDR>`</Tab>
+  <Tab title="Default">`0.0.0.0`</Tab>
+</Tabs>
+
+### discovery.port
+
+The UDP port to use for devp2p peer discovery version 4.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.port <DISCOVERY_PORT>`</Tab>
+  <Tab title="Default">`30303`</Tab>
+</Tabs>
+
+### discovery.v5.addr
+
+The UDP IPv4 address to use for devp2p peer discovery version 5.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v5.addr <DISCOVERY_V5_ADDR>`</Tab>
+</Tabs>
+
+### discovery.v5.addr.ipv6
+
+The UDP IPv6 address to use for devp2p peer discovery version 5.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v5.addr.ipv6 <DISCOVERY_V5_ADDR_IPV6>`</Tab>
+</Tabs>
+
+### discovery.v5.port
+
+The UDP IPv4 port to use for devp2p peer discovery version 5.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v5.port <DISCOVERY_V5_PORT>`</Tab>
+  <Tab title="Default">`9200`</Tab>
+</Tabs>
+
+### discovery.v5.port.ipv6
+
+The UDP IPv6 port to use for devp2p peer discovery version 5.
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6>`</Tab>
+  <Tab title="Default">`9200`</Tab>
+</Tabs>
+
+### discovery.v5.lookup-interval
+
+The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL>`</Tab>
+  <Tab title="Default">`20`</Tab>
+</Tabs>
+
+### discovery.v5.bootstrap.lookup-interval
+
+The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL>`</Tab>
+  <Tab title="Default">`5`</Tab>
+</Tabs>
+
+### discovery.v5.bootstrap.lookup-countdown
+
+The number of times to carry out boost lookup queries at bootstrap
+
+<Tabs>
+  <Tab title="Syntax">`--discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN>`</Tab>
+  <Tab title="Default">`200`</Tab>
+</Tabs>
+
+### trusted-peers
+
+Comma separated enode URLs of trusted peers for P2P connections.
+
+<Tabs>
+  <Tab title="Syntax">`--trusted-peers <TRUSTED_PEERS>`</Tab>
+</Tabs>
+
+### trusted-only
+
+Connect to or accept from trusted peers only.
+
+<Tabs>
+  <Tab title="Syntax">`--trusted-only`</Tab>
+</Tabs>
+
+### bootnodes
+
+Comma separated enode URLs for P2P discovery bootstrap.
+
+<Tabs>
+  <Tab title="Syntax">`--bootnodes <BOOTNODES>`</Tab>
+</Tabs>
+
+### dns-retries
+
+Amount of DNS resolution requests retries to perform when peering
+
+<Tabs>
+  <Tab title="Syntax">`--dns-retries <DNS_RETRIES>`</Tab>
+  <Tab title="Default">`0`</Tab>
+</Tabs>
+
+### peers-file
+
+The path to the known peers file. Connected peers are dumped to this file on nodes shutdown, and read on startup. Cannot be used with `--no-persist-peers`.
+
+<Tabs>
+  <Tab title="Syntax">`--peers-file <FILE>`</Tab>
+</Tabs>
+
+### identity
+
+Custom node identity.
+
+<Tabs>
+  <Tab title="Syntax">`--identity <IDENTITY>`</Tab>
+  <Tab title="Default">`reth/v1.10.1...`</Tab>
+</Tabs>
+
+### p2p-secret-key
+
+Secret key to use for this node.
+
+<Tabs>
+  <Tab title="Syntax">`--p2p-secret-key <PATH>`</Tab>
+</Tabs>
+
+### p2p-secret-key-hex
+
+Hex encoded secret key to use for this node.
+This will also deterministically set the peer ID. Cannot be used together with `--p2p-secret-key`.
+
+<Tabs>
+  <Tab title="Syntax">`--p2p-secret-key-hex <HEX>`</Tab>
+</Tabs>
+
+### no-persist-peers
+
+Do not persist peers.
+
+<Tabs>
+  <Tab title="Syntax">`--no-persist-peers`</Tab>
+</Tabs>
+
+### nat
+
+NAT resolution method (any|none|upnp|publicip|extip:\<IP\>)
+
+<Tabs>
+  <Tab title="Syntax">`--nat <NAT>`</Tab>
+  <Tab title="Default">`any`</Tab>
+</Tabs>
+
+### addr
+
+Network listening address.
+
+<Tabs>
+  <Tab title="Syntax">`--addr <ADDR>`</Tab>
+  <Tab title="Default">`0.0.0.0`</Tab>
+</Tabs>
+
+### port
+
+Network listening port.
+
+<Tabs>
+  <Tab title="Syntax">`--port <PORT>`</Tab>
+  <Tab title="Default">`30303`</Tab>
+</Tabs>
+
+### max-outbound-peers
+
+Maximum number of outbound peers.
+
+<Tabs>
+  <Tab title="Syntax">`--max-outbound-peers <MAX_OUTBOUND_PEERS>`</Tab>
+  <Tab title="Default">`100`</Tab>
+</Tabs>
+
+### max-inbound-peers
+
+Maximum number of inbound peers. default: 30
+
+<Tabs>
+  <Tab title="Syntax">`--max-inbound-peers <MAX_INBOUND_PEERS>`</Tab>
+  <Tab title="Default">`30`</Tab>
+</Tabs>
+
+### max-peers
+          
+Maximum number of total peers (inbound + outbound).
+
+<Tabs>
+  <Tab title="Syntax">`--max-peers <COUNT>`</Tab>
+</Tabs>
+
+### max-tx-reqs
+
+Max concurrent `GetPooledTransactions` requests.
+
+<Tabs>
+  <Tab title="Syntax">`--max-tx-reqs <COUNT>`</Tab>
+  <Tab title="Default">`130`</Tab>
+</Tabs>
+
+### max-tx-reqs-peer
+
+Max concurrent `GetPooledTransactions` requests per peer.
+
+<Tabs>
+  <Tab title="Syntax">`--max-tx-reqs-peer <COUNT>`</Tab>
+  <Tab title="Default">`1`</Tab>
+</Tabs>
+
+### max-seen-tx-history
+          
+Max number of seen transactions to remember per peer.
+
+<Tabs>
+  <Tab title="Syntax">`--max-seen-tx-history <COUNT>`</Tab>
+  <Tab title="Default">`320`</Tab>
+</Tabs>
+          
+### max-pending-imports
+          
+Max number of transactions to import concurrently.
+
+<Tabs>
+  <Tab title="Syntax">`--max-pending-imports <COUNT>`</Tab>
+  <Tab title="Default">`4096`</Tab>
+</Tabs>
+
+### pooled-tx-response-soft-limit
+Experimental, for usage in research. Sets the max accumulated byte size of transactions to pack in one response.
+          
+<Tabs>
+  <Tab title="Syntax">`--pooled-tx-response-soft-limit <BYTES>`</Tab>
+  <Tab title="Default">`2097152`</Tab>
+</Tabs>
+
+### pooled-tx-pack-soft-limit
+
+Experimental, for usage in research. Sets the max accumulated byte size of transactions to request in one request.
+
+<Tabs>
+  <Tab title="Syntax">`--pooled-tx-pack-soft-limit <BYTES>`</Tab>
+  <Tab title="Default">`131072`</Tab>
+</Tabs>
+
+### max-tx-pending-fetch
+          
+Max capacity of cache of hashes for transactions pending fetch.
+
+<Tabs>
+  <Tab title="Syntax">`--max-tx-pending-fetch <COUNT>`</Tab>
+  <Tab title="Default">`25600`</Tab>
+</Tabs>           
+
+
+### net-if.experimental
+        
+Name of network interface used to communicate with peers.
+          
+<Tabs>
+  <Tab title="Syntax">`--net-if.experimental <IF_NAME>`</Tab>
+  <Tab title="Default">`eth0`</Tab>
+</Tabs>   
+
+
+### tx-propagation-policy
+          
+Transaction Propagation Policy
+The policy determines which peers transactions are gossiped to.
+
+<Tabs>
+  <Tab title="Syntax">`--tx-propagation-policy <TX_PROPAGATION_POLICY>`</Tab>
+  <Tab title="Default">`all`</Tab>
+</Tabs>   
+
+
+### tx-ingress-policy
+
+Transaction ingress policy
+Determines which peers' transactions are accepted over P2P.
+
+<Tabs>
+  <Tab title="Syntax">`--tx-ingress-policy <TX_INGRESS_POLICY>`</Tab>
+  <Tab title="Default">`all`</Tab>
+</Tabs>   
+
+
+### disable-tx-gossip
+          
+Disable transaction pool gossip.
+
+<Tabs>
+  <Tab title="Syntax">`--disable-tx-gossip`</Tab>
+</Tabs>   
+
+### tx-propagation-mode
+
+Sets the transaction propagation mode by determining how new pending transactions are propagated to other peers in full.
+          
+<Tabs>
+  <Tab title="Syntax">`--tx-propagation-mode <PROPAGATION_MODE>`</Tab>
+  <Tab title="Default">`sqrt`</Tab>
+</Tabs>
+
+### required-block-hashes
+
+Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out.
+
+<Tabs>
+  <Tab title="Syntax">`--required-block-hashes <REQUIRED_BLOCK_HASHES>`</Tab>
+</Tabs>
+
+### network-id
+
+Optional network ID to override the chain specification's network ID for P2P connections.
+
+<Tabs>
+  <Tab title="Syntax">`--network-id <NETWORK_ID>`</Tab>
+</Tabs>
+
+### netrestrict
+
+Restrict network communication to the given IP networks (CIDR masks).
+Comma separated list of CIDR network specifications. Only peers with IP addresses within these ranges will be allowed to connect.
+
+<Tabs>
+  <Tab title="Syntax">`--netrestrict <NETRESTRICT>`</Tab>
+</Tabs>
+
+## RPC
+
+Options for HTTP, WebSocket, and IPC RPC servers.
+
+### http
+
+Enable the HTTP-RPC server.
+
+<Tabs>
+  <Tab title="Syntax">`--http`</Tab>
+</Tabs>
+
+### http.addr
+
+Http server address to listen on.
+
+<Tabs>
+  <Tab title="Syntax">`--http.addr <HTTP_ADDR>`</Tab>
+  <Tab title="Default">`127.0.0.1`</Tab>
+</Tabs>
+
+### http.port
+
+Http server port to listen on.
+
+<Tabs>
+  <Tab title="Syntax">`--http.port <HTTP_PORT>`</Tab>
+  <Tab title="Default">`8545`</Tab>
+</Tabs>
+
+### http.disable-compression
+
+Disable compression for HTTP responses
+
+<Tabs>
+  <Tab title="Syntax">`--http.disable-compression`</Tab>
+</Tabs>
+
+### http.api
+
+Rpc Modules to be configured for the HTTP server.
+
+<Tabs>
+  <Tab title="Syntax">`--http.api <HTTP_API>`</Tab>
+  <Tab title="Possible Values">`admin, debug, eth, net, trace, txpool, web3, rpc, reth, ots, flashbots, miner, mev, testing`</Tab>
+</Tabs>
+
+### http.corsdomain
+
+Http Corsdomain to allow request from.
+
+<Tabs>
+  <Tab title="Syntax">`--http.corsdomain <HTTP_CORSDOMAIN>`</Tab>
+</Tabs>
+
+### ws
+
+Enable the WS-RPC server.
+
+<Tabs>
+  <Tab title="Syntax">`--ws`</Tab>
+</Tabs>
+
+### ws.addr
+
+Ws server address to listen on.
+
+<Tabs>
+  <Tab title="Syntax">`--ws.addr <WS_ADDR>`</Tab>
+  <Tab title="Default">`127.0.0.1`</Tab>
+</Tabs>
+
+### ws.port
+
+Ws server port to listen on.
+
+<Tabs>
+  <Tab title="Syntax">`--ws.port <WS_PORT>`</Tab>
+  <Tab title="Default">`8546`</Tab>
+</Tabs>
+
+### ws.origins
+
+Origins from which to accept `WebSocket` requests
+
+<Tabs>
+  <Tab title="Syntax">`--ws.origins <ws.origins>`</Tab>
+</Tabs>
+
+### ws.api
+
+Rpc Modules to be configured for the WS server.
+
+<Tabs>
+  <Tab title="Syntax">`--ws.api <WS_API>`</Tab>
+</Tabs>
+
+### ipcdisable
+
+Disable the IPC-RPC server
+
+<Tabs>
+  <Tab title="Syntax">`--ipcdisable`</Tab>
+</Tabs>
+
+### ipcpath
+
+Filename for IPC socket/pipe within the datadir
+
+<Tabs>
+  <Tab title="Syntax">`--ipcpath <IPCPATH>`</Tab>
+  <Tab title="Default">`/tmp/reth.ipc`</Tab>
+</Tabs>
+
+### ipc.permissions
+
+Set the permissions for the IPC socket file, in octal format.
+If not specified, the permissions will be set by the system's umask.
+
+<Tabs>
+  <Tab title="Syntax">`--ipc.permissions <IPC_SOCKET_PERMISSIONS>`</Tab>
+</Tabs>
+
+### authrpc.addr
+
+Auth server address to listen on.
+
+<Tabs>
+  <Tab title="Syntax">`--authrpc.addr <AUTH_ADDR>`</Tab>
+  <Tab title="Default">`127.0.0.1`</Tab>
+</Tabs>
+
+### authrpc.port
+
+Auth server port to listen on.
+
+<Tabs>
+  <Tab title="Syntax">`--authrpc.port <AUTH_PORT>`</Tab>
+  <Tab title="Default">`8551`</Tab>
+</Tabs>
+
+### authrpc.jwtsecret
+
+Path to a JWT secret to use for the authenticated engine-API RPC server.
+
+<Tabs>
+  <Tab title="Syntax">`--authrpc.jwtsecret <PATH>`</Tab>
+</Tabs>
+
+### auth-ipc
+
+Enable auth engine API over IPC.
+
+<Tabs>
+  <Tab title="Syntax">--auth-ipc</Tab>
+</Tabs>
+
+### auth-ipc.path
+
+Filename for auth IPC socket/pipe within the datadir.
+
+<Tabs>
+  <Tab title="Syntax">`--auth-ipc.path <AUTH_IPC_PATH>`</Tab> 
+  <Tab title="Default">`/tmp/reth_engine_api.ipc`</Tab>
+</Tabs>
+
+### disable-auth-server
+
+Disable the auth/engine API server. This will prevent the authenticated engine-API server from starting. Use this if you're running a node that doesn't need to serve engine API requests.
+
+<Tabs>
+  <Tab title="Syntax">`--disable-auth-server`</Tab>
+</Tabs>
+
+### rpc.jwtsecret
+Hex encoded JWT secret to authenticate the regular RPC server(s), see --http.api and --ws.api.
+This is not used for the authenticated engine-API RPC server (see --authrpc.jwtsecret).
+
+<Tabs> 
+  <Tab title="Syntax">`--rpc.jwtsecret <HEX>`</Tab>
+</Tabs>
+      
+### rpc.max-request-size
+
+Set the maximum RPC request payload size for both HTTP and WS in megabytes.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.max-request-size <RPC_MAX_REQUEST_SIZE>`</Tab>
+  <Tab title="Default">`15`</Tab>
+</Tabs>
+
+### rpc.max-response-size
+
+Set the maximum RPC response payload size for both HTTP and WS in megabytes.
+Alias: `--rpc.returndata.limit`
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.max-response-size <RPC_MAX_RESPONSE_SIZE>`</Tab>
+  <Tab title="Default">`160`</Tab>
+</Tabs>
+
+### rpc.max-subscriptions-per-connection
+
+Set the maximum concurrent subscriptions per connection.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.max-subscriptions-per-connection <RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION>`</Tab>
+  <Tab title="Default">`1024`</Tab>
+</Tabs>
+
+### rpc.max-connections
+
+Maximum number of RPC server connections.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.max-connections <COUNT>`</Tab>
+  <Tab title="Default">`500`</Tab>
+</Tabs>
+
+### rpc.max-tracing-requests
+
+Maximum number of concurrent tracing requests. By default this chooses a sensible value based on the number of available cores. Tracing requests are generally CPU bound. Choosing a value that is higher than the available CPU cores can have a negative impact on the performance of the node and affect the node's ability to maintain sync.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.max-tracing-requests <COUNT>`</Tab>
+  <Tab title="Default">`9`</Tab>
+</Tabs>
+
+### rpc.max-blocking-io-requests
+
+Maximum number of concurrent blocking IO requests. 
+Blocking IO requests include eth_call, eth_estimateGas, and similar methods that require EVM execution. These are spawned as blocking tasks to avoid blocking the async runtime.
+
+<Tabs> 
+  <Tab title="Syntax">`--rpc.max-blocking-io-requests <COUNT>`</Tab>
+  <Tab title="Default">`256`</Tab>
+</Tabs>
+
+### rpc.max-trace-filter-blocks
+Maximum number of blocks for trace_filter requests.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.max-trace-filter-blocks <COUNT>`</Tab>
+  <Tab title="Default">`100`</Tab>
+</Tabs>
+
+### rpc.max-blocks-per-filter
+
+Maximum number of blocks that could be scanned per filter request. (0 = entire chain)
+
+<Tabs> 
+  <Tab title="Syntax">`--rpc.max-blocks-per-filter <COUNT>`</Tab>
+  <Tab title="Default">`100000`</Tab>
+</Tabs>
+
+### rpc.max-logs-per-response
+
+Maximum number of logs that can be returned in a single response. (0 = no limit)
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.max-logs-per-response <COUNT>`</Tab>
+  <Tab title="Default">`20000`</Tab>
+</Tabs>
+
+### rpc.gascap
+
+Maximum gas limit for eth_call and call tracing RPC methods.
+
+<Tabs> 
+  <Tab title="Syntax">`--rpc.gascap <GAS_CAP>`</Tab>
+  <Tab title="Default">`50000000`</Tab>
+</Tabs>
+
+### rpc.evm-memory-limit
+
+Maximum memory the EVM can allocate per RPC request.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.evm-memory-limit <MEMORY_LIMIT>`</Tab>
+  <Tab title="Default">`4294967295`</Tab>
+</Tabs>
+
+### rpc.txfeecap
+
+Maximum eth transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap).
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.txfeecap <TX_FEE_CAP>`</Tab>
+  <Tab title="Default">`1.0`</Tab>
+</Tabs>
+
+### rpc.max-simulate-blocks
+
+Maximum number of blocks for eth_simulateV1 call.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.max-simulate-blocks <BLOCKS_COUNT>`</Tab>
+  <Tab title="Default">`256`</Tab>
+</Tabs>
+
+### rpc.eth-proof-window
+
+The maximum proof window for historical proof generation. This value allows for generating historical proofs up to configured number of blocks from current tip (up to tip - window).
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.eth-proof-window <RPC_ETH_PROOF_WINDOW>`</Tab>
+  <Tab title="Default">`0`</Tab>
+</Tabs>
+
+### rpc.proof-permits
+
+Maximum number of concurrent getproof requests.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.proof-permits <COUNT>`</Tab>
+  <Tab title="Default">`25`</Tab>
+</Tabs>
+
+### rpc.pending-block
+
+Configures the pending block behavior for RPC responses. Options: full (include all transactions), empty (header only), none (disable pending blocks).
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.pending-block <KIND>`</Tab>
+  <Tab title="Default">`full`</Tab>
+</Tabs>
+
+### rpc.forwarder
+
+Endpoint to forward transactions to.
+
+<Tabs> 
+  <Tab title="Syntax">`--rpc.forwarder <FORWARDER>`</Tab>
+</Tabs>
+
+## Builder
+
+Options for the payload builder.
+
+### builder.disallow
+
+Path to file containing disallowed addresses, json-encoded list of strings. Block validation API will reject blocks containing transactions from these addresses.
+
+<Tabs> 
+  <Tab title="Syntax">`--builder.disallow <PATH>`</Tab>
+</Tabs>
+
+### builder.extradata
+
+Block extra data set by the payload builder.
+
+<Tabs>
+  <Tab title="Syntax">`--builder.extradata <EXTRA_DATA>`</Tab>
+  <Tab title="Default">`reth/v1.10.1...`</Tab>
+</Tabs>
+
+### builder.gaslimit
+
+Target gas limit for built blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--builder.gaslimit <GAS_LIMIT>`</Tab>
+</Tabs>
+
+### builder.interval
+
+The interval at which the job should build a new payload after the last.
+Interval is specified in seconds or in milliseconds if the value ends with `ms`.
+
+<Tabs>
+  <Tab title="Syntax">`--builder.interval <DURATION>`</Tab>
+  <Tab title="Default">`1`</Tab>
+</Tabs>
+
+### builder.deadline
+
+The deadline for when the payload builder job should resolve.
+
+<Tabs>
+  <Tab title="Syntax">`--builder.deadline <SECONDS>`</Tab>
+  <Tab title="Default">`12`</Tab>
+</Tabs>
+
+### builder.max-tasks
+
+Maximum number of tasks to spawn for building a payload.
+
+<Tabs>
+  <Tab title="Syntax">`--builder.max-tasks <MAX_PAYLOAD_TASKS>`</Tab>
+  <Tab title="Default">`3`</Tab>
+</Tabs>
+
+### builder.max-blobs
+
+Maximum number of blobs to include per block.
+
+<Tabs>
+  <Tab title="Syntax">`--builder.max-blobs <COUNT>`</Tab>
+</Tabs>
+
+## RPC State Cache
+
+Options for the RPC state cache.
+
+### rpc-cache.max-blocks
+
+Max number of blocks in cache.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc-cache.max-blocks <MAX_BLOCKS>`</Tab>
+  <Tab title="Default">`5000`</Tab>
+</Tabs>
+
+### rpc-cache.max-receipts
+
+Max number receipts in cache.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc-cache.max-receipts <MAX_RECEIPTS>`</Tab>
+  <Tab title="Default">`2000`</Tab>
+</Tabs>
+
+### rpc-cache.max-headers
+
+Max number of headers in cache.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc-cache.max-headers <MAX_HEADERS>`</Tab>
+  <Tab title="Default">`1000`</Tab>
+</Tabs>
+
+### rpc-cache.max-concurrent-db-requests
+
+Max number of concurrent database requests.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS>`</Tab>
+  <Tab title="Default">`512`</Tab>
+</Tabs>
+
+## Gas Price Oracle
+
+Options for the Gas Price Oracle.
+
+### gpo.blocks
+
+Number of recent blocks to check for gas price.
+
+<Tabs>
+  <Tab title="Syntax">`--gpo.blocks <BLOCKS>`</Tab>
+  <Tab title="Default">`20`</Tab>
+</Tabs>
+
+### gpo.ignoreprice
+
+Gas Price below which gpo will ignore transactions.
+
+<Tabs>
+  <Tab title="Syntax">`--gpo.ignoreprice <IGNORE_PRICE>`</Tab>
+  <Tab title="Default">`2`</Tab>
+</Tabs>
+
+### gpo.maxprice
+
+Maximum transaction priority fee (or gasprice before London Fork) to be recommended by gpo.
+
+<Tabs>
+  <Tab title="Syntax">`--gpo.maxprice <MAX_PRICE>`</Tab>
+  <Tab title="Default">`500000000000`</Tab>
+</Tabs>
+
+### gpo.percentile
+
+The percentile of gas prices to use for the estimate.
+
+<Tabs>
+  <Tab title="Syntax">`--gpo.percentile <PERCENTILE>`</Tab>
+  <Tab title="Default">`60`</Tab>
+</Tabs>
+
+### gpo.default-suggested-fee
+
+The default gas price to use if there are no blocks to use for estimation.
+
+<Tabs>
+  <Tab title="Syntax">`--gpo.default-suggested-fee <DEFAULT_SUGGESTED_FEE>`</Tab>
+</Tabs>
+
+### rpc.send-raw-transaction-sync-timeout
+
+Timeout for the send_raw_transaction_sync RPC method.
+
+<Tabs> 
+  <Tab title="Syntax">`--rpc.send-raw-transaction-sync-timeout <SECONDS>`</Tab>
+  <Tab title="Default">`30s`</Tab>
+</Tabs>
+
+### testing.skip-invalid-transactions
+
+Skip invalid transactions in `testing_buildBlockV1` instead of failing.
+When enabled, transactions that fail execution will be skipped, and all subsequent transactions from the same sender will also be skipped.
+
+<Tabs>
+  <Tab title="Syntax">`--testing.skip-invalid-transactions`</Tab>
+</Tabs>
+
+## TxPool
+
+Options for the Transaction Pool.
+
+### txpool.pending-max-count
+
+Max number of transaction in the pending sub-pool.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.pending-max-count <PENDING_MAX_COUNT>`</Tab>
+  <Tab title="Default">`10000`</Tab>
+</Tabs>
+
+### txpool.pending-max-size
+
+Max size of the pending sub-pool in megabytes.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.pending-max-size <PENDING_MAX_SIZE>`</Tab>
+  <Tab title="Default">`20`</Tab>
+</Tabs>
+
+### txpool.basefee-max-count
+
+Max number of transaction in the basefee sub-pool.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.basefee-max-count <BASEFEE_MAX_COUNT>`</Tab>
+  <Tab title="Default">`10000`</Tab>
+</Tabs>
+
+### txpool.basefee-max-size
+
+Max size of the basefee sub-pool in megabytes.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.basefee-max-size <BASEFEE_MAX_SIZE>`</Tab>
+  <Tab title="Default">`20`</Tab>
+</Tabs>
+
+Max number of transaction in the basefee sub-pool.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.basefee-max-count <BASEFEE_MAX_COUNT>`</Tab>
+  <Tab title="Default">`10000`</Tab>
+</Tabs>
+
+### txpool.queued-max-count
+
+Max number of transaction in the queued sub-pool.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.queued-max-count <QUEUED_MAX_COUNT>`</Tab>
+  <Tab title="Default">`10000`</Tab>
+</Tabs>
+
+### txpool.queued-max-size
+
+Max size of the queued sub-pool in megabytes.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.queued-max-size <QUEUED_MAX_SIZE>`</Tab>
+  <Tab title="Default">`20`</Tab>
+</Tabs>
+
+### txpool.blobpool-max-count
+
+Max number of transactions in the blobpool.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.blobpool-max-count <BLOBPOOL_MAX_COUNT>`</Tab>
+  <Tab title="Default">`10000`</Tab>
+</Tabs>
+
+### txpool.blobpool-max-size
+
+Max size of the blobpool in megabytes.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.blobpool-max-size <BLOBPOOL_MAX_SIZE>`</Tab>
+  <Tab title="Default">`20`</Tab>
+</Tabs>
+
+### txpool.blob-cache-size
+
+Max number of entries for the in-memory cache of the blob store.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.blob-cache-size <BLOB_CACHE_SIZE>`</Tab>
+</Tabs>
+
+### txpool.disable-blobs-support
+
+Disable EIP-4844 blob transaction support.
+
+<Tabs>
+  <Tab title="Syntax">--txpool.disable-blobs-support</Tab>
+</Tabs>
+
+### txpool.max-account-slots
+
+Max number of executable transaction slots guaranteed per account.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.max-account-slots <MAX_ACCOUNT_SLOTS>`</Tab>
+  <Tab title="Default">`16`</Tab>
+</Tabs>
+
+### txpool.pricebump
+
+Price bump (in %) for the transaction pool underpriced check.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.pricebump <PRICE_BUMP>`</Tab>
+  <Tab title="Default">`10`</Tab>
+</Tabs>
+
+### txpool.minimal-protocol-fee
+
+Minimum base fee required by the protocol.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.minimal-protocol-fee <MINIMAL_PROTOCOL_BASEFEE>`</Tab>
+  <Tab title="Default">`7`</Tab>
+</Tabs>
+
+### txpool.minimum-priority-fee
+
+Minimum priority fee required for transaction acceptance into the pool.
+Transactions with a priority fee below this value will be rejected.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.minimum-priority-fee <MINIMUM_PRIORITY_FEE>`</Tab>
+</Tabs>
+
+### txpool.gas-limit
+
+The default enforced gas limit for transactions entering the pool.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.gas-limit <ENFORCED_GAS_LIMIT>`</Tab>
+  <Tab title="Default">`30000000`</Tab>
+</Tabs>
+
+### txpool.max-tx-gas
+
+Maximum gas limit for individual transactions. Transactions exceeding this limit will be rejected.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.max-tx-gas <MAX_TX_GAS_LIMIT>`</Tab>
+</Tabs>
+
+### blobpool.pricebump
+
+Price bump percentage to replace an already existing blob transaction.
+
+<Tabs>
+  <Tab title="Syntax">`--blobpool.pricebump <BLOB_TRANSACTION_PRICE_BUMP>'</Tab>
+  <Tab title="Default">`100`</Tab>
+</Tabs>
+
+### txpool.max-tx-input-bytes
+
+Max size in bytes of a single transaction allowed to enter the pool.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.max-tx-input-bytes <MAX_TX_INPUT_BYTES>`</Tab>
+  <Tab title="Default">`131072`</Tab>
+</Tabs>
+
+### txpool.max-cached-entries
+
+The maximum number of blobs to keep in the in-memory blob cache.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.max-cached-entries <MAX_CACHED_ENTRIES>`</Tab>
+  <Tab title="Default">`100`</Tab>
+</Tabs>
+
+### txpool.nolocals
+
+Flag to disable local transaction exemptions.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.nolocals`</Tab>
+</Tabs>
+
+### txpool.locals
+
+Flag to allow certain addresses as local.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.locals <LOCALS>`</Tab>
+</Tabs>
+
+### txpool.no-local-transactions-propagation
+
+Flag to toggle local transaction propagation.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.no-local-transactions-propagation`</Tab>
+</Tabs>
+
+### txpool.additional-validation-tasks
+
+Number of additional transaction validation tasks to spawn.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.additional-validation-tasks <ADDITIONAL_VALIDATION_TASKS>`</Tab>
+  <Tab title="Default">`1`</Tab>
+</Tabs>
+
+### txpool.max-pending-txns
+
+Maximum number of pending transactions from the network to buffer.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.max-pending-txns <PENDING_TX_LISTENER_BUFFER_SIZE>`</Tab>
+  <Tab title="Default">`2048`</Tab>
+</Tabs>
+
+### txpool.max-new-txns
+
+Maximum number of new transactions to buffer.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.max-new-txns <NEW_TX_LISTENER_BUFFER_SIZE>`</Tab>
+  <Tab title="Default">`1024`</Tab>
+</Tabs>
+
+### txpool.max-new-pending-txs-notifications
+
+How many new pending transactions to buffer and send to in-progress pending transaction iterators.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.max-new-pending-txs-notifications <MAX_NEW_PENDING_TXS_NOTIFICATIONS>`</Tab>
+  <Tab title="Default">`200`</Tab>
+</Tabs>
+
+### txpool.lifetime
+
+Maximum amount of time (in seconds) non-executable transactions are queued.
+
+<Tabs> 
+  <Tab title="Syntax">`--txpool.lifetime <DURATION>`</Tab> 
+  <Tab title="Default">`10800`</Tab>
+</Tabs>
+
+### txpool.transactions-backup
+
+Path to store the local transaction backup at, to survive node restarts.
+
+<Tabs> 
+  <Tab title="Syntax">`--txpool.transactions-backup <PATH>`</Tab>
+</Tabs>
+
+### txpool.disable-transactions-backup
+
+Disables transaction backup to disk on node shutdown.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.disable-transactions-backup`</Tab>
+</Tabs>
+
+### txpool.max-batch-size
+
+Max batch size for transaction pool insertions.
+
+<Tabs>
+  <Tab title="Syntax">`--txpool.max-batch-size <MAX_BATCH_SIZE>`</Tab>
+  <Tab title="Default">`1`</Tab>
+</Tabs>
+
+## Debug
+
+Options for debugging.
+
+### debug.terminate
+
+Flag indicating whether the node should be terminated after the pipeline sync.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.terminate`</Tab>
+</Tabs>
+
+### debug.tip
+
+Set the chain tip manually for testing purposes.
+NOTE: This is a temporary flag.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.tip <TIP>`</Tab>
+</Tabs>
+
+### debug.max-block
+
+Runs the sync only up to the specified block.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.max-block <MAX_BLOCK>`</Tab>
+</Tabs>
+
+### debug.etherscan
+
+Runs a fake consensus client that advances the chain using recent block hashes on Etherscan. If specified, requires an `ETHERSCAN_API_KEY` environment variable.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.etherscan [<ETHERSCAN_API_URL>]`</Tab>
+</Tabs>
+
+### debug.rpc-consensus-url
+
+Runs a fake consensus client using blocks fetched from an RPC endpoint. Supports both HTTP and `WebSocket` endpoints.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.rpc-consensus-url <RPC_URL>`</Tab>
+</Tabs>
+
+### debug.skip-fcu
+
+If provided, the engine will skip `n` consecutive FCUs.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.skip-fcu <SKIP_FCU>`</Tab>
+</Tabs>
+
+### debug.skip-new-payload
+
+If provided, the engine will skip `n` consecutive new payloads.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.skip-new-payload <SKIP_NEW_PAYLOAD>`</Tab>
+</Tabs>
+
+### debug.reorg-frequency
+
+If provided, the chain will be reorged at specified frequency.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.reorg-frequency <REORG_FREQUENCY>`</Tab>
+</Tabs>
+
+### debug.reorg-depth
+
+The reorg depth for chain reorgs.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.reorg-depth <REORG_DEPTH>`</Tab>
+</Tabs>
+
+### debug.engine-api-store
+
+The path to store engine API messages at. If specified, all of the intercepted engine API messages will be written to specified location.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.engine-api-store <PATH>`</Tab>
+</Tabs>
+
+### debug.invalid-block-hook
+
+Determines which type of invalid block hook to install.
+Possible values: `witness`, `pre-state`, `opcode`.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.invalid-block-hook <INVALID_BLOCK_HOOK>`</Tab>
+  <Tab title="Default">`witness`</Tab>
+</Tabs>
+
+### debug.healthy-node-rpc-url
+
+The RPC URL of a healthy node to use for comparing invalid block hook results against.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.healthy-node-rpc-url <URL>`</Tab>
+</Tabs>
+
+### ethstats
+
+The URL of the ethstats server to connect to. Example: `nodename:secret@host:port`.
+
+<Tabs>
+  <Tab title="Syntax">`--ethstats <ETHSTATS>`</Tab>
+</Tabs>
+
+### debug.startup-sync-state-idle
+
+Set the node to idle state when the backfill is not running.
+This makes the `eth_syncing` RPC return "Idle" when the node has just started or finished the backfill, but did not yet receive any new blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--debug.startup-sync-state-idle`</Tab>
+</Tabs>
+
+## Database
+
+Options for the database.
+
+### db.log-level
+
+Database logging level. Levels higher than "notice" require a debug build.
+Possible values: `fatal`, `error`, `warn`, `notice`, `verbose`, `debug`, `trace`, `extra`.
+
+<Tabs>
+  <Tab title="Syntax">`--db.log-level <LOG_LEVEL>`</Tab>
+</Tabs>
+
+### db.exclusive
+
+Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume.
+
+<Tabs>
+  <Tab title="Syntax">`--db.exclusive <EXCLUSIVE>`</Tab>
+</Tabs>
+
+### db.max-size
+
+Maximum database size (e.g., 4TB, 8TB).
+This sets the "map size" of the database. If the database grows beyond this limit, the node will stop with an "environment map size limit reached" error.
+
+<Tabs>
+  <Tab title="Syntax">`--db.max-size <MAX_SIZE>`</Tab>
+  <Tab title="Default">`8TB`</Tab>
+</Tabs>
+
+### db.page-size
+
+Database page size (e.g., 4KB, 8KB, 16KB).
+Specifies the page size used by the MDBX database.
+The page size determines the maximum database size. MDBX supports up to 2^31 pages, so with the default 4KB page size, the maximum database size is 8TB. To allow larger databases, increase this value to 8KB or higher.
+
+WARNING: This setting is only configurable at database creation; changing it later requires re-syncing.
+
+<Tabs>
+  <Tab title="Syntax">`--db.page-size <PAGE_SIZE>`</Tab>
+</Tabs>
+
+### db.growth-step
+
+Database growth step (e.g., 4GB, 4KB).
+
+<Tabs>
+  <Tab title="Syntax">`--db.growth-step <GROWTH_STEP>`</Tab>
+</Tabs>
+
+### db.read-transaction-timeout
+
+Read transaction timeout in seconds, 0 means no timeout.
+
+<Tabs>
+  <Tab title="Syntax">`--db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT>`</Tab>
+</Tabs>
+
+### db.max-readers
+
+Maximum number of readers allowed to access the database concurrently.
+
+<Tabs>
+  <Tab title="Syntax">`--db.max-readers <MAX_READERS>`</Tab>
+</Tabs>
+
+### db.sync-mode
+
+Controls how aggressively the database synchronizes data to disk.
+
+<Tabs>
+  <Tab title="Syntax">`--db.sync-mode <SYNC_MODE>`</Tab>
+</Tabs>
+
+## Dev testnet
+
+Options for running a local development testnet.
+
+### dev
+
+Start the node in dev mode.
+
+This mode uses a local proof-of-authority consensus engine with either fixed block times or automatically mined blocks.
+Disables network discovery and enables local http server.
+Prefunds 20 accounts derived by mnemonic "test test test test test test test test test test test junk" with 10 000 ETH each.
+
+<Tabs>
+  <Tab title="Syntax">`--dev`</Tab>
+</Tabs>
+
+### dev.block-max-transactions
+
+How many transactions to mine per block.
+
+<Tabs>
+  <Tab title="Syntax">`--dev.block-max-transactions <BLOCK_MAX_TRANSACTIONS>`</Tab>
+</Tabs>
+
+### dev.block-time
+
+Interval between blocks.
+Parses strings using `humantime::parse_duration`.
+Example: `--dev.block-time 12s`
+
+<Tabs>
+  <Tab title="Syntax">`--dev.block-time <BLOCK_TIME>`</Tab>
+</Tabs>
+
+### dev.mnemonic
+
+Derive dev accounts from a fixed mnemonic instead of random ones.
+
+<Tabs>
+  <Tab title="Syntax">`--dev.mnemonic <MNEMONIC>`</Tab>
+  <Tab title="Default">`test test test test test test test test test test test junk`</Tab>
+</Tabs>
+
+## Pruning
+
+Options for data pruning.
+
+### full
+
+Run full node. Only the most recent `MINIMUM_PRUNING_DISTANCE` block states are stored.
+
+<Tabs>
+  <Tab title="Syntax">`--full`</Tab>
+</Tabs>
+
+### minimal
+
+Run minimal storage mode with maximum pruning and smaller static files.
+This mode configures the node to use minimal disk space by:
+- Fully pruning sender recovery, transaction lookup, receipts
+- Leaving 10,064 blocks for account, storage history and block bodies
+- Using 10,000 blocks per static file segment
+
+<Tabs>
+  <Tab title="Syntax">`--minimal`</Tab>
+</Tabs>
+
+### prune.block-interval
+
+Minimum pruning interval measured in blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.block-interval <BLOCK_INTERVAL>`</Tab>
+</Tabs>
+
+### prune.sender-recovery.full
+
+Prunes all sender recovery data.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.sender-recovery.full`</Tab>
+</Tabs>
+
+### prune.sender-recovery.distance
+
+Prune sender recovery data before the head-N block number. In other words, keep the last $N + 1$ blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.sender-recovery.distance <BLOCKS>`</Tab>
+</Tabs>
+
+### prune.sender-recovery.before
+
+Prune sender recovery data before the specified block number. The specified block number is not pruned.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.sender-recovery.before <BLOCK_NUMBER>`</Tab>
+</Tabs>
+
+### prune.transaction-lookup.full
+
+Prunes all transaction lookup data.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.transaction-lookup.full`</Tab>
+</Tabs>
+
+### prune.transaction-lookup.distance
+
+Prune transaction lookup data before the head-N block number. In other words, keep the last $N + 1$ blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.transaction-lookup.distance <BLOCKS>`</Tab>
+</Tabs>
+
+### prune.transaction-lookup.before
+
+Prune transaction lookup data before the specified block number. The specified block number is not pruned.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.transaction-lookup.before <BLOCK_NUMBER>`</Tab>
+</Tabs>
+
+### prune.receipts.full
+
+Prunes all receipt data.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.receipts.full`</Tab>
+</Tabs>
+
+### prune.receipts.pre-merge
+
+Prune receipts before the merge block.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.receipts.pre-merge`</Tab>
+</Tabs>
+
+### prune.receipts.distance
+
+Prune receipts before the head-N block number. In other words, keep the last $N + 1$ blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.receipts.distance <BLOCKS>`</Tab>
+</Tabs>
+
+### prune.receipts.before
+
+Prune receipts before the specified block number. The specified block number is not pruned.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.receipts.before <BLOCK_NUMBER>`</Tab>
+</Tabs>
+
+### prune.receiptslogfilter
+
+Configure receipts log filter.
+Format: `<address>:<prune_mode>...` where `<prune_mode>` can be `full`, `distance:<blocks>`, or `before:<block_number>`.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.receiptslogfilter <FILTER_CONFIG>`</Tab>
+</Tabs>
+
+### prune.account-history.full
+
+Prunes all account history.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.account-history.full`</Tab>
+</Tabs>
+
+### prune.account-history.distance
+
+Prune account history before the head-N block number. In other words, keep the last $N + 1$ blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.account-history.distance <BLOCKS>`</Tab>
+</Tabs>
+
+### prune.account-history.before
+
+Prune account history before the specified block number. The specified block number is not pruned.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.account-history.before <BLOCK_NUMBER>`</Tab>
+</Tabs>
+
+### prune.storage-history.full
+
+Prunes all storage history data.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.storage-history.full`</Tab>
+</Tabs>
+
+### prune.storage-history.distance
+
+Prune storage history before the head-N block number. In other words, keep the last $N + 1$ blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.storage-history.distance <BLOCKS>`</Tab>
+</Tabs>
+
+### prune.storage-history.before
+
+Prune storage history before the specified block number. The specified block number is not pruned.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.storage-history.before <BLOCK_NUMBER>`</Tab>
+  </Tabs>
+  
+### prune.bodies.pre-merge
+
+Prune bodies before the merge block.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.bodies.pre-merge`</Tab>
+</Tabs>
+
+### prune.bodies.distance
+
+Prune bodies before the head-N block number. In other words, keep the last $N + 1$ blocks.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.bodies.distance <BLOCKS>`</Tab>
+</Tabs>
+
+### prune.bodies.before
+
+Prune body history before the specified block number. The specified block number is not pruned.
+
+<Tabs>
+  <Tab title="Syntax">`--prune.bodies.before <BLOCK_NUMBER>`</Tab>
+</Tabs>
+
+## Engine
+
+Engine API options.
+
+### engine.persistence-threshold
+
+Configure persistence threshold for the engine. This determines how many canonical blocks must be in-memory, ahead of the last persisted block, before flushing canonical blocks to disk again.
+
+To persist blocks as fast as the node receives them, set this value to zero. This will cause more frequent DB writes.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.persistence-threshold <PERSISTENCE_THRESHOLD>`</Tab>
+  <Tab title="Default">`2`</Tab>
+</Tabs>
+
+### engine.memory-block-buffer-target
+
+Configure the target number of blocks to keep in memory.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.memory-block-buffer-target <MEMORY_BLOCK_BUFFER_TARGET>`</Tab>
+  <Tab title="Default">`0`</Tab>
+</Tabs>
+
+### engine.legacy-state-root
+
+Enable legacy state root calculation.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.legacy-state-root`</Tab>
+</Tabs>
+
+### engine.disable-state-cache
+
+Disable the state cache.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.disable-state-cache`</Tab>
+</Tabs>
+
+### engine.disable-prewarming
+
+Disable parallel prewarming of the state.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.disable-prewarming`</Tab>
+</Tabs>
+
+### engine.disable-parallel-sparse-trie
+
+Disable the parallel sparse trie in the engine.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.disable-parallel-sparse-trie`</Tab>
+</Tabs>
+
+### engine.state-provider-metrics
+
+Enable state provider latency metrics. This allows the engine to collect and report stats about how long state provider calls took during execution, but introduces slight overhead.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.state-provider-metrics`</Tab>
+</Tabs>
+
+### engine.cross-block-cache-size
+
+Configure the size of the cross-block cache in megabytes.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.cross-block-cache-size <CROSS_BLOCK_CACHE_SIZE>`</Tab>
+  <Tab title="Default">`4096`</Tab>
+</Tabs>
+
+### engine.state-root-task-compare-updates
+
+Enable comparing trie updates from the state root task to the trie updates from the regular state root calculation.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.state-root-task-compare-updates`</Tab>
+</Tabs>
+
+### engine.accept-execution-requests-hash
+
+Enables accepting a requests hash instead of an array of requests in engine_newPayloadV4.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.accept-execution-requests-hash`</Tab>
+</Tabs>
+
+### engine.multiproof-chunking
+
+Whether the multiproof task should chunk proof targets.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.multiproof-chunking`</Tab>
+</Tabs>
+
+### engine.multiproof-chunk-size
+
+Multiproof task chunk size for proof targets.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.multiproof-chunk-size <MULTIPROOF_CHUNK_SIZE>`</Tab>
+  <Tab title="Default">`60`</Tab>
+</Tabs>
+
+### engine.reserved-cpu-cores
+
+Configure the number of reserved CPU cores for non-reth processes.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.reserved-cpu-cores <RESERVED_CPU_CORES>`</Tab>
+  <Tab title="Default">`1`</Tab>
+</Tabs>
+
+### engine.disable-precompile-cache
+
+Disable the precompile cache.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.disable-precompile-cache`</Tab>
+</Tabs>
+
+### engine.state-root-fallback
+
+Enable state root fallback. Primarily used for testing purposes.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.state-root-fallback`</Tab>
+</Tabs>
+
+### engine.always-process-payload-attributes-on-canonical-head
+
+Always process payload attributes and begin a payload build process even if `forkchoiceState.headBlockHash` is already the canonical head or an ancestor. See `TreeConfig::always_process_payload_attributes_on_canonical_head` for more details.
+
+Note: This is a no-op on OP Stack.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.always-process-payload-attributes-on-canonical-head`</Tab>
+</Tabs>
+
+### engine.allow-unwind-canonical-header
+
+Allow unwinding canonical header to ancestor during forkchoice updates. See `TreeConfig::unwind_canonical_header` for more details.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.allow-unwind-canonical-header`</Tab>
+</Tabs>
+
+### engine.storage-worker-count
+
+Configure the number of storage proof workers in the Tokio blocking pool. If not specified, defaults to 2x available parallelism, clamped between 2 and 64.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.storage-worker-count <STORAGE_WORKER_COUNT>`</Tab>
+</Tabs>
+
+### engine.account-worker-count
+
+Configure the number of account proof workers in the Tokio blocking pool. If not specified, defaults to the same count as storage workers.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.account-worker-count <ACCOUNT_WORKER_COUNT>`</Tab>
+</Tabs>
+
+### engine.enable-proof-v2
+
+Enable V2 storage proofs for state root calculations.
+
+<Tabs>
+  <Tab title="Syntax">`--engine.enable-proof-v2`</Tab>
+</Tabs>
+
+## ERA
+
+Options for ERA1 file import.
+
+### era.enable
+
+Enable import from ERA1 files.
+
+<Tabs>
+  <Tab title="Syntax">`--era.enable`</Tab>
+</Tabs>
+
+### era.path
+
+The path to a directory for import.
+The ERA1 files are read from the local directory parsing headers and bodies.
+
+<Tabs>
+  <Tab title="Syntax">`--era.path <ERA_PATH>`</Tab>
+</Tabs>
+
+### era.url
+
+The URL to a remote host where the ERA1 files are hosted.
+The ERA1 files are read from the remote host using HTTP GET requests parsing headers and bodies.
+
+<Tabs>
+  <Tab title="Syntax">`--era.url <ERA_URL>`</Tab>
+</Tabs>
+
+## Static Files
+
+Options for static file storage configuration.
+
+### static-files.blocks-per-file.headers
+
+Number of blocks per file for the headers segment.
+
+<Tabs>
+  <Tab title="Syntax">`--static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS>`</Tab>
+</Tabs>
+
+### static-files.blocks-per-file.transactions
+
+Number of blocks per file for the transactions segment.
+
+<Tabs>
+  <Tab title="Syntax">`--static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS>`</Tab>
+</Tabs>
+
+### static-files.blocks-per-file.receipts
+
+Number of blocks per file for the receipts segment.
+
+<Tabs>
+  <Tab title="Syntax">`--static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS>`</Tab>
+</Tabs>
+
+### static-files.blocks-per-file.transaction-senders
+
+Number of blocks per file for the transaction senders segment.
+
+<Tabs>
+  <Tab title="Syntax">`--static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS>`</Tab>
+</Tabs>
+
+### static-files.blocks-per-file.account-change-sets
+
+Number of blocks per file for the account changesets segment.
+
+<Tabs>
+  <Tab title="Syntax">`--static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS>`</Tab>
+</Tabs>
+
+### static-files.receipts
+
+Store receipts in static files instead of the database.
+When enabled, receipts will be written to static files on disk instead of the database.
+Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
+
+<Tabs>
+  <Tab title="Syntax">`--static-files.receipts`</Tab>
+</Tabs>
+
+### static-files.transaction-senders
+
+Store transaction senders in static files instead of the database.
+When enabled, transaction senders will be written to static files on disk instead of the database.
+Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
+
+<Tabs>
+  <Tab title="Syntax">`--static-files.transaction-senders`</Tab>
+</Tabs>
+
+### static-files.account-change-sets
+
+Store account changesets in static files.
+When enabled, account changesets will be written to static files on disk instead of the database.
+Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
+
+<Tabs>
+  <Tab title="Syntax">`--static-files.account-change-sets`</Tab>
+</Tabs>
+
+## Rollup
+
+Options for Rollup configuration.
+
+### rollup.sequencer
+
+Endpoint for the sequencer mempool (can be both HTTP and WS).
+Aliases: `--rollup.sequencer-http`, `--rollup.sequencer-ws`
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.sequencer <SEQUENCER>`</Tab>
+</Tabs>
+
+### rollup.disable-tx-pool-gossip
+
+Disable transaction pool gossip.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.disable-tx-pool-gossip`</Tab>
+</Tabs>
+
+### rollup.compute-pending-block
+
+By default the pending block equals the latest block to save resources and not leak txs from the tx-pool, this flag enables computing of the pending block from the tx-pool instead.
+
+If `compute_pending_block` is not enabled, the payload builder will use the payload attributes from the latest block. Note that this flag is not yet functional.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.compute-pending-block`</Tab>
+</Tabs>
+
+### rollup.discovery.v4
+
+Enables discovery v4 if provided.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.discovery.v4`</Tab>
+</Tabs>
+
+### rollup.enable-tx-conditional
+
+Enable transaction conditional support on sequencer.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.enable-tx-conditional`</Tab>
+</Tabs>
+
+### rollup.supervisor-http
+
+HTTP endpoint for the supervisor.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.supervisor-http <SUPERVISOR_HTTP_URL>`</Tab>
+  <Tab title="Default">`http://localhost:1337/`</Tab>
+</Tabs>
+
+### rollup.supervisor-safety-level
+
+Safety level for the supervisor.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.supervisor-safety-level <SUPERVISOR_SAFETY_LEVEL>`</Tab>
+  <Tab title="Default">`CrossUnsafe`</Tab>
+</Tabs>
+
+### rollup.sequencer-headers
+
+Optional headers to use when connecting to the sequencer.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.sequencer-headers <SEQUENCER_HEADERS>`</Tab>
+</Tabs>
+
+### rollup.historicalrpc
+
+RPC endpoint for historical data.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup.historicalrpc <HISTORICAL_HTTP_URL>`</Tab>
+</Tabs>
+
+### min-suggested-priority-fee
+
+Minimum suggested priority fee (tip) in wei.
+
+<Tabs>
+  <Tab title="Syntax">`--min-suggested-priority-fee <MIN_SUGGESTED_PRIORITY_FEE>`</Tab>
+  <Tab title="Default">`1000000`</Tab>
+</Tabs>
+
+### flashblocks-url
+
+A URL pointing to a secure websocket subscription that streams out flashblocks.
+If given, the flashblocks are received to build pending block. All request with "pending" block tag will use the pending state based on flashblocks.
+
+<Tabs>
+  <Tab title="Syntax">`--flashblocks-url <FLASHBLOCKS_URL>`</Tab>
+</Tabs>
+
+### flashblock-consensus
+
+Enable flashblock consensus client to drive the chain forward.
+When enabled, the flashblock consensus client will process flashblock sequences and submit them to the engine API to advance the chain. Requires `flashblocks_url` to be set.
+
+<Tabs>
+  <Tab title="Syntax">`--flashblock-consensus`</Tab>
+</Tabs>
+
+## Logging
+
+Options for logging.
+
+### log.stdout.format
+
+The format to use for logs written to stdout.
+Possible values: `json`, `log-fmt`, `terminal`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.stdout.format <FORMAT>`</Tab>
+  <Tab title="Default">`terminal`</Tab>
+</Tabs>
+
+### log.stdout.filter
+
+The filter to use for logs written to stdout.
+
+<Tabs>
+  <Tab title="Syntax">`--log.stdout.filter <FILTER>`</Tab>
+</Tabs>
+
+### log.file.format
+
+The format to use for logs written to the log file.
+Possible values: `json`, `log-fmt`, `terminal`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.file.format <FORMAT>`</Tab>
+  <Tab title="Default">`terminal`</Tab>
+</Tabs>
+
+### log.file.filter
+
+The filter to use for logs written to the log file.
+
+<Tabs>
+  <Tab title="Syntax">`--log.file.filter <FILTER>`</Tab>
+  <Tab title="Default">`debug`</Tab>
+</Tabs>
+
+### log.file.directory
+
+The path to put log files in.
+
+<Tabs>
+  <Tab title="Syntax">`--log.file.directory <PATH>`</Tab>
+  <Tab title="Default">`(OS-specific default)`</Tab>
+</Tabs>
+
+### log.file.name
+
+The prefix name of the log files.
+
+<Tabs>
+  <Tab title="Syntax">`--log.file.name <NAME>`</Tab>
+  <Tab title="Default">`reth.log`</Tab>
+</Tabs>
+
+### log.file.max-size
+
+The maximum size (in MB) of one log file.
+
+<Tabs>
+  <Tab title="Syntax">`--log.file.max-size <SIZE>`</Tab>
+  <Tab title="Default">`200`</Tab>
+</Tabs>
+
+### log.file.max-files
+
+The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
+
+<Tabs>
+  <Tab title="Syntax">`--log.file.max-files <COUNT>`</Tab>
+  <Tab title="Default">`5`</Tab>
+</Tabs>
+
+### log.journald
+
+Write logs to journald.
+
+<Tabs>
+  <Tab title="Syntax">`--log.journald`</Tab>
+</Tabs>
+
+### log.journald.filter
+
+The filter to use for logs written to journald.
+
+<Tabs>
+  <Tab title="Syntax">`--log.journald.filter <FILTER>`</Tab>
+  <Tab title="Default">`error`</Tab>
+</Tabs>
+
+### color
+
+Sets whether or not the formatter emits ANSI terminal escape codes for colors and other text formatting.
+Possible values: `always`, `auto`, `never`.
+
+<Tabs>
+  <Tab title="Syntax">`--color <COLOR>`</Tab>
+  <Tab title="Default">always</Tab>
+</Tabs>
+
+### logs-otlp
+
+Enable `Opentelemetry` logs export to an OTLP endpoint.
+If no value provided, defaults based on protocol:
+- HTTP: `http://localhost:4318/v1/logs`
+- gRPC: `http://localhost:4317`
+
+<Tabs>
+  <Tab title="Syntax">`--logs-otlp[=<URL>]`</Tab>
+  <Tab title="Environment Variable">`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`</Tab>
+</Tabs>
+
+### logs-otlp.filter
+
+Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+Defaults to INFO if not specified.
+
+<Tabs>
+  <Tab title="Syntax">`--logs-otlp.filter <FILTER>`</Tab>
+  <Tab title="Default">`info`</Tab>
+</Tabs>
+
+## Display
+
+Options for display and verbosity.
+
+### verbosity
+
+Set the minimum log level.
+- `-v`: Errors
+- `-vv`: Warnings
+- `-vvv`: Info
+- `-vvvv`: Debug
+- `-vvvvv`: Traces (warning: very verbose!)
+
+<Tabs>
+  <Tab title="Syntax">`-v`, `--verbosity`</Tab>
+  <Tab title="Default">`3` (Info)</Tab>
+</Tabs>
+
+### quiet
+
+Silence all log output.
+
+<Tabs>
+  <Tab title="Syntax">`-q`, `--quiet`</Tab>
+</Tabs>
+
+## Tracing
+
+Options for OpenTelemetry tracing.
+
+### tracing-otlp
+
+Enable `Opentelemetry` tracing export to an OTLP endpoint.
+
+If no value provided, defaults based on protocol:
+- HTTP: `http://localhost:4318/v1/traces`
+- gRPC: `http://localhost:4317`
+
+<Tabs>
+  <Tab title="Syntax">`--tracing-otlp[=<URL>]`</Tab>
+  <Tab title="Environment Variable">`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`</Tab>
+</Tabs>
+
+### tracing-otlp-protocol
+
+OTLP transport protocol to use for exporting traces and logs.
+
+- `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs`
+- `grpc`: expects endpoint without a path
+Defaults to HTTP if not specified.
+
+Possible values:
+- `http`: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+- `grpc`: gRPC transport, port 4317
+
+<Tabs>
+  <Tab title="Syntax">`--tracing-otlp-protocol <PROTOCOL>`</Tab>
+  <Tab title="Default">`http`</Tab>
+  <Tab title="Environment Variable">`OTEL_EXPORTER_OTLP_PROTOCOL`</Tab>
+</Tabs>
+
+### tracing-otlp.filter
+
+Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+
+Example: `--tracing-otlp.filter=info,reth=debug,hyper_util=off`
+
+Defaults to TRACE if not specified.
+
+<Tabs>
+  <Tab title="Syntax">`--tracing-otlp.filter <FILTER>`</Tab>
+  <Tab title="Default">`debug`</Tab>
+</Tabs>
+
+### tracing-otlp.sample-ratio
+
+Trace sampling ratio to control the percentage of traces to export.
+
+Valid range: 0.0 to 1.0 (1.0 = Sample all, 0.0 = Disable).
+- `1.0`, default: Sample all traces
+- `0.01`: Sample 1% of traces
+- `0.0`: Disable sampling
+
+Example: `--tracing-otlp.sample-ratio=0.0`.
+
+<Tabs>
+  <Tab title="Syntax">`--tracing-otlp.sample-ratio <RATIO>`</Tab>
+  <Tab title="Environment Variable">`OTEL_TRACES_SAMPLER_ARG`</Tab>
+</Tabs>

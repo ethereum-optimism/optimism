@@ -1,0 +1,212 @@
+---
+title: OP Stack interoperability explainer
+description: Learn the basics of OP Stack interoperability.
+---
+
+
+
+
+<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+
+# OP Stack interoperability
+
+It is easy for a blockchain to be certain about information it generates itself.
+Information that comes from other sources is harder to provide in a safe, decentralized, and uncensorable manner (this is called [The Oracle Problem](https://chain.link/education-hub/oracle-problem)).
+The next major scalability improvement to the OP Stack is to enable a network of chains to feel like a single blockchain.
+This goal requires low-latency, seamless message passing and asset bridging.
+
+*OP Stack interoperability* is a set of protocols and services that lets OP Stack blockchains read each other's state.
+OP Stack interoperability provides the following benefits:
+
+*   ETH and ERC-20 tokens to move securely between chains via native minting and burning.  Asset interoperability solves the issues of liquidity fragmentation and poor user experiences caused by asset wrapping or liquidity pools.
+*   Apps to compose with data that exist on other chains.
+*   Horizontal scalability for applications that need it.
+
+## OP Stack interoperability architecture
+
+A pre-interop OP Stack node consists of two pieces of software: a consensus client (e.g. op-node) and an execution client, which is responsible for processing user transactions and constructing blocks (e.g. op-geth).
+OP Stack interoperability among OP Stack chains is enabled via a new service called [*OP Supervisor*](/chain-operators/reference/components/op-supervisor).
+Every node operator is expected to run this service in addition to the [rollup node](/operators/node-operators/architecture#rollup-node) and [execution client](/operators/node-operators/architecture#execution-client).
+
+```mermaid
+
+graph LR
+
+  classDef chain fill:#FFE
+  classDef transparent fill:none, stroke:none
+  
+  subgraph chain1[OP Stack chain #1]
+    node1[OP Node]
+    super1[OP-Supervisor]
+    geth1[Execution Engine]
+    node1<-->super1--->geth1<-->node1
+  end
+  subgraph X[ ]
+    chain2[OP Stack chain #2]
+    chain3[OP Stack chain #3]
+    l1node[L1 Consensus Layer]
+  end
+
+  chain2-->|log events|super1
+  chain3-->|log events|super1
+  l1node-->|block status|super1
+
+  class chain1,chain2,chain3 chain
+  class X transparent
+```
+
+OP-Supervisor holds a database of all the log events of all the chains in the OP Stack interoperability cluster.
+Every event can potentially initiate a cross-domain message, and it is the job of OP-Supervisor to validate that the log event really happened on the source chain.
+Additionally, OP-Supervisor reads information from L1's consensus layer to determine the transaction safety of L2 blocks.
+
+## How messages get from one chain to the other
+
+To understand *why* we need this additional service, it is useful to know how interop messages get from one OP Stack chain to another.
+
+```mermaid
+
+sequenceDiagram
+    participant app as Application
+    participant src as Source Chain
+    box rgba(0,0,0,0.1) Destination Chain
+      participant dst-sup as OP-Supervisor
+      participant dst-geth as Execution Engine
+    end
+    app->>src: Transaction
+    src->>dst-sup: Log Event
+    note over src,dst-sup: Log Event = Initializing Message
+    app->>dst-geth: Transaction
+    dst-geth->>dst-geth: Call to CrossL2Inbox to execute or verify a message.
+    dst-geth->>dst-sup: Did you receive this initiating message?
+    dst-sup->>dst-geth: Yes
+    note left of dst-geth: Call is successful
+    dst-geth->>dst-geth: CrossL2Inbox emits ExecutingMessage.
+    note over dst-geth: Executing Message
+```
+
+Cross-domain messages require two transactions.
+The first transaction creates an *initiating message* on the source chain.
+The second transaction creates an *executing message* on the destination chain.
+This executing message could result in a contract function being executed on the destination chain.
+
+The initiating message is simply a log event.
+Any log event on any chain that interoperates with the destination can initiate a cross-domain message.
+
+The transaction that receives the message on the destination chain calls a contract called [`CrossL2Inbox`](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#crossl2inbox).
+This call can be at the top level, directly from the externally owned account, or come through a smart contract.
+The call to `CrossL2Inbox`, also known as the *executing message*, needs to [identify the initiating message uniquely](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L35-L42), using the chain ID of the source chain, the block number, and the index of the log event within that block, as well as a few other fields as a sanity check.
+
+`CrossL2Inbox` can either [validate the message exists](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L76-L83), or [call a contract if the message exists](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L76-L83).
+
+## Block safety levels
+
+```mermaid
+
+flowchart LR
+    classDef finalized fill:#CCC
+    classDef safe fill:#8F8
+    classDef unsafe fill:#F89
+    subgraph I[Blocks with Initiating Messages]
+    style I fill:none
+      subgraph A[Chain A]
+        A0[Block n]
+        A1[Block n+100]
+        A2[Block n+105]
+        class A0 finalized
+        class A1 safe
+        class A2 unsafe
+      end
+      subgraph B[Chain B]
+        B0[Block m]
+        B1[Block m+3]
+        class B0,B1 safe
+      end
+    end
+    subgraph C[Chain C]
+      C0[Block with executing messages]
+      class C0 unsafe
+    end
+    A0 --> C0
+    A1 --> C0
+    A2 --> C0
+    B0 --> C0
+    B1 --> C0 
+```
+
+OP Stack interop expands the scope of trust for unsafe blocks (blocks that are shared through [the gossip protocol](/operators/chain-operators/architecture#sequencer)).
+If a sequencer chooses to accept unsafe messages, the sequencer must trust the sequencer that produces the inbound message as well as any referenced unsafe messages produced from sequencers in the transitive dependency set.
+
+<Expandable title="What is the transitive dependency set?">
+
+  The transitive dependency set of a blockchain is all the chains on which it depends, and all the chains that depend on them, and so on.
+  For example, in the illustration above, the dependency set of chain A is just chain B.
+  However, the *transitive* dependency set includes chain B, the chains that depend on it (C and D) and the chains that depend on them (E).
+  If there was a chain that depended on E, that chain would be part of the transitive dependency set too.
+
+  ```mermaid
+
+  flowchart LR
+      A[Chain A] <--> B[Chain B]
+      B <--> C[Chain C]
+      B <--> D[Chain D]
+      D <--> E[Chain E]
+      F[Chain F] <--> G[Chain G]
+  ```
+
+  For example, there could be a block in chain D that depends on an initiating message in chain E.
+  If the block with that initiating message is still unsafe (not written to L1), then the block in chain D is also unsafe, even if it has been written to L1.
+  As a result, a block in chain B that depends on the chain D block can also be unsafe, as can a block in chain A that depends on the block in chain B.
+</Expandable>
+
+Notably this trust assumption is only for *unsafe* blocks, and *only* if the sequencer allows messages from unsafe blocks to be processed.
+
+In OP Stack interop, [the traditional safe level](/op-stack/transactions/transaction-finality#steps-to-finality) of a block is divided into two types of safety.
+A block is *local safe* once it is written to L1.
+But it is only *cross safe* when in addition to the block itself all of the blocks on which it depends (directly or indirectly) are written to L1, including the dependencies of previous blocks in the same chain.
+
+For example, in the image above, most blocks are safe.
+Block `n` in chain `A` is even finalized, and immune from reorgs.
+However, block `n+105` in chain `A` is unsafe, it (or a block on which it depends) is not written to L1.
+Because the new block depends upon it, it can be either unsafe or local safe, but it cannot be cross safe.
+
+## Interop clusters
+
+The interop protocol works via a dependency set which is configured on a per-chain basis.
+The dependency set defines the set of chains that can send and receive messages with a specific chain.
+
+```mermaid
+
+flowchart LR
+    A[Chain A] <--> B[Chain B]
+    A[Chain A] <--> C[Chain C]
+    A[Chain A] <--> D[Chain D]
+    A[Chain A] <--> E[Chain E]
+    B <--> C
+    D <--> E
+
+```
+
+For example, in the illustration above, the dependency set of chain B is chains A and C.
+To move an asset from chain E to chain B, it is necessary to move the asset from chain E to chain A, and then from chain A to chain B, because there is no direct dependency between B and E.
+
+### OP Stack interop cluster
+
+The OP Stack builds on top of the interop protocol and implements a single mesh network with complete dependencies.
+In this model, each blockchain in the OP Stack interop cluster would have direct connections to every other blockchain, creating a fully connected mesh network.
+This model provides the highest level of interoperability, as any blockchain can transact directly with any other.
+
+```mermaid
+
+flowchart LR
+    A[Chain A] <--> B[Chain B] <--> C[Chain C] <--> D[Chain D] <--> E[Chain E] <--> A
+    A <--> C <--> E <--> B <--> D <--> A
+```
+
+Each blockchain in the OP Stack interop cluster shares the same security model to mitigate the weakest-link scenario. As outlined in the [Standard Rollup Charter](/op-stack/protocol/blockspace-charter), these chains share the same L1 `ProxyAdmin` Owner. Any changes to the OP Stack interop cluster must follow the standard Protocol Upgrade vote procedure—the established governance process for OP Stack modifications.
+
+The OP Stack interop cluster will be rolled out iteratively, but to see a list of eligible chains that could join the cluster visit the [Superchain Index](https://www.superchain.eco/superchain-index) and look at chains that have a `Standard` charter.
+
+## Next steps
+
+*   Learn [how messages get from one chain to another chain](/app-developers/guides/interoperability/message-passing)
+*   Watch [this video](https://www.youtube.com/watch?v=FKc5RgjtGes), which gives an overview of OP Stack interoperability.

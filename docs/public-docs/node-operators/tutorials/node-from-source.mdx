@@ -1,0 +1,202 @@
+---
+title: Building an OP Stack node from source
+description: Learn how to build your own node without relying on images from Optimism.
+---
+
+Docker images are the easiest way to run an OP Mainnet node, but you can always build your own node from source code.
+You might want to do this if you want to run a node on a specific architecture or if you want to inspect the source code of the node you're running.
+This guide will walk you through the full process of building a node from source.
+
+## What you're going to build
+
+### Rollup node
+
+The Rollup Node is responsible for deriving L2 block payloads from L1 data and passing those payloads to the Execution Client.
+The Rollup Node can also optionally participate in a peer-to-peer network to receive blocks directly from the Sequencer before those blocks are submitted to L1.
+The Rollup Node is largely analogous to a [consensus client](https://ethereum.org/en/developers/docs/nodes-and-clients/#what-are-nodes-and-clients) in Ethereum.
+
+In this tutorial you will build the `op-node` implementation of the Rollup Node as found in the [Optimism Monorepo](https://github.com/ethereum-optimism/optimism).
+
+### Execution client
+
+The Execution Client is responsible for executing the block payloads it receives from the Rollup Node over JSON-RPC via the standard [Ethereum Engine API](https://github.com/ethereum/execution-apis/blob/main/src/engine/common.md#engine-api----common-definitions).
+The Execution Client exposes the standard JSON-RPC API that Ethereum developers are familiar with, and can be used to query blockchain data and submit transactions to the network.
+The Execution Client is largely analogous to an [execution client](https://ethereum.org/en/developers/docs/nodes-and-clients/#what-are-nodes-and-clients) in Ethereum.
+
+<Tabs>
+  <Tab title="op-geth">
+    The `op-geth` implementation of the Execution Client can be found in the [`op-geth` repository](https://github.com/ethereum-optimism/op-geth).
+
+    #### Prerequisites
+
+    *   Go 1.21 or later
+    *   Make
+
+    #### Building
+
+    Follow the instructions in the `op-geth` repository to build from source.
+  </Tab>
+
+  <Tab title="Nethermind">
+    `Nethermind` is an alternative execution client implementation written in .NET.
+
+    #### Prerequisites
+
+    *   [.NET SDK](https://aka.ms/dotnet/download) 9 or later
+
+    #### Building
+
+    <Steps>
+  1.  Clone the repository:
+            The `Nethermind`'s source code can be obtained from [`nethermind` repository](https://github.com/NethermindEth/nethermind)
+  
+        ```bash
+        git clone --recursive https://github.com/nethermindeth/nethermind.git
+        ```
+  
+        2.  Build the source:
+  
+        ```bash
+        dotnet build src/Nethermind/Nethermind.sln -c release
+        ```
+  
+        3.  Run `Nethermind` (this will build it first if needed):
+  
+        ```bash
+        cd src/Nethermind/Nethermind.Runner
+        dotnet run -c release -- -c mainnet
+        ```
+  
+        The build artifacts will be located in `src/Nethermind/artifacts/bin/Nethermind.Runner/release`.
+</Steps>
+
+    For more details about running a `Nethermind` node, see the [`Nethermind` documentation](https://docs.nethermind.io/get-started/running-node/).
+  </Tab>
+</Tabs>
+
+### Legacy Geth (optional)
+
+Legacy Geth is an optional component for OP Mainnet archive nodes.
+Legacy Geth allows you to execute stateful queries like `eth_call` against blocks and transactions that occurred before the OP Mainnet [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/).
+Legacy Geth is only relevant to OP Mainnet archive nodes and is not required for full nodes or OP Sepolia nodes.
+
+Currently, `l2Geth` is the only available implementation of Legacy Geth.
+In this tutorial you will build the `l2geth` implementation of Legacy Geth as found in the [`optimism-legacy` repository](https://github.com/ethereum-optimism/optimism-legacy).
+
+## Software dependencies
+
+Our build environment is managed through a tool called [mise](https://mise.jdx.dev/). Mise provides a convenient way to install and manage all necessary dependencies for building and testing the packages in this repository. You can find the mise configuration in the [`mise.toml`](https://github.com/ethereum-optimism/optimism/blob/develop/mise.toml) in the root of the Optimism Monorepo.
+
+## Build the rollup node
+
+First you're going to build the `op-node` implementation of the Rollup Node as found in the [Optimism Monorepo](https://github.com/ethereum-optimism/optimism).
+
+<Steps>
+  <Step title="Clone the Optimism Monorepo">
+The Optimism Monorepo contains the source code for the `op-node`.
+  
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    ```
+
+  </Step>
+  
+    <Step title="Check out the required release branch">
+Release branches are created when new versions of the `op-node` are created.
+    Read through the [Releases page](https://github.com/ethereum-optimism/optimism/releases) to determine the correct branch to check out.
+  
+    ```bash
+    git checkout <name of release branch>
+    ```
+  
+    <Info>
+      Make sure to read the Releases page carefully to determine the correct branch to check out.
+      Some releases may only be required for the OP Sepolia testnet.
+    </Info>
+
+  
+    </Step>
+  
+    <Step title="Build `op-node`">
+Build the `op-node` implementation of the Rollup Node.
+  
+    ```bash
+    cd op-node
+    just
+    ```
+
+  
+    </Step></Steps>
+
+## Build the execution client
+
+Next you're going to build the `op-geth` implementation of the Execution Client as found in the [`op-geth` repository](https://github.com/ethereum-optimism/op-geth).
+
+<Steps>
+  <Step title="Clone `op-geth`">
+The [`op-geth` repository](https://github.com/ethereum-optimism/op-geth) contains the source code for the `op-geth` implementation of the Execution Client.
+  
+    ```bash
+    git clone https://github.com/ethereum-optimism/op-geth.git
+    cd op-geth
+    ```
+
+  </Step>
+  
+    <Step title="Check out the required release branch">
+Release branches are created when new versions of the `op-geth` are created.
+    Read through the [Releases page](https://github.com/ethereum-optimism/op-geth/releases) to determine the correct branch to check out.
+  
+    ```bash
+    git checkout <name of release branch>
+    ```
+  
+    <Info>
+      Make sure to read the Releases page carefully to determine the correct branch to check out.
+      Some releases may only be required for the OP Sepolia testnet.
+    </Info>
+
+  
+    </Step>
+  
+    <Step title="Build `op-geth`">
+Build the `op-geth` implementation of the Execution Client.
+  
+    ```bash
+    make geth
+    ```
+
+  
+    </Step></Steps>
+
+## Build legacy Geth (optional)
+
+Legacy Geth is an optional component for OP Mainnet archive nodes.
+Legacy Geth allows you to execute stateful queries like `eth_call` against blocks and transactions that occurred before the OP Mainnet [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/).
+Legacy Geth is only relevant to OP Mainnet archive nodes and is not required for full nodes or OP Sepolia nodes.
+
+<Steps>
+  <Step title="Clone the OP Legacy Repository">
+The OP Legacy repository contains the source code for the `l2geth` implementation of Legacy Geth.
+  
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism-legacy.git
+    cd optimism-legacy
+    ```
+
+  </Step>
+  
+    <Step title="Build l2geth">
+```bash
+    cd l2geth
+    make
+    ```
+
+  
+    </Step></Steps>
+
+## Next steps
+
+*   Click here to [Run an OP Stack node from source code](/node-operators/tutorials/run-node-from-source)
+*   If you run into any problems, please visit the [Node Troubleshooting Guide](/node-operators/guides/troubleshooting) for help.

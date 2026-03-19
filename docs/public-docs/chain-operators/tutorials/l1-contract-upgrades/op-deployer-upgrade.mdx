@@ -1,0 +1,70 @@
+---
+title: Upgrade L1 contracts using op-deployer
+description: Learn about how to upgrade smart contracts using op-deployer
+---
+
+[`op-deployer`](/chain-operators/tools/op-deployer/overview) simplifies the process of deploying and upgrading the OP Stack. Using the `upgrade` command, you can upgrade a chain from one version to the next.
+
+It consists of several subcommands, one for each upgrade version. Think of it like a database migration: each upgrade command upgrades a chain from exactly one previous version to the next. A chain that is several versions behind can be upgraded to the latest version by running multiple upgrade commands in sequence.
+
+Unlike the bootstrap or apply commands, upgrade does not directly interact with the chain. Instead, it generates calldata. You can then use this calldata with cast, Gnosis SAFE, or whatever tooling you use to manage your L1.
+
+## Limitations of `upgrade`
+
+There are a few limitations to `upgrade`:
+
+Using the standard OP Contracts Manager currently requires you to be using the standard shared SuperchainConfig contract. If you're not using this, you will need to utilize the `bootstrap` command to deploy your own Superchain target, including your own `opcm` instance.
+
+## Using `upgrade`
+
+<Steps>
+  <Step title="Install `op-deployer`">
+  [Install `op-deployer`](/operators/chain-operators/tools/op-deployer#installation) from source or pre-built binary.
+  </Step>
+
+  <Step title="Create a `config.json` file">
+  Create a `config.json` file using the following example:
+  
+    ```json
+    {
+      "prank": "<address of the contract of the L1 ProxyAdmin owner>",
+      "opcm": "<address of the chain's OPCM>",
+      "chainConfigs": [
+        {
+          "systemConfigProxy": "<address of the chain's system config proxy>",
+          "proxyAdmin": "<address of the chain's proxy admin>",
+          "absolutePrestate": "<32-byte hash of the chain's absolute prestate>"
+        }
+      ]
+    }
+    ```
+  
+    The standard OPCM instances (`opcm` in the example above) and absolute prestates (`absolutePrestate`) are found in the superchain registry:
+  
+    *   `opcm`: under `op_contracts_manager` for [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml) and [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-sepolia.toml).
+    *   `absolutePrestate`: the `hash` under your [chosen upgrade](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)
+  </Step>
+
+  <Step title="Generate calldata">
+  Run the following command:
+  
+    ```bash
+    op-deployer upgrade <version> \
+      --config <path to config JSON>
+    ```
+  
+    `version` must be either major release `2.0` or higher.
+  
+    The output should look like:
+  
+    ```json
+    {
+      "to": "<maps to the prank address>",
+      "data": "<calldata>",
+      "value": "0x0"
+    }
+    ```
+  
+    Now you have the calldata that can be executed onchain to perform the L1 contract upgrade. You should simulate this upgrade and make sure the changes are expected. You can reference the validation files of previously executed upgrade tasks in the [superchain-ops repo](https://github.com/ethereum-optimism/superchain-ops/blob/main/tasks/eth/022-holocene-fp-upgrade/NestedSignFromJson.s.sol) to see what the expected changes are. Once you're confident the state changes are expected, you can sign and execute the upgrade.
+  </Step>
+</Steps>

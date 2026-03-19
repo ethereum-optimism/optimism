@@ -1,4 +1,4 @@
-use crate::{OpProofsStorage, OpProofsStore, prune::OpProofStoragePruner};
+use crate::{OpProofsStore, prune::OpProofStoragePruner};
 use reth_provider::BlockHashReader;
 use reth_tasks::shutdown::GracefulShutdown;
 use tokio::{
@@ -24,7 +24,7 @@ where
 {
     /// Initialize a new [`OpProofStoragePrunerTask`]
     pub fn new(
-        provider: OpProofsStorage<P>,
+        provider: P,
         hash_reader: H,
         min_block_interval: u64,
         task_run_interval: Duration,

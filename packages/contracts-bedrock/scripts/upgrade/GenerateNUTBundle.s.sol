@@ -350,7 +350,8 @@ contract GenerateNUTBundle is Script {
             nativeAssetLiquidityImpl: implementationConfigs["NativeAssetLiquidity"].implementation,
             liquidityControllerImpl: implementationConfigs["LiquidityController"].implementation,
             feeSplitterImpl: implementationConfigs["FeeSplitter"].implementation,
-            conditionalDeployerImpl: implementationConfigs["ConditionalDeployer"].implementation
+            conditionalDeployerImpl: implementationConfigs["ConditionalDeployer"].implementation,
+            l2DevFeatureFlagsImpl: implementationConfigs["L2DevFeatureFlags"].implementation
         });
     }
 
@@ -571,6 +572,14 @@ contract GenerateNUTBundle is Script {
             deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
+            )
+        });
+        implementationConfigs["L2DevFeatureFlags"] = ImplementationConfig({
+            name: "L2DevFeatureFlags",
+            artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
+            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            implementation: UpgradeUtils.computeCreate2Address(
+                DeployUtils.getCode("L2DevFeatureFlags.sol:L2DevFeatureFlags"), SALT
             )
         });
     }

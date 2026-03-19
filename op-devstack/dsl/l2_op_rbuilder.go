@@ -54,3 +54,8 @@ func (el *OPRBuilderNode) Start() {
 	el.require.Truef(ok, "op-rbuilder node %s is not lifecycle-controllable", el.inner.Name())
 	lifecycle.Start()
 }
+
+func (el *OPRBuilderNode) UpdateRuleSet(rulesYaml string) {
+	el.log.Info("Updating rule", "content", rulesYaml)
+	el.require.NoError(el.inner.UpdateRuleSet(rulesYaml), "failed to update rule: %s", rulesYaml)
+}

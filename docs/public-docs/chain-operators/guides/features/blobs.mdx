@@ -1,0 +1,136 @@
+---
+title: Using Blobs
+description: Learn how to switch to using blobs for your chain.
+---
+
+This guide walks you through how to switch to using blobs for your chain. 
+This feature was introduced in with the Ecotone network upgrade.
+
+## Switch to using blobs
+
+<Steps>
+  <Step title="Determine scalar values for using blobs">
+  The first step to switching to submit data with Blobs is to calculate the
+    scalar values you wish to set for the formula to charge users fees.
+    To determine the scalar values to use for your chain, you can utilize this [fee parameter calculator](https://docs.google.com/spreadsheets/d/1V3CWpeUzXv5Iopw8lBSS8tWoSzyR4PDDwV9cu2kKOrs/edit)
+    to get a better estimate for scalar values on your chain. Input the average transaction per day your chain is processing, the types of transactions that occur on your chain, the [`OP_BATCHER_MAX_CHANNEL_DURATION`](/operators/chain-operators/configuration/batcher#setting-your--op_batcher_max_channel_duration) you have parameterized on your `op-batcher`, and the target margin you wish to charge users on top of your L1 costs. The following
+    information is tuned to a network like OP Mainnet.
+    For more details on fee scalar, see [Transaction Fees, Ecotone section](/op-stack/transactions/fees#ecotone).
+  
+    #### Adjust fees to change margins
+  
+    As a chain operator, you may want to scale your scalar values up or down either because the throughput of your chain has changed and you are either filling significantly more or less of blobs, or because you wish to simply increase your margin to cover operational expenses.
+    So, to increase or decrease your margin on L1 data costs, you would simply scale both the `l1baseFeeScalar` and the `l1blobBaseFeeScalar` by the same multiple.
+  
+    For example, if you wished to increase your margin on L1 data costs by \~10%, you would do:
+  
+    ```
+    newBaseFeeScalar = prevBaseFeeScalar * 1.1
+    newBlobBaseFeeScalar = prevBlobBaseFeeScalar * 1.1
+    ```
+  </Step>
+
+  <Step title="Update your scalar values for blobs">
+  Once you have determined your ideal `BaseFeeScalar` and `BlobBaseFeeScalar`, you will need to apply those values for your chain. The first step is to encode both values into a single value to be set in your L1 Config:
+  
+    You can set your Scalar Values to send transaction to the L1 SystemConfigProxy.setGasConfigEcotone 
+  
+    ```bash
+    cast send \
+    --private-key $GS_ADMIN_PRIVATE_KEY \
+    --rpc-url $ETH_RPC_URL \
+    <CONTRACT_ADDRESS> \
+    "setGasConfigEcotone(uint32,uint32)" \
+    <basefeeScalar> <blobbasefeeScalar> 
+    ```
+  
+    Check that the gas price oracle on L2 returns the expected values for `baseFeeScalar` and `blobBaseFeeScalar` (wait \~1 minute):
+  
+    <Info>
+      This is checked on L2, so ensure you are using an RPC URL for your chain. You'll also need to provide a `gas-price` to geth when making this call.
+    </Info>
+  
+    <Tabs>
+      <Tab title="baseFeeScalar">
+        ```shell
+        cast call 0x420000000000000000000000000000000000000F 'baseFeeScalar()(uint256)' --rpc-url YOUR_L2_RPC_URL
+        ```
+      </Tab>
+  
+      <Tab title="blobBaseFeeScalar">
+        ```shell
+        cast call 0x420000000000000000000000000000000000000F 'blobBaseFeeScalar()(uint256)' --rpc-url YOUR_L2_RPC_URL
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Update your batcher to post blobs">
+  Now that the fee config has been updated, you should immediately configure your batcher!
+  
+    <Info>
+      Your chain may be undercharging users during the time between updating the scalar values and updating the Batcher, so aim to do this immediately after.
+    </Info>
+  
+    Steps to configure the batcher:
+  
+    *   Configure `OP_BATCHER_DATA_AVAILABILITY_TYPE=blobs`. The batcher will have to be restarted for it to take effect.
+    *   Ensure your `OP_BATCHER_MAX_CHANNEL_DURATION` is properly set to maximize your fee savings. See [OP Batcher Max Channel Configuration](/operators/chain-operators/configuration/batcher#set-your--op_batcher_max_channel_duration) for more details.
+    *   Optionally, you can configure your batcher to support multi-blobs. See [Multi-Blob Batcher Configuration](/operators/chain-operators/configuration/batcher#configure-your-batcher-to-use-multiple-blobs) for more details.
+  </Step>
+</Steps>
+
+## Switch back to using calldata
+
+As a chain operator, if the `blobBaseFee` is expensive enough and your chain is
+not processing enough transactions to meaningfully fill blobs within your
+configured batcher `OP_BATCHER_MAX_CHANNEL_DURATION`, you may wish to switch
+back to posting data to calldata. Utilize the [fee parameter calculator](https://docs.google.com/spreadsheets/d/12VIiXHaVECG2RUunDSVJpn67IQp9NHFJqUsma2PndpE/edit) to inform whether your transactions will be cheaper if submitting blobs or if submitting calldata. Chains can follow these steps to switch from
+blobs back to using calldata.
+
+<Steps>
+  <Step title="Determine your scalar values for using calldata">
+  If you are using calldata, then you can set your `BaseFeeScalar` similarly to
+    how you would have set "scalar" prior to Ecotone, though with a 5-10% bump to
+    compensate for the removal of the "overhead" component.
+    You can utilize this [fee parameter calculator](https://docs.google.com/spreadsheets/d/12VIiXHaVECG2RUunDSVJpn67IQp9NHFJqUsma2PndpE/edit)
+    to get a better estimate for scalar values on your chain. The following
+    information is tuned to a network like OP Mainnet.
+  
+    <Info>
+    Since the Pectra upgrade on L1, chains which exclusively use calldata DA need to scale up their BaseFeeScalar by 10/4. See [this notice](/notices/archive/pectra-changes).
+    </Info>
+  
+    Chains can update their fees to increase or decrease their margin. If using calldata, then `BaseFeeScalar` should be scaled to achieve the desired margin.
+    For example, to increase your L1 Fee margin by 10%:
+  
+    ```
+    BaseFeeScalar = BaseFeeScalar * 1.1
+    BlobBaseFeeScalar = 0
+    ```
+  </Step>
+
+  <Step title="Update your scalar values for using calldata">
+  To set your scalar values, follow the same process as laid out in [Update your Scalar values for Blobs](#update-your-scalar-values-for-blobs).
+  </Step>
+
+  <Step title="Update your batcher to post calldata">
+  Now that the fee config has been updated, you will want to immediately configure your batcher.
+  
+    <Info>
+      Reminder, that your chain may be undercharging users during the time between updating the scalar values and updating the Batcher, so aim to do this immediately after.
+    </Info>
+  
+    *   Configure `OP_BATCHER_DATA_AVAILABILITY_TYPE=calldata`. The batcher will have to be restarted for it to take effect.
+    *   Ensure your `OP_BATCHER_MAX_CHANNEL_DURATION` is properly set to maximize savings. **NOTE:** While setting a high value here will lower costs, it will be less meaningful than for low throughput chains using blobs. See [OP Batcher Max Channel Configuration](/operators/chain-operators/configuration/batcher#set-your--op_batcher_max_channel_duration) for more details.
+  </Step>
+</Steps>
+
+## Use auto DA mode in your batcher
+The batcher now supports automatically switching from blobs to calldata depending on which DA type is more affordable. This is an optimization which allows for a slightly better DA profit margin for your chain.
+To enable this mode, set `OP_BATCHER_DATA_AVAILABILITY_TYPE=auto`.
+
+## Other considerations
+
+*   For information on L1 Data Fee changes related to the Ecotone upgrade, visit the [Transaction Fees page](/op-stack/transactions/fees#ecotone).
+*   If you want to enable archive nodes, you will need to access a blob archiver service. You can use [Optimism's](/operators/node-operators/management/snapshots#op-mainnet-archive-node) or [run your own](/operators/chain-operators/tools/explorer#create-an-archive-node).

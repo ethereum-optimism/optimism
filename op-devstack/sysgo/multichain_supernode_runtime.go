@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"time"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
@@ -96,6 +98,15 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 	return runtime
 }
 
+// startSupernodeEL starts an L2 EL node for the supernode runtime.
+// It respects the DEVSTACK_L2EL_KIND env var: "op-geth" uses op-geth, otherwise op-reth is used.
+func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
+	if os.Getenv("DEVSTACK_L2EL_KIND") == string(MixedL2ELOpGeth) {
+		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+	}
+	return startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil)
+}
+
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	require := t.Require()
 
@@ -113,7 +124,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClock(t, l1Net, jwtPath, l1Clock)
-	l2EL := startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0))
+	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
 
 	var depSetStatic *depset.StaticConfigDependencySet
 	if depSet != nil {
@@ -166,10 +177,8 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	}
 	l1EL, l1CL := startInProcessL1WithClock(t, l1Net, jwtPath, l1Clock)
 
-	l2AIdentity := NewELNodeIdentity(0)
-	l2BIdentity := NewELNodeIdentity(0)
-	l2AEL := startSequencerEL(t, l2ANet, jwtPath, jwtSecret, l2AIdentity)
-	l2BEL := startSequencerEL(t, l2BNet, jwtPath, jwtSecret, l2BIdentity)
+	l2AEL := startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
+	l2BEL := startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
 
 	var activationTime uint64
 	var interopActivationTimestamp *uint64
@@ -255,6 +264,9 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2BID, wb.builder)
 	if enableInterop {
+		deployerOpts = append([]DeployerOption{
+			WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
 			l2Cfg.WithForkAtGenesis(opforks.Interop)
 		}
@@ -341,9 +353,9 @@ func startTwoL2SharedSupernode(
 	l1EL *L1Geth,
 	l1CL *L1CLNode,
 	l2ANet *L2Network,
-	l2AEL *OpGeth,
+	l2AEL L2ELNode,
 	l2BNet *L2Network,
-	l2BEL *OpGeth,
+	l2BEL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	interopActivationTimestamp *uint64,
 	jwtSecret [32]byte,
@@ -459,7 +471,7 @@ func startSingleChainSharedSupernode(
 	l1EL *L1Geth,
 	l1CL *L1CLNode,
 	l2Net *L2Network,
-	l2EL *OpGeth,
+	l2EL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	jwtSecret [32]byte,
 	interopAtGenesis bool,
@@ -580,7 +592,7 @@ func waitForSupernodeRoute(t devtest.T, logger log.Logger, rpcEndpoint string) {
 
 type l2TestSequencerTarget struct {
 	chainID eth.ChainID
-	l2EL    *OpGeth
+	l2EL    L2ELNode
 	l2CL    L2CLNode
 }
 
@@ -602,11 +614,9 @@ func attachTestSequencerToRuntime(t devtest.T, runtime *MultiChainRuntime, testS
 	for _, key := range chainKeys {
 		chain := runtime.Chains[key]
 		t.Require().NotNil(chain, "missing runtime chain %s", key)
-		l2EL, ok := chain.EL.(*OpGeth)
-		t.Require().True(ok, "runtime chain %s must use op-geth for test sequencer", key)
 		targets = append(targets, l2TestSequencerTarget{
 			chainID: chain.Network.ChainID(),
-			l2EL:    l2EL,
+			l2EL:    chain.EL,
 			l2CL:    chain.CL,
 		})
 	}

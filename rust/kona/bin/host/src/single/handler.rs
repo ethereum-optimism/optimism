@@ -10,6 +10,7 @@ use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::Decodable;
 use alloy_rpc_types::{Block, debug::ExecutionWitness};
+use alloy_transport::{RpcError, TransportErrorKind};
 use anyhow::{Result, anyhow, ensure};
 use ark_ff::{BigInteger, PrimeField};
 use async_trait::async_trait;
@@ -18,7 +19,7 @@ use kona_proof::{Hint, HintType, l1::ROOTS_OF_UNITY};
 use kona_protocol::{BlockInfo, OutputRoot, Predeploys};
 use kona_providers_alloy::BlobWithCommitmentAndProof;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
-use tracing::warn;
+use tracing::{info, warn};
 
 /// Parses a blob hint, supporting both legacy (48-byte) and new (40-byte) formats.
 ///
@@ -57,6 +58,12 @@ pub fn parse_blob_hint(hint_data: &[u8]) -> Result<(B256, u64)> {
             );
         }
     }
+}
+
+/// Returns `true` if the RPC error indicates the node does not support the requested method
+/// (JSON-RPC error code -32601: Method not found).
+const fn is_rpc_method_not_found(e: &RpcError<TransportErrorKind>) -> bool {
+    matches!(e, RpcError::ErrorResp(p) if p.code == -32601)
 }
 
 /// The [`HintHandler`] for the [`SingleChainHost`].
@@ -376,7 +383,7 @@ impl HintHandler for SingleChainHintHandler {
                 let payload_attributes: OpPayloadAttributes =
                     serde_json::from_slice(&hint.data[32..])?;
 
-                let Ok(execute_payload_response) = providers
+                let execute_payload_response = match providers
                     .l2
                     .client()
                     .request::<(B256, OpPayloadAttributes), ExecutionWitness>(
@@ -384,10 +391,17 @@ impl HintHandler for SingleChainHintHandler {
                         (parent_block_hash, payload_attributes),
                     )
                     .await
-                else {
-                    // Allow this hint to fail silently, as not all execution clients support
-                    // the `debug_executePayload` method.
-                    return Ok(());
+                {
+                    Ok(response) => response,
+                    Err(e) => {
+                        info!(
+                            target: "single_hint_handler",
+                            err = %e,
+                            method_not_found = is_rpc_method_not_found(&e),
+                            "debug_executePayload unavailable, skipping witness preimage collection"
+                        );
+                        return Ok(());
+                    }
                 };
 
                 let preimages = execute_payload_response
@@ -413,6 +427,34 @@ impl HintHandler for SingleChainHintHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_json_rpc::ErrorPayload;
+    use alloy_transport::TransportErrorKind;
+
+    #[test]
+    fn test_is_rpc_method_not_found_true() {
+        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
+            code: -32601,
+            message: "method not found".into(),
+            data: None,
+        });
+        assert!(is_rpc_method_not_found(&e));
+    }
+
+    #[test]
+    fn test_is_rpc_method_not_found_false_wrong_code() {
+        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
+            code: -32600,
+            message: "invalid request".into(),
+            data: None,
+        });
+        assert!(!is_rpc_method_not_found(&e));
+    }
+
+    #[test]
+    fn test_is_rpc_method_not_found_false_null_resp() {
+        let e = RpcError::<TransportErrorKind>::NullResp;
+        assert!(!is_rpc_method_not_found(&e));
+    }
 
     const TEST_HASH: B256 = B256::new([0x42u8; 32]);
     const TEST_TIMESTAMP: u64 = 1234567890;

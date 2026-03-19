@@ -98,6 +98,11 @@ This builds affected crates for the `riscv32imac-unknown-none-elf` target.
 
 The workspace uses `cargo-deny` for license, advisory, and dependency checks. Configuration is in `rust/deny.toml`.
 
+```bash
+cd rust
+just deny
+```
+
 ## Before Every Commit
 
 Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.

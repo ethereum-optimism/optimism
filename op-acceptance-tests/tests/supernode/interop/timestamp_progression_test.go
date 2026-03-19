@@ -126,8 +126,19 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 		"chainB_unsafe", bStoppedStatus.UnsafeL2.Number,
 	)
 
-	// Watch local safe/unsafe and verified for 30 seconds
-	// First wait for chain A to advance past chain B's frozen local safe head
+	// Wait for chain B's unsafe head to advance past its frozen safe head.
+	// The CL is still running, but it may take a few seconds for a new block to appear.
+	t.Require().Eventually(func() bool {
+		return sys.L2BCL.SyncStatus().UnsafeL2.Number > bStoppedSafeNum
+	}, 30*time.Second, time.Second, "chain B unsafe head should advance even with batcher stopped")
+
+	// Wait for chain A's local safe head to advance past the baseline timestamp,
+	// so we have a meaningful "ahead" timestamp to test verification against.
+	t.Require().Eventually(func() bool {
+		return sys.L2ACL.SyncStatus().LocalSafeL2.Time > baselineTimestamp
+	}, 30*time.Second, time.Second, "chain A local safe should advance past baseline")
+
+	// Monitor for 30 seconds, asserting the core invariants hold throughout.
 	start = time.Now()
 	var aheadTimestamp uint64
 	for {
@@ -149,7 +160,7 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 			"chainB_unsafe", newStatusB.UnsafeL2.Number,
 		)
 
-		// KEY ASSERTION 1: Chain B's unsafe head should have advanced (CL is still running)
+		// KEY ASSERTION 1: Chain B's unsafe head should still be ahead (CL is still running)
 		t.Require().Greater(newStatusB.UnsafeL2.Number, bStoppedSafeNum,
 			"chain B unsafe head should advance even with batcher stopped")
 
@@ -157,7 +168,7 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 		t.Require().Equal(bStoppedSafeNum, newStatusB.LocalSafeL2.Number,
 			"chain B local safe head should be frozen with batcher stopped")
 
-		// Use chain A's ahead timestamp for verification check
+		// Use chain A's ahead timestamp for verification check.
 		aheadTimestamp = newStatusA.LocalSafeL2.Time
 
 		// KEY ASSERTION 3: The timestamp should NOT be verified
@@ -167,7 +178,6 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 		t.Require().NoError(err, "SuperRootAtTimestamp should not error")
 		t.Require().Nil(resp.Data,
 			"timestamp should NOT be verified - chain B unsafe is ahead but safe is behind")
-
 		t.Logger().Info("confirmed: timestamp not verified despite chain B unsafe being ahead",
 			"ahead_timestamp", aheadTimestamp,
 			"chainB_unsafe", newStatusB.UnsafeL2.Number,

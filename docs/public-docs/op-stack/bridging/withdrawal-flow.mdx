@@ -1,0 +1,111 @@
+---
+title: Withdrawal flow
+description: Learn the withdrawal flow process for transactions sent from L2 to L1.
+---
+
+In Optimism terminology, a *withdrawal* is a transaction sent from L2 (OP Mainnet, OP Sepolia etc.) to L1 (Ethereum mainnet, Sepolia, etc.).
+
+Withdrawals require the user to submit three transactions:
+
+1.  **Withdrawal initiating transaction**, which the user submits on L2.
+2.  **Withdrawal proving transaction**, which the user submits on L1 to prove that the withdrawal is legitimate (based on a Merkle-Patricia trie root that commits to the state of the `L2ToL1MessagePasser`'s storage on L2)
+3.  **Withdrawal finalizing transaction**, which the user submits on L1 after the fault challenge period has passed, to actually run the transaction on L1.
+
+<Info>
+  You can see an example of how to implement this process [in the bridging tutorials](/app-developers/tutorials/bridging/cross-dom-bridge-erc20).
+</Info>
+
+## Withdrawal initiating transaction
+
+1.  On L2, a user, either an externally owned account (EOA) directly or a contract acting on behalf of an EOA, calls the [`sendMessage`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol#L191) function of the [`L2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/L2/L2CrossDomainMessenger.sol#L21) contract.
+
+    This function accepts three parameters:
+
+    *   `_target`, target address on L1.
+    *   `_message`, the L1 transaction's calldata, formatted as per the [ABI](https://docs.soliditylang.org/en/v0.8.19/abi-spec.html) of the target address.
+    *   `_minGasLimit`, The minimum amount of gas that the withdrawal finalizing transaction can provide to the withdrawal transaction. This is enforced by the `SafeCall` library, and if the minimum amount of gas cannot be met at the time of the external call from the `OptimismPortal` -> `L1CrossDomainMessenger`, the finalization transaction will revert to allow for re-attempting with a higher gas limit. In order to account for the gas consumed in the `L1CrossDomainMessenger.relayMessage` function's execution, extra gas will be added on top of the `_minGasLimit` value by the `CrossDomainMessenger.baseGas` function when `sendMessage` is called on L2.
+
+2.  `sendMessage` is a generic function that is used in both cross domain messengers. It calls [`_sendMessage`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/L2/L2CrossDomainMessenger.sol#L45), which is specific to [`L2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/L2/L2CrossDomainMessenger.sol#L21).
+
+3.  `_sendMessage` calls [`initiateWithdrawal`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/L2/L2ToL1MessagePasser.sol#L71) on [`L2ToL1MessagePasser`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/L2/L2ToL1MessagePasser.sol#L19). This function calculates the hash of the raw withdrawal fields. It then marks that hash as a sent message in [`sentMessages`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/L2/L2ToL1MessagePasser.sol#L30) and emits the fields with the hash in a [`MessagePassed`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/L2/L2ToL1MessagePasser.sol#L40) event.
+
+    The raw withdrawal fields are:
+
+    *   `nonce` - A single use value to prevent two otherwise identical withdrawals from hashing to the same value
+    *   `sender` - The L2 address that initiated the transfer, typically [`L2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/1a8fe18c4989bfd0852a8873f30422542ad4f44d/packages/contracts-bedrock/src/L2/L2CrossDomainMessenger.sol#L21)
+    *   `target` - The L1 target address
+    *   `value` - The amount of WEI transferred by this transaction
+    *   `gasLimit` - Gas limit for the transaction, the system guarantees that at least this amount of gas will be available to the transaction on L1. Note that if the gas limit is not enough, or if the L1 finalizing transaction does not have enough gas to provide that gas limit, the finalizing transaction returns a failure, it does not revert.
+    *   `data` - The calldata for the withdrawal transaction
+
+4.  When `op-proposer`proposes a new `output`, the output proposal includes the [output root](https://specs.optimism.io/glossary.html?utm_source=op-docs\&utm_medium=docs#l2-output-root), provided as part of the block by `op-node`.
+    This new output root commits to the state of the `sentMessages` mapping in the `L2ToL1MessagePasser` contract's storage on L2, and it can be used to prove the presence of a pending withdrawal within it.
+
+## Withdrawal proving transaction
+
+Once an output root that includes the `MessagePassed` event is published to L1, the next step is to prove that the message hash really is in L2. Typically this is done by viem.
+
+### Offchain processing
+
+1.  A user calls viem's `proveWithdrawal()` function with the withdrawal transaction receipt. This function internally handles the preparation of the proving transaction parameters.
+
+2.  To get the withdrawal details from the L2 transaction, viem uses the `getWithdrawals()` function which extracts the raw withdrawal fields from the `MessagePassed` event in the transaction receipt.
+
+3.  To get the proof, viem uses the withdrawal proving functionality to generate the necessary Merkle proof.
+
+4.  Finally, viem calls [`OptimismPortal.proveWithdrawalTransaction()`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L242) on L1.
+
+### Onchain processing
+
+[`OptimismPortal.proveWithdrawalTransaction()`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L242) runs a few sanity checks. Then it verifies that in `L2ToL1MessagePasser.sentMessages` on L2 the hash for the withdrawal is turned on, and that this proof has not been submitted before. If everything checks out, it writes the output root, the timestamp, and the L2 output index to which it applies in `provenWithdrawals` and emits an event.
+
+The next step is to wait the fault challenge period, to ensure that the L2 output root used in the proof is legitimate, and that the proof itself is legitimate and not a hack.
+
+## Withdrawal finalizing transaction
+
+Finally, once the fault challenge period passes, the withdrawal can be finalized and executed on L1.
+
+To do so, a user, either an externally owned account (EOA) directly or a contract acting on behalf of an EOA, calls the [`finalizeWithdrawalTransaction`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L320) function of the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L19) contract.
+
+## Expected internal reverts in withdrawal transactions
+
+During the withdrawal process, users may observe internal reverts when viewing the transaction on **Etherscan**. This is a common point of confusion but is expected behavior.
+
+These internal reverts often show up in yellow on the Etherscan UI and may cause concern that something went wrong with the transaction. However, these reverts occur due to the non-standard proxy used in Optimism, specifically the **Chugsplash Proxy**. The Chugsplash Proxy sometimes triggers internal calls that revert as part of the designed flow of the withdrawal process.
+
+### Why do these reverts happen?
+
+The Chugsplash Proxy operates differently than standard proxies. During a withdrawal transaction, it may trigger internal contract calls that result in reverts, but these reverts do not indicate that the withdrawal has failed. Instead, they are part of the internal logic of the system and are expected in certain scenarios.
+
+### Key takeaways:
+
+*   **Internal Reverts Are Expected**: These reverts are part of the normal operation of the Chugsplash Proxy during withdrawal transactions and do not represent an error.
+*   **No Cause for Concern**: Although Etherscan highlights these reverts, they do not affect the final success of the transaction.
+*   **User Assurance**: If you encounter these reverts during a withdrawal transaction, rest assured that the withdrawal will still finalize as expected.
+
+### Offchain processing
+
+1.  A user calls viem's `finalizeWithdrawal()` function with the withdrawal transaction receipt.
+    This function internally handles the preparation of the finalization transaction parameters.
+
+2.  To get the withdrawal details from the L2 transaction, viem uses the `getWithdrawals()` function which extracts the raw withdrawal fields from the `MessagePassed` event in the transaction receipt.
+
+3.  Finally, viem calls [`OptimismPortal.finalizeWithdrawalTransaction()`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L320-L420) on L1.
+
+### Onchain processing
+
+1.  [`OptimismPortal.finalizeWithdrawalTransaction()`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L320-L420) runs several checks. The interesting ones are:
+
+    *   [Verify the proof has already been submitted](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L341-L347).
+    *   [Verify the proof has been submitted long enough ago that the fault challenge period has already passed](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L357-L364).
+    *   [Verify that the proof applies to the current output root for that block (the output root for a block can be changed by the fault challenge process)](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L366-L378).
+    *   [Verify that the current output root for that block was proposed long enough ago that the fault challenge period has passed](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L380-L384).
+    *   [Verify that the transaction has not been finalized before to prevent replay attacks](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L386-L390).
+
+    If any of these checks fail, the transaction reverts.
+
+2.  Mark the withdrawal as finalized in `finalizedWithdrawals`.
+
+3.  Run the actual withdrawal transaction (call the `target` contract with the calldata in `data`).
+
+4.  Emit a [`WithdrawalFinalized`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L118) event.

@@ -68,6 +68,9 @@ func TestInteropMigration(t *testing.T) {
 				"devFeatureBitmap": devBitmap,
 			}
 
+			// Since we are enabling Interop in the bitmap we enable the UseInterop flag
+			intent.UseInterop = true
+
 			err := deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
 				DeploymentTarget:   deployer.DeploymentTargetLive,
 				L1RPCUrl:           l1RPC,

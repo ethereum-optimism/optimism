@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -37,6 +38,9 @@ func NewSingleChainInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Mult
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
+	cfg.DeployerOptions = append([]DeployerOption{
+		WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+	}, cfg.DeployerOptions...)
 	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
@@ -69,7 +73,7 @@ func NewSingleChainInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Mult
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
 	l2Proposer := startMinimalProposer(t, keys, l2Net, l1EL, l2CL, cfg.ProposerOptions...)
 	applyMinimalGameTypeOptions(t, keys, l1Net, l2Net, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
-	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, l1Net, l1EL, l1CL, l2EL, l2CL)
+	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, l1Net, l1EL, l1CL, l2EL, l2Net, l2CL)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
 	chainA := &MultiChainNodeRuntime{
@@ -107,6 +111,9 @@ func NewSimpleInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChai
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
+	cfg.DeployerOptions = append([]DeployerOption{
+		WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+	}, cfg.DeployerOptions...)
 	migration, l1Net, l2ANet, l2BNet, fullCfgSet := buildTwoL2WorldWithState(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2ANet, l2BNet)
 	depSet := fullCfgSet.DependencySet
@@ -155,7 +162,7 @@ func NewSimpleInteropRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChai
 	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, l2ACL, cfg.ProposerOptions...)
 	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL, cfg.BatcherOptions...)
 	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, l2BCL, cfg.ProposerOptions...)
-	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, l1Net, l1EL, l1CL, l2AEL, l2ACL)
+	testSequencer := startTestSequencer(t, keys, jwtPath, jwtSecret, l1Net, l1EL, l1CL, l2AEL, l2ANet, l2ACL)
 	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
 		l1Net.ChainID():  l1EL.UserRPC(),
 		l2ANet.ChainID(): l2AEL.UserRPC(),
@@ -439,7 +446,7 @@ func startL2ELNodeWithSupervisor(
 	key string,
 	identity *ELNodeIdentity,
 	supervisorRPC string,
-) *OpGeth {
+) L2ELNode {
 	cfg := DefaultL2ELConfig()
 	cfg.P2PAddr = "127.0.0.1"
 	cfg.P2PPort = identity.Port

@@ -1,0 +1,106 @@
+---
+title: Upgrade using superchain-ops
+description: Learn about using superchain-ops to upgrade your chain
+---
+
+This guide outlines the process for upgrading Optimism chains using the `superchain-ops` repository. It's intended primarily for OP Stack chains managed by the Security Council, those with the Foundation or Security Council as signers, and/or chains requiring a highly secure process.
+
+For chains that don't require the enhanced security of superchain-ops or security council signing, you can instead use [op-deployer](/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade) to upgrade your chain.
+
+For non-Optimism governed chains, you can use [op-deployer](/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade) and your own tooling to upgrade your chain.
+
+`superchain-ops` is a highly secure service designed for Optimism chains. It provides a structured and security-focused approach to chain upgrades. The process involves creating tasks that use predefined templates to generate the necessary upgrade transactions.
+
+## Who should use `superchain-ops`
+
+`superchain-ops` is primarily intended for:
+
+1.  **OP Stack chains managed by the Security Council**: For standard chains managed by the Optimism Security Council, upgrades are typically handled through `superchain-ops`.
+
+2.  **Chains with Foundation or Security Council as signers**: If your chain has the Foundation multi-sig or Security Council as signers, your upgrade tasks should go through `superchain-ops`.
+
+3.  **Chains requiring a highly secure process**: For chains that prioritize security over automation, `superchain-ops` provides an intentionally manual workflow with thorough verification steps (e.g. EVM state diff inspection).
+
+For chains that don't fall into these categories, you'll need to generate appropriate call data for upgrades through other means or develop your own upgrade process for non-OPCM upgrades.
+
+## Understanding templates and tasks
+
+`superchain-ops` uses two key concepts:
+
+*   **Templates**: Define what the upgrade is and contain the code for specific upgrade paths (e.g., [`op-contracts/v1.8.0` to `op-contracts/v2.0.0`](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/improvements/template/OPCMUpgradeV200.sol)). Templates are version-specific and live in the [/src/improvements/template](https://github.com/ethereum-optimism/superchain-ops/tree/main/src/improvements/template) directory.
+
+*   **Tasks**: Use a template to define a specific upgrade transaction for a chain. Multiple tasks can use the same template. Tasks are organized by network (`eth` or `sep`) in the [/src/improvements/tasks](https://github.com/ethereum-optimism/superchain-ops/tree/main/src/improvements/tasks) directory.
+
+## General upgrade process
+
+The following process outlines how to upgrade a chain using `superchain-ops`, using the [`op-contracts/v1.8.0` to `op-contracts/v2.0.0`](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/improvements/template/OPCMUpgradeV200.sol) upgrade as an example. This same pattern applies to other OPCM-based upgrades (like [`op-contracts/v2.0.0` to `op-contracts/v3.0.0`](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/improvements/template/OPCMUpgradeV300.sol)).
+
+### Step 1: Clone the `superchain-ops` repository
+
+```bash
+git clone https://github.com/ethereum-optimism/superchain-ops.git
+cd superchain-ops/src/improvements
+```
+
+### Step 1a: One-time Install Dependencies Setup
+Follow the 'Install Dependencies' instructions in the ['Quick Start'](https://github.com/ethereum-optimism/superchain-ops/blob/main/README.md#quick-start) section of the `README.md` file.
+
+### Step 2: Create a new task using the quick start
+
+```bash
+just new task
+```
+
+Follow the prompts to select the appropriate template (e.g., `OPCMUpgradeV200` for a `op-contracts/v1.8.0` to `op-contracts/v2.0.0` upgrade) and provide the necessary details.
+
+This will create a new task directory containing a `config.toml` and `README` file. The config file will look like this:
+
+```bash
+l2chains = [] # e.g. [{name = "OP Mainnet", chainId = 10}]
+templateName = "OPCMUpgradeV200"
+```
+
+### Step 3: Configure the task
+
+You'll have to add additional properties to your `config.toml` file to fully configure your task. For example, when upgrading from `op-contracts/v1.8.0` to `op-contracts/v2.0.0`, you can look at a previous task for reference: [src/improvements/tasks/eth/002-opcm-upgrade-v200/config.toml](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/improvements/tasks/eth/002-opcm-upgrade-v200/config.toml):
+
+<Info>
+  This is an example task. You must figure out which values you'll need for your own specific task. Ensure you replace all addresses and other values in the example below.
+</Info>
+
+```bash
+l2chains = [
+    {name = "Unichain", chainId = 130}
+]
+
+templateName = "OPCMUpgradeV200"
+
+[opcmUpgrades]
+absolutePrestates = [
+    {absolutePrestate = "0x039facea52b20c605c05efb0a33560a92de7074218998f75bcdf61e8989cb5d9", chainId = 130},
+]
+
+[addresses]
+OPCM = "0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76"
+StandardValidatorV200 = "0xecabaeaa1d58261f1579232520c5b460ca58a164"
+```
+
+### Step 5: Simulate the task
+
+Before executing the upgrade, simulate it to ensure everything is configured correctly:
+
+```bash
+just --dotenv-path $(pwd)/.env simulate [child-safe-name-depth-1] [child-safe-name-depth-2]
+# Both [child-safe-name-depth-1] and [child-safe-name-depth-2] are optional. You'll only need to specify
+# [child-safe-name-depth-2] if it's a nested safe and [child-safe-name-depth-2] if it has multiple levels of nesting.
+# Omit both arguments if it's a single safe.
+```
+
+This will run through the upgrade process without actually executing the transaction.
+For more information on the simulate command, please reference the [README](https://github.com/ethereum-optimism/superchain-ops/blob/main/README.md#quick-start). 
+
+### Step 6: Execute or submit for review
+
+For OP Stack chains managed by the Security Council, submit a pull request to have your task reviewed. If your chain is not managed by the Security Council, execute the transaction yourself.
+
+

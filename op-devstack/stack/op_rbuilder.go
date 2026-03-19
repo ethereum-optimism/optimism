@@ -10,6 +10,7 @@ type OPRBuilderNode interface {
 	L2EthClient() apis.L2EthClient
 	L2EngineClient() apis.EngineClient
 	FlashblocksClient() *client.WSClient
+	UpdateRuleSet(rulesYaml string) error
 
 	ELNode
 }

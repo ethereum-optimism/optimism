@@ -1,0 +1,910 @@
+---
+title: Batcher configuration
+description: Learn the OP Stack batcher configurations.
+---
+
+This page lists all configuration options for the op-batcher. The op-batcher posts
+L2 sequencer data to the L1, to make it available for verifiers. The following
+options are from the `--help` in [v1.10.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.10.0).
+
+## Batcher policy
+
+The batcher policy defines high-level constraints and responsibilities regarding how L2 data is posted to L1. Below are the [standard guidelines](/chain-operators/reference/standard-configuration) for configuring the batcher within the OP Stack.
+
+| Parameter                  | Description                                                                                                    | Administrator           | Requirement                                                                                | Notes                                                                                                                                                                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Data Availability Type     | Specifies whether the batcher uses **blobs**, **calldata**, or **auto** to post transaction data to L1.        | Batch submitter address | Ethereum (Blobs or Calldata)                                                               | - Alternative data availability (Alt-DA) is not yet supported in the standard configuration.<br />- The sequencer can switch at will between blob transactions and calldata, with no restrictions, because both are fully secured by L1. |
+| Batch Submission Frequency | Determines how frequently the batcher submits aggregated transaction data to L1 (via the batcher transaction). | Batch submitter address | Must target **1,800 L1 blocks** (6 hours on Ethereum, assuming 12s L1 block time) or lower | - Batches must be posted before the sequencing window closes (commonly 12 hours by default).<br />- Leave a buffer for L1 network congestion and data size to ensure that each batch is fully committed in a timely manner.              |
+
+*   **Data Availability Types**:
+    *   **Calldata** is generally simpler but can be more expensive on mainnet Ethereum, depending on gas prices.
+    *   **Blobs** are typically lower cost when your chain has enough transaction volume to fill large chunks of data.
+    *   The `op-batcher` can toggle between these approaches by setting the `--data-availability-type=<blobs|calldata|auto>` flag or with the `OP_BATCHER_DATA_AVAILABILITY_TYPE` env variable. Setting this flag to `auto` will allow the batcher to automatically switch between `calldata` and `blobs` based on the current L1 gas price.
+
+*   **Batch Submission Frequency** (`OP_BATCHER_MAX_CHANNEL_DURATION` and related flags):
+    *   Standard OP Chains frequently target a maximum channel duration between 1–6 hours.
+    *   Your chain should never exceed your L2's sequencing window (commonly 12 hours).
+    *   If targeting a longer submission window (e.g., 5 or 6 hours), be aware that the [safe head](https://github.com/ethereum-optimism/specs/blob/main/specs/glossary.md#safe-l2-head) can stall up to that duration.
+
+Include these high-level "policy" requirements when you set up or modify your `op-batcher` configuration. See the [batcher configuration](#all-configuration-variables) reference, which explains each CLI flag and environment variable in depth.
+
+## Recommendations
+
+### Set your  `OP_BATCHER_MAX_CHANNEL_DURATION`
+
+<Info>
+  The default value inside `op-batcher`, if not specified, is still `0`, which means channel duration tracking is disabled.
+  For very low throughput chains, this would mean to fill channels until close to the sequencing window and post the channel to `L1 SUB_SAFETY_MARGIN` L1 blocks before the sequencing window expires.
+</Info>
+
+To minimize costs, we recommend setting your  `OP_BATCHER_MAX_CHANNEL_DURATION` to target 5 hours, with a value of `1500` L1 blocks. When non-zero, this parameter is the max time (in L1 blocks, which are 12 seconds each) between which batches will be submitted to the L1. If you have this set to 5 for example, then your batcher will send a batch to the L1 every 5\*12=60 seconds. When using blobs, because 130kb blobs need to be purchased in full, if your chain doesn't generate at least \~130kb of data in those 60 seconds, then you'll be posting only partially full blobs and wasting storage.
+
+*   We do not recommend setting any values higher than targeting 5 hours, as batches have to be submitted within the sequencing window which defaults to 12 hours for OP chains, otherwise your chain may experience a 12 hour long chain reorg. 5 hours is the longest length of time we recommend that still sits snugly within that 12 hour window to avoid affecting stability.
+*   If your chain fills up full blobs of data before the `OP_BATCHER_MAX_CHANNEL_DURATION` elapses, a batch will be submitted anyways - (e.g. even if the OP Mainnet batcher sets an `OP_BATCHER_MAX_CHANNEL_DURATION` of 5 hours, it will still be submitting batches every few minutes)
+
+<Info>
+  While setting an`OP_BATCHER_MAX_CHANNEL_DURATION` of `1500` results in the cheapest fees, it also means that your [safe head](https://github.com/ethereum-optimism/specs/blob/main/specs/glossary.md#safe-l2-head) can stall for up to 5 hours.
+
+  *   This will negatively impact apps on your chain that rely on the safe head for operation. While many apps can likely operate simply by following the unsafe head, often Centralized Exchanges or third party bridges wait until transactions are marked safe before processing deposits and withdrawal.
+  *   Thus a larger gap between posting batches can result in significant delays in the operation of certain types of high-security applications.
+</Info>
+
+### Configure your batcher to use multiple blobs
+
+<Info>
+  When there's blob congestion, running with high blob counts can backfire, because you will have a harder time getting blobs included and then fees will bump, which always means a doubling of the priority fees.
+</Info>
+
+The `op-batcher` has the capabilities to send multiple blobs per single blob transaction. This is accomplished by the use of multi-frame channels, see the [specs](https://specs.optimism.io/protocol/derivation.html#frame-format?utm_source=op-docs&utm_medium=docs) for more technical details on channels and frames.
+
+A minimal batcher configuration (with env vars) to enable 6-blob batcher transactions is:
+
+```
+  - OP_BATCHER_BATCH_TYPE=1 # span batches, optional
+  - OP_BATCHER_DATA_AVAILABILITY_TYPE=blobs
+  - OP_BATCHER_TARGET_NUM_FRAMES=6 # 6 blobs per tx
+  - OP_BATCHER_TXMGR_MIN_BASEFEE=2.0 # 2 gwei, might need to tweak, depending on gas market
+  - OP_BATCHER_TXMGR_MIN_TIP_CAP=2.0 # 2 gwei, might need to tweak, depending on gas market
+  - OP_BATCHER_RESUBMISSION_TIMEOUT=240s # wait 4 min before bumping fees
+```
+
+This enables blob transactions and sets the target number of frames to 6, which translates to 6 blobs per transaction.
+The minimum tip cap and base fee are also lifted to 2 gwei because it is uncertain how easy it will be to get 6-blob transactions included and slightly higher priority fees should help.
+The resubmission timeout is increased to a few minutes to give more time for inclusion before bumping the fees because current transaction pool implementations require a doubling of fees for blob transaction replacements.
+
+Multi-blob transactions are particularly useful for medium to high-throughput chains, where enough transaction volume exists to fill up 6 blobs in a reasonable amount of time.
+You can use [this calculator](https://docs.google.com/spreadsheets/d/1V3CWpeUzXv5Iopw8lBSS8tWoSzyR4PDDwV9cu2kKOrs/edit?gid=186414307#gid=186414307) for your chain to determine what number of blobs are right for you, and what gas scalar configuration to use. Please also refer to guide on [Using Blobs](/chain-operators/guides/features/blobs) for chain operators.
+
+### Set your `--batch-type=1` to use span batches
+
+Span batches reduce the overhead of OP Stack chains, introduced in the Delta network upgrade. This is beneficial for sparse and low-throughput OP Stack chains.
+
+The overhead is reduced by representing a span of consecutive L2 blocks in a more efficient manner, while preserving the same consistency checks as regular batch data.
+
+## Batcher sequencer throttling
+
+This feature is a batcher-driven sequencer-throttling control loop. This is to avoid sudden spikes in L1 DA-usage consuming too much available gas and causing a backlog in batcher transactions. The batcher can throttle the sequencer's data throughput instantly when it sees too much batcher data built up.
+
+There are two throttling knobs:
+
+1.  Transaction throttling, which skips individual transactions whose estimated compressed L1 DA usage goes over a certain threshold, and
+2.  Block throttling, which caps a block's estimated total L1 DA usage and leads to not including transactions during block building that would move the block's L1 DA usage past a certain threshold.
+
+**Feature requirements**
+
+*   This new feature is enabled by default and requires running op-geth version `v1.101411.1` or later. It can be disabled by setting `--throttle-threshold` to 0. The sequencer's op-geth node has to be updated first, before updating the batcher, so that the new required RPC is available at the time of the batcher restart.
+*   It is required to upgrade to `op-conductor/v0.2.0` if you are using conductor's leader-aware rpc proxy feature. This conductor release includes support for the `miner_setMaxDASize` op-geth rpc proxy.
+
+**Configuration**
+
+<Info>
+  Note that this feature requires the batcher to correctly follow the sequencer at all times, or it would set throttling parameters on a non-sequencer EL client. That means, active sequencer follow mode has to be enabled correctly by listing all the possible sequencers in the L2 rollup and EL endpoint flags.
+</Info>
+
+The batcher is configured for throttling by default with the parameters described below (and corresponding flags which allow the defaults to be overridden): 
+
+*   Backlog of pending block bytes beyond which the batcher will enable throttling on the sequencer via `--throttle.unsafe-da-bytes-lower/upper-threshold` (env var `OP_BATCHER_THROTTLE_UNSAFE_DA_BYTES_LOWER/UPPER_THRESHOLD`): 3\_200\_000 and 12\_800\_000 (batcher backlog of 3.2MB to 12.8MB of data to batch). Disable throttling by setting the lower threshold to `0`. The upper threshold sets the level where the maximum throttling intensity is reached.
+*   Individual tx size throttling via `--throttle.tx-size-lower/upper-limit` (env var `OP_BATCHER_THROTTLE_TX_SIZE_LOWER/UPPER-LIMIT`): 150 and 20\_000. This is the limit on the estimated compressed size of a transaction when throttling is at maximum/minimum intensity respectively.
+*   Block size throttling via `--throttle.block-size-lower/upper-limit` (env var `OP_BATCHER_THROTTLE_BLOCK_SIZE_LOWER/UPPER-LIMIT`): 2\_000 and 130\_000. This is the limit on the estimated compressed size of a block when throttling is at maximum/minimum intensity respectively.
+*  Throttler controller type via `--throttle.controller-type` (env var `OP_BATCHER_THROTTLE_CONTROLLER_TYPE`): `quadratic` by default. This determines how transaction and block size limits are interpolated when throttling is at intermediate intensity.
+
+For full details, see the [readme](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/readme.md).
+
+If the batcher at startup has throttling enabled and the sequencer's `op-geth` instance to which it's talking doesn't have the `miner_setMaxDASize` RPC enabled, it will fail with an error message like:
+
+```
+lvl=warn msg="Served miner_setMaxDASize" reqid=1 duration=11.22µs err="the method miner_setMaxDASize does not exist/is not available"
+In this case, make sure the miner API namespace is enabled for the correct transport protocol (HTTP or WS), see next paragraph.
+```
+
+The new RPC `miner_setMaxDASize` is available in `op-geth` since `v1.101411.1`. It has to be enabled by adding the miner namespace to the correct API flags, like
+
+```
+GETH_HTTP_API: web3,debug,eth,txpool,net,miner
+GETH_WS_API: debug,eth,txpool,net,miner
+```
+
+It is recommended to add it to both, HTTP and WS.
+
+## Example configuration
+
+This is a basic example of a batcher configuration. Optimal batcher configuration is going to differ for each chain,
+however you can see some of the most important variables configured below:
+
+```
+  OP_BATCHER_WAIT_NODE_SYNC: true
+  OP_BATCHER_CHECK_RECENT_TXS_DEPTH: 5
+  OP_BATCHER_POLL_INTERVAL: "5s"
+  OP_BATCHER_BATCH_TYPE: "1" # span
+  OP_BATCHER_COMPRESSION_ALGO: brotli-10
+  OP_BATCHER_DATA_AVAILABILITY_TYPE: auto
+  OP_BATCHER_MAX_CHANNEL_DURATION: "150" # up to 30 min to fill blobs
+  OP_BATCHER_TARGET_NUM_FRAMES: "5" # 5 blobs, can go to 6 with Pectra activated on L1
+  OP_BATCHER_SUB_SAFETY_MARGIN: "300" # 1h safety margin to prevent seq window elapse
+  OP_BATCHER_NUM_CONFIRMATIONS: "4"
+  OP_BATCHER_NETWORK_TIMEOUT: "10s"
+  OP_BATCHER_TXMGR_MIN_BASEFEE: "2.0"
+  OP_BATCHER_TXMGR_MIN_TIP_CAP: "2.0"
+  OP_BATCHER_TXMGR_FEE_LIMIT_MULTIPLIER: 16 # allow up to 4 doublings
+  OP_BATCHER_MAX_PENDING_TX: "10"
+  OP_BATCHER_RESUBMISSION_TIMEOUT: "180s" # wait 3 min before bumping fees
+  OP_BATCHER_ACTIVE_SEQUENCER_CHECK_DURATION: 5s
+```
+
+Lower throughput chains, which aren't filling up channels before the `MAX_CHANNEL_DURATION` is hit, 
+may save gas by increasing the `MAX_CHANNEL_DURATION`. See the [recommendations section](#set-your--op_batcher_max_channel_duration).
+
+## All configuration variables
+
+### Batch generation
+
+#### batch-type
+
+The batch type. 0 for `SingularBatch` and 1 for `SpanBatch`. The default value
+is `0` for `SingularBatch`.
+See the [span batch feature page](/op-stack/features/span-batches) to learn more.
+
+<Tabs>
+  <Tab title="Syntax">`--batch-type=<value>`</Tab>
+  <Tab title="Example">`--batch-type=singular`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_BATCH_TYPE=`</Tab>
+</Tabs>
+
+#### max-blocks-per-span-batch
+
+Indicates how many blocks back the batcher should look during startup for a
+recent batch tx on L1. This can speed up waiting for node sync. It should be
+set to the verifier confirmation depth of the sequencer (e.g. 4). The default
+value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--check-recent-txs-depth=<value>`</Tab>
+  <Tab title="Example">`--check-recent-txs-depth=0`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_CHECK_RECENT_TXS_DEPTH=0`</Tab>
+</Tabs>
+
+#### compression-algo
+
+The compression algorithm to use. Valid options: zlib, brotli, brotli-9,
+brotli-10, brotli-11. The default value is `zlib`.
+
+<Tabs>
+  <Tab title="Syntax">`--compression-algo=<value>`</Tab>
+  <Tab title="Example">`--compression-algo=zlib`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_COMPRESSION_ALGO=zlib`</Tab>
+</Tabs>
+
+#### compressor
+
+The type of compressor. Valid options: none, ratio, shadow. The default value
+is `shadow`.
+
+<Tabs>
+  <Tab title="Syntax">`--compressor=<value>`</Tab>
+  <Tab title="Example">`--compressor=shadow`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_COMPRESSOR=shadow`</Tab>
+</Tabs>
+
+#### approx-compr-ratio
+
+Only relevant for ratio compressor. The approximate compression ratio (`<=1.0`). The default value is `0.6`.
+
+<Tabs>
+  <Tab title="Syntax">`--approx-compr-ratio=<value>`</Tab>
+  <Tab title="Example">`--approx-compr-ratio=0.6`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_APPROX_COMPR_RATIO=0.6`</Tab>
+</Tabs>
+
+#### poll-interval
+
+How frequently to poll L2 for new blocks. The default value is `6s`.
+
+<Tabs>
+  <Tab title="Syntax">`--poll-interval=<value>`</Tab>
+  <Tab title="Example">`--poll-interval=6s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_POLL_INTERVAL=6s`</Tab>
+</Tabs>
+
+### Batch submission
+
+#### data-availability-type
+
+<Info>
+  Setting this flag to `auto` will allow the batcher to automatically switch between `calldata` and `blobs` based on the current L1 gas price.
+</Info>
+
+The data availability type to use for submitting batches to the L1. Valid
+options: `calldata`, `blobs`, and `auto`. The default value is `calldata`.
+
+<Tabs>
+  <Tab title="Syntax">`--data-availability-type=<value>`</Tab>
+  <Tab title="Example">`--data-availability-type=calldata`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_DATA_AVAILABILITY_TYPE=calldata`</Tab>
+</Tabs>
+
+#### target-num-frames
+
+The target number of frames to create per channel. Controls number of blobs per
+blob tx, if using Blob DA. The default value is `1`.
+
+<Tabs>
+  <Tab title="Syntax">`--target-num-frames=<value>`</Tab>
+  <Tab title="Example">`--target-num-frames=1`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_TARGET_NUM_FRAMES=1`</Tab>
+</Tabs>
+
+#### max-channel-duration
+
+The maximum duration of L1-blocks to keep a channel open. 0 to disable. The
+default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--max-channel-duration=<value>`</Tab>
+  <Tab title="Example">`--max-channel-duration=0`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_MAX_CHANNEL_DURATION=0`</Tab>
+</Tabs>
+
+#### sub-safety-margin
+
+The batcher tx submission safety margin (in #L1-blocks) to subtract from a
+channel's timeout and sequencing window, to guarantee safe inclusion of a
+channel on L1. The default value is `10`.
+
+<Tabs>
+  <Tab title="Syntax">`--sub-safety-margin=<value>`</Tab>
+  <Tab title="Example">`--sub-safety-margin=10`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_SUB_SAFETY_MARGIN=10s`</Tab>
+</Tabs>
+
+#### max-l1-tx-size-bytes
+
+The maximum size of a batch tx submitted to L1. Ignored for blobs, where max
+blob size will be used. The default value is `120000`.
+
+<Tabs>
+  <Tab title="Syntax">`--max-l1-tx-size-bytes=<value>`</Tab>
+  <Tab title="Example">`--max-l1-tx-size-bytes=120000`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_MAX_L1_TX_SIZE_BYTES=120000`</Tab>
+</Tabs>
+
+### Batcher startup
+
+#### wait-node-sync
+
+Indicates if, during startup, the batcher should wait for a recent batcher tx
+on L1 to finalize (via more block confirmations). This should help avoid
+duplicate batcher txs. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--wait-node-sync=<value>`</Tab>
+  <Tab title="Example">`--wait-node-sync=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_WAIT_NODE_SYNC=false`</Tab>
+</Tabs>
+
+#### check-recent-txs-depth
+
+Indicates how many blocks back the batcher should look during startup for a
+recent batch tx on L1. This can speed up waiting for node sync. It should be
+set to the verifier confirmation depth of the sequencer (e.g. 4). The default
+value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--check-recent-txs-depth=<value>`</Tab>
+  <Tab title="Example">`--check-recent-txs-depth=0`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_CHECK_RECENT_TXS_DEPTH=0`</Tab>
+</Tabs>
+
+#### stopped
+
+Initialize the batcher in a stopped state. The batcher can be started using the
+admin\_startBatcher RPC. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--stopped=<value>`</Tab>
+  <Tab title="Example">`--stopped=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_STOPPED=false`</Tab>
+</Tabs>
+
+### Throttling
+
+The batcher supports throttling configuration to limit DA usage for transactions and blocks, and to control throttle intensity via several controller types. The following flags are available:
+
+#### throttle.additional-endpoints
+Comma-separated list of endpoints to distribute throttling configuration to (in addition to the L2 endpoints specified with `--l2-eth-rpc`).
+
+<Tabs>
+  <Tab title="Syntax">`--throttle.additional-endpoints=<endpoint1>,<endpoint2>,...`</Tab>
+  <Tab title="Example">`--throttle.additional-endpoints=http://builder1:8545,http://builder2:8545`</Tab>
+  <Tab title="Environment Variable">`THROTTLE_ADDITIONAL_ENDPOINTS=http://builder1:8545,http://builder2:8545`</Tab>
+</Tabs>
+
+#### throttle.tx-size-lower-limit
+The DA size limit for individual transactions when the throttle intensity is at its maximum. `0` disables limits; use `1` as the smallest effective limit.
+
+<Tabs>
+  <Tab title="Syntax">`--throttle.tx-size-lower-limit=<bytes>`</Tab>
+  <Tab title="Example">`--throttle.tx-size-lower-limit=150`</Tab>
+  <Tab title="Environment Variable">`THROTTLE_TX_SIZE_LOWER_LIMIT=150`</Tab>
+</Tabs>
+
+#### throttle.tx-size-upper-limit
+The DA size limit for individual transactions as throttle intensity approaches `0` (minimal throttling). Not applied when throttling is inactive.
+
+<Tabs>
+  <Tab title="Syntax">`--throttle.tx-size-upper-limit=<bytes>`</Tab>
+  <Tab title="Example">`--throttle.tx-size-upper-limit=20000`</Tab>
+  <Tab title="Environment Variable">`THROTTLE_TX_SIZE_UPPER_LIMIT=20000`</Tab>
+</Tabs>
+
+#### throttle.block-size-lower-limit
+The DA size limit for blocks when throttle intensity is at maximum (applies for linear and quadratic controllers). `0` disables limits; use `1` as the smallest effective limit.
+
+<Tabs>
+  <Tab title="Syntax">`--throttle.block-size-lower-limit=<bytes>`</Tab>
+  <Tab title="Example">`--throttle.block-size-lower-limit=2000`</Tab>
+  <Tab title="Environment Variable">`THROTTLE_BLOCK_SIZE_LOWER_LIMIT=2000`</Tab>
+</Tabs>
+
+#### throttle.block-size-upper-limit
+The DA size limit for blocks when throttling is inactive (throttle intensity = 0).
+
+<Tabs>
+  <Tab title="Syntax">`--throttle.block-size-upper-limit=<bytes>`</Tab>
+  <Tab title="Example">`--throttle.block-size-upper-limit=130000`</Tab>
+  <Tab title="Environment Variable">`THROTTLE_BLOCK_SIZE_UPPER_LIMIT=130000`</Tab>
+</Tabs>
+
+#### throttle.controller-type
+Type of throttle controller to use. Valid values: `step`, `linear`, or `quadratic` (default).
+
+<Tabs>
+  <Tab title="Syntax">`--throttle.controller-type=<step|linear|quadratic|pid>`</Tab>
+  <Tab title="Example">`--throttle.controller-type=quadratic`</Tab>
+  <Tab title="Environment Variable">`THROTTLE_CONTROLLER_TYPE=quadratic`</Tab>
+</Tabs>
+
+#### throttle.unsafe-da-bytes-lower-threshold
+Threshold on `unsafe_da_bytes` beyond which the batcher will start to throttle the block builder. `0` disables throttling.
+
+<Tabs>
+  <Tab title="Syntax">`--throttle.unsafe-da-bytes-lower-threshold=<bytes>`</Tab>
+  <Tab title="Example">`--throttle.unsafe-da-bytes-lower-threshold=3200000`</Tab>
+  <Tab title="Environment Variable">`THROTTLE_UNSAFE_DA_BYTES_LOWER_THRESHOLD=3200000`</Tab>
+</Tabs>
+
+#### throttle.unsafe-da-bytes-upper-threshold
+Threshold on `unsafe_da_bytes` at which throttling reaches maximum intensity (applies for linear and quadratic controllers).
+
+<Tabs>
+  <Tab title="Syntax">`--throttle.unsafe-da-bytes-upper-threshold=<bytes>`</Tab>
+  <Tab title="Example">`--throttle.unsafe-da-bytes-upper-threshold=12800000`</Tab>
+  <Tab title="Environment Variable">`THROTTLE_UNSAFE_DA_BYTES_UPPER_THRESHOLD=12800000`</Tab>
+</Tabs>
+
+### Transaction manager
+
+#### num-confirmations
+
+Number of confirmations which we will wait after sending a transaction. The
+default value is `10`.
+
+<Tabs>
+  <Tab title="Syntax">`--num-confirmations=<value>`</Tab>
+  <Tab title="Example">`--num-confirmations=10`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_NUM_CONFIRMATIONS=10`</Tab>
+</Tabs>
+
+#### max-pending-tx
+
+The maximum number of pending transactions. 0 for no limit. The default value
+is `1`.
+
+<Tabs>
+  <Tab title="Syntax">`--max-pending-tx=<value>`</Tab>
+  <Tab title="Example">`--max-pending-tx=1`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_MAX_PENDING_TX=1`</Tab>
+</Tabs>
+
+#### resubmission-timeout
+
+Duration we will wait before resubmitting a transaction to L1. The default
+value is `48s`.
+
+<Tabs>
+  <Tab title="Syntax">`--resubmission-timeout=<value>`</Tab>
+  <Tab title="Example">`--resubmission-timeout=48s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_RESUBMISSION_TIMEOUT=48s`</Tab>
+</Tabs>
+
+#### safe-abort-nonce-too-low-count
+
+Number of ErrNonceTooLow observations required to give up on a tx at a
+particular nonce without receiving confirmation. The default value is `3`.
+
+<Tabs>
+  <Tab title="Syntax">`--safe-abort-nonce-too-low-count=<value>`</Tab>
+  <Tab title="Example">`--safe-abort-nonce-too-low-count=3`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_SAFE_ABORT_NONCE_TOO_LOW_COUNT=3`</Tab>
+</Tabs>
+
+#### txmgr.min-basefee
+
+Enforces a minimum base fee (in GWei) to assume when determining tx fees. 1
+GWei by default. The default value is `1`.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.min-basefee=<value>`</Tab>
+  <Tab title="Example">`--txmgr.min-basefee=1`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_TXMGR_MIN_BASEFEE=1`</Tab>
+</Tabs>
+
+#### txmgr.min-tip-cap
+
+Enforces a minimum tip cap (in GWei) to use when determining tx fees. 1 GWei by
+default. The default value is `1`.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.min-tip-cap=<value>`</Tab>
+  <Tab title="Example">`--txmgr.min-tip-cap=1`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_TXMGR_MIN_TIP_CAP=1`</Tab>
+</Tabs>
+
+#### fee-limit-multiplier
+
+The multiplier applied to fee suggestions to put a hard limit on fee increases.
+The default value is `5`.
+
+<Tabs>
+  <Tab title="Syntax">`--fee-limit-multiplier=<value>`</Tab>
+  <Tab title="Example">`--fee-limit-multiplier=5`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_TXMGR_FEE_LIMIT_MULTIPLIER=5`</Tab>
+</Tabs>
+
+#### txmgr.fee-limit-threshold
+
+The minimum threshold (in GWei) at which fee bumping starts to be capped.
+Allows arbitrary fee bumps below this threshold. The default value is `100`.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.fee-limit-threshold=<value>`</Tab>
+  <Tab title="Example">`--txmgr.fee-limit-threshold=100`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_TXMGR_FEE_LIMIT_THRESHOLD=100`</Tab>
+</Tabs>
+
+#### txmgr.receipt-query-interval
+
+Frequency to poll for receipts. The default value is `12s`.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.receipt-query-interval=<value>`</Tab>
+  <Tab title="Example">`--txmgr.receipt-query-interval=12s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_TXMGR_RECEIPT_QUERY_INTERVAL=12s`</Tab>
+</Tabs>
+
+#### txmgr.not-in-mempool-timeout
+
+Timeout for aborting a tx send if the tx does not make it to the mempool. The
+default value is `2m0s`.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.not-in-mempool-timeout=<value>`</Tab>
+  <Tab title="Example">`--txmgr.not-in-mempool-timeout=2m0s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_TXMGR_TX_NOT_IN_MEMPOOL_TIMEOUT=2m0s`</Tab>
+</Tabs>
+
+#### txmgr.send-timeout
+
+Timeout for sending transactions. If 0 it is disabled. The default value is
+`0s`.
+
+<Tabs>
+  <Tab title="Syntax">`--txmgr.send-timeout=<value>`</Tab>
+  <Tab title="Example">`--txmgr.send-timeout=0s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_TXMGR_TX_SEND_TIMEOUT=0s`</Tab>
+</Tabs>
+
+### Authentication and wallet
+
+#### private-key
+
+The private key to use with the service. Must not be used with mnemonic.
+
+<Tabs>
+  <Tab title="Syntax">`--private-key=<value>`</Tab>
+  <Tab title="Example">`--private-key=`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_PRIVATE_KEY=`</Tab>
+</Tabs>
+
+#### mnemonic
+
+The mnemonic used to derive the wallets for either the service.
+
+<Tabs>
+  <Tab title="Syntax">`--mnemonic=<value>`</Tab>
+  <Tab title="Example">`--mnemonic=`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_MNEMONIC=`</Tab>
+</Tabs>
+
+#### hd-path
+
+The HD path used to derive the sequencer wallet from the mnemonic. The mnemonic
+flag must also be set.
+
+<Tabs>
+  <Tab title="Syntax">`--hd-path=<value>`</Tab>
+  <Tab title="Example">`--hd-path=`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_HD_PATH=`</Tab>
+</Tabs>
+
+
+#### signer.address
+
+Address the signer is signing transactions for.
+
+<Tabs>
+  <Tab title="Syntax">`--signer.address=<value>`</Tab>
+  <Tab title="Example">`--signer.address=`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_SIGNER_ADDRESS=`</Tab>
+</Tabs>
+
+#### signer.endpoint
+
+Signer endpoint the client will connect to.
+
+<Tabs>
+  <Tab title="Syntax">`--signer.endpoint=<value>`</Tab>
+  <Tab title="Example">`--signer.endpoint=`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_SIGNER_ENDPOINT=`</Tab>
+</Tabs>
+
+#### signer.header
+
+Headers to pass to the remote signer. Format `key=value`.\
+Value can contain any character allowed in an HTTP header.\
+When using env vars, split multiple headers with commas.\
+When using flags, provide one key-value pair per flag.
+
+<Tabs>
+  <Tab title="Syntax">`--signer.header=<key=value>`</Tab>
+  <Tab title="Example">`--signer.header="Authorization=Bearer 123abc"`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_SIGNER_HEADER=Authorization=Bearer 123abc`</Tab>
+</Tabs>
+
+#### signer.tls.ca
+
+tls ca cert path. The default value is `tls/ca.crt`.
+
+<Tabs>
+  <Tab title="Syntax">`--signer.tls.ca=<value>`</Tab>
+  <Tab title="Example">`--signer.tls.ca=tls/ca.crt`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_SIGNER_TLS_CA=tls/ca.crt`</Tab>
+</Tabs>
+
+#### signer.tls.cert
+
+tls cert path. The default value is `tls/tls.crt`.
+
+<Tabs>
+  <Tab title="Syntax">`--signer.tls.cert=<value>`</Tab>
+  <Tab title="Example">`--signer.tls.cert=tls/tls.crt`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_SIGNER_TLS_CERT=`</Tab>
+</Tabs>
+
+#### signer.tls.key
+
+tls key. The default value is `tls/tls.key`.
+
+<Tabs>
+  <Tab title="Syntax">`--signer.tls.key=<value>`</Tab>
+  <Tab title="Example">`--signer.tls.key=tls/tls.key`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_SIGNER_TLS_KEY=`</Tab>
+</Tabs>
+
+### Network connections
+
+#### l1-eth-rpc
+
+HTTP provider URL for L1.
+
+<Tabs>
+  <Tab title="Syntax">`--l1-eth-rpc=<value>`</Tab>
+  <Tab title="Example">`--l1-eth-rpc`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_L1_ETH_RPC=`</Tab>
+</Tabs>
+
+#### l2-eth-rpc
+
+HTTP provider URL for L2 execution engine. A comma-separated list enables the
+active L2 endpoint provider. Such a list needs to match the number of
+rollup-rpcs provided.
+
+<Tabs>
+  <Tab title="Syntax">`--l2-eth-rpc=<value>`</Tab>
+  <Tab title="Example">`--l2-eth-rpc=`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_L2_ETH_RPC=`</Tab>
+</Tabs>
+
+#### rollup-rpc
+
+HTTP provider URL for Rollup node. A comma-separated list enables the active L2
+endpoint provider. Such a list needs to match the number of l2-eth-rpcs
+provided.
+
+<Tabs>
+  <Tab title="Syntax">`--rollup-rpc=<value>`</Tab>
+  <Tab title="Example">`--rollup-rpc=`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ROLLUP_RPC=`</Tab>
+</Tabs>
+
+#### rpc.addr
+
+rpc listening address. The default value is `0.0.0.0`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.addr=<value>`</Tab>
+  <Tab title="Example">`--rpc.addr=0.0.0.0`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_RPC_ADDR=0.0.0.0`</Tab>
+</Tabs>
+
+#### rpc.enable-admin
+
+Enable the admin API. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.enable-admin=<value>`</Tab>
+  <Tab title="Example">`--rpc.enable-admin=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_RPC_ENABLE_ADMIN=false`</Tab>
+</Tabs>
+
+#### rpc.port
+
+rpc listening port. The default value is `8545`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.port=<value>`</Tab>
+  <Tab title="Example">`--rpc.port=8545`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_RPC_PORT=8545`</Tab>
+</Tabs>
+
+#### network-timeout
+
+Timeout for all network operations. The default value is `10s`.
+
+<Tabs>
+  <Tab title="Syntax">`--network-timeout=<value>`</Tab>
+  <Tab title="Example">`--network-timeout=10s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_NETWORK_TIMEOUT=10s`</Tab>
+</Tabs>
+
+### Alt-DA mode (Beta feature)
+
+#### altda.enabled
+
+Enable Alt-DA mode, Alt-DA mode is a Beta feature of the OP Stack.
+While it has received initial review from core contributors, it is still
+undergoing testing, and may have bugs or other issues.
+The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--altda.enabled=<value>`</Tab>
+  <Tab title="Example">`--altda.enabled=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ALTDA_ENABLED=false`</Tab>
+</Tabs>
+
+#### altda.da-server
+
+HTTP address of a DA Server.
+
+<Tabs>
+  <Tab title="Syntax">`--altda.da-server=<value>`</Tab>
+  <Tab title="Example">`--altda.da-server=http://da.example.com:1234`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ALTDA_DA_SERVER=http://da.example.com:1234`</Tab>
+</Tabs>
+
+#### altda.da-service
+
+Use DA service type where commitments are generated by Alt-DA server. The default
+value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--altda.da-service=<value>`</Tab>
+  <Tab title="Example">`--altda.da-service=true`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ALTDA_DA_SERVER=true`</Tab>
+</Tabs>
+
+#### altda.get-timeout
+
+Timeout for get requests. **0 means no timeout**.
+
+<Tabs>
+  <Tab title="Syntax">`--altda.get-timeout=<value>`</Tab>
+  <Tab title="Example">`--altda.get-timeout=5s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ALTDA_GET_TIMEOUT=5s`</Tab>
+</Tabs>
+
+#### altda.put-timeout
+
+Timeout for put requests. **0 means no timeout**.
+
+<Tabs>
+  <Tab title="Syntax">`--altda.put-timeout=<value>`</Tab>
+  <Tab title="Example">`--altda.put-timeout=10s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ALTDA_PUT_TIMEOUT=10s`</Tab>
+</Tabs>
+
+#### altda.max-concurrent-da-requests
+
+Maximum number of concurrent requests to the DA server.
+
+<Tabs>
+  <Tab title="Syntax">`--altda.max-concurrent-da-requests=<value>`</Tab>
+  <Tab title="Example">`--altda.max-concurrent-da-requests=4`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ALTDA_MAX_CONCURRENT_DA_REQUESTS=4`</Tab>
+</Tabs>
+
+#### altda.verify-on-read
+
+Verify input data matches the commitments from the DA storage service.
+
+<Tabs>
+  <Tab title="Syntax">`--altda.verify-on-read=<value>`</Tab>
+  <Tab title="Example">`--altda.verify-on-read=true`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ALTDA_VERIFY_ON_READ=true`</Tab>
+</Tabs>
+
+### Logging and monitoring
+
+#### log.level
+
+The lowest log level that will be output. The default value is `INFO`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.level=<value>`</Tab>
+  <Tab title="Example">`--log.level=INFO`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_LOG_LEVEL=INFO`</Tab>
+</Tabs>
+
+#### log.format
+
+Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json',
+'json-pretty'. The default value is `text`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.format=<value>`</Tab>
+  <Tab title="Example">`--log.format=text`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_LOG_FORMAT=text`</Tab>
+</Tabs>
+
+#### log.color
+
+Color the log output if in terminal mode. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.color=<value>`</Tab>
+  <Tab title="Example">`--log.color=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_LOG_COLOR=false`</Tab>
+</Tabs>
+
+#### log.pid
+
+Show PID in the log.
+
+<Tabs>
+  <Tab title="Syntax">`--log.pid=<value>`</Tab>
+  <Tab title="Example">`--log.pid=true`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_LOG_PID=true`</Tab>
+</Tabs>
+
+#### metrics.enabled
+
+Enable the metrics server. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--version=<value>`</Tab>
+  <Tab title="Example">`--version=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_METRICS_ENABLED=false`</Tab>
+</Tabs>
+
+### Miscellaneous
+
+#### active-sequencer-check-duration
+
+The duration between checks to determine the active sequencer endpoint. The
+default value is `2m0s`.
+
+<Tabs>
+  <Tab title="Syntax">`--active-sequencer-check-duration=<value>`</Tab>
+  <Tab title="Example">`--active-sequencer-check-duration=2m0s`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_ACTIVE_SEQUENCER_CHECK_DURATION=2m0s`</Tab>
+</Tabs>
+
+#### pprof.addr
+
+pprof listening address. The default value is `0.0.0.0`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.addr=<value>`</Tab>
+  <Tab title="Example">`--pprof.addr=0.0.0.0`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_PPROF_ADDR=0.0.0.0`</Tab>
+</Tabs>
+
+#### pprof.enabled
+
+Enable the pprof server. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.enabled=<value>`</Tab>
+  <Tab title="Example">`--pprof.enabled=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_PPROF_ENABLED=false`</Tab>
+</Tabs>
+
+#### pprof.path
+
+pprof file path. If it is a directory, the path is `{dir}/{profileType}.prof`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.path=<value>`</Tab>
+  <Tab title="Example">`--pprof.path=`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_PPROF_PATH=`</Tab>
+</Tabs>
+
+#### pprof.port
+
+pprof listening port. The default value is `6060`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.port=<value>`</Tab>
+  <Tab title="Example">`--pprof.port=6060`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_PPROF_PORT=6060`</Tab>
+</Tabs>
+
+#### pprof.type
+
+pprof profile type. One of cpu, heap, goroutine, threadcreate, block, mutex,
+allocs.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.type=<value>`</Tab>
+  <Tab title="Example">`--pprof.type`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_PPROF_TYPE=`</Tab>
+</Tabs>
+
+#### help
+
+Show help. The default value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--help=<value>`</Tab>
+  <Tab title="Example">`--help=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_HELP=false`</Tab>
+</Tabs>
+
+#### version
+
+Print the version. The default value is false.
+
+<Tabs>
+  <Tab title="Syntax">`--version=<value>`</Tab>
+  <Tab title="Example">`--version=false`</Tab>
+  <Tab title="Environment Variable">`OP_BATCHER_VERSION=false`</Tab>
+</Tabs>

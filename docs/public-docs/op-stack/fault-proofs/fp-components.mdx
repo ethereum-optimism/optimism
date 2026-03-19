@@ -1,0 +1,78 @@
+---
+title: FP system components
+description: Learn about Fault Proof System components and how they work together to
+  enhance decentralization in the Optimism ecosystem.
+---
+This page explains the fault proof system components and how they work together to enhance decentralization in the Optimism ecosystem.
+
+The Fault Proof System is comprised of three main components: a Fault Proof Program (FPP), a Fault Proof Virtual Machine (FPVM), and a dispute game protocol.
+The system is designed to eventually enable secure bridging without central fallback.
+The modular design of the Fault Proof System lays the foundation for a multi-proof future, inclusive of ZK proofs, and significantly increases the opportunities for ecosystem contributors to build alternative fault proof components to secure the system.
+
+<Info>
+  Visit the [Immunefi bug bounty page](https://immunefi.com/bounty/optimism/) for details on testing and helping to build a robust fault proof system.
+</Info>
+
+## System design & modularity
+
+The Fault Proof System is comprised of three main components: a Fault Proof Program (FPP), a Fault Proof Virtual Machine (FPVM), and a dispute game protocol.
+These components will work together to challenge malicious or faulty activity on the network to preserve trust and consistency within the system.
+See the video below for a full technical walkthrough of the OP Stack's first fault proof system.
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/nIN5sNc6nQM?si=TL9TcoV01PNcD8D2" title="Walkthrough: OP Stack Fault Proof System Alpha Release" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen />
+
+The OP Stack's unique, modular design allows the decoupling of the FPP and FPVM, resulting in the following:
+
+*   development of multiple proof systems, unique dispute games, and a variety of FPVMs in the future.
+*   custom-built Fault Proof Systems comprised of any combination of these isolated components—including validity proofs, attestation proofs, or ZKVM.
+*   dispute games in the dispute protocol backed by multiple security mechanisms.
+
+## Fault proof program
+
+The Fault Proof Program (FPP) is one of the modules in the OP Stack's fault proof system. 
+It is a combination of both the consensus and execution "parts" of the protocol in a single process. This means Engine API calls that would normally be made over HTTP are instead made as direct method calls to the execution client code.
+The default for this system component is `op-program`, a combination of `op-geth` and `op-node`, both written in Go. For the Rust stack there is `kona-client` which is a combination of `kona-node` and `op-reth`.
+These both implement a fault proof program that runs through the rollup state-transition to verify an L2 output from L1 inputs. This verifiable output can then resolve a disputed output on L1.
+
+The FPP is designed so that it can be run in a deterministic way such that two invocations with the same input data will result in not only the same output, but the same program execution trace. This allows it to be run in an onchain VM as part of the dispute resolution process.
+
+All data is retrieved via the [Preimage Oracle API](https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle?utm_source=op-docs&utm_medium=docs). The preimages could be provided via the FPVM when onchain or by a native "host" implementation that can download the required data from nodes via JSON-RPC requests. The native host implementation is also provided by `op-program` but doesn't run as part of the onchain execution.  Basically, `op-program` has two halves: the "client" Fault Proof Program part covered in this section and the "host" part used to fetch required preimages.
+
+## Fault proof virtual machine
+
+The Fault Proof Virtual Machine (FPVM) is one of the modules in the OP Stack's fault proof system.
+The FPVM is tasked with lower-level instruction execution. The FPP needs to be emulated. The VM requirements are low: the program is synchronous, and all inputs are loaded through the same pre-image oracle, but all of this still has to be proven in the L1 EVM onchain.
+To do this, only one instruction is proven at a time. The bisection game will narrow down the task of proving a full execution trace to just a single instruction. Proving the instruction may look different for each FPVM, but generally it looks similar to Cannon, which proves the instruction as follows:
+
+*   To execute the instruction, the VM emulates something akin to an instruction-cycle of a thread-context: the instruction is read from memory, interpreted, and the register-file and memory may change a little.
+*   To support the pre-image oracle, and basic program runtime needs like memory-allocation, the execution also supports a subset of linux syscalls. Read/write syscalls allow interaction with the pre-image oracle: the program writes a hash as request for a pre-image, and then reads the value in small chunks at a time.
+
+OP Stack's modularity decouples the Fault Proof Program (FPP) from the Fault Proof Virtual Machine (FPVM) to enable next-level composability and efficient parallelized upgrades to both components. The FPP (client-side) that runs within the FPVM is the part that expresses the L2 state-transition, and the interface between FPVM and FPP is standardized and documented in the [specs](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/specs/cannon-fault-proof-vm.md).
+
+Through this separation, the VM stays ultra-minimal: Ethereum protocol changes, like EVM op-code additions, do not affect the VM. Instead, when the protocol changes, the FPP can simply be updated to import the new state-transition components from the node software. Similar to playing a new version of a game on the same game console, the L1 proof system can be updated to prove a different program.
+
+[Cannon](/op-stack/fault-proofs/cannon) is the default FPVM used in all disputes. [MIPS](/op-stack/fault-proofs/mips) is the onchain smart contract implementation of Cannon that can be implemented due to the modularity of the dispute game.
+
+## Dispute game protocol
+
+In the Dispute protocol, different types of dispute games can be created, managed, and upgraded through the [DisputeGameFactory](https://github.com/ethereum-optimism/optimism/blob/6a53c7a3294edf140d552962f81c0f742bf445f9/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L4).
+This opens the door to innovative features, like aggregate proof systems and the ability to expand the protocol to allow for disputing things apart from the state of L2, such as a `FaultDisputeGame` geared towards onchain binary verification.
+
+A dispute game is a core primitive to the dispute protocol. It models a simple state machine, and it is initialized with a 32 byte commitment to any piece of information of which the validity can be disputed.
+They contain a function to resolve this commitment to be true or false, which is left for the implementer of the primitive to define. Dispute games themselves rely on two fundamental properties:
+
+*   Incentive Compatibility: The system penalizes false claims and rewards truthful ones to ensure fair participation.
+*   Resolution: Each game has a mechanism to definitively validate or invalidate the root claim.
+
+The standard is the bisection game. This is a specific type of dispute game, and the first game built in the OP Stack's dispute protocol.
+We bisect over output roots (which each correspond to single L2 blocks), until we get to a single block `n -> n+1` state transition. Then, we bisect over a single block state transition's execution trace as described before. This is an optimization to reduce the runtime of the off-chain VM.
+After bisection has reached commitments to the state at individual trace instructions, the `FaultDisputeGame` executes a single instruction step on chain using a generic VM.
+The VM's state transition function, which we'll call `T`, can be anything, so long as it adheres to the form `T(s, i) -> s'`, where `s` = the agreed upon prestate, `i` = the state transition inputs, and `s'` = the post state.
+
+The first full implementation of the VM generic in the bisection game includes a single MIPS thread context on top of the EVM to execute a single instruction within an execution trace generated by `Cannon` and the `op-program`.
+
+## Next steps
+
+*   For more detail on Cannon and its default operation as part of Optimism's Fault Proof Virtual Machine, see [Cannon FPVM](/op-stack/fault-proofs/cannon).
+*   For a detailed walk-thru of significant changes to Fault Proof Mainnet, see [FP Security](/op-stack/fault-proofs/fp-security).
+*   For detailed information about the entire FP program, FP virtual machine, and dispute game, see the [specs](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs).

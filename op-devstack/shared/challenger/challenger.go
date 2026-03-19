@@ -216,6 +216,17 @@ func WithFastGames() Option {
 	}
 }
 
+// WithExperimentalWitnessEndpoint enables kona's experimental witness endpoint feature.
+// This uses debug_executePayload to collect execution witnesses, reducing proof generation
+// time by avoiding full block re-derivation and re-execution.
+// Requires op-reth or execution client with debug_executePayload support.
+func WithExperimentalWitnessEndpoint() Option {
+	return func(c *config.Config) error {
+		c.CannonKona.EnableExperimentalWitnessEndpoint = true
+		return nil
+	}
+}
+
 func NewInteropChallengerConfig(dir string, l1Endpoint string, l1Beacon string, supervisorEndpoint string, l2Endpoints []string, options ...Option) (*config.Config, error) {
 	cfg := config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, supervisorEndpoint, l2Endpoints, dir)
 	if err := applyCommonChallengerOpts(&cfg, options...); err != nil {

@@ -125,22 +125,17 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         export OP_VALIDATOR_WITH_RETH=0
         export OP_SEQUENCER_WITH_GETH=0
         export OP_VALIDATOR_WITH_GETH=0
-    elif [ "{{DEVNET}}" = "large-kona-sequencer" ]; then
-        export KONA_SEQUENCER_WITH_RETH=1
-        export KONA_VALIDATOR_WITH_RETH=4
-        export KONA_SEQUENCER_WITH_GETH=0
-        export KONA_VALIDATOR_WITH_GETH=4
-
-        export OP_SEQUENCER_WITH_RETH=0
-        export OP_VALIDATOR_WITH_RETH=0
-        export OP_SEQUENCER_WITH_GETH=0
-        export OP_VALIDATOR_WITH_GETH=0
     fi
 
     export SKIP_P2P_CONNECTION_CHECK=true
 
     # Run the test with count=1 to avoid caching the test results.
-    cd {{SOURCE}} && go test -count=1 -timeout 40m -v ./$GO_PKG_NAME $FILTER
+    cd {{SOURCE}}
+    mkdir -p ./tmp/test-results ./tmp/testlogs
+    {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
+        --junitfile=./tmp/test-results/results.xml \
+        --jsonfile=./tmp/testlogs/log.json \
+        -- -count=1 -timeout 40m ./$GO_PKG_NAME $FILTER
 
 long-running-test FILTER="" OUTPUT_LOGS_DIR="":
     #!/bin/bash
@@ -230,11 +225,14 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
       --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
       -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
       < /tmp/tests_shard.txt
+    # xargs calls gotestsum multiple times appending to the same jsonfile,
+    # so split once at the end rather than wrapping each call.
+    {{SOURCE}}/../../../ops/scripts/split-test-logs.sh ./tmp/testlogs/log-$NODE_INDEX.json
 
     exit 0
   fi
 
-  gotestsum --format=testname \
+  {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
     --junitfile=./tmp/test-results/results.xml \
     --jsonfile=./tmp/testlogs/log.json \
     -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
@@ -253,7 +251,7 @@ action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/../../op-e2e/actions/interop && GITHUB_ACTIONS=false gotestsum --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
+  cd {{SOURCE}}/../../op-e2e/actions/interop && GITHUB_ACTIONS=false {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
 
 update-packages:
     #!/bin/bash

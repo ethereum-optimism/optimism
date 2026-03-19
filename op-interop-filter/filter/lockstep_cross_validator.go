@@ -41,6 +41,7 @@ type LockstepCrossValidator struct {
 
 	// Single global cross-validated timestamp
 	crossValidatedTs atomic.Uint64
+	crossValidatedOK atomic.Bool
 
 	// Error state for validation failures
 	errMu sync.RWMutex
@@ -112,11 +113,10 @@ func (v *LockstepCrossValidator) setError(msg string) {
 
 // CrossValidatedTimestamp returns the global cross-validated timestamp.
 func (v *LockstepCrossValidator) CrossValidatedTimestamp() (uint64, bool) {
-	ts := v.crossValidatedTs.Load()
-	if ts == 0 {
+	if !v.crossValidatedOK.Load() {
 		return 0, false
 	}
-	return ts, true
+	return v.crossValidatedTs.Load(), true
 }
 
 // validateMessageTiming is a pure function that validates temporal constraints for cross-chain messages.
@@ -287,14 +287,15 @@ func (v *LockstepCrossValidator) advanceValidation() {
 		return
 	}
 
-	currentTs := v.crossValidatedTs.Load()
-
 	// Lazy initialization: start from the configured start timestamp
-	if currentTs == 0 {
+	if !v.crossValidatedOK.Load() {
 		v.crossValidatedTs.Store(v.startTimestamp)
+		v.crossValidatedOK.Store(true)
 		v.log.Info("Cross-validator initialized", "startTimestamp", v.startTimestamp)
 		return
 	}
+
+	currentTs := v.crossValidatedTs.Load()
 
 	// Try to advance one timestamp at a time until we catch up or hit an error
 	for {

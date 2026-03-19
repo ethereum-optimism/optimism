@@ -255,6 +255,9 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 			bitmap = currentValue.(common.Hash)
 		}
 		builder.WithGlobalOverride(devFeatureBitmapKey, deployer.EnableDevFeature(bitmap, flag))
+		if flag == deployer.OptimismPortalInteropDevFlag {
+			builder.WithUseInterop(true)
+		}
 	}
 }
 
@@ -311,6 +314,18 @@ func WithDeployerMatchL1PAO() DeployerPipelineOption {
 		deployerKey, err := wb.keys.Secret(devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID))
 		wb.require.NoError(err)
 		cfg.DeployerPrivateKey = deployerKey
+	}
+}
+
+// WithL2BlockTimes sets per-chain L2 block times. The map keys are L2 chain
+// IDs and values are the desired block time in seconds for that chain.
+func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			if bt, ok := blockTimes[l2Cfg.ChainID()]; ok {
+				l2Cfg.WithBlockTime(bt)
+			}
+		}
 	}
 }
 

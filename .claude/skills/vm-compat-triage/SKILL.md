@@ -18,7 +18,7 @@ Use when the `analyze-op-program-client` CI job fails on a PR. The job runs `vm-
 - `gh` CLI authenticated with GitHub
 - `jq` available
 - `vm-compat` binary (install: `mise use -g ubi:ChainSafe/vm-compat@1.1.0`, or download from GitHub releases — binary name is `analyzer-linux-arm64` / `analyzer-linux-amd64`)
-- `llvm-objdump` — **Linux only** (install: `sudo apt-get install -y llvm`). Not available on macOS. On macOS, use `make run-vm-compat` in the `op-program` directory which runs the analysis inside Docker.
+- `llvm-objdump` — **Linux only** (install: `sudo apt-get install -y llvm`). Not available on macOS. On macOS, use `just run-vm-compat` in the `op-program` directory which runs the analysis inside Docker.
 - The PR URL or number (ask the user if not provided)
 
 ## MIPS64 Syscall Reference
@@ -161,7 +161,7 @@ vm-compat analyze \
 **On macOS** (`llvm-objdump` is not available natively — use Docker):
 ```bash
 # From the op-program directory in the PR branch worktree:
-make run-vm-compat
+just run-vm-compat
 ```
 This builds and runs the analysis inside Docker. The findings JSON will be in the Docker build output (and as a CI artifact if the artifact capture PR is merged).
 

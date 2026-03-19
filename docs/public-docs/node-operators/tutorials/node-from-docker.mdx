@@ -1,0 +1,133 @@
+---
+title: Running a Node With Docker
+description: Learn how to run a node using Docker.
+---
+
+Using [Docker](https://docs.docker.com/engine/install/) is an easy way to run an OP Mainnet node.
+This tutorial will walk you through the process of using [`simple-optimism-node`](https://github.com/smartcontracts/simple-optimism-node) to run an OP Mainnet or OP Sepolia node using Docker.
+`simple-optimism-node` also provides useful tools like a monitoring dashboard and health checking software.
+Although less flexible than [running a node from source](/node-operators/tutorials/node-from-source) or building your own Docker setup, this is a great way to quickly get started with OP Mainnet.
+
+<Info>
+  By default, `simple-optimism-node` uses `op-geth` as the execution client. Support for `Nethermind` as an alternative execution client is also available.
+</Info>
+
+## What's included
+
+`simple-optimism-node` includes all the basic components to run an OP Mainnet or OP Sepolia node.
+It also includes several additional services to monitor the health of your node and the health of the network you're connected to.
+See the [What's Included](https://github.com/smartcontracts/simple-optimism-node#whats-included) section of the `simple-optimism-node` README for more details.
+
+## Dependencies
+
+*   [Docker](https://docs.docker.com/engine/install/)
+*   [Docker Compose](https://docs.docker.com/compose/install/)
+
+## Setup
+
+Clone the `simple-optimism-node` repository to get started.
+
+```bash
+git clone https://github.com/smartcontracts/simple-optimism-node.git
+cd simple-optimism-node
+```
+
+## Configuration
+
+Configuration for `simple-optimism-node` is handled through environment variables inside of an `.env` file.
+
+<Steps>
+  <Step title="Step-by-Step Guide to Creating an .env File">
+The repository includes a sample environment variable file located at `.env.example` that you can copy and modify to get started. Make a copy of this file and name it `.env`.
+
+  ```bash
+  cp .env.example .env
+  ```
+
+  </Step>
+
+  <Step title="How to Configure the .env File for Your Node">
+Open the `.env` file in your favorite text editor. Set the variables inside of the `REQUIRED (BEDROCK)` section of the file according to the guide below:
+
+  **NETWORK_NAME** - Choose which Optimism network layer you want to operate on:
+
+  *   `op-mainnet` - OP Mainnet
+  *   `op-sepolia` - OP Sepolia (Testnet)
+  *   `base-mainnet` - Base Mainnet
+  *   `base-sepolia` - Base Sepolia (Testnet)
+
+  **NODE_TYPE** - Choose the type of node you want to run:
+
+  *   `full` (Full node) - A Full node contains a few recent blocks without historical states.
+  *   `archive` (Archive node) - An Archive node stores the complete history of the blockchain, including historical states.
+
+  **EXECUTION_CLIENT** - Choose which execution client to use:
+
+  *   `op-geth` - The original execution client for OP Stack (default if not specified)
+  *   `nethermind` - Alternative high-performance execution client written in C#
+
+  **OP_NODE__RPC_ENDPOINT** - Specify the endpoint for the RPC of Layer 1 (e.g., Ethereum mainnet). For instance, you can use the free plan of Alchemy for the Ethereum mainnet.
+
+  **OP_NODE__L1_BEACON** - Specify the beacon endpoint of Layer 1. You can use [QuickNode for the beacon endpoint](https://www.quicknode.com). For example: `https://xxx-xxx-xxx.quiknode.pro/db55a3908ba7e4e5756319ffd71ec270b09a7dce`.
+
+  **OP_NODE__RPC_TYPE** - Specify the service provider for the RPC endpoint you've chosen in the previous step. The available options are:
+
+  *   `alchemy` - Alchemy
+  *   `quicknode` - Quicknode (ETH only)
+  *   `erigon` - Erigon
+  *   `basic` - Other providers
+
+  **HEALTHCHECK__REFERENCE_RPC_PROVIDER** - Specify the public RPC endpoint for Layer 2 network you want to operate on for healthcheck. For instance:
+
+  *   **OP Mainnet** - [https://mainnet.optimism.io](https://mainnet.optimism.io)
+  *   **OP Sepolia** - [https://sepolia.optimism.io](https://sepolia.optimism.io)
+  *   **Base Mainnet** - [https://mainnet.base.org](https://mainnet.base.org)
+  *   **Base Sepolia** - [https://sepolia.base.org](https://sepolia.base.org)
+
+
+  </Step></Steps>
+
+## Run the node
+
+Once you've configured your `.env` file, you can run the node using Docker Compose.
+The following command will start the node in the background.
+
+```bash
+docker compose up -d --build
+```
+
+The node will start with the execution client you specified in your `.env` file. If you didn't specify an execution client, `op-geth` will be used by default.
+
+## Upgrade the node
+
+Pull the latest updates from GitHub, Docker Hub and rebuild the container.
+
+```bash
+git pull
+docker compose pull
+docker compose up -d --build --force-recreate
+```
+
+## Operating the node
+
+You can use Docker Compose to interact with the node and manage the various containers that you started.
+Refer to the [Operating the Node](https://github.com/smartcontracts/simple-optimism-node#operating-the-node) section of the `simple-optimism-node` README for more information.
+
+## Checking node status
+
+`simple-optimism-node` includes a monitoring dashboard that you can use to check the status of your node.
+You can access the dashboard by visiting `http://localhost:3000` in your browser.
+Refer to the [Grafana dashboard](https://github.com/smartcontracts/simple-optimism-node#grafana-dashboard) section of the `simple-optimism-node` README for more information.
+
+Another way to check the node syncing progress is to run `./progress.sh`, which will print output showing the number of blocks per second and the estimated time until synchronization is completed.
+
+```
+./progress.sh
+```
+
+```
+Chain ID: 10
+Please wait
+Blocks per minute: ...
+Hours until sync completed: ...
+```

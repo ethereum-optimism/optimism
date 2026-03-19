@@ -24,6 +24,9 @@ var ErrPendingChallenge = errors.New("not found, pending challenge")
 // ErrExpiredChallenge is returned when a challenge was not resolved and derivation should skip this input.
 var ErrExpiredChallenge = errors.New("challenge expired")
 
+// ErrCommitmentTypeMismatch is returned when the commitment type of the input does not match the expected commitment type in the config.
+var ErrCommitmentTypeMismatch = errors.New("commitment type mismatch")
+
 // ErrMissingPastWindow is returned when the input data is MIA and cannot be challenged.
 // This is a protocol fatal error.
 var ErrMissingPastWindow = errors.New("data missing past window")
@@ -202,7 +205,7 @@ func (d *DA) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemC
 func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, blockId eth.L1BlockRef) (eth.Data, error) {
 	// If it's not the right commitment type, report it as an expired commitment in order to skip it
 	if d.cfg.CommitmentType != comm.CommitmentType() {
-		return nil, fmt.Errorf("invalid commitment type; expected: %v, got: %v: %w", d.cfg.CommitmentType, comm.CommitmentType(), ErrExpiredChallenge)
+		return nil, fmt.Errorf("invalid commitment type; expected: %v, got: %v: %w", d.cfg.CommitmentType, comm.CommitmentType(), ErrCommitmentTypeMismatch)
 	}
 	status := d.state.GetChallengeStatus(comm, blockId.Number)
 	// check if the challenge is expired

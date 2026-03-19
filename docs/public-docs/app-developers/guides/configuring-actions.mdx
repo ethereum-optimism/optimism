@@ -1,0 +1,284 @@
+---
+title: Configuring Actions SDK
+description: Learn how to configure Actions SDK for your application.
+---
+
+Actions SDK lets you choose which assets, markets, chains, protocols, and providers you want to support in your application via configuration file.
+
+<Steps>
+  <Step title="Install Actions SDK">
+    Follow the
+    [quickstart](/app-developers/quickstarts/actions) guide to
+    add Actions SDK as a dependency in your app.
+  </Step>
+  <Step title="Integrate an embedded wallet">
+    Follow the [integrating
+    wallets](/app-developers/quickstarts/actions#choose-a-wallet-provider) guide,
+    choose and install a Wallet Provider.
+  </Step>
+  <Step title="Create a config file">
+		`actions.ts` - An accessible file that holds all of your configuration preference.
+  </Step>
+  <Step title="Configure a Wallet Provider">
+    Let Actions SDK know which Wallet Provider you've chosen:
+
+    <Tabs>
+      <Tab title="Frontend">
+        Select a wallet provider:
+
+        <Tabs>
+          <Tab title="Privy">
+            ```typescript title="actions.ts"
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "privy" as const,
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+          <Tab title="Turnkey">
+            ```typescript title="actions.ts"
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "turnkey" as const,
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+          <Tab title="Dynamic">
+            ```typescript title="actions.ts"
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "dynamic" as const,
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+        </Tabs>
+      </Tab>
+
+      <Tab title="Backend">
+        Select a wallet provider:
+
+        <Tabs>
+          <Tab title="Privy">
+            ```typescript title="actions.ts"
+            import { PrivyClient } from '@privy-io/node'
+
+            const privyClient = new PrivyClient(
+              process.env.PRIVY_APP_ID,
+              process.env.PRIVY_APP_SECRET,
+            )
+
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "privy" as const,
+                  config: {
+                    privyClient,
+                  },
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+          <Tab title="Turnkey">
+            ```typescript title="actions.ts"
+            import { Turnkey } from '@turnkey/sdk-server'
+
+            const turnkeyClient = new Turnkey({
+              apiBaseUrl: 'https://api.turnkey.com',
+              apiPublicKey: process.env.TURNKEY_API_KEY,
+              apiPrivateKey: process.env.TURNKEY_API_SECRET,
+              defaultOrganizationId: process.env.TURNKEY_ORGANIZATION_ID,
+            })
+
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "turnkey" as const,
+                  config: {
+                    client: turnkeyClient.apiClient(),
+                  },
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+        </Tabs>
+      </Tab>
+    </Tabs>
+
+  </Step>
+  <Step title="Configure supported assets">
+    Configure which assets you want to support across all lend providers:
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    // Import popular assets
+    import { USDC } from '@eth-optimism/actions-sdk/assets'
+    import type { Asset, AssetsConfig } from "@eth-optimism/actions-sdk";
+
+    // Or define custom assets
+    export const CustomToken: Asset = {
+      address: {
+        [mainnet.id]: '0x123...',
+        [unichain.id]: '0x456...',
+        [baseSepolia.id]: '0x789...',
+      },
+      metadata: {
+        decimals: 6,
+        name: 'Custom Token',
+        symbol: 'CUSTOM',
+      },
+      type: 'erc20',
+    }
+
+    // Configure allowed/blocked assets
+    const assetsConfig: AssetsConfig = {
+      allow: [USDC, CustomToken],
+      block: [],  // Optional
+    }
+    ```
+
+  </Step>
+  <Step title="Configure Markets">
+    Define which markets you want to support or block within your app:
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    export const GauntletUSDC: LendMarketConfig = {
+      address: '0xabc...',
+      chainId: unichain.id,
+      name: 'Gauntlet USDC',
+      asset: USDC,
+      lendProvider: 'morpho',
+    }
+    ```
+
+  </Step>
+  <Step title="Configure Lend Providers">
+    Configure which lend protocols you want to support. You can enable one or multiple providers:
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    import type { LendConfig } from "@eth-optimism/actions-sdk";
+
+    const lendConfig: LendConfig = {
+      morpho: {
+        marketAllowlist: [GauntletUSDC],
+        marketBlocklist: [],  // Optional
+      },
+      aave: {
+        marketAllowlist: [AaveWETH],
+        marketBlocklist: [],  // Optional
+      },
+    };
+    ```
+
+  </Step>
+  <Step title="Configure supported chains">
+    Configure supported chains:
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    import { optimism, base } from "viem/chains";
+
+    // Define any EVM chain
+    const OPTIMISM = {
+      chainId: optimism.id,
+      rpcUrls: env.OPTIMISM_RPC_URL,
+      bundler: {
+        // Bundle and sponsor txs with a gas paymaster
+        type: "simple" as const,
+        url: env.OPTIMISM_BUNDLER_URL,
+      },
+    };
+
+    const BASE = {
+      chainId: base.id,
+      rpcUrls: env.BASE_RPC_URL,
+      bundler: {
+        // Bundle and sponsor txs with a gas paymaster
+        type: "simple" as const,
+        url: env.BASE_BUNDLER_URL,
+      },
+    };
+
+    const chains = [OPTIMISM, BASE];
+    ```
+
+  </Step>
+  <Step title="Initialize Actions">
+    Finally bring it all together and initialize Actions:
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    export const actions = createActions({
+      wallet: walletConfig,
+      assets: assetsConfig,
+      lend: lendConfig,
+      chains,
+    });
+    ```
+
+  </Step>
+  <Step title="Take Action">
+    Once you've initialized your actions instance, import it anywhere you need to take action:
+
+    ```typescript
+    import { actions } from './actions';
+
+    // Use actions anywhere in your app
+    const market = await actions.lend.getMarket({ ... });
+    const wallet = await actions.wallet.createSmartWallet({ ... });
+    const receipt = await wallet.lend.openPosition({ ... });
+    ```
+
+  </Step>
+</Steps>
+
+## Next Steps
+
+For detailed API documentation and type definitions, see the [Actions SDK Reference](/app-developers/reference/actions).

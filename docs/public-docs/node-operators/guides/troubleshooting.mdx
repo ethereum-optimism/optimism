@@ -1,0 +1,193 @@
+---
+title: Node Troubleshooting
+description: Learn solutions to common problems to troubleshoot your node.
+---
+
+This page lists common troubleshooting scenarios and solutions for node operators.
+
+## 401 Unauthorized: Signature Invalid
+
+If you see a log that looks like this in `op-node`:
+
+```
+WARN [12-13|15:53:20.263] Derivation process temporary error       attempts=80 err="stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch current L2 forkchoice state: failed to find the finalized L2 block: failed to determine L2BlockRef of finalized, could not get payload: 401 Unauthorized: signature is invalid
+```
+
+It means that the `op-node` is unable to authenticate with `execution client`'s authenticated RPC using the JWT secret.
+
+### Solution
+
+1.  Check that the JWT secret is correct in both services.
+2.  Check that `execution client`'s authenticated RPC is enabled, and that the URL is correct.
+
+## 403 Forbidden: Invalid Host Specified
+
+If you see a log that looks like this in `op-node`:
+
+```
+{"err":"403 Forbidden: invalid host specified\n","lvl":"error","msg":"error getting latest header","t":"2022-12-13T22:29:18.932833159Z"}
+```
+
+It means that you have not whitelisted `op-node`'s host with `execution client`.
+
+### Solution
+
+1.  Make sure that the `--authrpc.vhosts` parameter in `execution client` is either set to the correct host, or `*`.
+2.  Check that `execution client`'s authenticated RPC is enabled, and that the URL is correct.
+
+## Failed to Load P2P Config
+
+If you see a log that looks like this in `op-node`:
+
+```
+CRIT [12-13|13:46:21.386] Application failed                       message="failed to load p2p config: failed to load p2p discovery options: failed to open discovery db: mkdir /p2p: permission denied"
+```
+
+It means that the `op-node` lacks write access to the P2P discovery or peerstore directories.
+
+### Solution
+
+1.  Make sure that the `op-node` has write access to the P2P directory. By default, this is `/p2p`.
+2.  Set the P2P directory to somewhere the `op-node` can access via the `--p2p.discovery.path` and `--p2p.peerstore.path` parameters.
+3.  Set the discovery path to `memory` to disable persistence via the `--p2p.discovery.path` and `--p2p.peerstore.path` parameters.
+
+## Wrong Chain
+
+If you see a log that looks like this in `op-node`:
+
+```
+{"attempts":183,"err":"stage 0 failed resetting: temp: failed to find the L2 Heads to start from: wrong chain L1: genesis: 0x4104895a540d87127ff11eef0d51d8f63ce00a6fc211db751a45a4b3a61a9c83:8106656, got 0x12e2c18a3ac50f74d3dd3c0ed7cb751cc924c2985de3dfed44080e683954f1dd:8106656","lvl":"warn","msg":"Derivation process temporary error","t":"2022-12-13T23:31:37.855253213Z"}
+```
+
+It means that the `op-node` is pointing to the wrong chain.
+
+### Solution
+
+1.  Verify that the `op-node`'s L1 URL is pointing to the correct L1 for the given network.
+2.  Verify that the `op-node`'s rollup config/`--network` parameter is set to the correct network.
+3.  Verify that the `op-node`'s L2 URL is pointing to the correct instance of `execution client`, and that `execution client` is properly initialized for the given network.
+
+## Error: `eth_sendRawTransaction` Does Not Exist
+
+If an RPC call to your execution client (`op-geth`, Nethermind, etc.) returns a response like:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32601,
+    "message": "the method eth_sendRawTransaction does not exist/is not available"
+  }
+}
+```
+
+This `-32601` JSON-RPC error means the sequencer endpoint you configured does not expose `eth_sendRawTransaction`. The request path looks like:
+
+```
+Client → eth_sendRawTransaction → op-geth:8545
+                                ↓
+                      op-geth forwards to sequencer
+                                ↓
+              eth_sendRawTransaction → op-node:8547
+                                ↓
+              ❌ ERROR: "method does not exist/is not available"
+                 (op-node has no eth namespace!)
+```
+
+Because `op-node` only exposes rollup-specific RPC methods—there is no `eth_*` namespace—it cannot accept raw transaction submissions. When `op-geth` forwards the transaction to an `op-node` URL it immediately fails with `-32601`.
+
+This situation almost always happens when:
+
+*   `--rollup.sequencerhttp` (or `ROLLUP_SEQUENCER_HTTP`) is pointed to your own `op-node` instead of the hosted public sequencer.
+*   The sequencer container was launched with that flag by mistake, so your node tries to submit transactions to itself.
+
+For canonical Optimism networks you must point `--rollup.sequencerhttp` at the public sequencer endpoint published in the network config. For user-deployed L2s that host their own sequencer, do not set this option at all so the execution client talks directly to your local sequencer and never forwards to an `op-node`.
+
+### Solution
+
+1.  Confirm your execution client exposes the `eth` namespace on its HTTP API (`--http.api eth,net,engine,...` for geth/`op-geth`). If `eth` is disabled, raw transactions will be rejected before they reach the sequencer.
+2.  Inspect the environment/CLI flags of every component that speaks to the sequencer (`op-node`, `execution client`, `op-batcher`, `op-proposer`, scripts). The `--rollup.sequencerhttp` flag must point to the public sequencer URL for the chain (for example, `https://mainnet-sequencer.optimism.io`), **not** to your own `op-node`.
+3.  For user-deployed L2s where you run the sequencer yourself, leave `--rollup.sequencerhttp` unset so the client forwards locally and never falls back to an `op-node` endpoint.
+4.  If you templated docker-compose or systemd files, make sure `ROLLUP_SEQUENCER_HTTP` is not being overwritten by another `.env` file or compose override. Remove any accidental references to your local node.
+5.  Restart the affected services after correcting the flag so they pick up the new endpoint. The error should disappear as soon as they can reach the proper sequencer RPC.
+
+## Unclean Shutdowns
+
+If you see a log that looks like this in `execution client`:
+
+```
+WARN [03-05|16:18:11.238] Unclean shutdown detected                booted=2023-03-05T11:09:26+0000 age=5h8m45s
+```
+
+It means `execution client` has experienced an unclean shutdown. The [geth docs](https://geth.ethereum.org/docs/fundamentals/databases#unclean-shutdowns)
+say if Geth stops unexpectedly, the database can be corrupted. This is known as an
+"unclean shutdown" and it can lead to a variety of problems for the node when
+it is restarted.
+
+### For op-geth
+
+It is always best to shut down Geth gracefully, i.e. using a
+shutdown command such as `ctrl-c`, `docker stop -t 300 <container ID>` or
+`systemctl stop` (although please note that `systemctl stop` has a default timeout
+of 90s - if Geth takes longer than this to gracefully shut down it will quit
+forcefully. Update the `TimeoutSecs` variable in `systemd.service` to override this
+value to something larger, at least 300s).
+
+This way, Geth knows to write all relevant information into the database to
+allow the node to restart properly later. This can involve >1GB of information
+being written to the LevelDB database which can take several minutes.
+
+**Solution**
+
+In most cases, `op-geth` can recover automatically from an unclean shutdown when you restart it. The warning message is informational and doesn't necessarily indicate a problem.
+
+However, if `op-geth` fails to restart properly after an unclean shutdown, you can use the `removedb` subcommand as a last resort:
+
+```bash
+geth removedb --datadir=<path to data directory>
+```
+
+<Warning>
+  This command will delete all state database data. After running `removedb`,
+  you must manually restart the node to begin the resync process from the ancient database,
+  which can take significant time. Only use this when the node actually fails to restart,
+  not for every unclean shutdown warning.
+</Warning>
+
+### For Nethermind
+
+Unclean shutdowns in `Nethermind` can lead to database corruption. This typically happens when:
+
+*   The node experiences hardware failures (disk failures, memory errors, overheating)
+*   Power cuts cause abrupt shutdowns
+*   The process is terminated without proper cleanup
+
+**Solutions**
+
+1.  **Lock File Issues**
+
+    If `Nethermind` complains about lock files after an unclean shutdown, run:
+
+    ```bash
+    find /path/to/nethermind_db -type f -name 'LOCK' -delete
+    ```
+
+2.  **Block Checksum Mismatch**
+
+    If you encounter block checksum mismatch errors, you can enable direct I/O:
+
+    ```bash
+    --Db.UseDirectIoForFlushAndCompactions true
+    ```
+    Note: This may impact performance.
+
+3.  **Complete Resync**
+
+    In cases of severe corruption, a full resync is recommended:
+
+    ```bash
+    sudo systemctl stop nethermind
+    sudo rm -rf /path/to/nethermind_db/mainnet
+    sudo systemctl start nethermind
+    ```

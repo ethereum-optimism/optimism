@@ -1,0 +1,43 @@
+---
+title: Included contracts
+description: Learn about the Supersim included contracts.
+---
+
+The `supersim` chain environment includes contracts already deployed to help replicate the OP Stack interop environment. See [OP Chain A](./chain-a) for contract address examples for a L2 system.
+
+## OP Stack system contracts (L1)
+
+These are the L1 contracts that are required for a rollup as part of the OP Stack protocol. Examples are the [OptimismPortal](https://github.com/ethereum-optimism/optimism-legacy/blob/8205f678b7b4ac4625c2afe351b9c82ffaa2e795/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol), [L1StandardBridge](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol), and [L1CrossDomainMessenger](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol).
+
+For more details, see [example contracts](/op-mainnet/network-information/op-addresses#ethereum-mainnet) or the [source code](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1).
+
+## OP Stack L2 contracts (L2)
+
+The OP Stack system contracts on the L2 are included at the standard addresses by default.
+
+*   [Standard OP Stack predeploys (L2)](https://specs.optimism.io/protocol/predeploys.html)
+*   [Interoperability predeploys (*experimental*) (L2)](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs)
+*   [OP Stack preinstalls (L2)](https://specs.optimism.io/protocol/preinstalls.html?utm_source=op-docs&utm_medium=docs)
+
+## Periphery contracts (L2)
+
+L2 chains running on `supersim` also includes some useful contracts for testing purposes that are not part of the OP Stack by default.
+
+### L2NativeSuperchainERC20
+
+A simple ERC20 included in Supersim for testing cross-chain token transfers. It includes permissionless minting for easy testing.
+
+Source: [L2NativeSuperchainERC20.sol](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/L2NativeSuperchainERC20.sol)
+
+Deployed address: `0x420beeF000000000000000000000000000000001`
+
+#### Minting new tokens
+
+```bash
+cast send 0x420beeF000000000000000000000000000000001 "mint(address _to, uint256 _amount)" $RECIPIENT_ADDRESS 1ether  --rpc-url $L2_RPC_URL
+```
+
+## Next steps
+
+*   Get network details about the two OP Stack systems spun up in vanilla mode: [OPChainA (chainID 901)](/app-developers/reference/tools/supersim/chain-a) and [OPChainB (chainID 902)](/app-developers/reference/tools/supersim/chain-b).
+*   Learn how to [deposit transactions](/app-developers/tutorials/bridging/deposit-transactions) with Supersim, using a much simpler approach that bypasses the derivation pipeline.

@@ -1,0 +1,145 @@
+---
+title: Running op-reth with Historical Proofs
+description: Learn how to initialize and run op-reth with the historical proofs ExEx.
+---
+
+This guide covers the specific steps required to run `op-reth` with the historical proofs ExEx (Execution Extension), which allows for saving and serving trie nodes to provide proofs faster.
+
+## Prerequisites
+
+*   [Rust toolchain](https://www.rust-lang.org/tools/install) installed.
+*   Basic understanding of [execution client configuration](/node-operators/guides/configuration/execution-clients).
+
+## Installation
+
+First, clone and build the `op-reth` binary from the `op-rs` fork.
+
+```bash
+git clone --depth 1 --branch develop --single-branch https://github.com/ethereum-optimism/optimism.git
+cd optimism/rust/op-reth
+cargo build --release --bin op-reth
+```
+
+The binary will be located at `./target/release/op-reth`.
+
+## Initialization Steps
+
+Running `op-reth` with historical proofs requires a two-step initialization process:
+1.  Initialize the standard `op-reth` database.
+2.  Initialize the specific `proofs` storage.
+
+### 1. Initialize op-reth
+
+Initialize the core database with the genesis file for your chosen chain (e.g., `optimism`).
+
+```bash
+./target/release/op-reth init \
+  --datadir="/path/to/datadir" \
+  --chain="optimism"
+```
+
+### Option: Start from a Snapshot
+
+If you prefer to start from a pre-synchronized database snapshot instead of syncing from genesis:
+
+1.  Download and extract the `op-reth` snapshot into your `datadir`.
+2.  Skip the `op-reth init` command (step 1 above).
+3.  Proceed to **Initialize Proofs Storage** (step 2 below). The `proofs init` command will initialize the proofs storage based on the state present in the snapshot.
+
+### 2. Initialize Proofs Storage
+
+Initialize the separate storage used by the ExEx to store historical proofs.
+
+```bash
+./target/release/op-reth proofs init \
+  --datadir="/path/to/datadir" \
+  --chain="optimism" \
+  --proofs-history.storage-path="/path/to/proofs-db"
+```
+
+## Running op-reth
+
+Once initialized, you can start the execution client with the `--proofs-history` flag enabled.
+
+```bash
+./target/release/op-reth node \
+  --datadir="/path/to/datadir" \
+  --chain="optimism" \
+  --proofs-history \
+  --proofs-history.storage-path="/path/to/proofs-db" \
+  --proofs-history.window=956200 \
+  --proofs-history.prune-interval=10s \
+  --http \
+  --http.port=8545 \
+  --http.addr=0.0.0.0 \
+  --http.corsdomain="*" \
+  --http.api=admin,net,eth,web3,debug,trace,txpool \
+  --ws \
+  --ws.addr=0.0.0.0 \
+  --ws.port=8546 \
+  --ws.api=net,eth,web3,debug,txpool \
+  --ws.origins="*" \
+  --authrpc.port=8551 \
+  --authrpc.jwtsecret="/path/to/jwt.hex" \
+  --authrpc.addr=0.0.0.0 \
+  --discovery.port=30303 \
+  --port=30303 \
+  --metrics=0.0.0.0:9001 \
+  --rollup.sequencerhttp="https://mainnet-sequencer.optimism.io"
+```
+
+<Info>
+Make sure to include all other standard flags required for your network (e.g., specific bootnodes). See the configuration reference for details.
+</Info>
+
+## Running Consensus Node
+
+Start the consensus client to drive the execution client. You can use either `op-node` or `kona-node`.
+
+<Tabs>
+  <Tab title="op-node">
+    `op-node` is the reference implementation of the OP Stack consensus client, written in Go.
+
+    ```bash
+    op-node \
+      --l2=http://127.0.0.1:8551 \
+      --l2.jwt-secret="/path/to/jwt.hex" \
+      --verifier.l1-confs=1 \
+      --network="optimism" \
+      --rpc.addr=0.0.0.0 \
+      --rpc.port=8547 \
+      --l1=<L1_RPC_URL> \
+      --l1.beacon=<BEACON_RPC_URL> \
+      --p2p.advertise.ip=<YOUR_PUBLIC_IP> \
+      --p2p.advertise.tcp=9003 \
+      --p2p.advertise.udp=9003 \
+      --p2p.listen.ip=0.0.0.0 \
+      --p2p.listen.tcp=9003 \
+      --p2p.listen.udp=9003 \
+      --safedb.path="/path/to/op-node-db"
+    ```
+  </Tab>
+
+  <Tab title="kona-node">
+    `kona-node` is experimental Rust-based implementation of the OP Stack consensus client.
+
+    ```bash
+    kona-node \
+      --l1-eth-rpc=<L1_RPC_URL> \
+      --l1-beacon=<BEACON_RPC_URL> \
+      --l2-engine-rpc=http://localhost:8551 \
+      --l2-engine-jwt-secret=/path/to/jwt-secret.txt \
+      --chain=10
+    ```
+  </Tab>
+</Tabs>
+
+## Verification
+
+After starting both clients, verify that the historical proofs ExEx is active by checking the logs.
+
+1.  **Check op-reth logs**: Look for valid initialization messages indicating the ExEx is running.
+    ```text
+    INFO [..] ExEx initialized ...
+    ```
+2.  **Check syncing status**: Ensure `op-node` and `op-reth` are connected and syncing. `op-reth` should start importing blocks and the `proofs` storage should begin populating.

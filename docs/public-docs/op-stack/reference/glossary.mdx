@@ -1,0 +1,520 @@
+---
+title: Glossary
+description: Learn the meaning of important terminology used throughout the Optimism Developer Documentation.
+---
+
+The glossary provides definitions of important terminology used throughout the Optimism Developer Documentation. To make revisions to this page, please [submit an issue](https://github.com/ethereum-optimism/docs/issues/new?assignees=\&labels=glossary%2Cdocumentation%2Ccommunity-request\&projects=\&template=suggest_glossary_term.yaml\&title=%5BGLOSSARY%5D+Add+PR+title).
+
+
+## Table of contents
+
+*   [General Terms](#general-terms)
+*   [OP Profile & Identity](#op-profile--identity)
+*   [OP Stack & OP Chains](#op-stack--op-superchain)
+*   [Protocol](#protocol)
+
+## General terms
+
+### Address aliasing
+
+When a contract submits a [deposit](#deposit) from L1 to L2, its address (as returned by `ORIGIN` and `CALLER`) will be
+aliased with a modified representation of the address of a contract.
+
+### Block
+
+A sequential list of transactions, along with a couple of properties stored in the '''header''' of the block; can refer to an [L1](#layer-1-l1) block, or to an [L2](#layer-2-l2) block, which are structured similarly.
+It is useful to distinguish between input block properties, which are known before executing the transactions in the
+block, and output block properties, which are derived after executing the block's transactions (e.g., [Merkle Patricia Trie roots](#merkle-patricia-trie)).
+
+### Block time
+
+L2 block time is 2 seconds, meaning there is an L2 block at every 2s [time slot](#time-slot).
+*Post-merge*, it could be said that L1 block time is 12s as that is the L1 [time slot](#time-slot). However, in
+reality the block time is variable as some time slots might be skipped. Pre-merge, the L1 block time is variable, though it is on average 13s.
+
+### Delegation
+
+Refers to the process of assigning the voting power of your tokens to a designated community member, known as a delegate. 
+Delegates are individuals who have volunteered to actively participate in the governance of the Optimism Token House. 
+By delegating your voting power, you enable these delegates to vote on governance matters on your behalf, while you retain full ownership of your tokens and the freedom to use them as you wish. 
+You can also change your chosen delegate at any time, allowing for flexibility in how your voting power is represented in the governance process.
+
+### EOA or externally owned account
+
+Ethereum term to designate addresses operated by users, as opposed to contract addresses.
+
+### Execution engine
+
+Responsible for executing transactions in blocks and computing the resulting state roots,
+receipts roots, and block hash. Both L1 (*post-merge*) and L2 have an execution engine. On L1, the executed blocks can
+come from L1 block synchronization or from a block freshly minted by the execution engine (using transactions from the L1 mempool),
+at the request of the L1 consensus layer. On L2, the executed blocks are freshly minted by the execution engine at the request of the
+[rollup node](#rollup-node), using transactions [derived from L1 blocks](#l2-chain-derivation).
+
+### Optimism collective
+
+The Optimism Collective is a band of people, projects, and companies working together to build a better economy for everyone, 
+united by a mutually beneficial pact to adhere to the axiom of impact=profit — the principle that positive impact to the collective should be rewarded with profit to the individual. 
+New model of digital democratic governance optimized to drive rapid and sustained growth of a decentralized ecosystem.
+
+
+### OP token
+
+A governance token, referred to as "OP." Content should not discuss the token price or speculate on the price, and content that refers to OP incorrectly will be removed from Optimism platforms and will not be eligible for promotion.
+
+### Layer 1 (L1)
+
+Refers the Ethereum blockchain, used in contrast to [layer 2](#layer-2-l2), which refers to Optimism.
+
+### Layer 2 (L2)
+
+Refers to the Optimism blockchain and is used in contrast to [layer 1](#layer-1-l1), which refers to the Ethereum blockchain.
+
+### L2 output root
+
+32 byte value which serves as a commitment to the current state of the L2 chain.
+
+### L2 output oracle contract
+
+L1 contract to which [L2 output roots](#l2-output-root) are posted by the [sequencer](#sequencer).
+
+### Predeployed contract
+
+A contract placed in the L2 genesis state (i.e. at the start of the chain).
+
+### PGA or priority gas auction
+
+Transactions in ethereum are ordered by the price that the transaction pays to the miner. Priority Gas Auctions
+(PGAs) occur when multiple parties are competing to be the first transaction in a block. Each party continuously
+updates the gas price of their transaction. PGAs occur when there is value in submitting a transaction before other
+parties (like being the first deposit or submitting a deposit before there is not more guaranteed gas remaining).
+PGAs tend to have negative externalities on the network due to a large amount of transactions being submitted in a
+very short amount of time.
+
+### Receipt
+
+The output generated by a transaction, comprising a status code, the amount of gas used, a list of log
+entries, and a [bloom filter](https://en.wikipedia.org/wiki/Bloom_filter) indexing these entries. Log entries are most notably used to encode Solidity events.
+Receipts are not stored in blocks, but blocks store a [Merkle Patricia Trie root](#merkle-patricia-trie) for a tree containing the receipt
+for every transaction in the block.
+
+### Rollup Node
+
+The node responsible for [deriving the L2 chain](#l2-chain-derivation) from the L1 chain (L1 [blocks](#block) and their
+associated [receipts](#receipt). The rollup node can run either in *[validator](#validator-mode)* or *[sequencer](#sequencer-mode)* mode.
+
+### Sequencer mode
+
+The rollup node receives L2 transactions from users, which it uses to create L2 blocks. These are
+then submitted to a [data availability provider](#data-availability-provider) via [batch submission](#batch-submission). The L2 chain
+derivation then acts as a sanity check and a way to detect L1 chain re-orgs.
+
+### Time slot
+
+On L2, there is a block every 2 seconds (this duration is known as the [block time](#block-time)).
+We say that there is a "time slot" every multiple of 2s after the timestamp of the [L2 genesis block](#l2-genesis-block).
+On L1, post-merge, the time slots are every 12s. However, an L1 block may not be produced for every time slot, in case
+of even benign consensus issues.
+
+### Transaction Type
+
+Ethereum provides a mechanism as described in [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718) for defining different transaction types.
+Different transaction types can contain different payloads and be handled differently by the protocol.
+
+### Validator
+
+An entity (individual or organization) that runs a [rollup node](#rollup-node) in validator mode. Doing so grants a lot of benefits
+similar to running an Ethereum node, such as the ability to simulate L2 transactions locally, without rate limiting. It also lets the
+validator verify the work of the [sequencer](#sequencer), by re-deriving [output roots](#l2-output-root) and comparing them against those submitted by the sequencer.
+In case of a mismatch, the validator can perform a [fault proof](#fault-proof).
+
+### Validator mode
+
+The rollup node performs derivation as indicated in sequencer mode, but is also able to "run ahead" of the L1
+chain by getting blocks directly from the sequencer, in which case derivation serves to validate the sequencer's
+behavior. A rollup node running in validator mode is sometimes called *a replica*.
+
+\[[return to top](#table-of-contents)]
+
+## OP profile & identity
+
+### Attestations
+
+Statements or evidence of information made by anyone about anything.
+
+### Attestation recipient
+
+The entity or individual that receives the [attestation](#attestations) from the attester.
+In decentralized identity, the attestation recipient can be a service provider, website, or any other entity that requires verification of a person's identity or personal information.
+
+### Attestation issuer
+
+The entity or individual that performs the attestation process and issues the [attestation](#attestations).
+In decentralized identity, the attestation issuer can be a government agency, financial institution, or any other trusted entity that is authorized to verify a person's identity or personal information.
+
+### Attestation verifier
+
+The entity or individual that verifies the [attestation](#attestations) and ensures that it is valid and accurate.
+In decentralized identity, the attestation verifier can be a service provider, website, or any other entity that requires verification of a person's identity or personal information.
+
+### Decentralized identity
+
+A system that enables individuals to have greater control and ownership over their personal data and identity.
+In decentralized identity, personal information is stored on a blockchain or other decentralized system, and individuals have the ability to grant or revoke access to their data as they see fit.
+This allows for greater privacy, security, and control over personal information.
+
+### Ethereum attestation service (EAS)
+
+An Ethereum infrastructure public good for making attestations on or off-chain about anything.
+
+### Sybil-resistance
+
+A defense mechanism that prevents someone from creating multiple fake identities in a decentralized identity system.
+
+### Web of trust
+
+A decentralized model used to establish trust among participants in a network. It relies on the concept of participants vouching for the authenticity or trustworthiness of other participants. In a web of trust, trust is built through the accumulation of attestations from trusted individuals.
+
+\[[return to top](#table-of-contents)]
+
+## OP Stack & OP Chains
+
+### Attestation-based fault proof
+
+A fault proof where challenges can be successfully made by supplying an [attestation proof](#attestation-proof) which disagrees with the original withdrawal claim.
+
+### Attestation-based validity proof
+
+A validity proof which can be verified by supplying an [attestation proof](#attestation-proof) which agrees with the withdrawal claim.
+
+### Attestation proof
+
+A proof which consists of some number of signatures from a pre-agreed upon set of chain attestors.
+
+### Cannon fault proof
+
+A fault proof where challenges are evaluated using an onchain game which is guaranteed to result in a truthful outcome, given economic rationality assumptions.
+
+### Chain
+
+A state [transition system](https://en.wikipedia.org/wiki/Transition_system) consisting of an initial state, a state transition function, and a list of inputs (transactions)—which is cryptographically committed to and can be independently replicated with commodity computer hardware and internet connection.
+
+### Chain proof
+
+Difficult to forge evidence of the validity of a particular withdrawal claim. Proofs are commonly used to enable chains to communicate with each other.
+
+### Challenge period
+
+The window of time in which a challenge can be made to disprove a fault proof.
+
+### Fault proof
+
+A proof which relies on the absence of counter-evidence to prove correctness.
+
+### L1 origin
+
+the L1 origin of an L2 block is the L1 block corresponding to its [sequencing epoch](#sequencing-epoch).
+
+### Merkle patricia trie
+
+sparse [trie](https://en.wikipedia.org/wiki/Trie), which is a tree-like structure that maps keys to values.
+The root hash of a MPT is a commitment to the contents of the tree, which allows a proof to be constructed for any key-value mapping encoded in the tree. Such a proof is called a Merkle proof, and can be
+verified against the Merkle root.
+
+### Modular proof
+
+The ability to use multiple proof systems for the same OP Chain. For instance, it should be possible to prove an OP Chain using a fault proof or a validity proof.
+
+### Modular sequencing
+
+The ability to configure the sequencer address during OP Chain deployment. This value can be configured by the OP Chain deployer.
+
+### OP Chain
+
+An individual chain within the OP Stack ecosystem. All chains, regardless of their specific properties are considered OP Chains if they are officially governed by the Optimism Collective.
+
+### OP Mainnet
+
+Layer 2 blockchain powered by the OP Stack. Previously known as just "Optimism," OP Mainnet is where it all started, and the first chain on the OP Stack.
+
+### OP Stack
+
+the modular, open source, MIT-licensed development stack that powers the OP Mainnet, OP Chains, and the OP Stack ecosystem. The OP Stack is maintained by the Optimism Collective.
+
+### OP Stack Fork
+
+Layer 2 blockchain that has been built using the MIT-licensed OP Stack, but is not governed by Optimism's governance or contributing sequencer revenue back to the Collective. This means OP Stack Forks won't necessarily share security or interoperability with OP Chains in the OP Stack ecosystem.
+
+### Alt-DA Chain
+
+A chain where transaction data is committed to on L1 but not supplied to L1 directly, with a data availability challenge fallback.
+
+### Rollup Chain
+
+A chain where all transaction data is submitted to L1.
+
+### Rollup transactions
+
+Rollup transactions can be included in two ways: through a [deposited transaction](#deposited-transaction) enforced by the system and through a regular transaction embedded in a [sequencer batch](#sequencer-batch).
+Submitting transactions for inclusion in a batch saves costs by reducing overhead, and enables the sequencer to
+pre-confirm the transactions before the L1 confirms the data.
+
+### Sequencer
+
+The specific entity or smart contract which has priority when submitting transactions to an OP Chain, can be either a [rollup node](#rollup-node) run in sequencer mode or the operator of this rollup node.
+The sequencer receives L2 transactions from L2 users, creates L2 blocks using them, which it then submits to [data availability provider](#data-availability-provider) (via a [batcher](#batcher)).
+It also submits [output roots](#l2-output-root) to L1.
+
+### Sequencing Window
+
+Range of L1 blocks from which a [sequencing epoch](#sequencing-epoch) can be derived.
+A sequencing window whose first L1 block has number `N` contains [batcher transactions](#batcher-transaction) for epoch
+`N`. The window contains blocks `(N, N + SWS)` where `SWS` is the sequencer window size. 
+The current default `SWS` is 3600 epochs.
+Additionally, the first block in the window defines the [depositing transactions](#depositing-transaction) which determine the
+[deposits](#deposit) to be included in the first L2 block of the epoch.
+
+### Sequencing Epoch
+
+sequential range of L2 blocks derived from a [sequencing window](#sequencing-window) of L1 blocks.
+Each epoch is identified by an epoch number, which is equal to the block number of the first L1 block in the
+sequencing window. Epochs can have variable size, subject to some constraints.
+
+### OP Stack interop cluster
+
+The network of OP Stack chains connected by native interoperability. Not yet live. Chains that are part of the OP Stack ecosystem share security and a common development stack (the OP Stack). The interop cluster specifically refers to the subset of chains connected by the OP Stack interoperability layer.
+
+### Shared L1 Bridge
+
+The L1 bridge contracts which govern all OP Chains in the OP Stack ecosystem. This bridge can be upgraded by the Optimism Collective.
+
+### Validity Proof
+
+A proof of a withdrawal claim which can be immediately validated, without a challenge period.
+
+### Withdrawal Claim
+
+A claim about the state of one chain made on another chain. For instance, I can claim that in OP Mainnet I have burned my tokens with the intent to withdraw those tokens back to L1.
+
+### Zero Knowledge Proof
+
+A validity proof which relies on cryptographic properties and low error margins.
+
+\[[return to top](#table-of-contents)]
+
+## Protocol
+
+### Batcher
+
+Software component (independent program) that is responsible to make channels available on a data
+availability provider. The batcher communicates with the rollup node in order to retrieve the channels. The channels are
+then made available using [batcher transactions](#batcher-transaction).
+
+### Batcher Transaction
+
+Transaction submitted by a [batcher](#batcher) to a data availability provider, in order to make
+channels available. These transactions carry one or more full frames, which may belong to different channels. A
+channel's frame may be split between multiple batcher transactions. When submitted to Ethereum calldata, the batcher
+transaction's receiver must be the sequencer inbox address. The transaction must also be signed by a recognized batch submitter account.
+
+### Channel
+
+Sequence of [sequencer batches](#sequencer-batch) (for sequential blocks) compressed together; uniquely identified by its timestamp
+(UNIX time at which the channel was created) and a random value. The reason to group multiple batches together is simply to obtain
+a better compression rate, hence reducing data availability costs.
+
+*   A channel can be split in [frames](#channel-frame) in order to be transmitted via [batcher transactions](#batcher-transaction). The reason to split a channel
+    into frames is that a channel might be too large to include in a single batcher transaction.
+*   On the side of the [rollup node](#rollup-node) (which is the consumer of channels), a channel is considered to be
+    *opened* if its final frame (explicitly marked as such) has not been read, or closed otherwise.
+
+### Channel Frame
+
+Chunk of data belonging to a [channel](#channel). [Batcher transactions](#batcher-transaction) carry one or
+multiple frames. The reason to split a channel into frames is that a channel might be too large to include in a single
+batcher transaction.
+
+### Channel Timeout
+
+Duration (in L1 blocks) during which [channel frames](#channel-frame) may land on L1 within
+[batcher transactions](#batcher-transaction). The acceptable time range for the frames of a [channel](#channel) is `[channel_id.timestamp, channel_id.timestamp +
+CHANNEL_TIMEOUT]`. The acceptable L1 block range for these frames are any L1 block whose timestamp falls inside this
+time range. (Note that `channel_id.timestamp` must be lower than the L1 block timestamp of any L1 block in which frames
+of the channel are seen, or else these frames are ignored.)
+
+<Info>
+  The purpose of channel timeouts is dual:
+
+  *   Avoid keeping old unclosed channel data around forever (an unclosed channel is a channel whose final frame was not
+      sent).
+  *   Bound the number of L1 blocks we have to look back in order to decode [sequencer batches](#sequencer-batch) from
+      channels. This is particularly relevant during L1 re-orgs.
+</Info>
+
+### Data Availability
+
+Guarantee that some data will be "available" (i.e. *retrievable*) during a reasonably long time
+window. In Optimism's case, the data in question are [sequencer batches](#sequencer-batch) that [validators](#validator)
+need in order to verify the sequencer's work and validate the L2 chain. The [finalization period](#finalization-period)
+should be taken as the lower bound on the availability window, since that is when data availability is the most crucial,
+as it is needed to perform a [fault proof](#fault-proof). "Availability" **does not** mean guaranteed long-term storage of the data.
+
+### Data Availability Provider
+
+Service that can be used to make [data available](#data-availability). Ideally, a good data availability provider provides strong *verifiable* guarantees
+of data availability, such as Ethereum call data and EIP4844.
+
+### Deposit
+
+L2 transaction derived from an L1 block (by the rollup driver). While transaction deposits are notably (but not only) used to "deposit" (bridge) ETH and tokens to L2, the word
+*deposit* should be understood as "a transaction *deposited* to L2 from L1".
+
+### Deposit contract
+
+L1 contract to which [EOAs](#eoa-or-externally-owned-account) and contracts may send deposits. The deposits are
+emitted as log records (in Solidity, these are called *events*) for consumption by [rollup nodes](#rollup-node).
+
+<Info>
+  The deposits are not stored in calldata because they can be sent by contracts, in which case the calldata
+  is part of the *internal* execution between contracts, and this intermediate calldata is not captured in one of the
+  [Merkle Patricia Trie roots](#merkle-patricia-trie) included in the L1 block.
+</Info>
+
+### Deposited Transaction
+
+L2 transaction that was derived from L1 and included in a L2 block. There are two kinds of deposited transactions:
+L1 attributes deposited transaction (submits the L1 block's attributes to the L1 Attributes Predeployed Contract) and User deposited transactions
+(transactions derived from an L1 call to the deposit contract).
+
+### Depositor
+
+L1 address (contract or \[EOA]) that makes (is the `msg.sender` of) the [depositing
+call](#depositing-call). The *depositor* is **NOT** the originator of the [depositing transaction](#depositing-transaction) (i.e. `tx.origin`).
+
+### Depositing Call
+
+L1 call to the deposit contract, which will be derived to a [user-deposited transaction](#user-deposited-transaction) by the rollup driver.
+This call specifies all the data (destination, value, calldata, ...) for the deposited transaction.
+
+### Depositing Transaction
+
+L1 transaction that makes one or more [depositing calls](#depositing-call).
+
+### Deposited transaction type
+
+EIP-2718 transaction type, which specifies the input fields and correct handling of a deposited transaction.
+
+### Event or log data
+
+Data generated by the [depositing call](#depositing-call) and read by the rollup driver to derive the [deposited transaction](#deposited-transaction).
+
+### Finalized L2 Head
+
+Highest L2 block that can be derived from *finalized* L1 blocks — i.e. L1
+blocks older than two L1 epochs (64 L1 [time slots](#time-slot)).
+
+### Finalization Period
+
+The minimum amount of time (in seconds) that must elapse before a withdrawal can be finalized, sometimes called **withdrawal delay**.
+The finalization period is necessary to afford sufficient time for validators to make a fault proof.
+
+### L1 Attributes Deposited Transaction
+
+A [deposited transaction](#deposited-transaction) that is used to register the L1 block
+attributes (number, timestamp, ...) on L2 via a call to the [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract).
+That contract can then be used to read the attributes of the L1 block corresponding to the current L2 block.
+
+### L1 Attributes Predeployed Contract
+
+A [predeployed contract](#predeployed-contract) on L2 that can be used to retrieve the L1 block attributes of L1 blocks with a given
+block number or a given block hash.
+
+### L2 Chain Derivation
+
+The process that reads [L2 derivation inputs](#l2-derivation-inputs) from L1 in order to derive the L2
+chain.
+
+### L2 Chain Inception
+
+L1 block number at which the output roots for the [genesis block](#l2-genesis-block) were proposed on the [output
+oracle](#l2-output-oracle-contract) contract. In the current implementation, this is the L1 block number at which the output oracle contract was deployed or upgraded.
+
+### L2 Derivation Inputs
+
+Data that is found in L1 blocks and is read by the [rollup node](#rollup-node) to construct [payload
+attributes](#payload-attributes). L2 derivation inputs include: L1 block attributes (block number, timestamp, basefee), deposits (as log data),
+sequencer batches (as transaction data), and system configuration updates (as log data).
+
+### Payload Attributes
+
+Object that can be derived from [L2 chain derivation inputs](#l2-derivation-inputs) found on L1, which are
+then passed to the [execution engine](#execution-engine) to construct L2 blocks. The payload attributes object essentially
+encodes a [block](#block) without output properties.
+
+### Relayer
+
+EOA on L1 which finalizes a withdrawal by submitting the data necessary to verify its inclusion on L2.
+
+### Safe L2 Block
+
+L2 block that can be derived entirely from L1 by a [rollup node](#rollup-node). This can vary
+between different nodes, based on their view of the L1 chain.
+
+### Safe L2 Head
+
+Highest [safe L2 block](#safe-l2-block) that a [rollup node](#rollup-node) knows about.
+
+### Sequencer Batch
+
+A list of L2 transactions (that were submitted to a sequencer) tagged with an [epoch
+number](#sequencing-epoch) and an L2 block timestamp (which can trivially be converted to a block number, given our
+block time is constant). Sequencer batches are part of the [L2 derivation inputs](#l2-derivation-inputs). Each batch represents the inputs needed to build
+**one** L2 block (given the existing L2 chain state) — except for the first block of each epoch, which also needs
+information about deposits (cf. the section on [L2 derivation inputs](#l2-derivation-inputs)).
+
+### System Configuration
+
+Collection of dynamically configurable rollup parameters maintained
+by the [`SystemConfig`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/SystemConfig.sol) contract on L1 and read by the L2 [derivation](#l2-chain-derivation) process.
+These parameters enable keys to be rotated regularly and external cost parameters to be adjusted
+without the network upgrade overhead of a hardfork.
+
+### Unsafe L2 Block
+
+L2 block that a [rollup node](#rollup-node) knows about, but which was not derived from the L1
+chain. In sequencer mode, this will be a block sequenced by the sequencer itself. In validator mode, this will be a
+block acquired from the sequencer via [unsafe sync](#unsafe-sync).
+
+### Unsafe L2 Head
+
+Highest [unsafe L2 block](#unsafe-l2-block) that a [rollup node](#rollup-node) knows about.
+
+### Unsafe Block Consolidation
+
+Process through which the [rollup node](#rollup-node) attempts to move the [safe L2
+head](#safe-l2-head) a block forward, so that the oldest [unsafe L2 block](#unsafe-l2-block) becomes the new safe L2 head. In order to perform consolidation,
+the node verifies that the [payload attributes](#payload-attributes) derived from the L1 chain match the oldest unsafe L2 block exactly.
+
+### Unsafe Sync
+
+Process through which a [validator](#validator) learns about [unsafe L2 blocks](#unsafe-l2-block) from
+the [sequencer](#sequencer). These unsafe blocks will later need to be confirmed by the L1 chain (via [unsafe block consolidation](#unsafe-block-consolidation)).
+
+### User-Deposited Transaction
+
+Deposited transaction which is derived from an L1 call to the deposit contract and [depositing call](#depositing-call); explicitly excludes [L1 attributes deposited
+transactions](#l1-attributes-depositedtransaction).
+
+### Withdrawal transaction
+
+Sent from L2 to L1 that may transfer data and/or value; these "transactions" exist at multiple levels (see withdrawal initiating transaction and withdrawal finalizing transaction for details).
+
+### Withdrawal initiating transaction
+
+A specific transaction on L2 sent to the Withdrawals predeploy.
+
+### Withdrawal finalizing transaction
+
+A specific L1 transaction which finalizes and relays the withdrawal.
+
+\[[return to top](#table-of-contents)]

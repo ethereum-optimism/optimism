@@ -971,6 +971,74 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 	})
 }
 
+// TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound tests that
+// ErrL1AtSafeHeadNotFound from the virtual node is mapped to ethereum.NotFound
+// by OptimisticAt (via safeDBAtL2), so callers treat chain lag as "not ready".
+func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	// Set up engine that returns a valid block ref
+	mockEngine := &mockEngineController{
+		l2BlockRefByNumberResult: eth.L2BlockRef{
+			Hash:   common.Hash{0x01},
+			Number: 5,
+			Time:   1010,
+		},
+	}
+	impl.engine = mockEngine
+
+	// Use a mock VN that returns valid SyncStatus (so LocalSafeBlockAtTimestamp succeeds)
+	// but returns ErrL1AtSafeHeadNotFound from L1AtSafeHead (so safeDBAtL2 fails).
+	mockVN := &mockVNForL1AtSafeHeadError{
+		syncStatusResult: &eth.SyncStatus{
+			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x10}, Number: 50},
+			LocalSafeL2: eth.L2BlockRef{Hash: common.Hash{0x20}, Number: 100},
+		},
+		l1AtSafeHeadErr: virtual_node.ErrL1AtSafeHeadNotFound,
+	}
+	impl.vn = mockVN
+
+	ctx := context.Background()
+	_, _, err := container.OptimisticAt(ctx, 1010)
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ethereum.NotFound),
+		"ErrL1AtSafeHeadNotFound should be mapped to ethereum.NotFound, got: %v", err)
+}
+
+// mockVNForL1AtSafeHeadError is a VN mock that returns valid SyncStatus
+// but can return specific errors from L1AtSafeHead.
+type mockVNForL1AtSafeHeadError struct {
+	syncStatusResult *eth.SyncStatus
+	l1AtSafeHeadErr  error
+}
+
+func (m *mockVNForL1AtSafeHeadError) Start(ctx context.Context) error { return nil }
+func (m *mockVNForL1AtSafeHeadError) Stop(ctx context.Context) error  { return nil }
+func (m *mockVNForL1AtSafeHeadError) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+func (m *mockVNForL1AtSafeHeadError) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
+	return eth.BlockID{}, m.l1AtSafeHeadErr
+}
+func (m *mockVNForL1AtSafeHeadError) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	return m.syncStatusResult, nil
+}
+
+var _ virtual_node.VirtualNode = (*mockVNForL1AtSafeHeadError)(nil)
+
 // TestChainContainer_LocalSafeBlockAtTimestamp tests the LocalSafeBlockAtTimestamp method
 func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 	t.Parallel()
@@ -1097,4 +1165,19 @@ func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 			runTest(t, tc)
 		})
 	}
+}
+
+func TestChainContainer_SyncStatus_UninitializedVirtualNode(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, createTestVNConfig(), log, cfg, initOverload, nil, nil, nil)
+
+	status, err := container.SyncStatus(context.Background())
+	require.Nil(t, status)
+	require.ErrorIs(t, err, virtual_node.ErrVirtualNodeNotRunning)
 }

@@ -93,10 +93,8 @@ contract DeployConfig is Script {
     uint256 public faultGameV2ClockExtension;
     uint256 public faultGameV2MaxClockDuration;
 
-    bool public useL2CM;
-
-    bool public useInterop;
     bool public useUpgradedFork;
+    bool public useInterop;
     bytes32 public devFeatureBitmap;
 
     bool public useRevenueShare;
@@ -185,12 +183,10 @@ contract DeployConfig is Script {
         daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
 
-        useL2CM = _readOr(_json, "$.useL2CM", false);
-
-        useInterop = _readOr(_json, "$.useInterop", false);
         devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
         useUpgradedFork;
         useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
+        useInterop = _readOr(_json, "$.useInterop", false);
         chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
         faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", 73);
         faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
@@ -242,14 +238,14 @@ contract DeployConfig is Script {
         useAltDA = _useAltDA;
     }
 
-    /// @notice Allow the `useInterop` config to be overridden in testing environments
-    function setUseInterop(bool _useInterop) public {
-        useInterop = _useInterop;
-    }
-
     /// @notice Allow the `useRevenueShare` config to be overridden in testing environments
     function setUseRevenueShare(bool _useRevenueShare) public {
         useRevenueShare = _useRevenueShare;
+    }
+
+    /// @notice Allow the `useInterop` config to be overriden in testing environments
+    function setUseInterop(bool _useInterop) public {
+        useInterop = _useInterop;
     }
 
     /// @notice Allow the `l1FeesDepositor` config to be overridden in testing environments
@@ -321,11 +317,6 @@ contract DeployConfig is Script {
     /// @notice Allow the `operatorFeeVaultWithdrawalNetwork` config to be overridden in testing environments
     function setOperatorFeeVaultWithdrawalNetwork(uint256 _operatorFeeVaultWithdrawalNetwork) public {
         operatorFeeVaultWithdrawalNetwork = _operatorFeeVaultWithdrawalNetwork;
-    }
-
-    /// @notice Allow the `useL2CM` config to be overridden in testing environments
-    function setUseL2CM(bool _useL2CM) public {
-        useL2CM = _useL2CM;
     }
 
     function latestGenesisFork() internal view returns (Fork) {

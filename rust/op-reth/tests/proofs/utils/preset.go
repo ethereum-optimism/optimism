@@ -56,48 +56,38 @@ func (m *MixedOpProofPreset) RethWithProofL2ELNode() *dsl.L2ELNode {
 	return m.L2ELValidator
 }
 
-func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind, defaultProof bool) (sysgo.MixedL2ELKind, bool) {
+func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind) sysgo.MixedL2ELKind {
 	switch os.Getenv(envVar) {
-	case "op-reth-with-proof":
-		return sysgo.MixedL2ELOpReth, true
-	case "op-reth":
-		return sysgo.MixedL2ELOpReth, false
+	case "op-reth-with-proof", "op-reth":
+		return sysgo.MixedL2ELOpReth
 	case "op-geth":
-		return sysgo.MixedL2ELOpGeth, false
+		return sysgo.MixedL2ELOpGeth
 	default:
-		return defaultKind, defaultProof
+		return defaultKind
 	}
 }
 
 // NewMixedOpProofPreset creates the preset using MixedSingleChainRuntime for
 // full control over EL client types.
 func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
-	seqKind, seqProof := resolveELSpec(
-		"OP_DEVSTACK_PROOF_SEQUENCER_EL",
-		sysgo.MixedL2ELOpGeth, false,
-	)
-	valKind, valProof := resolveELSpec(
-		"OP_DEVSTACK_PROOF_VALIDATOR_EL",
-		sysgo.MixedL2ELOpReth, true,
-	)
+	seqKind := resolveELSpec("OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpGeth)
+	valKind := resolveELSpec("OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
 
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
 			{
-				ELKey:          "sequencer",
-				CLKey:          "sequencer",
-				ELKind:         seqKind,
-				ELProofHistory: seqProof,
-				CLKind:         sysgo.MixedL2CLOpNode,
-				IsSequencer:    true,
+				ELKey:       "sequencer",
+				CLKey:       "sequencer",
+				ELKind:      seqKind,
+				CLKind:      sysgo.MixedL2CLOpNode,
+				IsSequencer: true,
 			},
 			{
-				ELKey:          "validator",
-				CLKey:          "validator",
-				ELKind:         valKind,
-				ELProofHistory: valProof,
-				CLKind:         sysgo.MixedL2CLOpNode,
-				IsSequencer:    false,
+				ELKey:       "validator",
+				CLKey:       "validator",
+				ELKind:      valKind,
+				CLKind:      sysgo.MixedL2CLOpNode,
+				IsSequencer: false,
 			},
 		},
 		WithTestSequencer: true,

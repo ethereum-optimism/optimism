@@ -1,67 +1,65 @@
 # E2E tests for op-reth
 
-This folder contains the end-to-end testing resources for op-reth. Tests use the Optimism "devstack" (from the Optimism monorepo) and Kurtosis to deploy ephemeral devnets.
+This folder contains the end-to-end testing resources for op-reth. Tests run against in-process `op-devstack` systems (sysgo).
 
-This README documents common workflows and Makefile commands used to build the local Docker image, start the devnet with Kurtosis, run e2e tests, and clean up resources.
+This README documents common workflows and justfile recipes used to build artifacts and run e2e tests.
 
 ## Prerequisites
 
-- Docker (Desktop) running on your machine
-- Kurtosis CLI installed and able to reach the Kurtosis engine
 - Go (to run Go-based e2e tests)
+- Rust toolchain (to build `op-reth`)
+- Foundry (`forge`) for proof contract artifacts
 
-## Commands (Makefile targets)
+## Commands
 
-Build the Docker image used by the devnet (tags `op-reth:local`):
+List all available recipes:
 
 ```sh
-make build
+just --list
 ```
 
-Start the Optimism devnet (default: `simple-historical-proof`):
+Build the local `op-reth` binary (release):
 
 ```sh
-# uses the Makefile's DEVNET variable (devnets/<DEVNET>.yaml)
-# OPTIONAL. Default: opgeth-seq-opreth-val
-make run DEVNET=<name_of_YAML_without_file_extension>
-
-# or with a custom devnet YAML path
-make run DEVNET_CUSTOM_PATH=/absolute/path/to/devnet.yaml
+just build
 ```
 
-Run the e2e test suite that exercises the deployed devnet (Go tests):
+Run the e2e test suite in sysgo mode (Go tests):
 
 ```sh
-# runs go test with a long timeout; set GO_PKG_NAME to the package to test
-make test-e2e-kurtosis
+# runs go test with a long timeout; defaults to GO_PKG_NAME=proofs/core
+just test-e2e-sysgo
 
 # run a specific test or package
-make test-e2e-kurtosis GO_PKG_NAME=path/to/pkg
+GO_PKG_NAME=path/to/pkg just test-e2e-sysgo
 ```
 
-Stop and remove Kurtosis resources (cleanup):
+Build smart contract artifacts with Foundry:
 
 ```sh
-make clean
+just build-contracts
+```
+
+Build contracts-bedrock forge artifacts (required by sysgo deployer):
+
+```sh
+just build-bedrock-contracts
 ```
 
 ## Implementation notes
 
-- The Makefile in this directory calls the repository root `DockerfileOp` to build an op-reth image tagged `op-reth:local`.
-- The default Kurtosis package used is `github.com/ethpandaops/optimism-package@1.4.0`. The Makefile passes the YAML under `devnets/$(DEVNET).yaml` to `kurtosis run`.
+- `just test-e2e-sysgo` depends on `build-contracts` and runs automatically.
+- The test target sets `OP_RETH_EXEC_PATH` to `../../target/release/op-reth`.
+- You can override proof EL kinds with:
+  - `OP_DEVSTACK_PROOF_SEQUENCER_EL`
+  - `OP_DEVSTACK_PROOF_VALIDATOR_EL`
 
 ## Quick workflow example
 
 ```sh
-# build image
-make build
-
-# start devnet
-make run
+# build op-reth
+just build
 
 # run tests (set GO_PKG_NAME if needed)
-make test-e2e-kurtosis GO_PKG_NAME=proofs
-
-# cleanup
-make clean
+GO_PKG_NAME=proofs just test-e2e-sysgo
 ```
