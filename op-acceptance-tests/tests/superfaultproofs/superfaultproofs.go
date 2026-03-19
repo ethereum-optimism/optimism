@@ -183,7 +183,7 @@ func runKonaInteropProgram(t devtest.T, cfg vm.Config, l1Head common.Hash, agree
 	// the context timeout fires and the process is killed, CombinedOutput
 	// can block indefinitely waiting for pipe EOF (e.g. if a child process
 	// or unclosed descriptor keeps the pipe open).
-	cmd.WaitDelay = 10 * time.Second
+	cmd.WaitDelay = 60 * time.Second
 
 	out, runErr := cmd.CombinedOutput()
 	if expectValid {
