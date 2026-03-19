@@ -97,6 +97,10 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 		return
 	}
 	defer upConn.Close()
+	if p.stopped.Load() {
+		p.mu.Unlock()
+		return
+	}
 	p.conns[downConn] = struct{}{}
 	p.conns[upConn] = struct{}{}
 	p.mu.Unlock()
@@ -132,11 +136,16 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 func (p *Proxy) Close() error {
 	p.stopped.Store(true)
 	p.lis.Close()
+
+	// Close all tracked connections under the lock. handleConn checks
+	// p.stopped under p.mu before adding new connections, so after this
+	// iteration no new connections can appear in p.conns.
 	p.mu.Lock()
 	for conn := range p.conns {
 		conn.Close()
 	}
 	p.mu.Unlock()
+
 	p.wg.Wait()
 	return nil
 }
