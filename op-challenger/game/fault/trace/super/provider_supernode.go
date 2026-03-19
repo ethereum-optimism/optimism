@@ -50,7 +50,6 @@ func (s *SuperNodeTraceProvider) Get(ctx context.Context, pos types.Position) (c
 }
 
 func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context.Context, timestamp uint64) ([]byte, error) {
-	s.logger.Info("Getting preimage bytes at timestamp boundary", "timestamp", timestamp)
 	root, err := s.rootProvider.SuperRootAtTimestamp(ctx, timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve super root at timestamp %v: %w", timestamp, err)
@@ -60,12 +59,10 @@ func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context
 		return nil, types2.ErrNotInSync
 	}
 	if root.Data == nil {
-		s.logger.Info("No block at this timestamp so it must be invalid", "timestamp", timestamp)
 		// No block at this timestamp so it must be invalid
 		return InvalidTransition, nil
 	}
 	if root.Data.VerifiedRequiredL1.Number > s.l1Head.Number {
-		s.logger.Info("Previous root was not safe at the game L1 head so we must have already transitioned to the invalid hash", "timestamp", timestamp)
 		return InvalidTransition, nil
 	}
 	return root.Data.Super.Marshal(), nil
@@ -81,7 +78,6 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	if step == 0 {
 		return s.getPreimageBytesAtTimestampBoundary(ctx, timestamp)
 	}
-	s.logger.Info("Fetching previous super root at timestamp", "timestamp", timestamp)
 	// Fetch the super root at the next timestamp since we are part way through the transition to it
 	prevRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, timestamp)
 	if err != nil {
@@ -91,18 +87,15 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		return nil, types2.ErrNotInSync
 	}
 	if prevRoot.Data == nil {
-		s.logger.Info("No block at this timestamp so it must be invalid", "timestamp", timestamp)
 		// No block at this timestamp so it must be invalid
 		return InvalidTransition, nil
 	}
 	if prevRoot.Data.VerifiedRequiredL1.Number > s.l1Head.Number {
-		s.logger.Info("Previous root was not safe at the game L1 head so we must have already transitioned to the invalid hash", "timestamp", timestamp)
 		// The previous root was not safe at the game L1 head so we must have already transitioned to the invalid hash
 		// prior to this step and it then repeats forever.
 		return InvalidTransition, nil
 	}
 	nextTimestamp := timestamp + 1
-	s.logger.Info("Fetching next super root at timestamp", "timestamp", timestamp, "nextTimestamp", nextTimestamp)
 	nextRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, nextTimestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve next super root at timestamp %v: %w", nextTimestamp, err)
@@ -127,12 +120,10 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		// Check if the chain's optimistic root was safe at the game's L1 head
 		optimistic, ok := nextRoot.OptimisticAtTimestamp[chainID]
 		if !ok {
-			s.logger.Info("No block at this timestamp for a chain that needs to be processed at this step, so return invalid", "timestamp", timestamp, "chainID", chainID, "isNil", nextRoot.Data == nil)
 			// No block at this timestamp for a chain that needs to be processed at this step, so return invalid
 			return InvalidTransition, nil
 		}
 		if optimistic.RequiredL1.Number > s.l1Head.Number {
-			s.logger.Info("Not enough data on L1 to derive the optimistic block, move to invalid transition", "timestamp", timestamp, "chainID", chainID)
 			// Not enough data on L1 to derive the optimistic block, move to invalid transition.
 			return InvalidTransition, nil
 		}
@@ -142,7 +133,6 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 			OutputRoot: optimistic.Output.OutputRoot,
 		})
 	}
-	s.logger.Info("Returning expected state", "timestamp", timestamp, "step", step)
 	return expectedState.Marshal(), nil
 }
 
