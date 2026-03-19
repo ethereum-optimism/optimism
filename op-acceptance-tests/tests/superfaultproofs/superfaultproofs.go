@@ -386,40 +386,50 @@ func buildTransitionTests(
 	}
 }
 
+// isOptimisticNotDerivable checks whether a chain's optimistic block at the given timestamp
+// would trigger InvalidTransition in the provider. This happens when the block is absent
+// from the response or its RequiredL1 exceeds the provided L1 head.
+func isOptimisticNotDerivable(resp eth.SuperRootAtTimestampResponse, chainID eth.ChainID, l1Head eth.BlockID) bool {
+	opt, ok := resp.OptimisticAtTimestamp[chainID]
+	return !ok || opt.RequiredL1.Number > l1Head.Number
+}
+
 // buildAfterChainHeadTests constructs test cases for transitions past the chain head,
 // where the proposed block timestamp exceeds the validated timestamp.
 //
-// l1HeadCurrent has data for endTimestamp only (sequencers must be stopped before
-// batchers run to ensure the batcher doesn't submit data beyond endTimestamp).
-// l1HeadAdvanced has data for endTimestamp+1.
+// Rather than predicting derivability from block times (which is unreliable in a devstack
+// environment where sequencers may produce extra blocks), the function queries the supernode
+// to determine what is actually derivable at each L1 head.
 func buildAfterChainHeadTests(
+	sn *dsl.Supernode,
 	chains []*chain,
 	end, endNext eth.SuperV1,
 	endTimestamp uint64,
 	l1HeadCurrent, l1HeadAdvanced eth.BlockID,
 	firstOptimisticNext, secondOptimisticNext interopTypes.OptimisticBlock,
 ) []*transitionTest {
-	// Determine if each chain produces a new block at endTimestamp+1.
-	firstBlockAtEnd, _ := chains[0].Cfg.TargetBlockNumber(endTimestamp)
-	firstBlockAtNext, _ := chains[0].Cfg.TargetBlockNumber(endTimestamp + 1)
-	firstHasNewBlock := firstBlockAtEnd != firstBlockAtNext
+	nextTimestamp := endTimestamp + 1
 
-	secondBlockAtEnd, _ := chains[1].Cfg.TargetBlockNumber(endTimestamp)
-	secondBlockAtNext, _ := chains[1].Cfg.TargetBlockNumber(endTimestamp + 1)
-	secondHasNewBlock := secondBlockAtEnd != secondBlockAtNext
-	anyNewBlock := firstHasNewBlock || secondHasNewBlock
+	// Query the supernode to determine actual derivability at each timestamp.
+	// This is robust against sequencers producing extra blocks that get batched.
+	nextResp := sn.SuperRootAtTimestamp(nextTimestamp)
+	firstNotDerivable := isOptimisticNotDerivable(nextResp, chains[0].ID, l1HeadCurrent)
+	anyNotDerivable := firstNotDerivable || isOptimisticNotDerivable(nextResp, chains[1].ID, l1HeadCurrent)
+
+	// Check whether the super root at endTimestamp+1 is verified with l1HeadCurrent.
+	// When any chain's optimistic block isn't derivable, the consolidated super root
+	// won't be either, causing InvalidTransition to cascade to later steps.
+	endNextVerified := nextResp.Data != nil && nextResp.Data.VerifiedRequiredL1.Number <= l1HeadCurrent.Number
 
 	claimTimestamp := endTimestamp + 100
 
 	tests := make([]*transitionTest, 0, 6)
 
 	// Test 1: First chain's optimistic block step at the next timestamp.
-	// When the first chain has a new block at endTimestamp+1, it can't be derived with
-	// l1HeadCurrent (which only has data up to endTimestamp), so the transition is invalid.
-	// When the first chain does NOT have a new block (uniform block times), the block at
-	// endTimestamp+1 is the same as endTimestamp, so l1HeadCurrent works.
+	// When the first chain's block at endTimestamp+1 is not derivable with l1HeadCurrent,
+	// the transition is invalid. Otherwise the transition state is valid.
 	disputedChainA := marshalTransition(end, 1, firstOptimisticNext)
-	if firstHasNewBlock {
+	if firstNotDerivable {
 		disputedChainA = super.InvalidTransition
 	}
 	tests = append(tests, &transitionTest{
@@ -456,17 +466,31 @@ func buildAfterChainHeadTests(
 	})
 
 	// Test 4: First chain's optimistic block step two timestamps ahead.
-	// The block at endTimestamp+2 can't be derived under l1HeadCurrent.
-	// When any chain has a new block at endTimestamp+1, the trace was already invalid
-	// from an earlier step (with l1HeadCurrent).
+	// When endTimestamp+1 isn't verified with l1HeadCurrent, InvalidTransition cascades.
+	// Otherwise, check whether the chain's optimistic block at endTimestamp+2 is derivable.
 	agreedBlockAfterHead := endNext.Marshal()
-	if anyNewBlock {
+	disputedBlockAfterHead := super.InvalidTransition
+	if !endNextVerified {
+		// Super root at endTimestamp+1 is not verified with l1HeadCurrent.
+		// The consolidated root step (agreed claim at this index) already returned
+		// InvalidTransition, so everything after cascades.
 		agreedBlockAfterHead = super.InvalidTransition
+	} else {
+		// endTimestamp+1 is verified. Check if chain A's block at endTimestamp+2 is derivable.
+		nextNextResp := sn.SuperRootAtTimestamp(endTimestamp + 2)
+		if !isOptimisticNotDerivable(nextNextResp, chains[0].ID, l1HeadCurrent) {
+			// Block at endTimestamp+2 is derivable — compute the expected transition.
+			opt := nextNextResp.OptimisticAtTimestamp[chains[0].ID]
+			disputedBlockAfterHead = marshalTransition(endNext, 1, interopTypes.OptimisticBlock{
+				BlockHash:  opt.Output.BlockRef.Hash,
+				OutputRoot: opt.Output.OutputRoot,
+			})
+		}
 	}
 	tests = append(tests, &transitionTest{
 		Name:               "DisputeBlockAfterChainHead-FirstChain",
 		AgreedClaim:        agreedBlockAfterHead,
-		DisputedClaim:      super.InvalidTransition,
+		DisputedClaim:      disputedBlockAfterHead,
 		L1Head:             l1HeadCurrent,
 		ClaimTimestamp:     claimTimestamp,
 		DisputedTraceIndex: 2 * stepsPerTimestamp,
@@ -474,8 +498,10 @@ func buildAfterChainHeadTests(
 	})
 
 	// Test 5: Consolidation step far past the chain head.
+	// At 4*stepsPerTimestamp, the data is far enough out that it should always be InvalidTransition.
+	// Use l1HeadCurrent when the earlier cascade started there, otherwise l1HeadAdvanced.
 	l1HeadConsolidate := l1HeadAdvanced
-	if anyNewBlock {
+	if anyNotDerivable {
 		l1HeadConsolidate = l1HeadCurrent
 	}
 	tests = append(tests, &transitionTest{
@@ -697,17 +723,21 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	startTimestamp := endTimestamp - 1
 
 	// Ensure both chains have produced the target blocks as unsafe.
-	// Stop each sequencer immediately after reaching the target to prevent producing
-	// blocks beyond endTimestamp — which would cause batchers to submit extra data
-	// and make l1HeadCurrent cover more timestamps than intended.
 	for _, c := range chains {
 		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
-		c.CLNode.StopSequencer()
 	}
 
 	// -- Stage 2: Capture L1 heads at different batch-availability points --
+	//
+	// Stop sequencers so the batchers only submit data for blocks up to the current
+	// unsafe heads (approximately endTimestamp). This ensures l1HeadCurrent doesn't
+	// contain batch data for blocks well beyond endTimestamp — which is critical for
+	// the "after chain head" tests that rely on a restricted L1 head.
+	for _, c := range chains {
+		c.CLNode.StopSequencer()
+	}
 
 	// L1 head where neither chain has batch data at endTimestamp.
 	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
@@ -724,14 +754,18 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].Batcher.Stop()
 
 	// -- Stage 2b: Advance safe heads past endTimestamp for "after chain head" tests --
-	// Start each sequencer just long enough to produce the next block, then stop it
-	// immediately to prevent blocks beyond nextTimestamp.
-	nextTimestamp := endTimestamp + 1
+	// Restart sequencers so they produce blocks at the next timestamp.
 	for _, c := range chains {
 		c.CLNode.StartSequencer()
+	}
+	nextTimestamp := endTimestamp + 1
+	for _, c := range chains {
 		target, err := c.Cfg.TargetBlockNumber(nextTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
+	}
+	// Stop sequencers again to limit what the batchers submit.
+	for _, c := range chains {
 		c.CLNode.StopSequencer()
 	}
 	chains[0].Batcher.Start()
@@ -740,6 +774,10 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	l1HeadAdvanced := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(nextTimestamp))
 	chains[0].Batcher.Stop()
 	chains[1].Batcher.Stop()
+	// Restart sequencers for cleanup.
+	for _, c := range chains {
+		c.CLNode.StartSequencer()
+	}
 
 	// --- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
@@ -762,7 +800,7 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	tests := buildTransitionTests(start, end, step1, step2, padding,
 		l1HeadCurrent, l1HeadBefore, l1HeadAfterFirst, endTimestamp)
 	tests = append(tests, buildAfterChainHeadTests(
-		chains, end, endNext, endTimestamp, l1HeadCurrent, l1HeadAdvanced,
+		sys.SuperRoots, chains, end, endNext, endTimestamp, l1HeadCurrent, l1HeadAdvanced,
 		firstOptimisticNext, secondOptimisticNext)...)
 
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
@@ -808,17 +846,18 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	startTimestamp := endTimestamp - 1
 
 	// Ensure both chains have produced the target blocks as unsafe.
-	// Stop each sequencer immediately after reaching the target to prevent producing
-	// blocks beyond endTimestamp — which would cause batchers to submit extra data
-	// and make l1HeadCurrent cover more timestamps than intended.
 	for _, c := range chains {
 		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
-		c.CLNode.StopSequencer()
 	}
 
 	// -- Stage 2: Capture L1 heads at different batch-availability points --
+	// Stop sequencers so the batchers only submit data for blocks up to the current
+	// unsafe heads (approximately endTimestamp).
+	for _, c := range chains {
+		c.CLNode.StopSequencer()
+	}
 
 	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
 
@@ -832,14 +871,18 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].Batcher.Stop()
 
 	// -- Stage 2b: Advance safe heads past endTimestamp for "after chain head" tests --
-	// Start each sequencer just long enough to produce the next block, then stop it
-	// immediately to prevent blocks beyond nextTimestamp.
-	nextTimestamp := endTimestamp + 1
+	// Restart sequencers so they produce blocks at the next timestamp.
 	for _, c := range chains {
 		c.CLNode.StartSequencer()
+	}
+	nextTimestamp := endTimestamp + 1
+	for _, c := range chains {
 		target, err := c.Cfg.TargetBlockNumber(nextTimestamp)
 		t.Require().NoError(err)
 		c.EL.Reached(eth.Unsafe, target, 60)
+	}
+	// Stop sequencers again to limit what the batchers submit.
+	for _, c := range chains {
 		c.CLNode.StopSequencer()
 	}
 	chains[0].Batcher.Start()
@@ -848,6 +891,10 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	l1HeadAdvanced := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(nextTimestamp))
 	chains[0].Batcher.Stop()
 	chains[1].Batcher.Stop()
+	// Restart sequencers for cleanup.
+	for _, c := range chains {
+		c.CLNode.StartSequencer()
+	}
 
 	// -- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
@@ -870,7 +917,7 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	tests := buildTransitionTests(start, end, step1, step2, padding,
 		l1HeadCurrent, l1HeadBefore, l1HeadAfterFirst, endTimestamp)
 	tests = append(tests, buildAfterChainHeadTests(
-		chains, end, endNext, endTimestamp, l1HeadCurrent, l1HeadAdvanced,
+		sys.SuperRoots, chains, end, endNext, endTimestamp, l1HeadCurrent, l1HeadAdvanced,
 		firstOptimisticNext, secondOptimisticNext)...)
 
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
