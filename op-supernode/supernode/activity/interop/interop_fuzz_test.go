@@ -10,6 +10,8 @@ import (
 )
 
 func FuzzVerifyInteropMessages(f *testing.F) {
+	f.Add(int64(69), byte('\x00')) // Failing test (gap > blockTime, because the chain randomizer isn't respecting blockTime yet)
+
 	f.Fuzz(func(t *testing.T, seed int64, numChainsRaw uint8) {
 		params := RandomChainParams {
 			chainCount:             max(2, int(numChainsRaw)),
