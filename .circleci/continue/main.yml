@@ -1689,6 +1689,10 @@ jobs:
 
   op-acceptance-tests:
     parameters:
+      gate:
+        description: The gate to run. Reads package list from op-acceptance-tests/gates/<gate>.txt. If empty, runs all tests.
+        type: string
+        default: ""
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona)"
         type: string
@@ -1742,8 +1746,7 @@ jobs:
           working_directory: op-acceptance-tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
-            echo "Running all acceptance test packages via gotestsum/go test..."
-            LOG_LEVEL=info just acceptance-test-all
+            LOG_LEVEL=info just acceptance-test "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2647,7 +2650,7 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
-          no_output_timeout: 120m # Allow longer runs for memory-all gate
+          no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -2657,11 +2660,12 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # IN-MEMORY (all) - op-node/op-reth
+      # IN-MEMORY (base gate) - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
+          gate: "base"
           l2_el_kind: op-reth
-          no_output_timeout: 120m # Allow longer runs for memory-all gate
+          no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -2671,12 +2675,13 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # IN-MEMORY (all) - kona/op-reth
+      # IN-MEMORY (base gate) - kona/op-reth
       - op-acceptance-tests:
           name: memory-all-kona-op-reth
+          gate: "base"
           l2_cl_kind: kona
           l2_el_kind: op-reth
-          no_output_timeout: 120m # Allow longer runs for memory-all gate
+          no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

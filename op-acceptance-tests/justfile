@@ -2,18 +2,18 @@ REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test-all
+    @just acceptance-test
 
-acceptance-test-all:
-    @just _acceptance-test
-
-acceptance-test:
-    @just acceptance-test-all
-
-_acceptance-test:
+# Run acceptance tests, optionally filtered by a gate (reads packages from gates/<gate>.txt)
+acceptance-test gate="":
     #!/usr/bin/env bash
     set -euo pipefail
-    echo -e "DEVNET: in-memory, MODE: all tests\n"
+    GATE="{{gate}}"
+    if [[ -n "$GATE" ]]; then
+        echo -e "DEVNET: in-memory, GATE: $GATE\n"
+    else
+        echo -e "DEVNET: in-memory, MODE: all tests\n"
+    fi
 
     # Build dependencies for in-process mode if not in CI.
     # In CI jobs already take care of this, so we skip it.
@@ -92,8 +92,28 @@ _acceptance-test:
         grep -RIn "MarkFlaky(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
     fi
 
+    # Determine which packages to test
+    if [[ -n "$GATE" ]]; then
+        GATE_FILE="{{REPO_ROOT}}/op-acceptance-tests/gates/${GATE}.txt"
+        if [[ ! -f "$GATE_FILE" ]]; then
+            echo "error: gate file not found: $GATE_FILE" >&2
+            exit 1
+        fi
+        # Read non-empty, non-comment lines from the gate file
+        TEST_PACKAGES=()
+        while IFS= read -r line; do
+            line="${line%%#*}"   # strip comments
+            line="${line// /}"   # strip whitespace
+            [[ -z "$line" ]] && continue
+            TEST_PACKAGES+=("$line")
+        done < "$GATE_FILE"
+        echo "Gate '$GATE': ${#TEST_PACKAGES[@]} packages"
+    else
+        TEST_PACKAGES=("./op-acceptance-tests/tests/...")
+    fi
+
     set +e
-    LOG_LEVEL="${LOG_LEVEL}" gotestsum \
+    LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
         --format testname \
         --junitfile "$RESULTS_DIR/results.xml" \
         --jsonfile "$LOG_DIR/raw_go_events.log" \
@@ -102,7 +122,7 @@ _acceptance-test:
         -p "${JOBS}" \
         -parallel "${TEST_PARALLEL}" \
         -timeout "${TEST_TIMEOUT}" \
-        ./op-acceptance-tests/tests/... \
+        "${TEST_PACKAGES[@]}" \
         2>&1 | tee "$LOG_DIR/all.log"
     TEST_STATUS=${PIPESTATUS[0]}
     set -e
