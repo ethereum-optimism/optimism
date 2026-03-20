@@ -128,32 +128,32 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 		return err
 	}
 	v.inner = n
-	// Release the lock once the inner node is created
 	v.state = VNStateRunning
 	v.mu.Unlock()
-	// Don't hold the lock while running or waiting for inner node to stop
 
 	// Run inner node in goroutine
 	// and await any signal to exit (Stop(), parent ctx, or inner error)
 	var innerErr error = nil
 	go func() {
-		innerErr = v.inner.Start(runCtx)
+		innerErr = n.Start(runCtx)
 	}()
 	<-runCtx.Done()
 
-	// Clean up with lock to end of function
+	// Update state under lock, but do NOT hold the lock during inner.Stop().
+	// inner.Stop() drains the op-node event system, which may call back into
+	// this VirtualNode (e.g. SyncStatus via EngineController.FinalizedHead).
+	// SyncStatus needs v.mu, so holding it here would deadlock.
 	v.mu.Lock()
-	defer v.mu.Unlock()
 	v.state = VNStateStopped
 	v.cancel = nil
+	v.mu.Unlock()
 
-	// Stop the inner node if it's still running
-	if v.inner != nil {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := v.inner.Stop(stopCtx); err != nil {
-			v.log.Error("error stopping inner node", "err", err)
-		}
+	// Stop the inner node outside the lock. Use n which is the local reference
+	// to the inner node created at the top of this function.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer stopCancel()
+	if err := n.Stop(stopCtx); err != nil {
+		v.log.Error("error stopping inner node", "err", err)
 	}
 
 	// Return inner error if that's what caused the cancellation, otherwise context error
