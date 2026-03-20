@@ -4,6 +4,7 @@ use crate::{
     CONFIG_UPDATE_TOPIC, RollupConfig, SystemConfigLog, SystemConfigUpdateError,
     SystemConfigUpdateKind,
 };
+use alloc::vec::Vec;
 use alloy_consensus::{Eip658Value, Receipt};
 use alloy_primitives::{Address, B64, Log, U256};
 
@@ -118,33 +119,35 @@ impl<'a> serde::Deserialize<'a> for SystemConfig {
 impl SystemConfig {
     /// Filters all L1 receipts to find config updates and applies the config updates.
     ///
-    /// Returns `true` if any config updates were applied, `false` otherwise.
+    /// Each config update log is applied independently. Malformed or invalid updates are
+    /// skipped so that subsequent valid updates in the same block are still processed.
+    /// This matches the op-node reference behavior in `UpdateSystemConfigWithL1Receipts`.
+    ///
+    /// Returns the successfully applied update kinds and any errors encountered.
     pub fn update_with_receipts(
         &mut self,
         receipts: &[Receipt],
         l1_system_config_address: Address,
         ecotone_active: bool,
-    ) -> Result<bool, SystemConfigUpdateError> {
-        let mut updated = false;
-        for receipt in receipts {
-            if Eip658Value::Eip658(false) == receipt.status {
-                continue;
-            }
-
-            receipt.logs.iter().try_for_each(|log| {
+    ) -> (Vec<SystemConfigUpdateKind>, Vec<SystemConfigUpdateError>) {
+        receipts
+            .iter()
+            .filter(|r| r.status != Eip658Value::Eip658(false))
+            .flat_map(|r| &r.logs)
+            .filter(|log| {
                 let topics = log.topics();
-                if log.address == l1_system_config_address &&
+                log.address == l1_system_config_address &&
                     !topics.is_empty() &&
                     topics[0] == CONFIG_UPDATE_TOPIC
-                {
-                    // Safety: Error is bubbled up by the trailing `?`
-                    self.process_config_update_log(log, ecotone_active)?;
-                    updated = true;
+            })
+            .map(|log| self.process_config_update_log(log, ecotone_active))
+            .fold((Vec::new(), Vec::new()), |(mut updates, mut errors), result| {
+                match result {
+                    Ok(kind) => updates.push(kind),
+                    Err(e) => errors.push(e),
                 }
-                Ok::<(), SystemConfigUpdateError>(())
-            })?;
-        }
-        Ok(updated)
+                (updates, errors)
+            })
     }
 
     /// Returns the eip1559 parameters from a [`SystemConfig`] encoded as a [B64].
@@ -222,6 +225,17 @@ mod test {
     use crate::{CONFIG_UPDATE_EVENT_VERSION_0, HardForkConfig};
     use alloc::vec;
     use alloy_primitives::{B256, LogData, address, b256, hex};
+
+    const BATCHER_UPDATE_TYPE: B256 =
+        b256!("0000000000000000000000000000000000000000000000000000000000000000");
+    const GAS_CONFIG_UPDATE_TYPE: B256 =
+        b256!("0000000000000000000000000000000000000000000000000000000000000001");
+    const GAS_LIMIT_UPDATE_TYPE: B256 =
+        b256!("0000000000000000000000000000000000000000000000000000000000000002");
+    const EIP1559_UPDATE_TYPE: B256 =
+        b256!("0000000000000000000000000000000000000000000000000000000000000004");
+    const OPERATOR_FEE_UPDATE_TYPE: B256 =
+        b256!("0000000000000000000000000000000000000000000000000000000000000005");
 
     #[test]
     #[cfg(feature = "serde")]
@@ -382,18 +396,16 @@ mod test {
         let l1_system_config_address = Address::ZERO;
         let ecotone_active = false;
 
-        let updated = system_config
-            .update_with_receipts(&receipts, l1_system_config_address, ecotone_active)
-            .unwrap();
-        assert!(!updated);
+        let (updates, errors) =
+            system_config.update_with_receipts(&receipts, l1_system_config_address, ecotone_active);
+        assert!(updates.is_empty());
+        assert!(errors.is_empty());
 
         assert_eq!(system_config, SystemConfig::default());
     }
 
     #[test]
     fn test_system_config_update_with_receipts_batcher_address() {
-        const UPDATE_TYPE: B256 =
-            b256!("0000000000000000000000000000000000000000000000000000000000000000");
         let mut system_config = SystemConfig::default();
         let l1_system_config_address = Address::ZERO;
         let ecotone_active = false;
@@ -404,7 +416,7 @@ mod test {
                 vec![
                     CONFIG_UPDATE_TOPIC,
                     CONFIG_UPDATE_EVENT_VERSION_0,
-                    UPDATE_TYPE,
+                    BATCHER_UPDATE_TYPE,
                 ],
                 hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000beef").into()
             )
@@ -416,10 +428,13 @@ mod test {
             cumulative_gas_used: 0,
         };
 
-        let updated = system_config
-            .update_with_receipts(&[receipt], l1_system_config_address, ecotone_active)
-            .unwrap();
-        assert!(updated);
+        let (updates, errors) = system_config.update_with_receipts(
+            &[receipt],
+            l1_system_config_address,
+            ecotone_active,
+        );
+        assert_eq!(updates, vec![SystemConfigUpdateKind::Batcher]);
+        assert!(errors.is_empty());
 
         assert_eq!(
             system_config.batcher_address,
@@ -429,9 +444,6 @@ mod test {
 
     #[test]
     fn test_system_config_update_batcher_log() {
-        const UPDATE_TYPE: B256 =
-            b256!("0000000000000000000000000000000000000000000000000000000000000000");
-
         let mut system_config = SystemConfig::default();
 
         let update_log = Log {
@@ -440,7 +452,7 @@ mod test {
                 vec![
                     CONFIG_UPDATE_TOPIC,
                     CONFIG_UPDATE_EVENT_VERSION_0,
-                    UPDATE_TYPE,
+                    BATCHER_UPDATE_TYPE,
                 ],
                 hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000beef").into()
             )
@@ -457,9 +469,6 @@ mod test {
 
     #[test]
     fn test_system_config_update_gas_config_log() {
-        const UPDATE_TYPE: B256 =
-            b256!("0000000000000000000000000000000000000000000000000000000000000001");
-
         let mut system_config = SystemConfig::default();
 
         let update_log = Log {
@@ -468,13 +477,13 @@ mod test {
                 vec![
                     CONFIG_UPDATE_TOPIC,
                     CONFIG_UPDATE_EVENT_VERSION_0,
-                    UPDATE_TYPE,
+                    GAS_CONFIG_UPDATE_TYPE,
                 ],
                 hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000babe000000000000000000000000000000000000000000000000000000000000beef").into()
             )
         };
 
-        // Update the batcher address.
+        // Update the gas config.
         system_config.process_config_update_log(&update_log, false).unwrap();
 
         assert_eq!(system_config.overhead, U256::from(0xbabe));
@@ -483,9 +492,6 @@ mod test {
 
     #[test]
     fn test_system_config_update_gas_config_log_ecotone() {
-        const UPDATE_TYPE: B256 =
-            b256!("0000000000000000000000000000000000000000000000000000000000000001");
-
         let mut system_config = SystemConfig::default();
 
         let update_log = Log {
@@ -494,13 +500,13 @@ mod test {
                 vec![
                     CONFIG_UPDATE_TOPIC,
                     CONFIG_UPDATE_EVENT_VERSION_0,
-                    UPDATE_TYPE,
+                    GAS_CONFIG_UPDATE_TYPE,
                 ],
                 hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000babe000000000000000000000000000000000000000000000000000000000000beef").into()
             )
         };
 
-        // Update the gas limit.
+        // Update the gas config (ecotone).
         system_config.process_config_update_log(&update_log, true).unwrap();
 
         assert_eq!(system_config.overhead, U256::from(0));
@@ -509,9 +515,6 @@ mod test {
 
     #[test]
     fn test_system_config_update_gas_limit_log() {
-        const UPDATE_TYPE: B256 =
-            b256!("0000000000000000000000000000000000000000000000000000000000000002");
-
         let mut system_config = SystemConfig::default();
 
         let update_log = Log {
@@ -520,7 +523,7 @@ mod test {
                 vec![
                     CONFIG_UPDATE_TOPIC,
                     CONFIG_UPDATE_EVENT_VERSION_0,
-                    UPDATE_TYPE,
+                    GAS_LIMIT_UPDATE_TYPE,
                 ],
                 hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000beef").into()
             )
@@ -534,9 +537,6 @@ mod test {
 
     #[test]
     fn test_system_config_update_eip1559_params_log() {
-        const UPDATE_TYPE: B256 =
-            b256!("0000000000000000000000000000000000000000000000000000000000000004");
-
         let mut system_config = SystemConfig::default();
         let update_log = Log {
             address: Address::ZERO,
@@ -544,7 +544,7 @@ mod test {
                 vec![
                     CONFIG_UPDATE_TOPIC,
                     CONFIG_UPDATE_EVENT_VERSION_0,
-                    UPDATE_TYPE,
+                    EIP1559_UPDATE_TYPE,
                 ],
                 hex!("000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000babe0000beef").into()
             )
@@ -559,17 +559,14 @@ mod test {
 
     #[test]
     fn test_system_config_update_operator_fee_log() {
-        const UPDATE_TYPE: B256 =
-            b256!("0000000000000000000000000000000000000000000000000000000000000005");
-
         let mut system_config = SystemConfig::default();
-        let update_log  = Log {
+        let update_log = Log {
             address: Address::ZERO,
             data: LogData::new_unchecked(
                 vec![
                     CONFIG_UPDATE_TOPIC,
                     CONFIG_UPDATE_EVENT_VERSION_0,
-                    UPDATE_TYPE,
+                    OPERATOR_FEE_UPDATE_TYPE,
                 ],
                 hex!("0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000babe000000000000beef").into()
             )
@@ -580,5 +577,53 @@ mod test {
 
         assert_eq!(system_config.operator_fee_scalar, Some(0xbabe_u32));
         assert_eq!(system_config.operator_fee_constant, Some(0xbeef_u64));
+    }
+
+    #[test]
+    fn test_update_with_receipts_continues_past_malformed_log() {
+        let mut system_config = SystemConfig::default();
+        let l1_system_config_address = Address::ZERO;
+
+        // Malformed batcher update: non-zero upper 12 bytes in batcher hash
+        let malformed_log = Log {
+            address: Address::ZERO,
+            data: LogData::new_unchecked(
+                vec![
+                    CONFIG_UPDATE_TOPIC,
+                    CONFIG_UPDATE_EVENT_VERSION_0,
+                    BATCHER_UPDATE_TYPE,
+                ],
+                // ABI-encoded address with dirty upper bytes — will fail address decoding
+                hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020dead00000000000000000000000000000000000000000000000000000000beef").into()
+            )
+        };
+
+        // Valid gas limit update (different type to prove the malformed one didn't apply)
+        let valid_log = Log {
+            address: Address::ZERO,
+            data: LogData::new_unchecked(
+                vec![
+                    CONFIG_UPDATE_TOPIC,
+                    CONFIG_UPDATE_EVENT_VERSION_0,
+                    GAS_LIMIT_UPDATE_TYPE,
+                ],
+                hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000beef").into()
+            )
+        };
+
+        let receipt = Receipt {
+            logs: vec![malformed_log, valid_log],
+            status: Eip658Value::Eip658(true),
+            cumulative_gas_used: 0,
+        };
+
+        let (updates, errors) =
+            system_config.update_with_receipts(&[receipt], l1_system_config_address, false);
+        assert_eq!(updates, vec![SystemConfigUpdateKind::GasLimit]);
+        assert_eq!(errors.len(), 1);
+        // Malformed batcher update was skipped — address unchanged.
+        assert_eq!(system_config.batcher_address, Address::ZERO);
+        // Valid gas limit update was still applied.
+        assert_eq!(system_config.gas_limit, 0xbeef_u64);
     }
 }

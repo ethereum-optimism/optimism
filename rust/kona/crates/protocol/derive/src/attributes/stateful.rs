@@ -111,14 +111,16 @@ where
                 derive_deposits(epoch.hash, &receipts, self.rollup_cfg.deposit_contract_address)
                     .await
                     .map_err(|e| PipelineError::BadEncoding(e).crit())?;
-            // Failure to update the system config is non-fatal: one or more receipts may
-            // contain malformed or invalid config update logs. Log a warning and continue.
-            if let Err(err) = sys_config.update_with_receipts(
+            let (updates, errors) = sys_config.update_with_receipts(
                 &receipts,
                 self.rollup_cfg.l1_system_config_address,
                 self.rollup_cfg.is_ecotone_active(header.timestamp),
-            ) {
-                warn!(target: "attributes", ?err, "Failed to update system config at epoch {} (non-fatal, continuing)", epoch.number);
+            );
+            for kind in &updates {
+                info!(target: "attributes", epoch = epoch.number, %kind, "Applied system config update");
+            }
+            for err in &errors {
+                warn!(target: "attributes", ?err, epoch = epoch.number, "Malformed system config update (skipped)");
             }
             l1_header = header;
             deposit_transactions = deposits;

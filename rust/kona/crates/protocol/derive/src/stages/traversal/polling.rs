@@ -98,26 +98,13 @@ impl<F: ChainProvider + Send> OriginAdvancer for PollingTraversal<F> {
         let receipts =
             self.data_source.receipts_by_hash(next_l1_origin.hash).await.map_err(Into::into)?;
 
-        let addr = self.rollup_config.l1_system_config_address;
-        let active = self.rollup_config.is_ecotone_active(next_l1_origin.timestamp);
-        match self.system_config.update_with_receipts(&receipts[..], addr, active) {
-            Ok(true) => {
-                let next = next_l1_origin.number as f64;
-                kona_macros::set!(gauge, crate::Metrics::PIPELINE_LATEST_SYS_CONFIG_UPDATE, next);
-                info!(target: "l1_traversal", "System config updated at block {next}.");
-            }
-            Ok(false) => { /* Ignore, no update applied */ }
-            Err(err) => {
-                // Failure to update the system config is non-fatal: one or more receipts may be
-                // malformed or invalid. Log a warning and continue.
-                warn!(target: "l1_traversal", ?err, "Failed to update system config at block {} (non-fatal, continuing)", next_l1_origin.number);
-                kona_macros::set!(
-                    gauge,
-                    crate::Metrics::PIPELINE_SYS_CONFIG_UPDATE_ERROR,
-                    next_l1_origin.number as f64
-                );
-            }
-        }
+        super::update_system_config_with_receipts(
+            &mut self.system_config,
+            &receipts,
+            self.rollup_config.l1_system_config_address,
+            self.rollup_config.is_ecotone_active(next_l1_origin.timestamp),
+            next_l1_origin.number,
+        );
 
         let prev_block_holocene = self.rollup_config.is_holocene_active(block.timestamp);
         let next_block_holocene = self.rollup_config.is_holocene_active(next_l1_origin.timestamp);

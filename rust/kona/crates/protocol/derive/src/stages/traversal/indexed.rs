@@ -90,26 +90,13 @@ impl<F: ChainProvider> IndexedTraversal<F> {
         let receipts =
             self.data_source.receipts_by_hash(block_info.hash).await.map_err(Into::into)?;
 
-        let addr = self.rollup_config.l1_system_config_address;
-        let active = self.rollup_config.is_ecotone_active(block_info.timestamp);
-        match self.system_config.update_with_receipts(&receipts[..], addr, active) {
-            Ok(true) => {
-                let next = block_info.number as f64;
-                kona_macros::set!(gauge, crate::Metrics::PIPELINE_LATEST_SYS_CONFIG_UPDATE, next);
-                info!(target: "traversal", "System config updated at block {next}.");
-            }
-            Ok(false) => { /* Ignore, no update applied */ }
-            Err(err) => {
-                // Failure to update the system config is non-fatal: one or more receipts may be
-                // malformed or invalid. Log a warning and continue.
-                warn!(target: "traversal", ?err, "Failed to update system config at block {} (non-fatal, continuing)", block_info.number);
-                kona_macros::set!(
-                    gauge,
-                    crate::Metrics::PIPELINE_SYS_CONFIG_UPDATE_ERROR,
-                    block_info.number as f64
-                );
-            }
-        }
+        super::update_system_config_with_receipts(
+            &mut self.system_config,
+            &receipts,
+            self.rollup_config.l1_system_config_address,
+            self.rollup_config.is_ecotone_active(block_info.timestamp),
+            block_info.number,
+        );
 
         // Update the origin block.
         self.update_origin(block_info);
