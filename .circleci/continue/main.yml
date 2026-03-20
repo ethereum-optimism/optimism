@@ -1757,12 +1757,6 @@ jobs:
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR"/failed/*.log || true
           when: on_fail
-      - run:
-          name: Print results (all)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/all.log" || true
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
