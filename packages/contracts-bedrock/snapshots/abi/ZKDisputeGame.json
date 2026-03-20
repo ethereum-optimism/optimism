@@ -672,11 +672,6 @@
   },
   {
     "inputs": [],
-    "name": "IncorrectDisputeGameFactory",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidBondDistributionMode",
     "type": "error"
   },

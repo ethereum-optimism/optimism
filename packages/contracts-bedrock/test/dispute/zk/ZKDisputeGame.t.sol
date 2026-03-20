@@ -23,8 +23,7 @@ import {
     GameNotOver,
     UnknownChainId,
     BondTransferFailed,
-    AlreadyInitialized,
-    IncorrectDisputeGameFactory
+    AlreadyInitialized
 } from "src/dispute/lib/Errors.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 
@@ -493,16 +492,6 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // The game is already initialized in setUp. Calling initialize again should revert.
         vm.expectRevert(AlreadyInitialized.selector);
         game.initialize{ value: 1 ether }();
-    }
-
-    function test_initialize_calledByEOA_reverts() public {
-        // Deploy a fresh (uninitialized) implementation.
-        ZKDisputeGame freshImpl = new ZKDisputeGame();
-
-        // Calling initialize from an EOA (code.length == 0) should revert.
-        vm.prank(proposer);
-        vm.expectRevert(IncorrectDisputeGameFactory.selector);
-        freshImpl.initialize{ value: 1 ether }();
     }
 }
 

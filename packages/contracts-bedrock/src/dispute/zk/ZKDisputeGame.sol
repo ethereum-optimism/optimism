@@ -21,7 +21,6 @@ import {
     GameNotResolved,
     GamePaused,
     IncorrectBondAmount,
-    IncorrectDisputeGameFactory,
     InvalidBondDistributionMode,
     NoCreditToClaim,
     UnexpectedRootClaim,
@@ -273,9 +272,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
-
-        // INVARIANT: The game must be initialized by the dispute game factory.
-        if (msg.sender.code.length == 0) revert IncorrectDisputeGameFactory();
 
         // Revert if the calldata size is not the expected length.
         //
