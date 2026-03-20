@@ -486,10 +486,7 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
     function test_setCustomGasToken_succeeds() external {
         // Reset the isCustomGasToken() and isFeatureEnabled(CUSTOM_GAS_TOKEN) flags
         stdstore.target(address(l1BlockCGT)).sig("isCustomGasToken()").checked_write(false);
-        stdstore
-            .target(address(l1BlockCGT))
-            .sig("isFeatureEnabled(string)")
-            .with_key("CUSTOM_GAS_TOKEN")
+        stdstore.target(address(l1BlockCGT)).sig("isFeatureEnabled(bytes32)").with_key(Features.CUSTOM_GAS_TOKEN)
             .checked_write(false);
         // This test uses the setUp that already activates custom gas token
         assertFalse(l1BlockCGT.isCustomGasToken());
@@ -510,58 +507,58 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
     }
 }
 
-/// @title L1Block_EnableFeature_Test
-/// @notice Tests for the system customization feature enable/disable functionality.
-contract L1Block_EnableFeature_Test is L1Block_TestInit {
+/// @title L1Block_SetFeature_Test
+/// @notice Tests for the system customization feature set functionality.
+contract L1Block_SetFeature_Test is L1Block_TestInit {
     /// @notice Redeclare the event for expectEmit.
-    event FeatureEnabled(string indexed feature);
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
-    /// @notice Tests that enableFeature succeeds when called by the depositor.
-    function test_enableFeature_succeeds() external {
+    /// @notice Tests that setFeature succeeds when called by the depositor.
+    function test_setFeature_succeeds() external {
         vm.expectEmit(Predeploys.L1_BLOCK_ATTRIBUTES);
-        emit FeatureEnabled("INTEROP");
+        emit FeatureSet(Features.INTEROP, true);
 
         vm.prank(depositor);
-        l1Block.enableFeature("INTEROP");
+        l1Block.setFeature(Features.INTEROP);
 
-        assertTrue(l1Block.isFeatureEnabled("INTEROP"));
+        assertTrue(l1Block.isFeatureEnabled(Features.INTEROP));
     }
 
-    /// @notice Tests that enableFeature reverts when called by a non-depositor.
-    function test_enableFeature_notDepositor_reverts() external {
+    /// @notice Tests that setFeature reverts when called by a non-depositor.
+    function test_setFeature_notDepositor_reverts() external {
         vm.expectRevert(NotDepositor.selector);
-        l1Block.enableFeature("INTEROP");
+        l1Block.setFeature(Features.INTEROP);
     }
 
-    /// @notice Tests that enableFeature reverts when the feature is already enabled.
-    function test_enableFeature_alreadyEnabled_reverts() external {
+    /// @notice Tests that setFeature reverts when the feature is already enabled.
+    function test_setFeature_alreadyEnabled_reverts() external {
         vm.prank(depositor);
-        l1Block.enableFeature("INTEROP");
+        l1Block.setFeature(Features.INTEROP);
 
         vm.prank(depositor);
         vm.expectRevert(L1Block_FeatureAlreadyEnabled.selector);
-        l1Block.enableFeature("INTEROP");
+        l1Block.setFeature(Features.INTEROP);
     }
 
     /// @notice Tests that isFeatureEnabled returns false by default.
     function test_isFeatureEnabled_defaultFalse_succeeds() external view {
-        assertFalse(l1Block.isFeatureEnabled("INTEROP"));
+        assertFalse(l1Block.isFeatureEnabled(Features.INTEROP));
     }
 
     /// @notice Tests that multiple features can be enabled independently.
-    function test_enableFeature_multipleFeatures_succeeds() external {
+    function test_setFeature_multipleFeatures_succeeds() external {
         vm.startPrank(depositor);
-        l1Block.enableFeature("INTEROP");
-        l1Block.enableFeature("OTHER");
+        l1Block.setFeature(Features.INTEROP);
+        l1Block.setFeature(Features.CUSTOM_GAS_TOKEN);
         vm.stopPrank();
 
-        assertTrue(l1Block.isFeatureEnabled("INTEROP"));
-        assertTrue(l1Block.isFeatureEnabled("OTHER"));
-        assertFalse(l1Block.isFeatureEnabled("UNSET"));
+        assertTrue(l1Block.isFeatureEnabled(Features.INTEROP));
+        assertTrue(l1Block.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
+        assertFalse(l1Block.isFeatureEnabled(Features.ETH_LOCKBOX));
     }
 
-    /// @notice Tests that isFeatureEnabled with an empty string returns false.
-    function test_isFeatureEnabled_emptyString_succeeds() external view {
-        assertFalse(l1Block.isFeatureEnabled(""));
+    /// @notice Tests that isFeatureEnabled with zero bytes32 returns false.
+    function test_isFeatureEnabled_zero_succeeds() external view {
+        assertFalse(l1Block.isFeatureEnabled(bytes32(0)));
     }
 }

@@ -19,6 +19,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // Libraries
+import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
@@ -158,7 +159,8 @@ contract L2ContractsManager is ISemver {
     /// @return fullConfig_ The full configuration.
     function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
         // Read system customization flags from L1Block
-        fullConfig_.isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled("CUSTOM_GAS_TOKEN");
+        fullConfig_.isCustomGasToken =
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
@@ -239,7 +241,7 @@ contract L2ContractsManager is ISemver {
     function _apply(L2ContractsManagerTypes.FullConfig memory _config) internal {
         // Read any dev flags
         bool _useInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            && IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled("INTEROP");
+            && IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP);
 
         // Initializable predeploys.
 

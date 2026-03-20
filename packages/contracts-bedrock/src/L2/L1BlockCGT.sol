@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 
@@ -70,6 +71,6 @@ contract L1BlockCGT is L1Block {
         }
 
         // Mirror the legacy flag into the system customization mapping
-        _setFeature("CUSTOM_GAS_TOKEN");
+        _setFeature(Features.CUSTOM_GAS_TOKEN);
     }
 }

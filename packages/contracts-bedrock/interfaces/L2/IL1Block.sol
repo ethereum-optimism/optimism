@@ -5,7 +5,7 @@ interface IL1Block {
     error NotDepositor();
     error L1Block_FeatureAlreadyEnabled();
 
-    event FeatureEnabled(string indexed feature);
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
     function DEPOSITOR_ACCOUNT() external pure returns (address addr_);
     function baseFeeScalar() external view returns (uint32);
@@ -41,8 +41,8 @@ interface IL1Block {
     function setL1BlockValuesJovian() external;
     function timestamp() external view returns (uint64);
     function version() external pure returns (string memory);
-    function enableFeature(string memory _feature) external;
-    function isFeatureEnabled(string memory _feature) external view returns (bool enabled_);
+    function setFeature(bytes32 _feature) external;
+    function isFeatureEnabled(bytes32) external view returns (bool);
 
     function __constructor__() external;
 }

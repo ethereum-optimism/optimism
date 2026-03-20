@@ -36,6 +36,7 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
@@ -419,7 +420,7 @@ contract L2Genesis is Script {
         }
         if (_input.useInterop) {
             vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
-            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).enableFeature("INTEROP");
+            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.INTEROP);
             vm.stopPrank();
         }
     }
