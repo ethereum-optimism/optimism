@@ -506,6 +506,37 @@ contract OPContractsManagerStandardValidator is ISemver {
         return _errors;
     }
 
+    /// @notice Asserts the post-upgrade system shape when super game types are in use.
+    ///         Checks that legacy game types are disabled and super game types are registered.
+    ///         This only validates system shape, not full game configuration. State transition
+    ///         checks (e.g., "was this chain already migrated?") belong in Superchain Ops scripts.
+    function assertValidSuperGameShape(
+        string memory _errors,
+        ISystemConfig _sysCfg
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IDisputeGameFactory dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+
+        // Legacy game types must have no implementation.
+        _errors = internalRequire(address(dgf.gameImpls(GameTypes.CANNON)) == address(0), "SUPERSHAPE-10", _errors);
+        _errors = internalRequire(
+            address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "SUPERSHAPE-20", _errors
+        );
+        _errors = internalRequire(address(dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0), "SUPERSHAPE-30", _errors);
+        _errors =
+            internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SUPERSHAPE-40", _errors);
+
+        // SUPER_PERMISSIONED_CANNON must always be registered (fallback game).
+        _errors = internalRequire(
+            address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0), "SUPERSHAPE-50", _errors
+        );
+
+        return _errors;
+    }
+
     /// @notice Asserts that the PermissionedDisputeGame contract is valid.
     function assertValidPermissionedDisputeGame(
         string memory _errors,
@@ -880,29 +911,50 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
-        _errors = assertValidPermissionedDisputeGame(
-            _errors, _input.sysCfg, _input.cannonPrestate, _input.l2ChainID, _proxyAdmin, _input.proposer, _overrides
-        );
-        _errors = assertValidPermissionlessDisputeGame(
-            _errors,
-            _input.sysCfg,
-            GameTypes.CANNON,
-            _input.cannonPrestate,
-            _input.l2ChainID,
-            _proxyAdmin,
-            _overrides,
-            "PLDG"
-        );
-        _errors = assertValidPermissionlessDisputeGame(
-            _errors,
-            _input.sysCfg,
-            GameTypes.CANNON_KONA,
-            _input.cannonKonaPrestate,
-            _input.l2ChainID,
-            _proxyAdmin,
-            _overrides,
-            "CKDG"
-        );
+
+        // Determine if the chain is in super game mode by checking the ASR's respectedGameType.
+        bool isSuperMode = false;
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            IOptimismPortal2 portal = IOptimismPortal2(payable(_input.sysCfg.optimismPortal()));
+            IAnchorStateRegistry asr = portal.anchorStateRegistry();
+            GameType rgt = asr.respectedGameType();
+            isSuperMode =
+                rgt.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw() || rgt.raw() == GameTypes.SUPER_CANNON_KONA.raw();
+        }
+
+        if (isSuperMode) {
+            _errors = assertValidSuperGameShape(_errors, _input.sysCfg);
+        } else {
+            _errors = assertValidPermissionedDisputeGame(
+                _errors,
+                _input.sysCfg,
+                _input.cannonPrestate,
+                _input.l2ChainID,
+                _proxyAdmin,
+                _input.proposer,
+                _overrides
+            );
+            _errors = assertValidPermissionlessDisputeGame(
+                _errors,
+                _input.sysCfg,
+                GameTypes.CANNON,
+                _input.cannonPrestate,
+                _input.l2ChainID,
+                _proxyAdmin,
+                _overrides,
+                "PLDG"
+            );
+            _errors = assertValidPermissionlessDisputeGame(
+                _errors,
+                _input.sysCfg,
+                GameTypes.CANNON_KONA,
+                _input.cannonKonaPrestate,
+                _input.l2ChainID,
+                _proxyAdmin,
+                _overrides,
+                "CKDG"
+            );
+        }
 
         _errors = assertValidETHLockbox(_errors, _input.sysCfg, _proxyAdmin);
 
