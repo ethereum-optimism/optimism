@@ -161,6 +161,7 @@ contract L2ContractsManager is ISemver {
         // Read system customization flags from L1Block
         fullConfig_.isCustomGasToken =
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        fullConfig_.isInterop = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP);
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
@@ -240,8 +241,7 @@ contract L2ContractsManager is ISemver {
     /// @param _config The full configuration for the L2 Predeploys.
     function _apply(L2ContractsManagerTypes.FullConfig memory _config) internal {
         // Read any dev flags
-        bool _useInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            && IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP);
+        bool _useInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) && _config.isInterop;
 
         // Initializable predeploys.
 
