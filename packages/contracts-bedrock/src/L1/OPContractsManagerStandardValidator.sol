@@ -506,11 +506,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         return _errors;
     }
 
-    /// @notice Asserts the post-upgrade system shape when super game types are in use.
+    /// @notice Asserts that dispute games are correctly configured for super root mode.
     ///         Checks that legacy game types are disabled and super game types are registered.
     ///         This only validates system shape, not full game configuration. State transition
     ///         checks (e.g., "was this chain already migrated?") belong in Superchain Ops scripts.
-    function assertValidSuperGameShape(
+    function assertValidSuperRootDisputeGames(
         string memory _errors,
         ISystemConfig _sysCfg
     )
@@ -923,7 +923,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         if (isSuperMode) {
-            _errors = assertValidSuperGameShape(_errors, _input.sysCfg);
+            _errors = assertValidSuperRootDisputeGames(_errors, _input.sysCfg);
         } else {
             _errors = assertValidPermissionedDisputeGame(
                 _errors,

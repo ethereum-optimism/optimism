@@ -713,6 +713,8 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         }
 
         bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+
+        // Capture challenger/proposer BEFORE migration zeroes out PERMISSIONED_CANNON.
         address currentProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         address currentChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
 
@@ -757,6 +759,25 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "second upgrade: CANNON still disabled"
         );
+
+        // Run StandardValidator after second upgrade to verify the system shape is valid.
+        if (!vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            IOPContractsManagerStandardValidator validator = opcmV2.opcmStandardValidator();
+            validator.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInputDev({
+                    sysCfg: v2UpgradeInput.systemConfig,
+                    cannonPrestate: cannonPrestate.raw(),
+                    cannonKonaPrestate: cannonKonaPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: currentProposer
+                }),
+                false,
+                IOPContractsManagerStandardValidator.ValidationOverrides({
+                    l1PAOMultisig: v2UpgradeInput.systemConfig.proxyAdminOwner(),
+                    challenger: currentChallenger
+                })
+            );
+        }
     }
 }
 
