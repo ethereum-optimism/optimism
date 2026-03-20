@@ -1,5 +1,6 @@
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
+use base_access_lists::FlashblockAccessList;
 use derive_more::Deref;
 use reth_primitives_traits::NodePrimitives;
 use reth_rpc_eth_types::PendingBlock;
@@ -25,6 +26,8 @@ pub struct PendingFlashBlock<N: NodePrimitives> {
     pub last_flashblock_hash: B256,
     /// Whether the [`PendingBlock`] has a properly computed stateroot.
     pub has_computed_state_root: bool,
+    /// Block access lists for all transactions so far.
+    pub fbal_access_lists: Option<FlashblockAccessList>,
 }
 
 impl<N: NodePrimitives> PendingFlashBlock<N> {
@@ -35,6 +38,7 @@ impl<N: NodePrimitives> PendingFlashBlock<N> {
         last_flashblock_index: u64,
         last_flashblock_hash: B256,
         has_computed_state_root: bool,
+        fbal_access_lists: Option<FlashblockAccessList>,
     ) -> Self {
         Self {
             pending,
@@ -42,6 +46,7 @@ impl<N: NodePrimitives> PendingFlashBlock<N> {
             last_flashblock_index,
             last_flashblock_hash,
             has_computed_state_root,
+            fbal_access_lists,
         }
     }
 
@@ -54,8 +59,10 @@ impl<N: NodePrimitives> PendingFlashBlock<N> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tracing_test::traced_test;
 
     #[test]
+    #[traced_test]
     fn test_flashblock_serde_roundtrip() {
         let raw = r#"{
   "diff": {

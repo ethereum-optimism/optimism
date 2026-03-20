@@ -37,6 +37,8 @@ alloy-consensus.workspace = true
 # op-alloy
 op-alloy-rpc-types-engine = { workspace = true, features = ["k256"] }
 
+base-access-lists.workspace = true
+
 # io
 tokio.workspace = true
 tokio-tungstenite.workspace = true
@@ -65,3 +67,4 @@ op-revm.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-optimism-evm.workspace = true
 reth-provider = { workspace = true, features = ["test-utils"] }
+tracing-test = "0.2.6"

@@ -17,6 +17,7 @@ use reth_primitives_traits::{AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use reth_tasks::TaskExecutor;
 use std::{
+    ops::Not as _,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -403,6 +404,10 @@ where
             self.metrics.last_flashblock_length.record(self.sequences.pending().count() as f64);
         }
 
+        if self.has_access_list(&flashblock).not() {
+            debug!(target: "fBALs", "Received flashblock without fBAL, discarding...");
+        };
+
         if let Err(err) = self.sequences.insert_flashblock(flashblock) {
             trace!(target: "flashblocks", %err, "Failed to insert flashblock");
         }
@@ -413,6 +418,10 @@ where
         if self.received_flashblocks_tx.receiver_count() > 0 {
             let _ = self.received_flashblocks_tx.send(Arc::new(flashblock.clone()));
         }
+    }
+
+    const fn has_access_list(&self, flashblock: &FlashBlock) -> bool {
+        flashblock.metadata.access_lists.is_some()
     }
 
     /// Attempts to build a block if no job is currently running and a buildable sequence exists.

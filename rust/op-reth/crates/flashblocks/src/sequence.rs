@@ -37,6 +37,7 @@ pub struct SequenceExecutionOutcome {
     pub block_hash: B256,
     /// Properly computed state root
     pub state_root: B256,
+    // maybe add accesslist
 }
 
 /// An ordered B-tree keeping the track of a sequence of [`FlashBlock`]s by their indices.
@@ -53,6 +54,8 @@ pub struct FlashBlockPendingSequence {
     /// when fb received on top of the same block. Avoid redundant I/O across multiple
     /// executions within the same block.
     cached_reads: Option<CachedReads>,
+    // /// dfda
+    // access_list_builder: FlashblockAccessList,
 }
 
 impl FlashBlockPendingSequence {
@@ -66,6 +69,7 @@ impl FlashBlockPendingSequence {
             block_broadcaster: tx,
             execution_outcome: None,
             cached_reads: None,
+            // access_list_builder: None,
         }
     }
 
@@ -223,6 +227,8 @@ pub struct FlashBlockCompleteSequence {
     inner: Vec<FlashBlock>,
     /// Optional execution outcome from building the flashblock sequence
     execution_outcome: Option<SequenceExecutionOutcome>,
+    // // access_list
+    // fbal_access_list: FlashblockAccessList,
 }
 
 impl FlashBlockCompleteSequence {

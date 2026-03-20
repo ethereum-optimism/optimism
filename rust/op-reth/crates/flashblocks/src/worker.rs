@@ -5,6 +5,7 @@ use crate::{
 };
 use alloy_eips::{BlockNumberOrTag, eip2718::WithEncoded};
 use alloy_primitives::B256;
+use base_access_lists::FlashblockAccessList;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_chain_state::{ComputedTrieData, ExecutedBlock};
 use reth_errors::RethError;
@@ -34,7 +35,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tracing::trace;
+use tracing::{debug, trace};
 
 /// The `FlashBlockBuilder` builds [`PendingBlock`] out of a sequence of transactions.
 #[derive(Debug)]
@@ -56,6 +57,8 @@ impl<EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider> {
 pub(crate) struct BuildArgs<I, N: NodePrimitives> {
     pub(crate) base: OpFlashblockPayloadBase,
     pub(crate) transactions: I,
+    /// received access list (fBAL).
+    pub(crate) access_lists: Vec<FlashblockAccessList>,
     pub(crate) cached_state: Option<(B256, CachedReads)>,
     pub(crate) last_flashblock_index: u64,
     pub(crate) last_flashblock_hash: B256,
@@ -168,6 +171,9 @@ where
         // Collect transactions and extract hashes for cache lookup
         let transactions: Vec<_> = args.transactions.into_iter().collect();
         let tx_hashes: Vec<B256> = transactions.iter().map(|tx| *tx.tx_hash()).collect();
+        let received_access_lists: Vec<_> = args.access_lists;
+        // this seems off
+        let max_tx_index: u64 = transactions.len().try_into().unwrap();
 
         // Get state provider and parent header context.
         // For speculative builds, use the canonical anchor hash (not the pending parent hash)
@@ -277,15 +283,21 @@ where
                 .with_database(cached_db)
                 .with_bundle_prestate(pending.execution_outcome.state.clone())
                 .with_bundle_update()
+                .with_bal_builder()
                 .build()
         } else if let Some(ref cached_prefix) = cached_prefix {
             State::builder()
                 .with_database(cached_db)
                 .with_bundle_prestate(cached_prefix.bundle.clone())
                 .with_bundle_update()
+                .with_bal_builder()
                 .build()
         } else {
-            State::builder().with_database(cached_db).with_bundle_update().build()
+            State::builder()
+                .with_database(cached_db)
+                .with_bundle_update()
+                .with_bal_builder()
+                .build()
         };
 
         let (execution_result, block, hashed_state, bundle) = if let Some(cached_prefix) =
@@ -317,7 +329,12 @@ where
             let evm = self.evm_config.evm_with_env(&mut state, evm_env);
             let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
 
-            for tx in transactions.iter().skip(cached_prefix.cached_tx_count).cloned() {
+            for (index, tx) in
+                transactions.iter().skip(cached_prefix.cached_tx_count).cloned().enumerate()
+            {
+                let index = index.try_into().unwrap();
+                executor.evm_mut().db_mut().set_bal_index(index);
+                debug!(target: "fBALs", "fBALs index set to {:#?}", index);
                 let _gas_used = executor.execute_transaction(tx)?;
             }
 
@@ -372,7 +389,10 @@ where
 
             builder.apply_pre_execution_changes()?;
 
-            for tx in transactions {
+            for (index, tx) in transactions.into_iter().enumerate() {
+                let index = index.try_into().unwrap();
+                builder.evm_mut().db_mut().set_bal_index(index);
+                debug!(target: "fBALs", "fBALs index set to {:#?}", index);
                 let _gas_used = builder.execute_transaction(tx)?;
             }
 
@@ -429,9 +449,20 @@ where
             args.base.parent_hash,
             canonical_anchor,
             execution_outcome.clone(),
-            request_cache.clone(),
+            state.database.cached.clone(),
         )
         .with_sealed_header(sealed_header);
+
+        let fbal = state.take_built_alloy_bal().expect("account changes was `None`");
+        let min_tx_index = 0;
+        let computed_access_list = FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
+
+        debug!(target: "fBALs", "fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
+
+        // if args.access_list != computed_access_list {
+        //     debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.  Discarding
+        // flashblock.");     return Ok(None);
+        // }
 
         let pending_block = PendingBlock::with_executed_block(
             Instant::now() + Duration::from_secs(1),
@@ -444,12 +475,14 @@ where
                 ),
             ),
         );
+
         let pending_flashblock = PendingFlashBlock::new(
             pending_block,
             canonical_anchor,
             args.last_flashblock_index,
             args.last_flashblock_hash,
             args.compute_state_root,
+            Some(computed_access_list),
         );
 
         Ok(Some(BuildResult { pending_flashblock, cached_reads: request_cache, pending_state }))
@@ -503,6 +536,7 @@ mod tests {
     use alloy_network::TxSignerSync;
     use alloy_primitives::{Address, B256, StorageKey, StorageValue, TxKind, U256};
     use alloy_signer_local::PrivateKeySigner;
+    use base_access_lists::FlashblockAccessList;
     use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
     use op_revm::constants::L1_BLOCK_CONTRACT;
     use reth_optimism_chainspec::OP_MAINNET;
@@ -623,6 +657,7 @@ mod tests {
                 BuildArgs {
                     base: base.clone(),
                     transactions: vec![tx_a.clone(), tx_b.clone()],
+                    access_lists: Default::default(),
                     cached_state: None,
                     last_flashblock_index: 0,
                     last_flashblock_hash: B256::repeat_byte(0xA0),
@@ -675,6 +710,7 @@ mod tests {
                 BuildArgs {
                     base,
                     transactions: vec![tx_a, tx_b, tx_c],
+                    access_lists: Default::default(),
                     cached_state: None,
                     last_flashblock_index: 1,
                     last_flashblock_hash: B256::repeat_byte(0xA1),

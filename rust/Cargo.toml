@@ -636,6 +636,7 @@ url = { version = "2.5.8", default-features = false }
 vergen = "9.1.0"
 vergen-git2 = "9.1.0"
 byteorder = "1"
+base-access-lists = { git = "https://github.com/base/base.git", rev = "264ae1ca69ed19d938c4207a0a3a8940ab4abd3f" }
 
 # allocators
 jemalloc_pprof = { version = "0.8", default-features = false }

@@ -162,9 +162,9 @@ impl TestSequenceManager {
         pending_parent_state: Option<PendingBlockState<N>>,
     ) -> Option<TestBuildArgs<N>> {
         // Priority 1: Check pending sequence (canonical mode)
-        if let Some(first) = self.pending_flashblocks.first() &&
-            let Some(base) = &first.base &&
-            base.parent_hash == local_tip_hash
+        if let Some(first) = self.pending_flashblocks.first()
+            && let Some(base) = &first.base
+            && base.parent_hash == local_tip_hash
         {
             return Some(TestBuildArgs {
                 base: base.clone(),
@@ -175,9 +175,9 @@ impl TestSequenceManager {
 
         // Priority 2: Check cached sequences (canonical mode)
         for (cached, _) in &self.completed_cache {
-            if let Some(first) = cached.first() &&
-                let Some(base) = &first.base &&
-                base.parent_hash == local_tip_hash
+            if let Some(first) = cached.first()
+                && let Some(base) = &first.base
+                && base.parent_hash == local_tip_hash
             {
                 return Some(TestBuildArgs {
                     base: base.clone(),
@@ -190,9 +190,9 @@ impl TestSequenceManager {
         // Priority 3: Speculative building with pending parent state
         if let Some(ref pending_state) = pending_parent_state {
             // Check pending sequence
-            if let Some(first) = self.pending_flashblocks.first() &&
-                let Some(base) = &first.base &&
-                base.parent_hash == pending_state.block_hash
+            if let Some(first) = self.pending_flashblocks.first()
+                && let Some(base) = &first.base
+                && base.parent_hash == pending_state.block_hash
             {
                 return Some(TestBuildArgs {
                     base: base.clone(),
@@ -203,9 +203,9 @@ impl TestSequenceManager {
 
             // Check cached sequences
             for (cached, _) in &self.completed_cache {
-                if let Some(first) = cached.first() &&
-                    let Some(base) = &first.base &&
-                    base.parent_hash == pending_state.block_hash
+                if let Some(first) = cached.first()
+                    && let Some(base) = &first.base
+                    && base.parent_hash == pending_state.block_hash
                 {
                     return Some(TestBuildArgs {
                         base: base.clone(),
@@ -434,6 +434,7 @@ impl TestFlashBlockBuilder {
                 block_number: self.block_number,
                 receipts: Default::default(),
                 new_account_balances: Default::default(),
+                access_lists: None,
             },
         }
     }

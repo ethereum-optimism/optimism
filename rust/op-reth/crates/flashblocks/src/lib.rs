@@ -1,4 +1,5 @@
 //! A downstream integration of Flashblocks.
+//! What does this mean?
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
@@ -94,6 +95,11 @@ impl<N: NodePrimitives> FlashblocksListeners<N> {
         in_progress_rx: InProgressFlashBlockRx,
         received_flashblocks: tokio::sync::broadcast::Sender<Arc<FlashBlock>>,
     ) -> Self {
-        Self { pending_block_rx, flashblocks_sequence, in_progress_rx, received_flashblocks }
+        Self {
+            pending_block_rx,
+            flashblocks_sequence,
+            in_progress_rx,
+            received_flashblocks,
+        }
     }
 }

@@ -16,10 +16,11 @@ use crate::{
 use alloy_eips::eip2718::WithEncoded;
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadId;
+use base_access_lists::FlashblockAccessList;
 use reth_primitives_traits::{
     NodePrimitives, Recovered, SignedTransaction, transaction::TxHashRef,
 };
-use reth_revm::cached::CachedReads;
+use reth_revm::{bytecode::bitvec::access, cached::CachedReads};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use std::collections::{BTreeMap, HashSet};
 use tokio::sync::broadcast;
@@ -396,7 +397,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
     ) -> Option<BuildCandidate<Vec<WithEncoded<Recovered<T>>>, N>> {
         // Try to find a buildable sequence: (ticket, base, last_fb, transactions,
         // cached_state, source_name, pending_parent)
-        let (ticket, base, last_flashblock, transactions, cached_state, source_name, pending_parent) =
+        let (ticket, base, last_flashblock, transactions, access_lists, cached_state, source_name, pending_parent) =
             // Priority 1: Try current pending sequence (canonical mode)
             if let Some(base) = self.pending.sequence.payload_base().filter(|b| b.parent_hash == local_tip_hash) {
                 let revision = self.pending.revision();
@@ -415,7 +416,9 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 let cached_state = self.pending.sequence.take_cached_reads().map(|r| (base.parent_hash, r));
                 let last_fb = self.pending.sequence.last_flashblock()?;
                 let transactions = self.pending.transactions();
-                (ticket, base, last_fb, transactions, cached_state, "pending", None)
+                let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
+
+                (ticket, base, last_fb, transactions, access_lists, cached_state, "pending", None)
             }
             // Priority 2: Try cached sequence with exact parent match (canonical mode)
             else if let Some((cached, txs)) = self.newest_unexecuted_cached_for_parent(local_tip_hash) {
@@ -424,8 +427,9 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 let base = cached.payload_base().clone();
                 let last_fb = cached.last();
                 let transactions = txs.clone();
+                let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
                 let cached_state = None;
-                (ticket, base, last_fb, transactions, cached_state, "cached", None)
+                (ticket, base, last_fb, transactions, access_lists, cached_state, "cached", None)
             }
             // Priority 3: Try speculative building with pending parent state
             else if let Some(ref pending_state) = pending_parent_state {
@@ -447,11 +451,13 @@ impl<T: SignedTransaction> SequenceManager<T> {
                     let cached_state = self.pending.sequence.take_cached_reads().map(|r| (base.parent_hash, r));
                     let last_fb = self.pending.sequence.last_flashblock()?;
                     let transactions = self.pending.transactions();
+                    let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
                     (
                         ticket,
                         base,
                         last_fb,
                         transactions,
+                        access_lists,
                         cached_state,
                         "speculative-pending",
                         pending_parent_state,
@@ -464,12 +470,14 @@ impl<T: SignedTransaction> SequenceManager<T> {
                     let base = cached.payload_base().clone();
                     let last_fb = cached.last();
                     let transactions = txs.clone();
+                    let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
                     let cached_state = None;
                     (
                         ticket,
                         base,
                         last_fb,
                         transactions,
+                        access_lists,
                         cached_state,
                         "speculative-cached",
                         pending_parent_state,
@@ -534,6 +542,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
             args: BuildArgs {
                 base,
                 transactions,
+                access_lists,
                 cached_state,
                 last_flashblock_index: last_flashblock.index,
                 last_flashblock_hash: last_flashblock.diff.block_hash,

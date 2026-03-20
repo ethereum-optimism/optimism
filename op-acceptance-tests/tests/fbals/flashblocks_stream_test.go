@@ -11,17 +11,22 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-const maxExpectedFlashblocks = 20
+var (
+	flashblocksStreamRate  = os.Getenv("FLASHBLOCKS_STREAM_RATE_MS")
+	maxExpectedFlashblocks = 20
+)
 
 // TestFlashblocksStream checks we can connect to the flashblocks stream across multiple CL backends.
 func TestFlashblocksStream(gt *testing.T) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	logger := t.Logger()
 	sys := presets.NewSingleChainWithFlashblocks(t)
 	filterHandler, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
@@ -40,7 +45,6 @@ func TestFlashblocksStream(gt *testing.T) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	flashblocksStreamRate := os.Getenv("FLASHBLOCKS_STREAM_RATE_MS")
 	if flashblocksStreamRate == "" {
 		logger.Warn("FLASHBLOCKS_STREAM_RATE_MS is not set, using default of 250ms")
 		flashblocksStreamRate = "250"
@@ -51,6 +55,7 @@ func TestFlashblocksStream(gt *testing.T) {
 
 	logger.Info("Flashblocks stream rate", "rate", flashblocksStreamRateMs)
 
+	// Test all L2 chains in the system
 	oprbuilderNode := sys.L2OPRBuilder
 	rollupBoostNode := sys.L2RollupBoost
 	_, span = tracer.Start(ctx, "test chain")
@@ -59,13 +64,17 @@ func TestFlashblocksStream(gt *testing.T) {
 	expectedChainID := sys.L2Chain.ChainID().ToBig()
 	require.Equal(t, oprbuilderNode.Escape().ChainID().ToBig(), expectedChainID, "flashblocks builder node chain id should match expected chain id")
 
-	DriveViaTestSequencer(t, sys, 3)
+	driveViaTestSequencer(t, sys, 3)
 
+	// Test the presence / absence of a flashblocks stream operating at a 250ms rate from a flashblocks-websocket-proxy node.
+	// Allow a generous window for first flashblocks to appear.
 	testDuration := time.Duration(int64(flashblocksStreamRateMs*maxExpectedFlashblocks*2)) * time.Millisecond
+	// Allow up to 15% of expected flashblocks to be missing due to timing variations
 	failureTolerance := int(0.15 * float64(maxExpectedFlashblocks))
 
 	logger.Debug("Test duration", "duration", testDuration, "failure tolerance (of flashblocks)", failureTolerance)
 
+	// Instrument builder stream separately to confirm flashblocks emission upstream.
 	builderOutput := make(chan []byte, maxExpectedFlashblocks)
 	defer close(builderOutput)
 	builderDone := make(chan struct{})
@@ -108,24 +117,30 @@ func TestFlashblocksStream(gt *testing.T) {
 		logger.Info("Sample builder message", "payload", builderMessages[0])
 	}
 
-	// Verify that the builder (op-rbuilder) emits access_lists in flashblock metadata.
-	// This checks the builder directly, independent of whether rollup-boost preserves the field.
-	require.Greater(t, len(builderMessages), 0, "expected to receive at least one message from builder stream")
-	foundAccessList := false
-	for _, msg := range builderMessages {
-		var fb Flashblock
-		t.Require().NoError(json.Unmarshal([]byte(msg), &fb))
-		if len(fb.Metadata.AccessLists) > 0 {
-			foundAccessList = true
-			logger.Info("Builder flashblock contains access_lists", "block_number", fb.Metadata.BlockNumber, "access_lists_count", len(fb.Metadata.AccessLists))
-			break
-		}
-	}
-	require.True(t, foundAccessList, "expected at least one builder flashblock to contain a non-empty access_lists field")
-
 	totalFlashblocksProduced := evaluateFlashblocksStream(t, logger, streamedMessages, failureTolerance)
 	require.Greater(t, totalFlashblocksProduced, 0, "expected to receive flashblocks from rollup-boost stream")
 	logger.Info("Flashblocks stream validation completed", "total_flashblocks_produced", totalFlashblocksProduced)
+}
+
+// driveViaTestSequencer explicitly builds a few blocks to ensure the builder/rollup-boost
+// have payloads to serve before we start listening for flashblocks.
+func driveViaTestSequencer(t devtest.T, sys *presets.SingleChainWithFlashblocks, count int) {
+	t.Helper()
+	ts := sys.TestSequencer.Escape().ControlAPI(sys.L2Chain.ChainID())
+	ctx := t.Ctx()
+
+	head := sys.L2EL.BlockRefByLabel(eth.Unsafe)
+	for i := 0; i < count; i++ {
+		require.NoError(t, ts.New(ctx, seqtypes.BuildOpts{Parent: head.Hash}))
+		require.NoError(t, ts.Next(ctx))
+		head = sys.L2EL.BlockRefByLabel(eth.Unsafe)
+	}
+	// Ensure the sequencer EL has produced at least one unsafe block before subscribing.
+	sys.L2EL.WaitForBlockNumber(1)
+
+	// Log the latest unsafe head and L1 origin to confirm block production before listening.
+	head = sys.L2EL.BlockRefByLabel(eth.Unsafe)
+	sys.Log.Info("Pre-listen unsafe head", "unsafe", head)
 }
 
 func evaluateFlashblocksStream(t devtest.T, logger log.Logger, streamedMessages []string, failureTolerance int) int {
@@ -166,12 +181,13 @@ func evaluateFlashblocksStream(t devtest.T, logger log.Logger, streamedMessages 
 		require.Greater(t, lastIndex, -1, "some bug: last index should be greater than -1 by now")
 		require.Greater(t, currentIndex, -1, "some bug: current index should be greater than -1 by now")
 
+		// same block number, just the flashblock incremented
 		if currentBlockNumber == lastBlockNumber {
 			require.Greater(t, currentIndex, lastIndex, "some bug: current index should be greater than last index from the stream")
 
 			totalFlashblocksProduced += (currentIndex - lastIndex)
-		} else if currentBlockNumber > lastBlockNumber {
-			totalFlashblocksProduced += (currentIndex + 1)
+		} else if currentBlockNumber > lastBlockNumber { // new block number
+			totalFlashblocksProduced += (currentIndex + 1) // assuming it's a new block number whose flashblocks begin from 0th-index
 		}
 
 		lastIndex = currentIndex

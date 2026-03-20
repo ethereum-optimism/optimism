@@ -15,6 +15,14 @@ The supported execution path is:
 
 Install repo tools via `mise` as documented in the repository root. Local acceptance runs also build contract and Rust dependencies when needed.
 
+You may also need to run one or more of the following from the root
+
+    make build
+    make install
+    make build-contracts
+    make cannon
+    make cannon-prestates
+
 ## Usage
 
 ### Quick Start

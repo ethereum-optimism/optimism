@@ -2,7 +2,7 @@
 name = "op-alloy-rpc-types-engine"
 description = "Optimism RPC types for the `engine` namespace"
 
-version = "0.23.1"
+version = "0.23.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -17,6 +17,7 @@ workspace = true
 [dependencies]
 # Workspace
 op-alloy-consensus.workspace = true
+base-access-lists.workspace = true
 
 # Alloy
 alloy-primitives.workspace = true

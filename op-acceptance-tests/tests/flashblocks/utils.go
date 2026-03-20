@@ -27,6 +27,7 @@ type Flashblock struct {
 		BlockNumber        int                    `json:"block_number"`
 		NewAccountBalances map[string]string      `json:"new_account_balances"`
 		Receipts           map[string]interface{} `json:"receipts"`
+		AccessLists        map[string]interface{} `json:"access_lists"`
 	} `json:"metadata"`
 }
 

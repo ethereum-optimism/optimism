@@ -325,6 +325,7 @@ impl TestFlashBlockBuilder {
                 block_number: self.block_number,
                 receipts: Default::default(),
                 new_account_balances: Default::default(),
+                access_lists: None,
             },
         }
     }

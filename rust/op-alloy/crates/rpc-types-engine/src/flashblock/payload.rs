@@ -117,6 +117,7 @@ mod tests {
             block_number: 100,
             new_account_balances: BTreeMap::new(),
             receipts: BTreeMap::new(),
+            access_lists: None,
         };
 
         OpFlashblockPayload {
@@ -169,6 +170,7 @@ mod tests {
         assert!(json.contains("\"base\""));
         assert!(json.contains("\"diff\""));
         assert!(json.contains("\"metadata\""));
+        assert!(json.contains("\"access_lists\""));
     }
 
     #[test]
@@ -191,4 +193,16 @@ mod tests {
         assert_eq!(payload.diff, OpFlashblockPayloadDelta::default());
         assert_eq!(payload.metadata, OpFlashblockPayloadMetadata::default());
     }
+
+    // #[test]
+    // #[cfg(feature = "serde")]
+    // fn test_payload_metadata_access_lists_omitted_when_none() {
+    //     let mut payload = sample_payload();
+    //     payload.metadata.access_lists = None;
+
+    //     let json = serde_json::to_string(&payload).unwrap();
+    //     dbg!(&json);
+    //     // Base should not be serialized when None (skip_serializing_if)
+    //     assert!(!json.contains("\"access_lists\""));
+    // }
 }

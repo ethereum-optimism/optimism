@@ -112,6 +112,7 @@ mod tests {
             0,
             B256::ZERO,
             false,
+            None,
         );
 
         assert_eq!(pending_state_history_lookup_hash(&pending_flashblock), canonical_anchor_hash);
