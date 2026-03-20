@@ -330,6 +330,11 @@
   },
   {
     "inputs": [],
+    "name": "L2ContractsManager_FeatureFlagMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "L2ContractsManager_InitializingDuringUpgrade",
     "type": "error"
   },

@@ -31,6 +31,7 @@ import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.s
 contract L2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
+    error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
     /// @custom:semver 1.2.0
@@ -161,7 +162,12 @@ contract L2ContractsManager is ISemver {
         // Read system customization flags from L1Block
         fullConfig_.isCustomGasToken =
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
-        fullConfig_.isInterop = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP);
+
+        // Interop requires both the dev feature flag and the system customization flag to agree.
+        bool _devInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        bool _sysInterop = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP);
+        if (_devInterop != _sysInterop) revert L2ContractsManager_FeatureFlagMismatch();
+        fullConfig_.isInterop = _sysInterop;
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
@@ -240,9 +246,6 @@ contract L2ContractsManager is ISemver {
     ///         configuration to each predeploy.
     /// @param _config The full configuration for the L2 Predeploys.
     function _apply(L2ContractsManagerTypes.FullConfig memory _config) internal {
-        // Read any dev flags
-        bool _useInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) && _config.isInterop;
-
         // Initializable predeploys.
 
         // L2CrossDomainMessenger
@@ -415,7 +418,7 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
 
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
-        if (_useInterop) {
+        if (_config.isInterop) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
             L2ContractsManagerUtils.upgradeTo(
                 Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL

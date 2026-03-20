@@ -99,9 +99,9 @@
   },
   {
     "bytes": "32",
-    "label": "_enabledFeatures",
+    "label": "isFeatureEnabled",
     "offset": 0,
     "slot": "9",
-    "type": "mapping(string => bool)"
+    "type": "mapping(bytes32 => bool)"
   }
 ]

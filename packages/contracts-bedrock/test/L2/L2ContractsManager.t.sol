@@ -972,6 +972,12 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
         address currentImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.etch(currentImpl, bytes(""));
 
+        // Clear the INTEROP system feature on L1Block to stay consistent with the dev feature
+        // being unavailable, otherwise _loadFullConfig will revert on the mismatch check.
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(
+            Features.INTEROP
+        ).checked_write(false);
+
         implementations.l2DevFeatureFlagsImpl = makeAddr("emptyFlagsImpl");
         _deployL2CM();
     }
