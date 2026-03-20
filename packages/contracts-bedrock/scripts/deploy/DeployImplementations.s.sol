@@ -19,6 +19,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
 import { Duration } from "src/dispute/lib/Types.sol";
 import {
     IOPContractsManager,
@@ -102,6 +103,7 @@ contract DeployImplementations is Script {
         IPermissionedDisputeGame permissionedDisputeGameImpl;
         ISuperFaultDisputeGame superFaultDisputeGameImpl;
         ISuperPermissionedDisputeGame superPermissionedDisputeGameImpl;
+        IZKDisputeGame zkDisputeGameImpl;
         IStorageSetter storageSetterImpl;
     }
 
@@ -139,6 +141,9 @@ contract DeployImplementations is Script {
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             deploySuperFaultDisputeGameImpl(_input, output_);
             deploySuperPermissionedDisputeGameImpl(_input, output_);
+        }
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            deployZKDisputeGameImpl(output_);
         }
         deployStorageSetterImpl(output_);
 
@@ -247,6 +252,7 @@ contract DeployImplementations is Script {
             permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
             superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
             superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl),
+            zkDisputeGameImpl: address(_output.zkDisputeGameImpl),
             storageSetterImpl: address(_output.storageSetterImpl)
         });
 
@@ -658,6 +664,14 @@ contract DeployImplementations is Script {
         _output.superPermissionedDisputeGameImpl = impl;
     }
 
+    function deployZKDisputeGameImpl(Output memory _output) private {
+        IZKDisputeGame impl =
+            IZKDisputeGame(DeployUtils.createDeterministic({ _name: "ZKDisputeGame", _args: hex"", _salt: _salt })); // nosemgrep:
+            // sol-safety-deployutils-args
+        vm.label(address(impl), "ZKDisputeGameImpl");
+        _output.zkDisputeGameImpl = impl;
+    }
+
     function deployOPCMBPImplsContainer(
         Input memory _input,
         Output memory _output,
@@ -1029,6 +1043,13 @@ contract DeployImplementations is Script {
             require(
                 address(_output.superPermissionedDisputeGameImpl) == address(0),
                 "DeployImplementations: OptimismPortalInterop flag disabled but SuperPermissionedDisputeGame was deployed"
+            );
+        }
+
+        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            require(
+                address(_output.zkDisputeGameImpl) == address(0),
+                "DeployImplementations: ZK_DISPUTE_GAME flag disabled but ZKDisputeGame was deployed"
             );
         }
 

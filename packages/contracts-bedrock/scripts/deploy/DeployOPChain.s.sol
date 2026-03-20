@@ -28,7 +28,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
+import { GameTypes, Claim, Duration } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChain is Script {
     /// @notice The default init bond for the dispute games.
@@ -163,9 +163,10 @@ contract DeployOPChain is Script {
             "DeployOPChain: only PERMISSIONED_CANNON game type is supported for initial deployment"
         );
 
-        // Build dispute game configs - OPCMV2 requires exactly 3 configs: CANNON, PERMISSIONED_CANNON, CANNON_KONA
+        // Build dispute game configs - OPCMV2 requires exactly 4 configs: CANNON, PERMISSIONED_CANNON, CANNON_KONA,
+        // ZK_DISPUTE_GAME
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](4);
 
         // Config 0: CANNON
         // Must be disabled for the initial deployment since no prestate exists for permissionless games.
@@ -198,6 +199,23 @@ contract DeployOPChain is Script {
             initBond: 0,
             gameType: GameTypes.CANNON_KONA,
             gameArgs: bytes("")
+        });
+
+        // Config 3: ZK_DISPUTE_GAME
+        // Must be disabled for the initial deployment.
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(0)),
+                    verifier: address(0),
+                    maxChallengeDuration: Duration.wrap(0),
+                    maxProveDuration: Duration.wrap(0),
+                    challengerBond: 0
+                })
+            )
         });
 
         config_ = IOPContractsManagerV2.FullConfig({

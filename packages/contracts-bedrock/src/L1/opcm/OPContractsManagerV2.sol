@@ -680,15 +680,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
-    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
+    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
         // Start validating the dispute game configs. Put allowed game types here. Note that
         // these game types are intentionally hardcoded rather than sourced from a shared utility.
         // When new game types are added, this list and the corresponding list in the Migrator's
         // _migratePortal function must both be updated.
-        GameType[] memory validGameTypes = new GameType[](3);
+        GameType[] memory validGameTypes = new GameType[](4);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
+        validGameTypes[3] = GameTypes.ZK_DISPUTE_GAME;
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
@@ -713,6 +714,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (
                 _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.PERMISSIONED_CANNON.raw())
                     && _cfg.disputeGameConfigs[i].enabled
+            ) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // ZK_DISPUTE_GAME can only be enabled when the dev feature is active.
+            if (
+                validGameTypes[i].raw() == GameTypes.ZK_DISPUTE_GAME.raw()
+                    && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME) && _cfg.disputeGameConfigs[i].enabled
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
@@ -754,11 +763,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         returns (ChainContracts memory)
     {
-        // Validate the config.
-        _assertValidFullConfig(_cfg, _isInitialDeployment);
-
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
+
+        // Validate that the ZK dispute game implementation is set when the feature is enabled.
+        if (isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME) && impls.zkDisputeGameImpl == address(0)) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Validate the config.
+        _assertValidFullConfig(_cfg, _isInitialDeployment);
 
         // Make sure the provided SuperchainConfig is up to date.
         if (SemverComp.lt(_cfg.superchainConfig.version(), ISuperchainConfig(impls.superchainConfigImpl).version())) {

@@ -29,6 +29,7 @@ interface IOPContractsManagerContainer {
         address permissionedDisputeGameImpl;
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
+        address zkDisputeGameImpl;
         address storageSetterImpl;
     }
 
