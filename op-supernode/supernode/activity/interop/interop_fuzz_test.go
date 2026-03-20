@@ -25,14 +25,25 @@ func FuzzVerifyInteropMessages(f *testing.F) {
 
 		interop := fuzzInterop.interop
 
+		// Update the LogDBs for the chains
+		for {
+			advanced, err := interop.progressAndRecord()
+			require.NoError(t, err)
+			if !advanced {
+				break
+			}
+		}
+
 		randomChain := fuzzInterop.randomChain
 		safeCutoff := randomChain.cutoffs.localSafe
 
 		safeBlock := randomChain.allBlocks[safeCutoff]
-		timestamp := safeBlock.block.Time
+		safeTimestamp := safeBlock.block.Time
 
-		blocksAtTimestamp, _ := interop.checkChainsReady(timestamp)
-		result, err := interop.verifyInteropMessages(timestamp, blocksAtTimestamp)
+		blocksAtTimestamp, err := interop.checkChainsReady(safeTimestamp)
+		require.NoError(t, err)
+
+		result, err := interop.verifyInteropMessages(safeTimestamp, blocksAtTimestamp)
 		require.NoError(t, err)
 
 		// P1: Valid messages never produce InvalidHeads
@@ -66,7 +77,6 @@ func newInteropFuzzHarness(t *testing.T) *interopFuzzHarness {
 	return &interopFuzzHarness{
 		t:              t,
 		mocks:          make(map[eth.ChainID]cc.ChainContainer),
-		activationTime: 1000,
 		dataDir:        t.TempDir(),
 	}
 }
@@ -112,6 +122,12 @@ func (h *interopFuzzHarness) Build() *interopFuzzHarness {
 		return h
 	}
 	h.randomChain = h.params.MakeRandomChain(h.seed)
+
+	// Find an activationTime that all chains can satisfy
+	for _, blocks := range h.randomChain.chainBlocks {
+		h.activationTime = max(h.activationTime, blocks[0].Time)
+	}
+
 	h.mocks = h.randomChain.GetContainers()
 	h.interop = New(testLogger(), h.activationTime, h.mocks, h.dataDir)
 	if h.interop != nil {

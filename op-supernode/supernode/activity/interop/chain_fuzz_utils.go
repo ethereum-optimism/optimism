@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"math/rand"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -117,8 +118,12 @@ func (c RandomChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts 
 }
 
 func (c RandomChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	//TODO
-	return nil, nil
+	heads := c.randomChain.chainHeads[c.chainID]
+	blocks := c.randomChain.chainBlocks[c.chainID]
+	unsafeBlock := blocks[heads.localUnsafe]
+	cb := ChainBlock{chain: c.chainID, block: unsafeBlock}
+	l1Origin := c.randomChain.l1SourceMap[cb]
+	return &eth.SyncStatus{CurrentL1: l1Origin}, nil
 }
 
 func (c RandomChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
@@ -147,10 +152,20 @@ func (c RandomChainContainer) RewindEngine(ctx context.Context, timestamp uint64
 }
 
 func (c RandomChainContainer) FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types2.Receipts, error) {
-	//TODO
-	myReceipts := c.randomChain.receipts[c.chainID];
-	receipt := myReceipts[blockHash];
-	return nil, receipt, nil
+	chainReceipts := c.randomChain.receipts[c.chainID];
+	receipt := chainReceipts[blockHash];
+
+	for _, block := range c.randomChain.chainBlocks[c.chainID] {
+		if block.ID() == blockHash {
+			header := &types2.Header{
+				  ParentHash: block.ParentHash,
+				  Number:     new(big.Int).SetUint64(block.Number),
+				  Time:       block.Time,
+			}
+			return eth.HeaderBlockInfoTrusted(block.Hash, header), receipt, nil
+		}
+	}
+	return nil, nil, ethereum.NotFound
 }
 
 func (c RandomChainContainer) BlockTime() uint64 {
@@ -252,12 +267,12 @@ func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
 			newBlock = &ChainBlock{chainUninit, &randomBlock}
 		} else if i == 1 {
 			// Set the initial timestamp so that the block at index 0 is already expired
-			randomBlock := testutils.NextRandomL2Ref(r, 100, *allBlocks[0].block, eth.BlockID{})
+			randomBlock := testutils.NextRandomL2Ref(r, 1, *allBlocks[0].block, eth.BlockID{})
 			randomBlock.Time = params.MessageExpiryTimeSecondsInterop + 1
 			newBlock = &ChainBlock{chainUninit, &randomBlock}
 		} else {
 			// Use NextRandomRef for timestamp coherence.
-			randomBlock := testutils.NextRandomL2Ref(r, 100, *allBlocks[len(allBlocks)-1].block, eth.BlockID{})
+			randomBlock := testutils.NextRandomL2Ref(r, 1, *allBlocks[len(allBlocks)-1].block, eth.BlockID{})
 
 			// Repeat timestamps with some probability, with two caveats:
 			// - Can only have one block per chain with the same timestamp,
