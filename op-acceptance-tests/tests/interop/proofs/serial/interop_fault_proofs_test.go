@@ -58,6 +58,6 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// TODO(#19411): Unskip once supernode removes invalid transactions
 	t.Skip("Supernode does not yet remove invalid transactions from blocks")
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
 	sfp.RunInvalidBlockTest(t, sys)
 }
