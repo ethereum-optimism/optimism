@@ -60,7 +60,6 @@ interface IOPContractsManagerUtils {
     error BytesArrayTooLong();
     error IdentityPrecompileCallFailed();
     error OPContractsManagerV2_InvalidGameConfigs();
-    error OPContractsManagerV2_InvalidUpgradeInput();
 
     function implementations() external view returns (IOPContractsManagerContainer.Implementations memory);
     function blueprints() external view returns (IOPContractsManagerContainer.Blueprints memory);

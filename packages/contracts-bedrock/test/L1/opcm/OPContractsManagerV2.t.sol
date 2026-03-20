@@ -700,7 +700,7 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
     ///         inputs. The old assertValidSuperRootMigrationConfig would reject already-upgraded
     ///         chains because it read on-chain state. The unified validator is pure, so it works
     ///         identically on first and second call.
-    function test_upgrade_idempotent_withSuperRootFlag_succeeds() public {
+    function test_upgrade_idempotentWithSuperRootFlag_succeeds() public {
         // Read the respected game type from the portal.
         GameType originalGameType = optimismPortal2.respectedGameType();
         uint32 originalRaw = originalGameType.raw();
