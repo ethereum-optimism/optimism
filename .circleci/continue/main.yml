@@ -2130,8 +2130,7 @@ jobs:
           name: Always fail (test job)
           command: exit 1
 
-  # Gate job - single stable job used as GitHub required status check for develop.
-  # Runs unconditionally (terminal requires) then queries the CircleCI API to verify
+  # Gate job - single stable job used as GitHub required status check.
   # all upstream jobs passed — giving the merge queue an immediate failure signal
   # instead of a timeout.
   ci-gate:
