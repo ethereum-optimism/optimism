@@ -78,24 +78,26 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 
 	// Resume interop and observe reorg
 	// Interop activity will proceed and invalidate the block, triggering a rewind, and building a replacement block
-	// We observe resets and replacements, but only proceed on replacement (we may miss reset if it happens quickly)
+	// The reorg is detected either by the block hash changing (replacement already built)
+	// or by the block disappearing (rewound, replacement not yet built).
+	// Both cases indicate the invalid block was successfully invalidated.
 	sys.Supernode.ResumeInterop()
 	require.Eventually(t, func() bool {
-		// Check if the block hash at the invalid block number changed or block doesn't exist
-		// Use the EthClient directly to handle errors (block may not exist after rewind)
 		currentBlock, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, invalidBlockNumber)
 		if err != nil {
 			if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
 				t.Logger().Info("RESET DETECTED! Block no longer exists (rewound)",
 					"block_number", invalidBlockNumber,
 				)
-			} else {
-				t.Logger().Warn("unexpected error checking block",
-					"block_number", invalidBlockNumber,
-					"err", err,
-				)
+				return true
 			}
-		} else if currentBlock.Hash != invalidBlockHash {
+			t.Logger().Warn("unexpected error checking block",
+				"block_number", invalidBlockNumber,
+				"err", err,
+			)
+			return false
+		}
+		if currentBlock.Hash != invalidBlockHash {
 			t.Logger().Info("RESET DETECTED! Block hash changed",
 				"block_number", invalidBlockNumber,
 				"old_hash", invalidBlockHash,
