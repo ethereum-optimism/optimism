@@ -1,0 +1,12 @@
+./op-acceptance-tests/tests/base
+./op-acceptance-tests/tests/base/deposit
+./op-acceptance-tests/tests/base/chain
+./op-acceptance-tests/tests/ecotone
+./op-acceptance-tests/tests/fjord
+./op-acceptance-tests/tests/isthmus
+./op-acceptance-tests/tests/isthmus/operator_fee
+./op-acceptance-tests/tests/isthmus/withdrawal_root
+./op-acceptance-tests/tests/isthmus/erc20_bridge
+./op-acceptance-tests/tests/isthmus/pectra
+./op-acceptance-tests/tests/jovian/bpo2
+./op-acceptance-tests/tests/jovian/pectra

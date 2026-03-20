@@ -546,3 +546,100 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
 	})
 }
+
+// blockingStopMock wraps mockInnerNode but blocks Stop() until explicitly released.
+// This simulates an OpNode whose shutdown (event drain) takes a long time.
+type blockingStopMock struct {
+	*mockInnerNode
+	stopStarted chan struct{}
+	stopRelease chan struct{}
+}
+
+func (m *blockingStopMock) Stop(ctx context.Context) error {
+	close(m.stopStarted)
+	select {
+	case <-m.stopRelease:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return m.stopErr
+}
+
+// TestVirtualNode_SyncStatusDuringShutdown proves that SyncStatus does not deadlock
+// when called while Start() is shutting down the inner node. Before the fix,
+// Start() held v.mu during inner.Stop(), so any concurrent SyncStatus() call
+// would block on v.mu forever — creating a deadlock if the inner node's shutdown
+// path called back into SyncStatus (e.g. via the event system).
+func TestVirtualNode_SyncStatusDuringShutdown(t *testing.T) {
+	t.Parallel()
+	log := createTestLogger()
+	cfg := createTestConfig()
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	mock := newMockInnerNode()
+	mock.startFunc = func(ctx context.Context) {
+		<-ctx.Done()
+	}
+	mock.stopCh = nil // prevent close in default Stop — we use blockingStopMock
+
+	stopStarted := make(chan struct{})
+	stopRelease := make(chan struct{})
+	blocking := &blockingStopMock{
+		mockInnerNode: mock,
+		stopStarted:   stopStarted,
+		stopRelease:   stopRelease,
+	}
+
+	vn := NewVirtualNode(cfg, log, initOverload, "test")
+	vn.innerNodeFactory = func(ctx context.Context, cfg *opnodecfg.Config,
+		log gethlog.Logger, appVersion string, m *opmetrics.Metrics,
+		initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
+		return blocking, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- vn.Start(ctx)
+	}()
+
+	// Wait for running
+	require.Eventually(t, func() bool {
+		return vn.State() == VNStateRunning
+	}, time.Second, 10*time.Millisecond)
+
+	// Cancel to trigger shutdown — Start() will call inner.Stop() which blocks
+	cancel()
+
+	// Wait for inner.Stop() to be entered
+	select {
+	case <-stopStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("inner.Stop() was never called")
+	}
+
+	// Now try to call SyncStatus — this MUST NOT deadlock.
+	// Before the fix, this would block forever on v.mu.
+	syncDone := make(chan struct{})
+	go func() {
+		_, _ = vn.SyncStatus(context.Background())
+		close(syncDone)
+	}()
+
+	select {
+	case <-syncDone:
+		// Success — SyncStatus completed without deadlock
+	case <-time.After(5 * time.Second):
+		t.Fatal("SyncStatus deadlocked during shutdown — v.mu held during inner.Stop()")
+	}
+
+	// Release inner.Stop() so Start() can return
+	close(stopRelease)
+
+	select {
+	case <-startDone:
+		require.Equal(t, VNStateStopped, vn.State())
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start() did not return after inner.Stop() completed")
+	}
+}

@@ -86,15 +86,6 @@ parameters:
   devnet-metrics-collect:
     type: boolean
     default: false
-  flake-shake-dispatch:
-    type: boolean
-    default: false
-  flake-shake-iterations:
-    type: integer
-    default: 300
-  flake-shake-workers:
-    type: integer
-    default: 50
   go-cache-version:
     type: string
     default: "v0.0"
@@ -419,5 +410,4 @@ workflows:
       - required-rust-e2e:
           requires:
             - kona-proof-action-single
-
 

@@ -26,7 +26,7 @@ import (
 )
 
 func TestSafeHeadAdvancesAfterOsaka(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newMinimalFusaka(t)
 	l1Config := sys.L1Network.Escape().ChainConfig()
 	t.Log("Waiting for Osaka to activate")
@@ -50,7 +50,7 @@ func TestSafeHeadAdvancesAfterOsaka(gt *testing.T) {
 }
 
 func TestBlobBaseFeeIsCorrectAfterBPOFork(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newMinimalFusaka(t)
 	t.Log("Waiting for BPO1 to activate")
 	t.Require().NotNil(sys.L1Network.Escape().ChainConfig().BPO1Time)

@@ -11,19 +11,19 @@ import (
 )
 
 func TestPreinteropFaultProofs(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSimpleInteropPreinterop(t)
 	sfp.RunSuperFaultProofTest(t, sys)
 }
 
 func TestPreinteropFaultProofs_TraceExtensionActivation(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSimpleInteropPreinterop(t)
 	sfp.RunTraceExtensionActivationTest(t, sys)
 }
 
 func TestPreinteropFaultProofs_UnsafeProposal(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSimpleInteropPreinterop(t)
 	sfp.RunUnsafeProposalTest(t, sys)
 }

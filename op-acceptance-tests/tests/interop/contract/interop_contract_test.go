@@ -17,7 +17,7 @@ import (
 // TestRegularMessage checks that messages can be sent and relayed via L2ToL2CrossDomainMessenger
 func TestRegularMessage(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()

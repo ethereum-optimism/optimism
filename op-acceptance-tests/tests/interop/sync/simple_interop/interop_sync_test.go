@@ -15,7 +15,7 @@ import (
 // Resync is only possible when supervisor and L2CL reconnects.
 func TestL2CLResync(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	logger := sys.Log.With("Test", "TestL2CLResync")
 

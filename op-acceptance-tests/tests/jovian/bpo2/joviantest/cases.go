@@ -218,7 +218,7 @@ func (mbf *minBaseFeeEnv) waitForMinBaseFeeConfigChangeOnL2(t devtest.T, expecte
 }
 
 func RunDAFootprint(gt *testing.T, setup SetupFn) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := setup(t)
 	require := t.Require()
 
@@ -354,7 +354,7 @@ func RunDAFootprint(gt *testing.T, setup SetupFn) {
 }
 
 func RunMinBaseFee(gt *testing.T, setup SetupFn) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := setup(t)
 	require := t.Require()
 
@@ -393,7 +393,7 @@ func RunMinBaseFee(gt *testing.T, setup SetupFn) {
 }
 
 func RunOperatorFee(gt *testing.T, setup SetupFn) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := setup(t)
 	t.Require().True(sys.L2Chain.IsForkActive(opforks.Jovian), "Jovian fork must be active for this test")
 	dsl.RunOperatorFeeTest(t, sys.L2Chain, sys.L1EL, sys.FunderL1, sys.FunderL2)

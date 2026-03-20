@@ -1,52 +1,18 @@
 REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.10.2")
-DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
-ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test base
+    @just acceptance-test
 
-jovian:
-    @just acceptance-test jovian
-
-interop:
-    @just acceptance-test interop
-
-cgt:
-    @just acceptance-test cgt
-
-acceptance-test-all:
-    @just _acceptance-test base all
-
-# Run acceptance tests with mise-managed binary
-# Usage: just acceptance-test [gate]
-# Examples:
-#   just acceptance-test base            # In-process with specific gate
-#   just acceptance-test-all             # In-process all-tests mode
-acceptance-test gate="base":
-    @just _acceptance-test "{{gate}}" gate
-
-_acceptance-test gate mode:
+# Run acceptance tests, optionally filtered by a gate (reads packages from gates/<gate>.txt)
+acceptance-test gate="":
     #!/usr/bin/env bash
     set -euo pipefail
-
-    MODE="{{mode}}"
-
-    if [[ "$MODE" != "gate" && "$MODE" != "all" ]]; then
-        echo "error: invalid mode '$MODE' (expected gate|all)." >&2
-        exit 1
-    fi
-
-    if [[ "$MODE" == "gate" && "{{gate}}" == "" ]]; then
-        echo "error: gate must be non-empty for gate mode; use 'just acceptance-test-all' for all tests." >&2
-        exit 1
-    fi
-
-    if [[ "$MODE" == "all" ]]; then
-        echo -e "DEVNET: in-memory, MODE: all tests\n"
+    GATE="{{gate}}"
+    if [[ -n "$GATE" ]]; then
+        echo -e "DEVNET: in-memory, GATE: $GATE\n"
     else
-        echo -e "DEVNET: in-memory, GATE: {{gate}}\n"
+        echo -e "DEVNET: in-memory, MODE: all tests\n"
     fi
 
     # Build dependencies for in-process mode if not in CI.
@@ -77,73 +43,92 @@ _acceptance-test gate mode:
         just build-rust-release
     fi
 
-    cd {{REPO_ROOT}}/op-acceptance-tests
-
-    if ! command -v mise >/dev/null; then
-        echo "error: mise is required for acceptance-test runs." >&2
-        exit 1
-    fi
-
-    if ! mise install op-acceptor; then
-        echo "error: failed to install op-acceptor with mise." >&2
-        exit 1
-    fi
-
-    BINARY_PATH=$(mise which op-acceptor)
-    echo "Using mise-managed binary: $BINARY_PATH"
     LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
     echo "LOG_LEVEL: $LOG_LEVEL"
 
-    if [[ "$MODE" == "all" ]]; then
-        CMD_ARGS=(
-            "$BINARY_PATH"
-            "--orchestrator" "sysgo"
-            "--testdir" "{{REPO_ROOT}}/op-acceptance-tests/..."
-            "--validators" "./acceptance-tests.yaml"
-            "--log.level" "${LOG_LEVEL}"
-            "--exclude-gates" "flake-shake"
-            "--allow-skips"
-            "--timeout" "120m"
-            "--show-progress"
-        )
-    else
-        CMD_ARGS=(
-            "$BINARY_PATH"
-            "--orchestrator" "sysgo"
-            "--gate" "{{gate}}"
-            "--testdir" "{{REPO_ROOT}}"
-            "--validators" "./acceptance-tests.yaml"
-            "--log.level" "${LOG_LEVEL}"
-            "--allow-skips"
-            "--show-progress"
-        )
-
-        if [[ "{{gate}}" != "flake-shake" ]]; then
-            CMD_ARGS+=("--exclude-gates" "flake-shake")
-        fi
+    CPU_COUNT=""
+    if command -v nproc >/dev/null 2>&1; then
+        CPU_COUNT="$(nproc)"
+    elif command -v getconf >/dev/null 2>&1; then
+        CPU_COUNT="$(getconf _NPROCESSORS_ONLN)"
+    elif command -v sysctl >/dev/null 2>&1; then
+        CPU_COUNT="$(sysctl -n hw.ncpu)"
+    fi
+    if [[ -z "$CPU_COUNT" || "$CPU_COUNT" -lt 1 ]]; then
+        CPU_COUNT=1
     fi
 
-    "${CMD_ARGS[@]}"
+    DEFAULT_JOBS="$CPU_COUNT"
+    DEFAULT_TEST_PARALLEL="$(( CPU_COUNT / 2 ))"
+    if [[ "$DEFAULT_TEST_PARALLEL" -lt 1 ]]; then
+        DEFAULT_TEST_PARALLEL=1
+    fi
+
+    JOBS="${ACCEPTANCE_TEST_JOBS:-$DEFAULT_JOBS}"
+    TEST_PARALLEL="${ACCEPTANCE_TEST_PARALLEL:-$DEFAULT_TEST_PARALLEL}"
+    TEST_TIMEOUT="${ACCEPTANCE_TEST_TIMEOUT:-2h}"
+    echo "CPU COUNT: $CPU_COUNT"
+    echo "PACKAGE JOBS: $JOBS"
+    echo "TEST PARALLELISM: $TEST_PARALLEL"
+    echo "PACKAGE TIMEOUT: $TEST_TIMEOUT"
+
+    cd {{REPO_ROOT}}
+    if ! command -v gotestsum >/dev/null; then
+        echo "error: gotestsum is required for acceptance-test runs." >&2
+        exit 1
+    fi
+
+    LOG_ROOT="{{REPO_ROOT}}/op-acceptance-tests/logs"
+    RESULTS_DIR="{{REPO_ROOT}}/op-acceptance-tests/results"
+    mkdir -p "$LOG_ROOT" "$RESULTS_DIR"
+    LOG_DIR="$LOG_ROOT/testrun-$(date -u +%Y%m%d-%H%M%S)"
+    mkdir -p "$LOG_DIR/failed"
+    rm -f "$RESULTS_DIR/results.xml"
+
+    FLAKY_REPORT="$LOG_DIR/flaky-tests.txt"
+    if command -v rg >/dev/null 2>&1; then
+        rg -n "MarkFlaky\\(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
+    else
+        grep -RIn "MarkFlaky(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
+    fi
+
+    # Determine which packages to test
+    if [[ -n "$GATE" ]]; then
+        GATE_FILE="{{REPO_ROOT}}/op-acceptance-tests/gates/${GATE}.txt"
+        if [[ ! -f "$GATE_FILE" ]]; then
+            echo "error: gate file not found: $GATE_FILE" >&2
+            exit 1
+        fi
+        # Read non-empty, non-comment lines from the gate file
+        TEST_PACKAGES=()
+        while IFS= read -r line; do
+            line="${line%%#*}"   # strip comments
+            line="${line// /}"   # strip whitespace
+            [[ -z "$line" ]] && continue
+            TEST_PACKAGES+=("$line")
+        done < "$GATE_FILE"
+        echo "Gate '$GATE': ${#TEST_PACKAGES[@]} packages"
+    else
+        TEST_PACKAGES=("./op-acceptance-tests/tests/...")
+    fi
+
+    set +e
+    LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
+        --format testname \
+        --junitfile "$RESULTS_DIR/results.xml" \
+        --jsonfile "$LOG_DIR/raw_go_events.log" \
+        -- \
+        -count=1 \
+        -p "${JOBS}" \
+        -parallel "${TEST_PARALLEL}" \
+        -timeout "${TEST_TIMEOUT}" \
+        "${TEST_PACKAGES[@]}" \
+        2>&1 | tee "$LOG_DIR/all.log"
+    TEST_STATUS=${PIPESTATUS[0]}
+    set -e
+
+    cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
+    exit "$TEST_STATUS"
 
 clean:
     rm -rf tests/interop/loadtest/artifacts
-
-
-# Build, vet, lint and test Go code in ./cmd
-cmd-check:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    cd {{REPO_ROOT}}/op-acceptance-tests
-
-    echo "Downloading Go modules..."
-    go mod download
-
-    echo "Building ./cmd/..."
-    go build ./cmd/...
-
-    echo "Running go vet on ./cmd/..."
-    go vet ./cmd/...
-
-    echo "Running unit tests for ./cmd/..."
-    go test -v ./cmd/...

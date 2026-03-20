@@ -11,7 +11,7 @@ import (
 
 func TestTransfer(gt *testing.T) {
 	// Create a test environment using op-devstack
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t)
 
 	// Create two L2 wallets

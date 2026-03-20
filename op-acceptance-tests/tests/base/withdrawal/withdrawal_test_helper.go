@@ -38,7 +38,7 @@ func newSystem(t devtest.T, gameType gameTypes.GameType) *presets.Minimal {
 }
 
 func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSystem(t, gameType)
 	require := sys.T.Require()
 

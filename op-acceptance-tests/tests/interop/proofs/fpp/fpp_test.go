@@ -9,7 +9,7 @@ import (
 )
 
 func TestFPP(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 
 	startTimestamp := max(sys.L2ChainA.Escape().RollupConfig().TimestampForBlock(1), sys.L2ChainB.Escape().RollupConfig().TimestampForBlock(1))
@@ -21,7 +21,7 @@ func TestFPP(gt *testing.T) {
 }
 
 func TestNextSuperRootNotFound(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	// TODO(#19180): Unskip this once supernode is updated.
 	t.Skip("Supernode does not yet return optimistic blocks until blocks are fully validated")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())

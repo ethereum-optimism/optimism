@@ -39,11 +39,19 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 				"err", err,
 			)
 		} else if denied {
-			e.log.Warn("Payload denied by SuperAuthority",
-				"blockNumber", payload.BlockNumber,
-				"blockHash", payload.BlockHash,
-			)
-			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
+			if ev.DerivedFrom != (eth.L1BlockRef{}) {
+				e.log.Warn("Requesting deposits-only replacement for derived payload",
+					"blockNumber", payload.BlockNumber,
+					"blockHash", payload.BlockHash,
+					"derivedFrom", ev.DerivedFrom,
+				)
+				e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
+			} else {
+				e.log.Warn("Unsafe payload denied by SuperAuthority, dropping",
+					"blockNumber", payload.BlockNumber,
+					"blockHash", payload.BlockHash,
+				)
+			}
 			return
 		}
 	}

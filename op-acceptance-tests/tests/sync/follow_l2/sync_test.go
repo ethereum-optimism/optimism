@@ -13,7 +13,7 @@ import (
 )
 
 func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	logger := t.Logger()
 
@@ -55,7 +55,7 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 }
 
 func TestFollowL2_ReorgRecovery(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -108,10 +108,18 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	// Need to poll until the L2CL detects L1 Reorg and trigger L2 Reorg
 	// What happens:
 	//  L2CL detects L1 Reorg and reset the pipeline. op-node example logs: "reset: detected L1 reorg"
-	//  L2ELB detects L2 Reorg and reorgs. op-geth example logs: "Chain reorg detected"
-	sys.L2ELB.ReorgTriggered(l2BlockBeforeReorg, 30)
-	l2BlockAfterReorg := sys.L2ELB.BlockRefByNumber(l2BlockBeforeReorg.Number)
-	require.NotEqual(l2BlockAfterReorg.Hash, l2BlockBeforeReorg.Hash)
+	//  L2ELB detects L2 reorg and replaces the original block. The replacement
+	//  block at this height may also come from a different parent chain, so only
+	//  assert that the original block is replaced before checking convergence.
+	var l2BlockAfterReorg eth.L2BlockRef
+	require.Eventually(func() bool {
+		l2BlockAfterReorg = sys.L2ELB.BlockRefByNumber(l2BlockBeforeReorg.Number)
+		if l2BlockAfterReorg.Hash == l2BlockBeforeReorg.Hash {
+			logger.Info("Waiting for L2 reorg", "before", l2BlockBeforeReorg, "current", l2BlockAfterReorg)
+			return false
+		}
+		return true
+	}, 60*time.Second, 2*time.Second)
 	logger.Info("Triggered L2 reorg", "l2", l2BlockAfterReorg)
 
 	attempts := 30
@@ -124,7 +132,7 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 }
 
 func TestFollowL2_WithoutCLP2P(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -136,9 +144,11 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	sys.L2CLB.Advanced(types.LocalUnsafe, target, attempts)
 
 	// The test's primary target is the L2CLC, with follow source and derivation disabled
-	// Normally there should be delta between safe head between unsafe head
+	// There is often a gap between safe and unsafe before disconnect, but the
+	// follow-source verifier may also catch up before we observe it. The actual
+	// property this test cares about is the post-disconnect behavior below.
 	status := sys.L2CLC.SyncStatus()
-	require.NotEqual(status.LocalSafeL2, status.UnsafeL2)
+	logger.Info("Initial follow-source sync status", "safe", status.LocalSafeL2, "unsafe", status.UnsafeL2)
 
 	logger.Info("Disconnect CLP2P")
 	// L2CLC is the verifier with follow source, derivation disabled

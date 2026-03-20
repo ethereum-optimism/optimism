@@ -194,6 +194,18 @@ func (s *SameTimestampTestSetup) IncludeAndValidate(txsA, txsB []*txplan.Planned
 
 	require.NotNil(s.t, s.TestSequencer, "TestSequencer is required for deterministic timestamp tests")
 
+	// Assign nonces deterministically within each same-timestamp block. Relying on
+	// mempool-visible pending nonces is racy across clients, and op-reth is stricter
+	// about underpriced replacement transactions than op-geth.
+	baseNonceA := s.Alice.PendingNonce()
+	for i, ptx := range txsA {
+		txplan.WithStaticNonce(baseNonceA + uint64(i))(ptx)
+	}
+	baseNonceB := s.Bob.PendingNonce()
+	for i, ptx := range txsB {
+		txplan.WithStaticNonce(baseNonceB + uint64(i))(ptx)
+	}
+
 	// Get parent blocks and chain IDs
 	parentA := s.L2ELA.BlockRefByLabel(eth.Unsafe)
 	parentB := s.L2ELB.BlockRefByLabel(eth.Unsafe)

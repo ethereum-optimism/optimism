@@ -26,7 +26,7 @@ const blockSizeLimit = 5_000
 // miner_setMaxDASize. It spams transactions to saturate block space and asserts that blocks are
 // filled to near capacity without exceeding the limit.
 func TestDABlockThrottling(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t, presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
 		// Enable throttling with step controller for predictable behavior.
 		cfg.ThrottleConfig.LowerThreshold = 99 // > 0 enables the throttling loop.

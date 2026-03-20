@@ -101,7 +101,7 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 // startSupernodeEL starts an L2 EL node for the supernode runtime.
 // It respects the DEVSTACK_L2EL_KIND env var: "op-geth" uses op-geth, otherwise op-reth is used.
 func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
-	if os.Getenv("DEVSTACK_L2EL_KIND") == string(MixedL2ELOpGeth) {
+	if MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar)) == MixedL2ELOpGeth {
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 	}
 	return startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil)
@@ -123,7 +123,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClock(t, l1Net, jwtPath, l1Clock)
+	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
 
 	var depSetStatic *depset.StaticConfigDependencySet
@@ -175,7 +175,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClock(t, l1Net, jwtPath, l1Clock)
+	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 
 	l2AEL := startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
 	l2BEL := startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)

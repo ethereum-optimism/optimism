@@ -16,7 +16,7 @@ import (
 // TestCGT_MessengerRejectsValue ensures that sending native value to the
 // L2CrossDomainMessenger reverts under CGT (non-payable path).
 func TestCGT_MessengerRejectsValue(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newCGTMinimal(t)
 	ensureCGTOrSkip(t, sys)
 
@@ -38,7 +38,7 @@ func TestCGT_MessengerRejectsValue(gt *testing.T) {
 // TestCGT_L2StandardBridge_LegacyWithdrawReverts verifies that the legacy
 // ETH-specific withdraw path on L2StandardBridge reverts under CGT.
 func TestCGT_L2StandardBridge_LegacyWithdrawReverts(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newCGTMinimal(t)
 	ensureCGTOrSkip(t, sys)
 

@@ -496,33 +496,30 @@ func (u *EOA) PrepareSameTimestampInit(
 	}
 }
 
-// SubmitInit submits the init message without waiting for inclusion.
-// Returns the planned tx which can be used to wait for inclusion later.
+// SubmitInit returns a planned init transaction for same-timestamp testing.
+// The test harness assigns deterministic nonces and includes the signed tx directly.
 func (p *SameTimestampPair) SubmitInit() *txplan.PlannedTx {
 	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](p.eoa.Plan())
 	tx.Content.Set(p.Trigger)
-	_, err := tx.PlannedTx.Submitted.Eval(p.eoa.ctx)
-	p.eoa.require.NoError(err, "failed to submit init message")
 	return tx.PlannedTx
 }
 
-// SubmitExecTo submits an exec message to the given EOA's chain, referencing this init.
-// The exec is submitted without waiting for inclusion.
-// Returns the planned tx which can be used to wait for inclusion later.
+// SubmitExecTo returns a planned exec transaction to the given EOA's chain,
+// referencing this init. The test harness assigns deterministic nonces and
+// includes the signed tx directly.
 func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      p.Message,
 	})
-	_, err := tx.PlannedTx.Submitted.Eval(executor.ctx)
-	executor.require.NoError(err, "failed to submit exec message")
 	return tx.PlannedTx
 }
 
 // SubmitInvalidExecTo submits an exec message with an invalid log index.
 // This creates an exec that references a non-existent log, which should be detected as invalid.
-// Returns the planned tx which can be used to wait for inclusion later.
+// Returns the planned tx; the test harness assigns deterministic nonces and
+// includes the signed tx directly.
 func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx {
 	invalidMsg := MakeInvalidLogIndex(p.Message)
 
@@ -531,7 +528,5 @@ func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      invalidMsg,
 	})
-	_, err := tx.PlannedTx.Submitted.Eval(executor.ctx)
-	executor.require.NoError(err, "failed to submit invalid exec message")
 	return tx.PlannedTx
 }

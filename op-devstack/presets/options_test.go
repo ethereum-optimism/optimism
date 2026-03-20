@@ -24,6 +24,13 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		)
 	})
 
+	t.Run("WithL1Geth", func(t *testing.T) {
+		require.Equal(t,
+			optionKindL1EL,
+			WithL1Geth("/tmp/geth").optionKinds(),
+		)
+	})
+
 	t.Run("RequireGameTypePresent", func(t *testing.T) {
 		require.Equal(t,
 			optionKindAfterBuild|optionKindProofValidation,
@@ -65,6 +72,12 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 				RequireGameTypePresent(gameTypes.CannonGameType),
 			),
 			want: 0,
+		},
+		{
+			name:      "minimal allows l1 EL override",
+			supported: minimalPresetSupportedOptionKinds,
+			opts:      WithL1Geth("/tmp/geth"),
+			want:      0,
 		},
 		{
 			name:      "minimal with conductors rejects challenger toggle",

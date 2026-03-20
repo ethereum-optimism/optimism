@@ -118,7 +118,7 @@ func (mbf *minBaseFeeEnv) waitForMinBaseFeeConfigChangeOnL2(t devtest.T, expecte
 
 // TestMinBaseFee verifies configurable minimum base fee using devstack presets.
 func TestMinBaseFee(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t)
 	require := t.Require()
 

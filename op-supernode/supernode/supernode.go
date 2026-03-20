@@ -261,8 +261,17 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	}
 
 	s.log.Info("all chain containers stopped, waiting for goroutines to finish")
-	s.wg.Wait()
-	s.log.Info("goroutines finished, closing l1 client")
+	wgDone := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(wgDone)
+	}()
+	select {
+	case <-wgDone:
+		s.log.Info("goroutines finished, closing l1 client")
+	case <-time.After(60 * time.Second):
+		s.log.Error("timed out waiting for chain goroutines to finish after 60s, proceeding with cleanup")
+	}
 
 	if s.l1Client != nil {
 		s.l1Client.Close()

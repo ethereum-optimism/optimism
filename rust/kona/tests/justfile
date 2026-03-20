@@ -187,6 +187,7 @@ action-tests-build:
 # Run action tests for the single-chain client program on the native target
 action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   #!/bin/bash
+  set -euo pipefail
 
   if [ ! -n "$KONA_HOST_PATH" ]; then
     export KONA_HOST_PATH="{{SOURCE}}/../target/release/kona-host"
@@ -198,7 +199,7 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/../../op-e2e/actions/proofs
+  cd {{SOURCE}}/../../../op-e2e/actions/proofs
 
   # Set parallel to the number of cores available if {{parallel}} is not greater than 0
   if [ {{parallel}} -gt 0 ]; then
@@ -229,7 +230,7 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
     # so split once at the end rather than wrapping each call.
     {{SOURCE}}/../../../ops/scripts/split-test-logs.sh ./tmp/testlogs/log-$NODE_INDEX.json
 
-    exit 0
+    exit
   fi
 
   {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
@@ -242,6 +243,7 @@ action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-b
 
 action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
   #!/bin/bash
+  set -euo pipefail
 
   echo "Building host program for the native target"
   just build-native --bin kona-host
@@ -251,7 +253,7 @@ action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/../../op-e2e/actions/interop && GITHUB_ACTIONS=false {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
+  cd {{SOURCE}}/../../../op-e2e/actions/interop && GITHUB_ACTIONS=false {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
 
 update-packages:
     #!/bin/bash

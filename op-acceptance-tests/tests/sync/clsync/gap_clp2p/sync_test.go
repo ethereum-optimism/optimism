@@ -10,7 +10,7 @@ import (
 
 // TestSyncAfterInitialELSync tests that blocks received out of order would be processed in order when running in CL sync mode. Note that this is not going to happen when running in EL sync mode, which relies on healthy ELP2P, something that is disabled in this test.
 func TestSyncAfterInitialELSync(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newGapCLP2PSystem(t)
 	require := t.Require()
 

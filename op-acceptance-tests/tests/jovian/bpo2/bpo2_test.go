@@ -12,9 +12,8 @@ import (
 )
 
 func setupBPO2(t devtest.T) *presets.Minimal {
-	resetEnvVars := fusaka.ConfigureDevstackEnvVars()
-	t.Cleanup(resetEnvVars)
 	return presets.NewMinimal(t,
+		fusaka.L1GethOption(),
 		presets.WithDeployerOptions(
 			sysgo.WithJovianAtGenesis,
 			sysgo.WithDefaultBPOBlobSchedule,

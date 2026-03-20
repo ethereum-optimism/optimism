@@ -11,7 +11,7 @@ import (
 )
 
 func TestInteropFaultProofs(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	// TODO(#19180): Unskip this once supernode is updated.
 	t.Skip("Supernode does not yet return optimistic blocks until blocks are fully validated")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
@@ -19,7 +19,7 @@ func TestInteropFaultProofs(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys)
 }

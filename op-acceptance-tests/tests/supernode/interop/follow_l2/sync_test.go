@@ -11,7 +11,7 @@ import (
 )
 
 func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	require := t.Require()
 	sys := presets.NewTwoL2SupernodeFollowL2(t, 0)
 

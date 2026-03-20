@@ -14,7 +14,7 @@ import (
 )
 
 func TestERC20Bridge(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t)
 	require := t.Require()
 
