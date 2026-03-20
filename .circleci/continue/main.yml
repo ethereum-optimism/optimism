@@ -47,9 +47,6 @@ parameters:
   c-ai_contracts_test_dispatch:
     type: boolean
     default: false
-  c-docker_publish_dispatch:
-    type: boolean
-    default: false
   c-github-event-type:
     type: string
     default: "__not_set__"
@@ -2889,42 +2886,6 @@ workflows:
           notify: true
           context:
             - slack
-            - circleci-repo-readonly-authenticated-github-token
-
-  scheduled-docker-publish:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-docker_publish_dispatch >>]
-    jobs:
-      - contracts-bedrock-build:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - docker-build:
-          matrix:
-            parameters:
-              docker_name:
-                - op-deployer
-          name: <<matrix.docker_name>>-docker-publish
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-      - check-cross-platform:
-          matrix:
-            parameters:
-              op_component:
-                - op-deployer
-          name: <<matrix.op_component>>-cross-platform
-          requires:
-            - <<matrix.op_component>>-docker-publish
-          context:
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-preimage-reproducibility:
