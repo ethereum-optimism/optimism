@@ -32,8 +32,6 @@ func TestSuperchain(t *testing.T) {
 }
 
 func testSuperchain(t *testing.T, forkRPCURL string) {
-	t.Parallel()
-
 	if forkRPCURL == "" {
 		t.Skip("forkRPCURL not set")
 	}
