@@ -2120,16 +2120,6 @@ jobs:
           name: All memory-all tests passed
           command: echo "All memory-all acceptance test variants passed"
 
-  # Temporary job for testing ci-gate failure detection. Remove after verification.
-  ci-gate-test-fail:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
-    steps:
-      - run:
-          name: Always fail (test job)
-          command: exit 1
-
   # Gate job - single stable job used as GitHub required status check.
   # all upstream jobs passed — giving the merge queue an immediate failure signal
   # instead of a timeout.
@@ -2139,6 +2129,7 @@ jobs:
     resource_class: small
     steps:
       - utils/ci-gate
+
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
   rust-binaries-for-sysgo:
     docker:
@@ -2988,13 +2979,8 @@ workflows:
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
       # To add a new mandatory check: add it to requires here. No GitHub ruleset changes needed.
-      - ci-gate-test-fail:
-          filters:
-            branches:
-              ignore: develop
       - ci-gate:
           requires:
-            - ci-gate-test-fail: terminal
             - check-kontrol-build: terminal
             - shell-check: terminal
             - go-lint: terminal
