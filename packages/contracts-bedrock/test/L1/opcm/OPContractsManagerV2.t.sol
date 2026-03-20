@@ -990,9 +990,15 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
     function test_upgrade_enableZKGameWithoutDevFeature_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        // Mock the container to report ZK_DISPUTE_GAME dev feature as disabled, regardless of
+        // what the real deployed container has in its bitmap.
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
+            abi.encode(false)
+        );
 
-        // Set ZK config to enabled without enabling the dev feature.
+        // Set ZK config to enabled (but the dev feature is mocked as disabled above).
         v2UpgradeInput.disputeGameConfigs[3].enabled = true;
 
         // nosemgrep: sol-style-use-abi-encodecall
