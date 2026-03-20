@@ -2,7 +2,6 @@ package common
 
 import (
 	"testing"
-	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -12,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 func syncModeOpt(syncMode sync.Mode) presets.Option {
@@ -70,7 +70,8 @@ func SyncModeReqRespSyncOpts(syncMode sync.Mode) []presets.Option {
 	}
 }
 
-func UnsafeChainNotStalling_DisconnectT(t devtest.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
+func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, advanceBlocks uint64, opts ...presets.Option) {
+	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
@@ -82,26 +83,35 @@ func UnsafeChainNotStalling_DisconnectT(t devtest.T, syncMode sync.Mode, sleep t
 		sys.L2CLB.AdvancedFn(types.LocalUnsafe, target, 30),
 	)
 
+	logPeerState(l, "L2CLB", sys.L2CLB)
+	logPeerState(l, "L2CL", sys.L2CL)
+
 	l.Info("Disconnect L2CL from L2CLB, and vice versa")
 	sys.L2CLB.DisconnectPeer(sys.L2CL)
 	sys.L2CL.DisconnectPeer(sys.L2CLB)
 
-	ssA_before := sys.L2CL.SyncStatus()
+	sys.L2CLB.WaitForPeerDisconnected(sys.L2CL)
+	sys.L2CL.WaitForPeerDisconnected(sys.L2CLB)
+
 	sys.L2CLB.WaitForStall(types.LocalUnsafe)
 	ssB_before := sys.L2CLB.SyncStatus()
 
-	l.Info("L2CL status before delay", "unsafeL2", ssA_before.UnsafeL2.ID(), "safeL2", ssA_before.SafeL2.ID())
-	l.Info("L2CLB status before delay", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
+	l.Info("L2CLB stalled", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
 
-	time.Sleep(sleep)
+	l.Info("Wait for sequencer to advance while verifier is disconnected", "advanceBlocks", advanceBlocks)
+	// Allow generous time: advanceBlocks * ~2s block time, plus buffer for CI pressure.
+	advanceAttempts := int(advanceBlocks*2 + 30)
+	sys.L2CL.Advanced(types.LocalUnsafe, advanceBlocks, advanceAttempts)
 
 	ssA_after := sys.L2CL.SyncStatus()
 	ssB_after := sys.L2CLB.SyncStatus()
 
-	l.Info("L2CL status after delay", "unsafeL2", ssA_after.UnsafeL2.ID(), "safeL2", ssA_after.SafeL2.ID())
-	l.Info("L2CLB status after delay", "unsafeL2", ssB_after.UnsafeL2.ID(), "safeL2", ssB_after.SafeL2.ID())
+	l.Info("L2CL status after advance", "unsafeL2", ssA_after.UnsafeL2.ID(), "safeL2", ssA_after.SafeL2.ID())
+	l.Info("L2CLB status after advance", "unsafeL2", ssB_after.UnsafeL2.ID(), "safeL2", ssB_after.SafeL2.ID())
 
-	require.Greater(ssA_after.UnsafeL2.Number, ssA_before.UnsafeL2.Number, "unsafe chain for L2CL should have advanced")
+	logPeerState(l, "L2CLB", sys.L2CLB)
+	logPeerState(l, "L2CL", sys.L2CL)
+
 	require.Equal(ssB_after.UnsafeL2.Number, ssB_before.UnsafeL2.Number, "unsafe chain for L2CLB should have stalled")
 
 	l.Info("Re-connect L2CL to L2CLB")
@@ -113,12 +123,8 @@ func UnsafeChainNotStalling_DisconnectT(t devtest.T, syncMode sync.Mode, sleep t
 	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
 }
 
-func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
-	t := devtest.ParallelT(gt)
-	UnsafeChainNotStalling_DisconnectT(t, syncMode, sleep, opts...)
-}
-
-func UnsafeChainNotStalling_RestartOpNodeT(t devtest.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
+func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, advanceBlocks uint64, opts ...presets.Option) {
+	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
@@ -130,30 +136,38 @@ func UnsafeChainNotStalling_RestartOpNodeT(t devtest.T, syncMode sync.Mode, slee
 		sys.L2CLB.AdvancedFn(types.LocalUnsafe, target, 30),
 	)
 
+	logPeerState(l, "L2CLB", sys.L2CLB)
+	logPeerState(l, "L2CL", sys.L2CL)
+
 	l.Info("Disconnect L2CL from L2CLB, and vice versa")
 	sys.L2CLB.DisconnectPeer(sys.L2CL)
 	sys.L2CL.DisconnectPeer(sys.L2CLB)
 
-	ssA_before := sys.L2CL.SyncStatus()
+	sys.L2CLB.WaitForPeerDisconnected(sys.L2CL)
+	sys.L2CL.WaitForPeerDisconnected(sys.L2CLB)
+
 	sys.L2CLB.WaitForStall(types.LocalUnsafe)
 	ssB_before := sys.L2CLB.SyncStatus()
 
-	l.Info("L2CL status before delay", "unsafeL2", ssA_before.UnsafeL2.ID(), "safeL2", ssA_before.SafeL2.ID())
-	l.Info("L2CLB status before delay", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
+	l.Info("L2CLB stalled", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
 
 	sys.L2CLB.Stop()
 
-	time.Sleep(sleep)
+	l.Info("Wait for sequencer to advance while verifier is stopped", "advanceBlocks", advanceBlocks)
+	advanceAttempts := int(advanceBlocks*2 + 30)
+	sys.L2CL.Advanced(types.LocalUnsafe, advanceBlocks, advanceAttempts)
 
 	sys.L2CLB.Start()
 
 	ssA_after := sys.L2CL.SyncStatus()
 	ssB_after := sys.L2CLB.SyncStatus()
 
-	l.Info("L2CL status after delay", "unsafeL2", ssA_after.UnsafeL2.ID(), "safeL2", ssA_after.SafeL2.ID())
-	l.Info("L2CLB status after delay", "unsafeL2", ssB_after.UnsafeL2.ID(), "safeL2", ssB_after.SafeL2.ID())
+	l.Info("L2CL status after advance", "unsafeL2", ssA_after.UnsafeL2.ID(), "safeL2", ssA_after.SafeL2.ID())
+	l.Info("L2CLB status after advance", "unsafeL2", ssB_after.UnsafeL2.ID(), "safeL2", ssB_after.SafeL2.ID())
 
-	require.Greater(ssA_after.UnsafeL2.Number, ssA_before.UnsafeL2.Number, "unsafe chain for L2CL should have advanced")
+	logPeerState(l, "L2CLB", sys.L2CLB)
+	logPeerState(l, "L2CL", sys.L2CL)
+
 	require.LessOrEqual(ssB_after.UnsafeL2.Number, ssB_before.UnsafeL2.Number, "unsafe chain for L2CLB should have stalled")
 
 	l.Info("Re-connect L2CL to L2CLB")
@@ -165,7 +179,19 @@ func UnsafeChainNotStalling_RestartOpNodeT(t devtest.T, syncMode sync.Mode, slee
 	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
 }
 
-func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration, opts ...presets.Option) {
-	t := devtest.ParallelT(gt)
-	UnsafeChainNotStalling_RestartOpNodeT(t, syncMode, sleep, opts...)
+func logPeerState(l log.Logger, name string, cl *dsl.L2CLNode) {
+	peers := cl.Peers()
+	l.Info("Peer state",
+		"node", name,
+		"totalConnected", peers.TotalConnected,
+	)
+	for id, p := range peers.Peers {
+		l.Info("Peer detail",
+			"node", name,
+			"peerID", id,
+			"connectedness", p.Connectedness,
+			"direction", p.Direction,
+			"gossipBlocks", p.GossipBlocks,
+		)
+	}
 }
