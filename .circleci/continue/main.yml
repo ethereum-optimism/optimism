@@ -1843,7 +1843,7 @@ jobs:
           condition: on_fail
           steps:
             - notify-failures-on-develop:
-                mentions: "@protocol-devx-pod @changwan"
+                mentions: "@protocol-oncall"
 
   op-acceptance-tests-flake-shake:
     parameters:
