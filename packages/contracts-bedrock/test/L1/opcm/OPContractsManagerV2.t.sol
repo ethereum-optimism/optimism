@@ -518,12 +518,12 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         runDeployV2(cfg, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector));
     }
 
-    /// @notice Builds migration game configs and override instructions onto v2UpgradeInput.
+    /// @notice Builds super root game configs and override instructions onto v2UpgradeInput.
     /// @param _isPermissionless True if the chain is currently in permissionless mode.
     /// @param _proposer The proposer address for the permissioned game.
     /// @param _challenger The challenger address for the permissioned game.
-    /// @return targetGameType_ The expected target game type after migration.
-    function _setupMigrationConfigs(
+    /// @return targetGameType_ The expected target game type after upgrade.
+    function _setupSuperRootConfigs(
         bool _isPermissionless,
         address _proposer,
         address _challenger
@@ -534,7 +534,7 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
         targetGameType_ = _isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
 
         Proposal memory newAnchorRoot =
-            Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: 1 });
+            Proposal({ root: Hash.wrap(keccak256("superRootAnchorRoot")), l2SequenceNumber: 1 });
 
         // Rebuild dispute game configs: 2 super + 4 legacy (disabled).
         delete v2UpgradeInput.disputeGameConfigs;
@@ -640,15 +640,15 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
             vm.skip(true, "Skipping: fork chain already migrated to SUPER_ game type");
         }
 
-        // Determine migration path.
+        // Determine upgrade path.
         bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
 
         // Get proposer/challenger from existing permissioned game.
         address currentProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         address currentChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
 
-        // Build migration configs.
-        GameType targetGameType = _setupMigrationConfigs(isPermissionless, currentProposer, currentChallenger);
+        // Build super root configs.
+        GameType targetGameType = _setupSuperRootConfigs(isPermissionless, currentProposer, currentChallenger);
 
         // Run the upgrade. StandardValidator handles super mode — no legacy game errors.
         runCurrentUpgradeV2(chainPAO);
@@ -697,7 +697,7 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
 
     /// @notice Tests that upgrade() can be called twice with the super root flag without reverting.
     ///         This verifies the evergreen principle: OPCM V2 must be callable twice with the same
-    ///         inputs. The old assertValidSuperRootMigrationConfig would reject already-migrated
+    ///         inputs. The old assertValidSuperRootMigrationConfig would reject already-upgraded
     ///         chains because it read on-chain state. The unified validator is pure, so it works
     ///         identically on first and second call.
     function test_upgrade_idempotent_withSuperRootFlag_succeeds() public {
@@ -709,17 +709,17 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
                 || originalRaw == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
                 || originalRaw == GameTypes.SUPER_ASTERISC_KONA.raw()
         ) {
-            vm.skip(true, "Skipping: fork chain already migrated to SUPER_ game type");
+            vm.skip(true, "Skipping: fork chain already upgraded to SUPER_ game type");
         }
 
         bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
 
-        // Capture challenger/proposer BEFORE migration zeroes out PERMISSIONED_CANNON.
+        // Capture challenger/proposer BEFORE upgrade zeroes out PERMISSIONED_CANNON.
         address currentProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         address currentChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
 
-        // Build migration configs.
-        GameType targetGameType = _setupMigrationConfigs(isPermissionless, currentProposer, currentChallenger);
+        // Build super root configs.
+        GameType targetGameType = _setupSuperRootConfigs(isPermissionless, currentProposer, currentChallenger);
 
         // Run superchain upgrade once (may fail if already up to date).
         prankDelegateCall(superchainPAO);
