@@ -25,7 +25,7 @@ contract L1BlockCGT is L1Block {
 
     /// @custom:semver +custom-gas-token.1
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+custom-gas-token");
+        return string.concat(super.version(), "+custom-gas-token.1");
     }
 
     /// @notice Returns whether the gas paying token is custom.

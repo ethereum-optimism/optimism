@@ -159,15 +159,21 @@ contract L2ContractsManager is ISemver {
     /// @notice Loads the full configuration for the L2 Predeploys.
     /// @return fullConfig_ The full configuration.
     function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
+        // First we read the system customization and def feature flags from the state.
+        // Because the L2CM's upgrade function does not accept arguments, these values must be set from outside of the
+        // Network Upgrade Transactions bundle. The expectation is that they will be set at the start of a
+        // hard fork block, within the consenus client's code.
+
         // Read system customization flags from L1Block
         fullConfig_.isCustomGasToken =
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
-        // Interop requires both the dev feature flag and the system customization flag to agree.
-        bool _devInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-        bool _sysInterop = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP);
-        if (_devInterop != _sysInterop) revert L2ContractsManager_FeatureFlagMismatch();
-        fullConfig_.isInterop = _sysInterop;
+        // The INTEROP system customization can only be enabled if the dev feature is also enabled.
+        // The dev feature gates whether interop code was deployed; the system customization controls activation.
+        fullConfig_.isInterop = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP);
+        if (fullConfig_.isInterop && !_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            revert L2ContractsManager_FeatureFlagMismatch();
+        }
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
