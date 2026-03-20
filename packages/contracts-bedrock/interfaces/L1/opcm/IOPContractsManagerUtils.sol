@@ -7,7 +7,7 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { Claim, GameType, Proposal } from "src/dispute/lib/Types.sol";
+import { Claim, GameType } from "src/dispute/lib/Types.sol";
 
 interface IOPContractsManagerUtils {
     struct ProxyDeployArgs {
@@ -151,27 +151,11 @@ interface IOPContractsManagerUtils {
         view
         returns (bytes memory);
 
-    function assertValidSuperRootMigrationConfig(
-        DisputeGameConfig[] memory _disputeGameConfigs,
-        GameType _startingRespectedGameType,
-        Proposal memory _startingAnchorRoot,
-        IAnchorStateRegistry _asr
-    )
-        external
-        view;
-
     function assertValidStandardGameConfigs(
         DisputeGameConfig[] memory _disputeGameConfigs,
         GameType _startingRespectedGameType,
-        bool _isInitialDeployment
-    )
-        external
-        pure;
-
-    function assertValidSuperRootDeployConfigs(
-        DisputeGameConfig[] memory _disputeGameConfigs,
-        GameType _startingRespectedGameType,
-        bool _isInitialDeployment
+        bool _isInitialDeployment,
+        GameType[] memory _validGameTypes
     )
         external
         pure;

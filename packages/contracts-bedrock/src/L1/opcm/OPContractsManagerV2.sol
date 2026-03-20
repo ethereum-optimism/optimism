@@ -696,25 +696,34 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         returns (ChainContracts memory)
     {
-        // Validate the config based on mode.
+        // Build the valid game types array based on the current mode. The caller (OPCM)
+        // determines which game types are valid rather than hardcoding inside the validator.
+        GameType[] memory validGameTypes;
         if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION) && _isInitialDeployment) {
-            // Initial deploy with migration flag: validate SUPER_ game types.
-            _assertValidSuperRootDeployConfigs(
-                _cfg.disputeGameConfigs, _cfg.startingRespectedGameType, _isInitialDeployment
-            );
+            // Super root initial deploy: only super game types.
+            validGameTypes = new GameType[](2);
+            validGameTypes[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
+            validGameTypes[1] = GameTypes.SUPER_CANNON_KONA;
         } else if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            // Upgrade with migration flag: validate migration-specific config.
-            _assertValidSuperRootMigrationConfig(
-                _cfg.disputeGameConfigs,
-                _cfg.startingRespectedGameType,
-                _cfg.startingAnchorRoot,
-                _cts.anchorStateRegistry
-            );
+            // Super root upgrade: super + legacy types. Legacy entries are provided as disabled
+            // configs; the setImplementation loop below handles zeroing them out.
+            validGameTypes = new GameType[](6);
+            validGameTypes[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
+            validGameTypes[1] = GameTypes.SUPER_CANNON_KONA;
+            validGameTypes[2] = GameTypes.CANNON;
+            validGameTypes[3] = GameTypes.PERMISSIONED_CANNON;
+            validGameTypes[4] = GameTypes.CANNON_KONA;
+            validGameTypes[5] = GameTypes.SUPER_CANNON;
         } else {
-            _assertValidStandardGameConfigs(
-                _cfg.disputeGameConfigs, _cfg.startingRespectedGameType, _isInitialDeployment
-            );
+            // Standard: non-super game types.
+            validGameTypes = new GameType[](3);
+            validGameTypes[0] = GameTypes.CANNON;
+            validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
+            validGameTypes[2] = GameTypes.CANNON_KONA;
         }
+        _assertValidStandardGameConfigs(
+            _cfg.disputeGameConfigs, _cfg.startingRespectedGameType, _isInitialDeployment, validGameTypes
+        );
 
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
@@ -878,10 +887,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             );
         }
 
-        // Update the DisputeGame config and implementations.
-        // NOTE: Both assertValidStandardGameConfigs and assertValidSuperRootMigrationConfig require
-        // a configuration entry for every game type we care about in the new configuration, so this
-        // loop sets/unsets all target game types. Legacy game types are separately cleaned up below.
+        // Update the DisputeGame config and implementations. The validator requires a configuration
+        // entry for every game type we care about, so this loop sets/unsets all target game types.
+        // For super root upgrades, legacy types are included as disabled entries and zeroed here.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             // Game implementation and arguments default to empty values. If the game is disabled,
             // we'll use these empty values to unset the game in the factory.
@@ -903,21 +911,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.disputeGameFactory.setInitBond(
                 _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
             );
-        }
-
-        // Disable legacy game types when migrating to super root games. SUPER_PERMISSIONED_CANNON
-        // is deliberately NOT disabled (always registered for fallback). ASTERISC/ASTERISC_KONA are
-        // not cleaned up because no production chain uses them. SUPER_CANNON is cleaned up because
-        // it's superseded by SUPER_CANNON_KONA.
-        if (!_isInitialDeployment && isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            _cts.disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), hex"");
-            _cts.disputeGameFactory.setInitBond(GameTypes.CANNON, 0);
-            _cts.disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
-            _cts.disputeGameFactory.setInitBond(GameTypes.PERMISSIONED_CANNON, 0);
-            _cts.disputeGameFactory.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
-            _cts.disputeGameFactory.setInitBond(GameTypes.CANNON_KONA, 0);
-            _cts.disputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
-            _cts.disputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, 0);
         }
 
         // If the custom gas token feature was requested, enable it in the SystemConfig.

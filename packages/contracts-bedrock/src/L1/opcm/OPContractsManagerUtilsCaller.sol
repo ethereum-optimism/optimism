@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 // Libraries
-import { GameType, Proposal } from "src/dispute/lib/Types.sol";
+import { GameType } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -221,36 +221,16 @@ abstract contract OPContractsManagerUtilsCaller {
             abi.decode(_staticcall(abi.encodeCall(IOPContractsManagerUtils.getGameImpl, (_gameType))), (IDisputeGame));
     }
 
-    /// @notice Validates the config for a super root games migration.
-    /// @param _disputeGameConfigs The dispute game configs.
-    /// @param _startingRespectedGameType The starting respected game type.
-    /// @param _startingAnchorRoot The starting anchor root.
-    /// @param _asr The AnchorStateRegistry to validate against.
-    function _assertValidSuperRootMigrationConfig(
-        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
-        GameType _startingRespectedGameType,
-        Proposal memory _startingAnchorRoot,
-        IAnchorStateRegistry _asr
-    )
-        internal
-        view
-    {
-        _staticcall(
-            abi.encodeCall(
-                IOPContractsManagerUtils.assertValidSuperRootMigrationConfig,
-                (_disputeGameConfigs, _startingRespectedGameType, _startingAnchorRoot, _asr)
-            )
-        );
-    }
-
-    /// @notice Validates the standard (non-migration) deployment/upgrade game configs.
+    /// @notice Validates the game configs against the expected valid game types.
     /// @param _disputeGameConfigs The dispute game configs.
     /// @param _startingRespectedGameType The starting respected game type.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
+    /// @param _validGameTypes The expected game types in order.
     function _assertValidStandardGameConfigs(
         IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
         GameType _startingRespectedGameType,
-        bool _isInitialDeployment
+        bool _isInitialDeployment,
+        GameType[] memory _validGameTypes
     )
         internal
         view
@@ -258,27 +238,7 @@ abstract contract OPContractsManagerUtilsCaller {
         _staticcall(
             abi.encodeCall(
                 IOPContractsManagerUtils.assertValidStandardGameConfigs,
-                (_disputeGameConfigs, _startingRespectedGameType, _isInitialDeployment)
-            )
-        );
-    }
-
-    /// @notice Validates the super root deploy game configs (initial deployment with migration flag).
-    /// @param _disputeGameConfigs The dispute game configs.
-    /// @param _startingRespectedGameType The starting respected game type.
-    /// @param _isInitialDeployment Whether or not this is an initial deployment.
-    function _assertValidSuperRootDeployConfigs(
-        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
-        GameType _startingRespectedGameType,
-        bool _isInitialDeployment
-    )
-        internal
-        view
-    {
-        _staticcall(
-            abi.encodeCall(
-                IOPContractsManagerUtils.assertValidSuperRootDeployConfigs,
-                (_disputeGameConfigs, _startingRespectedGameType, _isInitialDeployment)
+                (_disputeGameConfigs, _startingRespectedGameType, _isInitialDeployment, _validGameTypes)
             )
         );
     }
