@@ -1462,6 +1462,10 @@ jobs:
       - setup-features:
           features: <<parameters.features>>
       - run:
+          name: Check NUT bundle is up-to-date
+          command: just nut-bundle-check-no-build
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Run L2 fork tests
           command: |
             mkdir -p results
