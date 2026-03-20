@@ -148,7 +148,8 @@ const simpleInteropSuperProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindRequireInteropNotAtGen
 
 const supernodeProofsPresetSupportedOptionKinds = optionKindChallengerCannonKona |
-	optionKindL1EL
+	optionKindL1EL |
+	optionKindTimeTravel
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL
