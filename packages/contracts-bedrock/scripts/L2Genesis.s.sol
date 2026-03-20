@@ -142,13 +142,6 @@ contract L2Genesis is Script {
         setPredeployProxies(_input);
         vm.stopPrank();
 
-        // Enable system customizations on L1Block before predeploy implementations are set.
-        // CUSTOM_GAS_TOKEN is set later by setL1Block() -> setCustomGasToken() -> _setFeature().
-        if (_input.useInterop) {
-            vm.prank(Constants.DEPOSITOR_ACCOUNT);
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).enableFeature("INTEROP");
-        }
-
         // Set L1 Block has its own pranking requirements which it handles internally
         setPredeployImplementations(_input);
 
@@ -281,7 +274,7 @@ contract L2Genesis is Script {
         vm.stopPrank();
 
         // Set L1 Block has its own pranking requirements which it handles internally.
-        setL1Block(_input.useCustomGasToken); // 15
+        setL1Block(_input); // 15
 
         // Resume pranking as the proxy admin owner.
         vm.startPrank(_input.opChainProxyAdminOwner);
@@ -296,11 +289,10 @@ contract L2Genesis is Script {
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         setFeeSplitter(_input); // 2B: FeeSplitter
         if (
-            _input.fork >= uint256(Fork.INTEROP)
+            _input.fork >= uint256(Fork.INTEROP) && _input.useInterop
                 && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                && IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled("INTEROP")
         ) {
-            // Both dev flag and system customization must be set to enable Interop
+            // Both flags must be explicitly set in order to enable Interop
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
@@ -411,8 +403,8 @@ contract L2Genesis is Script {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL1Block(bool _useCustomGasToken) internal {
-        if (_useCustomGasToken) {
+    function setL1Block(Input memory _input) internal {
+        if (_input.useCustomGasToken) {
             // Set the implementation code for L1BlockCGT
             string memory cname = "L1BlockCGT";
             address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
@@ -424,6 +416,11 @@ contract L2Genesis is Script {
             vm.stopPrank();
         } else {
             _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
+        }
+        if (_input.useInterop) {
+            vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
+            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).enableFeature("INTEROP");
+            vm.stopPrank();
         }
     }
 

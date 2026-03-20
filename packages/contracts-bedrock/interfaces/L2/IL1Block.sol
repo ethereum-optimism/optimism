@@ -2,6 +2,11 @@
 pragma solidity ^0.8.0;
 
 interface IL1Block {
+    error NotDepositor();
+    error L1Block_FeatureAlreadyEnabled();
+
+    event FeatureEnabled(string indexed feature);
+
     function DEPOSITOR_ACCOUNT() external pure returns (address addr_);
     function baseFeeScalar() external view returns (uint32);
     function basefee() external view returns (uint256);

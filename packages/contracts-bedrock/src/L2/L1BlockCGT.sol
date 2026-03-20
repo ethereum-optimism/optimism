@@ -22,7 +22,7 @@ contract L1BlockCGT is L1Block {
     bytes32 private constant IS_CUSTOM_GAS_TOKEN_SLOT =
         0xd2ff82c9b477ff6a09f530b1c627ffb4b0b81e2ae2ba427f824162e8dad020aa;
 
-    /// @custom:semver +custom-gas-token
+    /// @custom:semver +custom-gas-token.1
     function version() public pure override returns (string memory) {
         return string.concat(super.version(), "+custom-gas-token");
     }

@@ -158,8 +158,7 @@ contract L2ContractsManager is ISemver {
     /// @return fullConfig_ The full configuration.
     function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
         // Read system customization flags from L1Block
-        fullConfig_.isCustomGasToken =
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled("CUSTOM_GAS_TOKEN");
+        fullConfig_.isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled("CUSTOM_GAS_TOKEN");
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({

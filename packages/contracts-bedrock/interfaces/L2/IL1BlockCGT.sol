@@ -2,6 +2,11 @@
 pragma solidity ^0.8.0;
 
 interface IL1BlockCGT {
+    error NotDepositor();
+    error L1Block_FeatureAlreadyEnabled();
+
+    event FeatureEnabled(string indexed feature);
+
     function DEPOSITOR_ACCOUNT() external pure returns (address addr_);
     function number() external view returns (uint64);
     function timestamp() external view returns (uint64);
