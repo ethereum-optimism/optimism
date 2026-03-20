@@ -189,7 +189,7 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   #!/bin/bash
   set -euo pipefail
 
-  if [ ! -n "$KONA_HOST_PATH" ]; then
+  if [ -z "${KONA_HOST_PATH:-}" ]; then
     export KONA_HOST_PATH="{{SOURCE}}/../target/release/kona-host"
   fi
 
@@ -199,7 +199,12 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  cd {{SOURCE}}/../../../op-e2e/actions/proofs
+  PROOFS_DIR="{{SOURCE}}/../../../op-e2e/actions/proofs"
+  if [ ! -d "$PROOFS_DIR" ]; then
+    echo "Error: proofs directory not found: $PROOFS_DIR" >&2
+    exit 1
+  fi
+  cd "$PROOFS_DIR"
 
   # Set parallel to the number of cores available if {{parallel}} is not greater than 0
   if [ {{parallel}} -gt 0 ]; then
@@ -211,21 +216,40 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   echo "Running tests with $PARALLEL cores"
 
   # CircleCI parallelism
-  if [ -n "$CIRCLE_NODE_TOTAL" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-  	echo "Setting up test directories..."
+  if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "${CIRCLE_NODE_TOTAL:-0}" -gt 1 ]; then
+    echo "Setting up test directories..."
     mkdir -p ./tmp/test-results ./tmp/testlogs
 
     export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
     export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
-    go test -list '^{{test_name}}' > /tmp/tests.txt
+
+    # List matching test names, filtering out the "ok" summary line from go test -list.
+    # Note: go test -list uses full-match regex, so we need .* suffix to match prefixes.
+    go test -list '{{test_name}}.*' . | grep -E '^{{test_name}}' > /tmp/tests.txt
+
+    TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
+    if [ "$TOTAL_TESTS" -eq 0 ]; then
+      echo "Error: no tests matched pattern '^{{test_name}}'" >&2
+      exit 1
+    fi
+    echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
+
     circleci tests split --split-by=name /tmp/tests.txt > /tmp/tests_shard.txt
 
-    echo "Node $NODE_INDEX/$NODE_TOTAL running tests: $(cat /tmp/tests_shard.txt)"
-    xargs -n 1 -I {} gotestsum --format=testname \
+    SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
+    echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests: $(cat /tmp/tests_shard.txt)"
+
+    if [ "$SHARD_COUNT" -eq 0 ]; then
+      echo "No tests assigned to this node, skipping."
+      exit 0
+    fi
+
+    xargs -I {} gotestsum --format=testname \
       --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
       --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
       -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
       < /tmp/tests_shard.txt
+
     # xargs calls gotestsum multiple times appending to the same jsonfile,
     # so split once at the end rather than wrapping each call.
     {{SOURCE}}/../../../ops/scripts/split-test-logs.sh ./tmp/testlogs/log-$NODE_INDEX.json
