@@ -591,12 +591,13 @@ func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]Word, fun uint32, rs Wor
 		hi, lo := bits.Mul64(absA, absB)
 		if negative {
 			// Two's complement negation: flip all bits and add 1
+			// Must increment lo first, then carry to hi if lo overflows to 0
 			hi = ^hi
 			lo = ^lo
-			if lo == 0xFFFFFFFFFFFFFFFF {
+			lo++
+			if lo == 0 {
 				hi++
 			}
-			lo++
 		}
 		cpu.HI = Word(hi)
 		cpu.LO = Word(lo)
