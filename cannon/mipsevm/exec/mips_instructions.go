@@ -345,6 +345,8 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				if fun == 0x20 {
 					rs = ^rs
 				}
+				// Mask to 32 bits to prevent upper bits of 64-bit Word from affecting the count
+				rs = rs & 0xFFFFFFFF
 				i := uint32(0)
 				for ; rs&0x80000000 != 0; i++ {
 					rs <<= 1
