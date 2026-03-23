@@ -210,7 +210,10 @@ library Predeploys {
             || (
                 _fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop
                     && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER
-            ) || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
+            )
+            || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == SUPERCHAIN_ETH_BRIDGE)
+            || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == ETH_LIQUIDITY)
+            || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
             || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY) || (_useL2CM && _addr == CONDITIONAL_DEPLOYER)
             || (_useL2CM && _addr == L2_DEV_FEATURE_FLAGS);
     }
@@ -272,13 +275,10 @@ library Predeploys {
         predeploys_[18] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
         predeploys_[19] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
         predeploys_[20] = Predeploys.ETH_LIQUIDITY;
-        predeploys_[21] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
-        predeploys_[22] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
-        predeploys_[23] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
         // CGT predeploys (conditionally deployed, but still must be included in the list)
-        predeploys_[24] = Predeploys.NATIVE_ASSET_LIQUIDITY;
-        predeploys_[25] = Predeploys.LIQUIDITY_CONTROLLER;
+        predeploys_[21] = Predeploys.NATIVE_ASSET_LIQUIDITY;
+        predeploys_[22] = Predeploys.LIQUIDITY_CONTROLLER;
         // Dev feature flags bitmap
-        predeploys_[26] = Predeploys.L2_DEV_FEATURE_FLAGS;
+        predeploys_[23] = Predeploys.L2_DEV_FEATURE_FLAGS;
     }
 }
