@@ -6,7 +6,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
+import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import {
     IncorrectBondAmount,
     UnexpectedRootClaim,
@@ -182,6 +182,9 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertEq(game.challengerBond(), 1 ether);
         assertTrue(game.l1Head().raw() != bytes32(0));
         assertEq(game.rootClaimByChainId(l2ChainId).raw(), rootClaim.raw());
+
+        // The game was created while its game type was respected.
+        assertTrue(game.wasRespectedGameTypeWhenCreated());
 
         // extraData is 36 bytes: l2SequenceNumber (32) + parentIndex (4).
         bytes memory extra = game.extraData();
@@ -488,6 +491,32 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         vm.stopPrank();
     }
 
+    function test_initialize_fromAnchorState_succeeds() public {
+        // Create a first game (parentIndex = uint32.max) and verify it uses anchor state values.
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+
+        uint256 seqNum = anchorL2SequenceNumber + 5000;
+        ZKDisputeGame anchorGame = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: 1 ether }(
+                        gameType,
+                        Claim.wrap(keccak256("anchor-start-claim")),
+                        abi.encodePacked(seqNum, type(uint32).max)
+                    )
+                )
+            )
+        );
+        vm.stopPrank();
+
+        // The starting proposal should match the anchor state values.
+        (Hash anchorRoot, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
+        assertEq(anchorGame.startingRootHash().raw(), anchorRoot.raw());
+        assertEq(anchorGame.startingBlockNumber(), anchorSeqNum);
+        assertEq(anchorGame.parentIndex(), type(uint32).max);
+    }
+
     function test_initialize_alreadyInitialized_reverts() public {
         // The game is already initialized in setUp. Calling initialize again should revert.
         vm.expectRevert(AlreadyInitialized.selector);
@@ -499,6 +528,9 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
 /// @notice Tests for challenge functionality of ZKDisputeGame.
 contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_TestInit {
     function test_challenge_permissionless_succeeds() public {
+        // Record deadline before challenge.
+        (,,,, Timestamp deadlineBefore,) = game.claimData();
+
         // Any address can challenge (permissionless).
         address anyChallenger = address(0x9999);
         vm.startPrank(anyChallenger);
@@ -507,8 +539,12 @@ contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_TestInit {
         game.challenge{ value: 1 ether }();
         vm.stopPrank();
 
-        (,, address challenger_,,,) = game.claimData();
+        (,, address challenger_,, Timestamp deadlineAfter,) = game.claimData();
         assertEq(challenger_, anyChallenger);
+
+        // The deadline should be reset to block.timestamp + maxProveDuration after challenge.
+        assertEq(deadlineAfter.raw(), block.timestamp + maxProveDuration.raw());
+        assertTrue(deadlineAfter.raw() != deadlineBefore.raw());
     }
 
     function test_challenge_alreadyChallenged_reverts() public {
@@ -624,6 +660,60 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
         // Attempting to prove the child game should revert because parent is invalid.
         vm.expectRevert(InvalidParentGame.selector);
         childGame.prove(bytes(""));
+    }
+
+    function test_prove_emitsProvedEvent_succeeds() public {
+        vm.expectEmit(true, false, false, false, address(game));
+        emit Proved(prover);
+
+        vm.prank(prover);
+        game.prove(bytes(""));
+    }
+
+    function test_prove_invalidProof_reverts() public {
+        // Deploy a rejecting verifier and create a game that uses it.
+        ZKRejectingVerifier rejectingVerifier = new ZKRejectingVerifier();
+        address newImpl = address(new ZKDisputeGame());
+        GameType rejectGameType = GameType.wrap(202);
+
+        bytes memory gameArgs = abi.encodePacked(
+            bytes32(0),
+            rejectingVerifier,
+            maxChallengeDuration,
+            maxProveDuration,
+            uint256(1 ether),
+            anchorStateRegistry,
+            delayedWeth,
+            l2ChainId
+        );
+
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(rejectGameType);
+
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(rejectGameType, IDisputeGame(newImpl), gameArgs);
+        disputeGameFactory.setInitBond(rejectGameType, 1 ether);
+        vm.stopPrank();
+
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        ZKDisputeGame rejectGame = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: 1 ether }(
+                        rejectGameType,
+                        Claim.wrap(keccak256("reject-claim")),
+                        abi.encodePacked(parentL2SequenceNumber, type(uint32).max)
+                    )
+                )
+            )
+        );
+        vm.stopPrank();
+
+        // Proving should revert because the verifier always rejects.
+        vm.expectRevert("ZKRejectingVerifier: invalid proof");
+        vm.prank(prover);
+        rejectGame.prove(bytes(""));
     }
 }
 
@@ -1250,3 +1340,4 @@ contract ZKDisputeGame_RevertOnReceive_Harness {
 
 // Import needed for the l2ChainId=0 test
 import { ZKMockVerifier } from "test/dispute/zk/ZKMockVerifier.sol";
+import { ZKRejectingVerifier } from "test/dispute/zk/ZKRejectingVerifier.sol";
