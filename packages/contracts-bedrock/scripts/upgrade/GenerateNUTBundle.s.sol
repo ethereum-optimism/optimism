@@ -339,9 +339,6 @@ contract GenerateNUTBundle is Script {
             l2ToL2CrossDomainMessengerImpl: implementationConfigs["L2ToL2CrossDomainMessenger"].implementation,
             superchainETHBridgeImpl: implementationConfigs["SuperchainETHBridge"].implementation,
             ethLiquidityImpl: implementationConfigs["ETHLiquidity"].implementation,
-            optimismSuperchainERC20FactoryImpl: implementationConfigs["OptimismSuperchainERC20Factory"].implementation,
-            optimismSuperchainERC20BeaconImpl: implementationConfigs["OptimismSuperchainERC20Beacon"].implementation,
-            superchainTokenBridgeImpl: implementationConfigs["SuperchainTokenBridge"].implementation,
             nativeAssetLiquidityImpl: implementationConfigs["NativeAssetLiquidity"].implementation,
             liquidityControllerImpl: implementationConfigs["LiquidityController"].implementation,
             feeSplitterImpl: implementationConfigs["FeeSplitter"].implementation,
@@ -537,33 +534,6 @@ contract GenerateNUTBundle is Script {
             artifactPath: "ETHLiquidity.sol:ETHLiquidity",
             deploymentGasLimit: 400_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("ETHLiquidity.sol:ETHLiquidity"), SALT)
-        });
-        // Gas profiling: 814,361 gas used → 1,221,541 recommended → 1.3M with safety margin
-        implementationConfigs["OptimismSuperchainERC20Factory"] = ImplementationConfig({
-            name: "OptimismSuperchainERC20Factory",
-            artifactPath: "OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory",
-            deploymentGasLimit: 1_300_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory"), SALT
-            )
-        });
-        // Gas profiling: 103,008 gas used → 154,512 recommended → 200K with safety margin
-        implementationConfigs["OptimismSuperchainERC20Beacon"] = ImplementationConfig({
-            name: "OptimismSuperchainERC20Beacon",
-            artifactPath: "OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon",
-            deploymentGasLimit: 200_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon"), SALT
-            )
-        });
-        // Gas profiling: 474,836 gas used → 712,254 recommended → 750K with safety margin
-        implementationConfigs["SuperchainTokenBridge"] = ImplementationConfig({
-            name: "SuperchainTokenBridge",
-            artifactPath: "SuperchainTokenBridge.sol:SuperchainTokenBridge",
-            deploymentGasLimit: 750_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("SuperchainTokenBridge.sol:SuperchainTokenBridge"), SALT
-            )
         });
         // Gas profiling: 215,592 gas used → 323,388 recommended → 400K with safety margin
         implementationConfigs["NativeAssetLiquidity"] = ImplementationConfig({

@@ -96,9 +96,6 @@ library L2ContractsManagerTypes {
         address l2ToL2CrossDomainMessengerImpl;
         address superchainETHBridgeImpl;
         address ethLiquidityImpl;
-        address optimismSuperchainERC20FactoryImpl;
-        address optimismSuperchainERC20BeaconImpl;
-        address superchainTokenBridgeImpl;
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
         address feeSplitterImpl;
