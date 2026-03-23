@@ -322,14 +322,14 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             });
 
             // INVARIANT: The parent game's sequence number must be strictly above the anchor state.
-            (, uint256 anchorL2SeqNum) = anchorStateRegistry().anchors(gameType());
+            (, uint256 anchorL2SeqNum) = anchorStateRegistry().getAnchorRoot();
             if (startingProposal.l2SequenceNumber <= anchorL2SeqNum) revert InvalidParentGame();
 
             // INVARIANT: The parent game must be a valid game.
             if (proxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
-            (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().anchors(gameType());
+            (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
         }
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
