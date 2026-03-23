@@ -45,8 +45,8 @@ rules:
       - pattern: vm.expectRevert()
     paths:
       exclude:
-        - packages/contracts-bedrock/test/universal/WETH98.t.sol
-        - packages/contracts-bedrock/test/legacy/L1ChugSplashProxy.t.sol
+        - /packages/contracts-bedrock/test/universal/WETH98.t.sol
+        - /packages/contracts-bedrock/test/legacy/L1ChugSplashProxy.t.sol
 
   - id: sol-safety-natspec-semver-match
     languages: [generic]
@@ -73,7 +73,7 @@ rules:
           metavariable: $VERSION1
     paths:
       include:
-        - packages/contracts-bedrock/src
+        - /packages/contracts-bedrock/src
 
   - id: sol-safety-no-public-in-libraries
     languages: [generic]
@@ -109,9 +109,9 @@ rules:
           ...
     paths:
       exclude:
-        - packages/contracts-bedrock/test
-        - packages/contracts-bedrock/scripts
-        - ops/ai-eng/contracts-test-maintenance/prompt/prompt.md
+        - /packages/contracts-bedrock/test
+        - /packages/contracts-bedrock/scripts
+        - /ops/ai-eng/contracts-test-maintenance/prompt/prompt.md
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
@@ -120,13 +120,13 @@ rules:
     pattern-regex: function\s+\w+\s*\(\s*([^)]*?\b\w+\s+(?!_)(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+\s*(?=,|\)))
     paths:
       exclude:
-        - op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
-        - packages/contracts-bedrock/test
-        - packages/contracts-bedrock/interfaces
-        - packages/contracts-bedrock/scripts/libraries/Solarray.sol
-        - packages/contracts-bedrock/src/universal/WETH98.sol
-        - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
-        - packages/contracts-bedrock/src/governance/GovernanceToken.sol
+        - /op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
+        - /packages/contracts-bedrock/test
+        - /packages/contracts-bedrock/interfaces
+        - /packages/contracts-bedrock/scripts/libraries/Solarray.sol
+        - /packages/contracts-bedrock/src/universal/WETH98.sol
+        - /packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
+        - /packages/contracts-bedrock/src/governance/GovernanceToken.sol
 
   - id: sol-style-return-arg-fmt
     languages: [solidity]
@@ -135,12 +135,12 @@ rules:
     pattern-regex: returns\s*(\w+\s*)?\(\s*([^)]*?\b\w+\s+(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+(?<!_)\s*(?=,|\)))
     paths:
       exclude:
-        - packages/contracts-bedrock/interfaces/dispute/IDelayedWETH.sol
-        - op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
-        - packages/contracts-bedrock/interfaces
-        - packages/contracts-bedrock/test/safe-tools
-        - packages/contracts-bedrock/scripts/libraries/Solarray.sol
-        - packages/contracts-bedrock/scripts/interfaces/IGnosisSafe.sol
+        - /packages/contracts-bedrock/interfaces/dispute/IDelayedWETH.sol
+        - /op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
+        - /packages/contracts-bedrock/interfaces
+        - /packages/contracts-bedrock/test/safe-tools
+        - /packages/contracts-bedrock/scripts/libraries/Solarray.sol
+        - /packages/contracts-bedrock/scripts/interfaces/IGnosisSafe.sol
 
   - id: sol-style-doc-comment
     languages: [solidity]
@@ -149,7 +149,7 @@ rules:
     pattern-regex: (\/\*\*\n(\s+\*\s.*\n)+\s+\*\/)
     paths:
       exclude:
-        - packages/contracts-bedrock/test/safe-tools/CompatibilityFallbackHandler_1_3_0.sol
+        - /packages/contracts-bedrock/test/safe-tools/CompatibilityFallbackHandler_1_3_0.sol
 
   - id: sol-style-malformed-require
     languages: [solidity]
@@ -165,8 +165,8 @@ rules:
       - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
     paths:
       exclude:
-        - packages/contracts-bedrock/src/libraries/Bytes.sol
-        - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
+        - /packages/contracts-bedrock/src/libraries/Bytes.sol
+        - /packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
 
   - id: sol-style-malformed-revert
     languages: [solidity]
@@ -194,8 +194,8 @@ rules:
       - pattern-not: vm.expectRevert(abi.encodeWithSelector(...));
     paths:
       exclude:
-        - packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol
-        - packages/contracts-bedrock/test/invariants/FeeSplit.t.sol
+        - /packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol
+        - /packages/contracts-bedrock/test/invariants/FeeSplit.t.sol
 
   - id: sol-style-enforce-require-msg
     languages: [solidity]
@@ -206,7 +206,7 @@ rules:
       - pattern-not: require($ERR, $MSG);
     paths:
       exclude:
-        - packages/contracts-bedrock/src/universal/WETH98.sol
+        - /packages/contracts-bedrock/src/universal/WETH98.sol
 
   - id: sol-style-no-bare-imports
     languages: [solidity]
@@ -215,7 +215,7 @@ rules:
     pattern-regex: import\s+"[^"]+"\s*;
     paths:
       exclude:
-        - packages/contracts-bedrock/test
+        - /packages/contracts-bedrock/test
 
   - id: sol-style-error-format
     languages: [generic]
@@ -226,26 +226,26 @@ rules:
       - pattern-regex: \berror\s+(?!([A-Z][a-zA-Z0-9]*_[^_][a-zA-Z0-9]*))[a-zA-Z0-9]+\s*\([^)]*\)\s*;
     paths:
       include:
-        - packages/contracts-bedrock/src
+        - /packages/contracts-bedrock/src
       exclude:
-        - packages/contracts-bedrock/src/safe/LivenessModule.sol
-        - packages/contracts-bedrock/src/libraries/rlp/RLPErrors.sol
-        - packages/contracts-bedrock/src/libraries/errors/CommonErrors.sol
-        - packages/contracts-bedrock/src/libraries/TransientContext.sol
-        - packages/contracts-bedrock/src/libraries/L1BlockErrors.sol
-        - packages/contracts-bedrock/src/libraries/Blueprint.sol
-        - packages/contracts-bedrock/src/dispute/lib/Errors.sol
-        - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
-        - packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
-        - packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
-        - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
-        - packages/contracts-bedrock/src/L2/SuperchainTokenBridge.sol
-        - packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol
-        - packages/contracts-bedrock/src/L2/L2StandardBridgeInterop.sol
-        - packages/contracts-bedrock/src/L2/CrossL2Inbox.sol
-        - packages/contracts-bedrock/src/L1/ResourceMetering.sol
-        - packages/contracts-bedrock/src/L1/OPContractsManager.sol
-        - packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
+        - /packages/contracts-bedrock/src/safe/LivenessModule.sol
+        - /packages/contracts-bedrock/src/libraries/rlp/RLPErrors.sol
+        - /packages/contracts-bedrock/src/libraries/errors/CommonErrors.sol
+        - /packages/contracts-bedrock/src/libraries/TransientContext.sol
+        - /packages/contracts-bedrock/src/libraries/L1BlockErrors.sol
+        - /packages/contracts-bedrock/src/libraries/Blueprint.sol
+        - /packages/contracts-bedrock/src/dispute/lib/Errors.sol
+        - /packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
+        - /packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
+        - /packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
+        - /packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
+        - /packages/contracts-bedrock/src/L2/SuperchainTokenBridge.sol
+        - /packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol
+        - /packages/contracts-bedrock/src/L2/L2StandardBridgeInterop.sol
+        - /packages/contracts-bedrock/src/L2/CrossL2Inbox.sol
+        - /packages/contracts-bedrock/src/L1/ResourceMetering.sol
+        - /packages/contracts-bedrock/src/L1/OPContractsManager.sol
+        - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
 
   - id: sol-safety-use-disable-initializer
     languages: [solidity]
@@ -318,38 +318,38 @@ rules:
       (?:\bimmutable\b\s+\w+\s+\w+|\b\w+\s+\bimmutable\b\s+\w+)(?:\s*=\s*[^;]+)?\s*;
     paths:
       include:
-        - packages/contracts-bedrock/src
+        - /packages/contracts-bedrock/src
       exclude:
-        - packages/contracts-bedrock/src/L1/OPContractsManager.sol
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerContainer.sol
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtils.sol
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtilsCaller.sol
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerMigrator.sol
-        - packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-        - packages/contracts-bedrock/src/L1/OptimismPortalInterop.sol
-        - packages/contracts-bedrock/src/L2/FeeVault.sol
-        - packages/contracts-bedrock/src/L2/OptimismMintableERC721.sol
-        - packages/contracts-bedrock/src/L2/OptimismMintableERC721Factory.sol
-        - packages/contracts-bedrock/src/L2/L2ContractsManager.sol
-        - packages/contracts-bedrock/src/cannon/MIPS64.sol
-        - packages/contracts-bedrock/src/cannon/PreimageOracle.sol
-        - packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol
-        - packages/contracts-bedrock/src/dispute/DelayedWETH.sol
-        - packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
-        - packages/contracts-bedrock/src/governance/MintManager.sol
-        - packages/contracts-bedrock/src/periphery/TransferOnion.sol
-        - packages/contracts-bedrock/src/periphery/faucet/Faucet.sol
-        - packages/contracts-bedrock/src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol
-        - packages/contracts-bedrock/src/safe/DeputyGuardianModule.sol
-        - packages/contracts-bedrock/src/safe/DeputyPauseModule.sol
-        - packages/contracts-bedrock/src/safe/LivenessGuard.sol
-        - packages/contracts-bedrock/src/safe/LivenessModule.sol
-        - packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol
-        - packages/contracts-bedrock/src/universal/ReinitializableBase.sol
+        - /packages/contracts-bedrock/src/L1/OPContractsManager.sol
+        - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+        - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerContainer.sol
+        - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtils.sol
+        - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtilsCaller.sol
+        - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerMigrator.sol
+        - /packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+        - /packages/contracts-bedrock/src/L1/OptimismPortalInterop.sol
+        - /packages/contracts-bedrock/src/L2/FeeVault.sol
+        - /packages/contracts-bedrock/src/L2/OptimismMintableERC721.sol
+        - /packages/contracts-bedrock/src/L2/OptimismMintableERC721Factory.sol
+        - /packages/contracts-bedrock/src/L2/L2ContractsManager.sol
+        - /packages/contracts-bedrock/src/cannon/MIPS64.sol
+        - /packages/contracts-bedrock/src/cannon/PreimageOracle.sol
+        - /packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol
+        - /packages/contracts-bedrock/src/dispute/DelayedWETH.sol
+        - /packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
+        - /packages/contracts-bedrock/src/governance/MintManager.sol
+        - /packages/contracts-bedrock/src/periphery/TransferOnion.sol
+        - /packages/contracts-bedrock/src/periphery/faucet/Faucet.sol
+        - /packages/contracts-bedrock/src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol
+        - /packages/contracts-bedrock/src/safe/DeputyGuardianModule.sol
+        - /packages/contracts-bedrock/src/safe/DeputyPauseModule.sol
+        - /packages/contracts-bedrock/src/safe/LivenessGuard.sol
+        - /packages/contracts-bedrock/src/safe/LivenessModule.sol
+        - /packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol
+        - /packages/contracts-bedrock/src/universal/ReinitializableBase.sol
 
   - id: sol-style-use-process-run
     languages: [solidity]
@@ -362,7 +362,7 @@ rules:
           vm.tryFfi(...);
     paths:
       exclude:
-        - packages/contracts-bedrock/scripts/libraries/Process.sol
+        - /packages/contracts-bedrock/scripts/libraries/Process.sol
 
   - id: sol-style-vm-env-only-in-config-sol
     languages: [solidity]
@@ -371,7 +371,7 @@ rules:
     pattern-regex: vm.env
     paths:
       exclude:
-        - packages/contracts-bedrock/scripts/libraries/Config.sol
+        - /packages/contracts-bedrock/scripts/libraries/Config.sol
 
   - id: sol-style-event-param-fmt
     languages: [solidity]
@@ -387,8 +387,8 @@ rules:
     paths:
       exclude:
         # LegacyMintableERC20 and the corresponding interface use legacy naming conventions.
-        - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
-        - packages/contracts-bedrock/interfaces/legacy/ILegacyMintableERC20Full.sol
+        - /packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
+        - /packages/contracts-bedrock/interfaces/legacy/ILegacyMintableERC20Full.sol
 
   - id: sol-safety-opcmv2-use-internal-version
     languages: [generic]
@@ -398,7 +398,7 @@ rules:
       - pattern-regex: (?<!\.)(?<!function\s)(?<!_)version\(\)
     paths:
       include:
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+        - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
 
   - id: sol-style-ban-forge-std-test-import
     languages: [solidity]
@@ -407,9 +407,9 @@ rules:
     pattern-regex: import\s+(\{[^}]*\}\s+from\s+)?"forge-std/Test\.sol"\s*;
     paths:
       include:
-        - packages/contracts-bedrock/test
+        - /packages/contracts-bedrock/test
       exclude:
-        - packages/contracts-bedrock/test/setup/Test.sol
+        - /packages/contracts-bedrock/test/setup/Test.sol
 
   - id: sol-safety-opcmv2-immutable-prefix
     languages: [solidity]
@@ -422,7 +422,7 @@ rules:
     # pattern-regex: ^\s*(?!/\*|//|\*)\w+\s+public\s+immutable\s+(?!(?:opcm\w*|contractsContainer\s*;|standardValidator\s*;))\w+;
     paths:
       include:
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+        - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
 
   - id: sol-safety-initialize-assert-proxy-admin
     languages: [solidity]
@@ -441,22 +441,22 @@ rules:
           }
     paths:
       include:
-        - packages/contracts-bedrock/src
+        - /packages/contracts-bedrock/src
       exclude:
         # TODO(#19001): We should eventually have this on the L2 contracts.
-        - packages/contracts-bedrock/src/L2
-        - packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol
+        - /packages/contracts-bedrock/src/L2
+        - /packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol
         # Dispute games use initialize() in a different context - they are clone-deployed
         # via DisputeGameFactory and use their own AlreadyInitialized check pattern.
-        - packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
         # ProtocolVersions is being deprecated.
-        - packages/contracts-bedrock/src/L1/ProtocolVersions.sol
+        - /packages/contracts-bedrock/src/L1/ProtocolVersions.sol
         # DataAvailabilityChallenge is a beta/non-standard contract.
-        - packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
+        - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
 
   - id: sol-safety-use-deployutils-getcode
     languages: [solidity]
@@ -466,4 +466,4 @@ rules:
       - pattern: vm.getCode(...)
     paths:
       exclude:
-        - packages/contracts-bedrock/scripts/libraries/DeployUtils.sol
+        - /packages/contracts-bedrock/scripts/libraries/DeployUtils.sol
