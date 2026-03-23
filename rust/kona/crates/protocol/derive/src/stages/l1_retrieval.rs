@@ -244,44 +244,33 @@ mod tests {
         assert!(retrieval.next.is_none());
     }
 
-    /// Regression test: stale DAP data loaded before a reset must not be returned after the reset.
-    #[tokio::test]
-    async fn test_l1_retrieval_reset_clears_stale_data() {
+    async fn test_l1_retrieval_clears_stale_data(signal: Signal) {
         let traversal = TraversalTestHelper::new_populated();
-        // Pre-load a stale entry that should never be served after the reset.
+        // Pre-load a stale entry that should never be served after activation or reset.
         let dap = TestDAP { results: vec![Ok(Bytes::from_static(b"stale"))] };
         let mut retrieval = L1Retrieval::new(traversal, dap);
         retrieval.next = Some(BlockInfo::default());
-        retrieval
-            .signal(
-                ResetSignal { system_config: Some(Default::default()), ..Default::default() }
-                    .signal(),
-            )
-            .await
-            .unwrap();
+        retrieval.signal(signal).await.unwrap();
         // next_data must not return the stale bytes; the cleared provider yields EOF.
         let err = retrieval.next_data().await.unwrap_err();
         assert_eq!(err, PipelineError::Eof.temp());
     }
 
+    /// Regression test: stale DAP data loaded before a reset must not be returned after the reset.
+    #[tokio::test]
+    async fn test_l1_retrieval_reset_clears_stale_data() {
+        let reset_signal =
+            ResetSignal { system_config: Some(Default::default()), ..Default::default() }.signal();
+        test_l1_retrieval_clears_stale_data(reset_signal).await
+    }
+
     /// Regression test: stale DAP data loaded before an activation must not be returned after it.
     #[tokio::test]
     async fn test_l1_retrieval_activation_clears_stale_data() {
-        let traversal = TraversalTestHelper::new_populated();
-        // Pre-load a stale entry that should never be served after activation.
-        let dap = TestDAP { results: vec![Ok(Bytes::from_static(b"stale"))] };
-        let mut retrieval = L1Retrieval::new(traversal, dap);
-        retrieval.next = Some(BlockInfo::default());
-        retrieval
-            .signal(
-                ActivationSignal { system_config: Some(Default::default()), ..Default::default() }
-                    .signal(),
-            )
-            .await
-            .unwrap();
-        // next_data must not return the stale bytes; the cleared provider yields EOF.
-        let err = retrieval.next_data().await.unwrap_err();
-        assert_eq!(err, PipelineError::Eof.temp());
+        let activation_signal =
+            ActivationSignal { system_config: Some(Default::default()), ..Default::default() }
+                .signal();
+        test_l1_retrieval_clears_stale_data(activation_signal).await
     }
 
     #[tokio::test]
