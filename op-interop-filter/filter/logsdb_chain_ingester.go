@@ -340,7 +340,12 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock(latestBlock uint64) {
 // calculateStartingBlock returns the block number where ingestion should start,
 // calculated from startTimestamp and backfillDuration.
 func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
-	backfillTimestamp := c.startTimestamp - uint64(c.backfillDuration.Seconds())
+	backfillSeconds := uint64(c.backfillDuration.Seconds())
+	if c.startTimestamp < backfillSeconds {
+		// Backfill reaches before epoch 0; start from genesis
+		return c.rollupCfg.Genesis.L2.Number
+	}
+	backfillTimestamp := c.startTimestamp - backfillSeconds
 
 	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
 	if err != nil {
