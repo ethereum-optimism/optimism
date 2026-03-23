@@ -549,7 +549,12 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     function test_setFeature_multipleFeatures_succeeds() external {
         vm.startPrank(depositor);
         l1Block.setFeature(Features.INTEROP);
-        l1Block.setFeature(Features.CUSTOM_GAS_TOKEN);
+
+        // The custom gas token feature may already be enabled in the setUp if
+        // SYSTEM_FEATURE__CUSTOM_GAS_TOKEN is enabled.
+        if (!sysCfg.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            l1Block.setFeature(Features.CUSTOM_GAS_TOKEN);
+        }
         vm.stopPrank();
 
         assertTrue(l1Block.isFeatureEnabled(Features.INTEROP));
