@@ -164,13 +164,18 @@ contract L2ContractsManager is ISemver {
         // Network Upgrade Transactions bundle. The expectation is that they will be set at the start of a
         // hard fork block, within the consenus client's code.
 
-        // Read system customization flags from L1Block
-        fullConfig_.isCustomGasToken =
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        // Read system customization flags from L1Block.
+        // Uses the legacy isCustomGasToken() getter which has existed since custom gas token shipped.
+        fullConfig_.isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
 
+        // Uses try/catch because isFeatureEnabled() may not exist on pre-upgrade L1Block contracts.
+        try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP) returns (bool isInterop_) {
+            fullConfig_.isInterop = isInterop_;
+        } catch {
+            fullConfig_.isInterop = false;
+        }
         // The INTEROP system customization can only be enabled if the dev feature is also enabled.
         // The dev feature gates whether interop code was deployed; the system customization controls activation.
-        fullConfig_.isInterop = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP);
         if (fullConfig_.isInterop && !_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert L2ContractsManager_FeatureFlagMismatch();
         }
