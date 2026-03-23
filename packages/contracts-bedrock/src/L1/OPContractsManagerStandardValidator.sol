@@ -759,11 +759,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
         // Super game types store l2ChainId=0 in game args because the chain ID is embedded
         // in the super root proof extraData, not in the game args.
-        bool isSuperGame = _args.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-            || _args.gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
-            || _args.gameType.raw() == GameTypes.SUPER_CANNON.raw()
-            || _args.gameType.raw() == GameTypes.SUPER_ASTERISC_KONA.raw();
-        uint256 expectedL2ChainId = isSuperGame ? 0 : _args.l2ChainID;
+        uint256 expectedL2ChainId = isSuperGame(_args.gameType) ? 0 : _args.l2ChainID;
         errors_ = internalRequire(game.l2ChainId == expectedL2ChainId, string.concat(errorPrefix, "-60"), errors_);
         errors_ = internalRequire(game.l2SequenceNumber == 0, string.concat(errorPrefix, "-70"), errors_);
         errors_ =
@@ -787,6 +783,13 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         return errors_;
+    }
+
+    /// @notice Returns true if the game type is a super game type.
+    function isSuperGame(GameType _gameType) internal pure returns (bool) {
+        uint32 raw = _gameType.raw();
+        return raw == GameTypes.SUPER_PERMISSIONED_CANNON.raw() || raw == GameTypes.SUPER_CANNON_KONA.raw()
+            || raw == GameTypes.SUPER_CANNON.raw() || raw == GameTypes.SUPER_ASTERISC_KONA.raw();
     }
 
     /// @notice Returns the expected implementation address for a given game type.
