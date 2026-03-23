@@ -683,6 +683,12 @@ commands:
                 features: << parameters.features >>
 
 jobs:
+  ci-gate:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    steps:
+      - utils/ci-gate
+
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
     description: "Build a Rust workspace with target directory caching"
