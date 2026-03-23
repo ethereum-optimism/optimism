@@ -1773,3 +1773,297 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
         assertTrue(bytes(ISemver(standardValidator.ethLockboxImpl()).version()).length > 0, "ethLockboxVersion empty");
     }
 }
+
+/// @title OPContractsManagerStandardValidator_SuperMode_TestInit
+/// @notice Base contract for super mode StandardValidator tests. Requires SUPER_ROOT_GAMES_MIGRATION flag.
+///         After setUp, the chain has both SUPER_PERMISSIONED_CANNON and SUPER_CANNON_KONA enabled.
+abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is CommonTest {
+    /// @notice The l2ChainId.
+    uint256 l2ChainId;
+
+    /// @notice The cannon prestate (used by SUPER_PERMISSIONED_CANNON).
+    Claim cannonPrestate;
+
+    /// @notice The cannonKona prestate (used by SUPER_CANNON_KONA).
+    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
+
+    /// @notice The proposer role.
+    address proposer;
+
+    /// @notice The challenger role.
+    address challenger;
+
+    /// @notice The DisputeGameFactory instance.
+    IDisputeGameFactory dgf;
+
+    /// @notice The OPContractsManagerStandardValidator instance.
+    IOPContractsManagerStandardValidator standardValidator;
+
+    /// @notice Sets up the test suite.
+    function setUp() public virtual override {
+        // Requires migration flag — inverse of the standard test init skip.
+        if (!Config.devFeatureSuperRootGamesMigration()) {
+            vm.skip(true, "Skipping: requires SUPER_ROOT_GAMES_MIGRATION");
+        }
+        super.setUp();
+
+        dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        standardValidator = opcmV2.opcmStandardValidator();
+
+        IOPContractsManager.DeployInput memory deployInput = deploy.getDeployInput();
+        l2ChainId = deployInput.l2ChainId;
+        cannonPrestate = deployInput.disputeAbsolutePrestate;
+        proposer = deployInput.roles.proposer;
+        challenger = deployInput.roles.challenger;
+
+        // The deploy created SUPER_PERMISSIONED_CANNON (enabled) + SUPER_CANNON_KONA (disabled).
+        // Run an upgrade to also enable SUPER_CANNON_KONA so that full validation passes.
+        _enableSuperCannonKona();
+    }
+
+    /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED_CANNON.
+    function _enableSuperCannonKona() internal {
+        address owner = proxyAdmin.owner();
+
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+
+        // Super types (enabled).
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0.08 ether,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                    absolutePrestate: cannonPrestate,
+                    proposer: proposer,
+                    challenger: challenger
+                })
+            )
+        });
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0.08 ether,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
+
+        // Legacy types (all disabled).
+        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: hex""
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: hex""
+        });
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: hex""
+        });
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: hex""
+        });
+
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](1);
+        extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.startingRespectedGameType",
+            data: abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
+        });
+
+        prankDelegateCall(owner);
+        (bool success,) = address(opcmV2).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgrade,
+                (
+                    IOPContractsManagerV2.UpgradeInput({
+                        systemConfig: systemConfig,
+                        disputeGameConfigs: disputeGameConfigs,
+                        extraInstructions: extraInstructions
+                    })
+                )
+            )
+        );
+        assertTrue(success, "super mode upgrade failed");
+    }
+
+    /// @notice Runs the OPContractsManagerStandardValidator.validate function.
+    function _validate(bool _allowFailure) internal view returns (string memory) {
+        return standardValidator.validate(
+            IOPContractsManagerStandardValidator.ValidationInputDev({
+                sysCfg: systemConfig,
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
+                l2ChainID: l2ChainId,
+                proposer: proposer
+            }),
+            _allowFailure
+        );
+    }
+}
+
+/// @title OPContractsManagerStandardValidator_SuperModeCoreValidation_Test
+/// @notice Tests that full validation passes in super mode.
+contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
+    OPContractsManagerStandardValidator_SuperMode_TestInit
+{
+    /// @notice Tests that the validate function succeeds in super mode with all games configured.
+    function test_validate_succeeds() public view {
+        string memory errors = _validate(false);
+        assertEq(errors, "");
+    }
+}
+
+/// @title OPContractsManagerStandardValidator_SuperRootDisputeGames_Test
+/// @notice Tests the renamed SUPERSHAPE error codes (now game-specific prefixes).
+contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
+    OPContractsManagerStandardValidator_SuperMode_TestInit
+{
+    /// @notice Tests that enabling legacy CANNON in super mode triggers PLDG-SHAPE.
+    function test_validate_cannonNotDisabled_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("PLDG-SHAPE", _validate(true));
+    }
+
+    /// @notice Tests that enabling legacy PERMISSIONED_CANNON in super mode triggers PDDG-SHAPE.
+    function test_validate_permissionedCannonNotDisabled_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("PDDG-SHAPE", _validate(true));
+    }
+
+    /// @notice Tests that enabling legacy CANNON_KONA in super mode triggers CKDG-SHAPE.
+    function test_validate_cannonKonaNotDisabled_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("CKDG-SHAPE", _validate(true));
+    }
+
+    /// @notice Tests that enabling legacy SUPER_CANNON in super mode triggers SCDG-SHAPE.
+    function test_validate_superCannonNotDisabled_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("SCDG-SHAPE", _validate(true));
+    }
+
+    /// @notice Tests that disabling SUPER_PERMISSIONED_CANNON triggers SPDG-SHAPE.
+    function test_validate_superPermissionedCannonNotRegistered_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(address(0))
+        );
+        assertEq("SPDG-SHAPE,SPDG-10", _validate(true));
+    }
+}
+
+/// @title OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test
+/// @notice Tests SPDG error codes for the SUPER_PERMISSIONED_CANNON game validation.
+contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test is
+    OPContractsManagerStandardValidator_SuperMode_TestInit
+{
+    /// @notice Tests SPDG-10 when SUPER_PERMISSIONED_CANNON implementation is null.
+    function test_validate_superPermissionedDisputeGameNullImplementation_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(address(0))
+        );
+        assertEq("SPDG-SHAPE,SPDG-10", _validate(true));
+    }
+
+    /// @notice Tests SPDG-20 when SUPER_PERMISSIONED_CANNON version is invalid.
+    function test_validate_superPermissionedDisputeGameInvalidVersion_succeeds() public {
+        address spdgImpl = address(disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
+        BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(spdgImpl), "0.0.0");
+        bytes32 slot = bytes32(
+            ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superPermissionedDisputeGameImpl").slot
+        );
+        vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
+        assertEq("SPDG-20", _validate(true));
+    }
+
+    /// @notice Tests SPDG-40 when SUPER_PERMISSIONED_CANNON absolute prestate is invalid.
+    function test_validate_superPermissionedDisputeGameInvalidPrestate_succeeds() public {
+        bytes32 badPrestate = bytes32(uint256(0xbadbad));
+        DisputeGames.mockGameImplPrestate(dgf, GameTypes.SUPER_PERMISSIONED_CANNON, badPrestate);
+        assertEq("SPDG-40", _validate(true));
+    }
+
+    /// @notice Tests SPDG-130 when SUPER_PERMISSIONED_CANNON challenger is invalid.
+    function test_validate_superPermissionedDisputeGameInvalidChallenger_succeeds() public {
+        DisputeGames.mockGameImplChallenger(dgf, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
+        assertEq("SPDG-130", _validate(true));
+    }
+
+    /// @notice Tests SPDG-140 when SUPER_PERMISSIONED_CANNON proposer is invalid.
+    function test_validate_superPermissionedDisputeGameInvalidProposer_succeeds() public {
+        DisputeGames.mockGameImplProposer(dgf, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
+        assertEq("SPDG-140", _validate(true));
+    }
+}
+
+/// @title OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
+/// @notice Tests SCKDG error codes for the SUPER_CANNON_KONA game validation.
+contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test is
+    OPContractsManagerStandardValidator_SuperMode_TestInit
+{
+    /// @notice Tests SCKDG-10 when SUPER_CANNON_KONA implementation is null.
+    function test_validate_superPermissionlessDisputeGameNullImplementation_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(address(0))
+        );
+        assertEq("SCKDG-10", _validate(true));
+    }
+
+    /// @notice Tests SCKDG-20 when SUPER_CANNON_KONA version is invalid.
+    function test_validate_superPermissionlessDisputeGameInvalidVersion_succeeds() public {
+        address sckdgImpl = address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA));
+        BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(sckdgImpl), "0.0.0");
+        bytes32 slot =
+            bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superFaultDisputeGameImpl").slot);
+        vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
+        assertEq("SCKDG-20", _validate(true));
+    }
+
+    /// @notice Tests SCKDG-40 when SUPER_CANNON_KONA absolute prestate is invalid.
+    function test_validate_superPermissionlessDisputeGameInvalidPrestate_succeeds() public {
+        bytes32 badPrestate = cannonPrestate.raw(); // Use the wrong prestate
+        DisputeGames.mockGameImplPrestate(dgf, GameTypes.SUPER_CANNON_KONA, badPrestate);
+        assertEq("SCKDG-40", _validate(true));
+    }
+
+    /// @notice Tests SCKDG-VM-10 when SUPER_CANNON_KONA VM address is invalid.
+    function test_validate_superPermissionlessDisputeGameInvalidVM_succeeds() public {
+        address badVM = address(0xbad);
+        DisputeGames.mockGameImplVM(dgf, GameTypes.SUPER_CANNON_KONA, badVM);
+        vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
+        assertEq("SCKDG-VM-10,SCKDG-VM-20", _validate(true));
+    }
+}

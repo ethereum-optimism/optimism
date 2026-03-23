@@ -787,6 +787,8 @@ contract DeployImplementations is Script {
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
         opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
         opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
+        opcmImplementations.superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
+        opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
@@ -861,6 +863,8 @@ contract DeployImplementations is Script {
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
         opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
         opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
+        opcmImplementations.superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
+        opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
