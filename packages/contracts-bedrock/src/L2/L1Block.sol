@@ -231,11 +231,8 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
         }
     }
 
-    /// @notice Sets a feature flag enabled. Only callable by the depositor account, the ProxyAdmin owner, or the
-    ///         ProxyAdmin. This allows features to be set either by the L2CM, the Depositor, or the ProxyAdminOwner,
-    ///         which is expected to be an account on L1.
+    /// @notice Sets a feature flag enabled.
     ///         Once enabled, a feature cannot be disabled.
-    ///
     /// @param _feature The feature to set.
     function setFeature(bytes32 _feature) external {
         _assertSetFeatureAuthorized(msg.sender);
@@ -251,7 +248,9 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
         emit FeatureSet(_feature, true);
     }
 
-    /// @notice Reverts if the caller is not authorized to set a feature.
+    /// @notice Reverts if the sender is not authorized to set a feature. Only callable by the depositor account, the ProxyAdmin owner, or the
+    ///         ProxyAdmin. This allows features to be set either by the L2CM, the Depositor, or the ProxyAdminOwner,
+    ///         which is expected to be an account on L1.
     /// @param _sender The address to check.
     function _assertSetFeatureAuthorized(address _sender) internal view {
         if (!(_sender == DEPOSITOR_ACCOUNT() || _sender == proxyAdminOwner() || _sender == address(proxyAdmin()))) {
