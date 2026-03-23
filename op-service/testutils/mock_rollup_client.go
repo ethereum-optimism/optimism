@@ -58,6 +58,15 @@ func (m *MockRollupClient) ExpectSequencerActive(active bool, err error) {
 	m.Mock.On("SequencerActive").Once().Return(active, err)
 }
 
+func (m *MockRollupClient) DerivationReady(ctx context.Context) (bool, error) {
+	out := m.Mock.Called()
+	return out.Bool(0), out.Error(1)
+}
+
+func (m *MockRollupClient) ExpectDerivationReady(ready bool, err error) {
+	m.Mock.On("DerivationReady").Once().Return(ready, err)
+}
+
 func (m *MockRollupClient) ExpectClose() {
 	m.Mock.On("Close").Once()
 }

@@ -58,12 +58,17 @@ type RecoverMode interface {
 	SetRecoverMode(ctx context.Context, mode bool) error
 }
 
+type DerivationReadiness interface {
+	DerivationReady(ctx context.Context) (bool, error)
+}
+
 type RollupAdminClient interface {
 	CommonAdminClient
 	SequencerActivity
 	UnsignedPayloadPoster
 	RollupConductor
 	RecoverMode
+	DerivationReadiness
 }
 
 type RollupAdminServer interface {
@@ -72,6 +77,7 @@ type RollupAdminServer interface {
 	UnsignedPayloadPoster
 	RollupConductor
 	RecoverMode
+	DerivationReadiness
 }
 
 type RollupNodeClient interface {

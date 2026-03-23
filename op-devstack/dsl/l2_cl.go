@@ -120,6 +120,23 @@ func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
 	return syncStatus
 }
 
+func (cl *L2CLNode) DerivationReady() bool {
+	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+	defer cancel()
+	ready, err := cl.inner.RollupAPI().DerivationReady(ctx)
+	cl.require.NoError(err)
+	return ready
+}
+
+func (cl *L2CLNode) WaitForDerivationReady() {
+	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+	defer cancel()
+	err := wait.For(ctx, 100*time.Millisecond, func() (bool, error) {
+		return cl.inner.RollupAPI().DerivationReady(ctx)
+	})
+	cl.require.NoError(err, "derivation did not become ready")
+}
+
 // HeadBlockRef fetches L2CL sync status and returns block ref with given safety level
 func (cl *L2CLNode) HeadBlockRef(lvl types.SafetyLevel) eth.L2BlockRef {
 	syncStatus := cl.SyncStatus()

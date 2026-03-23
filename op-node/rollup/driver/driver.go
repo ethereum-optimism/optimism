@@ -408,6 +408,19 @@ func (s *Driver) SetRecoverMode(ctx context.Context, mode bool) error {
 	return nil
 }
 
+// DerivationReady blocks the driver event loop and captures whether derivation is ready.
+func (s *Driver) DerivationReady(ctx context.Context) (bool, error) {
+	wait := make(chan struct{})
+	select {
+	case s.stateReq <- wait:
+		ready := s.SyncDeriver.Derivation.DerivationReady()
+		<-wait
+		return ready, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
+
 // SyncStatus blocks the driver event loop and captures the syncing status.
 func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return s.StatusTracker.SyncStatus(), nil

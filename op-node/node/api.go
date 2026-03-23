@@ -33,6 +33,7 @@ type driverClient interface {
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error)
 	ResetDerivationPipeline(context.Context) error
+	DerivationReady(context.Context) (bool, error)
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
@@ -62,6 +63,10 @@ func NewAdminAPI(dr driverClient, log log.Logger) *adminAPI {
 
 func (n *adminAPI) ResetDerivationPipeline(ctx context.Context) error {
 	return n.dr.ResetDerivationPipeline(ctx)
+}
+
+func (n *adminAPI) DerivationReady(ctx context.Context) (bool, error) {
+	return n.dr.DerivationReady(ctx)
 }
 
 func (n *adminAPI) StartSequencer(ctx context.Context, blockHash common.Hash) error {

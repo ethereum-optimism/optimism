@@ -303,6 +303,10 @@ func (c *mockDriverClient) ResetDerivationPipeline(ctx context.Context) error {
 	return c.Mock.MethodCalled("ResetDerivationPipeline").Get(0).(error)
 }
 
+func (c *mockDriverClient) DerivationReady(ctx context.Context) (bool, error) {
+	return c.Mock.MethodCalled("DerivationReady").Get(0).(bool), nil
+}
+
 func (c *mockDriverClient) StartSequencer(ctx context.Context, blockHash common.Hash) error {
 	return c.Mock.MethodCalled("StartSequencer").Get(0).(error)
 }

@@ -103,6 +103,12 @@ func (r *RollupClient) SetRecoverMode(ctx context.Context, mode bool) error {
 	return r.rpc.CallContext(ctx, nil, "admin_setRecoverMode", mode)
 }
 
+func (r *RollupClient) DerivationReady(ctx context.Context) (bool, error) {
+	var result bool
+	err := r.rpc.CallContext(ctx, &result, "admin_derivationReady")
+	return result, err
+}
+
 func (r *RollupClient) Close() {
 	r.rpc.Close()
 }

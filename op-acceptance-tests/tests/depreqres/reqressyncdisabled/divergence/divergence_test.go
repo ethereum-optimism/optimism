@@ -22,6 +22,8 @@ func TestCLELDivergence(gt *testing.T) {
 
 	sys.L2CL.Advanced(types.LocalUnsafe, 8, 30)
 
+	sys.L2CL.WaitForDerivationReady()
+
 	// batcher down so safe not advanced
 	require.Equal(uint64(0), sys.L2CL.HeadBlockRef(types.LocalSafe).Number)
 	require.Equal(uint64(0), sys.L2CLB.HeadBlockRef(types.LocalSafe).Number)
@@ -43,9 +45,6 @@ func TestCLELDivergence(gt *testing.T) {
 		// Canonical unsafe head never advances because of the gap
 		require.Equal(startNum+1, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
 
-		// EL-sync can quickly reset the status tracker after exposing the posted
-		// unsafe head, so poll tightly and without extra RPCs between the post and
-		// the SyncStatus check.
 		var ss *eth.SyncStatus
 		require.Eventually(func() bool {
 			ss = sys.L2CLB.SyncStatus()

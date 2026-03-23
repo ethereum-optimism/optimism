@@ -289,6 +289,10 @@ func (s *l2VerifierBackend) ResetDerivationPipeline(ctx context.Context) error {
 	return nil
 }
 
+func (s *l2VerifierBackend) DerivationReady(ctx context.Context) (bool, error) {
+	return s.verifier.derivation.DerivationReady(), nil
+}
+
 func (s *l2VerifierBackend) StartSequencer(ctx context.Context, blockHash common.Hash) error {
 	return nil
 }
