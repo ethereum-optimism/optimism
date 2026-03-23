@@ -162,7 +162,12 @@ impl TrieNode {
                     .unwrap_or(Ok(None))
             }
             Self::Leaf { prefix, value } => Ok((path == prefix).then_some(value)),
-            Self::Extension { prefix, node } => {
+            Self::Extension { prefix, node: _ } if path.len() < prefix.len() => {
+                Err(TrieNodeError::PathTooShort)
+            }
+            Self::Extension { prefix, node } =>
+            // Implied `path.len() >= prefix.len()`
+            {
                 if path.slice(..prefix.len()) == *prefix {
                     // Follow extension branch
                     node.unblind(fetcher)?;
@@ -792,6 +797,25 @@ mod test {
         };
 
         assert_eq!(node, expected);
+    }
+
+    #[test]
+    fn test_extension_open_path_shorter_than_prefix_no_panic() {
+        // Regression test: `open` must not panic when the path is shorter than the
+        // extension prefix. Previously, `path.slice(..prefix.len())` would panic in
+        // this case; now it returns `Err(PathTooShort)`, consistent with how a branch
+        // node reports an exhausted path.
+        let leaf = TrieNode::Leaf { prefix: Nibbles::default(), value: bytes!("deadbeef") };
+        let mut node = TrieNode::Extension {
+            prefix: Nibbles::from_nibbles([0x0a, 0x0b, 0x0c]),
+            node: Box::new(leaf),
+        };
+        // Path has only 1 nibble; prefix has 3 — previously would panic.
+        let short_path = Nibbles::from_nibbles([0x0a]);
+        assert!(matches!(
+            node.open(&short_path, &NoopTrieProvider),
+            Err(TrieNodeError::PathTooShort)
+        ));
     }
 
     proptest::proptest! {
