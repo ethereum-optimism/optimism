@@ -225,12 +225,12 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _disputeGameConfigs The dispute game configs.
     /// @param _startingRespectedGameType The starting respected game type.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
-    /// @param _validGameTypes The expected game types in order.
+    /// @param _isSuperRootMode Whether super root games mode is enabled.
     function _assertValidStandardGameConfigs(
         IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
         GameType _startingRespectedGameType,
         bool _isInitialDeployment,
-        GameType[] memory _validGameTypes
+        bool _isSuperRootMode
     )
         internal
         view
@@ -238,7 +238,7 @@ abstract contract OPContractsManagerUtilsCaller {
         _staticcall(
             abi.encodeCall(
                 IOPContractsManagerUtils.assertValidStandardGameConfigs,
-                (_disputeGameConfigs, _startingRespectedGameType, _isInitialDeployment, _validGameTypes)
+                (_disputeGameConfigs, _startingRespectedGameType, _isInitialDeployment, _isSuperRootMode)
             )
         );
     }

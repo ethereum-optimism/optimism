@@ -461,19 +461,39 @@ contract OPContractsManagerUtils {
     /// @param _disputeGameConfigs The dispute game configs.
     /// @param _startingRespectedGameType The starting respected game type.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
-    /// @param _validGameTypes The expected game types in order. The caller builds this array
-    ///        based on the current mode (standard, super deploy, super upgrade).
+    /// @param _isSuperRootMode Whether super root games mode is enabled.
     function assertValidStandardGameConfigs(
         IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
         GameType _startingRespectedGameType,
         bool _isInitialDeployment,
-        GameType[] memory _validGameTypes
+        bool _isSuperRootMode
     )
         external
         pure
     {
+        // Build the valid game types array based on the current mode.
+        GameType[] memory validGameTypes;
+        if (_isSuperRootMode && _isInitialDeployment) {
+            validGameTypes = new GameType[](2);
+            validGameTypes[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
+            validGameTypes[1] = GameTypes.SUPER_CANNON_KONA;
+        } else if (_isSuperRootMode) {
+            validGameTypes = new GameType[](6);
+            validGameTypes[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
+            validGameTypes[1] = GameTypes.SUPER_CANNON_KONA;
+            validGameTypes[2] = GameTypes.CANNON;
+            validGameTypes[3] = GameTypes.PERMISSIONED_CANNON;
+            validGameTypes[4] = GameTypes.CANNON_KONA;
+            validGameTypes[5] = GameTypes.SUPER_CANNON;
+        } else {
+            validGameTypes = new GameType[](3);
+            validGameTypes[0] = GameTypes.CANNON;
+            validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
+            validGameTypes[2] = GameTypes.CANNON_KONA;
+        }
+
         // We must have a config for each valid game type.
-        if (_disputeGameConfigs.length != _validGameTypes.length) {
+        if (_disputeGameConfigs.length != validGameTypes.length) {
             revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
         }
 
@@ -482,7 +502,7 @@ contract OPContractsManagerUtils {
         // probably a good thing, keeps the config consistent.
         bool permissionedFound = false;
         for (uint256 i = 0; i < _disputeGameConfigs.length; i++) {
-            if (_disputeGameConfigs[i].gameType.raw() != _validGameTypes[i].raw()) {
+            if (_disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
                 revert IOPContractsManagerUtils.OPContractsManagerV2_InvalidGameConfigs();
             }
 
@@ -492,8 +512,8 @@ contract OPContractsManagerUtils {
             }
 
             // Check if this is a permissioned type.
-            bool isPermissioned = _validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                || _validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
+            bool isPermissioned = validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
 
             // During initial deployment, only permissioned types can be enabled, because no
             // prestate exists for permissionless games.

@@ -696,33 +696,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         returns (ChainContracts memory)
     {
-        // Build the valid game types array based on the current mode. The caller (OPCM)
-        // determines which game types are valid rather than hardcoding inside the validator.
-        GameType[] memory validGameTypes;
-        if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION) && _isInitialDeployment) {
-            // Super root initial deploy: only super game types.
-            validGameTypes = new GameType[](2);
-            validGameTypes[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
-            validGameTypes[1] = GameTypes.SUPER_CANNON_KONA;
-        } else if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            // Super root upgrade: super + legacy types. Legacy entries are provided as disabled
-            // configs; the setImplementation loop below handles zeroing them out.
-            validGameTypes = new GameType[](6);
-            validGameTypes[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
-            validGameTypes[1] = GameTypes.SUPER_CANNON_KONA;
-            validGameTypes[2] = GameTypes.CANNON;
-            validGameTypes[3] = GameTypes.PERMISSIONED_CANNON;
-            validGameTypes[4] = GameTypes.CANNON_KONA;
-            validGameTypes[5] = GameTypes.SUPER_CANNON;
-        } else {
-            // Standard: non-super game types.
-            validGameTypes = new GameType[](3);
-            validGameTypes[0] = GameTypes.CANNON;
-            validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-            validGameTypes[2] = GameTypes.CANNON_KONA;
-        }
+        // Validate the game configs.
         _assertValidStandardGameConfigs(
-            _cfg.disputeGameConfigs, _cfg.startingRespectedGameType, _isInitialDeployment, validGameTypes
+            _cfg.disputeGameConfigs,
+            _cfg.startingRespectedGameType,
+            _isInitialDeployment,
+            isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
         );
 
         // Load the implementations.

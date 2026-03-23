@@ -154,7 +154,7 @@ interface IOPContractsManagerUtils {
         DisputeGameConfig[] memory _disputeGameConfigs,
         GameType _startingRespectedGameType,
         bool _isInitialDeployment,
-        GameType[] memory _validGameTypes
+        bool _isSuperRootMode
     )
         external
         pure;

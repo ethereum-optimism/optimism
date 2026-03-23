@@ -50,9 +50,9 @@
         "type": "bool"
       },
       {
-        "internalType": "GameType[]",
-        "name": "_validGameTypes",
-        "type": "uint32[]"
+        "internalType": "bool",
+        "name": "_isSuperRootMode",
+        "type": "bool"
       }
     ],
     "name": "assertValidStandardGameConfigs",
