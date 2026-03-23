@@ -31,6 +31,10 @@ export const opRethSidebar: SidebarItem[] = [
         ]
     },
     {
+        text: "Historical Proofs",
+        link: "/op-reth/historical-proofs"
+    },
+    {
         text: "CLI Reference",
         link: "/op-reth/cli/op-reth",
         collapsed: false,

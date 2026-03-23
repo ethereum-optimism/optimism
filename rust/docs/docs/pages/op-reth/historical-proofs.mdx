@@ -1,0 +1,156 @@
+# Historical Proofs Support
+
+## Problem
+
+Reth's default `eth_getProof` implementation works by reverting in-memory state diffs backward from the current tip. For blocks older than ~7 days, this causes unbounded memory growth and OOM crashes — a critical issue for infrastructure serving rollup fault proofs and indexers that query historical state.
+
+## Solution
+
+The **proofs-history** execution extension (ExEx) implements a **Versioned State Store** that tracks intermediate Merkle Patricia Trie nodes tagged by block number. This enables direct O(1) lookups of proofs at any historical block within a configurable retention window, without reverting state.
+
+The ExEx processes blocks asynchronously, so it adds zero overhead to sync speed and negligible tip latency.
+
+## Architecture
+
+```
+op-reth node
+├── Standard reth pipeline (sync, EVM, state)
+├── proofs-history ExEx (ingests committed blocks → versioned trie store)
+├── Pruner task (background, removes data outside retention window)
+└── RPC overrides (eth_getProof, debug_executePayload, debug_executionWitness)
+```
+
+The versioned store lives in a **separate MDBX database** (not the main reth datadir) and maintains four tables:
+
+| Table | Contents |
+|-------|----------|
+| `AccountTrieHistory` | Branch nodes of the account trie, versioned by block |
+| `StorageTrieHistory` | Branch nodes of per-account storage tries, versioned by block |
+| `HashedAccountHistory` | Account leaf data (balance, nonce, etc.), versioned by block |
+| `HashedStorageHistory` | Storage slot values, versioned by block |
+
+A `BlockChangeSet` reverse index enables efficient pruning: given a block number, the pruner knows exactly which keys were modified and can delete only those entries.
+
+## Setup Guide
+
+### Prerequisites
+
+- op-reth fully synced to chain tip
+- Sufficient disk: estimate `chain_size + 20% buffer` for the proofs database (e.g., ~1 TB for 4 weeks on Base at 2s block time)
+- NVMe SSD recommended
+
+### Step 1: Initialize the proofs database
+
+This backfills the versioned store with current chain state as a starting point:
+
+```bash
+op-reth proofs init \
+  --datadir /path/to/reth-datadir \
+  --proofs-history.storage-path /path/to/proofs-db
+```
+
+This must complete before starting the node with proofs-history enabled.
+
+### Step 2: Start op-reth with proofs-history enabled
+
+```bash
+op-reth node \
+  --chain <chain> \
+  --datadir /path/to/reth-datadir \
+  --proofs-history \
+  --proofs-history.storage-path /path/to/proofs-db \
+  --proofs-history.window 1296000 \
+  --proofs-history.prune-interval 15s
+```
+
+### Configuration flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--proofs-history` | `false` | Enable the proofs-history ExEx |
+| `--proofs-history.storage-path` | (required) | Path to the separate MDBX proofs database |
+| `--proofs-history.window` | `1296000` (~30 days at 2s blocks) | Number of blocks to retain |
+| `--proofs-history.prune-interval` | `15s` | How often the background pruner runs |
+| `--proofs-history.verification-interval` | `0` (disabled) | Re-execute every Nth block for data integrity verification |
+
+### Step 3: Verify
+
+Query the sync status of the proofs store:
+
+```
+debug_proofsSyncStatus → { "earliest": <block>, "latest": <block> }
+```
+
+Once `latest` tracks the chain tip, `eth_getProof` calls for any block within `[earliest, latest]` will be served from the versioned store.
+
+### Metrics
+
+When the `metrics` feature is enabled, the proofs-history system exposes Prometheus metrics to monitor health and performance:
+
+**Block processing** (`optimism_trie.block.*`):
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `total_duration_seconds` | Histogram | End-to-end time to process a block |
+| `execution_duration_seconds` | Histogram | Time spent in EVM execution |
+| `state_root_duration_seconds` | Histogram | Time spent calculating state root |
+| `write_duration_seconds` | Histogram | Time spent writing trie updates to storage |
+| `account_trie_updates_written_total` | Counter | Number of account trie branch nodes written |
+| `storage_trie_updates_written_total` | Counter | Number of storage trie branch nodes written |
+| `hashed_accounts_written_total` | Counter | Number of hashed account entries written |
+| `hashed_storages_written_total` | Counter | Number of hashed storage entries written |
+| `earliest_number` | Gauge | Earliest block number in the proofs store |
+| `latest_number` | Gauge | Latest block number in the proofs store |
+
+**Pruner** (`optimism_trie.pruner.*`):
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `total_duration_seconds` | Histogram | Duration of each prune run |
+| `pruned_blocks` | Gauge | Number of blocks pruned in the last run |
+| `account_trie_updates_written` | Gauge | Account trie entries deleted in the last prune |
+| `storage_trie_updates_written` | Gauge | Storage trie entries deleted in the last prune |
+| `hashed_accounts_written` | Gauge | Hashed account entries deleted in the last prune |
+| `hashed_storages_written` | Gauge | Hashed storage entries deleted in the last prune |
+
+**RPC** (`op_reth_rpc.*`):
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `get_proof_latency` | Histogram | Latency of successful `eth_getProof` requests |
+| `get_proof_requests` | Counter | Total `eth_getProof` requests received |
+| `get_proof_successful_responses` | Counter | Total successful `eth_getProof` responses |
+| `get_proof_failures` | Counter | Total failed `eth_getProof` requests |
+
+**Storage operations** (`optimism_trie.storage.operation.*`):
+
+Per-operation `duration_seconds` histograms are recorded for: `store_account_branch`, `store_storage_branch`, `store_hashed_account`, `store_hashed_storage`, `trie_cursor_seek_exact`, `trie_cursor_seek`, `trie_cursor_next`, `trie_cursor_current`, `hashed_cursor_seek`, `hashed_cursor_next`.
+
+## Operational Commands
+
+**Manual prune** (if the node fails startup due to a gap > 1000 blocks):
+
+```bash
+op-reth proofs prune \
+  --datadir /path/to/reth-datadir \
+  --proofs-history.storage-path /path/to/proofs-db \
+  --proofs-history.window 1296000
+```
+
+**Unwind** (recover from corruption by reverting to a specific block):
+
+```bash
+op-reth proofs unwind \
+  --datadir /path/to/reth-datadir \
+  --proofs-history.storage-path /path/to/proofs-db \
+  --target <BLOCK_NUMBER>
+```
+
+## Performance
+
+Benchmarked on Base Sepolia (~700k block window, WETH contract):
+
+- **Avg latency**: ~15 ms per `eth_getProof`
+- **Throughput**: ~5,000 req/s (10 concurrent workers)
+- **Sync overhead**: zero (ExEx processes asynchronously)
+- **Memory**: bounded by window size — no OOM risk
