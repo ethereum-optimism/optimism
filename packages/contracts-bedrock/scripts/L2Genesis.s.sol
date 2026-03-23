@@ -420,7 +420,7 @@ contract L2Genesis is Script {
         }
         if (_input.useInterop) {
             vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
-            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.INTEROP);
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.INTEROP);
             vm.stopPrank();
         }
     }
