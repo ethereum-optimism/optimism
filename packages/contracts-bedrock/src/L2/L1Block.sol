@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { Features } from "src/libraries/Features.sol";
 import { NotDepositor, L1Block_FeatureAlreadyEnabled } from "src/libraries/L1BlockErrors.sol";
 
 // Interfaces

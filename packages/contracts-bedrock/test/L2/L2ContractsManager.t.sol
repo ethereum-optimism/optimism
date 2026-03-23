@@ -882,7 +882,7 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
 
     /// @notice Tests that upgrade succeeds when the dev feature is enabled but the system feature is not.
     ///         This is a valid transitional state: interop code is deployed but not yet activated.
-    function test_upgrade_succeeds_devEnabledSysDisabled() public {
+    function test_upgrade_devEnabledSysDisabled_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Clear the INTEROP system feature on L1Block while the dev feature remains enabled.
@@ -893,7 +893,7 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
     }
 
     /// @notice Tests that upgrade reverts when the system feature is enabled but the dev feature is not.
-    function test_upgrade_reverts_sysEnabledDevDisabled() public {
+    function test_upgrade_sysEnabledDevDisabled_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Set the INTEROP system feature on L1Block while the dev feature remains disabled.
