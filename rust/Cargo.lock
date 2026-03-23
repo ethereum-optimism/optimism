@@ -6143,6 +6143,7 @@ dependencies = [
  "serde_json",
  "spin 0.10.0",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
 ]
 

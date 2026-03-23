@@ -55,6 +55,7 @@ alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
 kona-interop = { workspace = true, features = ["arbitrary"] }
 arbitrary = { workspace = true, features = ["derive"] }
 rand.workspace = true
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 
 [features]
 arbitrary = [
