@@ -373,7 +373,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
     function test_initialize_parentDifferentGameType_reverts() public {
         // Deploy a second ZK game impl with a different GameType id.
         IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
-        address newImpl = address(new ZKDisputeGame());
+        address newImpl = address(new ZKDisputeGame(disputeGameFactory));
         GameType differentGameType = GameType.wrap(201);
 
         bytes memory gameArgs = abi.encodePacked(
@@ -457,7 +457,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
     function test_initialize_l2ChainIdZero_reverts() public {
         // Deploy a new game impl with l2ChainId = 0 in gameArgs
         IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
-        address newImpl = address(new ZKDisputeGame());
+        address newImpl = address(new ZKDisputeGame(disputeGameFactory));
 
         bytes memory gameArgs = abi.encodePacked(
             bytes32(0), // absolutePrestate
@@ -673,7 +673,7 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
     function test_prove_invalidProof_reverts() public {
         // Deploy a rejecting verifier and create a game that uses it.
         ZKRejectingVerifier rejectingVerifier = new ZKRejectingVerifier();
-        address newImpl = address(new ZKDisputeGame());
+        address newImpl = address(new ZKDisputeGame(disputeGameFactory));
         GameType rejectGameType = GameType.wrap(202);
 
         bytes memory gameArgs = abi.encodePacked(

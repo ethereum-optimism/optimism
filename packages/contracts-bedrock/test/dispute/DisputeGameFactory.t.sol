@@ -321,8 +321,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         // Deploy mock verifier
         zkVerifier_ = IZKVerifier(address(new ZKMockVerifier()));
 
-        // Deploy game implementation (no constructor args)
-        gameImpl_ = address(new ZKDisputeGame());
+        // Deploy game implementation with factory reference.
+        gameImpl_ = address(new ZKDisputeGame(disputeGameFactory));
 
         GameType zkGameType = GameTypes.ZK_DISPUTE_GAME;
 
