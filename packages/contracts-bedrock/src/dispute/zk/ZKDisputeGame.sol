@@ -415,7 +415,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
         // Construct the public values for verification.
         bytes memory publicValues =
-            abi.encode(l1Head(), startingProposal.root, rootClaim(), l2SequenceNumber(), l2ChainId());
+            abi.encode(l1Head(), startingProposal.root, rootClaim(), l2SequenceNumber(), l2ChainId(), msg.sender);
 
         // Verify the proof. Reverts if the proof is invalid.
         verifier().verify(absolutePrestate(), publicValues, _proofBytes);
