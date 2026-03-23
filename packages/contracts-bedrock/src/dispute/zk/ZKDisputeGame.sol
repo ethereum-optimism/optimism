@@ -644,7 +644,4 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             credit_ = normalModeCredit[_recipient];
         }
     }
-
-    /// @notice Receives ETH from DelayedWETH during withdrawal.
-    receive() external payable { }
 }
