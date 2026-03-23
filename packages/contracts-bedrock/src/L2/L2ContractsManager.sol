@@ -169,6 +169,7 @@ contract L2ContractsManager is ISemver {
         fullConfig_.isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
 
         // Uses try/catch because isFeatureEnabled() may not exist on pre-upgrade L1Block contracts.
+        // eip150-safe
         try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP) returns (bool isInterop_) {
             fullConfig_.isInterop = isInterop_;
         } catch {
