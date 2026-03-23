@@ -257,7 +257,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Initializes the contract.
-    // nosemgrep: sol-safety-initialize-assert-proxy-admin
     function initialize() external payable virtual {
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
