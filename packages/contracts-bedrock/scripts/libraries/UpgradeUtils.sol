@@ -28,7 +28,6 @@ library UpgradeUtils {
     ///         - 4 INTEROP predeploys
     ///         - 2 CGT predeploys (NativeAssetLiquidity, LiquidityController)
     ///         - 2 CGT variants (L1BlockCGT, L2ToL1MessagePasserCGT)
-    ///         Total: 26 implementations
     uint256 internal constant IMPLEMENTATION_COUNT = 26;
 
     /// @notice Gas limits for different types of upgrade transactions.
