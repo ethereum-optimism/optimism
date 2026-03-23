@@ -270,15 +270,7 @@ contract L2Genesis is Script {
         setOptimismMintableERC20Factory(); // 12
         setL1BlockNumber(); // 13
         setL2ERC721Bridge(_input.l1ERC721BridgeProxy); // 14
-
-        // Stop pranking as the proxy admin owner.
-        vm.stopPrank();
-
-        // Set L1 Block has its own pranking requirements which it handles internally.
         setL1Block(_input); // 15
-
-        // Resume pranking as the proxy admin owner.
-        vm.startPrank(_input.opChainProxyAdminOwner);
         setL2ToL1MessagePasser(_input.useCustomGasToken); // 16
         setOptimismMintableERC721Factory(_input); // 17
         setBaseFeeVault(_input); // 19
@@ -412,16 +404,12 @@ contract L2Genesis is Script {
             vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
 
             // Set the custom gas token flag
-            vm.startPrank(IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
-            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setCustomGasToken();
-            vm.stopPrank();
+            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
         } else {
             _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
         }
         if (_input.useInterop) {
-            vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.INTEROP);
-            vm.stopPrank();
         }
     }
 

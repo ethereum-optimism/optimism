@@ -3,7 +3,12 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { NotDepositor, L1Block_FeatureAlreadyEnabled } from "src/libraries/L1BlockErrors.sol";
+import {
+    NotDepositor,
+    L1Block_FeatureAlreadyEnabled,
+    L1Block_NotAuthorizedToSetFeature
+} from "src/libraries/L1BlockErrors.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -15,7 +20,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         Values within this contract are updated once per epoch (every L1 block) and can only be
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
-contract L1Block is ISemver {
+contract L1Block is ISemver, ProxyAdminOwnedBase {
     /// @notice Address of the special depositor account.
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
         addr_ = Constants.DEPOSITOR_ACCOUNT;
@@ -226,12 +231,14 @@ contract L1Block is ISemver {
         }
     }
 
-    /// @notice Sets a feature flag enabled. Only callable by the depositor account.
+    /// @notice Sets a feature flag enabled. Only callable by the depositor account, the ProxyAdmin owner, or the
+    ///         ProxyAdmin. This allows features to be set either by the L2CM, the Depositor, or the ProxyAdminOwner,
+    ///         which is expected to be an account on L1.
     ///         Once enabled, a feature cannot be disabled.
     ///
     /// @param _feature The feature to set.
     function setFeature(bytes32 _feature) external {
-        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        _assertSetFeatureAuthorized(msg.sender);
         _setFeature(_feature);
     }
 
@@ -242,5 +249,13 @@ contract L1Block is ISemver {
         if (isFeatureEnabled[_feature]) revert L1Block_FeatureAlreadyEnabled();
         isFeatureEnabled[_feature] = true;
         emit FeatureSet(_feature, true);
+    }
+
+    /// @notice Reverts if the caller is not authorized to set a feature.
+    /// @param _sender The address to check.
+    function _assertSetFeatureAuthorized(address _sender) internal view {
+        if (!(_sender == DEPOSITOR_ACCOUNT() || _sender == proxyAdminOwner() || _sender == address(proxyAdmin()))) {
+            revert L1Block_NotAuthorizedToSetFeature();
+        }
     }
 }

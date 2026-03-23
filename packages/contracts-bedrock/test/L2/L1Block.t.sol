@@ -2,18 +2,19 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { CommonTest } from "test/setup/CommonTest.sol";
-import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
+import {CommonTest} from "test/setup/CommonTest.sol";
+import {stdStorage, StdStorage} from "forge-std/StdStorage.sol";
 
 // Libraries
-import { Encoding } from "src/libraries/Encoding.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
+import {Encoding} from "src/libraries/Encoding.sol";
+import {Constants} from "src/libraries/Constants.sol";
+import {Predeploys} from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
-import { Features } from "src/libraries/Features.sol";
+import {Features} from "src/libraries/Features.sol";
 
 // Interfaces
-import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
+import {IL1BlockCGT} from "interfaces/L2/IL1BlockCGT.sol";
+import {IProxyAdminOwnedBase} from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title L1Block_ TestInit
 /// @notice Reusable test initialization for `L1Block` tests.
@@ -34,7 +35,10 @@ abstract contract L1Block_TestInit is CommonTest {
         bytes32 scalarsSlot = vm.load(address(l1Block), bytes32(uint256(3)));
         assertEq(0, scalarsSlot & mask128);
         // Check number and timestamp slot (slot 0)
-        bytes32 numberTimestampSlot = vm.load(address(l1Block), bytes32(uint256(0)));
+        bytes32 numberTimestampSlot = vm.load(
+            address(l1Block),
+            bytes32(uint256(0))
+        );
         assertEq(0, numberTimestampSlot & mask128);
     }
 }
@@ -82,7 +86,10 @@ contract L1Block_GasPayingTokenName_Test is L1Block_TestInit {
     /// enabled.
     function test_gasPayingTokenName_customGasToken_succeeds() external {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
-        assertEq(liquidityController.gasPayingTokenName(), l1Block.gasPayingTokenName());
+        assertEq(
+            liquidityController.gasPayingTokenName(),
+            l1Block.gasPayingTokenName()
+        );
     }
 }
 
@@ -99,7 +106,10 @@ contract L1Block_GasPayingTokenSymbol_Test is L1Block_TestInit {
     /// enabled.
     function test_gasPayingTokenSymbol_customGasToken_succeeds() external {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
-        assertEq(liquidityController.gasPayingTokenSymbol(), l1Block.gasPayingTokenSymbol());
+        assertEq(
+            liquidityController.gasPayingTokenSymbol(),
+            l1Block.gasPayingTokenSymbol()
+        );
     }
 }
 
@@ -134,9 +144,7 @@ contract L1Block_SetL1BlockValues_Test is L1Block_TestInit {
         bytes32 bt,
         uint256 fo,
         uint256 fs
-    )
-        external
-    {
+    ) external {
         vm.prank(depositor);
         l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs);
         assertEq(l1Block.number(), n);
@@ -166,7 +174,9 @@ contract L1Block_SetL1BlockValues_Test is L1Block_TestInit {
 
     /// @notice Tests that `setL1BlockValues` reverts if sender address is not the depositor
     function test_setL1BlockValues_notDepositor_reverts() external {
-        vm.expectRevert("L1Block: only the depositor account can set L1 block values");
+        vm.expectRevert(
+            "L1Block: only the depositor account can set L1 block values"
+        );
         l1Block.setL1BlockValues({
             _number: type(uint64).max,
             _timestamp: type(uint64).max,
@@ -194,15 +204,22 @@ contract L1Block_SetL1BlockValuesEcotone_Test is L1Block_TestInit {
         uint256 blobBaseFee,
         bytes32 hash,
         bytes32 batcherHash
-    )
-        external
-    {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
-            baseFeeScalar, blobBaseFeeScalar, sequenceNumber, timestamp, number, baseFee, blobBaseFee, hash, batcherHash
-        );
+    ) external {
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesEcotone(
+                baseFeeScalar,
+                blobBaseFeeScalar,
+                sequenceNumber,
+                timestamp,
+                number,
+                baseFee,
+                blobBaseFee,
+                hash,
+                batcherHash
+            );
 
         vm.prank(depositor);
-        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        (bool success, ) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "Function call failed");
 
         assertEq(l1Block.baseFeeScalar(), baseFeeScalar);
@@ -220,38 +237,42 @@ contract L1Block_SetL1BlockValuesEcotone_Test is L1Block_TestInit {
 
     /// @notice Tests that `setL1BlockValuesEcotone` succeeds with max values
     function test_setL1BlockValuesEcotone_isDepositorMax_succeeds() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max)
-        );
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesEcotone(
+                type(uint32).max,
+                type(uint32).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint256).max,
+                type(uint256).max,
+                bytes32(type(uint256).max),
+                bytes32(type(uint256).max)
+            );
 
         vm.prank(depositor);
-        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        (bool success, ) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "function call failed");
     }
 
     /// @notice Tests that `setL1BlockValuesEcotone` reverts if sender address is not the depositor
     function test_setL1BlockValuesEcotone_notDepositor_reverts() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesEcotone(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max)
-        );
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesEcotone(
+                type(uint32).max,
+                type(uint32).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint256).max,
+                type(uint256).max,
+                bytes32(type(uint256).max),
+                bytes32(type(uint256).max)
+            );
 
-        (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
+        (bool success, bytes memory data) = address(l1Block).call(
+            functionCallDataPacked
+        );
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
         bytes memory expReturn = hex"3cc50b45";
@@ -275,25 +296,24 @@ contract L1Block_SetL1BlockValuesIsthmus_Test is L1Block_TestInit {
         bytes32 batcherHash,
         uint32 operatorFeeScalar,
         uint64 operatorFeeConstant
-    )
-        external
-    {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
-            baseFeeScalar,
-            blobBaseFeeScalar,
-            sequenceNumber,
-            timestamp,
-            number,
-            baseFee,
-            blobBaseFee,
-            hash,
-            batcherHash,
-            operatorFeeScalar,
-            operatorFeeConstant
-        );
+    ) external {
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesIsthmus(
+                baseFeeScalar,
+                blobBaseFeeScalar,
+                sequenceNumber,
+                timestamp,
+                number,
+                baseFee,
+                blobBaseFee,
+                hash,
+                batcherHash,
+                operatorFeeScalar,
+                operatorFeeConstant
+            );
 
         vm.prank(depositor);
-        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        (bool success, ) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "Function call failed");
 
         assertEq(l1Block.baseFeeScalar(), baseFeeScalar);
@@ -313,42 +333,46 @@ contract L1Block_SetL1BlockValuesIsthmus_Test is L1Block_TestInit {
 
     /// @notice Tests that `setL1BlockValuesIsthmus` succeeds with max values
     function test_setL1BlockValuesIsthmus_isDepositorMax_succeeds() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max),
-            type(uint32).max,
-            type(uint64).max
-        );
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesIsthmus(
+                type(uint32).max,
+                type(uint32).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint256).max,
+                type(uint256).max,
+                bytes32(type(uint256).max),
+                bytes32(type(uint256).max),
+                type(uint32).max,
+                type(uint64).max
+            );
 
         vm.prank(depositor);
-        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        (bool success, ) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "function call failed");
     }
 
     /// @notice Tests that `setL1BlockValuesIsthmus` reverts if sender address is not the depositor
     function test_setL1BlockValuesIsthmus_notDepositor_reverts() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max),
-            type(uint32).max,
-            type(uint64).max
-        );
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesIsthmus(
+                type(uint32).max,
+                type(uint32).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint256).max,
+                type(uint256).max,
+                bytes32(type(uint256).max),
+                bytes32(type(uint256).max),
+                type(uint32).max,
+                type(uint64).max
+            );
 
-        (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
+        (bool success, bytes memory data) = address(l1Block).call(
+            functionCallDataPacked
+        );
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
         bytes memory expReturn = hex"3cc50b45";
@@ -376,24 +400,27 @@ contract L1Block_SetL1BlockValuesJovian_Test is L1Block_TestInit {
     }
 
     /// @notice Tests that setL1BlockValuesJovian updates the values appropriately.
-    function testFuzz_setL1BlockValuesJovian_succeeds(L1BlockValuesJovianParams memory params) external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesJovian(
-            params.baseFeeScalar,
-            params.blobBaseFeeScalar,
-            params.sequenceNumber,
-            params.timestamp,
-            params.number,
-            params.baseFee,
-            params.blobBaseFee,
-            params.hash,
-            params.batcherHash,
-            params.operatorFeeScalar,
-            params.operatorFeeConstant,
-            params.daFootprintGasScalar
-        );
+    function testFuzz_setL1BlockValuesJovian_succeeds(
+        L1BlockValuesJovianParams memory params
+    ) external {
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesJovian(
+                params.baseFeeScalar,
+                params.blobBaseFeeScalar,
+                params.sequenceNumber,
+                params.timestamp,
+                params.number,
+                params.baseFee,
+                params.blobBaseFee,
+                params.hash,
+                params.batcherHash,
+                params.operatorFeeScalar,
+                params.operatorFeeConstant,
+                params.daFootprintGasScalar
+            );
 
         vm.prank(depositor);
-        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        (bool success, ) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "Function call failed");
 
         assertEq(l1Block.baseFeeScalar(), params.baseFeeScalar);
@@ -414,44 +441,48 @@ contract L1Block_SetL1BlockValuesJovian_Test is L1Block_TestInit {
 
     /// @notice Tests that `setL1BlockValuesJovian` succeeds with max values
     function test_setL1BlockValuesJovian_isDepositorMax_succeeds() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesJovian(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max),
-            type(uint32).max,
-            type(uint64).max,
-            type(uint16).max
-        );
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesJovian(
+                type(uint32).max,
+                type(uint32).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint256).max,
+                type(uint256).max,
+                bytes32(type(uint256).max),
+                bytes32(type(uint256).max),
+                type(uint32).max,
+                type(uint64).max,
+                type(uint16).max
+            );
 
         vm.prank(depositor);
-        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        (bool success, ) = address(l1Block).call(functionCallDataPacked);
         assertTrue(success, "function call failed");
     }
 
     /// @notice Tests that `setL1BlockValuesJovian` reverts if sender address is not the depositor
     function test_setL1BlockValuesJovian_notDepositor_reverts() external {
-        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesJovian(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            bytes32(type(uint256).max),
-            bytes32(type(uint256).max),
-            type(uint32).max,
-            type(uint64).max,
-            type(uint16).max
-        );
+        bytes memory functionCallDataPacked = Encoding
+            .encodeSetL1BlockValuesJovian(
+                type(uint32).max,
+                type(uint32).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint64).max,
+                type(uint256).max,
+                type(uint256).max,
+                bytes32(type(uint256).max),
+                bytes32(type(uint256).max),
+                type(uint32).max,
+                type(uint64).max,
+                type(uint16).max
+            );
 
-        (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
+        (bool success, bytes memory data) = address(l1Block).call(
+            functionCallDataPacked
+        );
         assertTrue(!success, "function call should have failed");
         // make sure return value is the expected function selector for "NotDepositor()"
         bytes memory expReturn = hex"3cc50b45";
@@ -485,8 +516,14 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
     /// @notice Tests that `setCustomGasToken` updates the flag correctly when called by depositor.
     function test_setCustomGasToken_succeeds() external {
         // Reset the isCustomGasToken() and isFeatureEnabled(CUSTOM_GAS_TOKEN) flags
-        stdstore.target(address(l1BlockCGT)).sig("isCustomGasToken()").checked_write(false);
-        stdstore.target(address(l1BlockCGT)).sig("isFeatureEnabled(bytes32)").with_key(Features.CUSTOM_GAS_TOKEN)
+        stdstore
+            .target(address(l1BlockCGT))
+            .sig("isCustomGasToken()")
+            .checked_write(false);
+        stdstore
+            .target(address(l1BlockCGT))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.CUSTOM_GAS_TOKEN)
             .checked_write(false);
         // This test uses the setUp that already activates custom gas token
         assertFalse(l1BlockCGT.isCustomGasToken());
@@ -498,11 +535,22 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
     }
 
     /// @notice Tests that `setCustomGasToken` reverts if sender address is not the depositor.
-    function test_setCustomGasToken_notDepositor_reverts(address nonDepositor) external {
-        stdstore.target(address(l1BlockCGT)).sig("isCustomGasToken()").checked_write(false);
-        vm.assume(nonDepositor != depositor);
-        vm.expectRevert("L1Block: only the depositor account can set isCustomGasToken flag");
-        vm.prank(nonDepositor);
+    function test_setCustomGasToken_notAuthorized_reverts(
+        address notAuthorized
+    ) external {
+        stdstore
+            .target(address(l1BlockCGT))
+            .sig("isCustomGasToken()")
+            .checked_write(false);
+        vm.assume(
+            notAuthorized != depositor &&
+                notAuthorized !=
+                IProxyAdminOwnedBase(address(l1BlockCGT)).proxyAdminOwner() &&
+                notAuthorized !=
+                address(IProxyAdminOwnedBase(address(l1BlockCGT)).proxyAdmin())
+        );
+        vm.expectRevert(L1Block_NotAuthorizedToSetFeature.selector);
+        vm.prank(notAuthorized);
         l1BlockCGT.setCustomGasToken();
     }
 }
@@ -525,8 +573,16 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     }
 
     /// @notice Tests that setFeature reverts when called by a non-depositor.
-    function test_setFeature_notDepositor_reverts() external {
-        vm.expectRevert(NotDepositor.selector);
+    function testFuzz_setFeature_notDepositor_reverts(address notAuthorized) external {
+        vm.assume(
+            notAuthorized != depositor &&
+                notAuthorized !=
+                IProxyAdminOwnedBase(address(l1Block)).proxyAdminOwner() &&
+                notAuthorized !=
+                address(IProxyAdminOwnedBase(address(l1Block)).proxyAdmin())
+        );
+        vm.expectRevert(L1Block_NotAuthorizedToSetFeature.selector);
+        vm.prank(notAuthorized);
         l1Block.setFeature(Features.INTEROP);
     }
 

@@ -16,6 +16,7 @@ import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.s
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // Libraries
@@ -422,6 +423,12 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L1_BLOCK_ATTRIBUTES, _config.isCustomGasToken ? L1_BLOCK_CGT_IMPL : L1_BLOCK_IMPL
         );
+        // After upgrading L1Block to the CGT impl, populate the feature mapping so that
+        // isCustomGasToken() continues to return true. The new impl reads from the mapping
+        // rather than the legacy storage slot.
+        if (_config.isCustomGasToken) {
+            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setCustomGasToken();
+        }
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             _config.isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL
