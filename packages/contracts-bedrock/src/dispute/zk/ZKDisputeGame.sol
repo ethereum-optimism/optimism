@@ -44,9 +44,8 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title ZKDisputeGame
 /// @notice A ZK proof-based dispute game using the MCP (Modular Clone Proxy) pattern
-///         with Clone-With-Immutable-Args (CWIA). Replaces OptimisticZkGame with a
-///         spec-compliant, permissionless design that uses a generic IZKVerifier and
-///         DelayedWETH for bond custody.
+///         with Clone-With-Immutable-Args (CWIA). Spec-compliant, permissionless
+///         design that uses a generic IZKVerifier and DelayedWETH for bond custody.
 /// @dev Derived from https://github.com/succinctlabs/op-succinct (at commit c13844a9bbc330cca69eef2538d8f8ec123e1653)
 contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
