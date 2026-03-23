@@ -93,7 +93,7 @@ func (g GameType) String() string {
 	case SuperCannonKonaGameType:
 		return "super-cannon-kona"
 	case ZKDisputeGameType:
-		return "zk-dispute-game"
+		return "zk"
 	case FastGameType:
 		return "fast"
 	case AlphabetGameType:
