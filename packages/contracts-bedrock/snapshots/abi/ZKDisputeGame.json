@@ -1,7 +1,14 @@
 [
   {
-    "stateMutability": "payable",
-    "type": "receive"
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_disputeGameFactory",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
   },
   {
     "inputs": [],
