@@ -120,10 +120,10 @@ func (t *testingT) shouldSkipFlakyFailure() bool {
 func (t *testingT) skipFlakyFailure(msg string) {
 	if t.reason != "" {
 		t.logger.Warn("Ignoring failure in flaky test", "reason", t.reason, "failure", msg)
-		t.t.Skip(fmt.Sprintf("FLAKY_FAIL: %s: %s", t.reason, msg))
+		t.t.Skipf("FLAKY_FAIL: %s: %s", t.reason, msg)
 	} else {
 		t.logger.Warn("Ignoring failure in flaky test", "failure", msg)
-		t.t.Skip(fmt.Sprintf("FLAKY_FAIL: %s", msg))
+		t.t.Skipf("FLAKY_FAIL: %s", msg)
 	}
 }
 
@@ -256,7 +256,7 @@ func (t *testingT) MarkFlaky(reason string) {
 	t.t.Cleanup(func() {
 		if !t.t.Failed() && !t.t.Skipped() && !mustFailFlakyTests() {
 			if t.reason != "" {
-				t.t.Skip(fmt.Sprintf("FLAKY_PASS: %s", t.reason))
+				t.t.Skipf("FLAKY_PASS: %s", t.reason)
 			} else {
 				t.t.Skip("FLAKY_PASS")
 			}
@@ -294,7 +294,7 @@ func (t *testingT) Run(name string, fn func(T)) {
 			subGoT.Cleanup(func() {
 				if !subGoT.Failed() && !subGoT.Skipped() && !mustFailFlakyTests() {
 					if subT.reason != "" {
-						subGoT.Skip(fmt.Sprintf("FLAKY_PASS: %s", subT.reason))
+						subGoT.Skipf("FLAKY_PASS: %s", subT.reason)
 					} else {
 						subGoT.Skip("FLAKY_PASS")
 					}
