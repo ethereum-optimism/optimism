@@ -279,6 +279,23 @@ func TestMessage(t *testing.T) {
 	})
 }
 
+func TestMessageRoundTrip(t *testing.T) {
+	msg := Message{
+		Identifier: Identifier{
+			Origin:      testOrigin,
+			BlockNumber: testBlockNumber,
+			LogIndex:    testLogIndex,
+			Timestamp:   testTimestamp,
+			ChainID:     testChainID,
+		},
+		PayloadHash: testMsgHash,
+	}
+	msg_topics, msg_data := msg.EncodeEvent()
+	var msg_again Message
+	msg_again.DecodeEvent(msg_topics, msg_data)
+	require.Equal(t, msg, msg_again)
+}
+
 func TestChecksumArgs(t *testing.T) {
 	args := ChecksumArgs{
 		BlockNumber: testBlockNumber,
