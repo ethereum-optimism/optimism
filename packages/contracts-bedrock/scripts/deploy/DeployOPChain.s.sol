@@ -262,10 +262,44 @@ contract DeployOPChain is Script {
             "DeployOPChain: only PERMISSIONED_CANNON game type is supported for initial deployment"
         );
 
+        // Build dispute game configs - OPCMV2 requires all 6 game type configs.
+        // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](2);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
-        // Config 0: SUPER_PERMISSIONED_CANNON (enabled)
+        // Config 0: CANNON (disabled — legacy type not used in super root mode)
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: bytes("")
+        });
+
+        // Config 1: PERMISSIONED_CANNON (disabled — legacy type not used in super root mode)
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+
+        // Config 2: CANNON_KONA (disabled — legacy type not used in super root mode)
+        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+
+        // Config 3: SUPER_CANNON (disabled for initial deployment — no prestate exists)
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: bytes("")
+        });
+
+        // Config 4: SUPER_PERMISSIONED_CANNON (enabled)
         IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
             .PermissionedDisputeGameConfig({
             absolutePrestate: _input.disputeAbsolutePrestate,
@@ -273,15 +307,15 @@ contract DeployOPChain is Script {
             challenger: _input.challenger
         });
 
-        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: DEFAULT_INIT_BOND,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: abi.encode(pdgConfig)
         });
 
-        // Config 1: SUPER_CANNON_KONA (disabled for initial deployment)
-        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+        // Config 5: SUPER_CANNON_KONA (disabled for initial deployment)
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
