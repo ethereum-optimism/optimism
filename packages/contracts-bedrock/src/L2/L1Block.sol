@@ -3,10 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import {
-    L1Block_FeatureAlreadyEnabled,
-    L1Block_NotAuthorizedToSetFeature
-} from "src/libraries/L1BlockErrors.sol";
+import { L1Block_FeatureAlreadyEnabled, L1Block_NotAuthorizedToSetFeature } from "src/libraries/L1BlockErrors.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
@@ -78,9 +75,9 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
     /// @param enabled Whether the feature is enabled.
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
-    /// @custom:semver 1.9.0
+    /// @custom:semver 1.10.0
     function version() public pure virtual returns (string memory) {
-        return "1.9.0";
+        return "1.10.0";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -247,8 +244,9 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
         emit FeatureSet(_feature, true);
     }
 
-    /// @notice Reverts if the sender is not authorized to set a feature. Only callable by the depositor account, the ProxyAdmin owner, or the
-    ///         ProxyAdmin. This allows features to be set either by the L2CM, the Depositor, or the ProxyAdminOwner,
+    /// @notice Reverts if the sender is not authorized to set a feature. Only callable by the depositor account, the
+    /// ProxyAdmin owner, or the ProxyAdmin. This allows features to be set either by the L2CM, the Depositor, or the
+    /// ProxyAdminOwner,
     ///         which is expected to be an account on L1.
     /// @param _sender The address to check.
     function _assertSetFeatureAuthorized(address _sender) internal view {
