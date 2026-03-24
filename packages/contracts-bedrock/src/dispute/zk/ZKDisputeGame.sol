@@ -132,22 +132,11 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
 
+    /// @notice The dispute game factory that created this game.
+    IDisputeGameFactory public disputeGameFactory;
+
     /// @notice The total bonds deposited into the game.
     uint256 public totalBonds;
-
-    /// @notice The dispute game factory that created this game.
-    IDisputeGameFactory internal immutable DISPUTE_GAME_FACTORY;
-
-    /// @notice Constructs the ZKDisputeGame implementation.
-    /// @param _disputeGameFactory The factory that creates dispute games.
-    constructor(IDisputeGameFactory _disputeGameFactory) {
-        DISPUTE_GAME_FACTORY = _disputeGameFactory;
-    }
-
-    /// @notice Returns the dispute game factory.
-    function disputeGameFactory() external view returns (IDisputeGameFactory) {
-        return DISPUTE_GAME_FACTORY;
-    }
 
     ////////////////////////////////////////////////////////////////
     //                     CWIA GETTERS                           //
@@ -309,10 +298,13 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // INVARIANT: The L2 chain ID must not be zero.
         if (l2ChainId() == 0) revert UnknownChainId();
 
+        // Store the factory reference for parent game lookups.
+        disputeGameFactory = IDisputeGameFactory(msg.sender);
+
         // The first game is initialized with a parent index of uint32.max
         if (parentIndex() != type(uint32).max) {
             // For subsequent games, get the parent game's information
-            (,, IDisputeGame proxy) = DISPUTE_GAME_FACTORY.gameAtIndex(parentIndex());
+            (,, IDisputeGame proxy) = disputeGameFactory.gameAtIndex(parentIndex());
 
             // Verify parent game is not blacklisted or retired.
             if (anchorStateRegistry().isGameBlacklisted(proxy) || anchorStateRegistry().isGameRetired(proxy)) {
@@ -446,7 +438,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Returns the status of the parent game.
     function getParentGameStatus() private view returns (GameStatus) {
         if (parentIndex() != type(uint32).max) {
-            (,, IDisputeGame parentGame) = DISPUTE_GAME_FACTORY.gameAtIndex(parentIndex());
+            (,, IDisputeGame parentGame) = disputeGameFactory.gameAtIndex(parentIndex());
             return parentGame.status();
         } else {
             // If this is the first dispute game (i.e. parent game index is `uint32.max`), then the
