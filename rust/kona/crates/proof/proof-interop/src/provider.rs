@@ -288,7 +288,18 @@ mod tests {
 
     use crate::{BootInfo, PreState};
 
-    /// Fixture data loaded from `testdata/eip2935_header_by_number.json`.
+    /// A single step in the EIP-2935 lookup chain. Each step contains the trie proof
+    /// data needed for one iteration and the block header it resolves to.
+    #[derive(serde::Deserialize)]
+    struct ProofStep {
+        account_proof: Vec<String>,
+        storage_proof: Vec<String>,
+        resolved_block_hash: String,
+        resolved_block_header_rlp: String,
+    }
+
+    /// Fixture data for EIP-2935 `header_by_number` tests. Works for both single-iteration
+    /// (1 step) and multi-iteration (2+ steps) lookups via the `steps` array.
     #[derive(serde::Deserialize)]
     struct FixtureData {
         chain_id: u64,
@@ -296,9 +307,7 @@ mod tests {
         safe_head_header_rlp: String,
         target_block_number: u64,
         target_block_hash: String,
-        target_block_header_rlp: String,
-        account_proof: Vec<String>,
-        storage_proof: Vec<String>,
+        steps: Vec<ProofStep>,
     }
 
     /// In-memory preimage oracle for testing.
@@ -343,50 +352,61 @@ mod tests {
         alloy_primitives::hex::decode(hex).expect("valid hex")
     }
 
-    fn load_fixture() -> (MockCommsClient, FixtureData) {
-        let json = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/eip2935_header_by_number.json"
-        ));
+    fn load_fixture_from(json: &str) -> (MockCommsClient, FixtureData) {
         let fixture: FixtureData = serde_json::from_str(json).expect("valid fixture JSON");
 
         let mut preimages = BTreeMap::new();
 
-        // Load account proof nodes (state trie).
-        for node_hex in &fixture.account_proof {
-            let node_bytes = hex_to_bytes(node_hex);
-            let hash = keccak256(&node_bytes);
-            let key: [u8; 32] = PreimageKey::new(*hash, PreimageKeyType::Keccak256).into();
-            preimages.insert(key, node_bytes);
-        }
+        for step in &fixture.steps {
+            // Load account proof nodes (state trie).
+            for node_hex in &step.account_proof {
+                let node_bytes = hex_to_bytes(node_hex);
+                let hash = keccak256(&node_bytes);
+                let key: [u8; 32] = PreimageKey::new(*hash, PreimageKeyType::Keccak256).into();
+                preimages.insert(key, node_bytes);
+            }
 
-        // Load storage proof nodes.
-        for node_hex in &fixture.storage_proof {
-            let node_bytes = hex_to_bytes(node_hex);
-            let hash = keccak256(&node_bytes);
-            let key: [u8; 32] = PreimageKey::new(*hash, PreimageKeyType::Keccak256).into();
-            preimages.insert(key, node_bytes);
-        }
+            // Load storage proof nodes.
+            for node_hex in &step.storage_proof {
+                let node_bytes = hex_to_bytes(node_hex);
+                let hash = keccak256(&node_bytes);
+                let key: [u8; 32] = PreimageKey::new(*hash, PreimageKeyType::Keccak256).into();
+                preimages.insert(key, node_bytes);
+            }
 
-        // Load target block header RLP, keyed by its block hash.
-        let target_header_rlp = hex_to_bytes(&fixture.target_block_header_rlp);
-        let target_hash: B256 = fixture.target_block_hash.parse().expect("valid hash");
-        assert_eq!(
-            keccak256(&target_header_rlp),
-            target_hash,
-            "target header RLP hash must match target block hash"
-        );
-        let key: [u8; 32] = PreimageKey::new(*target_hash, PreimageKeyType::Keccak256).into();
-        preimages.insert(key, target_header_rlp);
+            // Load resolved block header RLP, keyed by its block hash.
+            let header_rlp = hex_to_bytes(&step.resolved_block_header_rlp);
+            let block_hash: B256 = step.resolved_block_hash.parse().expect("valid hash");
+            assert_eq!(
+                keccak256(&header_rlp),
+                block_hash,
+                "resolved header RLP hash must match resolved block hash"
+            );
+            let key: [u8; 32] = PreimageKey::new(*block_hash, PreimageKeyType::Keccak256).into();
+            preimages.insert(key, header_rlp);
+        }
 
         (MockCommsClient { preimages }, fixture)
+    }
+
+    fn load_fixture() -> (MockCommsClient, FixtureData) {
+        load_fixture_from(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/testdata/eip2935_header_by_number.json"
+        )))
+    }
+
+    fn load_multi_iter_fixture() -> (MockCommsClient, FixtureData) {
+        load_fixture_from(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/testdata/eip2935_multi_iteration.json"
+        )))
     }
 
     fn build_provider(
         client: MockCommsClient,
         fixture: &FixtureData,
     ) -> OracleInteropProvider<MockCommsClient> {
-        // Decode safe head header from RLP.
         let safe_head_rlp = hex_to_bytes(&fixture.safe_head_header_rlp);
         let safe_head_header =
             Header::decode(&mut safe_head_rlp.as_ref()).expect("valid safe head header RLP");
@@ -394,18 +414,15 @@ mod tests {
 
         let sealed_safe_head = safe_head_header.seal_slow();
 
-        // Build local_safe_heads map.
         let mut local_safe_heads = HashMap::default();
         local_safe_heads.insert(fixture.chain_id, sealed_safe_head);
 
-        // Build rollup config with Isthmus active (OP Mainnet: timestamp 1746806401).
         let mut rollup_config = RollupConfig::default();
         rollup_config.hardforks.isthmus_time = Some(1746806401);
 
         let mut rollup_configs = HashMap::default();
         rollup_configs.insert(fixture.chain_id, rollup_config);
 
-        // Build BootInfo with dummy values for unused fields.
         let boot = BootInfo {
             l1_head: B256::ZERO,
             agreed_pre_state_commitment: B256::ZERO,
@@ -420,7 +437,7 @@ mod tests {
     }
 
     /// Tests the EIP-2935 fast path: looking up a block at the boundary of the 8,191-block
-    /// history window using real OP Mainnet trie proof data.
+    /// history window using real OP Mainnet trie proof data (1 step).
     ///
     /// Safe head: block 149,340,000
     /// Target: block 149,331,809 (exactly 8,191 blocks behind — at the EIP-2935 window boundary)
@@ -473,5 +490,31 @@ mod tests {
 
         let result = provider.header_by_number(999, 1).await;
         assert!(result.is_err());
+    }
+
+    /// Tests multi-iteration EIP-2935 lookup: target block is beyond the 8,191-block window,
+    /// requiring two EIP-2935 lookups through an intermediate block (2 steps).
+    ///
+    /// Safe head: block 149,388,609
+    /// Intermediate: block 149,380,418 (8,191 blocks behind safe head — oldest in window)
+    /// Target: block 149,380,413 (5 blocks before intermediate — 8,196 behind safe head)
+    ///
+    /// Iteration 1: `eip_2935_history_lookup(N, M)` → target outside window →
+    ///   reads slot `N % 8191` from N's state → returns intermediate block hash.
+    /// Iteration 2: `eip_2935_history_lookup(I, M)` → target inside window →
+    ///   reads slot `M % 8191` from I's state → returns target block hash.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_header_by_number_eip2935_multi_iteration() {
+        let (client, fixture) = load_multi_iter_fixture();
+        let provider = build_provider(client, &fixture);
+        let expected_hash: B256 = fixture.target_block_hash.parse().unwrap();
+
+        let header = provider
+            .header_by_number(fixture.chain_id, fixture.target_block_number)
+            .await
+            .expect("header_by_number should succeed via multi-iteration EIP-2935 lookup");
+
+        assert_eq!(header.hash_slow(), expected_hash);
+        assert_eq!(header.number, fixture.target_block_number);
     }
 }
