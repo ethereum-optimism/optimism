@@ -70,6 +70,13 @@
     "type": "bool"
   },
   {
+    "bytes": "20",
+    "label": "disputeGameFactory",
+    "offset": 2,
+    "slot": "8",
+    "type": "contract IDisputeGameFactory"
+  },
+  {
     "bytes": "32",
     "label": "totalBonds",
     "offset": 0,
