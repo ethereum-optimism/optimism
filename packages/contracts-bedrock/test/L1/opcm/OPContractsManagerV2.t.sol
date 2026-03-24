@@ -290,6 +290,30 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 )
             })
         );
+        v2UpgradeInput.disputeGameConfigs.push(
+            IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: bytes("")
+            })
+        );
+        v2UpgradeInput.disputeGameConfigs.push(
+            IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameArgs: bytes("")
+            })
+        );
+        v2UpgradeInput.disputeGameConfigs.push(
+            IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON_KONA,
+                gameArgs: bytes("")
+            })
+        );
 
         // Allow the DelayedWETH proxy to be (re)deployed during upgrades if it is missing.
         v2UpgradeInput.extraInstructions.push(
