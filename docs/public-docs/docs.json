@@ -2366,6 +2366,7 @@
             "group": "Notices",
             "pages": [
               "notices/op-geth-deprecation",
+              "notices/op-deployer-upgrade-deprecation",
               {
                 "group": "Archive",
                 "pages": [
