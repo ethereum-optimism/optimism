@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IL1Block {
-    error NotDepositor();
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+
+interface IL1Block is IProxyAdminOwnedBase {
     error L1Block_FeatureAlreadyEnabled();
+    error L1Block_NotAuthorizedToSetFeature();
 
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 

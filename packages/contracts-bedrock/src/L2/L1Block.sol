@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import {
-    NotDepositor,
     L1Block_FeatureAlreadyEnabled,
     L1Block_NotAuthorizedToSetFeature
 } from "src/libraries/L1BlockErrors.sol";

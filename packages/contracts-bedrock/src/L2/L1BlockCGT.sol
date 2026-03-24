@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 // Libraries
-import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";

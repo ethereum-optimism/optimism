@@ -508,7 +508,7 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
         // This test uses the setUp that already activates custom gas token
         assertTrue(l1BlockCGT.isCustomGasToken());
 
-        vm.expectRevert("L1Block: CustomGasToken already active");
+        vm.expectRevert(L1Block_FeatureAlreadyEnabled.selector);
         vm.prank(depositor);
         IL1BlockCGT(address(l1BlockCGT)).setCustomGasToken();
     }
