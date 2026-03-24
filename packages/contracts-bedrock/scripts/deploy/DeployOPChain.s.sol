@@ -170,12 +170,12 @@ contract DeployOPChain is Script {
             "DeployOPChain: only PERMISSIONED_CANNON game type is supported for initial deployment"
         );
 
-        // Build dispute game configs - OPCMV2 requires exactly 3 configs: CANNON, PERMISSIONED_CANNON, CANNON_KONA
+        // Build dispute game configs - OPCMV2 requires all 6 game type configs.
+        // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
-        // Config 0: CANNON
-        // Must be disabled for the initial deployment since no prestate exists for permissionless games.
+        // Config 0: CANNON (disabled for initial deployment — no prestate exists)
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -198,12 +198,35 @@ contract DeployOPChain is Script {
             gameArgs: abi.encode(pdgConfig)
         });
 
-        // Config 2: CANNON_KONA
-        // Must be disabled for the initial deployment since no prestate exists for permissionless games.
+        // Config 2: CANNON_KONA (disabled for initial deployment — no prestate exists)
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+
+        // Config 3: SUPER_CANNON (disabled)
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: bytes("")
+        });
+
+        // Config 4: SUPER_PERMISSIONED_CANNON (disabled)
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+
+        // Config 5: SUPER_CANNON_KONA (disabled)
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: bytes("")
         });
 

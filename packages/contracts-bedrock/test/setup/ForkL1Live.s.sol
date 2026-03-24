@@ -301,10 +301,34 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             GameType targetGameType =
                 isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
 
-            // Migration upgrade requires 6 configs: 2 super + 4 legacy (disabled).
-            // Order must match validGameTypes in OPContractsManagerV2._apply().
+            // Migration upgrade: legacy types disabled, super types enabled.
+            // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.CANNON_KONA,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: 0.08 ether,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -317,7 +341,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 )
             });
             if (isPermissionless) {
-                disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: 0.08 ether,
                     gameType: GameTypes.SUPER_CANNON_KONA,
@@ -328,37 +352,13 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                     )
                 });
             } else {
-                disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: false,
                     initBond: 0,
                     gameType: GameTypes.SUPER_CANNON_KONA,
                     gameArgs: hex""
                 });
             }
-            disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON,
-                gameArgs: hex""
-            });
-            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: hex""
-            });
-            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: hex""
-            });
-            disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
-                gameArgs: hex""
-            });
 
             // Migration needs 3 extra instructions: DelayedWETH proxy + anchor root + game type overrides.
             extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](3);
@@ -375,8 +375,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 data: abi.encode(targetGameType)
             });
         } else {
-            // Standard upgrade path.
-            disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            // Standard upgrade path: legacy types enabled, super types disabled.
+            // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
+            disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
@@ -408,6 +409,24 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                         absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
                     })
                 )
+            });
+            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON_KONA,
+                gameArgs: hex""
             });
 
             // Standard path only needs DelayedWETH proxy deployment permission.

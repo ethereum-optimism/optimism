@@ -59,8 +59,6 @@ interface IOPContractsManagerUtils {
     error EmptyInitcode();
     error BytesArrayTooLong();
     error IdentityPrecompileCallFailed();
-    error OPContractsManagerV2_InvalidGameConfigs();
-
     function implementations() external view returns (IOPContractsManagerContainer.Implementations memory);
     function blueprints() external view returns (IOPContractsManagerContainer.Blueprints memory);
     function contractsContainer() external view returns (IOPContractsManagerContainer);
@@ -149,15 +147,6 @@ interface IOPContractsManagerUtils {
         external
         view
         returns (bytes memory);
-
-    function assertValidStandardGameConfigs(
-        DisputeGameConfig[] memory _disputeGameConfigs,
-        GameType _startingRespectedGameType,
-        bool _isInitialDeployment,
-        bool _isSuperRootMode
-    )
-        external
-        pure;
 
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }

@@ -253,7 +253,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
                 // Prepare the upgrade input.
                 IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-                    new IOPContractsManagerUtils.DisputeGameConfig[](3);
+                    new IOPContractsManagerUtils.DisputeGameConfig[](6);
                 disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
@@ -281,6 +281,24 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                     gameArgs: abi.encode(
                         IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
                     )
+                });
+                disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_CANNON,
+                    gameArgs: hex""
+                });
+                disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                    gameArgs: hex""
+                });
+                disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    gameArgs: hex""
                 });
 
                 // Call upgrade to all games to be enabled.
@@ -1828,8 +1846,34 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Comm
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
-        // Super types (enabled).
+        // Legacy types (all disabled).
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: hex""
+        });
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: hex""
+        });
+        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: hex""
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: hex""
+        });
+
+        // Super types (enabled).
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -1841,37 +1885,11 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Comm
                 })
             )
         });
-        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
-        });
-
-        // Legacy types (all disabled).
-        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: hex""
-        });
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: hex""
-        });
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: hex""
-        });
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: hex""
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =

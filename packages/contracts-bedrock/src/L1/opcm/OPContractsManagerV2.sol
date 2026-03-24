@@ -697,12 +697,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         returns (ChainContracts memory)
     {
         // Validate the game configs.
-        _assertValidStandardGameConfigs(
-            _cfg.disputeGameConfigs,
-            _cfg.startingRespectedGameType,
-            _isInitialDeployment,
-            isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        );
+        _assertValidGameConfigs(_cfg.disputeGameConfigs, _cfg.startingRespectedGameType, _isInitialDeployment);
 
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
@@ -867,7 +862,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the DisputeGame config and implementations.
-        // NOTE: We assert in assertValidStandardGameConfigs that we have a configuration for all
+        // NOTE: We assert in _assertValidGameConfigs that we have a configuration for all
         // valid game types so we can be confident that we're setting/unsetting everything we care
         // about.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
@@ -923,6 +918,85 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Return contracts as the execution output.
         return _cts;
+    }
+
+    /// @notice Validates the game configs provided to _apply.
+    /// @param _disputeGameConfigs The dispute game configs.
+    /// @param _startingRespectedGameType The starting respected game type.
+    /// @param _isInitialDeployment Whether or not this is an initial deployment.
+    function _assertValidGameConfigs(
+        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _startingRespectedGameType,
+        bool _isInitialDeployment
+    )
+        private
+        pure
+    {
+        // All valid game types. StandardValidator is responsible for rejecting game types that
+        // should not be used in a given mode (e.g., legacy types in super root mode).
+        GameType[] memory validGameTypes = new GameType[](6);
+        validGameTypes[0] = GameTypes.CANNON;
+        validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
+        validGameTypes[2] = GameTypes.CANNON_KONA;
+        validGameTypes[3] = GameTypes.SUPER_CANNON;
+        validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        validGameTypes[5] = GameTypes.SUPER_CANNON_KONA;
+
+        // We must have a config for each valid game type.
+        if (_disputeGameConfigs.length != validGameTypes.length) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Iterate over each provided config and confirm that it matches the game type array.
+        // This places a requirement on the user to order the configs properly but that's
+        // probably a good thing, keeps the config consistent.
+        bool permissionedFound = false;
+        for (uint256 i = 0; i < _disputeGameConfigs.length; i++) {
+            if (_disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // If the game is disabled, we must have a 0 init bond.
+            if (!_disputeGameConfigs[i].enabled && _disputeGameConfigs[i].initBond != 0) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // Check if this is a permissioned type.
+            bool isPermissioned = validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
+
+            // During initial deployment, only permissioned types can be enabled, because no
+            // prestate exists for permissionless games.
+            if (_isInitialDeployment && !isPermissioned && _disputeGameConfigs[i].enabled) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // Track if we found an enabled permissioned game.
+            if (isPermissioned && _disputeGameConfigs[i].enabled) {
+                permissionedFound = true;
+            }
+        }
+
+        // We currently REQUIRE that at least one permissioned game (PERMISSIONED_CANNON or
+        // SUPER_PERMISSIONED_CANNON) is enabled.
+        if (!permissionedFound) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        // Validate that the starting respected game type corresponds to an enabled game config.
+        bool startingGameTypeFound = false;
+        for (uint256 i = 0; i < _disputeGameConfigs.length; i++) {
+            if (
+                _disputeGameConfigs[i].gameType.raw() == _startingRespectedGameType.raw()
+                    && _disputeGameConfigs[i].enabled
+            ) {
+                startingGameTypeFound = true;
+                break;
+            }
+        }
+        if (!startingGameTypeFound) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
     }
 
     /// @notice Helper for making the SystemConfig initializer arguments. This is the only

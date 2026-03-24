@@ -221,28 +221,6 @@ abstract contract OPContractsManagerUtilsCaller {
             abi.decode(_staticcall(abi.encodeCall(IOPContractsManagerUtils.getGameImpl, (_gameType))), (IDisputeGame));
     }
 
-    /// @notice Validates the game configs against the expected valid game types.
-    /// @param _disputeGameConfigs The dispute game configs.
-    /// @param _startingRespectedGameType The starting respected game type.
-    /// @param _isInitialDeployment Whether or not this is an initial deployment.
-    /// @param _isSuperRootMode Whether super root games mode is enabled.
-    function _assertValidStandardGameConfigs(
-        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
-        GameType _startingRespectedGameType,
-        bool _isInitialDeployment,
-        bool _isSuperRootMode
-    )
-        internal
-        view
-    {
-        _staticcall(
-            abi.encodeCall(
-                IOPContractsManagerUtils.assertValidStandardGameConfigs,
-                (_disputeGameConfigs, _startingRespectedGameType, _isInitialDeployment, _isSuperRootMode)
-            )
-        );
-    }
-
     /// @notice Helper for creating game constructor arguments.
     /// @param _l2ChainId The L2 chain ID.
     /// @param _anchorStateRegistry The AnchorStateRegistry to use for dispute games.

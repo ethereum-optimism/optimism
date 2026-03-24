@@ -11,56 +11,6 @@
     "type": "constructor"
   },
   {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "bool",
-            "name": "enabled",
-            "type": "bool"
-          },
-          {
-            "internalType": "uint256",
-            "name": "initBond",
-            "type": "uint256"
-          },
-          {
-            "internalType": "GameType",
-            "name": "gameType",
-            "type": "uint32"
-          },
-          {
-            "internalType": "bytes",
-            "name": "gameArgs",
-            "type": "bytes"
-          }
-        ],
-        "internalType": "struct IOPContractsManagerUtils.DisputeGameConfig[]",
-        "name": "_disputeGameConfigs",
-        "type": "tuple[]"
-      },
-      {
-        "internalType": "GameType",
-        "name": "_startingRespectedGameType",
-        "type": "uint32"
-      },
-      {
-        "internalType": "bool",
-        "name": "_isInitialDeployment",
-        "type": "bool"
-      },
-      {
-        "internalType": "bool",
-        "name": "_isSuperRootMode",
-        "type": "bool"
-      }
-    ],
-    "name": "assertValidStandardGameConfigs",
-    "outputs": [],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "blueprints",
     "outputs": [
@@ -765,11 +715,6 @@
   {
     "inputs": [],
     "name": "OPContractsManagerUtils_UnsupportedGameType",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OPContractsManagerV2_InvalidGameConfigs",
     "type": "error"
   },
   {
