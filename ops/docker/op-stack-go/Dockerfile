@@ -10,7 +10,7 @@
 ARG TARGET_BASE_IMAGE=alpine:3.20
 
 # The ubuntu target base image is used for the op-challenger build with kona.
-ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:22.04
+ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:24.04
 
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
