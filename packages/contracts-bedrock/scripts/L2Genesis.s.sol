@@ -404,7 +404,7 @@ contract L2Genesis is Script {
             vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
 
             // Set the custom gas token flag
-            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
+            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setCustomGasToken();
         } else {
             _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
         }

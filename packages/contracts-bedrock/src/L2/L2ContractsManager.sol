@@ -163,7 +163,7 @@ contract L2ContractsManager is ISemver {
         // First we read the system customization and def feature flags from the state.
         // Because the L2CM's upgrade function does not accept arguments, these values must be set from outside of the
         // Network Upgrade Transactions bundle. The expectation is that they will be set at the start of a
-        // hard fork block, within the consenus client's code.
+        // hard fork block, within the consensus client's code.
 
         // Read system customization flags from L1Block.
         // Uses the legacy isCustomGasToken() getter which has existed since custom gas token shipped.

@@ -53,7 +53,6 @@ contract L1BlockCGT is L1Block {
     /// ProxyAdmin.
     function setCustomGasToken() external {
         _assertSetFeatureAuthorized(msg.sender);
-        if (isCustomGasToken()) revert L1Block_FeatureAlreadyEnabled();
 
         // Set the feature flag in the system customization mapping
         _setFeature(Features.CUSTOM_GAS_TOKEN);
