@@ -1091,7 +1091,7 @@ jobs:
               echo "Publishing commit hash data"
               INFO_FILE=$(mktemp)
               (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
-              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>-prestate.bin.gz.txt"
+              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>.bin.gz.txt"
               rm "${INFO_FILE}"
               PRESTATE_HASH="${BRANCH_NAME}-<<parameters.version>>"
             fi
