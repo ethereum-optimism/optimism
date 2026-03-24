@@ -1289,6 +1289,7 @@ workflows:
       and:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - not: << pipeline.parameters.c-rust_changes_detected >>
+        - << pipeline.parameters.c-non_docs_changes >>
     jobs:
       - rust-ci-cargo-tests:
           name: rust-tests

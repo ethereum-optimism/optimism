@@ -3078,7 +3078,9 @@ workflows:
   devnet-metrics-collect:
     when:
       or:
-        - equal: [<< pipeline.trigger_source >>, "webhook"]
+        - and:
+            - equal: [<< pipeline.trigger_source >>, "webhook"]
+            - << pipeline.parameters.c-non_docs_changes >>
         - and:
             - equal: [true, << pipeline.parameters.c-devnet-metrics-collect >>]
             - equal: [<< pipeline.trigger_source >>, "api"]
