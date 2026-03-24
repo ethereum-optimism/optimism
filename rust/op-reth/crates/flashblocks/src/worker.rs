@@ -141,6 +141,7 @@ where
     /// Returns `None` if:
     /// - In canonical mode: flashblock doesn't attach to the latest header
     /// - In speculative mode: no pending parent state provided
+    /// - Received FlashblockAccessList did not match computed FlashblockAccessList
     pub(crate) fn execute<I: IntoIterator<Item = WithEncoded<Recovered<N::SignedTx>>>>(
         &self,
         mut args: BuildArgs<I, N>,
@@ -171,7 +172,7 @@ where
         // Collect transactions and extract hashes for cache lookup
         let transactions: Vec<_> = args.transactions.into_iter().collect();
         let tx_hashes: Vec<B256> = transactions.iter().map(|tx| *tx.tx_hash()).collect();
-        let received_access_lists: Vec<_> = args.access_lists;
+        let received_access_lists: Vec<FlashblockAccessList> = args.access_lists;
         // this seems off
         let max_tx_index: u64 = transactions.len().try_into().unwrap();
 
@@ -459,10 +460,11 @@ where
 
         debug!(target: "fBALs", "fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
 
-        // if args.access_list != computed_access_list {
-        //     debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.  Discarding
-        // flashblock.");     return Ok(None);
-        // }
+        if received_access_lists != computed_access_list {
+            debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.  Discarding
+        flashblock.");
+            return Ok(None);
+        }
 
         let pending_block = PendingBlock::with_executed_block(
             Instant::now() + Duration::from_secs(1),

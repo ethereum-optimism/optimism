@@ -20,7 +20,7 @@ use base_access_lists::FlashblockAccessList;
 use reth_primitives_traits::{
     NodePrimitives, Recovered, SignedTransaction, transaction::TxHashRef,
 };
-use reth_revm::{bytecode::bitvec::access, cached::CachedReads};
+use reth_revm::cached::CachedReads;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use std::collections::{BTreeMap, HashSet};
 use tokio::sync::broadcast;
