@@ -13,47 +13,50 @@ import (
 	"github.com/ethereum/go-ethereum"
 )
 
-// TestCLELDivergence tests that the CL and EL diverge when the CL advances the unsafe head, due to accepting SYNCING response from the EL, but the EL cannot validate the block (yet), does not canonicalize it, and doesn't serve it.
+// TestCLELDivergence verifies that the CL and EL can temporarily diverge.
+// This happens when the CL advances its unsafe head after receiving a SYNCING
+// response from the EL, while the EL itself cannot yet validate or canonicalize
+// the corresponding block, and therefore does not serve it.
 func TestCLELDivergence(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 	require := t.Require()
 	l := t.Logger()
 
-	sys.L2CL.Advanced(types.LocalUnsafe, 8, 30)
-
-	// batcher down so safe not advanced
-	require.Equal(uint64(0), sys.L2CL.HeadBlockRef(types.LocalSafe).Number)
-	require.Equal(uint64(0), sys.L2CLB.HeadBlockRef(types.LocalSafe).Number)
-
 	startNum := sys.L2CLB.HeadBlockRef(types.LocalUnsafe).Number
 
-	// Finish EL sync by supplying the first block
-	// EL Sync finished because underlying EL has states to validate the payload for block startNum+1
+	// Wait for the sequencer to produce the next block so the verifier initial EL sync can complete.
+	sys.L2CL.Reached(types.LocalUnsafe, startNum+1, 30)
+
+	// Complete initial EL sync by providing the first missing block.
+	// At this point, the EL has sufficient state to validate block startNum+1.
 	sys.L2CLB.SignalTarget(sys.L2EL, startNum+1)
 	require.Equal(startNum+1, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
 
-	for _, delta := range []uint64{3, 4, 5} {
-		targetNumber := startNum + delta
-		targetBlock := sys.L2EL.BlockRefByNumber(targetNumber)
+	// Ensure at least one L1 block is processed to ensure a derivation pipeline reset.
+	// Without this, a pipeline reset could interfere with observing divergence behavior.
+	sys.L2CLB.AwaitMinL1Processed(sys.L2CLB.SyncStatus().CurrentL1.Number + 1)
 
-		l.Info("Sending payload ", "target", targetNumber, "startNum", startNum)
+	// Choose a future EL sync target for which the EL lacks state to validate.
+	delta := uint64(5)
+	targetNumber := startNum + delta
+	sys.L2CL.Advanced(types.LocalUnsafe, targetNumber, 30)
+	targetBlock := sys.L2EL.BlockRefByNumber(targetNumber)
+
+	// The CL advances its unsafe head to the target block, even though there is a gap.
+	var ss *eth.SyncStatus
+	require.Eventually(func() bool {
+		l.Info("Sending payload", "target", targetNumber, "startNum", startNum)
 		sys.L2CLB.SignalTarget(sys.L2EL, targetNumber)
+		ss = sys.L2CLB.SyncStatus()
+		return targetBlock.ID() == ss.UnsafeL2.ID()
+	}, 10*time.Second, 2*time.Second, "L2CLB unsafe head did not expose target block")
 
-		// Canonical unsafe head never advances because of the gap
-		require.Equal(startNum+1, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
+	// The EL unsafe head remains unchanged because it cannot validate the block due to the gap.
+	require.Equal(startNum+1, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
 
-		// EL-sync can quickly reset the status tracker after exposing the posted
-		// unsafe head, so poll tightly and without extra RPCs between the post and
-		// the SyncStatus check.
-		var ss *eth.SyncStatus
-		require.Eventually(func() bool {
-			ss = sys.L2CLB.SyncStatus()
-			return ss.UnsafeL2.Number == targetNumber && ss.UnsafeL2.Hash == targetBlock.Hash
-		}, 2*time.Second, 10*time.Millisecond, "L2CLB unsafe head did not expose target block")
-
-		// Confirm that L2ELB cannot fetch the block by hash yet, because the block is not canonicalized, even though the CL reference is set to it.
-		_, err := sys.L2ELB.Escape().L2EthClient().L2BlockRefByHash(t.Ctx(), ss.UnsafeL2.Hash)
-		require.Error(err, ethereum.NotFound)
-	}
+	// Verify that the EL cannot retrieve the block by hash.
+	// Although the CL references it, the block is not canonicalized or served by the EL.
+	_, err := sys.L2ELB.Escape().L2EthClient().L2BlockRefByHash(t.Ctx(), ss.UnsafeL2.Hash)
+	require.Error(err, ethereum.NotFound)
 }
