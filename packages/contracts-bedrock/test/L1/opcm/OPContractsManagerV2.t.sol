@@ -77,10 +77,15 @@ contract OPContractsManagerV2_TestInit is CommonTest {
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
         // Grab the proposer and challenger from deploy config for validator.
+        // Check both PERMISSIONED_CANNON and SUPER_PERMISSIONED_CANNON since only one will be
+        // enabled depending on the mode.
         address deployProposer;
         address deployChallenger;
         for (uint256 i = 0; i < _deployConfig.disputeGameConfigs.length; i++) {
-            if (_deployConfig.disputeGameConfigs[i].gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+            bool isPermissioned = _deployConfig.disputeGameConfigs[i].gameType.raw()
+                == GameTypes.PERMISSIONED_CANNON.raw()
+                || _deployConfig.disputeGameConfigs[i].gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
+            if (isPermissioned && _deployConfig.disputeGameConfigs[i].enabled) {
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedArgs = abi.decode(
                     _deployConfig.disputeGameConfigs[i].gameArgs,
                     (IOPContractsManagerUtils.PermissionedDisputeGameConfig)
@@ -1528,7 +1533,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.unsafeBlockSigner = makeAddr("unsafeBlockSigner");
         deployConfig.batcher = makeAddr("batcher");
         deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 });
-        deployConfig.startingRespectedGameType = GameTypes.PERMISSIONED_CANNON;
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        deployConfig.startingRespectedGameType =
+            superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         deployConfig.basefeeScalar = 1368;
         deployConfig.blobBasefeeScalar = 801949;
         deployConfig.gasLimit = 60_000_000;
@@ -1542,9 +1549,17 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             maximumBaseFee: type(uint128).max
         });
 
-        // Set up dispute game configs using the same pattern as upgrade tests.
-        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
+        // Set up dispute game configs. All 6 game types are required.
+        // In super root mode, SUPER_PERMISSIONED_CANNON is enabled; otherwise PERMISSIONED_CANNON.
+        address initialChallenger = makeAddr("deployChallenger");
+        address initialProposer = makeAddr("deployProposer");
+        IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
+            .PermissionedDisputeGameConfig({
+            absolutePrestate: cannonPrestate,
+            proposer: initialProposer,
+            challenger: initialChallenger
+        });
+
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -1555,16 +1570,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND, // Standard init bond
+                enabled: !superRoot,
+                initBond: superRoot ? 0 : DEFAULT_DISPUTE_GAME_INIT_BOND,
                 gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: initialProposer,
-                        challenger: initialChallenger
-                    })
-                )
+                gameArgs: superRoot ? bytes("") : abi.encode(pdgConfig)
             })
         );
         deployConfig.disputeGameConfigs.push(
@@ -1585,10 +1594,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
+                enabled: superRoot,
+                initBond: superRoot ? DEFAULT_DISPUTE_GAME_INIT_BOND : 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: bytes("")
+                gameArgs: superRoot ? abi.encode(pdgConfig) : bytes("")
             })
         );
         deployConfig.disputeGameConfigs.push(
@@ -1604,9 +1613,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the deploy function succeeds and passes standard validation.
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.
-        // We expect PLDG-10 and CKDG-10 validator errors because CANNON and CANNON_KONA are
-        // disabled during initial deployment (no implementations registered).
-        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), "PLDG-10,CKDG-10");
+        // In standard mode, CANNON and CANNON_KONA are disabled → PLDG-10,CKDG-10.
+        // In super root mode, SUPER_CANNON_KONA is disabled → SCKDG-10.
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        string memory expectedErrors = superRoot ? "SCKDG-10" : "PLDG-10,CKDG-10";
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         // Verify key contracts are deployed.
         assertTrue(address(cts.systemConfig) != address(0), "systemConfig not deployed");
@@ -1659,8 +1670,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests that deploy reverts when the PermissionedDisputeGame is disabled.
     function test_deploy_disabledPermissionedGame_reverts() public {
-        // Disable the PermissionedDisputeGame.
-        deployConfig.disputeGameConfigs[1].enabled = false;
+        // Disable the enabled permissioned game (index 1 or 4 depending on mode).
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        uint256 permIdx = superRoot ? 4 : 1;
+        deployConfig.disputeGameConfigs[permIdx].enabled = false;
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
@@ -1739,15 +1752,12 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice PERMISSIONED_CANNON as respected game type succeeds during deploy.
     function test_deploy_permissionedCannonRespectedGameType_succeeds() public {
-        deployConfig.startingRespectedGameType = GameTypes.PERMISSIONED_CANNON;
-        // We expect PLDG-10 and CKDG-10 validator errors because CANNON and CANNON_KONA are
-        // disabled during initial deployment (no implementations registered).
-        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), "PLDG-10,CKDG-10");
-        assertEq(
-            cts.anchorStateRegistry.respectedGameType().raw(),
-            GameTypes.PERMISSIONED_CANNON.raw(),
-            "respected game type should be PERMISSIONED_CANNON"
-        );
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        GameType permType = superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        deployConfig.startingRespectedGameType = permType;
+        string memory expectedErrors = superRoot ? "SCKDG-10" : "PLDG-10,CKDG-10";
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
+        assertEq(cts.anchorStateRegistry.respectedGameType().raw(), permType.raw(), "respected game type mismatch");
     }
 
     /// @notice CANNON_KONA as respected game type reverts because its dispute game is not enabled
