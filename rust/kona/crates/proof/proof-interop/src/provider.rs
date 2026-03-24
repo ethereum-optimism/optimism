@@ -474,4 +474,132 @@ mod tests {
         let result = provider.header_by_number(999, 1).await;
         assert!(result.is_err());
     }
+
+    /// Fixture data for multi-iteration EIP-2935 lookups where the target block is beyond
+    /// the 8,191-block history window, requiring two EIP-2935 lookups via an intermediate block.
+    #[derive(serde::Deserialize)]
+    #[allow(dead_code)]
+    struct MultiIterFixtureData {
+        chain_id: u64,
+        safe_head_number: u64,
+        safe_head_header_rlp: String,
+        intermediate_block_number: u64,
+        intermediate_block_hash: String,
+        intermediate_block_header_rlp: String,
+        target_block_number: u64,
+        target_block_hash: String,
+        target_block_header_rlp: String,
+        account_proof_at_safe_head: Vec<String>,
+        storage_proof_at_safe_head: Vec<String>,
+        account_proof_at_intermediate: Vec<String>,
+        storage_proof_at_intermediate: Vec<String>,
+    }
+
+    fn load_multi_iter_fixture() -> (MockCommsClient, MultiIterFixtureData) {
+        let json = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/testdata/eip2935_multi_iteration.json"
+        ));
+        let fixture: MultiIterFixtureData =
+            serde_json::from_str(json).expect("valid fixture JSON");
+
+        let mut preimages = BTreeMap::new();
+
+        // Helper to insert proof nodes.
+        let mut insert_proof_nodes = |nodes: &[String]| {
+            for node_hex in nodes {
+                let node_bytes = hex_to_bytes(node_hex);
+                let hash = keccak256(&node_bytes);
+                let key: [u8; 32] =
+                    PreimageKey::new(*hash, PreimageKeyType::Keccak256).into();
+                preimages.insert(key, node_bytes);
+            }
+        };
+
+        // Load state + storage proof nodes at safe head (iteration 1).
+        insert_proof_nodes(&fixture.account_proof_at_safe_head);
+        insert_proof_nodes(&fixture.storage_proof_at_safe_head);
+
+        // Load state + storage proof nodes at intermediate block (iteration 2).
+        insert_proof_nodes(&fixture.account_proof_at_intermediate);
+        insert_proof_nodes(&fixture.storage_proof_at_intermediate);
+
+        // Load intermediate block header RLP, keyed by its block hash.
+        let intermediate_rlp = hex_to_bytes(&fixture.intermediate_block_header_rlp);
+        let intermediate_hash: B256 =
+            fixture.intermediate_block_hash.parse().expect("valid hash");
+        assert_eq!(keccak256(&intermediate_rlp), intermediate_hash);
+        let key: [u8; 32] =
+            PreimageKey::new(*intermediate_hash, PreimageKeyType::Keccak256).into();
+        preimages.insert(key, intermediate_rlp);
+
+        // Load target block header RLP, keyed by its block hash.
+        let target_rlp = hex_to_bytes(&fixture.target_block_header_rlp);
+        let target_hash: B256 = fixture.target_block_hash.parse().expect("valid hash");
+        assert_eq!(keccak256(&target_rlp), target_hash);
+        let key: [u8; 32] =
+            PreimageKey::new(*target_hash, PreimageKeyType::Keccak256).into();
+        preimages.insert(key, target_rlp);
+
+        (MockCommsClient { preimages }, fixture)
+    }
+
+    fn build_provider_from_multi_iter(
+        client: MockCommsClient,
+        fixture: &MultiIterFixtureData,
+    ) -> OracleInteropProvider<MockCommsClient> {
+        let safe_head_rlp = hex_to_bytes(&fixture.safe_head_header_rlp);
+        let safe_head_header =
+            Header::decode(&mut safe_head_rlp.as_ref()).expect("valid safe head header RLP");
+        assert_eq!(safe_head_header.number, fixture.safe_head_number);
+
+        let sealed_safe_head = safe_head_header.seal_slow();
+
+        let mut local_safe_heads = HashMap::default();
+        local_safe_heads.insert(fixture.chain_id, sealed_safe_head);
+
+        let mut rollup_config = RollupConfig::default();
+        rollup_config.hardforks.isthmus_time = Some(1746806401);
+
+        let mut rollup_configs = HashMap::default();
+        rollup_configs.insert(fixture.chain_id, rollup_config);
+
+        let boot = BootInfo {
+            l1_head: B256::ZERO,
+            agreed_pre_state_commitment: B256::ZERO,
+            agreed_pre_state: PreState::SuperRoot(SuperRoot::new(0, Vec::new())),
+            claimed_post_state: B256::ZERO,
+            claimed_l2_timestamp: 0,
+            rollup_configs,
+            l1_config: Default::default(),
+        };
+
+        OracleInteropProvider::new(Arc::new(client), boot, local_safe_heads)
+    }
+
+    /// Tests multi-iteration EIP-2935 lookup: target block is beyond the 8,191-block window,
+    /// requiring two EIP-2935 lookups through an intermediate block.
+    ///
+    /// Safe head: block 149,388,609
+    /// Intermediate: block 149,380,418 (8,191 blocks behind safe head — oldest in window)
+    /// Target: block 149,380,413 (5 blocks before intermediate — 8,196 behind safe head)
+    ///
+    /// Iteration 1: `eip_2935_history_lookup(N, M)` → target outside window →
+    ///   reads slot `N % 8191` from N's state → returns intermediate block hash.
+    /// Iteration 2: `eip_2935_history_lookup(I, M)` → target inside window →
+    ///   reads slot `M % 8191` from I's state → returns target block hash.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_header_by_number_eip2935_multi_iteration() {
+        let (client, fixture) = load_multi_iter_fixture();
+        let provider = build_provider_from_multi_iter(client, &fixture);
+        let expected_hash: B256 = fixture.target_block_hash.parse().unwrap();
+
+        let header = provider
+            .header_by_number(fixture.chain_id, fixture.target_block_number)
+            .await
+            .expect("header_by_number should succeed via multi-iteration EIP-2935 lookup");
+
+        assert_eq!(header.hash_slow(), expected_hash);
+        assert_eq!(header.number, fixture.target_block_number);
+    }
 }
