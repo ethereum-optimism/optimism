@@ -18,9 +18,9 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
 contract L1BlockCGT is L1Block {
-    /// @custom:semver +custom-gas-token.2
+    /// @custom:semver +custom-gas-token.1
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+custom-gas-token.2");
+        return string.concat(super.version(), "+custom-gas-token.1");
     }
 
     /// @notice Returns whether the gas paying token is custom.
@@ -51,6 +51,9 @@ contract L1BlockCGT is L1Block {
 
     /// @notice Set chain to use custom gas token. Callable by the depositor account, the ProxyAdmin owner, or the
     /// ProxyAdmin.
+    /// @dev Authorization is shared with setFeature() via _assertSetFeatureAuthorized, allowing three callers:
+    /// the depositor account, the ProxyAdmin owner, or the ProxyAdmin itself. Once set, the feature flag
+    /// enables custom gas token functionality chain-wide and cannot be unset.
     function setCustomGasToken() external {
         _assertSetFeatureAuthorized(msg.sender);
 
