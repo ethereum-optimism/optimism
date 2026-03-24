@@ -1282,6 +1282,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that override instructions for the super root migration are blocked when
     ///         the SUPER_ROOT_GAMES_MIGRATION feature flag is not enabled.
     function test_upgrade_overrideBlockedWithoutMigrationFlag_reverts() public {
+        // This override is permitted when the migration flag is enabled, so skip.
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
         // Add an override instruction that should only be permitted with the migration flag.
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
