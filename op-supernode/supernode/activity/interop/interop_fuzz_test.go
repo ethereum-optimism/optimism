@@ -14,11 +14,12 @@ func FuzzVerifyInteropMessages(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, seed int64, numChainsRaw uint8) {
 		params := RandomChainParams {
-			chainCount:             max(2, int(numChainsRaw)),
-			minLength:              20,
-			maxLength:              40,
+			chainCount:             max(2, int(numChainsRaw>>6)),
+			minLength:              30,
+			maxLength:              60,
 			sameTimestampFrequency: 5,
 			dependencyChance:       8,
+			maxBlockTimeExclusive:  15,
 		}
 
 		fuzzInterop := newInteropFuzzHarness(t).WithParams(params).WithSeed(seed)

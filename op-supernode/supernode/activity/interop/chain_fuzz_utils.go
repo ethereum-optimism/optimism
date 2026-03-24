@@ -59,6 +59,8 @@ type RandomChainParams struct {
 	minLength int
 	maxLength int
 
+	maxBlockTimeExclusive int
+
 	sameTimestampFrequency int // Percentage [0-100]
 	dependencyChance       int // Percentage [0-100]
 }
@@ -86,6 +88,7 @@ type RandomChain struct {
 	l1SourceMap   map[ChainBlock]eth.BlockRef
 	l1Source      map[uint64]eth.BlockRef
 	receipts      map[eth.ChainID]map[eth.BlockID]types2.Receipts
+	blockTimes    map[eth.ChainID]int
 }
 
 var _ cc.ChainContainer = RandomChainContainer{}
@@ -169,8 +172,7 @@ func (c RandomChainContainer) FetchReceipts(ctx context.Context, blockHash eth.B
 }
 
 func (c RandomChainContainer) BlockTime() uint64 {
-	//TODO
-	return 1
+	return uint64(c.randomChain.blockTimes[c.chainID])
 }
 
 func (c RandomChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
@@ -243,102 +245,76 @@ func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
 		l1SourceMap:   make(map[ChainBlock]eth.BlockRef),
 		l1Source:      make(map[uint64]eth.BlockRef),
 		receipts:      make(map[eth.ChainID]map[eth.BlockID]types2.Receipts),
+		blockTimes:    make(map[eth.ChainID]int),
 	}
 
 	for i := range p.chainCount {
 		chain := eth.ChainIDFromUInt64(uint64(i))
 		res.chainBlocks[chain] = make([]*eth.L2BlockRef, 0)
 		res.chainHeads[chain] = &ChainHeads{}
+		res.blockTimes[chain] = randomInRange(r, 1, p.maxBlockTimeExclusive)
 		res.chainIDs = append(res.chainIDs, chain)
 	}
 
 	//
 	// Create array of all blocks
 	//
-	chainUninit := eth.ChainIDFromUInt64(0)
-	timeStampCount := 1 // Can't be greater than p.chainCount
-	var newBlock *ChainBlock
-	for i := range totalLength {
-		allBlocks := res.allBlocks
-		if i == 0 {
-			// First block has a timestamp far in the past, already expired (used in InsertDependencyToExpiredMessage)
-			randomBlock := testutils.RandomL2BlockRef(r)
-			randomBlock.Time = 0
-			newBlock = &ChainBlock{chainUninit, &randomBlock}
-		} else if i == 1 {
-			// Set the initial timestamp so that the block at index 0 is already expired
-			randomBlock := testutils.NextRandomL2Ref(r, 1, *allBlocks[0].block, eth.BlockID{})
-			randomBlock.Time = params.MessageExpiryTimeSecondsInterop + 1
-			newBlock = &ChainBlock{chainUninit, &randomBlock}
-		} else {
-			// Use NextRandomRef for timestamp coherence.
-			randomBlock := testutils.NextRandomL2Ref(r, 1, *allBlocks[len(allBlocks)-1].block, eth.BlockID{})
+	for range totalLength {
+		chain := res.chainIDs[r.Intn(p.chainCount)]
+		var block eth.L2BlockRef
 
-			// Repeat timestamps with some probability, with two caveats:
-			// - Can only have one block per chain with the same timestamp,
-			// - Last block must have a unique future timestamp, so it can be used in InsertFutureDependency.
-			if timeStampCount < p.chainCount && i < futureBlockIndex && r.Intn(100) < p.sameTimestampFrequency {
-				randomBlock.Time = allBlocks[len(allBlocks)-1].block.Time
-				timeStampCount++
-			} else {
-				randomBlock.Time += 1 // Increment because NextRandomRef could return a block with the same timestamp
-				timeStampCount = 1
-			}
-			newBlock = &ChainBlock{chainUninit, &randomBlock}
-		}
-		res.allBlocks = append(res.allBlocks, newBlock)
-	}
-
-	//
-	// Assign blocks to random L2 chains
-	//
-	chainSelections := make([]eth.ChainID, p.chainCount)
-	copy(chainSelections, res.chainIDs)
-	shuffleChains := func() {
-		r.Shuffle(len(chainSelections), func(i, j int) {
-			chainSelections[i], chainSelections[j] = chainSelections[j], chainSelections[i]
-		})
-	}
-
-	nextChain := 0
-	var prevBlock *eth.L2BlockRef
-	for i, cb := range res.allBlocks {
-		block := cb.block
-		if i == 0 || prevBlock.Time != block.Time {
-			shuffleChains()
-			nextChain = 0
-		}
-		chainid := chainSelections[nextChain]
-		cb.chain = chainid
-		nextChain++
-
-		if len(res.chainBlocks[chainid]) == 0 {
+		if len(res.chainBlocks[chain]) == 0 {
+			block = testutils.RandomL2BlockRef(r)
 			block.Number = 0
-			block.ParentHash = common.Hash{}
+			block.Time = 0
 		} else {
-			chainBlocks := res.chainBlocks[chainid]
-			lastblock := chainBlocks[len(chainBlocks)-1]
-			block.Number = lastblock.Number + 1
-			block.ParentHash = lastblock.Hash
+			lastBlock := res.chainBlocks[chain][len(res.chainBlocks[chain])-1]
+			block = testutils.NextRandomL2Ref(r, uint64(res.blockTimes[chain]), *lastBlock, eth.BlockID{})
 		}
 
-		// Assign the cross/local heads based on where the cutoffs are
+		res.chainBlocks[chain] = append(res.chainBlocks[chain], &block)
+	}
+
+	chainIndices := make(map[eth.ChainID]int)
+	for _, chain := range res.chainIDs {
+		chainIndices[chain] = 0;
+	}
+	for i := range totalLength {
+		var finalChain eth.ChainID
+		var finalBlock *eth.L2BlockRef
+
+		for _, chain := range res.chainIDs {
+			idx := chainIndices[chain]
+			if idx < len(res.chainBlocks[chain]) {
+				block := res.chainBlocks[chain][idx]
+				if finalBlock == nil || block.Time < finalBlock.Time {
+					finalChain = chain
+					finalBlock = block
+				}
+			}
+		}
+
+		chainIndices[finalChain]++
+
 		if i <= res.cutoffs.localSafe {
-			res.chainHeads[chainid].localSafe = block.Number
+			res.chainHeads[finalChain].localSafe = finalBlock.Number
 		}
 		if i <= res.cutoffs.localUnsafe {
-			res.chainHeads[chainid].localUnsafe = block.Number
+			res.chainHeads[finalChain].localUnsafe = finalBlock.Number
 		}
 		if i <= res.cutoffs.crossSafe {
-			res.chainHeads[chainid].crossSafe = block.Number
+			res.chainHeads[finalChain].crossSafe = finalBlock.Number
 		}
 		if i <= res.cutoffs.crossUnsafe {
-			res.chainHeads[chainid].crossUnsafe = block.Number
+			res.chainHeads[finalChain].crossUnsafe = finalBlock.Number
 		}
 
-		res.cbIndices[*cb] = i
-		res.chainBlocks[chainid] = append(res.chainBlocks[chainid], block)
-		prevBlock = block
+		chainBlock := ChainBlock{
+			chain: finalChain,
+			block: finalBlock,
+		}
+		res.allBlocks = append(res.allBlocks, &chainBlock)
+		res.cbIndices[chainBlock] = i
 	}
 
 	//
