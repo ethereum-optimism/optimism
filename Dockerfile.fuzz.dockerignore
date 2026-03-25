@@ -1,0 +1,9 @@
+.github
+.vscode
+.env
+.envrc
+**/.env
+build/_workspace
+build/bin
+build/_bin
+tests/testdata

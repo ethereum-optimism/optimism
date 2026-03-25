@@ -1,0 +1,27 @@
+services:
+  fuzz:
+    build:
+      context: .
+      dockerfile: Dockerfile.fuzz
+    # Allocate all machine resources
+    cpus: 10
+    mem_limit: 12g
+    tmpfs:
+      # RAM-backed /tmp — all t.TempDir() bbolt DBs go here
+      # exec is required because Go compiles test binaries into TMPDIR
+      - /tmp/fuzz:size=4G,exec
+      - /tmp/gocache:size=1G,exec
+    # Override CMD to pick which fuzz target to run
+    # Examples:
+    #   docker compose -f docker-compose.fuzz.yml run fuzz
+    #   docker compose -f docker-compose.fuzz.yml run fuzz \
+    #     -run "^FuzzProgressAndRecordWithRandomChainInvalid$" \
+    #     -fuzz "^FuzzProgressAndRecordWithRandomChainInvalid$" \
+    #     -fuzztime=6000s \
+    #     ./op-supernode/supernode/activity/interop/
+    volumes:
+      # Persist fuzz corpus across runs
+      - fuzz-corpus:/src/op-supernode/supernode/activity/interop/testdata
+
+volumes:
+  fuzz-corpus:

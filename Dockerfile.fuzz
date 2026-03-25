@@ -1,0 +1,26 @@
+FROM golang:1.24-bookworm
+
+WORKDIR /src
+
+# Layer 1: Cache module downloads (only re-runs when go.mod/go.sum change)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Layer 2: Copy full source
+COPY . .
+
+# Layer 3: Compile test binary with a persistent Go build cache mount.
+# --mount=type=cache keeps /root/.cache/go-build across rebuilds,
+# so only changed packages are recompiled.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    go test -c -o /fuzz.test ./op-supernode/supernode/activity/interop/
+
+# TMPDIR will point to a tmpfs mount (RAM-backed) at runtime,
+# so all t.TempDir() / bbolt DB files live in memory.
+ENV TMPDIR=/tmp/fuzz
+ENV GOMAXPROCS=10
+# Reduce GC pressure — trade RAM for fewer pauses
+ENV GOGC=200
+
+ENTRYPOINT ["/fuzz.test"]
+CMD ["-test.run", "^FuzzProgressAndRecordWithRandomChain$", "-test.fuzz", "^FuzzProgressAndRecordWithRandomChain$", "-test.fuzztime=6000s", "-test.parallel=10", "-test.fuzzcachedir=/tmp/fuzz/cache"]
