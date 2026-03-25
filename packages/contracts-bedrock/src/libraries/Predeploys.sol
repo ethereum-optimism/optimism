@@ -191,7 +191,7 @@ library Predeploys {
     /// @dev The registry includes all predeploys that should be deployed at genesis AND/OR upgraded
     ///      by L2CM. Legacy predeploys that are deployed but never upgraded have upgradeable=false.
     ///      Non-proxied predeploys (WETH, GOVERNANCE_TOKEN) are excluded — they are handled separately.
-    function _registry() internal pure returns (PredeployEntry[] memory entries_) {
+    function _predeployRegistry() internal pure returns (PredeployEntry[] memory entries_) {
         entries_ = new PredeployEntry[](27);
 
         // Core predeploys — always supported, upgradeable
@@ -286,7 +286,7 @@ library Predeploys {
         // Non-proxied predeploys are always supported but not in the registry
         if (_addr == WETH || _addr == GOVERNANCE_TOKEN) return true;
 
-        PredeployEntry[] memory entries = _registry();
+        PredeployEntry[] memory entries = _predeployRegistry();
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].addr != _addr) continue;
             return _isEntryActive(entries[i], _fork, _isCustomGasToken, _useInterop, _devFeatureBitmap);
@@ -327,7 +327,7 @@ library Predeploys {
     ///      for a filtered list based on chain configuration.
     ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
     function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
-        PredeployEntry[] memory entries = _registry();
+        PredeployEntry[] memory entries = _predeployRegistry();
 
         // First pass: count upgradeable entries
         uint256 count = 0;
@@ -363,7 +363,7 @@ library Predeploys {
         pure
         returns (address[] memory predeploys_)
     {
-        PredeployEntry[] memory entries = _registry();
+        PredeployEntry[] memory entries = _predeployRegistry();
 
         // First pass: count active upgradeable entries
         uint256 count = 0;
@@ -387,6 +387,6 @@ library Predeploys {
     /// @notice Returns the full registry of predeploy entries with their metadata.
     ///         Useful for tests and tooling that need to know predeploy conditions.
     function getPredeployRegistry() internal pure returns (PredeployEntry[] memory) {
-        return _registry();
+        return _predeployRegistry();
     }
 }
