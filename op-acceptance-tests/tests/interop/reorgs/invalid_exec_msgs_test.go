@@ -28,7 +28,7 @@ import (
 func TestReorgInvalidExecMsgs(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipOnOpReth(t, "panics due to safe head mismatch in EngineController")
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	gt.Run("invalid log index", func(gt *testing.T) {
 		testReorgInvalidExecMsg(gt, func(msg *suptypes.Message) {
 			msg.Identifier.LogIndex = 1024

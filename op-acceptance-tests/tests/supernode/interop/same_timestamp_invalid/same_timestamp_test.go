@@ -29,7 +29,7 @@ func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 func TestSupernodeSameTimestampInvalidTransitive(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipOnOpReth(t, "panics due to safe head mismatch in EngineController")
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	sys := presets.NewTwoL2SupernodeInterop(t, 0).ForSameTimestampTesting(t)
 	rng := rand.New(rand.NewSource(77777))
 
@@ -47,7 +47,7 @@ func TestSupernodeSameTimestampInvalidTransitive(gt *testing.T) {
 func TestSupernodeSameTimestampCycle(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipOnOpReth(t, "panics due to safe head mismatch in EngineController")
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	sys := presets.NewTwoL2SupernodeInterop(t, 0).ForSameTimestampTesting(t)
 	rng := rand.New(rand.NewSource(55555))
 

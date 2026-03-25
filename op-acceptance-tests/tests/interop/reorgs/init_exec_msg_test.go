@@ -26,7 +26,7 @@ import (
 func TestReorgInitExecMsg(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipOnOpReth(t, "panics due to safe head mismatch in EngineController")
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	ctx := t.Ctx()
 
 	sys := presets.NewSimpleInterop(t)

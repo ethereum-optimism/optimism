@@ -27,7 +27,7 @@ import (
 func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipOnOpReth(t, "panics due to safe head mismatch in EngineController")
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	ctx := t.Ctx()

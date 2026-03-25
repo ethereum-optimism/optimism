@@ -86,7 +86,7 @@ func (ie *InvalidExecMsgSpammer) Spam(t devtest.T) error {
 func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
 	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipOnOpReth(t, "panics due to safe head mismatch in EngineController")
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 
 	// Emit a valid initiating message.
 	initTx, err := l2A.Include(t, planCall(t, &txintent.InitTrigger{
