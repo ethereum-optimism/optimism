@@ -171,7 +171,7 @@ contract DeployOPChain is Script {
         );
 
         // Build dispute game configs - OPCMV2 requires all 6 game type configs.
-        // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
+        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
@@ -263,7 +263,7 @@ contract DeployOPChain is Script {
         );
 
         // Build dispute game configs - OPCMV2 requires all 6 game type configs.
-        // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
+        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 

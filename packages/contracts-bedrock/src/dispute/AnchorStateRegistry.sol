@@ -82,7 +82,6 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     }
 
     /// @notice Initializes the contract.
-    /// Remove this 4-param overload when we no longer have an OPCM V1 dependency.
     /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
@@ -96,56 +95,26 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         external
         reinitializer(initVersion())
     {
+        // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
-        _initialize(_systemConfig, _disputeGameFactory, _startingAnchorRoot, _startingRespectedGameType, false);
-    }
 
-    /// @notice Initializes the contract.
-    /// @param _systemConfig The address of the SystemConfig contract.
-    /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
-    /// @param _startingAnchorRoot The starting anchor root.
-    /// @param _startingRespectedGameType The starting respected game type.
-    /// @param _clearAnchorGame Whether to clear the anchor game. Used during the super root games
-    ///        migration to reset the anchor game to address(0) so that getAnchorRoot() returns the
-    ///        new startingAnchorRoot.
-    function initialize(
-        ISystemConfig _systemConfig,
-        IDisputeGameFactory _disputeGameFactory,
-        Proposal memory _startingAnchorRoot,
-        GameType _startingRespectedGameType,
-        bool _clearAnchorGame
-    )
-        external
-        reinitializer(initVersion())
-    {
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-        _initialize(
-            _systemConfig, _disputeGameFactory, _startingAnchorRoot, _startingRespectedGameType, _clearAnchorGame
-        );
-    }
-
-    /// @notice Shared initialization logic.
-    function _initialize(
-        ISystemConfig _systemConfig,
-        IDisputeGameFactory _disputeGameFactory,
-        Proposal memory _startingAnchorRoot,
-        GameType _startingRespectedGameType,
-        bool _clearAnchorGame
-    )
-        internal
-    {
         // Now perform initialization logic.
         systemConfig = _systemConfig;
         disputeGameFactory = _disputeGameFactory;
-        startingAnchorRoot = _startingAnchorRoot;
         respectedGameType = _startingRespectedGameType;
 
-        // Clear the anchor game if requested. This is used during the super root games migration
-        // to ensure that getAnchorRoot() returns the new startingAnchorRoot instead of the old
-        // anchor game's root claim.
-        if (_clearAnchorGame && address(anchorGame) != address(0)) {
+        // If the starting anchor root is changing and an anchor game exists, verify the new root
+        // is ahead and clear the anchor game so getAnchorRoot() returns the new startingAnchorRoot.
+        bool rootChanged = _startingAnchorRoot.root.raw() != startingAnchorRoot.root.raw()
+            || _startingAnchorRoot.l2SequenceNumber != startingAnchorRoot.l2SequenceNumber;
+        if (rootChanged && address(anchorGame) != address(0)) {
+            (, uint256 currentSeqNum) = getAnchorRoot();
+            if (_startingAnchorRoot.l2SequenceNumber <= currentSeqNum) {
+                revert AnchorStateRegistry_InvalidAnchorGame();
+            }
             anchorGame = IDisputeGame(address(0));
         }
+        startingAnchorRoot = _startingAnchorRoot;
 
         // Set the retirement timestamp to the current timestamp the first time the contract is
         // initialized. This was originally done in U16a to guarantee that all games created before

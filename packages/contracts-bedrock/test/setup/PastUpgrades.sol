@@ -229,7 +229,7 @@ library PastUpgrades {
         scSuccess;
 
         // Build dispute game configs with dummy prestates.
-        // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
+        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 

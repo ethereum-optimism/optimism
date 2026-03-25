@@ -1475,15 +1475,14 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         returns (bytes memory)
     {
         Proposal memory startingAnchorRoot = abi.decode(_input.startingAnchorRoot, (Proposal));
-        // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
-        // nosemgrep: sol-style-use-abi-encodecall
-        return abi.encodeWithSignature(
-            "initialize(address,address,(bytes32,uint256),uint32,bool)",
-            _output.systemConfigProxy,
-            _output.disputeGameFactoryProxy,
-            startingAnchorRoot,
-            GameTypes.PERMISSIONED_CANNON,
-            false
+        return abi.encodeCall(
+            IAnchorStateRegistry.initialize,
+            (
+                _output.systemConfigProxy,
+                _output.disputeGameFactoryProxy,
+                startingAnchorRoot,
+                GameTypes.PERMISSIONED_CANNON
+            )
         );
     }
 
@@ -1657,19 +1656,13 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
         // We can use portals[0].systemConfig() as they are members of the same superchain cluster (shared lockbox)
         // Initialize the new AnchorStateRegistry.
-        // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
-        // nosemgrep: sol-style-use-abi-encodecall
         upgradeToAndCall(
             proxyAdmin,
             address(newAnchorStateRegistry),
             getImplementations().anchorStateRegistryImpl,
-            abi.encodeWithSignature(
-                "initialize(address,address,(bytes32,uint256),uint32,bool)",
-                portals[0].systemConfig(),
-                newDisputeGameFactory,
-                _input.startingAnchorRoot,
-                newGameType,
-                false
+            abi.encodeCall(
+                IAnchorStateRegistry.initialize,
+                (portals[0].systemConfig(), newDisputeGameFactory, _input.startingAnchorRoot, newGameType)
             )
         );
 

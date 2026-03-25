@@ -35,14 +35,6 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
         GameType _startingRespectedGameType
     )
         external;
-    function initialize(
-        ISystemConfig _systemConfig,
-        IDisputeGameFactory _disputeGameFactory,
-        Proposal memory _startingAnchorRoot,
-        GameType _startingRespectedGameType,
-        bool _clearAnchorGame
-    )
-        external;
     function isGameBlacklisted(IDisputeGame _game) external view returns (bool);
     function isGameProper(IDisputeGame _game) external view returns (bool);
     function isGameRegistered(IDisputeGame _game) external view returns (bool);

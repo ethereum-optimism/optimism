@@ -194,13 +194,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 proxyDeployArgs.proxyAdmin,
                 address(anchorStateRegistry),
                 impls.anchorStateRegistryImpl,
-                abi.encodeWithSignature(
-                    "initialize(address,address,(bytes32,uint256),uint32,bool)",
-                    _input.chainSystemConfigs[0],
-                    disputeGameFactory,
-                    _input.startingAnchorRoot,
-                    _input.startingRespectedGameType,
-                    false
+                abi.encodeCall(
+                    IAnchorStateRegistry.initialize,
+                    (
+                        _input.chainSystemConfigs[0],
+                        disputeGameFactory,
+                        _input.startingAnchorRoot,
+                        _input.startingRespectedGameType
+                    )
                 )
             );
 
@@ -257,7 +258,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // Clear out any implementations that might exist in the old DisputeGameFactory proxy.
         // We clear out all potential game types to be safe. These game types are intentionally
         // hardcoded rather than sourced from a shared utility. When new game types are added,
-        // this list and the corresponding list in OPContractsManagerV2's _assertValidGameConfigs must both
+        // this list and the corresponding list in OPContractsManagerV2's _assertValidFullConfig must both
         // be updated.
         existingDGF.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");

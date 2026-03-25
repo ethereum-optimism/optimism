@@ -194,51 +194,6 @@
         "internalType": "GameType",
         "name": "_startingRespectedGameType",
         "type": "uint32"
-      },
-      {
-        "internalType": "bool",
-        "name": "_clearAnchorGame",
-        "type": "bool"
-      }
-    ],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract ISystemConfig",
-        "name": "_systemConfig",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IDisputeGameFactory",
-        "name": "_disputeGameFactory",
-        "type": "address"
-      },
-      {
-        "components": [
-          {
-            "internalType": "Hash",
-            "name": "root",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "uint256",
-            "name": "l2SequenceNumber",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct Proposal",
-        "name": "_startingAnchorRoot",
-        "type": "tuple"
-      },
-      {
-        "internalType": "GameType",
-        "name": "_startingRespectedGameType",
-        "type": "uint32"
       }
     ],
     "name": "initialize",

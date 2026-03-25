@@ -561,7 +561,7 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
             Proposal({ root: Hash.wrap(keccak256("superRootAnchorRoot")), l2SequenceNumber: 1 });
 
         // Rebuild dispute game configs: legacy (disabled) + super types.
-        // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
+        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         delete v2UpgradeInput.disputeGameConfigs;
 
         // Legacy types (all disabled).

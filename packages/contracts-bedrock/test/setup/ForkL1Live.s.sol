@@ -302,7 +302,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
 
             // Migration upgrade: legacy types disabled, super types enabled.
-            // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
+            // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -376,7 +376,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             });
         } else {
             // Standard upgrade path: legacy types enabled, super types disabled.
-            // Order must match validGameTypes in OPContractsManagerV2._assertValidGameConfigs().
+            // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
