@@ -51,3 +51,6 @@ crytic-export
 
 # ignore local asdf config
 .tool-versions
+
+.claude
+.packages/
