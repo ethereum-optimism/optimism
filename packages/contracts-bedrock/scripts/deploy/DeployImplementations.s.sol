@@ -666,8 +666,7 @@ contract DeployImplementations is Script {
 
     function deployZKDisputeGameImpl(Output memory _output) private {
         IZKDisputeGame impl =
-            IZKDisputeGame(DeployUtils.createDeterministic({ _name: "ZKDisputeGame", _args: hex"", _salt: _salt })); // nosemgrep:
-            // sol-safety-deployutils-args
+            IZKDisputeGame(DeployUtils.createDeterministic({ _name: "ZKDisputeGame", _args: hex"", _salt: _salt }));
         vm.label(address(impl), "ZKDisputeGameImpl");
         _output.zkDisputeGameImpl = impl;
     }
