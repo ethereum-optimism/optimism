@@ -140,11 +140,6 @@
           },
           {
             "internalType": "address",
-            "name": "feeSplitterImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "conditionalDeployerImpl",
             "type": "address"
           },
@@ -301,11 +296,6 @@
           {
             "internalType": "address",
             "name": "liquidityControllerImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "feeSplitterImpl",
             "type": "address"
           },
           {

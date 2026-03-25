@@ -23,10 +23,8 @@ import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableE
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
-import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { INativeAssetLiquidity } from "interfaces/L2/INativeAssetLiquidity.sol";
-import { Types } from "src/libraries/Types.sol";
 
 /// @title L2Genesis_TestInit
 /// @notice Reusable test initialization for `L2Genesis` tests.
