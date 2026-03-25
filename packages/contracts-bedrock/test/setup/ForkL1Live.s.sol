@@ -301,6 +301,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             GameType targetGameType =
                 isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
 
+            // Read the current anchor root sequence number so we can set a higher one.
+            (, uint256 currentAnchorSeqNum) = asr.getAnchorRoot();
+
             // Migration upgrade: legacy types disabled, super types enabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
@@ -368,7 +371,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             });
             extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingAnchorRoot",
-                data: abi.encode(Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: 1 }))
+                data: abi.encode(Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: currentAnchorSeqNum + 1 }))
             });
             extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",

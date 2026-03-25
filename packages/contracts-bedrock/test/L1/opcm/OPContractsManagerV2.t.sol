@@ -557,8 +557,10 @@ contract OPContractsManagerV2_FeatSuperRootMigration_Test is OPContractsManagerV
     {
         targetGameType_ = _isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
 
+        // Use a sequence number higher than the current anchor root so the ASR accepts it.
+        (, uint256 currentSeqNum) = anchorStateRegistry.getAnchorRoot();
         Proposal memory newAnchorRoot =
-            Proposal({ root: Hash.wrap(keccak256("superRootAnchorRoot")), l2SequenceNumber: 1 });
+            Proposal({ root: Hash.wrap(keccak256("superRootAnchorRoot")), l2SequenceNumber: currentSeqNum + 1 });
 
         // Rebuild dispute game configs: legacy (disabled) + super types.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
