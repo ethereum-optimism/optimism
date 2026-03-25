@@ -368,5 +368,3 @@ func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) 
 	t.Require().NoError(err)
 	return addr
 }
-
-
