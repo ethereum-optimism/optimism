@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/big"
 
@@ -56,6 +57,10 @@ func deployDisputeGame(
 	game state.AdditionalDisputeGame,
 ) error {
 	lgr := env.Logger.New("gameType", game.DisputeGameType)
+
+	if game.VMType == state.VMTypeZK {
+		return deployZKDisputeGame(env, st, thisIntent, thisState, game)
+	}
 
 	lgr.Info("deploying VM", "vmType", game.VMType)
 	var vmAddr common.Address
@@ -223,4 +228,105 @@ func shouldDeployAdditionalDisputeGames(thisIntent *state.ChainIntent, thisState
 	}
 
 	return true
+}
+
+// packZKGameArgs encodes the ZK dispute game constructor args as abi.encodePacked bytes,
+// matching the layout produced by OPContractsManagerUtils.makeGameArgs for ZK_DISPUTE_GAME.
+func packZKGameArgs(
+	absolutePrestate common.Hash,
+	verifier common.Address,
+	maxChallengeDuration uint64,
+	maxProveDuration uint64,
+	challengerBond *big.Int,
+	anchorStateRegistry common.Address,
+	delayedWETH common.Address,
+	l2ChainId *big.Int,
+) []byte {
+	challengerBondBytes := make([]byte, 32)
+	challengerBond.FillBytes(challengerBondBytes)
+
+	maxChallengeDurationBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(maxChallengeDurationBytes, maxChallengeDuration)
+
+	maxProveDurationBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(maxProveDurationBytes, maxProveDuration)
+
+	l2ChainIdBytes := make([]byte, 32)
+	l2ChainId.FillBytes(l2ChainIdBytes)
+
+	var result []byte
+	result = append(result, absolutePrestate[:]...)
+	result = append(result, verifier[:]...)
+	result = append(result, maxChallengeDurationBytes...)
+	result = append(result, maxProveDurationBytes...)
+	result = append(result, challengerBondBytes...)
+	result = append(result, anchorStateRegistry[:]...)
+	result = append(result, delayedWETH[:]...)
+	result = append(result, l2ChainIdBytes...)
+	return result
+}
+
+func deployZKDisputeGame(
+	env *Env,
+	st *state.State,
+	thisIntent *state.ChainIntent,
+	thisState *state.ChainState,
+	game state.AdditionalDisputeGame,
+) error {
+	lgr := env.Logger.New("gameType", game.DisputeGameType)
+
+	if st.ImplementationsDeployment.ZkDisputeGameImpl == (common.Address{}) {
+		return fmt.Errorf("zkDisputeGameImpl not deployed: enable ZKDisputeGameDevFlag in implementations deployment")
+	}
+
+	implAddr := st.ImplementationsDeployment.ZkDisputeGameImpl
+
+	var challengerBond *big.Int
+	if game.ChallengerBond != nil {
+		challengerBond = game.ChallengerBond.ToInt()
+	} else {
+		challengerBond = big.NewInt(0)
+	}
+
+	gameArgs := packZKGameArgs(
+		game.DisputeAbsolutePrestate,
+		game.Verifier,
+		game.MaxChallengeDuration,
+		game.MaxProveDuration,
+		challengerBond,
+		thisState.OpChainContracts.AnchorStateRegistryProxy,
+		thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+		new(big.Int).SetBytes(thisIntent.ID[:]),
+	)
+
+	lgr.Info("registering ZK dispute game with factory",
+		"impl", implAddr,
+		"gameType", gameTypes.ZKDisputeGameType,
+		"makeRespected", game.MakeRespected,
+	)
+
+	sdgiInput := opcm.SetDisputeGameImplInput{
+		Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
+		Impl:                implAddr,
+		GameType:            uint32(gameTypes.ZKDisputeGameType),
+		GameArgs:            gameArgs,
+		AnchorStateRegistry: common.Address{},
+	}
+	if game.MakeRespected {
+		sdgiInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
+	}
+
+	if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, sdgiInput); err != nil {
+		return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
+	}
+
+	thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
+		GameType:    game.DisputeGameType,
+		VMType:      game.VMType,
+		GameAddress: implAddr,
+		Verifier:    game.Verifier,
+	})
+
+	lgr.Info("ZK dispute game registered", "impl", implAddr)
+	return nil
 }

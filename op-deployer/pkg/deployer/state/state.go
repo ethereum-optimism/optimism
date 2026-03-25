@@ -91,6 +91,8 @@ type AdditionalDisputeGameState struct {
 	VMAddress     common.Address
 	OracleAddress common.Address
 	VMType        VMType
+	// Verifier is only populated for ZK dispute games (VMType == VMTypeZK).
+	Verifier common.Address
 }
 
 type ChainState struct {

@@ -18,6 +18,7 @@ const (
 	VMTypeAlphabet   = "ALPHABET"
 	VMTypeCannon     = "CANNON"      // Corresponds to the currently released Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
 	VMTypeCannonNext = "CANNON-NEXT" // Corresponds to the next in-development Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
+	VMTypeZK         = "ZK"          // ZK dispute game using the zkDisputeGameImpl singleton from the implementations deployment.
 )
 
 func (v VMType) MipsVersion() uint64 {
@@ -46,6 +47,11 @@ type AdditionalDisputeGame struct {
 	ChainProofParams
 	VMType        VMType
 	MakeRespected bool
+	// ZK-specific fields. Only used when VMType == VMTypeZK.
+	Verifier             common.Address `json:"verifier,omitempty" toml:"verifier,omitempty"`
+	MaxChallengeDuration uint64         `json:"maxChallengeDuration,omitempty" toml:"maxChallengeDuration,omitempty"`
+	MaxProveDuration     uint64         `json:"maxProveDuration,omitempty" toml:"maxProveDuration,omitempty"`
+	ChallengerBond       *hexutil.Big   `json:"challengerBond,omitempty" toml:"challengerBond,omitempty"`
 }
 
 type L2DevGenesisParams struct {
