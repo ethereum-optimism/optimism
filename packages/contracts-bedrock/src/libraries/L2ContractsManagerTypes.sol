@@ -7,6 +7,7 @@ import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 /// @title L2ContractsManagerTypes
 /// @notice Type definitions for L2ContractsManager upgrade operations.
+
 library L2ContractsManagerTypes {
     /// @notice Configuration for L2CrossDomainMessenger.
     struct CrossDomainMessengerConfig {

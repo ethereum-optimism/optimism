@@ -275,7 +275,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             state_.liquidityControllerGasPayingTokenSymbol = liquidityController.gasPayingTokenSymbol();
         }
 
-
         // Capture fee vault configuration
         state_.sequencerFeeVaultRecipient = IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).RECIPIENT();
         state_.sequencerFeeVaultMinWithdrawal =
@@ -494,7 +493,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             "LiquidityController.gasPayingTokenSymbol not preserved"
         );
     }
-
 
     /// @notice Verifies that ProxyAdmin ownership was preserved.
     function _verifyProxyAdminOwnership(PreUpgradeInitializationState memory _preState) internal view {

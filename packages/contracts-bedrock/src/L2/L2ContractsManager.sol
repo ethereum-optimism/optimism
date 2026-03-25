@@ -218,7 +218,6 @@ contract L2ContractsManager is ISemver {
                 gasPayingTokenSymbol: liquidityController.gasPayingTokenSymbol()
             });
         }
-
     }
 
     /// @notice Upgrades each of the predeploys to its corresponding new implementation. Applies the appropriate

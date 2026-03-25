@@ -464,7 +464,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
                 == preUpgradeConfig.operatorFeeVault.withdrawalNetwork,
             "OperatorFeeVault.withdrawalNetwork not preserved"
         );
-
     }
 
     /// @notice Tests that calling upgrade() directly (not via DELEGATECALL) reverts.
