@@ -25,7 +25,6 @@ alloy-network.workspace = true
 alloy-primitives.workspace = true
 alloy-provider.workspace = true
 alloy-rpc-types-eth.workspace = true
-alloy-signer.workspace = true
 
 [features]
 std = [
