@@ -97,12 +97,6 @@ contract DeployConfig is Script {
     bool public useInterop;
     bytes32 public devFeatureBitmap;
 
-    bool public useRevenueShare;
-    address public chainFeesRecipient;
-    /// @notice This is not read from JSON because it is hardcoded in the deployer. It is overwritten with its setter
-    ///         for testing.
-    address public l1FeesDepositor;
-
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
         try vm.readFile(_path) returns (string memory data_) {
@@ -185,9 +179,7 @@ contract DeployConfig is Script {
 
         devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
         useUpgradedFork;
-        useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
         useInterop = _readOr(_json, "$.useInterop", false);
-        chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
         faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", 73);
         faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", 10800);
@@ -238,24 +230,9 @@ contract DeployConfig is Script {
         useAltDA = _useAltDA;
     }
 
-    /// @notice Allow the `useRevenueShare` config to be overridden in testing environments
-    function setUseRevenueShare(bool _useRevenueShare) public {
-        useRevenueShare = _useRevenueShare;
-    }
-
     /// @notice Allow the `useInterop` config to be overriden in testing environments
     function setUseInterop(bool _useInterop) public {
         useInterop = _useInterop;
-    }
-
-    /// @notice Allow the `l1FeesDepositor` config to be overridden in testing environments
-    function setL1FeesDepositor(address _l1FeesDepositor) public {
-        l1FeesDepositor = _l1FeesDepositor;
-    }
-
-    /// @notice Allow the `chainFeesRecipient` config to be overridden in testing environments
-    function setChainFeesRecipient(address _chainFeesRecipient) public {
-        chainFeesRecipient = _chainFeesRecipient;
     }
 
     /// @notice Allow the `fundDevAccounts` config to be overridden.
