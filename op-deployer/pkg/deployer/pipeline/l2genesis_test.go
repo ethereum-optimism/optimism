@@ -139,7 +139,6 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"enableGovernance":                         true,
 					"governanceTokenOwner":                     "0x1111111111111111111111111111111111111111",
 					"l2GenesisInteropTimeOffset":               "0x1234",
-					"chainFeesRecipient":                       "0x0000000000000000000000000000000000005678",
 				},
 			},
 			chainIntent: &state.ChainIntent{},

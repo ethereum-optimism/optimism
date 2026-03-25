@@ -101,6 +101,7 @@ var ErrGasLimitZeroValue = fmt.Errorf("chain has a gas limit set to zero value")
 var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
 var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
+
 func (c *ChainIntent) Check() error {
 	if c.ID == emptyHash {
 		return fmt.Errorf("id must be set")
@@ -151,7 +152,6 @@ func (c *ChainIntent) Check() error {
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
 	}
-
 
 	return nil
 }
