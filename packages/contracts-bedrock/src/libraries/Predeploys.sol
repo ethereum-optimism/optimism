@@ -121,9 +121,6 @@ library Predeploys {
     /// @notice Address of the LiquidityController predeploy.
     address internal constant LIQUIDITY_CONTROLLER = 0x420000000000000000000000000000000000002a;
 
-    /// @notice Address of the FeeSplitter predeploy.
-    address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
-
     /// @notice Address of the ConditionalDeployer predeploy.
     address internal constant CONDITIONAL_DEPLOYER = 0x420000000000000000000000000000000000002C;
 
@@ -164,7 +161,6 @@ library Predeploys {
         if (_addr == SUPERCHAIN_TOKEN_BRIDGE) return "SuperchainTokenBridge";
         if (_addr == LIQUIDITY_CONTROLLER) return "LiquidityController";
         if (_addr == NATIVE_ASSET_LIQUIDITY) return "NativeAssetLiquidity";
-        if (_addr == FEE_SPLITTER) return "FeeSplitter";
         if (_addr == CONDITIONAL_DEPLOYER) return "ConditionalDeployer";
         if (_addr == L2_DEV_FEATURE_FLAGS) return "L2DevFeatureFlags";
         revert("Predeploys: unnamed predeploy");
@@ -205,7 +201,7 @@ library Predeploys {
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
-            || _addr == GOVERNANCE_TOKEN || _addr == FEE_SPLITTER
+            || _addr == GOVERNANCE_TOKEN
             || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == CROSS_L2_INBOX)
             || (
                 _fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop
@@ -248,7 +244,7 @@ library Predeploys {
     ///      Predeploys library should be listed here.
     ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
     function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
-        predeploys_ = new address[](27);
+        predeploys_ = new address[](26);
         // Core predeploys
         predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
@@ -265,20 +261,19 @@ library Predeploys {
         predeploys_[12] = Predeploys.OPERATOR_FEE_VAULT;
         predeploys_[13] = Predeploys.SCHEMA_REGISTRY;
         predeploys_[14] = Predeploys.EAS;
-        predeploys_[15] = Predeploys.FEE_SPLITTER;
-        predeploys_[16] = Predeploys.CONDITIONAL_DEPLOYER;
+        predeploys_[15] = Predeploys.CONDITIONAL_DEPLOYER;
         // Interop predeploys
-        predeploys_[17] = Predeploys.CROSS_L2_INBOX;
-        predeploys_[18] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[19] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
-        predeploys_[20] = Predeploys.ETH_LIQUIDITY;
-        predeploys_[21] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
-        predeploys_[22] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
-        predeploys_[23] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
+        predeploys_[16] = Predeploys.CROSS_L2_INBOX;
+        predeploys_[17] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+        predeploys_[18] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
+        predeploys_[19] = Predeploys.ETH_LIQUIDITY;
+        predeploys_[20] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
+        predeploys_[21] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+        predeploys_[22] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
         // CGT predeploys (conditionally deployed, but still must be included in the list)
-        predeploys_[24] = Predeploys.NATIVE_ASSET_LIQUIDITY;
-        predeploys_[25] = Predeploys.LIQUIDITY_CONTROLLER;
+        predeploys_[23] = Predeploys.NATIVE_ASSET_LIQUIDITY;
+        predeploys_[24] = Predeploys.LIQUIDITY_CONTROLLER;
         // Dev feature flags bitmap
-        predeploys_[26] = Predeploys.L2_DEV_FEATURE_FLAGS;
+        predeploys_[25] = Predeploys.L2_DEV_FEATURE_FLAGS;
     }
 }
