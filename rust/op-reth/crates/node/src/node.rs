@@ -1000,6 +1000,7 @@ where
                 .set_tx_fee_cap(ctx.config().rpc.rpc_tx_fee_cap)
                 .with_max_tx_gas_limit(ctx.config().txpool.max_tx_gas_limit)
                 .with_minimum_priority_fee(ctx.config().txpool.minimum_priority_fee)
+                .with_local_transactions_config(ctx.pool_config().local_transactions_config.clone())
                 .with_additional_tasks(
                     pool_config_overrides
                         .additional_validation_tasks
