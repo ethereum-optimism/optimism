@@ -767,7 +767,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         returns (ChainContracts memory)
     {
-        // Validate the game configs.
+        // Validate the config.
         _assertValidFullConfig(_cfg, _isInitialDeployment);
 
         // Load the implementations.
@@ -908,9 +908,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Update the DisputeGame config and implementations.
-        // NOTE: We assert in _assertValidFullConfig that we have a configuration for all
-        // valid game types so we can be confident that we're setting/unsetting everything we care
-        // about.
+        // NOTE: We assert in _assertValidFullConfig that we have a configuration for all valid game
+        // types so we can be confident that we're setting/unsetting everything we care about.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             // Game implementation and arguments default to empty values. If the game is disabled,
             // we'll use these empty values to unset the game in the factory.

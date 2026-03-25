@@ -792,18 +792,18 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         // Upgrade the AnchorStateRegistry contract and re-initialize to bump the initialized
         // version. Uses the 4-param initialize() to preserve existing anchor state.
         IAnchorStateRegistry asr = optimismPortal.anchorStateRegistry();
-        // abi.encodeCall cannot resolve overloaded initialize() on IAnchorStateRegistry.
-        // nosemgrep: sol-style-use-abi-encodecall
         upgradeToAndCall(
             proxyAdmin,
             address(asr),
             _impls.anchorStateRegistryImpl,
-            abi.encodeWithSignature(
-                "initialize(address,address,(bytes32,uint256),uint32)",
-                _opChainConfig.systemConfigProxy,
-                asr.disputeGameFactory(),
-                asr.getStartingAnchorRoot(),
-                asr.respectedGameType()
+            abi.encodeCall(
+                IAnchorStateRegistry.initialize,
+                (
+                    _opChainConfig.systemConfigProxy,
+                    asr.disputeGameFactory(),
+                    asr.getStartingAnchorRoot(),
+                    asr.respectedGameType()
+                )
             )
         );
 
