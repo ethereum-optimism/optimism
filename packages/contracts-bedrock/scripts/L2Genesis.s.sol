@@ -297,6 +297,9 @@ contract L2Genesis is Script {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
+            setOptimismSuperchainERC20Factory(); // 26
+            setOptimismSuperchainERC20Beacon(); // 27
+            setSuperchainTokenBridge(); // 28
         }
         if (_input.useCustomGasToken) {
             setLiquidityController(_input); // 29

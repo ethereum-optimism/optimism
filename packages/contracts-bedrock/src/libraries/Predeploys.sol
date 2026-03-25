@@ -175,15 +175,75 @@ library Predeploys {
         return _addr == GOVERNANCE_TOKEN || _addr == WETH;
     }
 
+    /// @notice Metadata for a predeploy in the registry. Each entry is the single source of truth
+    ///         for whether a predeploy is supported (deployed at genesis) and upgradeable (managed by L2CM).
+    struct PredeployEntry {
+        address addr;
+        bool upgradeable;
+        bool requiresInterop;
+        bool requiresCGT;
+        bytes32 requiredDevFeature;
+    }
+
+    /// @notice Returns the full predeploy registry. This is the SINGLE SOURCE OF TRUTH for predeploy
+    ///         support and upgrade coverage. Adding a new predeploy means adding ONE entry here.
+    ///
+    /// @dev The registry includes all predeploys that should be deployed at genesis AND/OR upgraded
+    ///      by L2CM. Legacy predeploys that are deployed but never upgraded have upgradeable=false.
+    ///      Non-proxied predeploys (WETH, GOVERNANCE_TOKEN) are excluded — they are handled separately.
+    function _registry() internal pure returns (PredeployEntry[] memory entries_) {
+        entries_ = new PredeployEntry[](30);
+
+        // Core predeploys — always supported, upgradeable
+        entries_[0] = PredeployEntry(L2_CROSS_DOMAIN_MESSENGER, true, false, false, bytes32(0));
+        entries_[1] = PredeployEntry(GAS_PRICE_ORACLE, true, false, false, bytes32(0));
+        entries_[2] = PredeployEntry(L2_STANDARD_BRIDGE, true, false, false, bytes32(0));
+        entries_[3] = PredeployEntry(SEQUENCER_FEE_WALLET, true, false, false, bytes32(0));
+        entries_[4] = PredeployEntry(OPTIMISM_MINTABLE_ERC20_FACTORY, true, false, false, bytes32(0));
+        entries_[5] = PredeployEntry(L2_ERC721_BRIDGE, true, false, false, bytes32(0));
+        entries_[6] = PredeployEntry(L1_BLOCK_ATTRIBUTES, true, false, false, bytes32(0));
+        entries_[7] = PredeployEntry(L2_TO_L1_MESSAGE_PASSER, true, false, false, bytes32(0));
+        entries_[8] = PredeployEntry(OPTIMISM_MINTABLE_ERC721_FACTORY, true, false, false, bytes32(0));
+        entries_[9] = PredeployEntry(PROXY_ADMIN, true, false, false, bytes32(0));
+        entries_[10] = PredeployEntry(BASE_FEE_VAULT, true, false, false, bytes32(0));
+        entries_[11] = PredeployEntry(L1_FEE_VAULT, true, false, false, bytes32(0));
+        entries_[12] = PredeployEntry(OPERATOR_FEE_VAULT, true, false, false, bytes32(0));
+        entries_[13] = PredeployEntry(SCHEMA_REGISTRY, true, false, false, bytes32(0));
+        entries_[14] = PredeployEntry(EAS, true, false, false, bytes32(0));
+        entries_[15] = PredeployEntry(FEE_SPLITTER, true, false, false, bytes32(0));
+
+        // Legacy predeploys — supported at genesis, but NOT upgradeable (no L2CM management)
+        entries_[16] = PredeployEntry(LEGACY_MESSAGE_PASSER, false, false, false, bytes32(0));
+        entries_[17] = PredeployEntry(DEPLOYER_WHITELIST, false, false, false, bytes32(0));
+        entries_[18] = PredeployEntry(L1_BLOCK_NUMBER, false, false, false, bytes32(0));
+
+        // Interop predeploys — require fork >= INTEROP, interop dev feature, and useInterop
+        entries_[19] = PredeployEntry(CROSS_L2_INBOX, true, true, false, bytes32(0));
+        entries_[20] = PredeployEntry(L2_TO_L2_CROSS_DOMAIN_MESSENGER, true, true, false, bytes32(0));
+        entries_[21] = PredeployEntry(SUPERCHAIN_ETH_BRIDGE, true, true, false, bytes32(0));
+        entries_[22] = PredeployEntry(ETH_LIQUIDITY, true, true, false, bytes32(0));
+        entries_[23] = PredeployEntry(OPTIMISM_SUPERCHAIN_ERC20_FACTORY, true, true, false, bytes32(0));
+        entries_[24] = PredeployEntry(OPTIMISM_SUPERCHAIN_ERC20_BEACON, true, true, false, bytes32(0));
+        entries_[25] = PredeployEntry(SUPERCHAIN_TOKEN_BRIDGE, true, true, false, bytes32(0));
+
+        // CGT predeploys — require custom gas token
+        entries_[26] = PredeployEntry(NATIVE_ASSET_LIQUIDITY, true, false, true, bytes32(0));
+        entries_[27] = PredeployEntry(LIQUIDITY_CONTROLLER, true, false, true, bytes32(0));
+
+        // L2CM dev feature predeploys
+        entries_[28] = PredeployEntry(CONDITIONAL_DEPLOYER, true, false, false, DevFeatures.L2CM);
+        entries_[29] = PredeployEntry(L2_DEV_FEATURE_FLAGS, true, false, false, DevFeatures.L2CM);
+    }
+
     /// @notice Returns true if the address is a supported predeploy on this chain.
+    ///         Derived from the registry — no separate list to maintain.
     /// @param _addr             The address of the predeploy to check.
     /// @param _fork             The fork number for which support is being checked.
-    /// @param _isCustomGasToken Whether the chain uses a custom gas token. Enables CGT-specific predeploys
-    ///                          (LiquidityController, NativeAssetLiquidity).
+    /// @param _isCustomGasToken Whether the chain uses a custom gas token.
     /// @param _useInterop       Whether interop is enabled as a system configuration on this chain.
-    /// @param _devFeatureBitmap Per-chain dev feature bitmap stored in L2DevFeatureFlags. Controls conditional
-    ///                          predeploys still behind dev flags.
-    /// @return                  True if the predeploy is supported on this fork with the given feature flags.
+    /// @param _devFeatureBitmap Per-chain dev feature bitmap stored in L2DevFeatureFlags.
+    ///
+    /// @return True if the predeploy is supported on this fork with the given feature flags.
     function isSupportedPredeploy(
         address _addr,
         uint256 _fork,
@@ -195,24 +255,35 @@ library Predeploys {
         pure
         returns (bool)
     {
-        bool _useL2CM = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.L2CM);
+        // Non-proxied predeploys are always supported but not in the registry
+        if (_addr == WETH || _addr == GOVERNANCE_TOKEN) return true;
+
         bool _isInteropDevFeatureEnabled =
             DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
-        return _addr == LEGACY_MESSAGE_PASSER || _addr == DEPLOYER_WHITELIST || _addr == WETH
-            || _addr == L2_CROSS_DOMAIN_MESSENGER || _addr == GAS_PRICE_ORACLE || _addr == L2_STANDARD_BRIDGE
-            || _addr == SEQUENCER_FEE_WALLET || _addr == OPTIMISM_MINTABLE_ERC20_FACTORY || _addr == L1_BLOCK_NUMBER
-            || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
-            || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
-            || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
-            || _addr == GOVERNANCE_TOKEN || _addr == FEE_SPLITTER
-            || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == CROSS_L2_INBOX)
-            || (
-                _fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop
-                    && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER
-            ) || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
-            || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY) || (_useL2CM && _addr == CONDITIONAL_DEPLOYER)
-            || (_useL2CM && _addr == L2_DEV_FEATURE_FLAGS);
+        PredeployEntry[] memory entries = _registry();
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].addr != _addr) continue;
+
+            // Check interop condition
+            if (entries[i].requiresInterop) {
+                if (!(_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop)) return false;
+            }
+
+            // Check CGT condition
+            if (entries[i].requiresCGT) {
+                if (!_isCustomGasToken) return false;
+            }
+
+            // Check dev feature condition
+            if (entries[i].requiredDevFeature != bytes32(0)) {
+                if (!DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, entries[i].requiredDevFeature)) return false;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /// @notice Returns true if the address is in the predeploy namespace.
@@ -242,43 +313,31 @@ library Predeploys {
     }
 
     /// @notice Returns all proxied predeploys that should be upgraded by L2CM.
-    ///         This means that for each of these predeploys, isUpgradeable(predeploy) should return true if running on
-    ///         a network that supports it.
-    /// @dev IMPORTANT: This is the SOURCE OF TRUTH for upgrade coverage. All proxied predeploys from
-    ///      Predeploys library should be listed here.
-    ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
+    ///         Derived from the registry — no separate list to maintain.
+    /// @dev Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
     function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
-        predeploys_ = new address[](27);
-        // Core predeploys
-        predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
-        predeploys_[2] = Predeploys.L2_STANDARD_BRIDGE;
-        predeploys_[3] = Predeploys.SEQUENCER_FEE_WALLET;
-        predeploys_[4] = Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY;
-        predeploys_[5] = Predeploys.L2_ERC721_BRIDGE;
-        predeploys_[6] = Predeploys.L1_BLOCK_ATTRIBUTES;
-        predeploys_[7] = Predeploys.L2_TO_L1_MESSAGE_PASSER;
-        predeploys_[8] = Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
-        predeploys_[9] = Predeploys.PROXY_ADMIN;
-        predeploys_[10] = Predeploys.BASE_FEE_VAULT;
-        predeploys_[11] = Predeploys.L1_FEE_VAULT;
-        predeploys_[12] = Predeploys.OPERATOR_FEE_VAULT;
-        predeploys_[13] = Predeploys.SCHEMA_REGISTRY;
-        predeploys_[14] = Predeploys.EAS;
-        predeploys_[15] = Predeploys.FEE_SPLITTER;
-        predeploys_[16] = Predeploys.CONDITIONAL_DEPLOYER;
-        // Interop predeploys
-        predeploys_[17] = Predeploys.CROSS_L2_INBOX;
-        predeploys_[18] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[19] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
-        predeploys_[20] = Predeploys.ETH_LIQUIDITY;
-        predeploys_[21] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
-        predeploys_[22] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
-        predeploys_[23] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
-        // CGT predeploys (conditionally deployed, but still must be included in the list)
-        predeploys_[24] = Predeploys.NATIVE_ASSET_LIQUIDITY;
-        predeploys_[25] = Predeploys.LIQUIDITY_CONTROLLER;
-        // Dev feature flags bitmap
-        predeploys_[26] = Predeploys.L2_DEV_FEATURE_FLAGS;
+        PredeployEntry[] memory entries = _registry();
+
+        // First pass: count upgradeable entries
+        uint256 count = 0;
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].upgradeable) count++;
+        }
+
+        // Second pass: populate the array
+        predeploys_ = new address[](count);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].upgradeable) {
+                predeploys_[idx] = entries[i].addr;
+                idx++;
+            }
+        }
+    }
+
+    /// @notice Returns the full registry of predeploy entries with their metadata.
+    ///         Useful for tests and tooling that need to know predeploy conditions.
+    function getPredeployRegistry() internal pure returns (PredeployEntry[] memory) {
+        return _registry();
     }
 }
