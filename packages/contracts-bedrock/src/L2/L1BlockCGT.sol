@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
-import { L1Block_FeatureAlreadyEnabled } from "src/libraries/L1BlockErrors.sol";
 
 // Interfaces
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
