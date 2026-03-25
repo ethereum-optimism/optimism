@@ -71,9 +71,6 @@ parameters:
   github-event-base64:
     type: string
     default: "__not_set__"
-  devnet-metrics-collect:
-    type: boolean
-    default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   go-cache-version:
     type: string
@@ -108,7 +105,6 @@ workflows:
             .* c-github-event-type << pipeline.parameters.github-event-type >> .circleci/continue/main.yml
             .* c-github-event-action << pipeline.parameters.github-event-action >> .circleci/continue/main.yml
             .* c-github-event-base64 << pipeline.parameters.github-event-base64 >> .circleci/continue/main.yml
-            .* c-devnet-metrics-collect << pipeline.parameters.devnet-metrics-collect >> .circleci/continue/main.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
             rust/.* c-rust_files_changed true .circleci/continue/main.yml
             ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/main.yml

@@ -59,9 +59,6 @@ parameters:
   c-github-event-base64:
     type: string
     default: "__not_set__"
-  c-devnet-metrics-collect:
-    type: boolean
-    default: false
   # Set to true by path-filtering when files under rust/ change.
   # When false on feature branches, kona-build-release skips cargo build and
   # reuses cached binaries — saving ~9 minutes on PRs that don't touch Rust.
@@ -141,9 +138,6 @@ parameters:
   github-event-base64:
     type: string
     default: "__not_set__"
-  devnet-metrics-collect:
-    type: boolean
-    default: false
   go-cache-version:
     type: string
     default: "v0.0"
@@ -2349,31 +2343,6 @@ jobs:
             MESSAGE: << parameters.message >>
             LABEL_NAME: << parameters.label_name >>
 
-  devnet-metrics-collect-authorship:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - run:
-          name: Collect devnet metrics for op-acceptance-tests
-          command: |
-            ./op-acceptance-tests/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
-            echo "Wrote file .metrics--authorship--op-acceptance-tests"
-      - gcp-cli/install
-      - gcp-oidc-authenticate:
-          gcp_cred_config_file_path: /tmp/gcp_cred_config.json
-          oidc_token_file_path: /tmp/oidc_token.json
-      - run:
-          name: Store artifact in Bucket
-          command: |
-            CURRENT_DATE=$(date '+%Y-%m-%d')
-            FOLDER_NAME="dt=$CURRENT_DATE"
-
-            # Upload to the date-partitioned folder structure
-            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/$FOLDER_NAME/metrics-$CIRCLE_SHA1.csv
-
   generate-flaky-report:
     machine: true
     resource_class: medium
@@ -3074,21 +3043,6 @@ workflows:
             This issue will be closed now."
           context:
             - circleci-repo-optimism
-
-  devnet-metrics-collect:
-    when:
-      or:
-        - and:
-            - equal: [<< pipeline.trigger_source >>, "webhook"]
-            - << pipeline.parameters.c-non_docs_changes >>
-        - and:
-            - equal: [true, << pipeline.parameters.c-devnet-metrics-collect >>]
-            - equal: [<< pipeline.trigger_source >>, "api"]
-    jobs:
-      - devnet-metrics-collect-authorship:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - oplabs-tools-data-public-metrics-bucket
 
   ai-contracts-test-workflow:
     when:
