@@ -52,7 +52,7 @@ const (
 // SkipOnOpReth skips the test when the L2 execution layer is op-reth
 // (i.e. DEVSTACK_L2EL_KIND is not "op-geth").
 func SkipOnOpReth(t devtest.T, reason string) {
-	if MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar)) == MixedL2ELOpReth {
+	if MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar)) != MixedL2ELOpGeth {
 		t.Skipf("skipping on op-reth: %s", reason)
 	}
 }
