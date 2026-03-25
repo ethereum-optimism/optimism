@@ -7,7 +7,7 @@ toolchain go1.25.4
 require github.com/ethereum-optimism/optimism v0.0.0
 
 require (
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 )
 
