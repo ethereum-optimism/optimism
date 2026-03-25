@@ -192,7 +192,7 @@ library Predeploys {
     ///      by L2CM. Legacy predeploys that are deployed but never upgraded have upgradeable=false.
     ///      Non-proxied predeploys (WETH, GOVERNANCE_TOKEN) are excluded — they are handled separately.
     function _registry() internal pure returns (PredeployEntry[] memory entries_) {
-        entries_ = new PredeployEntry[](30);
+        entries_ = new PredeployEntry[](27);
 
         // Core predeploys — always supported, upgradeable
         entries_[0] = PredeployEntry(L2_CROSS_DOMAIN_MESSENGER, true, false, false, bytes32(0));
@@ -222,17 +222,14 @@ library Predeploys {
         entries_[20] = PredeployEntry(L2_TO_L2_CROSS_DOMAIN_MESSENGER, true, true, false, bytes32(0));
         entries_[21] = PredeployEntry(SUPERCHAIN_ETH_BRIDGE, true, true, false, bytes32(0));
         entries_[22] = PredeployEntry(ETH_LIQUIDITY, true, true, false, bytes32(0));
-        entries_[23] = PredeployEntry(OPTIMISM_SUPERCHAIN_ERC20_FACTORY, true, true, false, bytes32(0));
-        entries_[24] = PredeployEntry(OPTIMISM_SUPERCHAIN_ERC20_BEACON, true, true, false, bytes32(0));
-        entries_[25] = PredeployEntry(SUPERCHAIN_TOKEN_BRIDGE, true, true, false, bytes32(0));
 
         // CGT predeploys — require custom gas token
-        entries_[26] = PredeployEntry(NATIVE_ASSET_LIQUIDITY, true, false, true, bytes32(0));
-        entries_[27] = PredeployEntry(LIQUIDITY_CONTROLLER, true, false, true, bytes32(0));
+        entries_[23] = PredeployEntry(NATIVE_ASSET_LIQUIDITY, true, false, true, bytes32(0));
+        entries_[24] = PredeployEntry(LIQUIDITY_CONTROLLER, true, false, true, bytes32(0));
 
         // L2CM dev feature predeploys
-        entries_[28] = PredeployEntry(CONDITIONAL_DEPLOYER, true, false, false, DevFeatures.L2CM);
-        entries_[29] = PredeployEntry(L2_DEV_FEATURE_FLAGS, true, false, false, DevFeatures.L2CM);
+        entries_[25] = PredeployEntry(CONDITIONAL_DEPLOYER, true, false, false, DevFeatures.L2CM);
+        entries_[26] = PredeployEntry(L2_DEV_FEATURE_FLAGS, true, false, false, DevFeatures.L2CM);
     }
 
     /// @notice Returns true if the address is a supported predeploy on this chain.
