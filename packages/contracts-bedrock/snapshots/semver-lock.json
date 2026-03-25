@@ -229,7 +229,7 @@
   },
   "src/dispute/zk/ZKDisputeGame.sol:ZKDisputeGame": {
     "initCodeHash": "0x3bc850847e9972890c6a4695a47c2553a3095718504157b35875339ee7d7b19e",
-    "sourceCodeHash": "0xd4304594e710fb6df0b0e30579d7d407fa16105795d5cbfd42c116cde106ff0f"
+    "sourceCodeHash": "0x0241cfb98cb01b65e7c882ee1d830c2d398b0ddbaa9aa98a45429668b91051ef"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x2e0ef4c341367eb59cc6c25190c64eff441d3fe130189da91d4d126f6bdbc9b5",
