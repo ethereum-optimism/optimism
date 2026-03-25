@@ -232,6 +232,37 @@ library Predeploys {
         entries_[26] = PredeployEntry(L2_DEV_FEATURE_FLAGS, true, false, false, DevFeatures.L2CM);
     }
 
+    /// @notice Returns true if a registry entry is active given the current chain configuration.
+    /// @param _entry            The registry entry to check.
+    /// @param _fork             The fork number for which support is being checked.
+    /// @param _isCustomGasToken Whether the chain uses a custom gas token.
+    /// @param _useInterop       Whether interop is enabled as a system configuration on this chain.
+    /// @param _devFeatureBitmap Per-chain dev feature bitmap stored in L2DevFeatureFlags.
+    function _isEntryActive(
+        PredeployEntry memory _entry,
+        uint256 _fork,
+        bool _isCustomGasToken,
+        bool _useInterop,
+        bytes32 _devFeatureBitmap
+    )
+        private
+        pure
+        returns (bool)
+    {
+        if (_entry.requiresInterop) {
+            bool interopDevEnabled =
+                DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+            if (!(_fork >= uint256(Fork.INTEROP) && interopDevEnabled && _useInterop)) return false;
+        }
+        if (_entry.requiresCGT) {
+            if (!_isCustomGasToken) return false;
+        }
+        if (_entry.requiredDevFeature != bytes32(0)) {
+            if (!DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, _entry.requiredDevFeature)) return false;
+        }
+        return true;
+    }
+
     /// @notice Returns true if the address is a supported predeploy on this chain.
     ///         Derived from the registry — no separate list to maintain.
     /// @param _addr             The address of the predeploy to check.
@@ -255,29 +286,10 @@ library Predeploys {
         // Non-proxied predeploys are always supported but not in the registry
         if (_addr == WETH || _addr == GOVERNANCE_TOKEN) return true;
 
-        bool _isInteropDevFeatureEnabled =
-            DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         PredeployEntry[] memory entries = _registry();
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].addr != _addr) continue;
-
-            // Check interop condition
-            if (entries[i].requiresInterop) {
-                if (!(_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop)) return false;
-            }
-
-            // Check CGT condition
-            if (entries[i].requiresCGT) {
-                if (!_isCustomGasToken) return false;
-            }
-
-            // Check dev feature condition
-            if (entries[i].requiredDevFeature != bytes32(0)) {
-                if (!DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, entries[i].requiredDevFeature)) return false;
-            }
-
-            return true;
+            return _isEntryActive(entries[i], _fork, _isCustomGasToken, _useInterop, _devFeatureBitmap);
         }
 
         return false;
@@ -309,9 +321,11 @@ library Predeploys {
         isUpgradeable_ = isPredeployNamespace(_proxy) && !notProxied(_proxy);
     }
 
-    /// @notice Returns all proxied predeploys that should be upgraded by L2CM.
+    /// @notice Returns all proxied predeploys that could be upgraded by L2CM across any configuration.
     ///         Derived from the registry — no separate list to maintain.
-    /// @dev Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
+    /// @dev Returns the full superset regardless of feature flags. Use getActiveUpgradeablePredeploys()
+    ///      for a filtered list based on chain configuration.
+    ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
     function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
         PredeployEntry[] memory entries = _registry();
 
@@ -326,6 +340,44 @@ library Predeploys {
         uint256 idx = 0;
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].upgradeable) {
+                predeploys_[idx] = entries[i].addr;
+                idx++;
+            }
+        }
+    }
+
+    /// @notice Returns only the upgradeable predeploys that are active for the given chain configuration.
+    ///         This is the filtered version of getUpgradeablePredeploys() — callers don't need to
+    ///         reimplement feature-flag checks.
+    /// @param _fork             The fork number.
+    /// @param _isCustomGasToken Whether the chain uses a custom gas token.
+    /// @param _useInterop       Whether interop is enabled.
+    /// @param _devFeatureBitmap Per-chain dev feature bitmap.
+    function getActiveUpgradeablePredeploys(
+        uint256 _fork,
+        bool _isCustomGasToken,
+        bool _useInterop,
+        bytes32 _devFeatureBitmap
+    )
+        internal
+        pure
+        returns (address[] memory predeploys_)
+    {
+        PredeployEntry[] memory entries = _registry();
+
+        // First pass: count active upgradeable entries
+        uint256 count = 0;
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].upgradeable && _isEntryActive(entries[i], _fork, _isCustomGasToken, _useInterop, _devFeatureBitmap)) {
+                count++;
+            }
+        }
+
+        // Second pass: populate the array
+        predeploys_ = new address[](count);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].upgradeable && _isEntryActive(entries[i], _fork, _isCustomGasToken, _useInterop, _devFeatureBitmap)) {
                 predeploys_[idx] = entries[i].addr;
                 idx++;
             }
