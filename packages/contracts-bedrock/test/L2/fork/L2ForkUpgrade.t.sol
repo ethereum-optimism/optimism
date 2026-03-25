@@ -29,8 +29,6 @@ import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 
 /// @title L2ForkUpgrade_TestInit
 /// @notice Reusable test initialization for L2 fork upgrade tests.
@@ -221,8 +219,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         address liquidityControllerOwner;
         string liquidityControllerGasPayingTokenName;
         string liquidityControllerGasPayingTokenSymbol;
-        // FeeSplitter configuration
-        address feeSplitterSharesCalculator;
         // Fee vault configuration
         address sequencerFeeVaultRecipient;
         uint256 sequencerFeeVaultMinWithdrawal;
@@ -279,15 +275,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             state_.liquidityControllerGasPayingTokenSymbol = liquidityController.gasPayingTokenSymbol();
         }
 
-        // Capture FeeSplitter configuration
-        // eip150-safe
-        try IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator() returns (
-            ISharesCalculator sharesCalculator_
-        ) {
-            state_.feeSplitterSharesCalculator = address(sharesCalculator_);
-        } catch {
-            state_.feeSplitterSharesCalculator = address(0);
-        }
 
         // Capture fee vault configuration
         state_.sequencerFeeVaultRecipient = IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).RECIPIENT();
@@ -347,7 +334,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyFeeVaultConfigurations(_preState);
         _verifyFactoryConfigurations(_preState);
         _verifyLiquidityControllerConfiguration(_preState);
-        _verifyFeeSplitterConfiguration(_preState);
         _verifyProxyAdminOwnership(_preState);
 
         // OpenZeppelin v4 Initializable contracts - slot varies by contract
@@ -360,8 +346,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyOZv4Initialization(
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1)), 0, "OptimismMintableERC721Factory"
         );
-        _verifyOZv4Initialization(Predeploys.FEE_SPLITTER, bytes32(0), 0, "FeeSplitter");
-
         // LiquidityController (only on custom gas token networks)
         if (commonState.isCustomGasToken) {
             _verifyOZv4Initialization(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), 0, "LiquidityController");
@@ -511,14 +495,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         );
     }
 
-    /// @notice Verifies that FeeSplitter configuration was preserved.
-    function _verifyFeeSplitterConfiguration(PreUpgradeInitializationState memory _preState) internal view {
-        assertEq(
-            address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
-            _preState.feeSplitterSharesCalculator,
-            "FeeSplitter.sharesCalculator not preserved"
-        );
-    }
 
     /// @notice Verifies that ProxyAdmin ownership was preserved.
     function _verifyProxyAdminOwnership(PreUpgradeInitializationState memory _preState) internal view {

@@ -22,7 +22,6 @@ import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -96,7 +95,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         address superchainTokenBridgeImpl;
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
-        address feeSplitterImpl;
         address l2DevFeatureFlagsImpl;
         // Config values, take advantage of the harness to capture the config values
         L2ContractsManagerTypes.FullConfig config;
@@ -147,7 +145,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.optimismSuperchainERC20FactoryImpl =
             deployCode("src/L2/OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory");
         implementations.superchainTokenBridgeImpl = deployCode("src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge");
-        implementations.feeSplitterImpl = deployCode("src/L2/FeeSplitter.sol:FeeSplitter");
         implementations.conditionalDeployerImpl = deployCode("src/L2/ConditionalDeployer.sol:ConditionalDeployer");
         implementations.l2DevFeatureFlagsImpl = deployCode("src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags");
     }
@@ -203,7 +200,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         state_.superchainTokenBridgeImpl = EIP1967Helper.getImplementation(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
         state_.nativeAssetLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.NATIVE_ASSET_LIQUIDITY);
         state_.liquidityControllerImpl = EIP1967Helper.getImplementation(Predeploys.LIQUIDITY_CONTROLLER);
-        state_.feeSplitterImpl = EIP1967Helper.getImplementation(Predeploys.FEE_SPLITTER);
         state_.l2DevFeatureFlagsImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
 
         // Capture config values using the harness
@@ -269,7 +265,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             _state1.nativeAssetLiquidityImpl, _state2.nativeAssetLiquidityImpl, "NativeAssetLiquidity impl mismatch"
         );
         assertEq(_state1.liquidityControllerImpl, _state2.liquidityControllerImpl, "LiquidityController impl mismatch");
-        assertEq(_state1.feeSplitterImpl, _state2.feeSplitterImpl, "FeeSplitter impl mismatch");
         assertEq(_state1.l2DevFeatureFlagsImpl, _state2.l2DevFeatureFlagsImpl, "L2DevFeatureFlags impl mismatch");
 
         // Assert config values are equal
@@ -325,11 +320,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             _state1.config.liquidityController.owner,
             _state2.config.liquidityController.owner,
             "LiquidityController owner mismatch"
-        );
-        assertEq(
-            address(_state1.config.feeSplitter.sharesCalculator),
-            address(_state2.config.feeSplitter.sharesCalculator),
-            "FeeSplitter sharesCalculator mismatch"
         );
     }
 
@@ -475,12 +465,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             "OperatorFeeVault.withdrawalNetwork not preserved"
         );
 
-        // FeeSplitter
-        assertEq(
-            address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
-            address(preUpgradeConfig.feeSplitter.sharesCalculator),
-            "FeeSplitter.sharesCalculator not preserved"
-        );
     }
 
     /// @notice Tests that calling upgrade() directly (not via DELEGATECALL) reverts.
@@ -798,7 +782,6 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertEq(
             result.liquidityControllerImpl, implementations.liquidityControllerImpl, "liquidityControllerImpl mismatch"
         );
-        assertEq(result.feeSplitterImpl, implementations.feeSplitterImpl, "feeSplitterImpl mismatch");
         assertEq(
             result.conditionalDeployerImpl, implementations.conditionalDeployerImpl, "conditionalDeployerImpl mismatch"
         );
@@ -839,7 +822,6 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertTrue(result.superchainTokenBridgeImpl != address(0), "superchainTokenBridgeImpl is zero");
         assertTrue(result.nativeAssetLiquidityImpl != address(0), "nativeAssetLiquidityImpl is zero");
         assertTrue(result.liquidityControllerImpl != address(0), "liquidityControllerImpl is zero");
-        assertTrue(result.feeSplitterImpl != address(0), "feeSplitterImpl is zero");
         assertTrue(result.conditionalDeployerImpl != address(0), "conditionalDeployerImpl is zero");
         assertTrue(result.l2DevFeatureFlagsImpl != address(0), "l2DevFeatureFlagsImpl is zero");
     }
@@ -964,7 +946,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
             || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
             || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
             || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
-            || _predeploy == Predeploys.FEE_SPLITTER || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
+            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
     }
 
     /// @notice Checks if a predeploy is deployed and upgradeable.
