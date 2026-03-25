@@ -58,8 +58,6 @@
   "disputeGameFinalityDelaySeconds": 302400,
   "respectedGameType": 0,
   "useFaultProofs": true,
-  "useRevenueShare": true,
-  "chainFeesRecipient": "0xfd1D2e729aE8eEe2E146c033bf4400fE75284301",
   "useCustomGasToken": false,
   "gasPayingTokenName": "",
   "gasPayingTokenSymbol": "",
