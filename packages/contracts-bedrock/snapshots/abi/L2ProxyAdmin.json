@@ -337,6 +337,17 @@
     "type": "event"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "l2ContractsManager",
+        "type": "address"
+      }
+    ],
+    "name": "L2ProxyAdmin__L2ContractsManagerNotDeployed",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "L2ProxyAdmin__Unauthorized",
     "type": "error"

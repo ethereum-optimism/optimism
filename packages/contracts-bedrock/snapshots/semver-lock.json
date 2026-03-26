@@ -112,8 +112,8 @@
     "sourceCodeHash": "0x0a29792f3226dac84fdb44150b622a165fe65da3b678f6540acecdfe440772bb"
   },
   "src/L2/L2ProxyAdmin.sol:L2ProxyAdmin": {
-    "initCodeHash": "0x18107f86dcabd2b72764a3c4bc58d6dd653b2d1ccca2a8df7f61327f495eec8a",
-    "sourceCodeHash": "0x2a52ab5b0bc836b2d215380ce1fd4751cc29e50a416282f4d4ba7a007be03a91"
+    "initCodeHash": "0x1b392652cf6009f47ed8c794c1f117ea51a626234fe419660bc273b5ad03b020",
+    "sourceCodeHash": "0x43379a0ceae81d693c0fb50d3b7e8b1836e7a2cae0b7931593d2324d09e59ba3"
   },
   "src/L2/L2StandardBridge.sol:L2StandardBridge": {
     "initCodeHash": "0xceccf652d13f2492b853c2ca2117538549259ce0ddfc085d75c5d5074cc5e80f",
