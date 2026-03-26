@@ -20,6 +20,7 @@ type PresetConfig struct {
 	EnableTimeTravel           bool
 	MaxSequencingWindow        *uint64
 	RequireInteropNotAtGen     bool
+	MessageExpiryWindow        *uint64
 }
 
 type PresetOption interface {
@@ -122,5 +123,12 @@ func WithChallengerCannonKonaEnabled() PresetOption {
 func WithTimeTravelEnabled() PresetOption {
 	return presetOptionFn(func(cfg *PresetConfig) {
 		cfg.EnableTimeTravel = true
+	})
+}
+
+func WithMessageExpiryWindow(window uint64) PresetOption {
+	return presetOptionFn(func(cfg *PresetConfig) {
+		v := window
+		cfg.MessageExpiryWindow = &v
 	})
 }

@@ -187,7 +187,14 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	if wb.outFullCfgSet.DependencySet != nil {
 		cast, ok := wb.outFullCfgSet.DependencySet.(*depset.StaticConfigDependencySet)
 		require.True(ok, "expected static dependency set")
-		depSet = cast
+		if cfg.MessageExpiryWindow != nil {
+			depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
+				cast.Dependencies(), *cfg.MessageExpiryWindow,
+			)
+			require.NoError(err, "failed to override message expiry window")
+		} else {
+			depSet = cast
+		}
 	}
 
 	supernode, l2ACL, l2BCL := startTwoL2SharedSupernode(
@@ -215,10 +222,16 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		l2BNet.ChainID(): l2BEL.UserRPC(),
 	})
 
+	// Use the overridden dep set if one was created (e.g. for message expiry tests).
+	var runtimeDepSet depset.DependencySet = wb.outFullCfgSet.DependencySet
+	if depSet != nil {
+		runtimeDepSet = depSet
+	}
+
 	return &MultiChainRuntime{
 		Keys:          keys,
 		Migration:     newInteropMigrationState(wb),
-		DependencySet: wb.outFullCfgSet.DependencySet,
+		DependencySet: runtimeDepSet,
 		L1Network:     l1Net,
 		L1EL:          l1EL,
 		L1CL:          l1CL,

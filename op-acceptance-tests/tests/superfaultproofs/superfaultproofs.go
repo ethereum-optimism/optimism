@@ -727,6 +727,128 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	}
 }
 
+// RunMessageExpiryTest verifies that when a cross-chain message has expired
+// (the executing block timestamp exceeds the init message timestamp plus the
+// message expiry window), the consolidation step correctly detects the invalid
+// block and replaces it with a deposit-only block.
+func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	rng := rand.New(rand.NewSource(5678))
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	// Create funded EOAs on both chains.
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+
+	// Deploy event logger and send an initiating message on chain A.
+	eventLogger := aliceA.DeployEventLogger()
+	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+	initBlockNum := bigs.Uint64Strict(initMsg.BlockNumber())
+	initTimestamp := sys.L2ChainA.TimestampForBlockNum(initBlockNum)
+	t.Logf("init message at block=%d timestamp=%d", initBlockNum, initTimestamp)
+
+	// Pause interop so that the expired exec message can become locally safe
+	// without being rejected by cross-safe validation.
+	paused := sys.SuperRoots.EnsureInteropPaused(sys.L2CLA, sys.L2CLB, 10)
+	t.Logf("interop paused at timestamp=%d", paused)
+
+	// Wait for chain B's head to advance past the message expiry window.
+	// This ensures any exec message included now references an expired init.
+	t.Require().Eventually(func() bool {
+		status, err := chains[1].Rollup.SyncStatus(t.Ctx())
+		if err != nil {
+			return false
+		}
+		// The message is expired when execTimestamp >= initTimestamp + expiryWindow.
+		// We use the unsafe head's timestamp as a proxy for the next block's timestamp.
+		// With a 10-second expiry window, we need ~5 blocks at 2s block time.
+		return status.UnsafeL2.Time > initTimestamp+10
+	}, 2*time.Minute, 2*time.Second, "waiting for chain B to advance past message expiry window")
+
+	// Send the exec message on chain B. The init has expired, so the exec is invalid
+	// from the interop perspective but will still be included in a block.
+	execMsg := aliceB.SendExecMessage(initMsg)
+	execBlockNum := bigs.Uint64Strict(execMsg.BlockNumber())
+	execTimestamp := sys.L2ChainB.TimestampForBlockNum(execBlockNum)
+	t.Logf("expired exec message at block=%d timestamp=%d", execBlockNum, execTimestamp)
+
+	// Wait for the exec block to become locally safe.
+	t.Require().Eventually(func() bool {
+		status, err := chains[1].Rollup.SyncStatus(t.Ctx())
+		return err == nil && status.LocalSafeL2.Number >= execBlockNum
+	}, 2*time.Minute, 2*time.Second, "exec block should become locally safe")
+
+	// Determine the end timestamp for the fault proof trace.
+	endTimestamp := execTimestamp
+	startTimestamp := endTimestamp - 1
+
+	// Capture the optimistic state BEFORE the reorg.
+	// These reflect the chain state that includes the expired exec message.
+	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+	start := superRootAtTimestamp(t, chains, startTimestamp)
+	optimisticEnd := superRootAtTimestamp(t, chains, endTimestamp)
+	preConsolidation := marshalTransition(start, consolidateStep, firstOptimistic, secondOptimistic)
+
+	// Resume interop. The supernode detects the expired message and triggers a reorg,
+	// replacing the invalid block with a deposit-only block.
+	sys.SuperRoots.ResumeInterop()
+
+	// Wait for the replacement block and validation.
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+
+	// Capture the cross-safe state AFTER the reorg.
+	// Use the supernode's validated super root directly rather than re-querying individual
+	// L2 nodes via OutputAtBlock. After the block replacement, there is a propagation delay
+	// before the L2 rollup nodes reflect the replacement block in their canonical chain.
+	// The supernode's validated response already has the correct post-replacement output roots.
+	supernodeResp := sys.SuperRoots.SuperRootAtTimestamp(endTimestamp)
+	t.Require().NotNil(supernodeResp.Data, "supernode should have validated data at endTimestamp")
+	crossSafeEnd := supernodeResp.Data.Super
+	l1HeadCurrent := latestRequiredL1(supernodeResp)
+
+	tests := []*transitionTest{
+		{
+			Name:               "Consolidate-ExpectInvalidPendingBlock",
+			AgreedClaim:        preConsolidation,
+			DisputedClaim:      optimisticEnd.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+			ExpectValid:        false,
+		},
+		{
+			Name:               "Consolidate-ReplaceInvalidBlocks",
+			AgreedClaim:        preConsolidation,
+			DisputedClaim:      crossSafeEnd.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+			ExpectValid:        true,
+		},
+	}
+
+	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
+	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
+	for _, test := range tests {
+		t.Run(test.Name+"-fpp", func(t devtest.T) {
+			// TODO(ethereum-optimism/optimism#19636): Kona's MessageGraph uses a hardcoded
+			// 7-day message expiry window instead of reading the dependency set's configurable
+			// override. This test uses a 10-second window, so kona cannot detect the expiry.
+			t.Skip("kona does not yet support custom message expiry windows")
+			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
+				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
+				test.ClaimTimestamp, test.ExpectValid)
+		})
+		t.Run(test.Name+"-challenger", func(t devtest.T) {
+			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
+		})
+	}
+}
+
 func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleInterop) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	rng := rand.New(rand.NewSource(1234))

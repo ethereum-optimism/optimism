@@ -281,3 +281,13 @@ func WithRequireInteropNotAtGenesis() Option {
 func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) Option {
 	return WithDeployerOptions(sysgo.WithL2BlockTimes(blockTimes))
 }
+
+func WithMessageExpiryWindow(window uint64) Option {
+	return option{
+		kinds: optionKindMessageExpiryWindow,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			v := window
+			cfg.MessageExpiryWindow = &v
+		},
+	}
+}
