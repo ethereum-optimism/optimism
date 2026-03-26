@@ -21,9 +21,9 @@ build-kona PROFILE="release":
   #!/bin/bash
   cd {{SOURCE}}/.. && cargo build --bin kona-node --profile {{PROFILE}}
 
-acceptance-tests CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian":
+acceptance-tests CL_TYPE="kona-node" EL_TYPE="op-reth" GATE="jovian":
   #!/bin/bash
-  if [ "{{CL_TYPE}}" = "kona" ] ; then
+  if [ "{{CL_TYPE}}" = "kona-node" ] ; then
     echo "Building kona-node..."
     just build-kona
   fi
@@ -37,9 +37,9 @@ acceptance-tests CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian":
 
 # Run acceptance tests for the rust stack. By default runs the acceptance tests for kona-node with op-reth.
 # Uses the jovian gate by default.
-acceptance-tests-run CL_TYPE="kona" EL_TYPE="op-reth" GATE="jovian":
+acceptance-tests-run CL_TYPE="kona-node" EL_TYPE="op-reth" GATE="jovian":
   #!/bin/bash
-  if [ "{{CL_TYPE}}" = "kona" ] ; then
+  if [ "{{CL_TYPE}}" = "kona-node" ] ; then
     echo "Running acceptance tests for kona-node"
     export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
   fi

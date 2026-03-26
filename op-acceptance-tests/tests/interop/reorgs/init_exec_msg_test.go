@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -23,8 +24,9 @@ import (
 )
 
 func TestReorgInitExecMsg(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
+	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	ctx := t.Ctx()
 
 	sys := presets.NewSimpleInterop(t)

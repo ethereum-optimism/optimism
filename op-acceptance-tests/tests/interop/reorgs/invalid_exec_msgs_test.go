@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -23,10 +23,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestReorgInvalidExecMsgs tests that the supervisor reorgs the chain when an invalid exec msg is included
+// TestReorgInvalidExecMsgs tests that the supernode reorgs the chain when an invalid exec msg is included
 // Each subtest runs a test with  a different invalid message, by modifying the message in the txModifierFn
 func TestReorgInvalidExecMsgs(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
+	t := devtest.ParallelT(gt)
+	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	gt.Run("invalid log index", func(gt *testing.T) {
 		testReorgInvalidExecMsg(gt, func(msg *suptypes.Message) {
 			msg.Identifier.LogIndex = 1024
@@ -50,10 +52,10 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	l := sys.Log
 
-	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2ChainA.ChainID())
+	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2A.ChainID())
 
 	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -61,7 +63,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	cathrine := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 
 	sys.L1Network.WaitForBlock()
-	sys.L2ChainA.WaitForBlock()
+	sys.L2A.WaitForBlock()
 
 	// stop batcher on chain A
 	sys.L2BatcherA.Stop()
@@ -94,7 +96,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	}
 
 	// wait for chain B to catch up to chain A if necessary
-	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
+	sys.L2B.CatchUpTo(sys.L2A)
 
 	var initTx *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
 	var initReceipt *types.Receipt
@@ -106,14 +108,14 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 		initReceipt, err = initTx.PlannedTx.Included.Eval(ctx)
 		require.NoError(t, err)
 
-		l.Info("initiating message included in chain B", "chain", sys.L2ChainB.ChainID(), "block_number", initReceipt.BlockNumber, "block_hash", initReceipt.BlockHash, "now", time.Now().Unix())
+		l.Info("initiating message included in chain B", "chain", sys.L2B.ChainID(), "block_number", initReceipt.BlockNumber, "block_hash", initReceipt.BlockHash, "now", time.Now().Unix())
 	}
 
 	// at least one block between the init tx on chain B and the exec tx on chain A
-	sys.L2ChainA.WaitForBlock()
+	sys.L2A.WaitForBlock()
 
 	// stop sequencer on chain A so that we later force include an invalid exec msg
-	latestUnsafe_A := sys.L2CLA.StopSequencer()
+	latestUnsafe_A := sys.L2ACL.StopSequencer()
 
 	var execTx *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
 	var execSignedTx *types.Transaction
@@ -151,7 +153,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 
 	// sequence a new block with an invalid executing msg on chain A
 	{
-		l.Info("Building chain A with op-test-sequencer, and include invalid exec msg", "chain", sys.L2ChainA.ChainID(), "unsafeHead", latestUnsafe_A)
+		l.Info("Building chain A with op-test-sequencer, and include invalid exec msg", "chain", sys.L2A.ChainID(), "unsafeHead", latestUnsafe_A)
 
 		err := ia.New(ctx, seqtypes.BuildOpts{
 			Parent:   latestUnsafe_A,
@@ -175,12 +177,12 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	{
 		currentUnsafeRef := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
 
-		l.Info("Unsafe head after invalid exec msg has been included in chain A", "chain", sys.L2ChainA.ChainID(), "unsafeHead", currentUnsafeRef, "parent", currentUnsafeRef.ParentID())
+		l.Info("Unsafe head after invalid exec msg has been included in chain A", "chain", sys.L2A.ChainID(), "unsafeHead", currentUnsafeRef, "parent", currentUnsafeRef.ParentID())
 
 		divergenceBlockNumber_A = currentUnsafeRef.Number
 		originalHash_A = currentUnsafeRef.Hash
 		originalParentHash_A = currentUnsafeRef.ParentHash
-		l.Info("Continue building chain A with another block with op-test-sequencer", "chain", sys.L2ChainA.ChainID(), "unsafeHead", currentUnsafeRef, "parent", currentUnsafeRef.ParentID())
+		l.Info("Continue building chain A with another block with op-test-sequencer", "chain", sys.L2A.ChainID(), "unsafeHead", currentUnsafeRef, "parent", currentUnsafeRef.ParentID())
 		err := ia.New(ctx, seqtypes.BuildOpts{
 			Parent:   currentUnsafeRef.Hash,
 			L1Origin: nil,
@@ -207,8 +209,8 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 		time.Sleep(2 * time.Second)
 	}
 
-	// continue sequencing with op-node
-	sys.L2CLA.StartSequencer()
+	// continue sequencing with the supernode
+	sys.L2ACL.StartSequencer()
 
 	// start batcher on chain A
 	sys.L2BatcherA.Start()
@@ -220,25 +222,11 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 		ParentHash: originalParentHash_A,
 	}, 30)
 
-	err := wait.For(ctx, 5*time.Second, func() (bool, error) {
-		safeL2Head_supervisor_A := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash
-		safeL2Head_sequencer_A := sys.L2CLA.SafeL2BlockRef()
+	// Wait for the supernode to validate the replacement block's timestamp.
+	divergenceTimestamp_A := sys.L2A.TimestampForBlockNum(divergenceBlockNumber_A)
+	sys.Supernode.AwaitValidatedTimestamp(divergenceTimestamp_A)
 
-		if safeL2Head_sequencer_A.Number < divergenceBlockNumber_A {
-			l.Info("Safe ref number is still behind divergence block A number", "divergence", divergenceBlockNumber_A, "safe", safeL2Head_sequencer_A.Number)
-			return false, nil
-		}
-
-		if safeL2Head_sequencer_A.Hash.Cmp(safeL2Head_supervisor_A) != 0 {
-			l.Info("Safe ref still not the same on supervisor and sequencer A", "supervisor", safeL2Head_supervisor_A, "sequencer", safeL2Head_sequencer_A.Hash)
-			return false, nil
-		}
-
-		l.Info("Safe ref the same across supervisor and sequencers",
-			"supervisor_A", safeL2Head_supervisor_A,
-			"sequencer_A", safeL2Head_sequencer_A.Hash)
-
-		return true, nil
-	})
-	require.NoError(t, err, "Expected to get same safe ref on both supervisor and sequencer eventually")
+	l.Info("supernode validated replacement block",
+		"divergence", divergenceBlockNumber_A,
+		"timestamp", divergenceTimestamp_A)
 }

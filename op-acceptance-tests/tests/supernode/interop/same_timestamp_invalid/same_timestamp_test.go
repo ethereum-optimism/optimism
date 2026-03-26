@@ -28,8 +28,8 @@ func TestSupernodeSameTimestampExecMessage(gt *testing.T) {
 // TestSupernodeSameTimestampInvalidTransitive: Bad log index causes transitive invalidation
 func TestSupernodeSameTimestampInvalidTransitive(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(ethereum-optimism/optimism#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipOnOpReth(t, "panics due to safe head mismatch in EngineController")
+	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	sys := presets.NewTwoL2SupernodeInterop(t, 0).ForSameTimestampTesting(t)
 	rng := rand.New(rand.NewSource(77777))
 
@@ -46,8 +46,8 @@ func TestSupernodeSameTimestampInvalidTransitive(gt *testing.T) {
 // TestSupernodeSameTimestampCycle: Mutual exec messages create cycle - both replaced
 func TestSupernodeSameTimestampCycle(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(ethereum-optimism/optimism#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipOnOpReth(t, "panics due to safe head mismatch in EngineController")
+	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
+	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	sys := presets.NewTwoL2SupernodeInterop(t, 0).ForSameTimestampTesting(t)
 	rng := rand.New(rand.NewSource(55555))
 

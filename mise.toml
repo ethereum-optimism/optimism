@@ -41,7 +41,6 @@ anvil = "1.2.3"
 codecov-uploader = "0.8.0"
 goreleaser-pro = "2.11.2"
 kurtosis = "1.8.1"
-op-acceptor = "op-acceptor/v3.10.2"
 git-cliff = "2.12.0"
 
 # Fake dependencies
@@ -61,7 +60,6 @@ goreleaser-pro = "ubi:goreleaser/goreleaser-pro[exe=goreleaser]"
 gotestsum = "ubi:gotestyourself/gotestsum"
 kurtosis = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
 mockery = "ubi:vektra/mockery"
-op-acceptor = "ubi:ethereum-optimism/infra[exe=op-acceptor,tag_prefix=op-acceptor/]"
 svm-rs = "ubi:alloy-rs/svm-rs[exe=svm]"
 
 # These are disabled, but latest mise versions error if they don't have a known

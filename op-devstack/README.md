@@ -104,7 +104,7 @@ and returns a typed output that the test then may use.
 - `DEVNET_EXPECT_PRECONDITIONS_MET`: This can be set of force test failures when their pre-conditions are not met, which would otherwise result in them being skipped. This is helpful in particular for runs that do intend to run specific tests (as opposed to whatever is available). `op-acceptor` does set that variable, for example.
 
 ### Rust stack env vars:
-- `DEVSTACK_L2CL_KIND=kona` to select kona as default L2 CL node
+- `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node
 - `DEVSTACK_L2EL_KIND=op-reth` to select op-reth as default L2 EL node
 - `KONA_NODE_EXEC_PATH=/home/USERHERE/projects/kona/target/debug/kona-node` to select the kona-node executable to run
 - `OP_RETH_EXEC_PATH=/home/USERHERE/projects/reth/target/release/op-reth` to select the op-reth executable to run

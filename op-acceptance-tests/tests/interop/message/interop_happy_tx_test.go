@@ -19,7 +19,7 @@ import (
 func TestInteropHappyTx(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	// two EOAs for triggering the init and exec interop txs
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -28,24 +28,24 @@ func TestInteropHappyTx(gt *testing.T) {
 	eventLoggerAddress := alice.DeployEventLogger()
 
 	// wait for chain B to catch up to chain A if necessary
-	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
+	sys.L2B.CatchUpTo(sys.L2A)
 
 	// send initiating message on chain A
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)))
 
 	// at least one block between the init tx on chain A and the exec tx on chain B
-	sys.L2ChainB.WaitForBlock()
+	sys.L2B.WaitForBlock()
 
 	// send executing message on chain B
 	execMsg := bob.SendExecMessage(initMsg)
 
 	// confirm that the cross-safe safety passed init and exec receipts and that blocks were not reorged
 	dsl.CheckAll(t,
-		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, initMsg.BlockID(),
+		sys.L2ACL.ReachedRefFn(stypes.CrossSafe, initMsg.BlockID(),
 			// TODO(#16598): Make this relative to the block time
 			500),
-		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, execMsg.BlockID(),
+		sys.L2BCL.ReachedRefFn(stypes.CrossSafe, execMsg.BlockID(),
 			// TODO(#16598): Make this relative to the block time
 			500),
 	)
