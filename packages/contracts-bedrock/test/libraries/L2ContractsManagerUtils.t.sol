@@ -168,6 +168,30 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
         assertEq(vm.load(proxy, INITIALIZABLE_SLOT_OZ_V5), bytes32(0));
     }
 
+    /// @notice Tests that upgrade reverts when v4 `_initializing` bool is set.
+    function test_upgrade_v4InitializingDuringUpgrade_reverts() public {
+        address proxy = Predeploys.L2_STANDARD_BRIDGE;
+
+        // Set v1 as current implementation.
+        vm.prank(Predeploys.PROXY_ADMIN);
+        IProxy(payable(proxy)).upgradeTo(implV1);
+
+        // Simulate a v4 contract that is mid-initialization. The _initializing bool is at byte
+        // offset 1 (right after _initialized uint8 at byte 0). Set _initialized = 1 and _initializing = true.
+        uint256 v4Value = 1 | (uint256(1) << 8);
+        vm.store(proxy, INITIALIZABLE_SLOT_OZ_V4, bytes32(v4Value));
+
+        vm.expectRevert(L2ContractsManagerUtils.L2ContractsManager_InitializingDuringUpgrade.selector);
+        this._callUpgradeToAndCall(
+            proxy,
+            implV2,
+            _storageSetterImpl,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0
+        );
+    }
+
     /// @notice Tests that upgrade reverts when `_initializing` bool is set at the ERC-7201 slot.
     function test_upgrade_v5InitializingDuringUpgrade_reverts() public {
         address proxy = Predeploys.SEQUENCER_FEE_WALLET;
