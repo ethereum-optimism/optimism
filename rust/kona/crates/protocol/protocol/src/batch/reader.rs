@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use alloy_primitives::Bytes;
 use alloy_rlp::Decodable;
 use kona_genesis::RollupConfig;
-use miniz_oxide::inflate::decompress_to_vec_zlib;
+use miniz_oxide::inflate::{TINFLStatus, decompress_to_vec_zlib_with_limit};
 
 /// Error type for decompression failures.
 #[derive(Debug, thiserror::Error)]
@@ -22,9 +22,6 @@ pub enum DecompressionError {
     /// A zlib decompression error.
     #[error("zlib decompression error")]
     ZlibError,
-    /// The RLP data is too large for the configured maximum.
-    #[error("the RLP data is too large: {0} bytes, maximum allowed: {1} bytes")]
-    RlpTooLarge(usize, usize),
 }
 
 /// Batch Reader provides a function that iteratively consumes batches from the reader.
@@ -71,34 +68,56 @@ impl BatchReader {
     }
 
     /// Helper method to decompress the data contained in the reader.
+    /// No-op if the data has already been decompressed.
     pub fn decompress(&mut self) -> Result<(), DecompressionError> {
-        if let Some(data) = self.data.take() {
-            // Peek at the data to determine the compression type.
-            if data.is_empty() {
-                return Err(DecompressionError::EmptyData);
-            }
-
-            let compression_type = data[0];
-            if (compression_type & 0x0F) == Self::ZLIB_DEFLATE_COMPRESSION_METHOD ||
-                (compression_type & 0x0F) == Self::ZLIB_RESERVED_COMPRESSION_METHOD
-            {
-                self.decompressed =
-                    decompress_to_vec_zlib(&data).map_err(|_| DecompressionError::ZlibError)?;
-
-                // Check the size of the decompressed channel RLP.
-                if self.decompressed.len() > self.max_rlp_bytes_per_channel {
-                    return Err(DecompressionError::RlpTooLarge(
-                        self.decompressed.len(),
-                        self.max_rlp_bytes_per_channel,
-                    ));
+        if !self.decompressed.is_empty() {
+            return Ok(());
+        }
+        match self.data.take() {
+            None => Err(DecompressionError::EmptyData),
+            Some(data) if data.is_empty() => Err(DecompressionError::EmptyData),
+            Some(data) => {
+                // Peek at the data to determine the compression type.
+                let compression_type = data[0];
+                if (compression_type & 0x0F) == Self::ZLIB_DEFLATE_COMPRESSION_METHOD ||
+                    (compression_type & 0x0F) == Self::ZLIB_RESERVED_COMPRESSION_METHOD
+                {
+                    self.decompress_zlib(data)
+                } else if compression_type == Self::CHANNEL_VERSION_BROTLI {
+                    self.decompress_brotli(data)
+                } else {
+                    Err(DecompressionError::UnsupportedType(compression_type))
                 }
-            } else if compression_type == Self::CHANNEL_VERSION_BROTLI {
-                self.brotli_used = true;
-                self.decompressed = decompress_brotli(&data[1..], self.max_rlp_bytes_per_channel)?;
-            } else {
-                return Err(DecompressionError::UnsupportedType(compression_type));
             }
         }
+    }
+
+    fn decompress_zlib(&mut self, data: Vec<u8>) -> Result<(), DecompressionError> {
+        // Decompress with a limit to prevent zip-bomb attacks.
+        // Per spec, if decompressed data exceeds the limit, the output is
+        // truncated to max_rlp_bytes_per_channel bytes (not rejected).
+        match decompress_to_vec_zlib_with_limit(&data, self.max_rlp_bytes_per_channel) {
+            Ok(decompressed) => {
+                self.decompressed = decompressed;
+            }
+            Err(e) if (e.status == TINFLStatus::HasMoreOutput || !e.output.is_empty()) => {
+                // Either: limit reached — truncate per spec and keep partial output.
+                // Or: decompression error with partial output — keep it so
+                // batches decoded before the error point are accepted.
+                self.decompressed = e.output;
+            }
+            Err(_) => {
+                return Err(DecompressionError::ZlibError);
+            }
+        }
+        Ok(())
+    }
+
+    fn decompress_brotli(&mut self, data: Vec<u8>) -> Result<(), DecompressionError> {
+        self.brotli_used = true;
+        // Note: the first byte of the channel data is the Brotli channel version but not part of
+        // the compressed data, so it's skipped here but not for zlib.
+        self.decompressed = decompress_brotli(&data[1..], self.max_rlp_bytes_per_channel)?;
         Ok(())
     }
 
@@ -131,6 +150,10 @@ mod test {
     use kona_genesis::{
         HardForkConfig, MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD,
     };
+    use miniz_oxide::{
+        deflate::{CompressionLevel, compress_to_vec_zlib},
+        inflate::decompress_to_vec_zlib,
+    };
 
     fn new_compressed_batch_data() -> Bytes {
         let file_contents =
@@ -161,5 +184,65 @@ mod test {
             })
             .unwrap();
         assert_eq!(reader.cursor, decompressed_len);
+    }
+
+    /// Builds zlib-compressed channel data containing `n` copies of the same
+    /// batch by duplicating the decompressed RLP content from the test fixture.
+    fn new_multi_batch_compressed_data(n: usize) -> (Bytes, usize) {
+        let raw = new_compressed_batch_data();
+        let single = decompress_to_vec_zlib(&raw).unwrap();
+
+        let mut multi = Vec::with_capacity(single.len() * n);
+        for _ in 0..n {
+            multi.extend_from_slice(&single);
+        }
+        let decompressed_len = multi.len();
+        (compress_to_vec_zlib(&multi, CompressionLevel::BestSpeed.into()).into(), decompressed_len)
+    }
+
+    #[test]
+    fn test_zlib_truncation_instead_of_rejection() {
+        let raw = new_compressed_batch_data();
+        let decompressed_len = decompress_to_vec_zlib(&raw).unwrap().len();
+        assert!(decompressed_len > 1, "test data must decompress to >1 byte");
+
+        // Set limit below decompressed size — should truncate, not error.
+        let limit = decompressed_len / 2;
+        let mut reader = BatchReader::new(raw, limit);
+        assert!(reader.decompress().is_ok());
+        assert_eq!(reader.decompressed.len(), limit);
+    }
+
+    #[test]
+    fn test_zlib_truncation_yields_decodable_batches() {
+        let n = 3;
+        let (compressed, full_len) = new_multi_batch_compressed_data(n);
+        let single_batch_len = full_len / n;
+
+        // Full decompression should yield all n batches.
+        let mut reader = BatchReader::new(compressed.clone(), full_len);
+        let mut count = 0;
+        while reader.next_batch(&RollupConfig::default()).is_some() {
+            count += 1;
+        }
+        assert_eq!(count, n, "should decode {n} batches from full channel");
+
+        // Truncate to just under the last batch — should yield n-1 batches.
+        let limit = full_len - 1;
+        let mut reader = BatchReader::new(compressed, limit);
+        let mut count = 0;
+        while reader.next_batch(&RollupConfig::default()).is_some() {
+            count += 1;
+        }
+        assert_eq!(
+            count,
+            n - 1,
+            "truncated channel should yield {exp} batches (cursor at {cursor}, \
+             single batch is {single_batch_len} bytes, limit {limit})",
+            exp = n - 1,
+            cursor = reader.cursor,
+        );
+        // First n-1 batches should have been fully consumed.
+        assert_eq!(reader.cursor, single_batch_len * (n - 1));
     }
 }

@@ -433,7 +433,7 @@ jobs:
         default: "stable"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -561,7 +561,7 @@ jobs:
         default: "just check-no-std"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -693,7 +693,7 @@ jobs:
         default: "just check-udeps"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -732,7 +732,7 @@ jobs:
         default: "--workspace"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -794,7 +794,7 @@ jobs:
   op-reth-compact-codec:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -969,7 +969,7 @@ jobs:
   rust-docs-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
