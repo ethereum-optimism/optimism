@@ -21,7 +21,7 @@ func DefaultTxSubmitOptions(w walletV2) txplan.Option {
 		txplan.WithPrivateKey(w.PrivateKey()),
 		txplan.WithChainID(w.Client()),
 		txplan.WithAgainstLatestBlock(w.Client()),
-		txplan.WithPendingNonce(w.Client()),
+		txplan.WithConfirmedNonce(w.Client()),
 		txplan.WithEstimator(w.Client(), false),
 		txplan.WithTransactionSubmitter(w.Client()),
 	)

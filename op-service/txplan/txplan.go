@@ -316,11 +316,30 @@ type PendingNonceAt interface {
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
 }
 
+// Deprecated: WithPendingNonce uses the node's pending nonce which may be stale after a recently
+// confirmed transaction. Use WithConfirmedNonce instead when transactions are sent sequentially
+// and each waits for a receipt before the next is sent.
 func WithPendingNonce(cl PendingNonceAt) Option {
 	return func(tx *PlannedTx) {
 		tx.Nonce.DependOn(&tx.AgainstBlock, &tx.Sender)
 		tx.Nonce.Fn(func(ctx context.Context) (uint64, error) {
 			return cl.PendingNonceAt(ctx, tx.Sender.Value())
+		})
+	}
+}
+
+type ConfirmedNonceAt interface {
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
+}
+
+// WithConfirmedNonce resolves the nonce from the latest confirmed block rather than the pending
+// state. This avoids a race where the node's pending nonce hasn't updated yet after a recently
+// confirmed transaction.
+func WithConfirmedNonce(cl ConfirmedNonceAt) Option {
+	return func(tx *PlannedTx) {
+		tx.Nonce.DependOn(&tx.AgainstBlock, &tx.Sender)
+		tx.Nonce.Fn(func(ctx context.Context) (uint64, error) {
+			return cl.NonceAt(ctx, tx.Sender.Value(), nil)
 		})
 	}
 }

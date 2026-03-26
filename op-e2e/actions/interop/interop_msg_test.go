@@ -131,7 +131,7 @@ func DefaultTxOpts(t helpers.Testing, user *userWithKeys, chain *dsl.Chain) (txp
 		txplan.WithPrivateKey(user.secret),
 		txplan.WithChainID(sc),
 		txplan.WithAgainstLatestBlock(sc),
-		txplan.WithPendingNonce(sc),
+		txplan.WithConfirmedNonce(sc),
 		txplan.WithEstimator(sc, false),
 		txplan.WithTransactionSubmitter(builder),
 		txplan.WithAssumedInclusion(builder),

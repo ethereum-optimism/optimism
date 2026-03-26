@@ -62,8 +62,8 @@ func RequireSendTxs(t *testing.T, ctx context.Context, client *ethclient.Client,
 	cfg := makeSendTxCfg(opts...)
 	// First convert all the candidates to signed transactions so they are most likely to be included in the same block
 	// This still isn't guaranteed but minimises the delay between each transaction submission.
-	nonce, err := client.PendingNonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey))
-	require.NoError(t, err, "Failed to get pending nonce")
+	nonce, err := client.NonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey), nil)
+	require.NoError(t, err, "Failed to get nonce")
 	txs := make([]*types.Transaction, len(candidates))
 	for i, candidate := range candidates {
 		tx, err := createTx(ctx, client, candidate, privKey, nonce)
@@ -93,7 +93,11 @@ func RequireSendTxs(t *testing.T, ctx context.Context, client *ethclient.Client,
 
 func SendTx(ctx context.Context, client *ethclient.Client, candidate txmgr.TxCandidate, privKey *ecdsa.PrivateKey, opts ...SendTxOpt) (*types.Transaction, *types.Receipt, error) {
 	cfg := makeSendTxCfg(opts...)
-	nonce, err := client.PendingNonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey))
+	// Use NonceAt (latest confirmed) rather than PendingNonceAt to avoid a race where the node's
+	// pending nonce hasn't updated yet after a recently confirmed transaction. Since SendTx always
+	// waits for a receipt before returning, the confirmed nonce is guaranteed to reflect all
+	// previously sent transactions.
+	nonce, err := client.NonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey), nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get next nonce: %w", err)
 	}

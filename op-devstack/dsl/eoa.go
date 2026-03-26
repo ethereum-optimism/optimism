@@ -143,7 +143,7 @@ func (u *EOA) Plan() txplan.Option {
 	return txplan.Combine(
 		txplan.WithChainID(elClient),
 		u.key.Plan(),
-		txplan.WithPendingNonce(elClient),
+		txplan.WithConfirmedNonce(elClient),
 		txplan.WithAgainstLatestBlock(elClient),
 		txplan.WithEstimator(elClient, true),
 		txplan.WithRetrySubmission(elClient, 5, retry.Exponential()),

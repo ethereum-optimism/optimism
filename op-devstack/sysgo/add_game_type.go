@@ -68,7 +68,7 @@ func setRespectedGameTypeForRuntime(
 	txOpts := txplan.Combine(
 		txplan.WithChainID(client),
 		txplan.WithPrivateKey(guardianKey),
-		txplan.WithPendingNonce(client),
+		txplan.WithConfirmedNonce(client),
 		txplan.WithAgainstLatestBlockEthClient(client),
 		txplan.WithEstimator(client, true),
 		txplan.WithRetrySubmission(client, 5, retry.Exponential()),

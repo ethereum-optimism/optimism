@@ -124,7 +124,7 @@ func (u *remoteUser) plan() txplan.Option {
 	return txplan.Combine(
 		txplan.WithChainID(u.chain.ethClient),
 		txplan.WithPrivateKey(u.privKey),
-		txplan.WithPendingNonce(u.chain.ethClient),
+		txplan.WithConfirmedNonce(u.chain.ethClient),
 		txplan.WithAgainstLatestBlock(u.chain.ethClient),
 		txplan.WithEstimator(u.chain.ethClient, true),
 		txplan.WithRetrySubmission(u.chain.ethClient, 5, retry.Exponential()),
