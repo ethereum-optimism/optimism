@@ -372,8 +372,8 @@ where
                     received_fb_index += 1;
                 }
                 // verify that we are in the window
-                debug_assert!(index <= received_access_lists[received_fb_index].min_tx_index);
-                debug_assert!(received_access_lists[received_fb_index].max_tx_index < index);
+                debug_assert!(received_access_lists[received_fb_index].min_tx_index <= index);
+                debug_assert!(index <= received_access_lists[received_fb_index].max_tx_index);
 
                 executor.evm_mut().db_mut().set_bal_index(index);
                 debug!(target: "fBALs", "fBALs index set to {:#?}", index);
@@ -474,8 +474,8 @@ where
                     received_fb_index += 1;
                 }
                 // verify that we are in the window
-                debug_assert!(index <= received_access_lists[received_fb_index].min_tx_index);
-                debug_assert!(received_access_lists[received_fb_index].max_tx_index < index);
+                debug_assert!(received_access_lists[received_fb_index].min_tx_index <= index);
+                debug_assert!(index <= received_access_lists[received_fb_index].max_tx_index);
 
                 builder.evm_mut().db_mut().set_bal_index(index);
                 debug!(target: "fBALs", "fBALs index set to {:#?}", index);
