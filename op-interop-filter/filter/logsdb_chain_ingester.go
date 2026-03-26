@@ -355,6 +355,16 @@ func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
 	return startingBlock
 }
 
+// calculateReadyBlock returns the block number the ingester must reach to report Ready().
+func (c *LogsDBChainIngester) calculateReadyBlock() uint64 {
+	readyBlock, err := c.rollupCfg.TargetBlockNumber(c.startTimestamp)
+	if err != nil {
+		// Timestamp is before genesis, start from genesis block
+		return c.rollupCfg.Genesis.L2.Number
+	}
+	return readyBlock
+}
+
 func (c *LogsDBChainIngester) initLogsDB() error {
 	var dbPath string
 	if c.dataDir != "" {
@@ -458,17 +468,17 @@ func (c *LogsDBChainIngester) runIngestion() {
 
 			// Progress logging
 			if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
-				startingBlock := c.calculateStartingBlock()
-				if nextBlock <= startingBlock {
-					progress := float64(nextBlock-c.earliestIngestedBlock.Load()) / float64(startingBlock-c.earliestIngestedBlock.Load()+1)
+				readyBlock := c.calculateReadyBlock()
+				if nextBlock <= readyBlock {
+					progress := float64(nextBlock-c.earliestIngestedBlock.Load()) / float64(readyBlock-c.earliestIngestedBlock.Load()+1)
 					c.log.Info("Ingestion progress",
 						"block", nextBlock-1,
-						"target", startingBlock,
+						"target", readyBlock,
 						"progress", fmt.Sprintf("%.0f%%", progress*100))
 					chainIDUint64, _ := c.chainID.Uint64()
 					c.metrics.RecordBackfillProgress(chainIDUint64, progress)
 				} else {
-					c.log.Info("Ingestion progress", "block", nextBlock-1, "head", head.NumberU64())
+					c.log.Debug("Ingestion progress", "block", nextBlock-1, "head", head.NumberU64())
 				}
 				lastLogTime = clock.SystemClock.Now()
 			}

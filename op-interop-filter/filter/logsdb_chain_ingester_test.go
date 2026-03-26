@@ -661,6 +661,50 @@ func TestLogsDBChainIngester_CalculateStartingBlock_BackfillUnderflow(t *testing
 	require.Equal(t, l2StartBlock, startingBlock)
 }
 
+func TestLogsDBChainIngester_CalculateReadyBlock(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	l2StartBlock := uint64(100)
+	l2StartTimestamp := uint64(1000)
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, l2StartBlock, l2StartTimestamp),
+	})
+
+	ingester.startTimestamp = 1100
+
+	readyBlock := ingester.calculateReadyBlock()
+	require.Equal(t, uint64(150), readyBlock)
+}
+
+func TestLogsDBChainIngester_CalculateReadyBlock_BeforeGenesis(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	l2StartBlock := uint64(100)
+	l2StartTimestamp := uint64(1000)
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, l2StartBlock, l2StartTimestamp),
+	})
+
+	ingester.startTimestamp = 900
+
+	readyBlock := ingester.calculateReadyBlock()
+	require.Equal(t, l2StartBlock, readyBlock)
+}
+
 func TestLogsDBChainIngester_InitIngestion_ResumeFromExistingDB(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
