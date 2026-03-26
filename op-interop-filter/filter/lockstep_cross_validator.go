@@ -291,6 +291,7 @@ func (v *LockstepCrossValidator) advanceValidation() {
 	if !v.crossValidatedOK.Load() {
 		v.crossValidatedTs.Store(v.startTimestamp)
 		v.crossValidatedOK.Store(true)
+		v.metrics.RecordCrossUnsafeValidatedTimestamp(v.startTimestamp)
 		v.log.Info("Cross-validator initialized", "startTimestamp", v.startTimestamp)
 		return
 	}
@@ -315,6 +316,7 @@ func (v *LockstepCrossValidator) advanceValidation() {
 
 		// Advance
 		v.crossValidatedTs.Store(nextTs)
+		v.metrics.RecordCrossUnsafeValidatedTimestamp(nextTs)
 		currentTs = nextTs
 
 		v.log.Debug("Advanced cross-validated timestamp", "timestamp", nextTs)
