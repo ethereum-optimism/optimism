@@ -168,8 +168,8 @@ where
                 max: message.executing_timestamp,
                 actual: initiating_timestamp,
             });
-        } else if initiating_timestamp
-            < rollup_config.hardforks.interop_time.unwrap_or_default() + rollup_config.block_time
+        } else if initiating_timestamp <
+            rollup_config.hardforks.interop_time.unwrap_or_default() + rollup_config.block_time
         {
             return Err(MessageGraphError::InitiatedTooEarly {
                 activation_time: rollup_config.hardforks.interop_time.unwrap_or_default(),
@@ -180,8 +180,8 @@ where
         // Message expiry invariant: The timestamp of the initiating message must be no more than
         // `MESSAGE_EXPIRY_WINDOW` seconds in the past, relative to the timestamp of the executing
         // message.
-        if initiating_timestamp
-            < message.executing_timestamp.saturating_sub(self.message_expiry_window)
+        if initiating_timestamp <
+            message.executing_timestamp.saturating_sub(self.message_expiry_window)
         {
             return Err(MessageGraphError::MessageExpired {
                 initiating_timestamp,
@@ -250,9 +250,8 @@ where
 #[cfg(test)]
 mod test {
     use super::MessageGraph;
-    use crate::MESSAGE_EXPIRY_WINDOW;
     use crate::{
-        MessageGraphError,
+        MESSAGE_EXPIRY_WINDOW, MessageGraphError,
         test_util::{ExecutingMessageBuilder, SuperchainBuilder},
     };
     use alloy_primitives::{Address, hex, keccak256};
