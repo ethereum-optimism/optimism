@@ -35,6 +35,7 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
@@ -534,7 +535,7 @@ contract Deploy is Deployer {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: address(0),
+                    verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
                     maxProveDuration: Duration.wrap(0),
                     challengerBond: 0

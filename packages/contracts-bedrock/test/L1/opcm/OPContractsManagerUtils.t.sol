@@ -27,6 +27,7 @@ import { Claim, Duration } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 
 /// @title ImplV1_Harness
 /// @notice Implementation contract with version 1.0.0 for testing upgrades.
@@ -931,7 +932,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
     function test_makeGameArgs_zkDisputeGame_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         Claim absolutePrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
-        address verifier = address(0xBEEF);
+        IZKVerifier verifier = IZKVerifier(address(0xBEEF));
         Duration maxChallengeDuration = Duration.wrap(uint64(7 days));
         Duration maxProveDuration = Duration.wrap(uint64(3 days));
         uint256 challengerBond = 1 ether;

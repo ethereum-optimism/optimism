@@ -17,6 +17,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -210,7 +211,7 @@ contract DeployOPChain is Script {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: address(0),
+                    verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
                     maxProveDuration: Duration.wrap(0),
                     challengerBond: 0

@@ -32,6 +32,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerV2_TestInit
@@ -288,7 +289,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: address(0),
+                        verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
                         maxProveDuration: Duration.wrap(0),
                         challengerBond: 0
@@ -950,7 +951,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[3].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                verifier: address(0xBEEF),
+                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1017,7 +1018,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[3].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v1"))),
-                verifier: address(0xBEEF),
+                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1030,7 +1031,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[3].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v2"))),
-                verifier: address(0xDEAD),
+                verifier: IZKVerifier(address(0xDEAD)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1052,7 +1053,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[3].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                verifier: address(0xBEEF),
+                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1381,7 +1382,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: address(0),
+                        verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
                         maxProveDuration: Duration.wrap(0),
                         challengerBond: 0
@@ -1651,7 +1652,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: address(0),
+                    verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
                     maxProveDuration: Duration.wrap(0),
                     challengerBond: 0
@@ -2046,7 +2047,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: address(0),
+                    verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
                     maxProveDuration: Duration.wrap(0),
                     challengerBond: 0
