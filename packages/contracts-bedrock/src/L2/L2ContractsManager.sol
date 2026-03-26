@@ -160,7 +160,7 @@ contract L2ContractsManager is ISemver {
     /// @notice Loads the full configuration for the L2 Predeploys.
     /// @return fullConfig_ The full configuration.
     function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
-        // First we read the system customization and def feature flags from the state.
+        // First we read the system customization and dev feature flags from the state.
         // Because the L2CM's upgrade function does not accept arguments, these values must be set from outside of the
         // Network Upgrade Transactions bundle. The expectation is that they will be set at the start of a
         // hard fork block, within the consensus client's code.
