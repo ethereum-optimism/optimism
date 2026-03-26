@@ -590,7 +590,7 @@ jobs:
         default: "just lint-docs"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
