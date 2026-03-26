@@ -2,11 +2,11 @@
 //! through the `PreimageOracle` ABI as local keys.
 
 use crate::{HintType, INVALID_TRANSITION, INVALID_TRANSITION_HASH, PreState};
-use kona_interop::DependencySet;
 use alloc::{string::ToString, vec::Vec};
 use alloy_primitives::{B256, Bytes, U256};
 use alloy_rlp::Decodable;
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_preimage::{
     CommsClient, HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
     errors::PreimageOracleError,
