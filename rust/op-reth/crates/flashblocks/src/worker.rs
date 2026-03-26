@@ -330,14 +330,56 @@ where
             let evm = self.evm_config.evm_with_env(&mut state, evm_env);
             let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
 
-            for (index, tx) in
-                transactions.iter().skip(cached_prefix.cached_tx_count).cloned().enumerate()
-            {
+            // this is the index of the fb in the pending sequence. I think this should always be
+            // zero
+            let mut received_fb_index = 0;
+            // this should not start from zero but from min_tx for first fb in sequence (can we
+            // trust received fbals?)
+            for (index, tx) in transactions.iter().skip(cached_prefix.cached_tx_count).enumerate() {
+                // index refers to the txn index.
                 let index = index.try_into().unwrap();
+
+                // advance the target fb past the index so index is contained in the current fb
+                while received_fb_index < received_access_lists.len() &&
+                    received_access_lists[received_fb_index].max_tx_index < index
+                {
+                    // we expect this loop to run at most 1 iteration each time it is reached.
+                    {
+                        // this block does the actual fbal verification after the last txn in the fb
+                        // has been added, i.e. when we reach txn + 1.
+
+                        // compute fbal for just-passed fb
+                        let fbal = executor
+                            .evm_mut()
+                            .db_mut()
+                            .take_built_alloy_bal()
+                            .expect("account changes was `None`");
+                        let min_tx_index = 0;
+                        let computed_access_list =
+                            FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
+                        debug!(target: "fBALs", "fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
+                        debug!(target: "fBALs", "fBALs access-list was received on verifier side: {:#?}", received_access_lists[received_fb_index]);
+
+                        // verify
+                        if received_access_lists[received_fb_index] == computed_access_list {
+                            debug!(target: "fBALs", "Received fBAL and computed fBAL match.");
+                        } else {
+                            debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.");
+                            panic!();
+                            return Ok(None);
+                        }
+                    }
+                    received_fb_index += 1;
+                }
+                // verify that we are in the window
+                debug_assert!(index <= received_access_lists[received_fb_index].min_tx_index);
+                debug_assert!(received_access_lists[received_fb_index].max_tx_index < index);
+
                 executor.evm_mut().db_mut().set_bal_index(index);
                 debug!(target: "fBALs", "fBALs index set to {:#?}", index);
                 let _gas_used = executor.execute_transaction(tx)?;
             }
+            // verify last fb
 
             let (evm, suffix_execution_result) = executor.finish()?;
             let (db, evm_env) = evm.finish();
@@ -390,12 +432,56 @@ where
 
             builder.apply_pre_execution_changes()?;
 
+            // this is the index of the fb in the pending sequence. I think this should always be
+            // zero
+            let mut received_fb_index = 0;
+            // this should not start from zero but from min_tx for first fb in sequence (can we
+            // trust received fbals?)
             for (index, tx) in transactions.into_iter().enumerate() {
+                // index refers to the txn index.
                 let index = index.try_into().unwrap();
+
+                // advance the target fb past the index so index is contained in the current fb
+                while received_fb_index < received_access_lists.len() &&
+                    received_access_lists[received_fb_index].max_tx_index < index
+                {
+                    // we expect this loop to run at most 1 iteration each time it is reached.
+                    {
+                        // this block does the actual fbal verification after the last txn in the fb
+                        // has been added, i.e. when we reach txn + 1.
+
+                        // compute fbal for just-passed fb
+                        let fbal = builder
+                            .evm_mut()
+                            .db_mut()
+                            .take_built_alloy_bal()
+                            .expect("account changes was `None`");
+                        let min_tx_index = 0;
+                        let computed_access_list =
+                            FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
+                        debug!(target: "fBALs", "fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
+                        debug!(target: "fBALs", "fBALs access-list was received on verifier side: {:#?}", received_access_lists[received_fb_index]);
+
+                        // verify
+                        if received_access_lists[received_fb_index] == computed_access_list {
+                            debug!(target: "fBALs", "Received fBAL and computed fBAL match.");
+                        } else {
+                            debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.");
+                            panic!();
+                            return Ok(None);
+                        }
+                    }
+                    received_fb_index += 1;
+                }
+                // verify that we are in the window
+                debug_assert!(index <= received_access_lists[received_fb_index].min_tx_index);
+                debug_assert!(received_access_lists[received_fb_index].max_tx_index < index);
+
                 builder.evm_mut().db_mut().set_bal_index(index);
                 debug!(target: "fBALs", "fBALs index set to {:#?}", index);
                 let _gas_used = builder.execute_transaction(tx)?;
             }
+            // verify last fb
 
             let BlockBuilderOutcome { execution_result, block, hashed_state, .. } =
                 if args.compute_state_root {
@@ -460,9 +546,10 @@ where
 
         debug!(target: "fBALs", "fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
 
-        if received_access_lists != computed_access_list {
+        if received_access_lists[0] != computed_access_list {
             debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.  Discarding
         flashblock.");
+            unreachable!();
             return Ok(None);
         }
 
