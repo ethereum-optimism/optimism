@@ -115,21 +115,6 @@
           },
           {
             "internalType": "address",
-            "name": "optimismSuperchainERC20FactoryImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "optimismSuperchainERC20BeaconImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "superchainTokenBridgeImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "nativeAssetLiquidityImpl",
             "type": "address"
           },
@@ -276,21 +261,6 @@
           {
             "internalType": "address",
             "name": "ethLiquidityImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "optimismSuperchainERC20FactoryImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "optimismSuperchainERC20BeaconImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "superchainTokenBridgeImpl",
             "type": "address"
           },
           {

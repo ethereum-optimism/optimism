@@ -32,8 +32,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_OnlyDelegatecall();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -94,12 +94,6 @@ contract L2ContractsManager is ISemver {
     address internal immutable SUPERCHAIN_ETH_BRIDGE_IMPL;
     /// @notice ETHLiquidity implementation.
     address internal immutable ETH_LIQUIDITY_IMPL;
-    /// @notice OptimismSuperchainERC20Factory implementation.
-    address internal immutable OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL;
-    /// @notice OptimismSuperchainERC20Beacon implementation.
-    address internal immutable OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL;
-    /// @notice SuperchainTokenBridge implementation.
-    address internal immutable SUPERCHAIN_TOKEN_BRIDGE_IMPL;
     /// @notice NativeAssetLiquidity implementation.
     address internal immutable NATIVE_ASSET_LIQUIDITY_IMPL;
     /// @notice LiquidityController implementation.
@@ -143,9 +137,6 @@ contract L2ContractsManager is ISemver {
         L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL = _implementations.l2ToL2CrossDomainMessengerImpl;
         SUPERCHAIN_ETH_BRIDGE_IMPL = _implementations.superchainETHBridgeImpl;
         ETH_LIQUIDITY_IMPL = _implementations.ethLiquidityImpl;
-        OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL = _implementations.optimismSuperchainERC20FactoryImpl;
-        OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL = _implementations.optimismSuperchainERC20BeaconImpl;
-        SUPERCHAIN_TOKEN_BRIDGE_IMPL = _implementations.superchainTokenBridgeImpl;
         NATIVE_ASSET_LIQUIDITY_IMPL = _implementations.nativeAssetLiquidityImpl;
         LIQUIDITY_CONTROLLER_IMPL = _implementations.liquidityControllerImpl;
         // TODO(#19600): Remove FEE_SPLITTER_IMPL as part of revenue sharing deprecation.
@@ -431,13 +422,6 @@ contract L2ContractsManager is ISemver {
             );
             L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL);
             L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL);
-            L2ContractsManagerUtils.upgradeTo(
-                Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL
-            );
-            L2ContractsManagerUtils.upgradeTo(
-                Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON, OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL
-            );
-            L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, SUPERCHAIN_TOKEN_BRIDGE_IMPL);
         }
         L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL);
@@ -485,9 +469,6 @@ contract L2ContractsManager is ISemver {
         implementations_.l2ToL2CrossDomainMessengerImpl = L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL;
         implementations_.superchainETHBridgeImpl = SUPERCHAIN_ETH_BRIDGE_IMPL;
         implementations_.ethLiquidityImpl = ETH_LIQUIDITY_IMPL;
-        implementations_.optimismSuperchainERC20FactoryImpl = OPTIMISM_SUPERCHAIN_ERC20_FACTORY_IMPL;
-        implementations_.optimismSuperchainERC20BeaconImpl = OPTIMISM_SUPERCHAIN_ERC20_BEACON_IMPL;
-        implementations_.superchainTokenBridgeImpl = SUPERCHAIN_TOKEN_BRIDGE_IMPL;
         implementations_.nativeAssetLiquidityImpl = NATIVE_ASSET_LIQUIDITY_IMPL;
         implementations_.liquidityControllerImpl = LIQUIDITY_CONTROLLER_IMPL;
         implementations_.feeSplitterImpl = FEE_SPLITTER_IMPL;

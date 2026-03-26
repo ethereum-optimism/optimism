@@ -41,7 +41,6 @@ import { OptimismMintableERC721Factory } from "src/L2/OptimismMintableERC721Fact
 import { L2ProxyAdmin } from "src/L2/L2ProxyAdmin.sol";
 import { SuperchainETHBridge } from "src/L2/SuperchainETHBridge.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
-import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
 import { NativeAssetLiquidity } from "src/L2/NativeAssetLiquidity.sol";
 import { LiquidityController } from "src/L2/LiquidityController.sol";
 
@@ -91,9 +90,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         address l2ToL2CrossDomainMessengerImpl;
         address superchainETHBridgeImpl;
         address ethLiquidityImpl;
-        address optimismSuperchainERC20FactoryImpl;
-        address optimismSuperchainERC20BeaconImpl;
-        address superchainTokenBridgeImpl;
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
         address feeSplitterImpl;
@@ -128,7 +124,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.proxyAdminImpl = address(new L2ProxyAdmin());
         implementations.superchainETHBridgeImpl = address(new SuperchainETHBridge());
         implementations.ethLiquidityImpl = address(new ETHLiquidity());
-        implementations.optimismSuperchainERC20BeaconImpl = address(new OptimismSuperchainERC20Beacon());
         implementations.nativeAssetLiquidityImpl = address(new NativeAssetLiquidity());
         implementations.liquidityControllerImpl = address(new LiquidityController());
 
@@ -144,9 +139,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.crossL2InboxImpl = deployCode("src/L2/CrossL2Inbox.sol:CrossL2Inbox");
         implementations.l2ToL2CrossDomainMessengerImpl =
             deployCode("src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger");
-        implementations.optimismSuperchainERC20FactoryImpl =
-            deployCode("src/L2/OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory");
-        implementations.superchainTokenBridgeImpl = deployCode("src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge");
         implementations.feeSplitterImpl = deployCode("src/L2/FeeSplitter.sol:FeeSplitter");
         implementations.conditionalDeployerImpl = deployCode("src/L2/ConditionalDeployer.sol:ConditionalDeployer");
         implementations.l2DevFeatureFlagsImpl = deployCode("src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags");
@@ -196,11 +188,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         state_.superchainETHBridgeImpl = EIP1967Helper.getImplementation(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         state_.ethLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.ETH_LIQUIDITY);
-        state_.optimismSuperchainERC20FactoryImpl =
-            EIP1967Helper.getImplementation(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
-        state_.optimismSuperchainERC20BeaconImpl =
-            EIP1967Helper.getImplementation(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
-        state_.superchainTokenBridgeImpl = EIP1967Helper.getImplementation(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
         state_.nativeAssetLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.NATIVE_ASSET_LIQUIDITY);
         state_.liquidityControllerImpl = EIP1967Helper.getImplementation(Predeploys.LIQUIDITY_CONTROLLER);
         state_.feeSplitterImpl = EIP1967Helper.getImplementation(Predeploys.FEE_SPLITTER);
@@ -252,19 +239,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         );
         assertEq(_state1.superchainETHBridgeImpl, _state2.superchainETHBridgeImpl, "SuperchainETHBridge impl mismatch");
         assertEq(_state1.ethLiquidityImpl, _state2.ethLiquidityImpl, "ETHLiquidity impl mismatch");
-        assertEq(
-            _state1.optimismSuperchainERC20FactoryImpl,
-            _state2.optimismSuperchainERC20FactoryImpl,
-            "OptimismSuperchainERC20Factory impl mismatch"
-        );
-        assertEq(
-            _state1.optimismSuperchainERC20BeaconImpl,
-            _state2.optimismSuperchainERC20BeaconImpl,
-            "OptimismSuperchainERC20Beacon impl mismatch"
-        );
-        assertEq(
-            _state1.superchainTokenBridgeImpl, _state2.superchainTokenBridgeImpl, "SuperchainTokenBridge impl mismatch"
-        );
         assertEq(
             _state1.nativeAssetLiquidityImpl, _state2.nativeAssetLiquidityImpl, "NativeAssetLiquidity impl mismatch"
         );
@@ -776,21 +750,6 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         );
         assertEq(result.ethLiquidityImpl, implementations.ethLiquidityImpl, "ethLiquidityImpl mismatch");
         assertEq(
-            result.optimismSuperchainERC20FactoryImpl,
-            implementations.optimismSuperchainERC20FactoryImpl,
-            "optimismSuperchainERC20FactoryImpl mismatch"
-        );
-        assertEq(
-            result.optimismSuperchainERC20BeaconImpl,
-            implementations.optimismSuperchainERC20BeaconImpl,
-            "optimismSuperchainERC20BeaconImpl mismatch"
-        );
-        assertEq(
-            result.superchainTokenBridgeImpl,
-            implementations.superchainTokenBridgeImpl,
-            "superchainTokenBridgeImpl mismatch"
-        );
-        assertEq(
             result.nativeAssetLiquidityImpl,
             implementations.nativeAssetLiquidityImpl,
             "nativeAssetLiquidityImpl mismatch"
@@ -832,11 +791,6 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertTrue(result.l2ToL2CrossDomainMessengerImpl != address(0), "l2ToL2CrossDomainMessengerImpl is zero");
         assertTrue(result.superchainETHBridgeImpl != address(0), "superchainETHBridgeImpl is zero");
         assertTrue(result.ethLiquidityImpl != address(0), "ethLiquidityImpl is zero");
-        assertTrue(
-            result.optimismSuperchainERC20FactoryImpl != address(0), "optimismSuperchainERC20FactoryImpl is zero"
-        );
-        assertTrue(result.optimismSuperchainERC20BeaconImpl != address(0), "optimismSuperchainERC20BeaconImpl is zero");
-        assertTrue(result.superchainTokenBridgeImpl != address(0), "superchainTokenBridgeImpl is zero");
         assertTrue(result.nativeAssetLiquidityImpl != address(0), "nativeAssetLiquidityImpl is zero");
         assertTrue(result.liquidityControllerImpl != address(0), "liquidityControllerImpl is zero");
         assertTrue(result.feeSplitterImpl != address(0), "feeSplitterImpl is zero");
@@ -858,12 +812,9 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
         interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         interopPredeploys.push(Predeploys.ETH_LIQUIDITY);
-        interopPredeploys.push(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
-        interopPredeploys.push(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
-        interopPredeploys.push(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     }
 
-    /// @notice Tests that all 7 interop predeploys are upgraded when OPTIMISM_PORTAL_INTEROP flag is enabled.
+    /// @notice Tests that all 4 interop predeploys are upgraded when OPTIMISM_PORTAL_INTEROP flag is enabled.
     function test_upgradeUpgradesInteropPredeploys_whenInteropFlagEnabled_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
@@ -896,24 +847,9 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
             implementations.ethLiquidityImpl,
             "ETHLiquidity should be upgraded"
         );
-        assertEq(
-            EIP1967Helper.getImplementation(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY),
-            implementations.optimismSuperchainERC20FactoryImpl,
-            "OptimismSuperchainERC20Factory should be upgraded"
-        );
-        assertEq(
-            EIP1967Helper.getImplementation(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON),
-            implementations.optimismSuperchainERC20BeaconImpl,
-            "OptimismSuperchainERC20Beacon should be upgraded"
-        );
-        assertEq(
-            EIP1967Helper.getImplementation(Predeploys.SUPERCHAIN_TOKEN_BRIDGE),
-            implementations.superchainTokenBridgeImpl,
-            "SuperchainTokenBridge should be upgraded"
-        );
     }
 
-    /// @notice Tests that all 7 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
+    /// @notice Tests that all 4 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
     /// is disabled.
     function test_upgradeSkipsInteropPredeploys_whenInteropFlagDisabled_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
@@ -944,9 +880,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
     /// @notice Checks if a predeploy is an interop predeploy gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
     function _isInteropPredeploy(address _predeploy) internal pure returns (bool) {
         return _predeploy == Predeploys.CROSS_L2_INBOX || _predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-            || _predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE || _predeploy == Predeploys.ETH_LIQUIDITY
-            || _predeploy == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY
-            || _predeploy == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON || _predeploy == Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
+            || _predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE || _predeploy == Predeploys.ETH_LIQUIDITY;
     }
 
     /// @notice Returns CGT-only predeploys that require initialization.
