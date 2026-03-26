@@ -255,7 +255,7 @@ jobs:
       fail-fast: false
       matrix:
         image_name: ${{ fromJson(needs.detect-changes.outputs.images_json) }}
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@fe0972b97492cd3feee1e6d733636d69b1041a47
     with:
       mode: bake
       image_name: ${{ matrix.image_name }}
@@ -263,6 +263,7 @@ jobs:
       target: ${{ matrix.image_name }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
+      sbom: true
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
       set: |
@@ -282,7 +283,7 @@ jobs:
       fail-fast: false
       matrix:
         image_name: ${{ fromJson(needs.detect-changes.outputs.images_json) }}
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@f8f3cb4800e538003134fb5f50cc734c2c98d762
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@fe0972b97492cd3feee1e6d733636d69b1041a47
     with:
       mode: bake
       image_name: ${{ matrix.image_name }}
@@ -290,6 +291,7 @@ jobs:
       target: ${{ matrix.image_name }}
       tag: 24h
       registry: ttl.sh/${{ github.sha }}
+      sbom: true
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
       set: |
