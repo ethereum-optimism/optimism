@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -72,6 +73,13 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return fmt.Errorf("%w: %w", ErrRewindFCUSyntheticFailed, err)
 	}
 	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", parentHash, "finalized", parentHash)
+
+	// Step 3.5: Sleep for some time so the execution layer has time to flush caches after
+	// updating the canonical head.
+	// This works around a reth race condition/edge case triggered exactly by this pattern of
+	// two FCUs back to back for sibling blocks (reth#23205).
+	// TODO(#19772): track whether this workaround is going to be permanent or temporary.
+	time.Sleep(50 * time.Millisecond)
 
 	// Step 4: FCU to the actual target block
 	// [n-1,parent] <-- [n,target, unsafe]
