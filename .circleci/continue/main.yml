@@ -2778,10 +2778,9 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # IN-MEMORY (base gate) - op-node/op-reth
+      # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
-          gate: "base"
           l2_el_kind: op-reth
           no_output_timeout: 120m
           context:
@@ -2793,10 +2792,9 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # IN-MEMORY (base gate) - kona/op-reth
+      # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
           name: memory-all-kona-op-reth
-          gate: "base"
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
           no_output_timeout: 120m
