@@ -402,7 +402,6 @@ func (c *LogsDBChainIngester) runIngestion() {
 
 	// Track progress for logging
 	lastLogTime := clock.SystemClock.Now()
-	blocksProcessedSinceLastLog := uint64(0)
 
 	// Use ticker for polling interval
 	ticker := time.NewTicker(c.pollInterval)
@@ -456,37 +455,22 @@ func (c *LogsDBChainIngester) runIngestion() {
 				break // Exit inner loop on error, wait for next tick to retry
 			}
 			nextBlock++
-			blocksProcessedSinceLastLog++
 
 			// Progress logging
-			elapsed := clock.SystemClock.Since(lastLogTime)
-			if elapsed > progressLogInterval {
-				headBlock := head.NumberU64()
-				currentBlock := nextBlock - 1
-				rate := float64(blocksProcessedSinceLastLog) / elapsed.Seconds()
-
+			if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
 				startingBlock := c.calculateStartingBlock()
-				if currentBlock <= startingBlock {
-					earliest := c.earliestIngestedBlock.Load()
-					totalRange := float64(startingBlock - earliest + 1)
-					pct := float64(currentBlock-earliest) / totalRange * 100
-					c.log.Info("Sync progress",
-						"block", currentBlock,
-						"head", headBlock,
-						"progress", fmt.Sprintf("%.1f%%", pct),
-						"blocks_per_sec", fmt.Sprintf("%.1f", rate))
+				if nextBlock <= startingBlock {
+					progress := float64(nextBlock-c.earliestIngestedBlock.Load()) / float64(startingBlock-c.earliestIngestedBlock.Load()+1)
+					c.log.Info("Ingestion progress",
+						"block", nextBlock-1,
+						"target", startingBlock,
+						"progress", fmt.Sprintf("%.0f%%", progress*100))
 					chainIDUint64, _ := c.chainID.Uint64()
-					c.metrics.RecordBackfillProgress(chainIDUint64, pct/100)
+					c.metrics.RecordBackfillProgress(chainIDUint64, progress)
 				} else {
-					pct := float64(currentBlock) / float64(headBlock) * 100
-					c.log.Info("Sync progress",
-						"block", currentBlock,
-						"head", headBlock,
-						"progress", fmt.Sprintf("%.1f%%", pct),
-						"blocks_per_sec", fmt.Sprintf("%.1f", rate))
+					c.log.Info("Ingestion progress", "block", nextBlock-1, "head", head.NumberU64())
 				}
 				lastLogTime = clock.SystemClock.Now()
-				blocksProcessedSinceLastLog = 0
 			}
 		}
 		// Caught up to head, will wait for next ticker tick
