@@ -200,8 +200,7 @@ where
 
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.batch = None;
-        self.prev.flush_channel().await?;
-        Ok(())
+        self.prev.flush_channel().await
     }
 
     async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {

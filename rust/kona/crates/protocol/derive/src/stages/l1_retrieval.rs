@@ -128,9 +128,7 @@ where
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
         self.prev.reset(l1_origin, system_config).await?;
-        self.provider.clear();
-        let block_info = self.prev.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-        self.next = Some(block_info);
+        self.next = self.prev.origin();
         Ok(())
     }
 

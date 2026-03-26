@@ -162,7 +162,7 @@ impl<F: ChainProvider + Send> StageReset for PollingTraversal<F> {
     }
 
     async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
-        warn!(target: "traversal", "ProvideBlock signal not supported in PollingTraversal stage.");
+        warn!(target: "traversal", "provide_block not supported in PollingTraversal stage.");
         Err(PipelineError::UnsupportedSignal.temp())
     }
 }

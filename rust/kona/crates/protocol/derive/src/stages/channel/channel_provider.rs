@@ -119,6 +119,20 @@ where
     }
 }
 
+/// Dispatches a method call to the active inner channel stage.
+macro_rules! dispatch_inner {
+    ($self:ident, $method:ident $(, $arg:expr)*) => {{
+        $self.attempt_update()?;
+        if let Some(inner) = $self.channel_assembler.as_mut() {
+            inner.$method($($arg),*).await
+        } else if let Some(inner) = $self.channel_bank.as_mut() {
+            inner.$method($($arg),*).await
+        } else {
+            Err(PipelineError::NotEnoughData.temp())
+        }
+    }};
+}
+
 #[async_trait]
 impl<P> StageReset for ChannelProvider<P>
 where
@@ -129,39 +143,15 @@ where
         l1_origin: BlockNumHash,
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
-        self.attempt_update()?;
-
-        if let Some(channel_assembler) = self.channel_assembler.as_mut() {
-            channel_assembler.reset(l1_origin, system_config).await
-        } else if let Some(channel_bank) = self.channel_bank.as_mut() {
-            channel_bank.reset(l1_origin, system_config).await
-        } else {
-            Err(PipelineError::NotEnoughData.temp())
-        }
+        dispatch_inner!(self, reset, l1_origin, system_config)
     }
 
     async fn flush_channel(&mut self) -> PipelineResult<()> {
-        self.attempt_update()?;
-
-        if let Some(channel_assembler) = self.channel_assembler.as_mut() {
-            channel_assembler.flush_channel().await
-        } else if let Some(channel_bank) = self.channel_bank.as_mut() {
-            channel_bank.flush_channel().await
-        } else {
-            Err(PipelineError::NotEnoughData.temp())
-        }
+        dispatch_inner!(self, flush_channel)
     }
 
     async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
-        self.attempt_update()?;
-
-        if let Some(channel_assembler) = self.channel_assembler.as_mut() {
-            channel_assembler.provide_block(block).await
-        } else if let Some(channel_bank) = self.channel_bank.as_mut() {
-            channel_bank.provide_block(block).await
-        } else {
-            Err(PipelineError::NotEnoughData.temp())
-        }
+        dispatch_inner!(self, provide_block, block)
     }
 }
 

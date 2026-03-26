@@ -59,12 +59,10 @@ impl StageReset for TestChannelReaderProvider {
     }
 
     async fn flush_channel(&mut self) -> PipelineResult<()> {
-        self.reset = true;
-        Ok(())
+        self.reset(BlockNumHash::default(), SystemConfig::default()).await
     }
 
     async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
-        self.reset = true;
-        Ok(())
+        self.reset(BlockNumHash::default(), SystemConfig::default()).await
     }
 }

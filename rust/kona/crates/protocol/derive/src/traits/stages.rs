@@ -15,15 +15,11 @@ pub trait SignalReceiver {
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()>;
 }
 
-/// Trait for resetting and signaling pipeline stages.
+/// Trait for resetting pipeline stages.
 ///
-/// Replaces the internal use of [`SignalReceiver`] for stage-to-stage
-/// communication. The [`DerivationPipeline`] receives external [`Signal`]s,
-/// performs the L2 walkback to compute the correct L1 origin and system config,
-/// then dispatches to stages via these methods.
-///
-/// Matches op-node's `ResettableStage` pattern where stages receive reset
-/// parameters as direct method arguments.
+/// The [`DerivationPipeline`] receives external [`Signal`]s, computes
+/// the correct L1 origin and system config, then dispatches to stages
+/// via these methods.
 ///
 /// [`DerivationPipeline`]: crate::DerivationPipeline
 #[async_trait]
