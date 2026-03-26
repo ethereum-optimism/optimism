@@ -3,11 +3,13 @@
 use crate::{
     errors::PipelineError,
     stages::NextFrameProvider,
-    traits::{OriginAdvancer, OriginProvider, SignalReceiver},
-    types::{PipelineResult, Signal},
+    traits::{OriginAdvancer, OriginProvider, StageReset},
+    types::PipelineResult,
 };
 use alloc::{boxed::Box, vec::Vec};
 use async_trait::async_trait;
+use kona_genesis::SystemConfig;
+use alloy_eips::BlockNumHash;
 use kona_protocol::{BlockInfo, Frame};
 
 /// A mock [`NextFrameProvider`] for testing the [`ChannelBank`] stage.
@@ -55,8 +57,18 @@ impl NextFrameProvider for TestNextFrameProvider {
 }
 
 #[async_trait]
-impl SignalReceiver for TestNextFrameProvider {
-    async fn signal(&mut self, _: Signal) -> PipelineResult<()> {
+impl StageReset for TestNextFrameProvider {
+    async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
+        self.reset = true;
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.reset = true;
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
         self.reset = true;
         Ok(())
     }

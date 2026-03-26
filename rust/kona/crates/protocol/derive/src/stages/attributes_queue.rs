@@ -4,10 +4,12 @@ use crate::{
     errors::{PipelineError, ResetError},
     traits::{
         AttributesBuilder, AttributesProvider, NextAttributes, OriginAdvancer, OriginProvider,
-        SignalReceiver,
+        StageReset,
     },
-    types::{PipelineResult, Signal},
+    types::PipelineResult,
 };
+use kona_genesis::SystemConfig;
+use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, sync::Arc};
 use async_trait::async_trait;
 use core::fmt::Debug;
@@ -31,7 +33,7 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 #[derive(Debug)]
 pub struct AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     AB: AttributesBuilder + Debug,
 {
     /// The rollup config.
@@ -48,7 +50,7 @@ where
 
 impl<P, AB> AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     AB: AttributesBuilder + Debug,
 {
     /// Create a new [`AttributesQueue`] stage.
@@ -147,7 +149,7 @@ where
 #[async_trait]
 impl<P, AB> OriginAdvancer for AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug + Send,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug + Send,
     AB: AttributesBuilder + Debug + Send,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
@@ -158,7 +160,7 @@ where
 #[async_trait]
 impl<P, AB> NextAttributes for AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug + Send,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug + Send,
     AB: AttributesBuilder + Debug + Send,
 {
     async fn next_attributes(
@@ -171,7 +173,7 @@ where
 
 impl<P, AB> OriginProvider for AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     AB: AttributesBuilder + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -180,27 +182,30 @@ where
 }
 
 #[async_trait]
-impl<P, AB> SignalReceiver for AttributesQueue<P, AB>
+impl<P, AB> StageReset for AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
     AB: AttributesBuilder + Send + Debug,
 {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        match signal {
-            s @ (Signal::Reset(_) | Signal::Activation(_)) => {
-                self.prev.signal(s).await?;
-                self.batch = None;
-                self.is_last_in_span = false;
-            }
-            s @ Signal::FlushChannel => {
-                self.batch = None;
-                self.prev.signal(s).await?;
-            }
-            s @ Signal::ProvideBlock(_) => {
-                self.prev.signal(s).await?;
-            }
-        }
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        self.prev.reset(l1_origin, system_config).await?;
+        self.batch = None;
+        self.is_last_in_span = false;
         Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.batch = None;
+        self.prev.flush_channel().await?;
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.prev.provide_block(block).await
     }
 }
 
@@ -210,7 +215,6 @@ mod tests {
     use crate::{
         errors::{BuilderError, PipelineErrorKind},
         test_utils::{TestAttributesBuilder, TestAttributesProvider, new_test_attributes_provider},
-        types::ResetSignal,
     };
     use alloc::{sync::Arc, vec, vec::Vec};
     use alloy_primitives::{Address, B256, Bytes, b256};
@@ -250,7 +254,7 @@ mod tests {
         let mut attributes_queue = new_attributes_queue(None, None, vec![], vec![]);
         attributes_queue.batch = Some(SingleBatch::default());
         assert!(!attributes_queue.prev.flushed);
-        attributes_queue.signal(Signal::FlushChannel).await.unwrap();
+        attributes_queue.flush_channel().await.unwrap();
         assert!(attributes_queue.prev.flushed);
         assert!(attributes_queue.batch.is_none());
     }
@@ -263,7 +267,7 @@ mod tests {
         let mut aq = AttributesQueue::new(Arc::new(cfg), mock, mock_builder);
         aq.batch = Some(SingleBatch::default());
         assert!(!aq.prev.reset);
-        aq.signal(ResetSignal::default().signal()).await.unwrap();
+        aq.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(aq.batch.is_none());
         assert!(aq.prev.reset);
     }

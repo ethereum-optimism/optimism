@@ -1,13 +1,14 @@
 //! Contains the [`IndexedTraversal`] stage of the derivation pipeline.
 
 use crate::{
-    ActivationSignal, ChainProvider, L1RetrievalProvider, OriginAdvancer, OriginProvider,
-    PipelineError, PipelineResult, ResetError, ResetSignal, Signal, SignalReceiver,
+    ChainProvider, L1RetrievalProvider, OriginAdvancer, OriginProvider, PipelineError,
+    PipelineResult, ResetError, StageReset,
 };
 use alloc::{boxed::Box, sync::Arc};
 use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_genesis::{RollupConfig, SystemConfig};
+use alloy_eips::BlockNumHash;
 use kona_protocol::BlockInfo;
 
 /// The [`IndexedTraversal`] stage of the derivation pipeline.
@@ -60,7 +61,7 @@ impl<F: ChainProvider> IndexedTraversal<F> {
     }
 
     /// Update the origin block in the traversal stage.
-    fn update_origin(&mut self, block: BlockInfo) {
+    const fn update_origin(&mut self, block: BlockInfo) {
         self.done = false;
         self.block = Some(block);
         kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_ORIGIN, block.number as f64);
@@ -123,19 +124,28 @@ impl<F: ChainProvider> OriginProvider for IndexedTraversal<F> {
 }
 
 #[async_trait]
-impl<F: ChainProvider + Send> SignalReceiver for IndexedTraversal<F> {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        match signal {
-            Signal::Reset(ResetSignal { l1_origin, system_config, .. }) |
-            Signal::Activation(ActivationSignal { l1_origin, system_config, .. }) => {
-                self.update_origin(l1_origin);
-                self.system_config = system_config.expect("System config must be provided.");
-            }
-            Signal::ProvideBlock(block_info) => self.provide_next_block(block_info).await?,
-            _ => {}
-        }
-
+impl<F: ChainProvider + Send> StageReset for IndexedTraversal<F> {
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        let block_info = self
+            .data_source
+            .block_info_by_number(l1_origin.number)
+            .await
+            .map_err(Into::into)?;
+        self.update_origin(block_info);
+        self.system_config = system_config;
         Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.provide_next_block(block).await
     }
 }
 
@@ -218,10 +228,7 @@ mod tests {
         traversal.done = true;
         assert!(
             traversal
-                .signal(Signal::Activation(ActivationSignal {
-                    system_config: Some(cfg),
-                    ..Default::default()
-                }))
+                .activate(BlockNumHash::default(), cfg)
                 .await
                 .is_ok()
         );
@@ -239,10 +246,7 @@ mod tests {
         traversal.done = true;
         assert!(
             traversal
-                .signal(Signal::Reset(ResetSignal {
-                    system_config: Some(cfg),
-                    ..Default::default()
-                }))
+                .reset(BlockNumHash::default(), cfg)
                 .await
                 .is_ok()
         );

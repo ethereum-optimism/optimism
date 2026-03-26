@@ -1,9 +1,10 @@
 //! This module contains the [`FrameQueue`] stage of the derivation pipeline.
 
 use crate::{
-    NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Signal,
-    SignalReceiver,
+    NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
 };
+use kona_genesis::SystemConfig;
+use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
@@ -30,7 +31,7 @@ pub trait FrameQueueProvider {
 #[derive(Debug)]
 pub struct FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
 {
     /// The previous stage in the pipeline.
     pub prev: P,
@@ -42,7 +43,7 @@ where
 
 impl<P> FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
 {
     /// Create a new [`FrameQueue`] stage with the given previous [`L1Retrieval`] stage.
     ///
@@ -137,8 +138,8 @@ where
             crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_BUFFER,
             self.queue.len() as f64
         );
-        let queue_size = self.queue.iter().map(|f| f.size()).sum::<usize>() as f64;
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_MEM, queue_size);
+        let _queue_size = self.queue.iter().map(|f| f.size()).sum::<usize>() as f64;
+        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_MEM, _queue_size);
 
         // Prune frames if Holocene is active.
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
@@ -151,7 +152,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -161,7 +162,7 @@ where
 #[async_trait]
 impl<P> NextFrameProvider for FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
 {
     async fn next_frame(&mut self) -> PipelineResult<Frame> {
         self.load_frames().await?;
@@ -178,7 +179,7 @@ where
 
 impl<P> OriginProvider for FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -186,21 +187,35 @@ where
 }
 
 #[async_trait]
-impl<P> SignalReceiver for FrameQueue<P>
+impl<P> StageReset for FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
 {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        self.prev.signal(signal).await?;
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        self.prev.reset(l1_origin, system_config).await?;
         self.queue = VecDeque::default();
         Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.prev.flush_channel().await?;
+        self.queue = VecDeque::default();
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.prev.provide_block(block).await
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::{test_utils::TestFrameQueueProvider, types::ResetSignal};
+    use crate::test_utils::TestFrameQueueProvider;
     use alloc::vec;
     use kona_genesis::HardForkConfig;
 
@@ -209,7 +224,7 @@ pub(crate) mod tests {
         let mock = TestFrameQueueProvider::new(vec![]);
         let mut frame_queue = FrameQueue::new(mock, Default::default());
         assert!(!frame_queue.prev.reset);
-        frame_queue.signal(ResetSignal::default().signal()).await.unwrap();
+        frame_queue.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert_eq!(frame_queue.queue.len(), 0);
         assert!(frame_queue.prev.reset);
     }

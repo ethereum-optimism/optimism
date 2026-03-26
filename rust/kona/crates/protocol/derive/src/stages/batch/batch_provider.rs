@@ -3,8 +3,10 @@
 use super::NextBatchProvider;
 use crate::{
     AttributesProvider, BatchQueue, BatchValidator, L2ChainProvider, OriginAdvancer,
-    OriginProvider, PipelineError, PipelineResult, Signal, SignalReceiver,
+    OriginProvider, PipelineError, PipelineResult, StageReset,
 };
+use kona_genesis::SystemConfig;
+use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, sync::Arc};
 use async_trait::async_trait;
 use core::fmt::Debug;
@@ -22,7 +24,7 @@ use kona_protocol::{BlockInfo, L2BlockInfo, SingleBatch};
 #[derive(Debug)]
 pub struct BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     /// The rollup configuration.
@@ -48,7 +50,7 @@ where
 
 impl<P, F> BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     /// Creates a new [`BatchProvider`] with the given configuration and previous stage.
@@ -93,7 +95,7 @@ where
 #[async_trait]
 impl<P, F> OriginAdvancer for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
     F: L2ChainProvider + Clone + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
@@ -111,7 +113,7 @@ where
 
 impl<P, F> OriginProvider for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -128,18 +130,46 @@ where
 }
 
 #[async_trait]
-impl<P, F> SignalReceiver for BatchProvider<P, F>
+impl<P, F> StageReset for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
     F: L2ChainProvider + Clone + Send + Debug,
 {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
         self.attempt_update()?;
 
         if let Some(batch_validator) = self.batch_validator.as_mut() {
-            batch_validator.signal(signal).await
+            batch_validator.reset(l1_origin, system_config).await
         } else if let Some(batch_queue) = self.batch_queue.as_mut() {
-            batch_queue.signal(signal).await
+            batch_queue.reset(l1_origin, system_config).await
+        } else {
+            Err(PipelineError::NotEnoughData.temp())
+        }
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.attempt_update()?;
+
+        if let Some(batch_validator) = self.batch_validator.as_mut() {
+            batch_validator.flush_channel().await
+        } else if let Some(batch_queue) = self.batch_queue.as_mut() {
+            batch_queue.flush_channel().await
+        } else {
+            Err(PipelineError::NotEnoughData.temp())
+        }
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.attempt_update()?;
+
+        if let Some(batch_validator) = self.batch_validator.as_mut() {
+            batch_validator.provide_block(block).await
+        } else if let Some(batch_queue) = self.batch_queue.as_mut() {
+            batch_queue.provide_block(block).await
         } else {
             Err(PipelineError::NotEnoughData.temp())
         }
@@ -149,7 +179,7 @@ where
 #[async_trait]
 impl<P, F> AttributesProvider for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug + Send,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug + Send,
     F: L2ChainProvider + Clone + Send + Debug,
 {
     fn is_last_in_span(&self) -> bool {
@@ -177,11 +207,11 @@ mod test {
     use super::BatchProvider;
     use crate::{
         test_utils::{TestL2ChainProvider, TestNextBatchProvider},
-        traits::{OriginProvider, SignalReceiver},
-        types::ResetSignal,
+        traits::{OriginProvider, StageReset},
     };
     use alloc::{sync::Arc, vec};
-    use kona_genesis::{HardForkConfig, RollupConfig};
+    use alloy_eips::BlockNumHash;
+    use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
     use kona_protocol::BlockInfo;
 
     #[test]
@@ -281,7 +311,7 @@ mod test {
         let mut batch_provider = BatchProvider::new(cfg, provider, l2_provider);
 
         // Reset the batch provider.
-        batch_provider.signal(ResetSignal::default().signal()).await.unwrap();
+        batch_provider.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
 
         let Some(bq) = batch_provider.batch_queue else {
             panic!("Expected BatchQueue");
@@ -300,7 +330,7 @@ mod test {
         let mut batch_provider = BatchProvider::new(cfg, provider, l2_provider);
 
         // Reset the batch provider.
-        batch_provider.signal(ResetSignal::default().signal()).await.unwrap();
+        batch_provider.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
 
         let Some(bv) = batch_provider.batch_validator else {
             panic!("Expected BatchValidator");

@@ -3,9 +3,11 @@
 use super::NextBatchProvider;
 use crate::{
     errors::{PipelineEncodingError, PipelineError, PipelineErrorKind, ResetError},
-    traits::{AttributesProvider, L2ChainProvider, OriginAdvancer, OriginProvider, SignalReceiver},
-    types::{PipelineResult, ResetSignal, Signal},
+    traits::{AttributesProvider, L2ChainProvider, OriginAdvancer, OriginProvider, StageReset},
+    types::PipelineResult,
 };
+use kona_genesis::SystemConfig;
+use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use async_trait::async_trait;
 use core::fmt::Debug;
@@ -31,7 +33,7 @@ use kona_protocol::{
 #[derive(Debug)]
 pub struct BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     BF: L2ChainProvider + Debug,
 {
     /// The rollup config.
@@ -59,7 +61,7 @@ where
 
 impl<P, BF> BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     BF: L2ChainProvider + Debug,
 {
     /// Creates a new [`BatchQueue`] stage.
@@ -258,7 +260,7 @@ where
 #[async_trait]
 impl<P, BF> OriginAdvancer for BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
     BF: L2ChainProvider + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
@@ -269,7 +271,7 @@ where
 #[async_trait]
 impl<P, BF> AttributesProvider for BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
     BF: L2ChainProvider + Send + Debug,
 {
     /// Returns the next valid batch upon the given safe head.
@@ -416,7 +418,7 @@ where
 
 impl<P, BF> OriginProvider for BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
     BF: L2ChainProvider + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -425,34 +427,46 @@ where
 }
 
 #[async_trait]
-impl<P, BF> SignalReceiver for BatchQueue<P, BF>
+impl<P, BF> StageReset for BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
     BF: L2ChainProvider + Send + Debug,
 {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        match signal {
-            s @ Signal::Reset(ResetSignal { l1_origin, .. }) => {
-                self.prev.signal(s).await?;
-                self.origin = Some(l1_origin);
-                self.batches.clear();
-                // Include the new origin as an origin to build on.
-                // This is only for the initialization case.
-                // During normal resets we will later throw out this block.
-                self.l1_blocks.clear();
-                self.l1_blocks.push(l1_origin);
-                self.next_spans.clear();
-            }
-            s @ (Signal::Activation(_) | Signal::FlushChannel) => {
-                self.prev.signal(s).await?;
-                self.batches.clear();
-                self.next_spans.clear();
-            }
-            s @ Signal::ProvideBlock(_) => {
-                self.prev.signal(s).await?;
-            }
-        }
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        self.prev.reset(l1_origin, system_config).await?;
+        let origin = self.prev.origin().ok_or(PipelineError::MissingOrigin.crit())?;
+        self.origin = Some(origin);
+        self.batches.clear();
+        self.l1_blocks.clear();
+        self.l1_blocks.push(origin);
+        self.next_spans.clear();
         Ok(())
+    }
+
+    async fn activate(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        self.prev.activate(l1_origin, system_config).await?;
+        self.batches.clear();
+        self.next_spans.clear();
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.prev.flush_channel().await?;
+        self.batches.clear();
+        self.next_spans.clear();
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.prev.provide_block(block).await
     }
 }
 
@@ -509,7 +523,7 @@ mod tests {
             batch: Batch::Single(SingleBatch::default()),
         });
         assert!(!bq.prev.reset);
-        bq.signal(ResetSignal::default().signal()).await.unwrap();
+        bq.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(bq.prev.reset);
         assert_eq!(bq.origin, Some(BlockInfo::default()));
         assert!(bq.batches.is_empty());
@@ -529,7 +543,7 @@ mod tests {
             inclusion_block: BlockInfo::default(),
             batch: Batch::Single(SingleBatch::default()),
         });
-        bq.signal(Signal::FlushChannel).await.unwrap();
+        bq.flush_channel().await.unwrap();
         assert!(bq.prev.flushed);
         assert!(bq.batches.is_empty());
         assert!(!bq.l1_blocks.is_empty());
