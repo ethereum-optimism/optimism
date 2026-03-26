@@ -108,21 +108,15 @@ func TestFlashblocksStream(gt *testing.T) {
 		logger.Info("Sample builder message", "payload", builderMessages[0])
 	}
 
-	// Verify that the builder (op-rbuilder) emits access_lists in flashblock metadata.
+	// Verify that the builder (op-rbuilder) emits access_lists in flashblock metadata for each flashblock.
 	// This checks the builder directly, independent of whether rollup-boost preserves the field.
 	require.Greater(t, len(builderMessages), 0, "expected to receive at least one message from builder stream")
-	foundAccessList := false
 	for _, msg := range builderMessages {
 		var fb Flashblock
 		t.Require().NoError(json.Unmarshal([]byte(msg), &fb))
-		if len(fb.Metadata.AccessLists) > 0 {
-			foundAccessList = true
-			logger.Info("Builder flashblock contains access_lists", "block_number", fb.Metadata.BlockNumber, "access_lists_count", len(fb.Metadata.AccessLists))
-			break
-		}
+		t.Require().True(len(fb.Metadata.AccessLists) > 0, "expected every flashblock to contain a access_lists field")
+		logger.Info("Builder flashblock contains access_lists", "block_number", fb.Metadata.BlockNumber, "access_lists_count", len(fb.Metadata.AccessLists))
 	}
-	require.True(t, foundAccessList, "expected at least one builder flashblock to contain a non-empty access_lists field")
-
 	totalFlashblocksProduced := evaluateFlashblocksStream(t, logger, streamedMessages, failureTolerance)
 	require.Greater(t, totalFlashblocksProduced, 0, "expected to receive flashblocks from rollup-boost stream")
 	logger.Info("Flashblocks stream validation completed", "total_flashblocks_produced", totalFlashblocksProduced)

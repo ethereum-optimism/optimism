@@ -54,8 +54,6 @@ pub struct FlashBlockPendingSequence {
     /// when fb received on top of the same block. Avoid redundant I/O across multiple
     /// executions within the same block.
     cached_reads: Option<CachedReads>,
-    // /// dfda
-    // access_list_builder: FlashblockAccessList,
 }
 
 impl FlashBlockPendingSequence {
