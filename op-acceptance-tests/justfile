@@ -36,16 +36,11 @@ build-deps:
 test *args: build-deps
     cd {{REPO_ROOT}} && go test -count=1 -timeout 30m {{args}}
 
-# Run acceptance tests, optionally filtered by a gate (reads packages from gates/<gate>.txt)
-acceptance-test gate="": build-deps
+# Run acceptance tests
+acceptance-test:
     #!/usr/bin/env bash
     set -euo pipefail
-    GATE="{{gate}}"
-    if [[ -n "$GATE" ]]; then
-        echo -e "DEVNET: in-memory, GATE: $GATE\n"
-    else
-        echo -e "DEVNET: in-memory, MODE: all tests\n"
-    fi
+    echo -e "DEVNET: in-memory\n"
 
     LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
     echo "LOG_LEVEL: $LOG_LEVEL"
@@ -96,25 +91,7 @@ acceptance-test gate="": build-deps
         grep -RIn "MarkFlaky(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
     fi
 
-    # Determine which packages to test
-    if [[ -n "$GATE" ]]; then
-        GATE_FILE="{{REPO_ROOT}}/op-acceptance-tests/gates/${GATE}.txt"
-        if [[ ! -f "$GATE_FILE" ]]; then
-            echo "error: gate file not found: $GATE_FILE" >&2
-            exit 1
-        fi
-        # Read non-empty, non-comment lines from the gate file
-        TEST_PACKAGES=()
-        while IFS= read -r line; do
-            line="${line%%#*}"   # strip comments
-            line="${line// /}"   # strip whitespace
-            [[ -z "$line" ]] && continue
-            TEST_PACKAGES+=("$line")
-        done < "$GATE_FILE"
-        echo "Gate '$GATE': ${#TEST_PACKAGES[@]} packages"
-    else
-        TEST_PACKAGES=("./op-acceptance-tests/tests/...")
-    fi
+    TEST_PACKAGES=("./op-acceptance-tests/tests/...")
 
     set +e
     LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
