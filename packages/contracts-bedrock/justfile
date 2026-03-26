@@ -236,7 +236,7 @@ genesis:
   forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
 
 # Generates the Network Upgrade Transaction (NUT) bundle.
-generate-nut-bundle:
+generate-nut-bundle: build-no-tests
   @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
 
 # Deploys the contracts.
