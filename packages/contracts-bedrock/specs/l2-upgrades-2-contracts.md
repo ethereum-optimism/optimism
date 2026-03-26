@@ -462,8 +462,9 @@ For each predeploy being upgraded, the L2ContractsManager MUST:
 
 This ensures storage is properly cleared and reconstructed, avoiding storage layout conflicts.
 
-If the OZ v5 `_initializing` flag is set during the upgrade, the operation MUST revert. A contract should never be
-mid-initialization when an upgrade is applied.
+If the `_initializing` flag is set during the upgrade—whether in the OZ v4 storage slot or the OZ v5 ERC-7201
+namespaced storage slot—the operation MUST revert. A contract should never be mid-initialization when an upgrade is
+applied.
 
 ##### Impact
 
