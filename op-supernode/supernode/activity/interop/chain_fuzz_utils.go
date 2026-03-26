@@ -321,13 +321,13 @@ func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
 	// Create random dependencies between all blocks
 	//
 	for initIndex, initcb := range res.allBlocks {
-		// Add an unimportant message at index 0 that can be modified later by the InsertCycle function
-		addRandomInitiatingMessage(r, &res, initcb)
-
 		block := initcb.block
 		if block.Number == 0 {
 			continue
 		}
+
+		// Add an unimportant message at index 0 that can be modified later by the InsertCycle function
+		addRandomInitiatingMessage(r, &res, initcb)
 
 		for r.Intn(100) < p.dependencyChance {
 			execIndex := randomInRange(r, initIndex, totalLength)
@@ -373,7 +373,13 @@ func (p *RandomChainParams) MakeRandomChain(seed int64) (res RandomChain) {
 
 	// Construct the dependencies by creating initiating/executing message pairs
 	for _, execcb := range res.allBlocks {
+		if execcb.block.Number == 0 {
+			continue
+		}
 		for _, initcb := range res.dependencies[*execcb] {
+			if initcb.block.Number == 0 {
+				continue
+			}
 			initiatingLog := addRandomInitiatingMessage(r, &res, initcb)
 			addExecutingMessage(&res, execcb, initcb, initiatingLog)
 		}

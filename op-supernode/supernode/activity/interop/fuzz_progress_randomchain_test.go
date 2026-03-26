@@ -22,12 +22,13 @@ import (
 // and the full log loading + verification pipeline.
 //
 // Document coverage:
-//   INV-1: Logs match blocks (real receipt fetching from RandomChainContainer)
-//   INV-2: Chain continuity (real parent hash tracking through loadLogs)
-//   INV-3: Cross-validation with real messages (verifyInteropMessages)
-//   INV-7: Highest block at timestamp (RandomChainContainer.LocalSafeBlockAtTimestamp)
-//   INV-9: L1 tracking via collectCurrentL1 → SyncStatus
-//   Step 1-5: Full progressAndRecord orchestration
+//
+//	INV-1: Logs match blocks (real receipt fetching from RandomChainContainer)
+//	INV-2: Chain continuity (real parent hash tracking through loadLogs)
+//	INV-3: Cross-validation with real messages (verifyInteropMessages)
+//	INV-7: Highest block at timestamp (RandomChainContainer.LocalSafeBlockAtTimestamp)
+//	INV-9: L1 tracking via collectCurrentL1 → SyncStatus
+//	Step 1-5: Full progressAndRecord orchestration
 //
 // Properties:
 // P40: progressAndRecord with valid random chains advances monotonically
@@ -42,20 +43,34 @@ func FuzzProgressAndRecordWithRandomChain(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, seed int64, numChainsRaw uint8) {
 		params := RandomChainParams{
-			chainCount:            max(2, int(numChainsRaw>>6)),
-			minLength:             30,
-			maxLength:             60,
+			chainCount:             max(2, int(numChainsRaw>>6)),
+			minLength:              30,
+			maxLength:              60,
 			sameTimestampFrequency: 5,
-			dependencyChance:      8,
-			maxBlockTimeExclusive: 15,
+			dependencyChance:       8,
+			maxBlockTimeExclusive:  15,
 		}
 
-		harness := newInteropFuzzHarness(t).WithParams(params).WithSeed(seed)
-		harness.Build()
+		rc := params.MakeRandomChain(seed)
 
-		require.NotNil(t, harness.interop, "interop should be created successfully")
+		// Generate receipts from logs
+		for _, chain := range rc.chainIDs {
+			rc.receipts[chain] = make(map[eth.BlockID]gethTypes.Receipts)
+		}
+		GenerateReceiptsFromLogs(&rc)
 
-		interop := harness.interop
+		// Find activation time
+		var activationTime uint64
+		for _, blocks := range rc.chainBlocks {
+			activationTime = max(activationTime, blocks[0].Time)
+		}
+
+		// Build interop
+		mocks := rc.GetContainers()
+		interop := New(testLogger(), activationTime, mocks, t.TempDir())
+		require.NotNil(t, interop, "interop should be created successfully")
+		interop.ctx = context.Background()
+		t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
 		// Run progressAndRecord in a loop until no more progress
 		var advancedCount int
@@ -108,8 +123,9 @@ func FuzzProgressAndRecordWithRandomChain(f *testing.F) {
 // (cycles, future deps, expired messages, self-deps, invalid identifiers).
 //
 // Document coverage:
-//   INV-3: Invalid blocks detected (cycle, future, expired, self-dep, bad identifier)
-//   Step 4: Invalid B_j → invalidateBlock called
+//
+//	INV-3: Invalid blocks detected (cycle, future, expired, self-dep, bad identifier)
+//	Step 4: Invalid B_j → invalidateBlock called
 //
 // Properties:
 // P43: progressAndRecord detects invalid blocks injected by InvalidateBlock
@@ -125,12 +141,12 @@ func FuzzProgressAndRecordWithRandomChainInvalid(f *testing.F) {
 		r := rand.New(rand.NewSource(seed))
 
 		params := RandomChainParams{
-			chainCount:            max(2, int(numChainsRaw>>6)),
-			minLength:             30,
-			maxLength:             60,
+			chainCount:             max(2, int(numChainsRaw>>6)),
+			minLength:              30,
+			maxLength:              60,
 			sameTimestampFrequency: 5,
-			dependencyChance:      8,
-			maxBlockTimeExclusive: 15,
+			dependencyChance:       8,
+			maxBlockTimeExclusive:  15,
 		}
 
 		rc := params.MakeRandomChain(seed)

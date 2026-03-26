@@ -37,16 +37,17 @@ func FuzzVerifyInteropMessages(f *testing.F) {
 			}
 		}
 
-		randomChain := fuzzInterop.randomChain
-		safeCutoff := randomChain.cutoffs.localSafe
+		// Use the last verified timestamp (what progressAndRecord actually indexed)
+		// rather than the safeCutoff which may be beyond what was processed
+		lastTS, initialized := interop.verifiedDB.LastTimestamp()
+		if !initialized {
+			t.Skip("progressAndRecord did not advance any timestamps")
+		}
 
-		safeBlock := randomChain.allBlocks[safeCutoff]
-		safeTimestamp := safeBlock.block.Time
-
-		blocksAtTimestamp, err := interop.checkChainsReady(safeTimestamp)
+		blocksAtTimestamp, err := interop.checkChainsReady(lastTS)
 		require.NoError(t, err)
 
-		result, err := interop.verifyInteropMessages(safeTimestamp, blocksAtTimestamp)
+		result, err := interop.verifyInteropMessages(lastTS, blocksAtTimestamp)
 		require.NoError(t, err)
 
 		// P1: Valid messages never produce InvalidHeads
