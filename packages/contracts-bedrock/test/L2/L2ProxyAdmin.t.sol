@@ -107,6 +107,9 @@ contract L2ProxyAdmin_UpgradePredeploys_Test is L2ProxyAdmin_TestInit {
     function testFuzz_upgradePredeploys_succeeds(address _l2ContractsManager) public {
         assumeAddressIsNot(_l2ContractsManager, AddressType.Precompile, AddressType.ForgeAddress);
 
+        // Ensure the fuzzed address has code so it passes the code.length check
+        vm.etch(_l2ContractsManager, hex"01");
+
         // Mock the delegatecall to return success
         _mockAndExpect(_l2ContractsManager, abi.encodeCall(IL2ContractsManager.upgrade, ()), abi.encode());
 
@@ -122,6 +125,9 @@ contract L2ProxyAdmin_UpgradePredeploys_Test is L2ProxyAdmin_TestInit {
     /// @notice Tests that upgradePredeploys reverts when delegatecall fails.
     function testFuzz_upgradePredeploys_delegatecallFails_reverts(address _l2ContractsManager) public {
         assumeAddressIsNot(_l2ContractsManager, AddressType.Precompile, AddressType.ForgeAddress);
+
+        // Ensure the fuzzed address has code so it passes the code.length check
+        vm.etch(_l2ContractsManager, hex"01");
 
         // Mock the delegatecall to return failure
         vm.mockCallRevert(_l2ContractsManager, abi.encodeCall(IL2ContractsManager.upgrade, ()), bytes("error"));
