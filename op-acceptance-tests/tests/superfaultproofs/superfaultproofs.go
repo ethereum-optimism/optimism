@@ -16,17 +16,23 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -954,4 +960,160 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
 		})
 	}
+}
+
+// RunDepositMessageTest verifies that the fault proof system correctly handles
+// consolidation when a cross-chain message is initiated via an L1 deposit transaction.
+func RunDepositMessageTest(t devtest.T, sys *presets.SimpleInterop) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	rng := rand.New(rand.NewSource(5678))
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	// Fund users on L1, chain A, and chain B.
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceL1 := aliceA.AsEL(sys.L1EL)
+	sys.FunderL1.Fund(aliceL1, eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+
+	// Deploy EventLogger on chain A.
+	eventLogger := aliceA.DeployEventLogger()
+
+	// Build the emitLog calldata that will be executed via deposit.
+	topic1, topic2 := randomTopic(rng), randomTopic(rng)
+	initTrigger := &txintent.InitTrigger{
+		Emitter:    eventLogger,
+		Topics:     [][32]byte{topic1, topic2},
+		OpaqueData: randomBytes(rng, 10),
+	}
+	calldata, err := initTrigger.EncodeInput()
+	t.Require().NoError(err, "failed to encode emitLog calldata")
+
+	// Create the OptimismPortal2 binding on L1 for chain A.
+	portalAddr := sys.L2ChainA.DepositContractAddr()
+	portal := bindings.NewBindings[bindings.OptimismPortal2](
+		bindings.WithClient(sys.L1EL.EthClient()),
+		bindings.WithTo(portalAddr),
+		bindings.WithTest(t),
+	)
+
+	// Deposit the emitLog call via OptimismPortal2.
+	minGas := contract.Read(portal.MinimumGasLimit(uint64(len(calldata))))
+	depositCall := portal.DepositTransaction(eventLogger, eth.ZeroWei, max(100_000, minGas), false, calldata)
+	l1DepositReceipt := contract.Write(aliceL1, depositCall)
+	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l1DepositReceipt.Status, "L1 deposit tx failed")
+	t.Logf("Deposit tx included on L1 at block %d", l1DepositReceipt.BlockNumber)
+
+	// Derive the L2 deposit tx hash from the L1 receipt.
+	var l2DepositTx *ethtypes.DepositTx
+	for _, log := range l1DepositReceipt.Logs {
+		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
+			break
+		}
+	}
+	t.Require().NotNil(l2DepositTx, "failed to find TransactionDeposited event in L1 receipt")
+	l2DepositTxHash := ethtypes.NewTx(l2DepositTx).Hash()
+
+	// Wait for chain A to derive past the deposit's L1 block, then fetch the L2 receipt.
+	l1BlockNum := bigs.Uint64Strict(l1DepositReceipt.BlockNumber)
+	sys.L2ELA.WaitL1OriginReached(eth.Unsafe, l1BlockNum, 120)
+	l2Receipt := sys.L2ELA.WaitForReceipt(l2DepositTxHash)
+	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit tx failed on L2 chain A")
+	t.Require().NotZero(len(l2Receipt.Logs), "deposit tx emitted no logs on L2 chain A")
+
+	// Construct the interop message from the L2 receipt log.
+	initLog := l2Receipt.Logs[0]
+	initBlockNum := bigs.Uint64Strict(l2Receipt.BlockNumber)
+	initTimestamp := sys.L2ChainA.TimestampForBlockNum(initBlockNum)
+	payload := make([]byte, 0)
+	for _, topic := range initTrigger.Topics {
+		payload = append(payload, topic[:]...)
+	}
+	payload = append(payload, initTrigger.OpaqueData...)
+	msg := types.Message{
+		Identifier: types.Identifier{
+			Origin:      initLog.Address,
+			BlockNumber: initBlockNum,
+			LogIndex:    uint32(initLog.Index),
+			Timestamp:   initTimestamp,
+			ChainID:     sys.L2ChainA.ChainID(),
+		},
+		PayloadHash: crypto.Keccak256Hash(payload),
+	}
+
+	// Execute the cross-chain message on chain B.
+	execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](aliceB.Plan())
+	execTx.Content.Set(&txintent.ExecTrigger{
+		Executor: predeploys.CrossL2InboxAddr,
+		Msg:      msg,
+	})
+	execReceipt, err := execTx.PlannedTx.Included.Eval(t.Ctx())
+	t.Require().NoError(err, "exec message receipt not found on chain B")
+	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, execReceipt.Status, "exec message failed on chain B")
+
+	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execReceipt.BlockNumber))
+	startTimestamp := endTimestamp - 1
+
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
+
+	start := superRootAtTimestamp(t, chains, startTimestamp)
+	end := superRootAtTimestamp(t, chains, endTimestamp)
+
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
+	paddingStep := func(step uint64) []byte {
+		return marshalTransition(start, step, firstOptimistic, secondOptimistic)
+	}
+
+	tests := []*transitionTest{
+		{
+			Name:               "Consolidate",
+			AgreedClaim:        paddingStep(consolidateStep),
+			DisputedClaim:      end.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "Consolidate-InvalidNoChange",
+			AgreedClaim:        paddingStep(consolidateStep),
+			DisputedClaim:      paddingStep(consolidateStep),
+			DisputedTraceIndex: consolidateStep,
+			ExpectValid:        false,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+	}
+
+	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
+	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
+	for _, test := range tests {
+		t.Run(test.Name+"-fpp", func(t devtest.T) {
+			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
+				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
+				test.ClaimTimestamp, test.ExpectValid)
+		})
+
+		t.Run(test.Name+"-challenger", func(t devtest.T) {
+			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
+		})
+	}
+}
+
+// randomTopic generates a random 32-byte topic.
+func randomTopic(rng *rand.Rand) [32]byte {
+	var t [32]byte
+	rng.Read(t[:])
+	return t
+}
+
+// randomBytes generates n random bytes using the provided rng.
+func randomBytes(rng *rand.Rand, n int) []byte {
+	b := make([]byte, n)
+	rng.Read(b)
+	return b
 }
