@@ -101,7 +101,7 @@ This component enables upgrade transactions to unconditionally deploy for all im
 requiring developers to manually track which contracts have changed between upgrades.
 
 The ConditionalDeployer is included in the L2Genesis state to ensure availability for all future network upgrades. It is
-deployed as a preinstall at a deterministic address and does not require upgradeability.
+deployed as a proxied predeploy at a deterministic address.
 
 The deployment function returns an address for off-chain convenience, but this return value is not used in Network
 Upgrade Transactions, as deployment addresses must be pre-computed before transaction generation.
