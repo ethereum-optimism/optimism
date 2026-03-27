@@ -680,7 +680,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
-    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
+    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
         // Start validating the dispute game configs. Put allowed game types here. Note that
         // these game types are intentionally hardcoded rather than sourced from a shared utility.
         // When new game types are added, this list and the corresponding list in the Migrator's
@@ -718,11 +718,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // ZK_DISPUTE_GAME can only be enabled when the dev feature is active.
-            if (
-                validGameTypes[i].raw() == GameTypes.ZK_DISPUTE_GAME.raw()
-                    && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME) && _cfg.disputeGameConfigs[i].enabled
-            ) {
+            // ZK_DISPUTE_GAME cannot be enabled via OPCM configs.
+            if (validGameTypes[i].raw() == GameTypes.ZK_DISPUTE_GAME.raw() && _cfg.disputeGameConfigs[i].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
         }

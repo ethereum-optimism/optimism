@@ -17,7 +17,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
+import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -29,7 +29,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { GameTypes, Claim, Duration } from "src/dispute/lib/Types.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChain is Script {
     /// @notice The default init bond for the dispute games.
@@ -208,15 +208,7 @@ contract DeployOPChain is Script {
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.ZKDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: IZKVerifier(address(0)),
-                    maxChallengeDuration: Duration.wrap(0),
-                    maxProveDuration: Duration.wrap(0),
-                    challengerBond: 0
-                })
-            )
+            gameArgs: bytes("")
         });
 
         config_ = IOPContractsManagerV2.FullConfig({
@@ -380,6 +372,10 @@ contract DeployOPChain is Script {
             // OPCM v2: use implementations from v2 contract
             IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
             expectedPDGImpl = opcmV2.implementations().permissionedDisputeGameImpl;
+            address zkImpl = opcmV2.implementations().zkDisputeGameImpl;
+            if (zkImpl != address(0)) {
+                ChainAssertions.checkZKDisputeGameImpl(IZKDisputeGame(zkImpl));
+            }
         } else {
             // OPCM v1: use implementations from v1 contract
             IOPContractsManager opcm = IOPContractsManager(_i.opcm);
@@ -390,7 +386,6 @@ contract DeployOPChain is Script {
         ChainAssertions.checkDisputeGameFactory(
             _o.disputeGameFactoryProxy, _i.opChainProxyAdminOwner, expectedPDGImpl, true
         );
-
         ChainAssertions.checkAnchorStateRegistryProxy(_o.anchorStateRegistryProxy, true);
         ChainAssertions.checkL1CrossDomainMessenger(_o.l1CrossDomainMessengerProxy, vm, true);
         ChainAssertions.checkOptimismPortal2({

@@ -16,7 +16,8 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
-import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
+import { GameTypes, Claim, Duration } from "src/dispute/lib/Types.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { LibString } from "@solady/utils/LibString.sol";
@@ -288,7 +289,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
         // Prepare the upgrade input.
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](4);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
@@ -318,6 +319,20 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.FaultDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
+                })
+            )
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
+                    verifier: IZKVerifier(address(0)),
+                    maxChallengeDuration: Duration.wrap(0),
+                    maxProveDuration: Duration.wrap(0),
+                    challengerBond: 0
                 })
             )
         });

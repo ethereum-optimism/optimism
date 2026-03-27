@@ -93,6 +93,14 @@ contract DeployConfig is Script {
     uint256 public faultGameV2ClockExtension;
     uint256 public faultGameV2MaxClockDuration;
 
+    // ZK Dispute Game Configuration
+    uint256 public zkDisputeGameInitBond;
+    bytes32 public zkDisputeGameAbsolutePrestate;
+    address public zkDisputeGameVerifier;
+    uint256 public zkDisputeGameMaxChallengeDuration;
+    uint256 public zkDisputeGameMaxProveDuration;
+    uint256 public zkDisputeGameChallengerBond;
+
     bool public useUpgradedFork;
     bool public useInterop;
     bytes32 public devFeatureBitmap;
@@ -192,6 +200,13 @@ contract DeployConfig is Script {
         faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", 10800);
         faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", 302400);
+
+        zkDisputeGameInitBond = _readOr(_json, "$.zkDisputeGameInitBond", 0);
+        zkDisputeGameAbsolutePrestate = bytes32(_readOr(_json, "$.zkDisputeGameAbsolutePrestate", 0));
+        zkDisputeGameVerifier = _readOr(_json, "$.zkDisputeGameVerifier", address(0));
+        zkDisputeGameMaxChallengeDuration = _readOr(_json, "$.zkDisputeGameMaxChallengeDuration", 0);
+        zkDisputeGameMaxProveDuration = _readOr(_json, "$.zkDisputeGameMaxProveDuration", 0);
+        zkDisputeGameChallengerBond = _readOr(_json, "$.zkDisputeGameChallengerBond", 0);
     }
 
     function fork() public view returns (Fork fork_) {

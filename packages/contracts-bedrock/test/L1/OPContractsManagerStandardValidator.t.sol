@@ -17,6 +17,7 @@ import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
@@ -248,7 +249,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
                 // Prepare the upgrade input.
                 IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-                    new IOPContractsManagerUtils.DisputeGameConfig[](3);
+                    new IOPContractsManagerUtils.DisputeGameConfig[](4);
                 disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
@@ -275,6 +276,20 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                     gameType: GameTypes.CANNON_KONA,
                     gameArgs: abi.encode(
                         IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+                    )
+                });
+                disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
+                    gameType: GameTypes.ZK_DISPUTE_GAME,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.ZKDisputeGameConfig({
+                            absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
+                            verifier: IZKVerifier(address(0)),
+                            maxChallengeDuration: Duration.wrap(0),
+                            maxProveDuration: Duration.wrap(0),
+                            challengerBond: 0
+                        })
                     )
                 });
 

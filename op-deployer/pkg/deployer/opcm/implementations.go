@@ -59,7 +59,6 @@ type DeployImplementationsOutput struct {
 	PermissionedDisputeGameImpl      common.Address `json:"permissionedDisputeGameImplAddress"`
 	SuperFaultDisputeGameImpl        common.Address `json:"superFaultDisputeGameImplAddress"`
 	SuperPermissionedDisputeGameImpl common.Address `json:"superPermissionedDisputeGameImplAddress"`
-	ZKDisputeGameImpl                common.Address `json:"zkDisputeGameImplAddress"`
 	StorageSetterImpl                common.Address `json:"storageSetterImplAddress"`
 }
 

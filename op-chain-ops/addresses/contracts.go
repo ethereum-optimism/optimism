@@ -53,7 +53,6 @@ type ImplementationsContracts struct {
 	AnchorStateRegistryImpl          common.Address
 	FaultDisputeGameImpl             common.Address
 	PermissionedDisputeGameImpl      common.Address
-	ZkDisputeGameImpl                common.Address
 	StorageSetterImpl                common.Address
 }
 

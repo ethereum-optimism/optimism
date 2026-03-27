@@ -13,7 +13,8 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Libraries
-import { Claim, GameTypes } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameTypes } from "src/dispute/lib/Types.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
@@ -36,6 +37,7 @@ library PastUpgrades {
     /// @notice Dummy prestates used for testing (actual values don't matter for upgrade tests)
     bytes32 internal constant DUMMY_CANNON_PRESTATE = keccak256("CANNON");
     bytes32 internal constant DUMMY_CANNON_KONA_PRESTATE = keccak256("CANNON_KONA");
+    bytes32 internal constant DUMMY_ZK_PRESTATE = keccak256("ZK");
 
     /// @notice Struct representing an OPCM from the registry (returned by FFI).
     ///         Note: releaseVersion is NOT the OPCM semver - query opcm.version() on-chain for that.
@@ -230,7 +232,7 @@ library PastUpgrades {
 
         // Build dispute game configs with dummy prestates
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](4);
 
         // CANNON (game type 0)
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -263,6 +265,22 @@ library PastUpgrades {
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(DUMMY_CANNON_KONA_PRESTATE) })
+            )
+        });
+
+        // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: _disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(DUMMY_ZK_PRESTATE),
+                    verifier: IZKVerifier(address(0)),
+                    maxChallengeDuration: Duration.wrap(0),
+                    maxProveDuration: Duration.wrap(0),
+                    challengerBond: 0
+                })
             )
         });
 

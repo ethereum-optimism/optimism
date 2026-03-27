@@ -106,7 +106,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		AnchorStateRegistryImpl:          dio.AnchorStateRegistryImpl,
 		FaultDisputeGameImpl:             dio.FaultDisputeGameImpl,
 		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
-		ZkDisputeGameImpl:                dio.ZKDisputeGameImpl,
 		StorageSetterImpl:                dio.StorageSetterImpl,
 	}
 

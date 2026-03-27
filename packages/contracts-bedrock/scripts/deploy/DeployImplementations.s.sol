@@ -1011,6 +1011,10 @@ contract DeployImplementations is Script {
             addrs2 = Solarray.extend(addrs2, superGameAddrs);
         }
 
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            addrs2 = Solarray.extend(addrs2, Solarray.addresses(address(_output.zkDisputeGameImpl)));
+        }
+
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         // Validate OPCM V2 flag
@@ -1045,7 +1049,12 @@ contract DeployImplementations is Script {
             );
         }
 
-        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            require(
+                address(_output.zkDisputeGameImpl) != address(0),
+                "DeployImplementations: ZK_DISPUTE_GAME flag enabled but ZKDisputeGame was not deployed"
+            );
+        } else {
             require(
                 address(_output.zkDisputeGameImpl) == address(0),
                 "DeployImplementations: ZK_DISPUTE_GAME flag disabled but ZKDisputeGame was deployed"
@@ -1066,6 +1075,10 @@ contract DeployImplementations is Script {
         ChainAssertions.checkL1ERC721BridgeImpl(_output.l1ERC721BridgeImpl);
         ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
+
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            ChainAssertions.checkZKDisputeGameImpl(_output.zkDisputeGameImpl);
+        }
 
         // Only check OPCM V1 if it was deployed
         if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPCM_V2)) {
