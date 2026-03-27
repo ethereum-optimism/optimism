@@ -57,3 +57,4 @@ tokio = { workspace = true, features = ["time"] }
 [dev-dependencies]
 reth-optimism-chainspec.workspace = true
 reth-provider = { workspace = true, features = ["test-utils"] }
+serde_json.workspace = true

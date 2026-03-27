@@ -38,3 +38,26 @@ impl ExecutingDescriptor {
         Self { chain_id, timestamp, timeout }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ExecutingDescriptor;
+
+    #[test]
+    fn serializes_executing_descriptor_with_chain_id_key() {
+        let descriptor = ExecutingDescriptor::new(1000, 1234567890, Some(3600));
+
+        let serialized = serde_json::to_string(&descriptor).unwrap();
+
+        assert_eq!(serialized, r#"{"chainID":"0x3e8","timestamp":"0x499602d2","timeout":"0xe10"}"#);
+    }
+
+    #[test]
+    fn deserializes_executing_descriptor_with_chain_id_key() {
+        let json = r#"{"chainID":"0x3e8","timestamp":"0x499602d2","timeout":"0xe10"}"#;
+
+        let deserialized: ExecutingDescriptor = serde_json::from_str(json).unwrap();
+
+        assert_eq!(deserialized, ExecutingDescriptor::new(1000, 1234567890, Some(3600)));
+    }
+}
