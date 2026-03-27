@@ -133,6 +133,12 @@ where
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.provider.clear();
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.prev.flush_channel().await
     }
@@ -167,12 +173,7 @@ mod tests {
         let traversal = TraversalTestHelper::new_populated();
         let dap = TestDAP { results: vec![Ok(Bytes::default())] };
         let mut retrieval = L1Retrieval::new(traversal, dap);
-        retrieval.prev.block = None;
-        assert!(retrieval.prev.block.is_none());
-        retrieval.next = None;
-        retrieval.activate(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
-        assert!(retrieval.next.is_some());
-        assert_eq!(retrieval.prev.block, Some(BlockInfo::default()));
+        retrieval.activate().await.unwrap();
         // Provider must be cleared on activation to flush stale data.
         assert!(retrieval.provider.results.is_empty());
     }
@@ -259,7 +260,7 @@ mod tests {
         let dap = TestDAP { results: vec![Ok(Bytes::from_static(b"stale"))] };
         let mut retrieval = L1Retrieval::new(traversal, dap);
         retrieval.next = Some(BlockInfo::default());
-        retrieval.activate(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
+        retrieval.activate().await.unwrap();
         let err = retrieval.next_data().await.unwrap_err();
         assert_eq!(err, PipelineError::Eof.temp());
     }

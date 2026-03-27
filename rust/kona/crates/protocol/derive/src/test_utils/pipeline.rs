@@ -32,6 +32,10 @@ impl StageReset for TestNextAttributes {
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         Ok(())
     }

@@ -31,15 +31,9 @@ pub trait StageReset {
         system_config: SystemConfig,
     ) -> PipelineResult<()>;
 
-    /// Activate a hardfork at the given L1 origin with the given system config.
-    /// Default: same as reset. Override only if activation differs (e.g., `BatchQueue`).
-    async fn activate(
-        &mut self,
-        l1_origin: BlockNumHash,
-        system_config: SystemConfig,
-    ) -> PipelineResult<()> {
-        self.reset(l1_origin, system_config).await
-    }
+    /// Soft-reset for hardfork activation. Clears buffered channels and batches
+    /// but preserves derivation state (origin, epoch tracking, system config).
+    async fn activate(&mut self) -> PipelineResult<()>;
 
     /// Flush the currently active channel.
     async fn flush_channel(&mut self) -> PipelineResult<()>;

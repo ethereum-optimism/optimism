@@ -63,6 +63,11 @@ impl StageReset for TestNextFrameProvider {
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.reset = true;
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.reset = true;
         Ok(())

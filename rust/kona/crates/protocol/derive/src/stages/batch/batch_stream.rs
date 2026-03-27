@@ -246,6 +246,13 @@ where
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.buffer.clear();
+        self.span.take();
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.prev.flush_channel().await?;
         self.buffer.clear();

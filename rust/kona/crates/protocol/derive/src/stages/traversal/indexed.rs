@@ -137,6 +137,10 @@ impl<F: ChainProvider + Send> StageReset for IndexedTraversal<F> {
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         Ok(())
     }
@@ -221,12 +225,10 @@ mod tests {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = new_receipts();
         let mut traversal = new_test_managed(blocks, receipts);
-        let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(traversal.activate(BlockNumHash::default(), cfg).await.is_ok());
+        assert!(traversal.activate().await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
-        assert_eq!(traversal.system_config, cfg);
-        assert!(!traversal.done);
+        assert!(traversal.done);
     }
 
     #[tokio::test]

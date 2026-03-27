@@ -187,6 +187,12 @@ where
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.next_channel();
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         warn!(target: "channel_reader", "Flushed channel");
         self.next_batch = None;

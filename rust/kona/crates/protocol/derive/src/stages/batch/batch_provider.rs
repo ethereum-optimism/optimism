@@ -156,6 +156,10 @@ where
         dispatch_inner!(self, reset, l1_origin, system_config)
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        dispatch_inner!(self, activate)
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         dispatch_inner!(self, flush_channel)
     }

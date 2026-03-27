@@ -241,6 +241,13 @@ where
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.channels.clear();
+        self.channel_queue = VecDeque::with_capacity(10);
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.prev.flush_channel().await?;
         self.channels.clear();

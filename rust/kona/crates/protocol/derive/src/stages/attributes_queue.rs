@@ -197,6 +197,12 @@ where
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.batch = None;
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.batch = None;
         self.prev.flush_channel().await

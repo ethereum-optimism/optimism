@@ -64,6 +64,11 @@ impl StageReset for TestFrameQueueProvider {
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.reset = true;
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.reset(BlockNumHash::default(), SystemConfig::default()).await
     }

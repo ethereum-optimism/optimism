@@ -154,6 +154,10 @@ impl<F: ChainProvider + Send> StageReset for PollingTraversal<F> {
         Ok(())
     }
 
+    async fn activate(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         Ok(())
     }
@@ -201,12 +205,10 @@ pub(crate) mod tests {
         let receipts = TraversalTestHelper::new_receipts();
         let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
         assert!(traversal.advance_origin().await.is_ok());
-        let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(traversal.activate(BlockNumHash::default(), cfg).await.is_ok());
+        assert!(traversal.activate().await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
-        assert_eq!(traversal.system_config, cfg);
-        assert!(!traversal.done);
+        assert!(traversal.done);
     }
 
     #[tokio::test]

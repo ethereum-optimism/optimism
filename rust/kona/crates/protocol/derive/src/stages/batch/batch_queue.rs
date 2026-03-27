@@ -446,12 +446,8 @@ where
         Ok(())
     }
 
-    async fn activate(
-        &mut self,
-        l1_origin: BlockNumHash,
-        system_config: SystemConfig,
-    ) -> PipelineResult<()> {
-        self.prev.activate(l1_origin, system_config).await?;
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
         self.batches.clear();
         self.next_spans.clear();
         Ok(())
