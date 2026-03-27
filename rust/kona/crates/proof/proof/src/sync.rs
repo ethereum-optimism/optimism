@@ -27,8 +27,10 @@ where
     let safe_head_info = l2_chain_provider.l2_block_info_by_number(safe_header.number).await?;
     let origin = chain_provider.block_info_by_number(safe_head_info.l1_origin.number).await?;
 
-    // The DerivationPipeline handles the channel_timeout walkback internally during reset.
-    // The cursor starts at the safe head's L1 origin; the pipeline will walk it back.
+    // The DerivationPipeline walks back by channel_timeout internally during
+    // reset. The cursor starts at the safe head's L1 origin — the pipeline
+    // overwrites the traversal origin on the first reset signal, and the
+    // oracle fetches earlier L1 blocks on demand.
     let channel_timeout = rollup_config.channel_timeout(safe_head_info.block_info.timestamp);
     let mut cursor = PipelineCursor::new(channel_timeout, origin);
     let tip = TipCursor::new(safe_head_info, safe_header, B256::ZERO);

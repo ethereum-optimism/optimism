@@ -129,6 +129,20 @@ where
     }
 }
 
+/// Dispatches a method call to the active inner batch stage.
+macro_rules! dispatch_inner {
+    ($self:ident, $method:ident $(, $arg:expr)*) => {{
+        $self.attempt_update()?;
+        if let Some(inner) = $self.batch_validator.as_mut() {
+            inner.$method($($arg),*).await
+        } else if let Some(inner) = $self.batch_queue.as_mut() {
+            inner.$method($($arg),*).await
+        } else {
+            Err(PipelineError::NotEnoughData.temp())
+        }
+    }};
+}
+
 #[async_trait]
 impl<P, F> StageReset for BatchProvider<P, F>
 where
@@ -140,39 +154,15 @@ where
         l1_origin: BlockNumHash,
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
-        self.attempt_update()?;
-
-        if let Some(batch_validator) = self.batch_validator.as_mut() {
-            batch_validator.reset(l1_origin, system_config).await
-        } else if let Some(batch_queue) = self.batch_queue.as_mut() {
-            batch_queue.reset(l1_origin, system_config).await
-        } else {
-            Err(PipelineError::NotEnoughData.temp())
-        }
+        dispatch_inner!(self, reset, l1_origin, system_config)
     }
 
     async fn flush_channel(&mut self) -> PipelineResult<()> {
-        self.attempt_update()?;
-
-        if let Some(batch_validator) = self.batch_validator.as_mut() {
-            batch_validator.flush_channel().await
-        } else if let Some(batch_queue) = self.batch_queue.as_mut() {
-            batch_queue.flush_channel().await
-        } else {
-            Err(PipelineError::NotEnoughData.temp())
-        }
+        dispatch_inner!(self, flush_channel)
     }
 
     async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
-        self.attempt_update()?;
-
-        if let Some(batch_validator) = self.batch_validator.as_mut() {
-            batch_validator.provide_block(block).await
-        } else if let Some(batch_queue) = self.batch_queue.as_mut() {
-            batch_queue.provide_block(block).await
-        } else {
-            Err(PipelineError::NotEnoughData.temp())
-        }
+        dispatch_inner!(self, provide_block, block)
     }
 }
 

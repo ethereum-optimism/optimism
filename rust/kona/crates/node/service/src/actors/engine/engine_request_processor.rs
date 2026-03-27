@@ -100,7 +100,7 @@ where
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
     async fn reset(&mut self) -> Result<(), EngineError> {
         // Reset the engine.
-        let (l2_safe_head, _l1_origin, _system_config) =
+        let l2_safe_head =
             self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
 
         // Signal the derivation actor to reset.
