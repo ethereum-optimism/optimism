@@ -3,11 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { Features } from "src/libraries/Features.sol";
-import {
-    L1Block_FeatureAlreadyEnabled,
-    L1Block_NotAuthorizedToSetFeature
-} from "src/libraries/L1BlockErrors.sol";
+import { L1Block_FeatureAlreadyEnabled, L1Block_NotAuthorizedToSetFeature } from "src/libraries/L1BlockErrors.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
@@ -81,7 +77,7 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
 
     /// @custom:semver 1.9.0
     function version() public pure virtual returns (string memory) {
-        return "1.9.0";
+        return "1.10.0";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
