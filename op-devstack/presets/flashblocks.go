@@ -84,7 +84,7 @@ func singleChainWithFlashblocksFromRuntime(t devtest.T, runtime *sysgo.SingleCha
 
 	l2OPRBuilder := newOPRBuilderFrontend(
 		t,
-		"sequencer-builder",
+		"op-rbuilder",
 		l2ChainID,
 		runtime.Flashblocks.Builder.UserRPC(),
 		runtime.Flashblocks.Builder.FlashblocksWSURL(),

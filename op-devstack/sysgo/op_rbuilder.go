@@ -351,8 +351,8 @@ func (b *OPRBuilderNode) Start() {
 	defer close(authRPCChan)
 
 	// Forward structured logs to Go logger and parse for port discovery
-	logOut := logpipe.ToLoggerWithMinLevel(b.logger.New("component", "op-OPRbuilderNode", "src", "stdout"), log.LevelWarn)
-	logErr := logpipe.ToLoggerWithMinLevel(b.logger.New("component", "op-OPRbuilderNode", "src", "stderr"), log.LevelWarn)
+	logOut := logpipe.ToLoggerWithMinLevel(b.logger.New("component", "op-OPRbuilderNode", "src", "stdout"), log.LevelTrace)
+	logErr := logpipe.ToLoggerWithMinLevel(b.logger.New("component", "op-OPRbuilderNode", "src", "stderr"), log.LevelTrace)
 
 	// Log parsing callback to extract bound addresses from process output
 	onLogEntry := func(e logpipe.LogEntry) {

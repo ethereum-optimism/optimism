@@ -77,8 +77,8 @@ func (r *RollupBoostNode) Start() {
 	defer close(flashblocksWSChan)
 
 	// Parse Rust-structured logs and forward into Go logger with attributes
-	logOut := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stdout"), log.LevelWarn)
-	logErr := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stderr"), log.LevelWarn)
+	logOut := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stdout"), log.LevelTrace)
+	logErr := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stderr"), log.LevelTrace)
 
 	// Log parsing callback to extract bound addresses from process output
 	onLogEntry := func(e logpipe.LogEntry) {
