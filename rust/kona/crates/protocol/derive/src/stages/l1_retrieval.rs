@@ -128,6 +128,7 @@ where
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
         self.prev.reset(l1_origin, system_config).await?;
+        self.provider.clear();
         self.next = self.prev.origin();
         Ok(())
     }
