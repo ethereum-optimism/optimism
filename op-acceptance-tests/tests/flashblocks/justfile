@@ -4,4 +4,6 @@ fbals:
 	RUST_BINARY_PATH_OP_RETH=$HOME/git/optimism/rust/target/debug/op-reth \
 	RUST_BINARY_PATH_OP_RBUILDER=$HOME/git/op-rbuilder/target/debug/op-rbuilder \
 	RUST_BINARY_PATH_ROLLUP_BOOST=$HOME/git/rollup-boost/target/debug/rollup-boost \
+	LOG_LEVEL=debug \
+	RUST_LOG=trace \
 	go test -v -count=1 -timeout 120m utils.go flashblocks_accesslist_test.go
