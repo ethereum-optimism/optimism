@@ -3,7 +3,12 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { L1Block_FeatureAlreadyEnabled, L1Block_NotAuthorizedToSetFeature } from "src/libraries/L1BlockErrors.sol";
+import { Features } from "src/libraries/Features.sol";
+import {
+    L1Block_FeatureAlreadyEnabled,
+    L1Block_FeatureNotAllowedToSetAfterGenesis,
+    L1Block_NotAuthorizedToSetFeature
+} from "src/libraries/L1BlockErrors.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
@@ -240,6 +245,11 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
     /// @param _feature The feature to enable.
     function _setFeature(bytes32 _feature) internal {
         if (isFeatureEnabled[_feature]) revert L1Block_FeatureAlreadyEnabled();
+
+        if (_feature == Features.CUSTOM_GAS_TOKEN) {
+            if (block.number != 1) revert L1Block_FeatureNotAllowedToSetAfterGenesis();
+        }
+
         isFeatureEnabled[_feature] = true;
         emit FeatureSet(_feature, true);
     }
