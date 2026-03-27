@@ -6,8 +6,8 @@ use crate::{KeyValueStore, Result};
 use alloy_primitives::{B256, keccak256};
 use kona_preimage::PreimageKey;
 use kona_proof_interop::boot::{
-    L1_CONFIG_KEY, L1_HEAD_KEY, L2_AGREED_PRE_STATE_KEY, L2_CLAIMED_POST_STATE_KEY,
-    L2_CLAIMED_TIMESTAMP_KEY, L2_ROLLUP_CONFIG_KEY,
+    DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L1_HEAD_KEY, L2_AGREED_PRE_STATE_KEY,
+    L2_CLAIMED_POST_STATE_KEY, L2_CLAIMED_TIMESTAMP_KEY, L2_ROLLUP_CONFIG_KEY,
 };
 
 /// A simple, synchronous key-value store that returns data from a [`InteropHost`] config.
@@ -40,6 +40,10 @@ impl KeyValueStore for InteropLocalInputs {
             L1_CONFIG_KEY => {
                 let l1_config = self.cfg.read_l1_config().ok()?;
                 serde_json::to_vec(&l1_config).ok()
+            }
+            DEPENDENCY_SET_KEY => {
+                let dependency_set = self.cfg.read_dependency_set()?.ok()?;
+                serde_json::to_vec(&dependency_set).ok()
             }
             _ => None,
         }
