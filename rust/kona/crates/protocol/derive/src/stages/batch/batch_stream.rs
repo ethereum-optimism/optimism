@@ -4,12 +4,11 @@ use crate::{
     L2ChainProvider, NextBatchProvider, OriginAdvancer, OriginProvider, PipelineError,
     PipelineResult, StageReset,
 };
-use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{
     Batch, BatchValidity, BatchWithInclusionBlock, BlockInfo, L2BlockInfo, SingleBatch, SpanBatch,
     SpanBatchError,

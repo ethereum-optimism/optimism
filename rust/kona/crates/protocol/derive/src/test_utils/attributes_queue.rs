@@ -65,11 +65,7 @@ impl OriginAdvancer for TestAttributesProvider {
 
 #[async_trait]
 impl StageReset for TestAttributesProvider {
-    async fn reset(
-        &mut self,
-        _: alloy_eips::BlockNumHash,
-        _: SystemConfig,
-    ) -> PipelineResult<()> {
+    async fn reset(&mut self, _: alloy_eips::BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())
     }

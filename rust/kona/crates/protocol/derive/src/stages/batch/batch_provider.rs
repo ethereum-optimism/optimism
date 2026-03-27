@@ -5,12 +5,11 @@ use crate::{
     AttributesProvider, BatchQueue, BatchValidator, L2ChainProvider, OriginAdvancer,
     OriginProvider, PipelineError, PipelineResult, StageReset,
 };
-use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, L2BlockInfo, SingleBatch};
 
 /// The [`BatchProvider`] stage is a mux between the [`BatchQueue`] and [`BatchValidator`] stages.

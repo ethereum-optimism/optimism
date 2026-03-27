@@ -5,10 +5,10 @@ use crate::{
     StageReset,
 };
 use alloc::{boxed::Box, vec::Vec};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
 use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use kona_protocol::BlockInfo;
 
 /// A mock [`ChannelReaderProvider`] for testing the [`ChannelReader`] stage.

@@ -4,11 +4,11 @@ use crate::{
     DataAvailabilityProvider, FrameQueueProvider, OriginAdvancer, OriginProvider, PipelineError,
     PipelineErrorKind, PipelineResult, StageReset,
 };
-use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use alloc::boxed::Box;
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
 use async_trait::async_trait;
+use kona_genesis::SystemConfig;
 use kona_protocol::BlockInfo;
 
 /// Provides L1 blocks for the [`L1Retrieval`] stage.
@@ -169,10 +169,7 @@ mod tests {
         retrieval.prev.block = None;
         assert!(retrieval.prev.block.is_none());
         retrieval.next = None;
-        retrieval
-            .activate(BlockNumHash::default(), SystemConfig::default())
-            .await
-            .unwrap();
+        retrieval.activate(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(retrieval.next.is_some());
         assert_eq!(retrieval.prev.block, Some(BlockInfo::default()));
         // Provider must be cleared on activation to flush stale data.
@@ -187,10 +184,7 @@ mod tests {
         retrieval.prev.block = None;
         assert!(retrieval.prev.block.is_none());
         retrieval.next = None;
-        retrieval
-            .reset(BlockNumHash::default(), SystemConfig::default())
-            .await
-            .unwrap();
+        retrieval.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(retrieval.next.is_some());
         assert_eq!(retrieval.prev.block, Some(BlockInfo::default()));
         // Provider must be cleared on reset to flush stale data.

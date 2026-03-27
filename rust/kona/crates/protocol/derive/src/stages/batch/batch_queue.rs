@@ -6,12 +6,11 @@ use crate::{
     traits::{AttributesProvider, L2ChainProvider, OriginAdvancer, OriginProvider, StageReset},
     types::PipelineResult,
 };
-use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{
     Batch, BatchValidity, BatchWithInclusionBlock, BlockInfo, L2BlockInfo, SingleBatch,
 };

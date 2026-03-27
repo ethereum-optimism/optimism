@@ -116,20 +116,15 @@ where
                             warn!(target: "client_derivation_driver", "Failed to step derivation pipeline due to reset: {:?}", e);
 
                             if matches!(e, ResetError::HoloceneActivation) {
-                                self.signal(Signal::Activation(ActivationSignal {
-                                    l2_safe_head,
-                                }))
-                                .await?;
+                                self.signal(Signal::Activation(ActivationSignal { l2_safe_head }))
+                                    .await?;
                             } else {
                                 // Flushes cache if a reorg is detected.
                                 if matches!(e, ResetError::ReorgDetected(_, _)) {
                                     self.flush();
                                 }
 
-                                self.signal(Signal::Reset(ResetSignal {
-                                    l2_safe_head,
-                                }))
-                                .await?;
+                                self.signal(Signal::Reset(ResetSignal { l2_safe_head })).await?;
                             }
                         }
                         PipelineErrorKind::Critical(_) => {

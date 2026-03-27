@@ -5,10 +5,10 @@ use crate::{
     PipelineResult, ResetError, StageReset,
 };
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_genesis::{RollupConfig, SystemConfig};
-use alloy_eips::BlockNumHash;
 use kona_protocol::BlockInfo;
 
 /// The [`IndexedTraversal`] stage of the derivation pipeline.
@@ -130,11 +130,8 @@ impl<F: ChainProvider + Send> StageReset for IndexedTraversal<F> {
         l1_origin: BlockNumHash,
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
-        let block_info = self
-            .data_source
-            .block_info_by_number(l1_origin.number)
-            .await
-            .map_err(Into::into)?;
+        let block_info =
+            self.data_source.block_info_by_number(l1_origin.number).await.map_err(Into::into)?;
         self.update_origin(block_info);
         self.system_config = system_config;
         Ok(())
@@ -226,12 +223,7 @@ mod tests {
         let mut traversal = new_test_managed(blocks, receipts);
         let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(
-            traversal
-                .activate(BlockNumHash::default(), cfg)
-                .await
-                .is_ok()
-        );
+        assert!(traversal.activate(BlockNumHash::default(), cfg).await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
         assert_eq!(traversal.system_config, cfg);
         assert!(!traversal.done);
@@ -244,12 +236,7 @@ mod tests {
         let mut traversal = new_test_managed(blocks, receipts);
         let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(
-            traversal
-                .reset(BlockNumHash::default(), cfg)
-                .await
-                .is_ok()
-        );
+        assert!(traversal.reset(BlockNumHash::default(), cfg).await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
         assert_eq!(traversal.system_config, cfg);
         assert!(!traversal.done);

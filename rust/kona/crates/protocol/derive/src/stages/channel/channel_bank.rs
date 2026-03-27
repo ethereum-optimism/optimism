@@ -4,13 +4,12 @@ use crate::{
     ChannelReaderProvider, NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError,
     PipelineErrorKind, PipelineResult, StageReset,
 };
-use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::{Bytes, hex, map::HashMap};
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, Channel, ChannelId, Frame};
 
 /// The maximum size of a channel bank.

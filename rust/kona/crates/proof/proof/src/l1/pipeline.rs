@@ -64,7 +64,6 @@ where
             chain_provider.clone(),
         );
 
-
         let mut pipeline = PipelineBuilder::new()
             .rollup_config(cfg)
             .dap_source(da_provider)
@@ -76,9 +75,7 @@ where
 
         // Reset the pipeline to populate the initial system configuration in L1 Traversal.
         let l2_safe_head = *sync_start.read().l2_safe_head();
-        pipeline
-            .signal(Signal::Reset(ResetSignal { l2_safe_head }))
-            .await?;
+        pipeline.signal(Signal::Reset(ResetSignal { l2_safe_head })).await?;
 
         Ok(Self { pipeline, caching_oracle })
     }

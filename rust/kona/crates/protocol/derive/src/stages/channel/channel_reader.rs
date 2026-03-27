@@ -3,14 +3,13 @@
 use crate::{
     BatchStreamProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
 };
-use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{
-    MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig,
+    MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig, SystemConfig,
 };
 use kona_protocol::{Batch, BatchReader, BlockInfo};
 use tracing::{debug, warn};

@@ -6,12 +6,11 @@ use crate::{
     traits::{AttributesProvider, OriginAdvancer, OriginProvider, StageReset},
     types::PipelineResult,
 };
-use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{Batch, BatchValidity, BlockInfo, L2BlockInfo, SingleBatch};
 
 /// The [`BatchValidator`] stage is responsible for validating the [`SingleBatch`]es from
@@ -366,12 +365,9 @@ mod test {
         let mut bv = BatchValidator::new(cfg, mock);
 
         // Reset the pipeline to add the L1 origin to the stage.
-        bv.reset(
-            BlockNumHash { number: 1, ..Default::default() },
-            SystemConfig::default(),
-        )
-        .await
-        .unwrap();
+        bv.reset(BlockNumHash { number: 1, ..Default::default() }, SystemConfig::default())
+            .await
+            .unwrap();
 
         // Simulate origin regressing after reset (startup scenario where
         // prev hasn't caught up yet).
@@ -394,12 +390,9 @@ mod test {
         let mut bv = BatchValidator::new(cfg, mock);
 
         // Reset the pipeline to add the L1 origin to the stage.
-        bv.reset(
-            BlockNumHash { number: 1, ..Default::default() },
-            SystemConfig::default(),
-        )
-        .await
-        .unwrap();
+        bv.reset(BlockNumHash { number: 1, ..Default::default() }, SystemConfig::default())
+            .await
+            .unwrap();
 
         // After reset, advance mock origin so update_origins advances.
         bv.prev.origin = Some(BlockInfo { number: 2, ..Default::default() });
@@ -421,12 +414,9 @@ mod test {
         let mut bv = BatchValidator::new(cfg, mock);
 
         // Reset the pipeline to add the L1 origin to the stage.
-        bv.reset(
-            BlockNumHash { number: 1, ..Default::default() },
-            SystemConfig::default(),
-        )
-        .await
-        .unwrap();
+        bv.reset(BlockNumHash { number: 1, ..Default::default() }, SystemConfig::default())
+            .await
+            .unwrap();
 
         // Advance mock origin to simulate prev advancing past the reset origin.
         bv.prev.origin = Some(BlockInfo { number: 2, ..Default::default() });
@@ -539,12 +529,9 @@ mod test {
         let mut bv = BatchValidator::new(cfg, mock);
 
         // Reset the pipeline to add the L1 origin to the stage.
-        bv.reset(
-            BlockNumHash { number: 1, ..Default::default() },
-            SystemConfig::default(),
-        )
-        .await
-        .unwrap();
+        bv.reset(BlockNumHash { number: 1, ..Default::default() }, SystemConfig::default())
+            .await
+            .unwrap();
         bv.l1_blocks.push(BlockInfo { number: 1, ..Default::default() });
 
         // Grab the next batch.
@@ -565,12 +552,9 @@ mod test {
         let mut bv = BatchValidator::new(cfg, mock);
 
         // Reset the pipeline to add the L1 origin to the stage.
-        bv.reset(
-            BlockNumHash { number: 1, ..Default::default() },
-            SystemConfig::default(),
-        )
-        .await
-        .unwrap();
+        bv.reset(BlockNumHash { number: 1, ..Default::default() }, SystemConfig::default())
+            .await
+            .unwrap();
 
         // Advance the origin of the previous stage to block #6.
         for _ in 0..6 {
@@ -604,12 +588,9 @@ mod test {
         let mut bv = BatchValidator::new(cfg, mock);
 
         // Reset the pipeline to add the L1 origin to the stage.
-        bv.reset(
-            BlockNumHash { number: 1, ..Default::default() },
-            SystemConfig::default(),
-        )
-        .await
-        .unwrap();
+        bv.reset(BlockNumHash { number: 1, ..Default::default() }, SystemConfig::default())
+            .await
+            .unwrap();
 
         // Advance the origin of the previous stage to block #6.
         for _ in 0..6 {

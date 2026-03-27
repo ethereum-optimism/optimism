@@ -3,13 +3,12 @@
 use crate::{
     NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
 };
-use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, Frame};
 
 /// Provides data frames for the [`FrameQueue`] stage.

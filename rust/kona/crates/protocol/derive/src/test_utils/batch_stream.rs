@@ -6,9 +6,9 @@ use crate::{
     BatchStreamProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
 };
 use alloc::{boxed::Box, vec::Vec};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use kona_protocol::{Batch, BlockInfo};
 
 /// A mock provider for the [`BatchStream`] stage.

@@ -6,10 +6,10 @@ use crate::{
     StageReset, StepResult,
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{RollupConfig, SystemConfig};
-use alloy_eips::BlockNumHash;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 
 /// The derivation pipeline is responsible for deriving L2 inputs from L1 data.
@@ -52,15 +52,12 @@ where
         l2_safe_head: L2BlockInfo,
     ) -> Result<(BlockNumHash, SystemConfig), PipelineErrorKind> {
         let l1_origin_number = l2_safe_head.l1_origin.number;
-        let channel_timeout =
-            self.rollup_config.channel_timeout(l2_safe_head.block_info.timestamp);
+        let channel_timeout = self.rollup_config.channel_timeout(l2_safe_head.block_info.timestamp);
 
         let mut current = l2_safe_head;
         loop {
-            let after_l2_genesis =
-                current.block_info.number > self.rollup_config.genesis.l2.number;
-            let after_l1_genesis =
-                current.l1_origin.number > self.rollup_config.genesis.l1.number;
+            let after_l2_genesis = current.block_info.number > self.rollup_config.genesis.l2.number;
+            let after_l1_genesis = current.l1_origin.number > self.rollup_config.genesis.l1.number;
             let after_channel_timeout =
                 current.l1_origin.number + channel_timeout > l1_origin_number;
 
@@ -69,7 +66,9 @@ where
                     .l2_chain_provider
                     .l2_block_info_by_number(current.block_info.number - 1)
                     .await
-                    .map_err(|e| PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp())?;
+                    .map_err(|e| {
+                        PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp()
+                    })?;
             } else {
                 break;
             }
@@ -77,10 +76,7 @@ where
 
         let system_config = self
             .l2_chain_provider
-            .system_config_by_number(
-                current.block_info.number,
-                Arc::clone(&self.rollup_config),
-            )
+            .system_config_by_number(current.block_info.number, Arc::clone(&self.rollup_config))
             .await
             .map_err(|e| PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp())?;
 
@@ -359,8 +355,7 @@ mod tests {
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
-        let result =
-            pipeline.signal(Signal::Activation(ActivationSignal::default())).await;
+        let result = pipeline.signal(Signal::Activation(ActivationSignal::default())).await;
         assert!(result.is_ok());
     }
 
@@ -382,8 +377,7 @@ mod tests {
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
-        let result =
-            pipeline.signal(Signal::Reset(ResetSignal::default())).await.unwrap_err();
+        let result = pipeline.signal(Signal::Reset(ResetSignal::default())).await.unwrap_err();
         assert_eq!(result, PipelineError::Provider("System config not found".to_string()).temp());
     }
 
@@ -437,8 +431,7 @@ mod tests {
 
         let rollup_config = Arc::new(rollup_config);
         let attributes = TestNextAttributes::default();
-        let mut pipeline =
-            DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
+        let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
         let l2_safe_head = L2BlockInfo {
             block_info: BlockInfo { number: 100, ..Default::default() },
@@ -477,8 +470,7 @@ mod tests {
 
         let rollup_config = Arc::new(rollup_config);
         let attributes = TestNextAttributes::default();
-        let mut pipeline =
-            DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
+        let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
         let l2_safe_head = L2BlockInfo {
             block_info: BlockInfo { number: 6, ..Default::default() },
@@ -497,11 +489,9 @@ mod tests {
         l2_chain_provider.system_configs.insert(0, SystemConfig::default());
 
         let attributes = TestNextAttributes::default();
-        let mut pipeline =
-            DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
+        let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
-        let (l1_origin, sys_cfg) =
-            pipeline.initial_reset(L2BlockInfo::default()).await.unwrap();
+        let (l1_origin, sys_cfg) = pipeline.initial_reset(L2BlockInfo::default()).await.unwrap();
         assert_eq!(l1_origin.number, 0);
         assert_eq!(sys_cfg, SystemConfig::default());
     }

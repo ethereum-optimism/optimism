@@ -4,10 +4,10 @@ use crate::{
     FrameQueueProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
 };
 use alloc::{boxed::Box, vec::Vec};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
 use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use kona_protocol::BlockInfo;
 
 /// A mock [`FrameQueueProvider`] for testing the frame queue stage.

@@ -16,8 +16,8 @@ use crate::{
     PollingTraversal, StageReset,
     test_utils::{TestAttributesBuilder, TestDAP},
 };
-use kona_genesis::SystemConfig;
 use alloy_eips::BlockNumHash;
+use kona_genesis::SystemConfig;
 
 /// A fully custom [`NextAttributes`].
 #[derive(Default, Debug, Clone)]

@@ -7,9 +7,9 @@ use crate::{
     types::PipelineResult,
 };
 use alloc::{boxed::Box, vec::Vec};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use kona_genesis::SystemConfig;
-use alloy_eips::BlockNumHash;
 use kona_protocol::{BlockInfo, Frame};
 
 /// A mock [`NextFrameProvider`] for testing the [`ChannelBank`] stage.
