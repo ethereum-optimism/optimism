@@ -13,6 +13,12 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
+# Copy workspace manifest and lock so [patch.crates-io] is available during cook
+COPY --from=planner /app/Cargo.toml Cargo.toml
+COPY --from=planner /app/Cargo.lock Cargo.lock
+# Copy local crates referenced by [patch.crates-io]
+COPY --from=planner /app/op-alloy/ op-alloy/
+COPY --from=planner /app/alloy-op-hardforks/ alloy-op-hardforks/
 
 ARG BUILD_PROFILE=maxperf
 ENV BUILD_PROFILE=$BUILD_PROFILE
