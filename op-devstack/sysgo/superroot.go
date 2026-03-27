@@ -7,10 +7,10 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -203,76 +204,37 @@ func migrateSuperRoots(
 	client := ethclient.NewClient(rpcClient)
 	w3Client := w3.NewClient(rpcClient)
 
-	useV2 := isOPCMV2(t, w3Client, migration.opcmImpl)
 	absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
-	absoluteCannonKonaPrestate := getInteropCannonKonaAbsolutePrestate(t)
 
-	permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
-	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
-	require.NoError(err, "must have configured proposer")
-	challenger, err := keys.Address(permissionedChainOps(devkeys.ChallengerRole))
-	require.NoError(err, "must have configured challenger")
-
-	var opChainConfigs []bindings.OPContractsManagerOpChainConfig
+	var chainSystemConfigs []common.Address
 	for _, l2Deployment := range migration.l2Deployments {
-		opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
-			SystemConfigProxy:  l2Deployment.SystemConfigProxyAddr(),
-			CannonPrestate:     absoluteCannonPrestate,
-			CannonKonaPrestate: absoluteCannonKonaPrestate,
-		})
+		chainSystemConfigs = append(chainSystemConfigs, l2Deployment.SystemConfigProxyAddr())
 	}
 
-	opcmABI, err := bindings.OPContractsManagerMetaData.GetAbi()
-	require.NoError(err, "invalid OPCM ABI")
-	contract := batching.NewBoundContract(opcmABI, migration.opcmImpl)
+	// Use the v2 migrator ABI directly (v1 OPCM is deleted, bindings are stale)
+	migratorABI, err := OPContractsManagerMigratorABI()
+	require.NoError(err, "invalid migrator ABI")
+	contract := batching.NewBoundContract(migratorABI, migration.opcmImpl)
 
-	var migrateCallData []byte
-	if useV2 {
-		var chainSystemConfigs []common.Address
-		for _, cfg := range opChainConfigs {
-			chainSystemConfigs = append(chainSystemConfigs, cfg.SystemConfigProxy)
-		}
-		migrateInputV2 := MigrateInputV2{
-			ChainSystemConfigs: chainSystemConfigs,
-			DisputeGameConfigs: []DisputeGameConfigV2{
-				{
-					Enabled:  true,
-					InitBond: big.NewInt(0),
-					GameType: superCannonGameType,
-					GameArgs: absoluteCannonPrestate[:],
-				},
+	migrateInputV2 := MigrateInputV2{
+		ChainSystemConfigs: chainSystemConfigs,
+		DisputeGameConfigs: []DisputeGameConfigV2{
+			{
+				Enabled:  true,
+				InitBond: big.NewInt(0),
+				GameType: superCannonGameType,
+				GameArgs: absoluteCannonPrestate[:],
 			},
-			StartingAnchorRoot: bindings.Proposal{
-				Root:             common.Hash(superRoot),
-				L2SequenceNumber: big.NewInt(int64(superrootTime)),
-			},
-			StartingRespectedGameType: superCannonGameType,
-		}
-		migrateCall := contract.Call("migrate", migrateInputV2)
-		migrateCallData, err = migrateCall.Pack()
-		require.NoError(err)
-	} else {
-		migrateInputV1 := bindings.OPContractsManagerInteropMigratorMigrateInput{
-			UsePermissionlessGame: true,
-			StartingAnchorRoot: bindings.Proposal{
-				Root:             common.Hash(superRoot),
-				L2SequenceNumber: big.NewInt(int64(superrootTime)),
-			},
-			GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
-				Proposer:         proposer,
-				Challenger:       challenger,
-				MaxGameDepth:     big.NewInt(73),
-				SplitDepth:       big.NewInt(30),
-				InitBond:         big.NewInt(0),
-				ClockExtension:   10800,
-				MaxClockDuration: 302400,
-			},
-			OpChainConfigs: opChainConfigs,
-		}
-		migrateCall := contract.Call("migrate", migrateInputV1)
-		migrateCallData, err = migrateCall.Pack()
-		require.NoError(err)
+		},
+		StartingAnchorRoot: bindings.Proposal{
+			Root:             common.Hash(superRoot),
+			L2SequenceNumber: big.NewInt(int64(superrootTime)),
+		},
+		StartingRespectedGameType: superCannonGameType,
 	}
+	migrateCall := contract.Call("migrate", migrateInputV2)
+	migrateCallData, err := migrateCall.Pack()
+	require.NoError(err)
 
 	l1PAOKey, err := keys.Secret(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
 	require.NoError(err, "must have configured L1 proxy admin owner")
@@ -334,19 +296,7 @@ var (
 	optimismPortalFn     = w3.MustNewFunc("optimismPortal()", "address")
 	disputeGameFactoryFn = w3.MustNewFunc("disputeGameFactory()", "address")
 	gameImplsFn          = w3.MustNewFunc("gameImpls(uint32)", "address")
-	versionFn            = w3.MustNewFunc("version()", "string")
 )
-
-// isOPCMV2 is a helper function that checks the OPCM version and returns true if it is at least 7.0.0
-func isOPCMV2(t devtest.CommonT, client *w3.Client, opcmAddr common.Address) bool {
-	var version string
-	err := client.Call(w3eth.CallFunc(opcmAddr, versionFn).Returns(&version))
-	t.Require().NoError(err, "failed to get OPCM version")
-
-	isVersionAtLeast, err := deployer.IsVersionAtLeast(version, 7, 0, 0)
-	t.Require().NoError(err, "failed to check OPCM version")
-	return isVersionAtLeast
-}
 
 func getOptimismPortal(t devtest.CommonT, client *w3.Client, systemConfigProxy common.Address) common.Address {
 	var addr common.Address
@@ -367,4 +317,15 @@ func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) 
 	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonGameType)).Returns(&addr))
 	t.Require().NoError(err)
 	return addr
+}
+
+// OPContractsManagerMigratorABI returns the ABI for the v2 OPContractsManagerMigrator contract.
+// The v1 OPCM Go bindings are stale (v1 contract deleted), so we parse the ABI inline.
+func OPContractsManagerMigratorABI() (*abi.ABI, error) {
+	const migratorABIJSON = `[{"inputs":[{"components":[{"internalType":"address[]","name":"chainSystemConfigs","type":"address[]"},{"components":[{"internalType":"bool","name":"enabled","type":"bool"},{"internalType":"uint256","name":"initBond","type":"uint256"},{"internalType":"uint32","name":"gameType","type":"uint32"},{"internalType":"bytes","name":"gameArgs","type":"bytes"}],"internalType":"tuple[]","name":"disputeGameConfigs","type":"tuple[]"},{"components":[{"internalType":"bytes32","name":"root","type":"bytes32"},{"internalType":"uint256","name":"l2SequenceNumber","type":"uint256"}],"internalType":"tuple","name":"startingAnchorRoot","type":"tuple"},{"internalType":"uint32","name":"startingRespectedGameType","type":"uint32"}],"internalType":"tuple","name":"_input","type":"tuple"}],"name":"migrate","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
+	parsed, err := abi.JSON(strings.NewReader(migratorABIJSON))
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
