@@ -557,8 +557,6 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
 
     /// @notice Tests that multiple features can be enabled independently.
     function test_setFeature_multipleFeatures_succeeds() external {
-        // CUSTOM_GAS_TOKEN can only be set at genesis (block 1).
-        vm.roll(1);
         vm.startPrank(depositor);
         l1Block.setFeature(Features.INTEROP);
 
@@ -572,14 +570,6 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
         assertTrue(l1Block.isFeatureEnabled(Features.INTEROP));
         assertTrue(l1Block.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
         assertFalse(l1Block.isFeatureEnabled(Features.ETH_LOCKBOX));
-    }
-
-    /// @notice Tests that setFeature reverts for CUSTOM_GAS_TOKEN after genesis (block > 1).
-    function test_setFeature_customGasTokenAfterGenesis_reverts() external {
-        vm.roll(2);
-        vm.prank(depositor);
-        vm.expectRevert(L1Block_FeatureNotAllowedToSetAfterGenesis.selector);
-        l1Block.setFeature(Features.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Tests that isFeatureEnabled with zero bytes32 returns false.

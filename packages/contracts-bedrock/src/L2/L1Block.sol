@@ -6,7 +6,6 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import {
     L1Block_FeatureAlreadyEnabled,
-    L1Block_FeatureNotAllowedToSetAfterGenesis,
     L1Block_NotAuthorizedToSetFeature
 } from "src/libraries/L1BlockErrors.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
@@ -240,16 +239,10 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
         _setFeature(_feature);
     }
 
-    /// @notice Internal helper to enable a feature. Reverts if the feature is already enabled or if the feature is not
-    /// allowed to be set after genesis.
+    /// @notice Internal helper to enable a feature. Reverts if the feature is already enabled.
     /// @param _feature The feature to enable.
     function _setFeature(bytes32 _feature) internal {
         if (isFeatureEnabled[_feature]) revert L1Block_FeatureAlreadyEnabled();
-
-        // Custom gas token feature is only allowed to be set at genesis.
-        if (_feature == Features.CUSTOM_GAS_TOKEN) {
-            if (block.number != 1) revert L1Block_FeatureNotAllowedToSetAfterGenesis();
-        }
 
         isFeatureEnabled[_feature] = true;
         emit FeatureSet(_feature, true);

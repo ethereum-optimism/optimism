@@ -5,7 +5,6 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 
 interface IL1Block is IProxyAdminOwnedBase {
     error L1Block_FeatureAlreadyEnabled();
-    error L1Block_FeatureNotAllowedToSetAfterGenesis();
     error L1Block_NotAuthorizedToSetFeature();
 
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);

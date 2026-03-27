@@ -7,8 +7,5 @@ error NotDepositor();
 /// @notice Error when attempting to enable a feature that is already enabled.
 error L1Block_FeatureAlreadyEnabled();
 
-/// @notice Error when attempting to set a feature that is only allowed at genesis.
-error L1Block_FeatureNotAllowedToSetAfterGenesis();
-
 /// @notice Error when a caller is not authorized to set a feature.
 error L1Block_NotAuthorizedToSetFeature();
