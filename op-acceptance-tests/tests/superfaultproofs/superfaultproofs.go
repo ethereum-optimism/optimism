@@ -395,7 +395,7 @@ func RunTraceExtensionActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 
 	endTimestamp := uint64(time.Now().Unix())
-	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp + 1)
 	l1Head := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp + 1))
 
 	startTimestamp := endTimestamp - 1
