@@ -4,6 +4,7 @@
 use super::InteropHost;
 use crate::{KeyValueStore, Result};
 use alloy_primitives::{B256, keccak256};
+use kona_interop::DependencySet;
 use kona_preimage::PreimageKey;
 use kona_proof_interop::boot::{
     DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L1_HEAD_KEY, L2_AGREED_PRE_STATE_KEY,
@@ -42,7 +43,14 @@ impl KeyValueStore for InteropLocalInputs {
                 serde_json::to_vec(&l1_config).ok()
             }
             DEPENDENCY_SET_KEY => {
-                let dependency_set = self.cfg.read_dependency_set()?.ok()?;
+                let dependency_set = self
+                    .cfg
+                    .read_dependency_set()
+                    .and_then(|r| r.ok())
+                    .unwrap_or(DependencySet {
+                        dependencies: Default::default(),
+                        override_message_expiry_window: None,
+                    });
                 serde_json::to_vec(&dependency_set).ok()
             }
             _ => None,
