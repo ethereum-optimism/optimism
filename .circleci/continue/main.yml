@@ -3002,6 +3002,15 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary:
+          name: rust-workspace-binaries
+          directory: rust
+          profile: "release"
+          save_cache: true
+          persist_to_workspace: true
+          rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
           notify: true
@@ -3015,7 +3024,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-binaries-for-sysgo
+            - rust-workspace-binaries
       - publish-cannon-prestates:
           context:
             - slack
