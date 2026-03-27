@@ -26,6 +26,9 @@ interface IL2ContractsManager is ISemver {
     /// @notice Thrown when a feature flag mismatch is detected.
     error L2ContractsManager_FeatureFlagMismatch();
 
+    /// @notice Thrown when a v5 slot is passed with a non-zero offset.
+    error L2ContractsManager_InvalidV5Offset();
+
     /// @notice Executes the upgrade for all predeploys.
     /// @dev This function MUST be called via DELEGATECALL from the L2ProxyAdmin.
     function upgrade() external;
