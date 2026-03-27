@@ -29,6 +29,9 @@ library L2ContractsManagerUtils {
     /// @notice Thrown when a contract is in the process of being initialized during an upgrade.
     error L2ContractsManager_InitializingDuringUpgrade();
 
+    /// @notice Thrown when a v5 slot is passed with a non-zero offset.
+    error L2ContractsManager_InvalidV5Offset();
+
     /// @notice Upgrades a predeploy to a new implementation without calling an initializer.
     ///         If the predeploy is not upgradeable, this function is a no-op.
     /// @param _proxy The proxy address of the predeploy.
@@ -130,32 +133,33 @@ library L2ContractsManagerUtils {
         // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
         bytes32 v5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
 
-        // Read the v4 initialized slot value.
-        bytes32 v4SlotValue = IStorageSetter(_proxy).getBytes32(_slot);
-
-        // OZ v4: `_initializing` (bool) is packed at byte `_offset + 1` in `_slot`.
-        // Only check for v4 contracts (where `_slot` differs from the v5 namespaced slot)
-        // to avoid misreading v5's uint64 `_initialized` field as the v4 `_initializing` flag.
-        if (_slot != v5Slot && (uint256(v4SlotValue) >> (uint256(_offset + 1) * 8)) & 0xFF != 0) {
-            revert L2ContractsManager_InitializingDuringUpgrade();
+        // V5 contracts use a fixed layout with _initialized at offset 0. A non-zero offset
+        // would misalign the clearing mask and corrupt the slot.
+        if (_slot == v5Slot && _offset != 0) {
+            revert L2ContractsManager_InvalidV5Offset();
         }
 
-        uint256 v4Mask = ~(uint256(0xff) << (uint256(_offset) * 8));
-        IStorageSetter(_proxy).setBytes32(_slot, bytes32(uint256(v4SlotValue) & v4Mask));
-
-        // Clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
-        // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
-        // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
-        uint256 v5SlotValue = uint256(IStorageSetter(_proxy).getBytes32(v5Slot));
-
-        // OZ v5: `_initializing` (bool) lives at byte offset 8 (bits 64..71). Revert if set.
-        if ((v5SlotValue >> 64) & 0xFF != 0) {
-            revert L2ContractsManager_InitializingDuringUpgrade();
+        // OZ v4: check `_initializing` and clear `_initialized` byte.
+        // Only applies when `_slot` differs from the v5 namespaced slot, to avoid
+        // misreading v5's uint64 `_initialized` field as the v4 `_initializing` flag.
+        if (_slot != v5Slot) {
+            bytes32 v4Value = IStorageSetter(_proxy).getBytes32(_slot);
+            if ((uint256(v4Value) >> (uint256(_offset + 1) * 8)) & 0xFF != 0) {
+                revert L2ContractsManager_InitializingDuringUpgrade();
+            }
+            uint256 v4Mask = ~(uint256(0xff) << (uint256(_offset) * 8));
+            IStorageSetter(_proxy).setBytes32(_slot, bytes32(uint256(v4Value) & v4Mask));
         }
 
-        // Zero the v5 uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
-        uint256 v5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
-        IStorageSetter(_proxy).setBytes32(v5Slot, bytes32(v5SlotValue & v5Mask));
+        // OZ v5: check `_initializing` and clear `_initialized` uint64.
+        // OZ v5 stores `_initialized` as uint64 in the low 8 bytes and `_initializing` as
+        // bool at byte offset 8 of the ERC-7201 namespaced slot.
+        // For v4 contracts this slot is all zeros, making this a no-op.
+        uint256 v5Value = uint256(IStorageSetter(_proxy).getBytes32(v5Slot));
+        if ((v5Value >> 64) & 0xFF != 0) {
+            revert L2ContractsManager_InitializingDuringUpgrade();
+        }
+        IStorageSetter(_proxy).setBytes32(v5Slot, bytes32(v5Value & ~uint256(0xFFFFFFFFFFFFFFFF)));
 
         // Upgrade to the implementation and call the initializer.
         IProxy(payable(_proxy)).upgradeToAndCall(_implementation, _data);

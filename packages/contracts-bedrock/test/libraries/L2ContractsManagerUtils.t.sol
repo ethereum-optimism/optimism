@@ -192,6 +192,81 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
         );
     }
 
+    /// @notice Tests that v4 upgrade works with a non-zero `_offset`, clearing only the target byte.
+    function test_upgrade_v4NonZeroOffset_succeeds() public {
+        address proxy = Predeploys.L2_STANDARD_BRIDGE;
+
+        // Set v1 as current implementation.
+        vm.prank(Predeploys.PROXY_ADMIN);
+        IProxy(payable(proxy)).upgradeTo(implV1);
+
+        // Simulate a v4 contract where `_initialized` lives at byte offset 2 in the slot.
+        // Pack: byte 0-1 = other data (0xBEEF), byte 2 = _initialized (1), byte 3 = _initializing (0).
+        uint8 offset = 2;
+        uint256 v4Value = uint256(0xBEEF) | (uint256(1) << (offset * 8));
+        vm.store(proxy, INITIALIZABLE_SLOT_OZ_V4, bytes32(v4Value));
+
+        vm.startPrank(Predeploys.PROXY_ADMIN);
+        L2ContractsManagerUtils.upgradeToAndCall(
+            proxy,
+            implV2,
+            _storageSetterImpl,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            offset
+        );
+        vm.stopPrank();
+
+        vm.prank(Predeploys.PROXY_ADMIN);
+        assertEq(IProxy(payable(proxy)).implementation(), address(implV2));
+        // The _initialized byte at offset 2 should be cleared, but bytes 0-1 (0xBEEF) preserved.
+        assertEq(vm.load(proxy, INITIALIZABLE_SLOT_OZ_V4), bytes32(uint256(0xBEEF)));
+    }
+
+    /// @notice Tests that v4 upgrade reverts when `_initializing` is set at a non-zero offset.
+    function test_upgrade_v4InitializingNonZeroOffset_reverts() public {
+        address proxy = Predeploys.L2_STANDARD_BRIDGE;
+
+        // Set v1 as current implementation.
+        vm.prank(Predeploys.PROXY_ADMIN);
+        IProxy(payable(proxy)).upgradeTo(implV1);
+
+        // Simulate a v4 contract where `_initialized` is at byte offset 2 and `_initializing`
+        // is at byte offset 3. Set both to nonzero.
+        uint8 offset = 2;
+        uint256 v4Value = (uint256(1) << (offset * 8)) | (uint256(1) << ((offset + 1) * 8));
+        vm.store(proxy, INITIALIZABLE_SLOT_OZ_V4, bytes32(v4Value));
+
+        vm.expectRevert(L2ContractsManagerUtils.L2ContractsManager_InitializingDuringUpgrade.selector);
+        this._callUpgradeToAndCall(
+            proxy,
+            implV2,
+            _storageSetterImpl,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            offset
+        );
+    }
+
+    /// @notice Tests that upgrade reverts when v5 slot is passed with a non-zero offset.
+    function test_upgrade_v5InvalidOffset_reverts() public {
+        address proxy = Predeploys.SEQUENCER_FEE_WALLET;
+
+        // Set v1 as current implementation.
+        vm.prank(Predeploys.PROXY_ADMIN);
+        IProxy(payable(proxy)).upgradeTo(implV1);
+
+        vm.expectRevert(L2ContractsManagerUtils.L2ContractsManager_InvalidV5Offset.selector);
+        this._callUpgradeToAndCall(
+            proxy,
+            implV2,
+            _storageSetterImpl,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V5,
+            1
+        );
+    }
+
     /// @notice Tests that upgrade reverts when `_initializing` bool is set at the ERC-7201 slot.
     function test_upgrade_v5InitializingDuringUpgrade_reverts() public {
         address proxy = Predeploys.SEQUENCER_FEE_WALLET;
