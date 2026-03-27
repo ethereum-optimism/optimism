@@ -13,12 +13,6 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
-# Copy workspace manifest and lock so [patch.crates-io] is available during cook
-COPY --from=planner /app/Cargo.toml Cargo.toml
-COPY --from=planner /app/Cargo.lock Cargo.lock
-# Copy local crates referenced by [patch.crates-io]
-COPY --from=planner /app/op-alloy/ op-alloy/
-COPY --from=planner /app/alloy-op-hardforks/ alloy-op-hardforks/
 
 ARG BUILD_PROFILE=maxperf
 ENV BUILD_PROFILE=$BUILD_PROFILE
@@ -29,7 +23,10 @@ ENV RUSTFLAGS="$RUSTFLAGS"
 ARG FEATURES=""
 ENV FEATURES=$FEATURES
 
-RUN cargo chef cook --profile $BUILD_PROFILE --features "$FEATURES" --recipe-path recipe.json --manifest-path /app/op-reth/bin/Cargo.toml
+# Allow cook to fail on patched crates (op-alloy-network) whose crates.io
+# version conflicts with alloy 1.8.  All other dependencies are still cached.
+# The real build below uses the workspace [patch.crates-io] sources.
+RUN cargo chef cook --profile $BUILD_PROFILE --features "$FEATURES" --recipe-path recipe.json --manifest-path /app/op-reth/bin/Cargo.toml || true
 
 COPY . .
 RUN cargo build --profile $BUILD_PROFILE --features "$FEATURES" --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
