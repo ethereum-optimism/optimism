@@ -85,9 +85,6 @@ phases:
       - name: nut-bundle
         description: Check NUT bundle is up to date
         command: just nut-bundle-check-no-build
-      - name: opcm-upgrade-checks
-        description: Check OPCM upgrade methods
-        command: go run ./scripts/checks/opcm-upgrade-checks/
 
   # Phase 4: Dev build checks - needs test artifacts
   - name: dev
