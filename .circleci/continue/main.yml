@@ -78,6 +78,10 @@ parameters:
   c-non_docs_changes:
     type: boolean
     default: false
+  # Set to true when the pipeline is triggered from a GitHub merge queue branch.
+  c-is_merge_queue:
+    type: boolean
+    default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
