@@ -397,8 +397,7 @@ mod tests {
     async fn test_initial_reset_walks_back_system_config() {
         use alloy_primitives::address;
 
-        let mut rollup_config = RollupConfig::default();
-        rollup_config.channel_timeout = 10;
+        let rollup_config = RollupConfig { channel_timeout: 10, ..Default::default() };
 
         let mut l2_chain_provider = TestL2ChainProvider::default();
         // L2 blocks 89..=100: block N has L1 origin (N - 50).
@@ -450,10 +449,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_initial_reset_respects_genesis() {
-        let mut rollup_config = RollupConfig::default();
-        rollup_config.channel_timeout = 100;
-        rollup_config.genesis.l2.number = 5;
-        rollup_config.genesis.l1.number = 3;
+        let rollup_config = RollupConfig {
+            channel_timeout: 100,
+            genesis: kona_genesis::ChainGenesis {
+                l2: alloy_eips::BlockNumHash { number: 5, ..Default::default() },
+                l1: alloy_eips::BlockNumHash { number: 3, ..Default::default() },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         let mut l2_chain_provider = TestL2ChainProvider::default();
         l2_chain_provider.blocks.push(L2BlockInfo {
