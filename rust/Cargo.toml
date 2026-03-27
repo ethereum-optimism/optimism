@@ -318,6 +318,7 @@ reth-engine-local = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.
 reth-engine-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.3", default-features = false }
 reth-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.3" }
 reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.3" }
+reth-eth-wire-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.3" }
 reth-ethereum = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.3" }
 reth-ethereum-cli = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.3" }
 reth-ethereum-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.11.3" }

@@ -1020,9 +1020,33 @@ where
 
         let final_pool_config = pool_config_overrides.apply(ctx.pool_config());
 
-        let transaction_pool = TxPoolBuilder::new(ctx)
+        // Build inner pool without spawning maintenance — we need to wrap in
+        // OpPool first so that the maintenance task calls our intercepted
+        // `on_canonical_state_change` and `add_external_transactions`.
+        let inner_pool = TxPoolBuilder::new(ctx)
             .with_validator(validator)
-            .build_and_spawn_maintenance_task(blob_store, final_pool_config)?;
+            .build(blob_store, final_pool_config.clone());
+
+        // Enable the reorg interop filter using the same startup-time gate as
+        // the existing interop maintenance task.
+        let interop_filter_enabled =
+            ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) &&
+                supervisor_client.is_some();
+        let transaction_pool =
+            reth_optimism_txpool::OpPool::new(inner_pool, interop_filter_enabled);
+
+        debug!(target: "reth::cli",
+            interop_reorg_filter_enabled = interop_filter_enabled,
+            "OpPool wrapper initialized"
+        );
+
+        // Spawn maintenance tasks on the wrapped OpPool so that reorg
+        // reinsertion flows through our interop filter.
+        reth_node_builder::components::spawn_maintenance_tasks(
+            ctx,
+            transaction_pool.clone(),
+            &final_pool_config,
+        )?;
 
         info!(target: "reth::cli", "Transaction pool initialized");
         debug!(target: "reth::cli", "Spawned txpool maintenance task");

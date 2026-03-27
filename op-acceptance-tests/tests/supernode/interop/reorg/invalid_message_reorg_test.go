@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -26,8 +25,6 @@ import (
 // - The replacement block's timestamp eventually becomes verified
 func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19411): remove skip once op-reth evicts interop txs after a reorg
-	sysgo.SkipUnlessOpGeth(t, "fails due to missing interop tx eviction")
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	ctx := t.Ctx()

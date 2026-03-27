@@ -12,6 +12,8 @@ mod validator;
 pub use validator::{OpL1BlockInfo, OpTransactionValidator};
 
 pub mod conditional;
+mod pool;
+pub use pool::OpPool;
 pub mod supervisor;
 mod transaction;
 pub use transaction::{OpPooledTransaction, OpPooledTx};
@@ -23,9 +25,14 @@ pub mod estimated_da_size;
 
 use reth_transaction_pool::{CoinbaseTipOrdering, Pool, TransactionValidationTaskExecutor};
 
-/// Type alias for default optimism transaction pool
-pub type OpTransactionPool<Client, S, Evm, T = OpPooledTransaction> = Pool<
-    TransactionValidationTaskExecutor<OpTransactionValidator<Client, T, Evm>>,
-    CoinbaseTipOrdering<T>,
-    S,
+/// Type alias for default optimism transaction pool.
+///
+/// The outer [`OpPool`] wrapper filters interop transactions during reorg
+/// reinsertion. The inner [`Pool`] handles all standard pool operations.
+pub type OpTransactionPool<Client, S, Evm, T = OpPooledTransaction> = OpPool<
+    Pool<
+        TransactionValidationTaskExecutor<OpTransactionValidator<Client, T, Evm>>,
+        CoinbaseTipOrdering<T>,
+        S,
+    >,
 >;
