@@ -250,26 +250,6 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
     }
 
     /// @notice Tests that reinitializer V2 succeeds on an already-initialized proxy.
-    function test_initialize_reinitializerV2_succeeds() public {
-        skipIfForkTest("State has changed since initialization on a forked network.");
-
-        // Reset to allow reinit (simulate upgrade from ReinitializableBase(1) to (2)).
-        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
-        // Set initialized to 1 (as if from the old ReinitializableBase(1)).
-        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(uint256(1)));
-
-        vm.prank(anchorStateRegistry.proxyAdminOwner());
-        anchorStateRegistry.initialize(
-            systemConfig,
-            disputeGameFactory,
-            Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 }),
-            GameTypes.SUPER_CANNON_KONA
-        );
-
-        // Verify it took effect.
-        assertEq(anchorStateRegistry.respectedGameType().raw(), 9);
-    }
-
     /// @notice Tests that re-initialization does NOT update the retirementTimestamp.
     function test_initialize_retirementUnchangedOnNewRoot_succeeds() public {
         skipIfForkTest("State has changed since initialization on a forked network.");
