@@ -61,7 +61,7 @@ impl<F: ChainProvider> PollingTraversal<F> {
     }
 
     /// Update the origin block in the traversal stage.
-    const fn update_origin(&mut self, block: BlockInfo) {
+    fn update_origin(&mut self, block: BlockInfo) {
         self.done = false;
         self.block = Some(block);
         kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_ORIGIN, block.number as f64);
