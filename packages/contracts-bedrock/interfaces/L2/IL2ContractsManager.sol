@@ -26,6 +26,10 @@ interface IL2ContractsManager is ISemver {
     /// @notice Thrown when a feature flag mismatch is detected.
     error L2ContractsManager_FeatureFlagMismatch();
 
+    /// @notice Thrown when a predeploy is not upgradeable.
+    /// @param _target The address of the non-upgradeable predeploy.
+    error L2ContractsManager_NotUpgradeable(address _target);
+
     /// @notice Thrown when a v5 slot is passed with a non-zero offset.
     error L2ContractsManager_InvalidV5Offset();
 

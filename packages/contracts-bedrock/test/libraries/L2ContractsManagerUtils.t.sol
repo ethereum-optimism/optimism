@@ -80,6 +80,13 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
         vm.stopPrank();
     }
 
+    /// @notice External wrapper so vm.expectRevert can catch reverts from the internal library call.
+    function _callUpgradeTo(address _proxy, address _implementation) external {
+        vm.startPrank(Predeploys.PROXY_ADMIN);
+        L2ContractsManagerUtils.upgradeTo(_proxy, _implementation);
+        vm.stopPrank();
+    }
+
     /// @notice Tests that v4 contracts are unaffected by the v5 slot clearing logic. For v4
     ///         contracts the ERC-7201 slot is all zeros, so the new code is a no-op.
     function test_upgrade_v4ContractStillWorks_succeeds() public {
@@ -329,5 +336,32 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
         assertEq(IProxy(payable(proxy)).implementation(), address(implV2));
         // The upper bytes should be preserved, only the low 8 bytes should be zeroed.
         assertEq(vm.load(proxy, INITIALIZABLE_SLOT_OZ_V5), bytes32(upperData));
+    }
+
+    /// @notice Tests that upgradeTo reverts for a non-upgradeable predeploy (WETH is not proxied).
+    function test_upgradeTo_notUpgradeable_reverts() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L2ContractsManagerUtils.L2ContractsManager_NotUpgradeable.selector, Predeploys.WETH
+            )
+        );
+        this._callUpgradeTo(Predeploys.WETH, implV1);
+    }
+
+    /// @notice Tests that upgradeToAndCall reverts for a non-upgradeable predeploy (WETH is not proxied).
+    function test_upgradeToAndCall_notUpgradeable_reverts() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L2ContractsManagerUtils.L2ContractsManager_NotUpgradeable.selector, Predeploys.WETH
+            )
+        );
+        this._callUpgradeToAndCall(
+            Predeploys.WETH,
+            implV2,
+            _storageSetterImpl,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0
+        );
     }
 }

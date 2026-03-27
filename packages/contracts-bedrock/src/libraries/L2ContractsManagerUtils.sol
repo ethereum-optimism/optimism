@@ -18,9 +18,8 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 
 /// @title L2ContractsManagerUtils
 /// @notice L2ContractsManagerUtils is a library that provides utility functions for the L2ContractsManager system.
-/// @dev Upgrade functions silently skip predeploys that are not upgradeable (i.e., not deployed on the chain).
-///      This is intentional to support chains where certain predeploys are conditionally deployed, such as
-///      CrossL2Inbox on non-interop chains or LiquidityController on non-custom-gas-token chains.
+/// @dev Upgrade functions revert if the target predeploy is not upgradeable (e.g., not proxied).
+///      Callers must guard calls for conditionally-deployed predeploys.
 library L2ContractsManagerUtils {
     /// @notice Thrown when a user attempts to downgrade a contract.
     /// @param _target The address of the contract that was attempted to be downgraded.
@@ -29,16 +28,19 @@ library L2ContractsManagerUtils {
     /// @notice Thrown when a contract is in the process of being initialized during an upgrade.
     error L2ContractsManager_InitializingDuringUpgrade();
 
+    /// @notice Thrown when a predeploy is not upgradeable.
+    /// @param _target The address of the non-upgradeable predeploy.
+    error L2ContractsManager_NotUpgradeable(address _target);
+
     /// @notice Thrown when a v5 slot is passed with a non-zero offset.
     error L2ContractsManager_InvalidV5Offset();
 
     /// @notice Upgrades a predeploy to a new implementation without calling an initializer.
-    ///         If the predeploy is not upgradeable, this function is a no-op.
+    ///         Reverts if the predeploy is not upgradeable.
     /// @param _proxy The proxy address of the predeploy.
     /// @param _implementation The new implementation address.
     function upgradeTo(address _proxy, address _implementation) internal {
-        // Skip if the predeploy is not upgradeable (i.e., not in the predeploy namespace or not proxied).
-        if (!Predeploys.isUpgradeable(_proxy)) return;
+        if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
         // predeploys that are being introduced on this particular upgrade.
@@ -89,8 +91,7 @@ library L2ContractsManagerUtils {
     }
 
     /// @notice Upgrades an initializable Predeploy's implementation to _implementation by resetting the initialized
-    ///         slot and calling upgradeToAndCall with _data. If the predeploy is not upgradeable, this function
-    ///         is a no-op.
+    ///         slot and calling upgradeToAndCall with _data. Reverts if the predeploy is not upgradeable.
     /// @dev It's important to make sure that only initializable Predeploys are upgraded this way.
     /// @param _proxy The proxy of the contract.
     /// @param _implementation The new implementation of the contract.
@@ -108,8 +109,7 @@ library L2ContractsManagerUtils {
     )
         internal
     {
-        // Skip if the predeploy is not upgradeable (e.g., not deployed on this chain).
-        if (!Predeploys.isUpgradeable(_proxy)) return;
+        if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
         // predeploys that are being introduced on this particular upgrade.
