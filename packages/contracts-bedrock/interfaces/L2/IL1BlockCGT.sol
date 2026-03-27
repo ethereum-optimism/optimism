@@ -5,6 +5,7 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 
 interface IL1BlockCGT is IProxyAdminOwnedBase {
     error L1Block_FeatureAlreadyEnabled();
+    error L1Block_FeatureNotAllowedToSetAfterGenesis();
     error L1Block_NotAuthorizedToSetFeature();
 
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
@@ -42,7 +43,6 @@ interface IL1BlockCGT is IProxyAdminOwnedBase {
     function setL1BlockValuesEcotone() external;
     function setL1BlockValuesIsthmus() external;
     function setL1BlockValuesJovian() external;
-    function setCustomGasToken() external;
     function gasPayingToken() external view returns (address, uint8);
     function setFeature(bytes32 _feature) external;
     function isFeatureEnabled(bytes32) external view returns (bool);

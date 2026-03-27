@@ -429,7 +429,7 @@ contract L2ContractsManager is ISemver {
         // isCustomGasToken() continues to return true. The new impl reads from the mapping
         // rather than the legacy storage slot.
         if (_config.isCustomGasToken) {
-            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setCustomGasToken();
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
         }
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,

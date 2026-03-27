@@ -240,12 +240,13 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
         _setFeature(_feature);
     }
 
-    /// @notice Internal helper to enable a feature. Reverts if already enabled.
-    ///
+    /// @notice Internal helper to enable a feature. Reverts if the feature is already enabled or if the feature is not
+    /// allowed to be set after genesis.
     /// @param _feature The feature to enable.
     function _setFeature(bytes32 _feature) internal {
         if (isFeatureEnabled[_feature]) revert L1Block_FeatureAlreadyEnabled();
 
+        // Custom gas token feature is only allowed to be set at genesis.
         if (_feature == Features.CUSTOM_GAS_TOKEN) {
             if (block.number != 1) revert L1Block_FeatureNotAllowedToSetAfterGenesis();
         }
@@ -254,10 +255,13 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
         emit FeatureSet(_feature, true);
     }
 
-    /// @notice Reverts if the sender is not authorized to set a feature. Only callable by the depositor account, the
-    /// ProxyAdmin owner, or the ProxyAdmin. This allows features to be set either by the L2CM, the Depositor, or the
-    /// ProxyAdminOwner,
-    ///         which is expected to be an account on L1.
+    /// @notice Reverts if the sender is not authorized to set a feature. The different callers and the motivation for
+    ///         authorization are as follows:
+    ///         - Depositor: Allows setting features by the depositor account from within the CL client's derivation
+    ///           pipeline.
+    ///         - ProxyAdmin: Allows setting system features by the L2ContractsManager.
+    ///         - ProxyAdmin Owner: Allows setting system features by a deposit transactions from the ProxyAdminOwner on
+    ///           L1.
     /// @param _sender The address to check.
     function _assertSetFeatureAuthorized(address _sender) internal view {
         if (!(_sender == DEPOSITOR_ACCOUNT() || _sender == proxyAdminOwner() || _sender == address(proxyAdmin()))) {

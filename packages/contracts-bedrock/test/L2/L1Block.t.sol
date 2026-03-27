@@ -13,6 +13,7 @@ import "src/libraries/L1BlockErrors.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
@@ -480,7 +481,7 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
 
         vm.expectRevert(L1Block_FeatureAlreadyEnabled.selector);
         vm.prank(depositor);
-        IL1BlockCGT(address(l1BlockCGT)).setCustomGasToken();
+        IL1Block(address(l1BlockCGT)).setFeature(Features.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Tests that `setCustomGasToken` updates the flag correctly when called by depositor.
@@ -493,7 +494,7 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
         assertFalse(l1BlockCGT.isCustomGasToken());
 
         vm.prank(depositor);
-        l1BlockCGT.setCustomGasToken();
+        IL1Block(address(l1BlockCGT)).setFeature(Features.CUSTOM_GAS_TOKEN);
 
         assertTrue(l1BlockCGT.isCustomGasToken());
     }
@@ -507,7 +508,7 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
         );
         vm.expectRevert(L1Block_NotAuthorizedToSetFeature.selector);
         vm.prank(notAuthorized);
-        l1BlockCGT.setCustomGasToken();
+        IL1Block(address(l1BlockCGT)).setFeature(Features.CUSTOM_GAS_TOKEN);
     }
 }
 
