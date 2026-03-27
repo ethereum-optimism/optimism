@@ -257,9 +257,7 @@ impl InteropHost {
     }
 
     /// Reads the [`DependencySet`] from the file system.
-    pub fn read_dependency_set(
-        &self,
-    ) -> Option<Result<DependencySet, InteropHostError>> {
+    pub fn read_dependency_set(&self) -> Option<Result<DependencySet, InteropHostError>> {
         let path = self.dependency_set_path.as_ref()?;
 
         Some((|| {
