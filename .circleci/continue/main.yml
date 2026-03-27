@@ -1529,11 +1529,11 @@ jobs:
     parameters:
       always-succed:
         description: Force always succed
-        type: bool
+        type: boolean
         default: false
     steps:
       - utils/ci-gate:
-          enforce-only-in-merge-queue: << parameters.always-succed >>
+          always-succeed: << parameters.always-succed >>
 
   contracts-bedrock-checks-fast:
     docker:
