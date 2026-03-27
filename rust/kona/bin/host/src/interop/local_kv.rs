@@ -43,13 +43,12 @@ impl KeyValueStore for InteropLocalInputs {
                 serde_json::to_vec(&l1_config).ok()
             }
             DEPENDENCY_SET_KEY => {
-                let dependency_set = self
-                    .cfg
-                    .read_dependency_set()
-                    .and_then(|r| r.ok())
-                    .unwrap_or(DependencySet {
-                        dependencies: Default::default(),
-                        override_message_expiry_window: None,
+                let dependency_set =
+                    self.cfg.read_dependency_set().and_then(|r| r.ok()).unwrap_or_else(|| {
+                        DependencySet {
+                            dependencies: Default::default(),
+                            override_message_expiry_window: None,
+                        }
                     });
                 serde_json::to_vec(&dependency_set).ok()
             }
