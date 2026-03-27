@@ -3213,8 +3213,8 @@ workflows:
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-checks-fast: terminal
-        context:
-          - circleci-repo-readonly-authenticated-github-token
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   # ============================================================================
   # Required contracts CI gate (skip) — runs when no contract changes
@@ -3235,5 +3235,5 @@ workflows:
     jobs:
       - required-contracts-ci:
           always-succed: true
-        context:
-          - circleci-repo-readonly-authenticated-github-token
+          context:
+            - circleci-repo-readonly-authenticated-github-token
