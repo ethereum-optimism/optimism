@@ -35,8 +35,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -170,6 +170,8 @@ contract L2ContractsManager is ISemver {
         fullConfig_.isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
 
         // Uses try/catch because isFeatureEnabled() may not exist on pre-upgrade L1Block contracts.
+        // The INTEROP feature is enabled after genesis via a Network Upgrade Transaction (NUT) issued
+        // by the consensus client at the start of the hard fork block.
         // eip150-safe
         try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP) returns (bool isInterop_) {
             fullConfig_.isInterop = isInterop_;
