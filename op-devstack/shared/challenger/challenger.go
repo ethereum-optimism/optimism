@@ -86,11 +86,13 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 		return fmt.Errorf("failed to get absolute path to prestate dir: %w", err)
 	}
 	if interop {
+		c.CannonKonaAbsolutePreState = root + "rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
 		c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/rust/kona/prestate-artifacts-cannon-interop")
 		if err != nil {
 			return err
 		}
 	} else {
+		c.CannonKonaAbsolutePreState = root + "rust/kona/prestate-artifacts-cannon/prestate.bin.gz"
 		c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/rust/kona/prestate-artifacts-cannon")
 		if err != nil {
 			return err
@@ -245,6 +247,7 @@ func NewPreInteropChallengerConfig(dir string, l1Endpoint string, l1Beacon strin
 
 func applyCommonChallengerOpts(cfg *config.Config, options ...Option) error {
 	cfg.Cannon.L2Custom = true
+	cfg.CannonKona.L2Custom = true
 	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
 	// before the L2 genesis is known.
 	cfg.AllowInvalidPrestate = true

@@ -3015,6 +3015,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
+            - rust-binaries-for-sysgo
       - publish-cannon-prestates:
           context:
             - slack

@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -163,18 +162,18 @@ type CannonTraceProviderForTest struct {
 	*CannonTraceProvider
 }
 
-func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
+func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, vmCfg vm.Config, serverExecutor vm.OracleServerExecutor, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
 	p := &CannonTraceProvider{
 		logger:    logger,
 		dir:       dir,
-		prestate:  cfg.CannonAbsolutePreState,
-		generator: vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(logger), cfg.CannonAbsolutePreState, localInputs),
+		prestate:  prestate,
+		generator: vm.NewExecutor(logger, m, vmCfg, serverExecutor, prestate, localInputs),
 		gameDepth: gameDepth,
 		preimageLoader: utils.NewPreimageLoader(func() (utils.PreimageSource, error) {
 			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
-		stateConverter: NewStateConverter(cfg.Cannon),
-		cfg:            cfg.Cannon,
+		stateConverter: NewStateConverter(vmCfg),
+		cfg:            vmCfg,
 	}
 	return &CannonTraceProviderForTest{p}
 }
