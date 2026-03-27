@@ -266,10 +266,6 @@ func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
 }
 
-func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return getAbsolutePrestate(t, "rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json")
-}
-
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return getAbsolutePrestate(t, "rust/kona/prestate-artifacts-cannon/prestate-proof.json")
 }
