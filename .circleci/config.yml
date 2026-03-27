@@ -109,6 +109,10 @@ workflows:
             rust/.* c-rust_files_changed true .circleci/continue/main.yml
             ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/main.yml
 
+            # Docs CI — trigger on docs/public-docs/ changes
+            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/docs-ci.yml
+            docs/public-docs/.* c-docs_changes_detected true .circleci/continue/docs-ci.yml
+
             # Rust CI — always include config, gate jobs via c-rust_changes_detected
             .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
             .* c-base_image << pipeline.parameters.base_image >> .circleci/continue/rust-ci.yml

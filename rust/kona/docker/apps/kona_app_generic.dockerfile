@@ -25,7 +25,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install cargo-binstall
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
-RUN cargo binstall cargo-chef -y
+RUN cargo binstall cargo-chef cargo-auditable -y
 
 ################################
 #    Local Repo Setup Stage    #
@@ -79,7 +79,7 @@ RUN RUSTFLAGS="-C target-cpu=generic" cargo chef cook --bin "${BIN_TARGET}" --pr
 COPY --from=app-setup /workspace .
 # Build the application binary on the selected tag. Since we build the external dependencies in the previous step,
 # this step will reuse the target directory from the previous step.
-RUN RUSTFLAGS="-C target-cpu=generic" cargo build --bin "${BIN_TARGET}" --profile "${BUILD_PROFILE}"
+RUN RUSTFLAGS="-C target-cpu=generic" cargo auditable build --bin "${BIN_TARGET}" --profile "${BUILD_PROFILE}"
 
 # Export stage
 FROM ubuntu:22.04 AS export-stage

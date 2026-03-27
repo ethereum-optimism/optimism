@@ -26,8 +26,8 @@ import (
 // - The replacement block's timestamp eventually becomes verified
 func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
+	// TODO(#19411): remove skip once op-reth evicts interop txs after a reorg
+	sysgo.SkipUnlessOpGeth(t, "fails due to missing interop tx eviction")
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	ctx := t.Ctx()

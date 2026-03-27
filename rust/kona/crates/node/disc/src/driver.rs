@@ -108,7 +108,7 @@ impl Discv5Driver {
 
         let initial_store_length = store.len();
 
-        for bn in bootnodes.0.into_iter().chain(BootNodes::from_chain_id(chain_id).0.into_iter()) {
+        for bn in bootnodes.0.into_iter().chain(BootNodes::from_chain_id(chain_id).0) {
             let res = match bn {
                 BootNode::Enr(enr) => Ok(enr.clone()),
                 BootNode::Enode(enode) => disc.request_enr(enode.clone()).await,
@@ -275,45 +275,38 @@ impl Discv5Driver {
                             continue;
                         };
                         match event {
-                            discv5::Event::Discovered(enr) => {
-                                if EnrValidation::validate(&enr, chain_id).is_valid() {
-                                    debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                    kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "discovered");
-                                    store.add_enr(enr.clone());
-                                    let sender = enr_sender.clone();
-                                    tokio::spawn(async move {
-                                        if let Err(e) = sender.send(enr).await {
-                                            debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                        }
-                                    });
-                                }
+                            discv5::Event::Discovered(enr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
+                                debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
+                                kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "discovered");
+                                store.add_enr(enr.clone());
+                                let sender = enr_sender.clone();
+                                tokio::spawn(async move {
+                                    if let Err(e) = sender.send(enr).await {
+                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
+                                    }
+                                });
                             }
-                            discv5::Event::SessionEstablished(enr, addr) => {
-                                if EnrValidation::validate(&enr, chain_id).is_valid() {
-                                    debug!(target: "discovery", "Session established with valid ENR, forwarding to swarm. Address: {:?}, ENR: {:?}", addr, enr);
-                                    kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "session_established");
-                                    store.add_enr(enr.clone());
-                                    let sender = enr_sender.clone();
-                                    tokio::spawn(async move {
-                                        if let Err(e) = sender.send(enr).await {
-                                            debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                        }
-                                    });
-                                }
+                            discv5::Event::SessionEstablished(enr, addr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
+                                debug!(target: "discovery", "Session established with valid ENR, forwarding to swarm. Address: {:?}, ENR: {:?}", addr, enr);
+                                kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "session_established");
+                                store.add_enr(enr.clone());
+                                let sender = enr_sender.clone();
+                                tokio::spawn(async move {
+                                    if let Err(e) = sender.send(enr).await {
+                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
+                                    }
+                                });
                             }
-                            discv5::Event::UnverifiableEnr { enr, .. } => {
-                                if EnrValidation::validate(&enr, chain_id).is_valid() {
-                                    debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                    kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr");
-                                    store.add_enr(enr.clone());
-                                    let sender = enr_sender.clone();
-                                    tokio::spawn(async move {
-                                        if let Err(e) = sender.send(enr).await {
-                                            debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                        }
-                                    });
-                                }
-
+                            discv5::Event::UnverifiableEnr { enr, .. } if EnrValidation::validate(&enr, chain_id).is_valid() => {
+                                debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
+                                kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr");
+                                store.add_enr(enr.clone());
+                                let sender = enr_sender.clone();
+                                tokio::spawn(async move {
+                                    if let Err(e) = sender.send(enr).await {
+                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
+                                    }
+                                });
                             }
                             _ => {}
                         }

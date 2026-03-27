@@ -977,7 +977,7 @@ where
         // supervisor used for interop txpool validation
         let supervisor_client = if let Some(url) = self.supervisor_http.clone() {
             Some(
-                SupervisorClient::builder(url)
+                SupervisorClient::builder(url, ctx.chain_spec().chain_id())
                     .minimum_safety(self.supervisor_safety_level)
                     .build()
                     .await,

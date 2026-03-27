@@ -63,10 +63,12 @@ type mockL2 struct {
 	outputCalls  int
 
 	// Block ref by label support
-	refsByLabel         map[eth.BlockLabel]eth.L2BlockRef
-	refsByLabelAfterFCU map[eth.BlockLabel]eth.L2BlockRef // state after FCU calls
-	refByLabelErr       error
-	labelCallCount      int
+	refsByLabel    map[eth.BlockLabel]eth.L2BlockRef
+	refByLabelErr  error
+	labelCallCount int
+	// labelOverrides, when set, overrides the label response for specific labels.
+	// Used by tests to simulate incorrect engine state for specific heads.
+	labelOverrides map[eth.BlockLabel]eth.L2BlockRef
 
 	// Block ref by number support (map for multiple blocks)
 	refsByNumber map[uint64]eth.L2BlockRef
@@ -85,7 +87,6 @@ type mockL2 struct {
 	fcuResult    *eth.ForkchoiceUpdatedResult
 	fcuErr       error
 	lastFCUState *eth.ForkchoiceState
-	fcuCompleted bool // tracks if FCU sequence is complete (used to switch label state)
 }
 
 func (m *mockL2) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
@@ -93,11 +94,25 @@ func (m *mockL2) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (e
 	if m.refByLabelErr != nil {
 		return eth.L2BlockRef{}, m.refByLabelErr
 	}
-	// After FCU is complete, use the post-FCU state for verification
-	if m.fcuCompleted && m.refsByLabelAfterFCU != nil {
-		if ref, ok := m.refsByLabelAfterFCU[label]; ok {
+	// Test-injected overrides take priority — used to simulate incorrect engine state.
+	if m.labelOverrides != nil {
+		if ref, ok := m.labelOverrides[label]; ok {
 			return ref, nil
 		}
+	}
+	// After any FCU, return refs matching the last FCU state so verifyRewindState passes.
+	// This simulates a well-behaved engine that immediately reflects forkchoice updates.
+	if m.lastFCUState != nil {
+		var hash common.Hash
+		switch label {
+		case eth.Unsafe:
+			hash = m.lastFCUState.HeadBlockHash
+		case eth.Safe:
+			hash = m.lastFCUState.SafeBlockHash
+		case eth.Finalized:
+			hash = m.lastFCUState.FinalizedBlockHash
+		}
+		return eth.L2BlockRef{Hash: hash}, nil
 	}
 	if m.refsByLabel != nil {
 		if ref, ok := m.refsByLabel[label]; ok {
@@ -139,10 +154,6 @@ func (m *mockL2) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceStat
 	}
 	if m.fcuResult != nil {
 		return m.fcuResult, nil
-	}
-	// Mark FCU as completed after second call (synthetic + target)
-	if m.fcuCalls >= 2 {
-		m.fcuCompleted = true
 	}
 	return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil
 }

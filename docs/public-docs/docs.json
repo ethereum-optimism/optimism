@@ -2387,6 +2387,336 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "Rust",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "rust/index"
+            ]
+          },
+          {
+            "group": "Kona - Introduction",
+            "pages": [
+              "rust/kona/intro/overview",
+              "rust/kona/intro/why",
+              "rust/kona/intro/contributing",
+              "rust/kona/intro/lore"
+            ]
+          },
+          {
+            "group": "Kona - Kona for Node Operators",
+            "pages": [
+              "rust/kona/node/requirements",
+              {
+                "group": "Installation",
+                "pages": [
+                  "rust/kona/node/install/overview",
+                  "rust/kona/node/install/binaries",
+                  "rust/kona/node/install/docker",
+                  "rust/kona/node/install/source"
+                ]
+              },
+              {
+                "group": "Run a Node",
+                "pages": [
+                  "rust/kona/node/run/overview",
+                  "rust/kona/node/run/binary",
+                  "rust/kona/node/run/docker",
+                  "rust/kona/node/run/mechanics"
+                ]
+              },
+              {
+                "group": "JSON-RPC Reference",
+                "pages": [
+                  "rust/kona/node/rpc/overview",
+                  "rust/kona/node/rpc/p2p",
+                  "rust/kona/node/rpc/rollup",
+                  "rust/kona/node/rpc/admin"
+                ]
+              },
+              "rust/kona/node/configuration",
+              "rust/kona/node/monitoring",
+              "rust/kona/node/subcommands",
+              {
+                "group": "FAQ",
+                "pages": [
+                  "rust/kona/node/faq/overview",
+                  "rust/kona/node/faq/ports",
+                  "rust/kona/node/faq/profiling"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Kona - Kona as a Library",
+            "pages": [
+              "rust/kona/sdk/overview",
+              {
+                "group": "Node SDK",
+                "pages": [
+                  "rust/kona/node/design/intro",
+                  "rust/kona/node/design/derivation",
+                  "rust/kona/node/design/engine",
+                  "rust/kona/node/design/p2p",
+                  "rust/kona/node/design/sequencer"
+                ]
+              },
+              {
+                "group": "Proof SDK",
+                "pages": [
+                  "rust/kona/sdk/proof/intro",
+                  "rust/kona/sdk/proof/fpvm-backend",
+                  "rust/kona/sdk/proof/custom-backend",
+                  "rust/kona/sdk/proof/exec-ext"
+                ]
+              },
+              {
+                "group": "Fault Proof Program Development",
+                "pages": [
+                  "rust/kona/sdk/fpp-dev/intro",
+                  "rust/kona/sdk/fpp-dev/env",
+                  "rust/kona/sdk/fpp-dev/targets",
+                  "rust/kona/sdk/fpp-dev/prologue",
+                  "rust/kona/sdk/fpp-dev/execution",
+                  "rust/kona/sdk/fpp-dev/epilogue"
+                ]
+              },
+              {
+                "group": "Protocol Libraries",
+                "pages": [
+                  "rust/kona/sdk/protocol/intro",
+                  "rust/kona/sdk/protocol/registry",
+                  "rust/kona/sdk/protocol/interop",
+                  "rust/kona/sdk/protocol/hardforks",
+                  {
+                    "group": "Derivation",
+                    "pages": [
+                      "rust/kona/sdk/protocol/derive/intro",
+                      "rust/kona/sdk/protocol/derive/providers",
+                      "rust/kona/sdk/protocol/derive/stages",
+                      "rust/kona/sdk/protocol/derive/signaling"
+                    ]
+                  },
+                  {
+                    "group": "Genesis",
+                    "pages": [
+                      "rust/kona/sdk/protocol/genesis/intro",
+                      "rust/kona/sdk/protocol/genesis/rollup-config",
+                      "rust/kona/sdk/protocol/genesis/system-config"
+                    ]
+                  },
+                  {
+                    "group": "Protocol",
+                    "pages": [
+                      "rust/kona/sdk/protocol/protocol/intro",
+                      "rust/kona/sdk/protocol/protocol/block-info",
+                      "rust/kona/sdk/protocol/protocol/l2-block-info",
+                      "rust/kona/sdk/protocol/protocol/frames",
+                      "rust/kona/sdk/protocol/protocol/channels",
+                      "rust/kona/sdk/protocol/protocol/batches"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Examples",
+                "pages": [
+                  "rust/kona/sdk/examples/intro",
+                  "rust/kona/sdk/examples/load-a-rollup-config",
+                  "rust/kona/sdk/examples/frames-to-batch",
+                  "rust/kona/sdk/examples/new-l1-block-info-tx-hardfork",
+                  "rust/kona/sdk/examples/executor-test-fixtures",
+                  "rust/kona/sdk/examples/p2p-peer-scoring",
+                  "rust/kona/sdk/examples/custom-derivation-pipeline"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Kona - RFC",
+            "pages": [
+              "rust/kona/rfc/active/intro",
+              {
+                "group": "Archived RFCs",
+                "pages": [
+                  "rust/kona/rfc/archived/umbrellas",
+                  "rust/kona/rfc/archived/monorepo"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "op-reth - Introduction",
+            "pages": [
+              "rust/op-reth/index"
+            ]
+          },
+          {
+            "group": "op-reth - Running op-reth",
+            "pages": [
+              "rust/op-reth/run/opstack",
+              {
+                "group": "FAQ",
+                "pages": [
+                  "rust/op-reth/run/faq/sync-op-mainnet"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "op-reth - CLI Reference",
+            "pages": [
+              "rust/op-reth/cli/op-reth",
+              {
+                "group": "op-reth",
+                "pages": [
+                  "rust/op-reth/cli/op-reth",
+                  "rust/op-reth/cli/op-reth/node",
+                  "rust/op-reth/cli/op-reth/init",
+                  "rust/op-reth/cli/op-reth/init-state",
+                  "rust/op-reth/cli/op-reth/import-op",
+                  "rust/op-reth/cli/op-reth/import-receipts-op",
+                  "rust/op-reth/cli/op-reth/dump-genesis",
+                  {
+                    "group": "op-reth db",
+                    "pages": [
+                      "rust/op-reth/cli/op-reth/db",
+                      "rust/op-reth/cli/op-reth/db/stats",
+                      "rust/op-reth/cli/op-reth/db/list",
+                      {
+                        "group": "op-reth db checksum",
+                        "pages": [
+                          "rust/op-reth/cli/op-reth/db/checksum",
+                          "rust/op-reth/cli/op-reth/db/checksum/mdbx",
+                          "rust/op-reth/cli/op-reth/db/checksum/static-file"
+                        ]
+                      },
+                      "rust/op-reth/cli/op-reth/db/diff",
+                      {
+                        "group": "op-reth db get",
+                        "pages": [
+                          "rust/op-reth/cli/op-reth/db/get",
+                          "rust/op-reth/cli/op-reth/db/get/mdbx",
+                          "rust/op-reth/cli/op-reth/db/get/static-file"
+                        ]
+                      },
+                      "rust/op-reth/cli/op-reth/db/drop",
+                      {
+                        "group": "op-reth db clear",
+                        "pages": [
+                          "rust/op-reth/cli/op-reth/db/clear",
+                          "rust/op-reth/cli/op-reth/db/clear/mdbx",
+                          "rust/op-reth/cli/op-reth/db/clear/static-file"
+                        ]
+                      },
+                      "rust/op-reth/cli/op-reth/db/repair-trie",
+                      {
+                        "group": "op-reth db static-file-header",
+                        "pages": [
+                          "rust/op-reth/cli/op-reth/db/static-file-header",
+                          "rust/op-reth/cli/op-reth/db/static-file-header/block",
+                          "rust/op-reth/cli/op-reth/db/static-file-header/path"
+                        ]
+                      },
+                      "rust/op-reth/cli/op-reth/db/version",
+                      "rust/op-reth/cli/op-reth/db/path",
+                      {
+                        "group": "op-reth db settings",
+                        "pages": [
+                          "rust/op-reth/cli/op-reth/db/settings",
+                          "rust/op-reth/cli/op-reth/db/settings/get",
+                          {
+                            "group": "op-reth db settings set",
+                            "pages": [
+                              "rust/op-reth/cli/op-reth/db/settings/set",
+                              "rust/op-reth/cli/op-reth/db/settings/set/receipts",
+                              "rust/op-reth/cli/op-reth/db/settings/set/transaction_senders",
+                              "rust/op-reth/cli/op-reth/db/settings/set/account_changesets",
+                              "rust/op-reth/cli/op-reth/db/settings/set/storages_history",
+                              "rust/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
+                              "rust/op-reth/cli/op-reth/db/settings/set/account_history",
+                              "rust/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+                            ]
+                          }
+                        ]
+                      },
+                      "rust/op-reth/cli/op-reth/db/account-storage"
+                    ]
+                  },
+                  {
+                    "group": "op-reth stage",
+                    "pages": [
+                      "rust/op-reth/cli/op-reth/stage",
+                      "rust/op-reth/cli/op-reth/stage/run",
+                      "rust/op-reth/cli/op-reth/stage/drop",
+                      {
+                        "group": "op-reth stage dump",
+                        "pages": [
+                          "rust/op-reth/cli/op-reth/stage/dump",
+                          "rust/op-reth/cli/op-reth/stage/dump/execution",
+                          "rust/op-reth/cli/op-reth/stage/dump/storage-hashing",
+                          "rust/op-reth/cli/op-reth/stage/dump/account-hashing",
+                          "rust/op-reth/cli/op-reth/stage/dump/merkle"
+                        ]
+                      },
+                      {
+                        "group": "op-reth stage unwind",
+                        "pages": [
+                          "rust/op-reth/cli/op-reth/stage/unwind",
+                          "rust/op-reth/cli/op-reth/stage/unwind/to-block",
+                          "rust/op-reth/cli/op-reth/stage/unwind/num-blocks"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "group": "op-reth p2p",
+                    "pages": [
+                      "rust/op-reth/cli/op-reth/p2p",
+                      "rust/op-reth/cli/op-reth/p2p/header",
+                      "rust/op-reth/cli/op-reth/p2p/body",
+                      {
+                        "group": "op-reth p2p rlpx",
+                        "pages": [
+                          "rust/op-reth/cli/op-reth/p2p/rlpx",
+                          "rust/op-reth/cli/op-reth/p2p/rlpx/ping"
+                        ]
+                      },
+                      "rust/op-reth/cli/op-reth/p2p/bootnode"
+                    ]
+                  },
+                  "rust/op-reth/cli/op-reth/config",
+                  "rust/op-reth/cli/op-reth/prune",
+                  "rust/op-reth/cli/op-reth/re-execute"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "op-alloy - Introduction",
+            "pages": [
+              "rust/op-alloy/intro",
+              "rust/op-alloy/starting"
+            ]
+          },
+          {
+            "group": "op-alloy - Building",
+            "pages": [
+              "rust/op-alloy/building/index",
+              "rust/op-alloy/building/consensus",
+              "rust/op-alloy/building/engine"
+            ]
+          },
+          {
+            "group": "op-alloy - Reference",
+            "pages": [
+              "rust/op-alloy/glossary"
+            ]
+          }
+        ]
       }
     ],
     "global": {

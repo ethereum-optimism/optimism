@@ -82,9 +82,26 @@ where
         ));
     }
 
-    // In the case where the agreed upon L2 output root is the same as the claimed L2 output root,
-    // trace extension is detected and we can skip the derivation and execution steps.
-    if boot.agreed_l2_output_root == boot.claimed_l2_output_root {
+    // If the claim targets the safe head block itself, then no derivation is required. This can
+    // happen at trace-extension leaves where the trace is capped at the root-claim block number.
+    //
+    // In this case, the only valid output root is the agreed output root (a zero-step transition).
+    if boot.claimed_l2_block_number == safe_head.number {
+        if boot.claimed_l2_output_root != boot.agreed_l2_output_root {
+            error!(
+                target: "client",
+                claimed = boot.claimed_l2_block_number,
+                safe = safe_head.number,
+                expected_output_root = ?boot.agreed_l2_output_root,
+                claimed_output_root = ?boot.claimed_l2_output_root,
+                "Claimed output root does not match agreed output root at safe head",
+            );
+            return Err(FaultProofProgramError::InvalidClaim(
+                boot.agreed_l2_output_root,
+                boot.claimed_l2_output_root,
+            ));
+        }
+
         info!(
             target: "client",
             "Trace extension detected. State transition is already agreed upon.",
@@ -100,6 +117,7 @@ where
     let cursor = new_oracle_pipeline_cursor(
         rollup_config.as_ref(),
         safe_head,
+        boot.agreed_l2_output_root,
         &mut l1_provider,
         &mut l2_provider,
     )

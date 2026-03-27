@@ -34,7 +34,7 @@ library L2ContractsManagerUtils {
     /// @param _proxy The proxy address of the predeploy.
     /// @param _implementation The new implementation address.
     function upgradeTo(address _proxy, address _implementation) internal {
-        // Skip if the predeploy is not upgradeable (e.g., not deployed on this chain).
+        // Skip if the predeploy is not upgradeable (i.e., not in the predeploy namespace or not proxied).
         if (!Predeploys.isUpgradeable(_proxy)) return;
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added

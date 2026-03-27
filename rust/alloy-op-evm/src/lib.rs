@@ -60,6 +60,13 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTransaction<TxEnv>> 
 }
 
 impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
+    /// Consumes self and return the inner EVM instance.
+    pub fn into_inner(
+        self,
+    ) -> op_revm::OpEvm<OpContext<DB>, I, EthInstructions<EthInterpreter, OpContext<DB>>, P> {
+        self.inner
+    }
+
     /// Provides a reference to the EVM context.
     pub const fn ctx(&self) -> &OpContext<DB> {
         &self.inner.0.ctx
