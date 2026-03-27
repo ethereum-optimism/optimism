@@ -134,7 +134,20 @@ where
                 }
             }
             Signal::Activation(ActivationSignal { l2_safe_head }) => {
-                let (l1_origin, system_config) = self.initial_reset(l2_safe_head).await?;
+                // Activation preserves the current derivation position — no L2 walkback.
+                // Use the current pipeline origin and system config at the safe head.
+                let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
+                let system_config = self
+                    .l2_chain_provider
+                    .system_config_by_number(
+                        l2_safe_head.block_info.number,
+                        Arc::clone(&self.rollup_config),
+                    )
+                    .await
+                    .map_err(|e| {
+                        PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp()
+                    })?;
+                let l1_origin = BlockNumHash { number: origin.number, hash: origin.hash };
                 match self.attributes.activate(l1_origin, system_config).await {
                     Ok(()) => trace!(target: "pipeline", "Stages activated"),
                     Err(err) => {
