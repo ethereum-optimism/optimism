@@ -15,7 +15,7 @@ workspace = true
 # reth
 reth-basic-payload-builder.workspace = true
 reth-evm.workspace = true
-reth-primitives-traits = { workspace = true, features = ["op"] }
+reth-primitives-traits.workspace = true
 reth-storage-api.workspace = true
 reth-rpc-eth-api = { workspace = true, features = ["op"] }
 reth-rpc-eth-types.workspace = true

@@ -2,7 +2,7 @@
 name = "op-alloy-provider"
 description = "Interface with an OP Stack blockchain"
 
-version = "0.23.1"
+version = "0.24.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

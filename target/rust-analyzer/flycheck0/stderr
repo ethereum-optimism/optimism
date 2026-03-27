@@ -1,0 +1,26 @@
+error: failed to load manifest for workspace member `/Users/theo/optimism/rust/op-reth/bin`
+referenced by workspace at `/Users/theo/optimism/rust/Cargo.toml`
+
+Caused by:
+  failed to load manifest for dependency `reth-optimism-cli`
+
+Caused by:
+  failed to load manifest for dependency `reth-optimism-consensus`
+
+Caused by:
+  failed to load manifest for dependency `reth-optimism-node`
+
+Caused by:
+  failed to load manifest for dependency `reth-optimism-payload-builder`
+
+Caused by:
+  failed to load manifest for dependency `reth-optimism-txpool`
+
+Caused by:
+  failed to parse manifest at `/Users/theo/optimism/rust/op-reth/crates/txpool/Cargo.toml`
+
+Caused by:
+  error inheriting `reth-eth-wire-types` from workspace root manifest's `workspace.dependencies.reth-eth-wire-types`
+
+Caused by:
+  `dependency.reth-eth-wire-types` was not found in `workspace.dependencies`

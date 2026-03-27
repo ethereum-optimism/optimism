@@ -32,13 +32,13 @@
 //!     // build core node with all components disabled except EVM and state
 //!     let sepolia = NodeConfig::new(OP_SEPOLIA.clone());
 //!     let db = create_test_rw_db_with_path(sepolia.datadir());
-//!     let runtime = Runtime::with_existing_handle(tokio::runtime::Handle::current()).unwrap();
+//!     let runtime = Runtime::test();
 //!     let launch_ctx = LaunchContext::new(runtime, sepolia.datadir());
 //!     let node = launch_ctx
 //!         .with_loaded_toml_config(sepolia)
 //!         .unwrap()
 //!         .attach(Arc::new(db))
-//!         .with_provider_factory::<_, OpEvmConfig>(ChangesetCache::new())
+//!         .with_provider_factory::<_, OpEvmConfig>(ChangesetCache::new(), None)
 //!         .await
 //!         .unwrap()
 //!         .with_genesis()
@@ -90,13 +90,13 @@ pub use reth_optimism_rpc::{OpEngineApi, OpEthApi, OpEthApiBuilder};
 
 use crate::OP_NAME_CLIENT;
 use alloy_rpc_types_engine::ClientVersionV1;
-use op_alloy_rpc_types_engine::OpExecutionData;
 use reth_chainspec::EthereumHardforks;
 use reth_node_api::{
     AddOnsContext, EngineApiValidator, EngineTypes, FullNodeComponents, NodeTypes,
 };
 use reth_node_builder::rpc::{EngineApiBuilder, PayloadValidatorBuilder};
 use reth_node_core::version::{CLIENT_CODE, version_metadata};
+use reth_optimism_payload_builder::OpExecData;
 use reth_optimism_rpc::engine::OP_ENGINE_CAPABILITIES;
 use reth_payload_builder::PayloadStore;
 use reth_rpc_engine_api::{EngineApi, EngineCapabilities};
@@ -112,7 +112,7 @@ where
     N: FullNodeComponents<
         Types: NodeTypes<
             ChainSpec: EthereumHardforks,
-            Payload: EngineTypes<ExecutionData = OpExecutionData>,
+            Payload: EngineTypes<ExecutionData = OpExecData>,
         >,
     >,
     EV: PayloadValidatorBuilder<N>,
@@ -142,7 +142,7 @@ where
             ctx.beacon_engine_handle.clone(),
             PayloadStore::new(ctx.node.payload_builder_handle().clone()),
             ctx.node.pool().clone(),
-            Box::new(ctx.node.task_executor().clone()),
+            ctx.node.task_executor().clone(),
             client,
             EngineCapabilities::new(OP_ENGINE_CAPABILITIES.iter().copied()),
             engine_validator,

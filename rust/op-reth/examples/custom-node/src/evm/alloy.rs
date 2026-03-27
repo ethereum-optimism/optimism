@@ -5,13 +5,14 @@ use alloy_primitives::{Address, Bytes};
 use op_revm::{
     L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles,
 };
-use reth_ethereum::evm::revm::{
+use revm::{
     Context, Inspector, Journal,
     context::{BlockEnv, CfgEnv, result::ResultAndState},
+    context_interface::result::EVMError,
     handler::PrecompileProvider,
+    inspector::NoOpInspector,
     interpreter::InterpreterResult,
 };
-use revm::{context_interface::result::EVMError, inspector::NoOpInspector};
 use std::error::Error;
 
 /// EVM context contains data that EVM needs for execution of [`CustomTxEnv`].

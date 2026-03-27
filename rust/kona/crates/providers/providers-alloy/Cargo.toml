@@ -27,6 +27,7 @@ alloy-serde.workspace = true
 alloy-eips = { workspace = true, features = ["kzg"] }
 alloy-transport.workspace = true
 alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
+reqwest = { workspace = true, features = ["query"] }
 alloy-consensus.workspace = true
 alloy-rpc-types-beacon.workspace = true
 alloy-rpc-types-engine.workspace = true
@@ -38,7 +39,6 @@ alloy-primitives = { workspace = true, features = ["map"] }
 op-alloy-consensus.workspace = true
 op-alloy-network.workspace = true
 
-reqwest.workspace = true
 
 # Misc
 lru.workspace = true

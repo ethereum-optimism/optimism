@@ -311,9 +311,6 @@ where
                 .context_for_next_block(parent_header, attrs)
                 .map_err(RethError::other)?;
 
-            // The cached bundle prestate already includes pre-execution state changes.
-            // Only set the state clear flag (Spurious Dragon empty-account handling).
-            state.set_state_clear_flag(true);
             let evm = self.evm_config.evm_with_env(&mut state, evm_env);
             let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
 

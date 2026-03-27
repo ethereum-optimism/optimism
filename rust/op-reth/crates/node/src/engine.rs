@@ -1,10 +1,7 @@
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadV1};
-use op_alloy_rpc_types_engine::{
-    OpExecutionData, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
-    OpPayloadAttributes,
-};
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4};
 use reth_consensus::ConsensusError;
 use reth_node_api::{
     BuiltPayload, EngineApiValidator, EngineTypes, NodePrimitives, PayloadValidator,
@@ -17,7 +14,9 @@ use reth_node_api::{
 };
 use reth_optimism_consensus::isthmus;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_payload_builder::{OpExecutionPayloadValidator, OpPayloadTypes};
+use reth_optimism_payload_builder::{
+    OpExecData, OpExecutionPayloadValidator, OpPayloadAttrs, OpPayloadTypes,
+};
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock};
 use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SignedTransaction};
 use reth_provider::StateProviderFactory;
@@ -31,25 +30,24 @@ pub struct OpEngineTypes<T: PayloadTypes = OpPayloadTypes> {
     _marker: PhantomData<T>,
 }
 
-impl<T: PayloadTypes<ExecutionData = OpExecutionData>> PayloadTypes for OpEngineTypes<T> {
+impl<T: PayloadTypes<ExecutionData = OpExecData>> PayloadTypes for OpEngineTypes<T> {
     type ExecutionData = T::ExecutionData;
     type BuiltPayload = T::BuiltPayload;
     type PayloadAttributes = T::PayloadAttributes;
-    type PayloadBuilderAttributes = T::PayloadBuilderAttributes;
 
     fn block_to_payload(
         block: SealedBlock<
             <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
         >,
     ) -> <T as PayloadTypes>::ExecutionData {
-        OpExecutionData::from_block_unchecked(
+        OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::from_block_unchecked(
             block.hash(),
             &block.into_block().into_ethereum_block(),
-        )
+        ))
     }
 }
 
-impl<T: PayloadTypes<ExecutionData = OpExecutionData>> EngineTypes for OpEngineTypes<T>
+impl<T: PayloadTypes<ExecutionData = OpExecData>> EngineTypes for OpEngineTypes<T>
 where
     T::BuiltPayload: BuiltPayload<Primitives: NodePrimitives<Block = OpBlock>>
         + TryInto<ExecutionPayloadV1>
@@ -118,7 +116,7 @@ where
     P: StateProviderFactory + Unpin + 'static,
     Tx: SignedTransaction + Unpin + 'static,
     ChainSpec: OpHardforks + Send + Sync + 'static,
-    Types: PayloadTypes<ExecutionData = OpExecutionData>,
+    Types: PayloadTypes<ExecutionData = OpExecData>,
 {
     type Block = alloy_consensus::Block<Tx>;
 
@@ -154,17 +152,17 @@ where
 
     fn convert_payload_to_block(
         &self,
-        payload: OpExecutionData,
+        payload: OpExecData,
     ) -> Result<SealedBlock<Self::Block>, NewPayloadError> {
-        self.inner.ensure_well_formed_payload(payload).map_err(NewPayloadError::other)
+        self.inner.ensure_well_formed_payload(payload.0).map_err(NewPayloadError::other)
     }
 }
 
 impl<Types, P, Tx, ChainSpec> EngineApiValidator<Types> for OpEngineValidator<P, Tx, ChainSpec>
 where
     Types: PayloadTypes<
-            PayloadAttributes = OpPayloadAttributes,
-            ExecutionData = OpExecutionData,
+            PayloadAttributes = OpPayloadAttrs,
+            ExecutionData = OpExecData,
             BuiltPayload: BuiltPayload<Primitives: NodePrimitives<SignedTx = Tx>>,
         >,
     P: StateProviderFactory + Unpin + 'static,
@@ -204,9 +202,7 @@ where
         validate_version_specific_fields(
             self.chain_spec(),
             version,
-            PayloadOrAttributes::<OpExecutionData, OpPayloadAttributes>::PayloadAttributes(
-                attributes,
-            ),
+            PayloadOrAttributes::<OpExecData, OpPayloadAttrs>::PayloadAttributes(attributes),
         )?;
 
         if attributes.gas_limit.is_none() {
@@ -307,6 +303,7 @@ mod test {
     use alloy_op_hardforks::BASE_SEPOLIA_JOVIAN_TIMESTAMP;
     use alloy_primitives::{Address, B64, B256, b64};
     use alloy_rpc_types_engine::PayloadAttributes;
+    use op_alloy_rpc_types_engine::OpPayloadAttributes;
     use reth_optimism_chainspec::BASE_SEPOLIA;
     use reth_provider::noop::NoopProvider;
     use reth_trie_common::KeccakKeyHasher;
@@ -323,12 +320,12 @@ mod test {
         }};
     }
 
-    const fn get_attributes(
+    fn get_attributes(
         eip_1559_params: Option<B64>,
         min_base_fee: Option<u64>,
         timestamp: u64,
-    ) -> OpPayloadAttributes {
-        OpPayloadAttributes {
+    ) -> OpPayloadAttrs {
+        OpPayloadAttrs(OpPayloadAttributes {
             gas_limit: Some(1000),
             eip_1559_params,
             min_base_fee,
@@ -341,7 +338,7 @@ mod test {
                 withdrawals: Some(vec![]),
                 parent_beacon_block_root: Some(B256::ZERO),
             },
-        }
+        })
     }
 
     #[test]

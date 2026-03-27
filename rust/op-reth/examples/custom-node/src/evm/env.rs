@@ -4,8 +4,9 @@ use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
 use alloy_op_evm::block::OpTxEnv;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use op_alloy_consensus::OpTxEnvelope;
-use reth_ethereum::evm::{primitives::TransactionEnv, revm::context::TxEnv};
+use reth_op::evm::primitives::TransactionEnv;
 use reth_optimism_evm::OpTx;
+use revm::context::TxEnv;
 
 /// An Optimism transaction extended by [`PaymentTxEnv`] that can be fed to [`Evm`].
 ///

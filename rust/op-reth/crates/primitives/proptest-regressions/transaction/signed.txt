@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1e1f607cadab3a3ccbb532e1aa8434294ea9fae166a6f23fd46fd25c30322da5 # shrinks to reth_tx = OpTransactionSigned { hash: OnceLock(<uninit>), signature: Signature { y_parity: false, r: 106471856770281558005005724873588750714483996420137736184322322872290389979960, s: 50647371676078034330502943574362585807573080711107932534787947090493523672971 }, transaction: Legacy(TxLegacy { chain_id: None, nonce: 0, gas_price: 0, gas_limit: 0, to: Create, value: 0, input: 0x }) }
+cc c74c99dc8990d720f17afea044dea4f935a814dd3f1fff700c12e3de4e8156e9 # shrinks to mut reth_tx = OpTransactionSigned { hash: OnceLock(<uninit>), signature: Signature { y_parity: true, r: 42909146298719458345195613704256725096087244542640899691284984153212479764836, s: 46050109659513408037102271107243804745631167304234490630284200167139583421702 }, transaction: Legacy(TxLegacy { chain_id: None, nonce: 0, gas_price: 0, gas_limit: 0, to: Create, value: 0, input: 0x }) }
+cc c3482100e534044ddb9ec9a5bf7baf73d571fec41b82461e82ac3c1ca22e67b7 # shrinks to mut reth_tx = OpTransactionSigned { hash: OnceLock(<uninit>), signature: Signature { y_parity: false, r: 54313566201575632619767444984125205512617733660660181688042416935807909702997, s: 9308215225666314592945299827648591229662264605138390452879026347174215856942 }, transaction: Legacy(TxLegacy { chain_id: None, nonce: 0, gas_price: 0, gas_limit: 0, to: Create, value: 0, input: 0x }) }
+cc ff72c2fa18ac367d2f95b35305c15388673d8904ccdd42c8b85373040560ecea # shrinks to reth_tx = OpTransactionSigned { hash: OnceLock(<uninit>), signature: Signature { y_parity: true, r: 46891284497230339975903531644275880122924506018400858017888360742030637906150, s: 12416356077729583314190692793174233813458232175557839427163699419263873650086 }, transaction: Legacy(TxLegacy { chain_id: None, nonce: 0, gas_price: 0, gas_limit: 0, to: Create, value: 0, input: 0x }) }

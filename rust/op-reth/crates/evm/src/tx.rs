@@ -218,15 +218,12 @@ impl FromTxWithEncoded<TxDeposit> for OpTx {
 }
 
 #[cfg(feature = "rpc")]
-impl<Block: alloy_evm::env::BlockEnvironment> alloy_evm::rpc::TryIntoTxEnv<OpTx, Block>
+impl<Spec, Block: alloy_evm::env::BlockEnvironment> alloy_evm::rpc::TryIntoTxEnv<OpTx, Spec, Block>
     for op_alloy_rpc_types::OpTransactionRequest
 {
     type Err = alloy_evm::rpc::EthTxEnvError;
 
-    fn try_into_tx_env<Spec>(
-        self,
-        evm_env: &alloy_evm::EvmEnv<Spec, Block>,
-    ) -> Result<OpTx, Self::Err> {
+    fn try_into_tx_env(self, evm_env: &alloy_evm::EvmEnv<Spec, Block>) -> Result<OpTx, Self::Err> {
         let inner: OpTransaction<TxEnv> = self.try_into_tx_env(evm_env)?;
         Ok(OpTx(inner))
     }

@@ -7,8 +7,7 @@ use crate::{
     txpool::{OpTransactionPool, OpTransactionValidator},
 };
 use op_alloy_consensus::{OpPooledTransaction, interop::SafetyLevel};
-use op_alloy_rpc_types_engine::OpExecutionData;
-use reth_chainspec::{ChainSpecProvider, EthChainSpec, ForkCondition, Hardforks};
+use reth_chainspec::{ChainSpecProvider, EthChainSpec, Hardforks};
 use reth_engine_local::LocalPayloadAttributesBuilder;
 use reth_evm::ConfigureEvm;
 use reth_network::{
@@ -38,7 +37,7 @@ use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
-    OpAttributes, OpBuiltPayload, OpPayloadPrimitives,
+    OpBuiltPayload, OpExecData, OpPayloadPrimitives,
     builder::OpPayloadTransactions,
     config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig},
 };
@@ -61,9 +60,24 @@ use reth_transaction_pool::{
     TransactionValidationTaskExecutor, blobstore::DiskFileBlobStore,
 };
 use reth_trie_common::KeccakKeyHasher;
-use serde::de::DeserializeOwned;
 use std::{marker::PhantomData, sync::Arc};
 use url::Url;
+
+use reth_optimism_payload_builder::OpPayloadAttrs;
+
+/// Wrapper around [`LocalPayloadAttributesBuilder`] to adapt it to [`OpPayloadAttrs`].
+struct OpLocalPayloadAttributesBuilder(LocalPayloadAttributesBuilder<OpChainSpec>);
+
+impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilder {
+    fn build(
+        &self,
+        parent: &reth_primitives_traits::SealedHeader<alloy_consensus::Header>,
+    ) -> OpPayloadAttrs {
+        let inner: op_alloy_rpc_types_engine::OpPayloadAttributes =
+            PayloadAttributesBuilder::build(&self.0, parent);
+        OpPayloadAttrs(inner)
+    }
+}
 
 /// Marker trait for Optimism node types with standard engine, chain spec, and primitives.
 pub trait OpNodeTypes:
@@ -87,7 +101,7 @@ pub trait OpFullNodeTypes:
         ChainSpec: OpHardforks,
         Primitives: OpPayloadPrimitives,
         Storage = OpStorage,
-        Payload: EngineTypes<ExecutionData = OpExecutionData>,
+        Payload: EngineTypes<ExecutionData = OpExecData>,
     >
 {
 }
@@ -97,7 +111,7 @@ impl<N> OpFullNodeTypes for N where
             ChainSpec: OpHardforks,
             Primitives: OpPayloadPrimitives,
             Storage = OpStorage,
-            Payload: EngineTypes<ExecutionData = OpExecutionData>,
+            Payload: EngineTypes<ExecutionData = OpExecData>,
         >
 {
 }
@@ -277,7 +291,9 @@ where
     fn local_payload_attributes_builder(
         chain_spec: &Self::ChainSpec,
     ) -> impl PayloadAttributesBuilder<<Self::Payload as PayloadTypes>::PayloadAttributes> {
-        LocalPayloadAttributesBuilder::new(Arc::new(chain_spec.clone()))
+        OpLocalPayloadAttributesBuilder(LocalPayloadAttributesBuilder::new(Arc::new(
+            chain_spec.clone(),
+        )))
     }
 }
 
@@ -493,18 +509,14 @@ where
     }
 }
 
-impl<N, EthB, PVB, EB, EVB, Attrs, RpcMiddleware> NodeAddOns<N>
+impl<N, EthB, PVB, EB, EVB, RpcMiddleware> NodeAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
     N: FullNodeComponents<
-            Types: NodeTypes<
-                ChainSpec: OpHardforks,
-                Primitives: OpPayloadPrimitives,
-                Payload: PayloadTypes<PayloadBuilderAttributes = Attrs>,
-            >,
+            Types: NodeTypes<ChainSpec: OpHardforks, Primitives: OpPayloadPrimitives>,
             Evm: ConfigureEvm<
                 NextBlockEnvCtx: BuildNextEnv<
-                    Attrs,
+                    reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<N::Types>>,
                     HeaderTy<N::Types>,
                     <N::Types as NodeTypes>::ChainSpec,
                 >,
@@ -516,7 +528,6 @@ where
     EB: EngineApiBuilder<N>,
     EVB: EngineValidatorBuilder<N>,
     RpcMiddleware: RethRpcMiddleware,
-    Attrs: OpAttributes<Transaction = TxTy<N::Types>, RpcPayloadAttributes: DeserializeOwned>,
 {
     type Handle = RpcHandle<N, EthB::EthApi>;
 
@@ -563,10 +574,13 @@ where
             ctx.node.evm_config().clone(),
         );
         // install additional OP specific rpc methods
-        let debug_ext = OpDebugWitnessApi::<_, _, _, Attrs>::new(
-            ctx.node.provider().clone(),
-            Box::new(ctx.node.task_executor().clone()),
-            builder,
+        let debug_ext = OpDebugWitnessApi::<
+            _,
+            _,
+            _,
+            reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<N::Types>>,
+        >::new(
+            ctx.node.provider().clone(), ctx.node.task_executor().clone(), builder
         );
         let miner_ext = OpMinerExtApi::new(da_config, gas_limit_config);
 
@@ -622,18 +636,14 @@ where
     }
 }
 
-impl<N, EthB, PVB, EB, EVB, Attrs, RpcMiddleware> RethRpcAddOns<N>
+impl<N, EthB, PVB, EB, EVB, RpcMiddleware> RethRpcAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
     N: FullNodeComponents<
-            Types: NodeTypes<
-                ChainSpec: OpHardforks,
-                Primitives: OpPayloadPrimitives,
-                Payload: PayloadTypes<PayloadBuilderAttributes = Attrs>,
-            >,
+            Types: NodeTypes<ChainSpec: OpHardforks, Primitives: OpPayloadPrimitives>,
             Evm: ConfigureEvm<
                 NextBlockEnvCtx: BuildNextEnv<
-                    Attrs,
+                    reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<N::Types>>,
                     HeaderTy<N::Types>,
                     <N::Types as NodeTypes>::ChainSpec,
                 >,
@@ -645,7 +655,6 @@ where
     EB: EngineApiBuilder<N>,
     EVB: EngineValidatorBuilder<N>,
     RpcMiddleware: RethRpcMiddleware,
-    Attrs: OpAttributes<Transaction = TxTy<N::Types>, RpcPayloadAttributes: DeserializeOwned>,
 {
     type EthApi = EthB::EthApi;
 
@@ -1130,7 +1139,7 @@ impl<Txs> OpPayloadBuilder<Txs> {
     }
 }
 
-impl<Node, Pool, Txs, Evm, Attrs> PayloadBuilderBuilder<Node, Pool, Evm> for OpPayloadBuilder<Txs>
+impl<Node, Pool, Txs, Evm> PayloadBuilderBuilder<Node, Pool, Evm> for OpPayloadBuilder<Txs>
 where
     Node: FullNodeTypes<
             Provider: ChainSpecProvider<ChainSpec: OpHardforks>,
@@ -1138,24 +1147,28 @@ where
                 Primitives: OpPayloadPrimitives,
                 Payload: PayloadTypes<
                     BuiltPayload = OpBuiltPayload<PrimitivesTy<Node::Types>>,
-                    PayloadBuilderAttributes = Attrs,
+                    PayloadAttributes = OpPayloadAttrs,
                 >,
             >,
         >,
     Evm: ConfigureEvm<
             Primitives = PrimitivesTy<Node::Types>,
             NextBlockEnvCtx: BuildNextEnv<
-                Attrs,
+                reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<Node::Types>>,
                 HeaderTy<Node::Types>,
                 <Node::Types as NodeTypes>::ChainSpec,
             >,
         > + 'static,
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = TxTy<Node::Types>>> + Unpin + 'static,
     Txs: OpPayloadTransactions<Pool::Transaction>,
-    Attrs: OpAttributes<Transaction = TxTy<Node::Types>>,
 {
-    type PayloadBuilder =
-        reth_optimism_payload_builder::OpPayloadBuilder<Pool, Node::Provider, Evm, Txs, Attrs>;
+    type PayloadBuilder = reth_optimism_payload_builder::OpPayloadBuilder<
+        Pool,
+        Node::Provider,
+        Evm,
+        Txs,
+        reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<Node::Types>>,
+    >;
 
     async fn build_payload_builder(
         self,
@@ -1303,10 +1316,7 @@ pub struct OpEngineValidatorBuilder;
 impl<Node> PayloadValidatorBuilder<Node> for OpEngineValidatorBuilder
 where
     Node: FullNodeComponents<
-        Types: NodeTypes<
-            ChainSpec: OpHardforks,
-            Payload: PayloadTypes<ExecutionData = OpExecutionData>,
-        >,
+        Types: NodeTypes<ChainSpec: OpHardforks, Payload: PayloadTypes<ExecutionData = OpExecData>>,
     >,
 {
     type Validator = OpEngineValidator<
