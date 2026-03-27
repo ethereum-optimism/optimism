@@ -68,7 +68,7 @@ parameters:
   c-rust_files_changed:
     type: boolean
     default: false
-  # Set to true by path-filtering when files under packages/contracts-bedrock/ change.
+  # Set to true by path-filtering when contracts or rebuild-all paths change.
   # When false, contract feature matrix jobs are skipped entirely.
   c-contracts_changed:
     type: boolean
