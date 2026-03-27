@@ -47,16 +47,4 @@ contract L1BlockCGT is L1Block {
         symbol_ =
             isCustomGasToken() ? ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).gasPayingTokenSymbol() : "ETH";
     }
-
-    /// @notice Set chain to use custom gas token. Callable by the depositor account, the ProxyAdmin owner, or the
-    /// ProxyAdmin.
-    /// @dev Authorization is shared with setFeature() via _assertSetFeatureAuthorized, allowing three callers:
-    /// the depositor account, the ProxyAdmin owner, or the ProxyAdmin itself. Once set, the feature flag
-    /// enables custom gas token functionality chain-wide and cannot be unset.
-    function setCustomGasToken() external {
-        _assertSetFeatureAuthorized(msg.sender);
-
-        // Set the feature flag in the system customization mapping
-        _setFeature(Features.CUSTOM_GAS_TOKEN);
-    }
 }
