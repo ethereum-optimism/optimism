@@ -50,6 +50,9 @@ parameters:
   c-l2_fork_test_dispatch:
     type: boolean
     default: false
+  c-l2_fork_weekly_dispatch:
+    type: boolean
+    default: false
   c-github-event-type:
     type: string
     default: "__not_set__"
@@ -121,6 +124,9 @@ parameters:
     type: boolean
     default: false
   l2_fork_test_dispatch:
+    type: boolean
+    default: false
+  l2_fork_weekly_dispatch:
     type: boolean
     default: false
   rust_ci_dispatch:
@@ -1382,8 +1388,9 @@ jobs:
         type: string
         default: "op-mainnet"
       l2_fork_rpc:
-        description: RPC URL for L2 fork
+        description: RPC URL for L2 fork. If empty, derived from fork_op_chain.
         type: string
+        default: ""
       l2_fork_block_number:
         description: Block number to fork from
         type: string
@@ -1415,10 +1422,19 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
+          name: Resolve RPC URL
+          command: |
+            RPC="<<parameters.l2_fork_rpc>>"
+            if [ -z "$RPC" ]; then
+              RPC=$(jq -r '.["<<parameters.fork_op_chain>>"] // empty' .circleci/l2-rpcs.json)
+              [ -z "$RPC" ] && echo "Unknown chain '<<parameters.fork_op_chain>>' — add it to .circleci/l2-rpcs.json" && exit 1
+            fi
+            echo "export L2_FORK_RPC_URL=$RPC" >> $BASH_ENV
+      - run:
           name: Get latest block number if not specified
           command: |
             if [ "<<parameters.l2_fork_block_number>>" = "latest" ]; then
-              BLOCK_NUMBER=$(cast block-number --rpc-url <<parameters.l2_fork_rpc>>)
+              BLOCK_NUMBER=$(cast block-number --rpc-url "$L2_FORK_RPC_URL")
               echo "export L2_FORK_BLOCK_NUMBER=$BLOCK_NUMBER" >> $BASH_ENV
               echo "Using latest block number: $BLOCK_NUMBER"
               echo "$BLOCK_NUMBER" > ./l2ForkBlockNumber.txt
@@ -1444,7 +1460,6 @@ jobs:
             JUNIT_TEST_PATH=results/results.xml just test-l2-fork-upgrade
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
-            L2_FORK_RPC_URL: <<parameters.l2_fork_rpc>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:
@@ -1453,7 +1468,6 @@ jobs:
             just test-l2-fork-upgrade-rerun | tee failed-test-traces-l2-fork.log
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
-            L2_FORK_RPC_URL: <<parameters.l2_fork_rpc>>
           working_directory: packages/contracts-bedrock
           when: on_fail
       - save_cache:
@@ -1511,6 +1525,16 @@ jobs:
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "@security-oncall"
+
+  l2-chains-sync-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    steps:
+      - utils/checkout-with-mise:
+          enable-mise-cache: false
+      - run:
+          name: Check l2-rpcs.json and weekly matrix are in sync
+          command: bash .circleci/scripts/check-l2-chains-sync.sh
 
   todo-issues:
     parameters:
@@ -2546,6 +2570,9 @@ workflows:
       - contracts-bedrock-checks-fast:
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - l2-chains-sync-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-upload:
           requires:
             - contracts-bedrock-build
@@ -3068,6 +3095,33 @@ workflows:
           fork_op_chain: op-mainnet
           l2_fork_rpc: https://op-mainnet-rpc.optimism.io/
           l2_fork_block_number: latest
+          test_profile: ci
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+
+  scheduled-weekly-tests:
+    when:
+      or:
+        - equal: [build_weekly, <<pipeline.schedule.name>>]
+        - equal: [true, << pipeline.parameters.c-l2_fork_weekly_dispatch >>]
+    jobs:
+      - contracts-bedrock-tests-l2-fork:
+          matrix:
+            parameters:
+              fork_op_chain:
+                - op-mainnet
+                - zora
+                - ink
+                - mode
+                - metal
+                - arena-z
+                - swell
+                - unichain
+                - soneium
+                - world-chain
+                - base
+                # - okx-xlayer
           test_profile: ci
           context:
             - circleci-repo-readonly-authenticated-github-token
