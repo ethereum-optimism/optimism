@@ -132,3 +132,6 @@ acceptance-test gate="":
 
 clean:
     rm -rf tests/interop/loadtest/artifacts
+
+fbals:
+	just -f tests/flashblocks/justfile fbals
