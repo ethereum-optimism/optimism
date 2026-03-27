@@ -417,11 +417,6 @@
   },
   {
     "inputs": [],
-    "name": "L1Block_FeatureNotAllowedToSetAfterGenesis",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "L1Block_NotAuthorizedToSetFeature",
     "type": "error"
   },
