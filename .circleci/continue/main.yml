@@ -1523,7 +1523,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
     steps:
-      - run: echo "Required contracts CI checks passed"
+      - utils/ci-gate
 
   contracts-bedrock-checks-fast:
     docker:
