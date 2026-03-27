@@ -88,8 +88,10 @@ func TestCLIMigrateRequiredFlags(t *testing.T) {
 	})
 }
 
-// TestCLIMigrateV1 tests the migrate-v1 CLI command for OPCM v1
+// TestCLIMigrateV1 tests the migrate-v1 CLI command for OPCM v1.
+// Skipped: OPCMv1 contract has been deleted. Remove this test in the Go cleanup PR.
 func TestCLIMigrateV1(t *testing.T) {
+	t.Skip("OPCMv1 contract deleted — v1 migration path no longer functional")
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
