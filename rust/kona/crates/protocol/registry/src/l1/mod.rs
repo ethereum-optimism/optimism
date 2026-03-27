@@ -123,6 +123,7 @@ impl L1Config {
             bpo3_time: alloy_hardforks::EthereumHardfork::Bpo3.mainnet_activation_timestamp(),
             bpo4_time: alloy_hardforks::EthereumHardfork::Bpo4.mainnet_activation_timestamp(),
             bpo5_time: alloy_hardforks::EthereumHardfork::Bpo5.mainnet_activation_timestamp(),
+            amsterdam_time: None,
 
             ethash: Some(EthashConfig {}),
 
@@ -177,6 +178,7 @@ impl L1Config {
             bpo3_time: alloy_hardforks::EthereumHardfork::Bpo3.sepolia_activation_timestamp(),
             bpo4_time: alloy_hardforks::EthereumHardfork::Bpo4.sepolia_activation_timestamp(),
             bpo5_time: alloy_hardforks::EthereumHardfork::Bpo5.sepolia_activation_timestamp(),
+            amsterdam_time: None,
 
             ethash: Some(EthashConfig {}),
 
@@ -221,6 +223,7 @@ impl L1Config {
             bpo3_time: alloy_hardforks::EthereumHardfork::Bpo3.holesky_activation_timestamp(),
             bpo4_time: alloy_hardforks::EthereumHardfork::Bpo4.holesky_activation_timestamp(),
             bpo5_time: alloy_hardforks::EthereumHardfork::Bpo5.holesky_activation_timestamp(),
+            amsterdam_time: None,
 
             ethash: Some(EthashConfig {}),
 

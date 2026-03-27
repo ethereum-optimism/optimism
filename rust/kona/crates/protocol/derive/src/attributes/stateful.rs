@@ -211,6 +211,7 @@ where
                 suggested_fee_recipient: Predeploys::SEQUENCER_FEE_VAULT,
                 parent_beacon_block_root: parent_beacon_root,
                 withdrawals,
+                slot_number: None,
             },
             transactions: Some(txs),
             no_tx_pool: Some(true),

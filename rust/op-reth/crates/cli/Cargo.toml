@@ -121,5 +121,3 @@ serde = [
     "reth-primitives-traits/serde",
     "reth-optimism-chainspec/serde",
 ]
-
-edge = ["reth-cli-commands/edge", "reth-node-core/edge"]
