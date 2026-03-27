@@ -1176,7 +1176,7 @@ func validateSuperchainDeployment(t *testing.T, st *state.State, cg codeGetter, 
 		{"SuperchainProxyAdminImpl", st.SuperchainDeployment.SuperchainProxyAdminImpl},
 		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxy},
 		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxy},
-		{"OpcmImpl", st.ImplementationsDeployment.OpcmImpl},
+		{"OpcmV2Impl", st.ImplementationsDeployment.OpcmV2Impl},
 		{"PreimageOracleImpl", st.ImplementationsDeployment.PreimageOracleImpl},
 		{"MipsImpl", st.ImplementationsDeployment.MipsImpl},
 	}
