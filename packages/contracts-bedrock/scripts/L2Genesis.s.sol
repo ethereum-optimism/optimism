@@ -295,11 +295,13 @@ contract L2Genesis is Script {
             setLiquidityController(_input); // 29
             setNativeAssetLiquidity(_input); // 2A
         }
+        vm.stopPrank();
+        // These calls don't need the opChainProxyAdminOwner prank: setConditionalDeployer uses
+        // vm.etch and setL2DevFeatureFlags manages its own prank as DEPOSITOR_ACCOUNT.
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.L2CM)) {
             setConditionalDeployer(); // 2C
             setL2DevFeatureFlags(_input); // 2D
         }
-        vm.stopPrank();
     }
 
     function setInteropPredeployProxies() internal { }
@@ -613,9 +615,8 @@ contract L2Genesis is Script {
     /// @notice Sets up the L2DevFeatureFlags predeploy with the development feature bitmap.
     function setL2DevFeatureFlags(Input memory _input) internal {
         _setImplementationCode(Predeploys.L2_DEV_FEATURE_FLAGS);
-        vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
         IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);
-        vm.stopPrank();
     }
 
     /// @notice Sets all the preinstalls.

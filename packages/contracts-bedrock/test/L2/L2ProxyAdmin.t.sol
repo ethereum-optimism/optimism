@@ -87,9 +87,30 @@ contract L2ProxyAdmin_UpgradePredeploys_Test is L2ProxyAdmin_TestInit {
         l2ProxyAdmin.upgradePredeploys(_l2ContractsManager);
     }
 
+    /// @notice Tests that upgradePredeploys reverts when l2ContractsManager has no code.
+    function testFuzz_upgradePredeploys_noCode_reverts(address _l2ContractsManager) public {
+        vm.assume(_l2ContractsManager.code.length == 0);
+
+        // Expect the revert with L2ProxyAdmin__L2ContractsManagerNotDeployed
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L2ProxyAdmin.L2ProxyAdmin__L2ContractsManagerNotDeployed.selector, _l2ContractsManager
+            )
+        );
+
+        // Call upgradePredeploys with authorized caller
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        l2ProxyAdmin.upgradePredeploys(_l2ContractsManager);
+    }
+
     /// @notice Tests that upgradePredeploys succeeds when called by DEPOSITOR_ACCOUNT.
     function testFuzz_upgradePredeploys_succeeds(address _l2ContractsManager) public {
         assumeAddressIsNot(_l2ContractsManager, AddressType.Precompile, AddressType.ForgeAddress);
+
+        // Ensure the fuzzed address has code so it passes the code.length check
+        if (_l2ContractsManager.code.length == 0) {
+            vm.etch(_l2ContractsManager, hex"01");
+        }
 
         // Mock the delegatecall to return success
         _mockAndExpect(_l2ContractsManager, abi.encodeCall(IL2ContractsManager.upgrade, ()), abi.encode());
@@ -106,6 +127,11 @@ contract L2ProxyAdmin_UpgradePredeploys_Test is L2ProxyAdmin_TestInit {
     /// @notice Tests that upgradePredeploys reverts when delegatecall fails.
     function testFuzz_upgradePredeploys_delegatecallFails_reverts(address _l2ContractsManager) public {
         assumeAddressIsNot(_l2ContractsManager, AddressType.Precompile, AddressType.ForgeAddress);
+
+        // Ensure the fuzzed address has code so it passes the code.length check
+        if (_l2ContractsManager.code.length == 0) {
+            vm.etch(_l2ContractsManager, hex"01");
+        }
 
         // Mock the delegatecall to return failure
         vm.mockCallRevert(_l2ContractsManager, abi.encodeCall(IL2ContractsManager.upgrade, ()), bytes("error"));

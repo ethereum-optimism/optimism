@@ -122,32 +122,40 @@ library L2ContractsManagerUtils {
         // Upgrade to StorageSetter.
         IProxy(payable(_proxy)).upgradeTo(_storageSetterImpl);
 
-        // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
-        bytes32 current = IStorageSetter(_proxy).getBytes32(_slot);
-        uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
-        IStorageSetter(_proxy).setBytes32(_slot, bytes32(uint256(current) & mask));
-
-        // Also clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
-        // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
-        // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
+        // OZ v5 ERC-7201 Initializable namespaced slot. For v4 contracts this slot is all zeros.
         // Slot derivation (ERC-7201):
         //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
         // ~bytes32(uint256(0xff))
         // Ref:
         // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
-        bytes32 ozV5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
-        bytes32 v5Current = IStorageSetter(_proxy).getBytes32(ozV5Slot);
-        uint256 v5Value = uint256(v5Current);
+        bytes32 v5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
 
-        // A contract should never be mid-initialization during an upgrade. The `_initializing`
-        // bool lives at byte offset 8 (bits 64..71). Revert if it is set.
-        if ((v5Value >> 64) & 0xFF != 0) {
+        // Read the v4 initialized slot value.
+        bytes32 v4SlotValue = IStorageSetter(_proxy).getBytes32(_slot);
+
+        // OZ v4: `_initializing` (bool) is packed at byte `_offset + 1` in `_slot`.
+        // Only check for v4 contracts (where `_slot` differs from the v5 namespaced slot)
+        // to avoid misreading v5's uint64 `_initialized` field as the v4 `_initializing` flag.
+        if (_slot != v5Slot && (uint256(v4SlotValue) >> (uint256(_offset + 1) * 8)) & 0xFF != 0) {
             revert L2ContractsManager_InitializingDuringUpgrade();
         }
 
-        // Zero the uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
+        uint256 v4Mask = ~(uint256(0xff) << (uint256(_offset) * 8));
+        IStorageSetter(_proxy).setBytes32(_slot, bytes32(uint256(v4SlotValue) & v4Mask));
+
+        // Clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
+        // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
+        // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
+        uint256 v5SlotValue = uint256(IStorageSetter(_proxy).getBytes32(v5Slot));
+
+        // OZ v5: `_initializing` (bool) lives at byte offset 8 (bits 64..71). Revert if set.
+        if ((v5SlotValue >> 64) & 0xFF != 0) {
+            revert L2ContractsManager_InitializingDuringUpgrade();
+        }
+
+        // Zero the v5 uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
         uint256 v5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
-        IStorageSetter(_proxy).setBytes32(ozV5Slot, bytes32(v5Value & v5Mask));
+        IStorageSetter(_proxy).setBytes32(v5Slot, bytes32(v5SlotValue & v5Mask));
 
         // Upgrade to the implementation and call the initializer.
         IProxy(payable(_proxy)).upgradeToAndCall(_implementation, _data);
