@@ -6,4 +6,4 @@ fbals:
 	RUST_BINARY_PATH_ROLLUP_BOOST=$HOME/git/rollup-boost/target/debug/rollup-boost-prod \
 	LOG_LEVEL=trace \
 	RUST_LOG=op_reth=trace,op_rbuilder=debug,rollup_boost=debug \
-	go test -v -count=1 -timeout 5m utils.go flashblocks_accesslist_test.go
+	go test -v -count=1 -timeout 5m ./...
