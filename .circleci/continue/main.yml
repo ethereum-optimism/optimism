@@ -158,7 +158,7 @@ parameters:
     default: "v0.0"
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.25
+  utils: ethereum-optimism/circleci-utils@dev:conditional-ci-gate
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
@@ -1526,8 +1526,14 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
+    parameters:
+      always-succed:
+        description: Force always succed
+        type: bool
+        default: false
     steps:
-      - utils/ci-gate
+      - utils/ci-gate:
+          enforce-only-in-merge-queue: << parameters.always-succed >>
 
   contracts-bedrock-checks-fast:
     docker:
@@ -3207,6 +3213,8 @@ workflows:
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-checks-fast: terminal
+        context:
+          - circleci-repo-readonly-authenticated-github-token
 
   # ============================================================================
   # Required contracts CI gate (skip) — runs when no contract changes
@@ -3225,4 +3233,7 @@ workflows:
               pattern: "^gh-readonly-queue/"
               value: << pipeline.git.branch >>
     jobs:
-      - required-contracts-ci
+      - required-contracts-ci:
+          always-succed: true
+        context:
+          - circleci-repo-readonly-authenticated-github-token
