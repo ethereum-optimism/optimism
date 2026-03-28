@@ -1027,11 +1027,10 @@ where
             .with_validator(validator)
             .build(blob_store, final_pool_config.clone());
 
-        // Enable the reorg interop filter using the same startup-time gate as
-        // the existing interop maintenance task.
+        // Enable the reorg interop filter whenever interop is active at the
+        // startup head timestamp, regardless of supervisor availability.
         let interop_filter_enabled =
-            ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) &&
-                supervisor_client.is_some();
+            ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp);
         let transaction_pool =
             reth_optimism_txpool::OpPool::new(inner_pool, interop_filter_enabled);
 

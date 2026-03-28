@@ -6,9 +6,10 @@
 use std::{
     fmt,
     sync::{
-        Arc,
+        Arc, RwLock,
         atomic::{AtomicBool, Ordering},
     },
+    time::{Duration, Instant},
 };
 
 use alloy_eips::eip7594::BlobTransactionSidecarVariant;
@@ -26,13 +27,18 @@ use tokio::sync::mpsc::Receiver;
 
 use crate::supervisor::CROSS_L2_INBOX_ADDRESS;
 
-/// Transaction pool wrapper that filters interop transactions during reorg
-/// reinsertion. Delegates all other operations to the inner pool.
+/// Duration after a reorg during which all interop transactions are filtered
+/// from `add_external_transactions`.
+const REORG_WINDOW: Duration = Duration::from_secs(60);
+
+/// Transaction pool wrapper that filters interop transactions during the
+/// active reorg filter period. Delegates all other operations to the inner
+/// pool.
 ///
-/// On each reorg, the wrapper arms a one-shot filter. The next
-/// `add_external_transactions` call consumes the one-shot and filters out
-/// any interop transactions in that batch. Subsequent calls pass through
-/// unmodified until the next reorg arms the filter again.
+/// On each reorg, the wrapper records the reorg time and arms a one-shot
+/// fallback. Every `add_external_transactions` call within the `REORG_WINDOW`
+/// filters interop transactions. After the window expires, the armed one-shot
+/// still allows one best-effort filter pass if it was not already consumed.
 ///
 /// This wrapper is OP-specific. It assumes the inner pool's transaction type
 /// supports access-list inspection (`alloy_consensus::Transaction`).
@@ -42,8 +48,8 @@ pub struct OpPool<P> {
     inner: P,
     /// Whether the reorg interop filter is enabled for this pool instance.
     ///
-    /// Set at pool construction time using the same startup-time gate as the
-    /// existing interop maintenance task.
+    /// Set at pool construction time when interop is active at the startup
+    /// head timestamp.
     enabled: bool,
     /// Shared state for reorg tracking. Wrapped in Arc so clones share state.
     reorg_state: Arc<ReorgFilterState>,
@@ -53,17 +59,20 @@ pub struct OpPool<P> {
 
 /// Reorg filter state, shared across `OpPool` clones.
 struct ReorgFilterState {
+    /// Timestamp of the most recent reorg, used to keep filtering active for a
+    /// short window after the reorg is observed.
+    last_reorg_at: RwLock<Option<Instant>>,
     /// One-shot post-reorg filter flag. Set to `false` (armed) on each reorg,
     /// set to `true` (consumed) by the first `add_external_transactions` call
-    /// after the reorg. This is intentionally consumed even if the batch
-    /// contains no interop txs, because a given reorg may legitimately have
-    /// nothing to filter.
+    /// after the active reorg window has expired. This is intentionally
+    /// consumed even if the batch contains no interop txs, because a given
+    /// reorg may legitimately have nothing to filter.
     ///
-    /// This is best-effort: it filters the first `add_external_transactions`
-    /// call after a reorg, which is typically the maintain task's reinsertion
-    /// batch. If a concurrent P2P batch races and consumes the one-shot first,
-    /// that batch gets filtered instead. This is acceptable because interop txs
-    /// are system-managed and can be resent.
+    /// This is best-effort: it filters the first eligible
+    /// `add_external_transactions` call after a reorg if the reorg window was
+    /// missed. If a concurrent P2P batch races and consumes the one-shot
+    /// first, that batch gets filtered instead. This is acceptable because
+    /// interop txs are system-managed and can be resent.
     filter_armed: AtomicBool,
 }
 
@@ -83,6 +92,7 @@ impl<P: fmt::Debug> fmt::Debug for OpPool<P> {
         f.debug_struct("OpPool")
             .field("inner", &self.inner)
             .field("enabled", &self.enabled)
+            .field("last_reorg_at", &self.reorg_state.last_reorg_at.read().unwrap())
             .field("filter_armed", &self.reorg_state.filter_armed.load(Ordering::Relaxed))
             .finish()
     }
@@ -98,6 +108,7 @@ impl<P> OpPool<P> {
             inner,
             enabled,
             reorg_state: Arc::new(ReorgFilterState {
+                last_reorg_at: RwLock::new(None),
                 // Not armed at construction time.
                 filter_armed: AtomicBool::new(false),
             }),
@@ -128,7 +139,7 @@ where
     P: TransactionPool,
     P::Transaction: alloy_consensus::Transaction,
 {
-    /// Atomically consumes the one-shot reorg filter.
+    /// Atomically consumes the one-shot reorg fallback filter.
     ///
     /// Returns `true` exactly once per reorg (until re-armed in
     /// `on_canonical_state_change`), even under concurrency.
@@ -139,15 +150,32 @@ where
             .is_ok()
     }
 
+    fn in_reorg_window(&self) -> bool {
+        self.reorg_state
+            .last_reorg_at
+            .read()
+            .unwrap()
+            .is_some_and(|reorg_at| reorg_at.elapsed() < REORG_WINDOW)
+    }
+
     /// Returns true if interop filtering should fire on this
     /// `add_external_transactions` call.
     ///
-    /// The filter fires exactly once per reorg: the first
-    /// `add_external_transactions` call after a reorg consumes the one-shot.
+    /// Filtering stays active for the full `REORG_WINDOW` after a reorg.
+    /// Outside the window, a one-shot fallback still filters the first
+    /// eligible batch if the fallback has not been consumed yet.
     fn should_filter(&self) -> bool {
         if !self.enabled {
             return false;
         }
+
+        if self.in_reorg_window() {
+            // Prevent an extra post-window filter pass after the window has
+            // already covered the normal reinsertion flow.
+            let _ = self.consume_filter();
+            return true;
+        }
+
         self.consume_filter()
     }
 
@@ -162,7 +190,7 @@ where
                     tracing::warn!(
                         target: "txpool",
                         hash = %tx.hash(),
-                        "Filtering interop tx after reorg"
+                        "Filtering interop tx during active reorg filter period"
                     );
                     false
                 } else {
@@ -176,7 +204,7 @@ where
             batch_size = before,
             interop_filtered = removed,
             forwarded = filtered.len(),
-            "add_external_transactions: reorg filter consumed"
+            "add_external_transactions: reorg filter applied"
         );
         if removed > 0 {
             self.metrics.reorg_interop_txs_filtered.increment(removed as u64);
@@ -238,7 +266,7 @@ where
             tracing::trace!(
                 target: "txpool",
                 batch_size = transactions.len(),
-                "add_external_transactions: filter not armed, passing through"
+                "add_external_transactions: reorg filter inactive, passing through"
             );
             transactions
         };
@@ -520,10 +548,12 @@ where
         update: reth_transaction_pool::CanonicalStateUpdate<'_, Self::Block>,
     ) {
         if self.enabled && update.update_kind == PoolUpdateKind::Reorg {
+            *self.reorg_state.last_reorg_at.write().unwrap() = Some(Instant::now());
             self.reorg_state.filter_armed.store(true, Ordering::Release);
             tracing::debug!(
                 target: "txpool",
-                "Reorg detected, interop filter armed"
+                reorg_window_secs = REORG_WINDOW.as_secs(),
+                "Reorg detected, interop filter window activated"
             );
         }
         // MUST delegate to inner pool — inner pool handles fee updates,
@@ -629,11 +659,19 @@ mod tests {
 
     // ── OpPool filtering tests ──────────────────────────────────────────
 
-    /// Helper to arm the one-shot filter (simulates a reorg).
-    fn arm_filter(
+    /// Helper to simulate a reorg without waiting for wall-clock time.
+    fn mark_reorg(
         pool: &OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>>,
     ) {
+        *pool.reorg_state.last_reorg_at.write().unwrap() = Some(Instant::now());
         pool.reorg_state.filter_armed.store(true, Ordering::Release);
+    }
+
+    fn expire_reorg_window(
+        pool: &OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>>,
+    ) {
+        *pool.reorg_state.last_reorg_at.write().unwrap() =
+            Some(Instant::now() - REORG_WINDOW - Duration::from_secs(1));
     }
 
     #[test]
@@ -641,7 +679,7 @@ mod tests {
         let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
             OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), false);
 
-        arm_filter(&pool);
+        mark_reorg(&pool);
         assert!(!pool.should_filter());
     }
 
@@ -654,13 +692,25 @@ mod tests {
     }
 
     #[test]
-    fn test_should_filter_armed_fires_once() {
+    fn test_should_filter_window_stays_active_across_calls() {
         let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
             OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
 
-        arm_filter(&pool);
+        mark_reorg(&pool);
         assert!(pool.should_filter());
-        // Second call: already consumed.
+        // Still within the reorg window, so filtering remains active.
+        assert!(pool.should_filter());
+    }
+
+    #[test]
+    fn test_should_filter_fallback_fires_once_after_window_expires() {
+        let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
+            OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
+
+        mark_reorg(&pool);
+        expire_reorg_window(&pool);
+
+        assert!(pool.should_filter());
         assert!(!pool.should_filter());
     }
 
@@ -669,13 +719,25 @@ mod tests {
         let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
             OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
 
-        arm_filter(&pool);
+        mark_reorg(&pool);
+        expire_reorg_window(&pool);
         assert!(pool.should_filter());
         assert!(!pool.should_filter());
 
         // Re-arm (new reorg).
-        arm_filter(&pool);
+        mark_reorg(&pool);
         assert!(pool.should_filter());
+    }
+
+    #[test]
+    fn test_should_filter_window_expired_and_fallback_spent() {
+        let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
+            OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
+
+        mark_reorg(&pool);
+        let _ = pool.should_filter();
+        expire_reorg_window(&pool);
+
         assert!(!pool.should_filter());
     }
 
@@ -717,7 +779,7 @@ mod tests {
         let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
             OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
 
-        arm_filter(&pool);
+        mark_reorg(&pool);
 
         let normal = mock_normal_tx();
         let interop = mock_interop_tx();
@@ -743,7 +805,7 @@ mod tests {
         let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
             OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), false);
 
-        arm_filter(&pool);
+        mark_reorg(&pool);
 
         let normal = mock_normal_tx();
         let interop = mock_interop_tx();
@@ -753,21 +815,35 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_one_shot_consumed_then_passes_through() {
+    async fn test_window_filters_multiple_external_batches() {
         let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
             OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
 
-        arm_filter(&pool);
+        mark_reorg(&pool);
 
-        // First call: one-shot fires, filters interop tx.
+        // First call: within the active reorg window, interop tx is filtered.
         let results =
             pool.add_external_transactions(vec![mock_normal_tx(), mock_interop_tx()]).await;
-        assert_eq!(results.len(), 1, "one-shot should filter interop tx");
+        assert_eq!(results.len(), 1, "reorg window should filter interop tx");
 
-        // Second call: one-shot consumed, both pass through.
+        // Second call: still within the reorg window, so it should keep filtering.
         let results2 =
             pool.add_external_transactions(vec![mock_normal_tx(), mock_interop_tx()]).await;
-        assert_eq!(results2.len(), 2, "after one-shot consumed, no more filtering");
+        assert_eq!(results2.len(), 1, "reorg window should stay active across batches");
+    }
+
+    #[tokio::test]
+    async fn test_expired_window_fallback_passes_through_after_being_spent() {
+        let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
+            OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
+
+        mark_reorg(&pool);
+        let _ = pool.add_external_transactions(vec![mock_normal_tx(), mock_interop_tx()]).await;
+        expire_reorg_window(&pool);
+
+        let results =
+            pool.add_external_transactions(vec![mock_normal_tx(), mock_interop_tx()]).await;
+        assert_eq!(results.len(), 2, "spent fallback should not filter after the window");
     }
 
     #[tokio::test]
@@ -775,7 +851,7 @@ mod tests {
         let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
             OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
 
-        arm_filter(&pool);
+        mark_reorg(&pool);
 
         let interop = mock_interop_tx();
 
