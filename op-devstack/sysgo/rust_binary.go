@@ -88,7 +88,7 @@ func toEnvVarSuffix(binary string) string {
 }
 
 func buildRustBinary(ctx context.Context, root, pkg, bin string) error {
-	cmd := exec.CommandContext(ctx, "cargo", "build", "--release", "-p", pkg, "--bin", bin)
+	cmd := exec.CommandContext(ctx, "cargo", "build", "-p", pkg, "--bin", bin)
 	cmd.Dir = root
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

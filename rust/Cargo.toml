@@ -165,9 +165,10 @@ too_long_first_doc_paragraph = "allow"
 # ==================== PROFILES ====================
 [profile.dev]
 opt-level = 1
-overflow-checks = false
-debug = "line-tables-only"
+debug = "full"
 split-debuginfo = "unpacked"
+debug-assertions = false
+overflow-checks = true
 
 [profile.dev.package]
 proptest.opt-level = 3
@@ -185,10 +186,12 @@ panic = "abort"
 [profile.release]
 opt-level = 3
 lto = "thin"
-debug = "none"
+debug = "full"
 strip = "symbols"
 panic = "unwind"
 codegen-units = 16
+debug-assertions = false
+overflow-checks = false
 
 [profile.release-client-lto]
 inherits = "release"
