@@ -3,7 +3,7 @@
 
 use super::KeyValueStore;
 use crate::{HostError, Result};
-use alloy_primitives::{hex, B256};
+use alloy_primitives::{B256, hex};
 use std::{fs, path::PathBuf};
 
 /// The filename used to record the storage format, matching op-program's convention.
