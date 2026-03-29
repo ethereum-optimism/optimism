@@ -651,7 +651,7 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	t.Require().NotEqual(chains[0].Cfg.BlockTime, chains[1].Cfg.BlockTime,
 		"this test requires chains with different block times")
 
-	// -- Stage 1: Freeze batch submission ----------------------------------
+	// -- Stage 1: Setup — both batchers stopped -----------------------------
 	chains[1].Batcher.Stop()
 	t.Cleanup(chains[1].Batcher.Start)
 	chains[1].CLNode.WaitForStall(types.CrossSafe)
@@ -662,25 +662,32 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
 	startTimestamp := endTimestamp - 1
 
-	// Ensure both chains have produced the target blocks as unsafe.
-	for _, c := range chains {
-		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
-		t.Require().NoError(err)
-		c.EL.Reached(eth.Unsafe, target, 60)
-	}
+	// Wait for both chains to produce the target blocks as unsafe.
+	// Sequencers keep running freely — the L1 head invariants are maintained
+	// by which batchers are running, not by stopping sequencers.
+	target0, err := chains[0].Cfg.TargetBlockNumber(endTimestamp)
+	t.Require().NoError(err)
+	target1, err := chains[1].Cfg.TargetBlockNumber(endTimestamp)
+	t.Require().NoError(err)
+	chains[0].EL.Reached(eth.Unsafe, target0, 60)
+	chains[1].EL.Reached(eth.Unsafe, target1, 60)
 
-	// -- Stage 2: Capture L1 heads at different batch-availability points --
+	// -- Stage 2: Capture L1 heads via batcher choreography ----------------
+	// Batchers are stopped, so no batch data for endTimestamp is on L1.
+	l1HeadBefore := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
-	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
-
+	// Start chain[0]'s batcher and wait for its safe head to reach the target.
+	// Chain[1]'s batcher is still stopped, so only chain[0]'s data lands on L1.
 	chains[0].Batcher.Start()
-	l1HeadAfterFirst := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, []eth.ChainID{chains[0].ID}, []eth.ChainID{chains[1].ID})
-	chains[0].Batcher.Stop()
+	chains[0].EL.Reached(eth.Safe, target0, 60)
+	l1HeadAfterFirst := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
+	// Start chain[1]'s batcher and wait for the supernode to validate, then
+	// wait for chain[1]'s safe head to reach its target.
 	chains[1].Batcher.Start()
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
-	chains[1].Batcher.Stop()
+	chains[1].EL.Reached(eth.Safe, target1, 60)
+	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
 	// -- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
