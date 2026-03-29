@@ -11,8 +11,22 @@ pub use mem::MemoryKeyValueStore;
 mod disk;
 pub use disk::DiskKeyValueStore;
 
+mod directory;
+pub use directory::DirectoryKeyValueStore;
+
 mod split;
 pub use split::SplitKeyValueStore;
+
+/// The storage format for on-disk preimage data.
+#[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
+pub enum DataFormat {
+    /// Files stored in subdirectories with hex-encoded values.
+    /// Compatible with op-program's `DataFormatDirectory`.
+    #[default]
+    Directory,
+    /// RocksDB-backed storage.
+    Rocksdb,
+}
 
 /// A type alias for a shared key-value store.
 pub type SharedKeyValueStore = Arc<RwLock<dyn KeyValueStore + Send + Sync>>;

@@ -9,7 +9,8 @@ pub use server::{PreimageServer, PreimageServerError};
 
 mod kv;
 pub use kv::{
-    DiskKeyValueStore, KeyValueStore, MemoryKeyValueStore, SharedKeyValueStore, SplitKeyValueStore,
+    DirectoryKeyValueStore, DiskKeyValueStore, KeyValueStore, MemoryKeyValueStore,
+    SharedKeyValueStore, SplitKeyValueStore,
 };
 
 mod backend;

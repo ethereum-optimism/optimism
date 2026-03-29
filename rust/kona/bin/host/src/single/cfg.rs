@@ -2,9 +2,9 @@
 
 use super::{SingleChainHintHandler, SingleChainLocalInputs};
 use crate::{
-    DiskKeyValueStore, MemoryKeyValueStore, OfflineHostBackend, OnlineHostBackend,
-    OnlineHostBackendCfg, PreimageServer, SharedKeyValueStore, SplitKeyValueStore,
-    eth::rpc_provider, server::PreimageServerError,
+    DiskKeyValueStore, DirectoryKeyValueStore, MemoryKeyValueStore, OfflineHostBackend,
+    OnlineHostBackend, OnlineHostBackendCfg, PreimageServer, SharedKeyValueStore,
+    SplitKeyValueStore, eth::rpc_provider, kv::DataFormat, server::PreimageServerError,
 };
 use alloy_primitives::B256;
 use alloy_provider::RootProvider;
@@ -80,6 +80,9 @@ pub struct SingleChainHost {
         env
     )]
     pub data_dir: Option<PathBuf>,
+    /// The format to use for preimage data storage on disk.
+    #[arg(long, default_value = "directory", env)]
+    pub data_format: DataFormat,
     /// Run the client program natively.
     #[arg(long, conflicts_with = "server", required_unless_present = "server")]
     pub native: bool,
@@ -257,9 +260,16 @@ impl SingleChainHost {
         let local_kv_store = SingleChainLocalInputs::new(self.clone());
 
         let kv_store: SharedKeyValueStore = if let Some(ref data_dir) = self.data_dir {
-            let disk_kv_store = DiskKeyValueStore::new(data_dir.clone());
-            let split_kv_store = SplitKeyValueStore::new(local_kv_store, disk_kv_store);
-            Arc::new(RwLock::new(split_kv_store))
+            match self.data_format {
+                DataFormat::Directory => {
+                    let dir_kv_store = DirectoryKeyValueStore::new(data_dir.clone());
+                    Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, dir_kv_store)))
+                }
+                DataFormat::Rocksdb => {
+                    let disk_kv_store = DiskKeyValueStore::new(data_dir.clone());
+                    Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, disk_kv_store)))
+                }
+            }
         } else {
             let mem_kv_store = MemoryKeyValueStore::new();
             let split_kv_store = SplitKeyValueStore::new(local_kv_store, mem_kv_store);
