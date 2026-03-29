@@ -2,7 +2,7 @@
 
 use super::{InteropHintHandler, InteropLocalInputs};
 use crate::{
-    DiskKeyValueStore, DirectoryKeyValueStore, MemoryKeyValueStore, OfflineHostBackend,
+    DirectoryKeyValueStore, DiskKeyValueStore, MemoryKeyValueStore, OfflineHostBackend,
     OnlineHostBackend, OnlineHostBackendCfg, PreimageServer, SharedKeyValueStore,
     SplitKeyValueStore, eth::rpc_provider, kv::DataFormat, server::PreimageServerError,
 };

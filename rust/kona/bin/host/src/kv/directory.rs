@@ -59,14 +59,11 @@ impl KeyValueStore for DirectoryKeyValueStore {
         let path = self.key_path(key);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|e| {
-                HostError::KeyValueSetFailed(format!(
-                    "failed to create directory {parent:?}: {e}"
-                ))
+                HostError::KeyValueSetFailed(format!("failed to create directory {parent:?}: {e}"))
             })?;
         }
-        fs::write(&path, hex::encode(&value)).map_err(|e| {
-            HostError::KeyValueSetFailed(format!("failed to write {path:?}: {e}"))
-        })
+        fs::write(&path, hex::encode(&value))
+            .map_err(|e| HostError::KeyValueSetFailed(format!("failed to write {path:?}: {e}")))
     }
 }
 
@@ -122,11 +119,6 @@ mod test {
         let path = kv.key_path(key);
 
         assert!(path.to_str().unwrap().contains("0123"));
-        assert!(path
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .ends_with(".txt"));
+        assert!(path.file_name().unwrap().to_str().unwrap().ends_with(".txt"));
     }
 }

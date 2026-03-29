@@ -18,7 +18,7 @@ mod split;
 pub use split::SplitKeyValueStore;
 
 /// The storage format for on-disk preimage data.
-#[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, Default, clap::ValueEnum, serde::Serialize)]
 pub enum DataFormat {
     /// Files stored in subdirectories with hex-encoded values.
     /// Compatible with op-program's `DataFormatDirectory`.
