@@ -75,8 +75,9 @@ type L2Config struct {
 	SaltMixer               string
 	GasLimit                uint64
 	DisputeGameType         uint32
-	DisputeAbsolutePrestate common.Hash
-	DisputeMaxGameDepth     uint64
+	DisputeAbsolutePrestate     common.Hash
+	DisputeKonaAbsolutePrestate common.Hash
+	DisputeMaxGameDepth         uint64
 	DisputeSplitDepth       uint64
 	DisputeClockExtension   uint64
 	DisputeMaxClockDuration uint64
