@@ -147,7 +147,8 @@ const simpleInteropSuperProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindMaxSequencingWindow |
 	optionKindRequireInteropNotAtGen
 
-const supernodeProofsPresetSupportedOptionKinds = optionKindChallengerCannonKona |
+const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindChallengerCannonKona |
 	optionKindL1EL
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |

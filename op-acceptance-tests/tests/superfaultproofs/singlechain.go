@@ -34,7 +34,6 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 
 	// Stop batch submission so safe head stalls, then we have a known boundary.
 	c.Batcher.Stop()
-	t.Cleanup(c.Batcher.Start)
 	sys.L2CLA.WaitForStall(types.CrossSafe)
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
@@ -53,9 +52,6 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
 	c.EL.Reached(eth.Safe, target, 60)
 	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
-
-	// Stop batcher so the t.Cleanup(Start) call doesn't fail with "already running".
-	c.Batcher.Stop()
 
 	// Build expected transition states for a single chain.
 	start := superRootAtTimestamp(t, chains, startTimestamp)

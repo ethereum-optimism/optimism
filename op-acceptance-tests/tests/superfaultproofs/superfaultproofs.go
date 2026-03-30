@@ -535,13 +535,10 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 
 	// -- Stage 1: Freeze batch submission ----------------------------------
-	chains[1].Batcher.Stop() // Stop chain 1 first and wait for chains[0] to have at least that local safe head.
-	t.Cleanup(chains[1].Batcher.Start)
-	// Wait for safe heads to stall (local safe will continue on chains[0] but interop validation can't progress because chains[1] local safe has stalled)
+	chains[1].Batcher.Stop()
 	chains[1].CLNode.WaitForStall(types.CrossSafe)
 	chains[0].Batcher.Stop()
-	t.Cleanup(chains[0].Batcher.Start)
-	chains[0].CLNode.WaitForStall(types.LocalSafe) // Wait for chains[0] local safe head to stall
+	chains[0].CLNode.WaitForStall(types.LocalSafe)
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
 	startTimestamp := endTimestamp - 1
@@ -572,10 +569,6 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
 	chains[1].EL.Reached(eth.Safe, target1, 60)
 	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
-
-	// Stop batchers so the t.Cleanup(Start) calls don't fail with "already running".
-	chains[0].Batcher.Stop()
-	chains[1].Batcher.Stop()
 
 	// --- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
@@ -627,10 +620,8 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	// -- Stage 1: Setup — both batchers stopped -----------------------------
 	chains[1].Batcher.Stop()
-	t.Cleanup(chains[1].Batcher.Start)
 	chains[1].CLNode.WaitForStall(types.CrossSafe)
 	chains[0].Batcher.Stop()
-	t.Cleanup(chains[0].Batcher.Start)
 	chains[0].CLNode.WaitForStall(types.LocalSafe)
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
@@ -662,10 +653,6 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
 	chains[1].EL.Reached(eth.Safe, target1, 60)
 	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
-
-	// Stop batchers so the t.Cleanup(Start) calls don't fail with "already running".
-	chains[0].Batcher.Stop()
-	chains[1].Batcher.Stop()
 
 	// -- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
