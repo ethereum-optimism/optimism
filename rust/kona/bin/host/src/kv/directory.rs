@@ -1,20 +1,14 @@
 //! Contains a concrete implementation of the [`KeyValueStore`] trait that stores data on disk
-//! using a directory-based layout compatible with op-program's `DataFormatDirectory`.
+//! using a directory-based layout compatible with op-challenger's `DataFormatDirectory`.
 
-use super::KeyValueStore;
+use super::{DataFormat, FORMAT_FILENAME, KeyValueStore};
 use crate::{HostError, Result};
 use alloy_primitives::{B256, hex};
 use std::{fs, path::PathBuf};
 
-/// The filename used to record the storage format, matching op-program's convention.
-const FORMAT_FILENAME: &str = "kvformat";
-
-/// The format identifier written to the marker file, matching op-program's `DataFormatDirectory`.
-const FORMAT_VALUE: &str = "directory";
-
 /// A key-value store that writes preimages as hex-encoded files in subdirectories.
 ///
-/// Layout matches op-program's `directoryKV`:
+/// Layout is compatible with op-challenger's `directoryKV`:
 /// - Key `0x0123456789...abc` maps to `<dir>/0123/456789...abc.txt`
 /// - Values are hex-encoded on disk
 /// - A `kvformat` marker file containing `"directory"` is written for op-challenger compatibility
@@ -31,7 +25,7 @@ impl DirectoryKeyValueStore {
 
         let format_path = data_directory.join(FORMAT_FILENAME);
         if !format_path.exists() {
-            fs::write(&format_path, FORMAT_VALUE)
+            fs::write(&format_path, DataFormat::Directory.as_str())
                 .unwrap_or_else(|e| panic!("Failed to write kvformat marker: {e}"));
         }
 
@@ -40,8 +34,8 @@ impl DirectoryKeyValueStore {
 
     /// Returns the file path for the given key.
     ///
-    /// Matches op-program's `directoryKV.pathKey`: the hex key (without `0x` prefix) is split
-    /// into a 4-char directory prefix and the remainder as the filename with `.txt` extension.
+    /// The hex key (without `0x` prefix) is split into a 4-char directory prefix and the
+    /// remainder as the filename with `.txt` extension. This matches op-challenger's layout.
     fn key_path(&self, key: B256) -> PathBuf {
         let hex_key = format!("{key:x}");
         let (dir_part, file_part) = hex_key.split_at(4);

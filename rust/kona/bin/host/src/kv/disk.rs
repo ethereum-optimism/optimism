@@ -1,7 +1,7 @@
 //! Contains a concrete implementation of the [`KeyValueStore`] trait that stores data on disk
 //! using [rocksdb].
 
-use super::{KeyValueStore, MemoryKeyValueStore};
+use super::{DataFormat, FORMAT_FILENAME, KeyValueStore, MemoryKeyValueStore};
 use crate::{HostError, Result};
 use alloy_primitives::B256;
 use rocksdb::{DB, Options};
@@ -20,10 +20,10 @@ impl DiskKeyValueStore {
         let db = DB::open(&Self::get_db_options(), data_directory.as_path())
             .unwrap_or_else(|e| panic!("Failed to open database at {data_directory:?}: {e}"));
 
-        // Write the kvformat marker file.
-        let format_path = data_directory.join("kvformat");
+        // Write the kvformat marker file for op-challenger compatibility.
+        let format_path = data_directory.join(FORMAT_FILENAME);
         if !format_path.exists() {
-            std::fs::write(&format_path, "rocksdb")
+            std::fs::write(&format_path, DataFormat::Rocksdb.as_str())
                 .unwrap_or_else(|e| panic!("Failed to write kvformat marker: {e}"));
         }
 

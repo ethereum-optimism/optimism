@@ -4,7 +4,10 @@ use super::{InteropHintHandler, InteropLocalInputs};
 use crate::{
     DirectoryKeyValueStore, DiskKeyValueStore, MemoryKeyValueStore, OfflineHostBackend,
     OnlineHostBackend, OnlineHostBackendCfg, PreimageServer, SharedKeyValueStore,
-    SplitKeyValueStore, eth::rpc_provider, kv::DataFormat, server::PreimageServerError,
+    SplitKeyValueStore,
+    eth::rpc_provider,
+    kv::{DataFormat, detect_data_format},
+    server::PreimageServerError,
 };
 use alloy_primitives::{B256, Bytes};
 use alloy_provider::{Provider, RootProvider};
@@ -79,7 +82,8 @@ pub struct InteropHost {
         env
     )]
     pub data_dir: Option<PathBuf>,
-    /// The format to use for preimage data storage on disk.
+    /// The default format for preimage data storage on disk. If the data directory already
+    /// contains a `kvformat` marker file, that format is used instead of this value.
     #[arg(long, default_value = "directory", env)]
     pub data_format: DataFormat,
     /// Run the client program natively.
@@ -216,10 +220,10 @@ impl InteropHost {
 
     /// Returns `true` if the host is running in offline mode.
     pub const fn is_offline(&self) -> bool {
-        self.l1_node_address.is_none() &&
-            self.l2_node_addresses.is_none() &&
-            self.l1_beacon_address.is_none() &&
-            self.data_dir.is_some()
+        self.l1_node_address.is_none()
+            && self.l2_node_addresses.is_none()
+            && self.l1_beacon_address.is_none()
+            && self.data_dir.is_some()
     }
 
     /// Reads the [`RollupConfig`]s from the file system and returns a map of L2 chain ID ->
@@ -255,11 +259,15 @@ impl InteropHost {
     }
 
     /// Creates the key-value store for the host backend.
+    ///
+    /// If the data directory contains a `kvformat` marker file, the recorded format is used to
+    /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
     fn create_key_value_store(&self) -> Result<SharedKeyValueStore, InteropHostError> {
         let local_kv_store = InteropLocalInputs::new(self.clone());
 
         let kv_store: SharedKeyValueStore = if let Some(ref data_dir) = self.data_dir {
-            match self.data_format {
+            let format = detect_data_format(data_dir, self.data_format);
+            match format {
                 DataFormat::Directory => {
                     let dir_kv_store = DirectoryKeyValueStore::new(data_dir.clone());
                     Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, dir_kv_store)))
