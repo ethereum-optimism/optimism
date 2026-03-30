@@ -199,9 +199,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
-        vm.mockCall(
-            address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(currentSeqNum + 10)
-        );
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(currentSeqNum + 10));
         anchorStateRegistry.setAnchorState(gameProxy);
         assertFalse(address(anchorStateRegistry.anchorGame()) == address(0));
 
