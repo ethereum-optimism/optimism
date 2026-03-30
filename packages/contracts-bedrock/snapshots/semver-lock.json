@@ -28,8 +28,8 @@
     "sourceCodeHash": "0x6d4ffaaa57441dec3c3ee8fd9ac59f95229defec405347af853e265bfd749235"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0xa129db9289bf1ff9f8f902d7400739416aeb23873af960b2f1bbf92f95e5890f",
-    "sourceCodeHash": "0x64b5cc997096a8f269f782ef9ab109d44da6085dae3dbc267b99f9e7afc7ad76"
+    "initCodeHash": "0x233f5f4b424bc2aabe170cf758c9ff80841ceab4c78e37edfe3a7bc660c5577d",
+    "sourceCodeHash": "0x7c0cb663f82b07da8dec8a7497cf2fa56a335fb5bdc57b612c86462f8527d4d5"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0xa781a9d31fc305b481008cdb8594b94418e285b9c21cf2074c93283298f52102",
@@ -76,7 +76,7 @@
     "sourceCodeHash": "0xd12920a7ff18e68575dec4cc0221dba393353d7a281fc81f615a789f78b7cf03"
   },
   "src/L2/GasPriceOracle.sol:GasPriceOracle": {
-    "initCodeHash": "0xf72c23d9c3775afd7b645fde429d09800622d329116feb5ff9829634655123ca",
+    "initCodeHash": "0x5f726202df4824f90c7745856af504e3a96ced98c58e4cb4541729103eb10ab1",
     "sourceCodeHash": "0xb4d1bf3669ba87bbeaf4373145c7e1490478c4a05ba4838a524aa6f0ce7348a6"
   },
   "src/L2/L1Block.sol:L1Block": {
@@ -84,7 +84,7 @@
     "sourceCodeHash": "0xdc95fe725355a2da51c2c0ca657b1104401e2f395b78e1d5090425445edc3a5c"
   },
   "src/L2/L1BlockCGT.sol:L1BlockCGT": {
-    "initCodeHash": "0x7e1d1edefd306ead6f32689506e1fce7ff85408033d7c6465d9f55680b54f70f",
+    "initCodeHash": "0x3395b99f7a8c8d34e084904d422e454414347b6056e37b07dbc2a9cbbbc5080b",
     "sourceCodeHash": "0x1b361d74944f0972d46ea05a0e40ebc851a54696edf19866161c8edeac7c4752"
   },
   "src/L2/L1FeeVault.sol:L1FeeVault": {
@@ -96,7 +96,7 @@
     "sourceCodeHash": "0x7e438cbbe9a8248887b8c21f68c811f90a5cae4902cbbf7b0a1f6cd644dc42d9"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xbe8377775a9bcd43310f177433d5c0013cd7047648245b40db89505b3eb67e9e",
+    "initCodeHash": "0xfff9d62501a9e545b5d1c73584caa587cf0df1832fae4f325398f4efea81b022",
     "sourceCodeHash": "0x6c928151568831d3cf6e4ec2ddf899985feb590a59e8e7bad3b80d11ff8010fe"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
@@ -136,7 +136,7 @@
     "sourceCodeHash": "0xbea4229c5c6988243dbc7cf5a086ddd412fe1f2903b8e20d56699fec8de0c2c9"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
-    "initCodeHash": "0x8f46415faeff0f507158e068e6435af548dd9324f49a3d988cbf157f2a992efd",
+    "initCodeHash": "0xafb045b43a6eb4a17c11dc22a20f21e69faf398f00da4dfcfdc4acd3fd16d800",
     "sourceCodeHash": "0xce9e7edc12f65c4f307ebd3ce58d468b872ee61646a2a62cd891512839089ac2"
   },
   "src/L2/NativeAssetLiquidity.sol:NativeAssetLiquidity": {
@@ -264,7 +264,7 @@
     "sourceCodeHash": "0xd6683fe9be4019d34249ada5a4de3e597f1bd9cd473a89f6eff8f749a0b0e978"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
-    "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",
+    "initCodeHash": "0xa26cd5b88cb1d4e5cef0422b98ff4c33a3bbfa33479ebd8632d095bb2c633ca7",
     "sourceCodeHash": "0x7023665d461f173417d932b55010b8f6c34f2bbaf56cfe4e1b15862c08cbcaac"
   },
   "src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory": {

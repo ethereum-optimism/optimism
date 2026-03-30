@@ -970,8 +970,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             IOptimismPortal2 portal = IOptimismPortal2(payable(_input.sysCfg.optimismPortal()));
             IAnchorStateRegistry asr = portal.anchorStateRegistry();
             GameType rgt = asr.respectedGameType();
-            isSuperMode =
-                rgt.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw() || rgt.raw() == GameTypes.SUPER_CANNON_KONA.raw();
+            isSuperMode = isSuperGame(rgt);
         }
 
         if (isSuperMode) {
