@@ -63,7 +63,8 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 		if hasPredeployedOPCM && st.ImplementationsDeployment == nil {
 			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-				OpcmImpl: opcmAddr,
+				OpcmImpl:   opcmAddr,
+				OpcmV2Impl: opcmAddr,
 			}
 		}
 	}
