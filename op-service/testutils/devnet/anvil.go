@@ -22,16 +22,16 @@ import (
 const DefaultChainID = 77799777
 
 type Anvil struct {
-	args        map[string]string
-	proc        *exec.Cmd
-	stdout      io.ReadCloser
-	stderr      io.ReadCloser
-	logger      log.Logger
-	startedCh   chan struct{}
-	wg          sync.WaitGroup
-	port        int32
-	foundryHome      string
-	ownsFoundryHome  bool
+	args            map[string]string
+	proc            *exec.Cmd
+	stdout          io.ReadCloser
+	stderr          io.ReadCloser
+	logger          log.Logger
+	startedCh       chan struct{}
+	wg              sync.WaitGroup
+	port            int32
+	foundryHome     string
+	ownsFoundryHome bool
 }
 
 type AnvilOption func(*Anvil)
