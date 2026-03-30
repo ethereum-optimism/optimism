@@ -576,27 +576,26 @@ contract OPContractsManagerStandardValidator is ISemver {
         return _errors;
     }
 
-    /// @notice Asserts that the PermissionedDisputeGame contract is valid.
+    /// @notice Asserts that a permissioned dispute game contract is valid.
     function assertValidPermissionedDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
+        GameType _gameType,
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
         IProxyAdmin _admin,
         address _proposer,
-        ValidationOverrides memory _overrides
+        ValidationOverrides memory _overrides,
+        string memory _errorPrefix
     )
         internal
         view
         returns (string memory)
     {
-        GameType gameType = GameTypes.PERMISSIONED_CANNON;
-        string memory errorPrefix = "PDDG";
-
         // Collect game implementation parameters
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl = false;
-        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, gameType, _sysCfg, errorPrefix);
+        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, _gameType, _sysCfg, _errorPrefix);
         if (failedToGetImpl) {
             // Return early on failure to avoid trying to validate an invalid dispute game
             return _errors;
@@ -610,64 +609,16 @@ contract OPContractsManagerStandardValidator is ISemver {
                 absolutePrestate: _absolutePrestate,
                 l2ChainID: _l2ChainID,
                 admin: _admin,
-                gameType: gameType,
+                gameType: _gameType,
                 overrides: _overrides,
-                errorPrefix: errorPrefix
+                errorPrefix: _errorPrefix
             })
         );
 
-        // Challenger is specific to the PermissionedDisputeGame contract.
+        // Challenger and proposer are specific to permissioned dispute game contracts.
         address _challenger = expectedChallenger(_overrides);
-        _errors = internalRequire(gameImpl.challenger == _challenger, "PDDG-130", _errors);
-        _errors = internalRequire(gameImpl.proposer == _proposer, "PDDG-140", _errors);
-
-        return _errors;
-    }
-
-    /// @notice Asserts that the SuperPermissionedDisputeGame contract is valid.
-    function assertValidSuperPermissionedDisputeGame(
-        string memory _errors,
-        ISystemConfig _sysCfg,
-        bytes32 _absolutePrestate,
-        uint256 _l2ChainID,
-        IProxyAdmin _admin,
-        address _proposer,
-        ValidationOverrides memory _overrides
-    )
-        internal
-        view
-        returns (string memory)
-    {
-        GameType gameType = GameTypes.SUPER_PERMISSIONED_CANNON;
-        string memory errorPrefix = "SPDG";
-
-        // Collect game implementation parameters
-        DisputeGameImplementation memory gameImpl;
-        bool failedToGetImpl = false;
-        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, gameType, _sysCfg, errorPrefix);
-        if (failedToGetImpl) {
-            // Return early on failure to avoid trying to validate an invalid dispute game
-            return _errors;
-        }
-
-        _errors = assertValidDisputeGame(
-            DisputeGameValidationArgs({
-                errors: _errors,
-                sysCfg: _sysCfg,
-                game: gameImpl,
-                absolutePrestate: _absolutePrestate,
-                l2ChainID: _l2ChainID,
-                admin: _admin,
-                gameType: gameType,
-                overrides: _overrides,
-                errorPrefix: errorPrefix
-            })
-        );
-
-        // Challenger and proposer are specific to the SuperPermissionedDisputeGame contract.
-        address _challenger = expectedChallenger(_overrides);
-        _errors = internalRequire(gameImpl.challenger == _challenger, "SPDG-130", _errors);
-        _errors = internalRequire(gameImpl.proposer == _proposer, "SPDG-140", _errors);
+        _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
+        _errors = internalRequire(gameImpl.proposer == _proposer, string.concat(_errorPrefix, "-140"), _errors);
 
         return _errors;
     }
@@ -1025,14 +976,16 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         if (isSuperMode) {
             _errors = assertValidSuperRootDisputeGames(_errors, _input.sysCfg);
-            _errors = assertValidSuperPermissionedDisputeGame(
+            _errors = assertValidPermissionedDisputeGame(
                 _errors,
                 _input.sysCfg,
+                GameTypes.SUPER_PERMISSIONED_CANNON,
                 _input.cannonPrestate,
                 _input.l2ChainID,
                 _proxyAdmin,
                 _input.proposer,
-                _overrides
+                _overrides,
+                "SPDG"
             );
             _errors = assertValidPermissionlessDisputeGame(
                 _errors,
@@ -1050,11 +1003,13 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errors = assertValidPermissionedDisputeGame(
                 _errors,
                 _input.sysCfg,
+                GameTypes.PERMISSIONED_CANNON,
                 _input.cannonPrestate,
                 _input.l2ChainID,
                 _proxyAdmin,
                 _input.proposer,
-                _overrides
+                _overrides,
+                "PDDG"
             );
             _errors = assertValidPermissionlessDisputeGame(
                 _errors,
