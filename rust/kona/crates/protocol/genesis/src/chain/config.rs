@@ -8,7 +8,7 @@ use alloy_primitives::Address;
 use crate::{
     AddressList, AltDAConfig, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig,
     Roles, RollupConfig, SuperchainLevel, base_fee_params, base_fee_params_canyon,
-    params::base_fee_config, rollup::DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
+    params::base_fee_config,
 };
 
 /// L1 chain configuration from the `alloy-genesis` crate.
@@ -176,7 +176,6 @@ impl ChainConfig {
             // necessary.
             channel_timeout: 300,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
-            interop_message_expiry_window: DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
             chain_op_config: self.base_fee_config(),
             alt_da_config: self.alt_da.clone(),
         }
