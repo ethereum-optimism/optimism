@@ -35,6 +35,7 @@ alloy-serde = { workspace = true }
 
 # OP-specific types
 op-alloy-consensus = { workspace = true, features = ["std", "serde", "k256"] }
+op-alloy-rpc-types = { workspace = true, features = ["std", "serde"] }
 op-alloy-rpc-types-engine = { workspace = true, features = ["std", "serde"] }
 
 # EVM execution

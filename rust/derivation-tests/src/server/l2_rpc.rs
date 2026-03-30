@@ -1,8 +1,10 @@
 //! L2 JSON-RPC server implementation.
 
+use alloy_consensus::transaction::Recovered;
 use alloy_primitives::{B256, Bytes};
 use alloy_rlp::Encodable;
 use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
+use op_alloy_consensus::OpTxEnvelope;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -116,37 +118,64 @@ impl L2RpcImpl {
         }
     }
 
-    fn block_to_json(&self, block: &L2Block, _full_txs: bool) -> Value {
-        let header = block.header.inner();
-        serde_json::json!({
-            "hash": block.header.hash(),
-            "parentHash": header.parent_hash,
-            "number": format!("0x{:x}", header.number),
-            "timestamp": format!("0x{:x}", header.timestamp),
-            "stateRoot": header.state_root,
-            "transactionsRoot": header.transactions_root,
-            "receiptsRoot": header.receipts_root,
-            "gasLimit": format!("0x{:x}", header.gas_limit),
-            "gasUsed": format!("0x{:x}", header.gas_used),
-            "baseFeePerGas": format!("0x{:x}", header.base_fee_per_gas.unwrap_or(0)),
-            "difficulty": "0x0",
-            "miner": header.beneficiary,
-            "extraData": header.extra_data,
-            "nonce": "0x0000000000000000",
-            "sha3Uncles": header.ommers_hash,
-            "logsBloom": header.logs_bloom,
-            "size": "0x0",
-            "withdrawalsRoot": header.withdrawals_root.unwrap_or(crate::state::roots::EMPTY_ROOT_HASH),
-            "withdrawals": [],
-            "mixHash": header.mix_hash,
-            "blobGasUsed": format!("0x{:x}", header.blob_gas_used.unwrap_or(0)),
-            "excessBlobGas": format!("0x{:x}", header.excess_blob_gas.unwrap_or(0)),
-            "parentBeaconBlockRoot": header.parent_beacon_block_root.unwrap_or(alloy_primitives::B256::ZERO),
-            "requestsHash": header.requests_hash.unwrap_or(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
-            "transactions": block.transactions.iter().enumerate().map(|(i, _)| {
-                format!("0x{:064x}", i)
-            }).collect::<Vec<_>>(),
-        })
+    /// Convert an [`L2Block`] to its JSON-RPC representation using standard alloy types.
+    ///
+    /// This produces the same JSON as op-reth's `eth_getBlockByHash` response,
+    /// ensuring compatibility with kona-host and op-program.
+    fn block_to_json(&self, block: &L2Block, full_txs: bool) -> Value {
+        let block_hash = block.header.hash();
+        let block_number = block.header.inner().number;
+
+        let rpc_header = alloy_rpc_types_eth::Header {
+            hash: block_hash,
+            inner: block.header.inner().clone(),
+            total_difficulty: Some(alloy_primitives::U256::ZERO),
+            size: Some(alloy_primitives::U256::ZERO),
+        };
+
+        type RpcTx = alloy_rpc_types_eth::Transaction<OpTxEnvelope>;
+
+        let transactions = if full_txs {
+            let txs: Vec<RpcTx> = block
+                .transactions
+                .iter()
+                .enumerate()
+                .map(|(i, tx)| {
+                    let sender = match tx {
+                        OpTxEnvelope::Deposit(sealed) => sealed.inner().from,
+                        _ => alloy_primitives::Address::ZERO,
+                    };
+                    alloy_rpc_types_eth::Transaction {
+                        inner: Recovered::new_unchecked(tx.clone(), sender),
+                        block_hash: Some(block_hash),
+                        block_number: Some(block_number),
+                        transaction_index: Some(i as u64),
+                        effective_gas_price: Some(0),
+                    }
+                })
+                .collect();
+            alloy_rpc_types_eth::BlockTransactions::Full(txs)
+        } else {
+            let hashes: Vec<B256> = block
+                .transactions
+                .iter()
+                .map(|tx| {
+                    let mut buf = Vec::new();
+                    tx.encode(&mut buf);
+                    alloy_primitives::keccak256(&buf)
+                })
+                .collect();
+            alloy_rpc_types_eth::BlockTransactions::Hashes(hashes)
+        };
+
+        let rpc_block: alloy_rpc_types_eth::Block<RpcTx> = alloy_rpc_types_eth::Block {
+            header: rpc_header,
+            transactions,
+            uncles: vec![],
+            withdrawals: Some(vec![].into()),
+        };
+
+        serde_json::to_value(&rpc_block).expect("block serialization should not fail")
     }
 }
 
@@ -177,9 +206,9 @@ impl L2RpcServer for L2RpcImpl {
         storage_keys: Vec<B256>,
         block_id: Value,
     ) -> Result<Value, ErrorObjectOwned> {
-        let idx = self
-            .resolve_block(&block_id)
-            .ok_or_else(|| ErrorObjectOwned::owned(-32602, format!("block not found: {block_id}"), None::<String>))?;
+        let idx = self.resolve_block(&block_id).ok_or_else(|| {
+            ErrorObjectOwned::owned(-32602, format!("block not found: {block_id}"), None::<String>)
+        })?;
 
         let snapshot = &self.snapshots[idx];
 
@@ -207,8 +236,9 @@ impl L2RpcServer for L2RpcImpl {
     }
 
     fn db_get(&self, key: Value) -> Result<Bytes, ErrorObjectOwned> {
-        let key_bytes = Self::parse_bytes_key(&key)
-            .ok_or_else(|| ErrorObjectOwned::owned(-32602, format!("invalid key: {key}"), None::<String>))?;
+        let key_bytes = Self::parse_bytes_key(&key).ok_or_else(|| {
+            ErrorObjectOwned::owned(-32602, format!("invalid key: {key}"), None::<String>)
+        })?;
 
         if self.snapshots.is_empty() {
             return Err(ErrorObjectOwned::owned(-32603, "no state available", None::<String>));
@@ -239,9 +269,9 @@ impl L2RpcServer for L2RpcImpl {
     }
 
     fn get_raw_header(&self, block_id: Value) -> Result<Bytes, ErrorObjectOwned> {
-        let idx = self
-            .resolve_block(&block_id)
-            .ok_or_else(|| ErrorObjectOwned::owned(-32602, format!("block not found: {block_id}"), None::<String>))?;
+        let idx = self.resolve_block(&block_id).ok_or_else(|| {
+            ErrorObjectOwned::owned(-32602, format!("block not found: {block_id}"), None::<String>)
+        })?;
 
         let mut buf = Vec::new();
         self.blocks[idx].header.inner().encode(&mut buf);

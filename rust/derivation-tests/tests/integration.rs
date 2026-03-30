@@ -115,6 +115,42 @@ fn with_batch() -> DerivationTest {
     test
 }
 
+/// Two empty (deposit-only) L2 blocks derived from empty L1 blocks.
+fn two_empty_blocks() -> DerivationTest {
+    let mut test = DerivationTest::new();
+    test.advance_l1(2);
+    test.derive_empty_l2_blocks(2);
+    test.submit_batch_with(BatchConfig::singular_calldata());
+    test.finalize();
+    test
+}
+
+/// Two L2 blocks each containing an ETH transfer.
+fn multi_block_transfers() -> DerivationTest {
+    let mut test = DerivationTest::new();
+    test.advance_l1(2);
+
+    test.derive_l2_block()
+        .with_funded_transfer(
+            Address::with_last_byte(0x01),
+            U256::from(1_000_000_000_000_000_000u64),
+        )
+        .build();
+
+    test.derive_l2_block()
+        .with_funded_transfer(
+            Address::with_last_byte(0x02),
+            U256::from(2_000_000_000_000_000_000u64),
+        )
+        .build();
+
+    test.submit_batch_with(BatchConfig::singular_calldata());
+    test.finalize();
+    test
+}
+
 // Generate tests: each line produces test_op_program_<name> + test_kona_host_<name>
 run_all_programs!(empty_blocks);
+run_all_programs!(two_empty_blocks);
 run_all_programs!(with_batch);
+run_all_programs!(multi_block_transfers);

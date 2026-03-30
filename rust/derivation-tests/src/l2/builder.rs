@@ -293,11 +293,8 @@ impl L2ChainBuilder {
         };
 
         // Jovian repurposes blob_gas_used to store the DA footprint
-        let blob_gas_used = if hardforks.jovian_time.is_some_and(|t| timestamp >= t) {
-            da_footprint
-        } else {
-            0
-        };
+        let blob_gas_used =
+            if hardforks.jovian_time.is_some_and(|t| timestamp >= t) { da_footprint } else { 0 };
 
         let header = Header {
             parent_hash,
