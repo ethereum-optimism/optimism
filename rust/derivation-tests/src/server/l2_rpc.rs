@@ -1,14 +1,20 @@
 //! L2 JSON-RPC server implementation.
 
-use alloy_consensus::transaction::Recovered;
+use alloy_consensus::{
+    Transaction,
+    transaction::{Recovered, SignerRecoverable},
+};
 use alloy_primitives::{B256, Bytes};
 use alloy_rlp::Encodable;
+use alloy_rpc_types_eth::BlockTransactions;
 use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
 use op_alloy_consensus::OpTxEnvelope;
 use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{l2::L2Block, state::StateSnapshot};
+
+type L2RpcBlock = alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction>;
 
 /// L2 RPC server trait.
 #[rpc(server)]
@@ -23,7 +29,7 @@ pub(crate) trait L2Rpc {
         &self,
         hash: B256,
         full_txs: bool,
-    ) -> Result<Option<Value>, ErrorObjectOwned>;
+    ) -> Result<Option<L2RpcBlock>, ErrorObjectOwned>;
 
     /// Returns a block by number.
     #[method(name = "eth_getBlockByNumber")]
@@ -31,7 +37,7 @@ pub(crate) trait L2Rpc {
         &self,
         number: Value,
         full_txs: bool,
-    ) -> Result<Option<Value>, ErrorObjectOwned>;
+    ) -> Result<Option<L2RpcBlock>, ErrorObjectOwned>;
 
     /// Returns account and storage proofs.
     #[method(name = "eth_getProof")]
@@ -92,8 +98,6 @@ impl L2RpcImpl {
     }
 
     /// Resolve a block ID from a JSON value.
-    /// Handles both string values ("0x1", "latest", "0xhash...") and
-    /// object values ({"blockNumber": "0x1"}, {"blockHash": "0x..."}).
     fn resolve_block(&self, block_id: &Value) -> Option<usize> {
         match block_id {
             Value::String(s) => self.resolve_block_str(s),
@@ -118,64 +122,73 @@ impl L2RpcImpl {
         }
     }
 
-    /// Convert an [`L2Block`] to its JSON-RPC representation using standard alloy types.
-    ///
-    /// This produces the same JSON as op-reth's `eth_getBlockByHash` response,
-    /// ensuring compatibility with kona-host and op-program.
-    fn block_to_json(&self, block: &L2Block, full_txs: bool) -> Value {
+    fn to_rpc_block(&self, block: &L2Block, full_txs: bool) -> L2RpcBlock {
+        let header = block.header.inner();
         let block_hash = block.header.hash();
-        let block_number = block.header.inner().number;
-
-        let rpc_header = alloy_rpc_types_eth::Header {
-            hash: block_hash,
-            inner: block.header.inner().clone(),
-            total_difficulty: Some(alloy_primitives::U256::ZERO),
-            size: Some(alloy_primitives::U256::ZERO),
-        };
-
-        type RpcTx = alloy_rpc_types_eth::Transaction<OpTxEnvelope>;
 
         let transactions = if full_txs {
-            let txs: Vec<RpcTx> = block
-                .transactions
-                .iter()
-                .enumerate()
-                .map(|(i, tx)| {
-                    let sender = match tx {
-                        OpTxEnvelope::Deposit(sealed) => sealed.inner().from,
-                        _ => alloy_primitives::Address::ZERO,
-                    };
-                    alloy_rpc_types_eth::Transaction {
-                        inner: Recovered::new_unchecked(tx.clone(), sender),
-                        block_hash: Some(block_hash),
-                        block_number: Some(block_number),
-                        transaction_index: Some(i as u64),
-                        effective_gas_price: Some(0),
-                    }
-                })
-                .collect();
-            alloy_rpc_types_eth::BlockTransactions::Full(txs)
+            BlockTransactions::Full(
+                block
+                    .transactions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, tx)| {
+                        Self::to_rpc_transaction(tx, block_hash, header.number, i as u64)
+                    })
+                    .collect(),
+            )
         } else {
-            let hashes: Vec<B256> = block
-                .transactions
-                .iter()
-                .map(|tx| {
-                    let mut buf = Vec::new();
-                    tx.encode(&mut buf);
-                    alloy_primitives::keccak256(&buf)
-                })
-                .collect();
-            alloy_rpc_types_eth::BlockTransactions::Hashes(hashes)
+            BlockTransactions::Hashes(
+                block.transactions.iter().map(|tx| B256::from(*tx.tx_hash())).collect(),
+            )
         };
 
-        let rpc_block: alloy_rpc_types_eth::Block<RpcTx> = alloy_rpc_types_eth::Block {
-            header: rpc_header,
+        alloy_rpc_types_eth::Block {
+            header: alloy_rpc_types_eth::Header {
+                hash: block_hash,
+                inner: header.clone(),
+                total_difficulty: Some(alloy_primitives::U256::ZERO),
+                size: Some(alloy_primitives::U256::ZERO),
+            },
             transactions,
             uncles: vec![],
-            withdrawals: Some(vec![].into()),
+            withdrawals: Some(Default::default()),
+        }
+    }
+
+    fn to_rpc_transaction(
+        tx: &OpTxEnvelope,
+        block_hash: B256,
+        block_number: u64,
+        tx_index: u64,
+    ) -> op_alloy_rpc_types::Transaction {
+        let sender = match tx {
+            OpTxEnvelope::Deposit(sealed) => sealed.inner().from,
+            _ => tx.recover_signer().unwrap_or_default(),
+        };
+        let recovered = Recovered::new_unchecked(tx.clone(), sender);
+
+        let is_deposit = matches!(tx, OpTxEnvelope::Deposit(_));
+
+        let (deposit_nonce, deposit_receipt_version) = if let OpTxEnvelope::Deposit(deposit) = tx {
+            (Some(deposit.inner().nonce()), Some(1))
+        } else {
+            (None, None)
         };
 
-        serde_json::to_value(&rpc_block).expect("block serialization should not fail")
+        let effective_gas_price = if is_deposit { 0u128 } else { tx.max_fee_per_gas() };
+
+        op_alloy_rpc_types::Transaction {
+            inner: alloy_rpc_types_eth::Transaction {
+                inner: recovered,
+                block_hash: Some(block_hash),
+                block_number: Some(block_number),
+                transaction_index: Some(tx_index),
+                effective_gas_price: Some(effective_gas_price),
+            },
+            deposit_nonce,
+            deposit_receipt_version,
+        }
     }
 }
 
@@ -188,16 +201,16 @@ impl L2RpcServer for L2RpcImpl {
         &self,
         hash: B256,
         full_txs: bool,
-    ) -> Result<Option<Value>, ErrorObjectOwned> {
-        Ok(self.by_hash.get(&hash).map(|&i| self.block_to_json(&self.blocks[i], full_txs)))
+    ) -> Result<Option<L2RpcBlock>, ErrorObjectOwned> {
+        Ok(self.by_hash.get(&hash).map(|&i| self.to_rpc_block(&self.blocks[i], full_txs)))
     }
 
     fn get_block_by_number(
         &self,
         number: Value,
         full_txs: bool,
-    ) -> Result<Option<Value>, ErrorObjectOwned> {
-        Ok(self.resolve_block(&number).map(|i| self.block_to_json(&self.blocks[i], full_txs)))
+    ) -> Result<Option<L2RpcBlock>, ErrorObjectOwned> {
+        Ok(self.resolve_block(&number).map(|i| self.to_rpc_block(&self.blocks[i], full_txs)))
     }
 
     fn get_proof(
@@ -212,7 +225,6 @@ impl L2RpcServer for L2RpcImpl {
 
         let snapshot = &self.snapshots[idx];
 
-        // Compute storage roots for the proof generation
         let mut storage_roots = std::collections::BTreeMap::new();
         for (addr, storage) in &snapshot.storage {
             if !storage.is_empty() {
@@ -244,7 +256,7 @@ impl L2RpcServer for L2RpcImpl {
             return Err(ErrorObjectOwned::owned(-32603, "no state available", None::<String>));
         }
 
-        // kona-host convention: 0x63 prefix + 32-byte code hash → contract code lookup
+        // kona-host convention: 0x63 prefix + 32-byte code hash -> contract code lookup
         if key_bytes.len() == 33 && key_bytes[0] == 0x63 {
             let code_hash = B256::from_slice(&key_bytes[1..]);
             for snapshot in &self.snapshots {

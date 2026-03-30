@@ -1,11 +1,13 @@
 //! L1 JSON-RPC server implementation.
 
-use alloy_consensus::{Transaction, transaction::SignerRecoverable};
-use alloy_eips::{Decodable2718, Typed2718};
-use alloy_primitives::{B256, Bytes, keccak256};
+use alloy_consensus::{
+    ReceiptEnvelope, ReceiptWithBloom, Transaction, transaction::SignerRecoverable,
+};
+use alloy_eips::Decodable2718;
+use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_rlp::Encodable;
+use alloy_rpc_types_eth::BlockTransactions;
 use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
-use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::l1::L1Block;
@@ -31,7 +33,10 @@ pub(crate) trait L1Rpc {
         &self,
         hash: B256,
         full_txs: bool,
-    ) -> Result<Option<Value>, ErrorObjectOwned>;
+    ) -> Result<
+        Option<alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction>>,
+        ErrorObjectOwned,
+    >;
 
     /// Returns a block by number.
     #[method(name = "eth_getBlockByNumber")]
@@ -39,11 +44,17 @@ pub(crate) trait L1Rpc {
         &self,
         number: String,
         full_txs: bool,
-    ) -> Result<Option<Value>, ErrorObjectOwned>;
+    ) -> Result<
+        Option<alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction>>,
+        ErrorObjectOwned,
+    >;
 
     /// Returns block receipts.
     #[method(name = "eth_getBlockReceipts")]
-    fn get_block_receipts(&self, hash: B256) -> Result<Option<Value>, ErrorObjectOwned>;
+    fn get_block_receipts(
+        &self,
+        hash: B256,
+    ) -> Result<Option<Vec<alloy_rpc_types_eth::TransactionReceipt>>, ErrorObjectOwned>;
 
     /// Returns the RLP-encoded header.
     #[method(name = "debug_getRawHeader")]
@@ -55,14 +66,17 @@ pub(crate) trait L1Rpc {
 
     /// Returns a transaction receipt by hash.
     #[method(name = "eth_getTransactionReceipt")]
-    fn get_transaction_receipt(&self, tx_hash: B256) -> Result<Option<Value>, ErrorObjectOwned>;
+    fn get_transaction_receipt(
+        &self,
+        tx_hash: B256,
+    ) -> Result<Option<alloy_rpc_types_eth::TransactionReceipt>, ErrorObjectOwned>;
 }
 
 /// L1 RPC server implementation backed by in-memory blocks.
 pub(crate) struct L1RpcImpl {
     blocks: Vec<L1Block>,
     by_hash: HashMap<B256, usize>,
-    /// Maps fake tx hash to (block index, transaction index).
+    /// Maps tx hash to (block index, transaction index).
     tx_index: HashMap<B256, (usize, usize)>,
     chain_id: u64,
 }
@@ -76,7 +90,6 @@ impl L1RpcImpl {
         let mut tx_index = HashMap::new();
         for (block_idx, block) in blocks.iter().enumerate() {
             for (tx_idx, tx_bytes) in block.transactions.iter().enumerate() {
-                // Try to get real tx hash from decoded envelope, fall back to fake hash
                 let hash = alloy_consensus::TxEnvelope::decode_2718(&mut tx_bytes.as_ref())
                     .map(|env| *env.tx_hash())
                     .unwrap_or_else(|_| fake_tx_hash(block.header.hash(), tx_idx));
@@ -98,139 +111,145 @@ impl L1RpcImpl {
         }
     }
 
-    fn block_to_json(&self, block: &L1Block, full_txs: bool) -> Value {
+    fn to_rpc_block(
+        &self,
+        block: &L1Block,
+        full_txs: bool,
+    ) -> alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction> {
         let header = block.header.inner();
-        serde_json::json!({
-            "hash": block.header.hash(),
-            "parentHash": header.parent_hash,
-            "number": format!("0x{:x}", header.number),
-            "timestamp": format!("0x{:x}", header.timestamp),
-            "stateRoot": header.state_root,
-            "transactionsRoot": header.transactions_root,
-            "receiptsRoot": header.receipts_root,
-            "gasLimit": format!("0x{:x}", header.gas_limit),
-            "gasUsed": format!("0x{:x}", header.gas_used),
-            "baseFeePerGas": format!("0x{:x}", header.base_fee_per_gas.unwrap_or(0)),
-            "difficulty": "0x0",
-            "totalDifficulty": "0x0",
-            "miner": header.beneficiary,
-            "extraData": "0x",
-            "nonce": "0x0000000000000000",
-            "sha3Uncles": header.ommers_hash,
-            "logsBloom": header.logs_bloom,
-            "size": "0x0",
-            "mixHash": header.mix_hash,
-            "withdrawalsRoot": header.withdrawals_root.unwrap_or(crate::state::roots::EMPTY_ROOT_HASH),
-            "withdrawals": [],
-            "blobGasUsed": format!("0x{:x}", header.blob_gas_used.unwrap_or(0)),
-            "excessBlobGas": format!("0x{:x}", header.excess_blob_gas.unwrap_or(0)),
-            "parentBeaconBlockRoot": header.parent_beacon_block_root.unwrap_or(alloy_primitives::B256::ZERO),
-            "requestsHash": header.requests_hash.unwrap_or(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
-            "transactions": block.transactions.iter().enumerate().map(|(i, tx_bytes)| {
-                if full_txs {
-                    tx_to_json(block.header.hash(), block.header.inner().number, i, tx_bytes)
-                } else {
-                    let hash = alloy_consensus::TxEnvelope::decode_2718(&mut tx_bytes.as_ref())
-                        .map(|env| *env.tx_hash())
-                        .unwrap_or_else(|_| fake_tx_hash(block.header.hash(), i));
-                    serde_json::json!(hash)
-                }
-            }).collect::<Vec<_>>(),
-        })
-    }
-}
+        let block_hash = block.header.hash();
 
-/// Build a JSON representation of a signed L1 transaction for `full_txs` responses.
-fn tx_to_json(block_hash: B256, block_number: u64, tx_index: usize, tx_bytes: &Bytes) -> Value {
-    // Try to decode as a signed transaction envelope
-    if let Ok(envelope) = alloy_consensus::TxEnvelope::decode_2718(&mut tx_bytes.as_ref()) {
-        let tx_hash = *envelope.tx_hash();
-        let from = envelope.recover_signer().unwrap_or_default();
-        let to = envelope.to();
-        let nonce = envelope.nonce();
-        let value = envelope.value();
-        let gas_limit = envelope.gas_limit();
-        let input = envelope.input().clone();
-
-        let chain_id = match &envelope {
-            alloy_consensus::TxEnvelope::Eip1559(tx) => Some(tx.tx().chain_id),
-            alloy_consensus::TxEnvelope::Eip2930(tx) => Some(tx.tx().chain_id),
-            alloy_consensus::TxEnvelope::Eip4844(tx) => Some(tx.tx().tx().chain_id),
-            _ => None,
+        let transactions = if full_txs {
+            BlockTransactions::Full(
+                block
+                    .transactions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, tx_bytes)| {
+                        Self::to_rpc_transaction(tx_bytes, block_hash, header.number, i as u64)
+                    })
+                    .collect(),
+            )
+        } else {
+            BlockTransactions::Hashes(
+                block
+                    .transactions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, tx_bytes)| {
+                        alloy_consensus::TxEnvelope::decode_2718(&mut tx_bytes.as_ref())
+                            .map(|tx| *tx.tx_hash())
+                            .unwrap_or_else(|_| fake_tx_hash(block_hash, i))
+                    })
+                    .collect(),
+            )
         };
 
-        let sig = envelope.signature();
-
-        // Serialize `to` as address or null for contract creation
-        let to_val = to.map_or(Value::Null, |addr| serde_json::json!(addr));
-
-        return serde_json::json!({
-            "hash": tx_hash,
-            "blockHash": block_hash,
-            "blockNumber": format!("0x{:x}", block_number),
-            "transactionIndex": format!("0x{:x}", tx_index),
-            "from": from,
-            "to": to_val,
-            "nonce": format!("0x{:x}", nonce),
-            "value": format!("0x{:x}", value),
-            "gas": format!("0x{:x}", gas_limit),
-            "input": input,
-            "type": format!("0x{:x}", envelope.ty()),
-            "chainId": format!("0x{:x}", chain_id.unwrap_or(0)),
-            "v": format!("0x{:x}", sig.v() as u64),
-            "yParity": format!("0x{:x}", sig.v() as u64),
-            "r": format!("0x{:x}", sig.r()),
-            "s": format!("0x{:x}", sig.s()),
-            "maxFeePerGas": format!("0x{:x}", envelope.max_fee_per_gas()),
-            "maxPriorityFeePerGas": format!("0x{:x}", envelope.max_priority_fee_per_gas().unwrap_or(0)),
-            "gasPrice": format!("0x{:x}", envelope.max_fee_per_gas()),
-            "accessList": [],
-        });
+        alloy_rpc_types_eth::Block {
+            header: alloy_rpc_types_eth::Header {
+                hash: block_hash,
+                inner: header.clone(),
+                total_difficulty: Some(alloy_primitives::U256::ZERO),
+                size: None,
+            },
+            transactions,
+            uncles: vec![],
+            withdrawals: Some(Default::default()),
+        }
     }
 
-    // Fallback: raw data with fake hash
-    serde_json::json!(fake_tx_hash(block_hash, tx_index))
-}
+    fn to_rpc_transaction(
+        tx_bytes: &Bytes,
+        block_hash: B256,
+        block_number: u64,
+        tx_index: u64,
+    ) -> alloy_rpc_types_eth::Transaction {
+        let envelope = alloy_consensus::TxEnvelope::decode_2718(&mut tx_bytes.as_ref())
+            .expect("L1 transactions should be valid RLP");
+        let effective_gas_price = envelope.max_fee_per_gas();
+        let recovered =
+            envelope.try_into_recovered().expect("L1 transactions should have valid signatures");
 
-/// Serialize a receipt envelope to JSON, including its logs.
-fn receipt_to_json(
-    receipt: &alloy_consensus::ReceiptEnvelope,
-    block_hash: B256,
-    block_number: u64,
-    tx_idx: usize,
-    tx_hash: B256,
-    log_index_offset: usize,
-) -> Value {
-    let logs: Vec<Value> = receipt
-        .logs()
-        .iter()
-        .enumerate()
-        .map(|(li, log)| {
-            serde_json::json!({
-                "address": log.address,
-                "topics": log.topics(),
-                "data": log.data.data,
-                "blockHash": block_hash,
-                "blockNumber": format!("0x{:x}", block_number),
-                "transactionHash": tx_hash,
-                "transactionIndex": format!("0x{:x}", tx_idx),
-                "logIndex": format!("0x{:x}", log_index_offset + li),
-                "removed": false,
+        alloy_rpc_types_eth::Transaction {
+            inner: recovered,
+            block_hash: Some(block_hash),
+            block_number: Some(block_number),
+            transaction_index: Some(tx_index),
+            effective_gas_price: Some(effective_gas_price),
+        }
+    }
+
+    fn to_rpc_receipt(
+        receipt: &ReceiptEnvelope,
+        block: &L1Block,
+        tx_idx: usize,
+        tx_hash: B256,
+        log_index_offset: usize,
+    ) -> alloy_rpc_types_eth::TransactionReceipt {
+        let block_hash = block.header.hash();
+        let block_number = block.header.inner().number;
+        let inner_receipt = receipt.as_receipt().expect("receipt should decode");
+
+        let logs: Vec<alloy_rpc_types_eth::Log> = inner_receipt
+            .logs
+            .iter()
+            .enumerate()
+            .map(|(i, log)| alloy_rpc_types_eth::Log {
+                inner: log.clone(),
+                block_hash: Some(block_hash),
+                block_number: Some(block_number),
+                block_timestamp: Some(block.header.inner().timestamp),
+                transaction_hash: Some(tx_hash),
+                transaction_index: Some(tx_idx as u64),
+                log_index: Some((log_index_offset + i) as u64),
+                removed: false,
             })
-        })
-        .collect();
+            .collect();
 
-    serde_json::json!({
-        "status": format!("0x{:x}", receipt.status() as u8),
-        "cumulativeGasUsed": format!("0x{:x}", receipt.cumulative_gas_used()),
-        "logs": logs,
-        "logsBloom": receipt.logs_bloom(),
-        "transactionHash": tx_hash,
-        "transactionIndex": format!("0x{:x}", tx_idx),
-        "blockHash": block_hash,
-        "blockNumber": format!("0x{:x}", block_number),
-        "type": format!("0x{:x}", receipt.ty()),
-    })
+        let rpc_inner_receipt = alloy_consensus::Receipt {
+            status: inner_receipt.status,
+            cumulative_gas_used: inner_receipt.cumulative_gas_used,
+            logs,
+        };
+
+        let rpc_envelope = match receipt {
+            ReceiptEnvelope::Legacy(_) => ReceiptEnvelope::Legacy(ReceiptWithBloom::new(
+                rpc_inner_receipt,
+                *receipt.logs_bloom(),
+            )),
+            ReceiptEnvelope::Eip2930(_) => ReceiptEnvelope::Eip2930(ReceiptWithBloom::new(
+                rpc_inner_receipt,
+                *receipt.logs_bloom(),
+            )),
+            ReceiptEnvelope::Eip1559(_) => ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(
+                rpc_inner_receipt,
+                *receipt.logs_bloom(),
+            )),
+            ReceiptEnvelope::Eip4844(_) => ReceiptEnvelope::Eip4844(ReceiptWithBloom::new(
+                rpc_inner_receipt,
+                *receipt.logs_bloom(),
+            )),
+            ReceiptEnvelope::Eip7702(_) => ReceiptEnvelope::Eip7702(ReceiptWithBloom::new(
+                rpc_inner_receipt,
+                *receipt.logs_bloom(),
+            )),
+        };
+
+        alloy_rpc_types_eth::TransactionReceipt {
+            inner: rpc_envelope,
+            transaction_hash: tx_hash,
+            transaction_index: Some(tx_idx as u64),
+            block_hash: Some(block_hash),
+            block_number: Some(block_number),
+            gas_used: inner_receipt.cumulative_gas_used,
+            effective_gas_price: 0,
+            blob_gas_used: None,
+            blob_gas_price: None,
+            from: Address::ZERO,
+            to: None,
+            contract_address: None,
+        }
+    }
 }
 
 impl L1RpcServer for L1RpcImpl {
@@ -242,26 +261,32 @@ impl L1RpcServer for L1RpcImpl {
         &self,
         hash: B256,
         full_txs: bool,
-    ) -> Result<Option<Value>, ErrorObjectOwned> {
-        Ok(self.by_hash.get(&hash).map(|&i| self.block_to_json(&self.blocks[i], full_txs)))
+    ) -> Result<
+        Option<alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction>>,
+        ErrorObjectOwned,
+    > {
+        Ok(self.by_hash.get(&hash).map(|&i| self.to_rpc_block(&self.blocks[i], full_txs)))
     }
 
     fn get_block_by_number(
         &self,
         number: String,
         full_txs: bool,
-    ) -> Result<Option<Value>, ErrorObjectOwned> {
-        Ok(self
-            .resolve_block_number(&number)
-            .map(|i| self.block_to_json(&self.blocks[i], full_txs)))
+    ) -> Result<
+        Option<alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction>>,
+        ErrorObjectOwned,
+    > {
+        Ok(self.resolve_block_number(&number).map(|i| self.to_rpc_block(&self.blocks[i], full_txs)))
     }
 
-    fn get_block_receipts(&self, hash: B256) -> Result<Option<Value>, ErrorObjectOwned> {
+    fn get_block_receipts(
+        &self,
+        hash: B256,
+    ) -> Result<Option<Vec<alloy_rpc_types_eth::TransactionReceipt>>, ErrorObjectOwned> {
         Ok(self.by_hash.get(&hash).map(|&i| {
             let block = &self.blocks[i];
-            let block_number = block.header.inner().number;
             let mut log_index_offset = 0;
-            let receipts: Vec<Value> = block
+            block
                 .receipts
                 .iter()
                 .enumerate()
@@ -271,12 +296,11 @@ impl L1RpcServer for L1RpcImpl {
                     )
                     .map(|env| *env.tx_hash())
                     .unwrap_or_else(|_| fake_tx_hash(hash, j));
-                    let json = receipt_to_json(r, hash, block_number, j, tx_hash, log_index_offset);
+                    let receipt = Self::to_rpc_receipt(r, block, j, tx_hash, log_index_offset);
                     log_index_offset += r.logs().len();
-                    json
+                    receipt
                 })
-                .collect();
-            serde_json::json!(receipts)
+                .collect()
         }))
     }
 
@@ -308,16 +332,17 @@ impl L1RpcServer for L1RpcImpl {
             .collect())
     }
 
-    fn get_transaction_receipt(&self, tx_hash: B256) -> Result<Option<Value>, ErrorObjectOwned> {
+    fn get_transaction_receipt(
+        &self,
+        tx_hash: B256,
+    ) -> Result<Option<alloy_rpc_types_eth::TransactionReceipt>, ErrorObjectOwned> {
         Ok(self.tx_index.get(&tx_hash).map(|&(block_idx, tx_idx)| {
             let block = &self.blocks[block_idx];
-            let block_hash = block.header.hash();
-            let block_number = block.header.inner().number;
             let receipt = &block.receipts[tx_idx];
             let log_index_offset: usize =
                 block.receipts[..tx_idx].iter().map(|r| r.logs().len()).sum();
 
-            receipt_to_json(receipt, block_hash, block_number, tx_idx, tx_hash, log_index_offset)
+            Self::to_rpc_receipt(receipt, block, tx_idx, tx_hash, log_index_offset)
         }))
     }
 }
