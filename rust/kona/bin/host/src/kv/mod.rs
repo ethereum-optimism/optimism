@@ -46,17 +46,16 @@ impl DataFormat {
 /// marker so that future opens (including by op-challenger) detect the format automatically.
 pub fn detect_data_format(data_dir: &Path, default_format: DataFormat) -> DataFormat {
     let format_path = data_dir.join(FORMAT_FILENAME);
-    match std::fs::read_to_string(&format_path) {
-        Ok(contents) => match contents.as_str() {
+    std::fs::read_to_string(&format_path).map_or(default_format, |contents| {
+        match contents.as_str() {
             "directory" => DataFormat::Directory,
             "rocksdb" => DataFormat::Rocksdb,
             other => {
                 tracing::warn!(format = other, "Unknown kvformat marker, using CLI default");
                 default_format
             }
-        },
-        Err(_) => default_format,
-    }
+        }
+    })
 }
 
 /// A type alias for a shared key-value store.
