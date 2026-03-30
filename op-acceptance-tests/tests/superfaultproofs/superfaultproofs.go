@@ -2,7 +2,6 @@ package superfaultproofs
 
 import (
 	"context"
-	"math"
 	"math/big"
 	"math/rand"
 	"os"
@@ -123,39 +122,6 @@ func latestRequiredL1(resp eth.SuperRootAtTimestampResponse) eth.BlockID {
 		}
 	}
 	return latest
-}
-
-// l1BlockWithLocalSafeBlocks finds an L1 block where the specified chains either do or do not have safe blocks.
-func l1BlockWithLocalSafeBlocks(t devtest.T, l1El *dsl.L1ELNode, sn *dsl.Supernode, timestamp uint64, hasSafe, notSafe []eth.ChainID) eth.BlockID {
-	t.Logf("Finding L1 block where %v have safe blocks and %v do not", hasSafe, notSafe)
-	var l1Block eth.BlockID
-	t.Require().Eventually(func() bool {
-		resp := sn.SuperRootAtTimestamp(timestamp)
-
-		candidate := uint64(math.MaxUint64)
-		for _, id := range notSafe {
-			if optimistic, has := resp.OptimisticAtTimestamp[id]; has && optimistic.RequiredL1.Number <= candidate {
-				candidate = optimistic.RequiredL1.Number - 1 // We need this chain to not have a safe block, so L1 head must be the block before it.
-			}
-		}
-		// If we didn't have any notSafe chains, we can use the current L1 block.
-		if candidate == math.MaxUint64 {
-			candidate = resp.CurrentL1.Number
-		}
-
-		// Now verify that all the required chains have a safe block at the candidate L1 block.
-		for _, id := range hasSafe {
-			if optimistic, has := resp.OptimisticAtTimestamp[id]; !has {
-				return false
-			} else if optimistic.RequiredL1.Number > candidate {
-				return false
-			}
-		}
-
-		l1Block = l1El.BlockRefByNumber(candidate).ID()
-		return true
-	}, 2*time.Minute, 2*time.Second, "timed out waiting for l1 block")
-	return l1Block
 }
 
 // runKonaInteropProgram runs the kona interop fault proof program and checks the result.
@@ -580,28 +546,32 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
 	startTimestamp := endTimestamp - 1
 
-	// Ensure both chains have produced the target blocks as unsafe.
-	for _, c := range chains {
-		target, err := c.Cfg.TargetBlockNumber(endTimestamp)
-		t.Require().NoError(err)
-		c.EL.Reached(eth.Unsafe, target, 60)
-	}
+	// Wait for both chains to produce the target blocks as unsafe.
+	// Sequencers keep running freely — the L1 head invariants are maintained
+	// by which batchers are running, not by stopping sequencers.
+	target0, err := chains[0].Cfg.TargetBlockNumber(endTimestamp)
+	t.Require().NoError(err)
+	target1, err := chains[1].Cfg.TargetBlockNumber(endTimestamp)
+	t.Require().NoError(err)
+	chains[0].EL.Reached(eth.Unsafe, target0, 60)
+	chains[1].EL.Reached(eth.Unsafe, target1, 60)
 
-	// -- Stage 2: Capture L1 heads at different batch-availability points --
+	// -- Stage 2: Capture L1 heads via batcher choreography ----------------
+	// Batchers are stopped, so no batch data for endTimestamp is on L1.
+	l1HeadBefore := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
-	// L1 head where neither chain has batch data at endTimestamp.
-	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{chains[0].ID, chains[1].ID})
-
-	// L1 head where only the first chain has batch data.
+	// Start chain[0]'s batcher and wait for its safe head to reach the target.
+	// Chain[1]'s batcher is still stopped, so only chain[0]'s data lands on L1.
 	chains[0].Batcher.Start()
-	l1HeadAfterFirst := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, []eth.ChainID{chains[0].ID}, []eth.ChainID{chains[1].ID})
-	chains[0].Batcher.Stop()
+	chains[0].EL.Reached(eth.Safe, target0, 60)
+	l1HeadAfterFirst := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
-	// L1 head where both chains have batch data (fully validated).
+	// Start chain[1]'s batcher and wait for the supernode to validate, then
+	// wait for chain[1]'s safe head to reach its target.
 	chains[1].Batcher.Start()
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
-	chains[1].Batcher.Stop()
+	chains[1].EL.Reached(eth.Safe, target1, 60)
+	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
 	// --- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
