@@ -109,7 +109,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			DevFeatureBitmap:                common.Hash{},
+			DevFeatureBitmap:                deployer.OPCMV2DevFlag,
 			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           bstrap.ProtocolVersionsProxy,
 			L1ProxyAdminOwner:               superchainPAO,
@@ -126,7 +126,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainRoles = nil
-		intent.OPCMAddress = &impls.Opcm
+		intent.OPCMAddress = &impls.OpcmV2
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -169,7 +169,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		name       string
 		devFeature common.Hash
 	}{
-		{"default", common.Hash{}},
+		// "default" (non-V2) test case removed: v1 OPCM was deleted.
 		{"opcm-v2", deployer.OPCMV2DevFlag},
 	}
 	for _, tt := range tests {

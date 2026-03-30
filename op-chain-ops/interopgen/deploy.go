@@ -243,7 +243,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		BasefeeScalar:                cfg.GasPriceOracleBaseFeeScalar,
 		BlobBaseFeeScalar:            cfg.GasPriceOracleBlobBaseFeeScalar,
 		L2ChainId:                    new(big.Int).SetUint64(cfg.L2ChainID),
-		Opcm:                         superDeployment.Opcm,
+		Opcm:                         superDeployment.OpcmV2,
 		SaltMixer:                    cfg.SaltMixer,
 		GasLimit:                     cfg.GasLimit,
 		DisputeGameType:              cfg.DisputeGameType,
@@ -289,7 +289,7 @@ func MigrateInterop(
 	startingAnchorRoot := common.Hash(opcm.PermissionedGameStartingAnchorRoot)
 	imi := manage.InteropMigrationInput{
 		Prank: superCfg.ProxyAdminOwner,
-		Opcm:  superDeployment.Opcm,
+		Opcm:  superDeployment.OpcmV2,
 		MigrateInputV1: &manage.MigrateInputV1{
 			UsePermissionlessGame: true,
 			StartingAnchorRoot: manage.Proposal{
