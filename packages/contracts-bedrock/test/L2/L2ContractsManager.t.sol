@@ -138,13 +138,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.crossL2InboxImpl = deployCode("src/L2/CrossL2Inbox.sol:CrossL2Inbox");
         implementations.l2ToL2CrossDomainMessengerImpl =
             deployCode("src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger");
-<<<<<<< HEAD
-        implementations.optimismSuperchainERC20FactoryImpl =
-            deployCode("src/L2/OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory");
-        implementations.superchainTokenBridgeImpl = deployCode("src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge");
-=======
-        implementations.feeSplitterImpl = deployCode("src/L2/FeeSplitter.sol:FeeSplitter");
->>>>>>> 7c57cf9837850bc94625f73f5fee93cfcad58da2
         implementations.conditionalDeployerImpl = deployCode("src/L2/ConditionalDeployer.sol:ConditionalDeployer");
         implementations.l2DevFeatureFlagsImpl = deployCode("src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags");
     }

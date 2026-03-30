@@ -249,11 +249,7 @@ library Predeploys {
     ///      Predeploys library should be listed here.
     ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
     function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
-<<<<<<< HEAD
-        predeploys_ = new address[](26);
-=======
-        predeploys_ = new address[](24);
->>>>>>> 7c57cf9837850bc94625f73f5fee93cfcad58da2
+        predeploys_ = new address[](23);
         // Core predeploys
         predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
@@ -272,29 +268,14 @@ library Predeploys {
         predeploys_[14] = Predeploys.EAS;
         predeploys_[15] = Predeploys.CONDITIONAL_DEPLOYER;
         // Interop predeploys
-<<<<<<< HEAD
         predeploys_[16] = Predeploys.CROSS_L2_INBOX;
         predeploys_[17] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
         predeploys_[18] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
         predeploys_[19] = Predeploys.ETH_LIQUIDITY;
-        predeploys_[20] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
-        predeploys_[21] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
-        predeploys_[22] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
         // CGT predeploys (conditionally deployed, but still must be included in the list)
-        predeploys_[23] = Predeploys.NATIVE_ASSET_LIQUIDITY;
-        predeploys_[24] = Predeploys.LIQUIDITY_CONTROLLER;
+        predeploys_[20] = Predeploys.NATIVE_ASSET_LIQUIDITY;
+        predeploys_[21] = Predeploys.LIQUIDITY_CONTROLLER;
         // Dev feature flags bitmap
-        predeploys_[25] = Predeploys.L2_DEV_FEATURE_FLAGS;
-=======
-        predeploys_[17] = Predeploys.CROSS_L2_INBOX;
-        predeploys_[18] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[19] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
-        predeploys_[20] = Predeploys.ETH_LIQUIDITY;
-        // CGT predeploys (conditionally deployed, but still must be included in the list)
-        predeploys_[21] = Predeploys.NATIVE_ASSET_LIQUIDITY;
-        predeploys_[22] = Predeploys.LIQUIDITY_CONTROLLER;
-        // Dev feature flags bitmap
-        predeploys_[23] = Predeploys.L2_DEV_FEATURE_FLAGS;
->>>>>>> 7c57cf9837850bc94625f73f5fee93cfcad58da2
+        predeploys_[22] = Predeploys.L2_DEV_FEATURE_FLAGS;
     }
 }

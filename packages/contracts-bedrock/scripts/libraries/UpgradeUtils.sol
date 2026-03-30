@@ -24,20 +24,11 @@ library UpgradeUtils {
     /// @notice The number of implementations deployed in every upgrade.
     ///         Includes:
     ///         - 1 StorageSetter
-<<<<<<< HEAD
-    ///         - 15 base predeploys
-    ///         - 7 INTEROP predeploys
-    ///         - 2 CGT predeploys (NativeAssetLiquidity, LiquidityController)
-    ///         - 2 CGT variants (L1BlockCGT, L2ToL1MessagePasserCGT)
-    ///         Total: 28 implementations
-    uint256 internal constant IMPLEMENTATION_COUNT = 28;
-=======
-    ///         - 18 base predeploys
+    ///         - 17 base predeploys
     ///         - 4 INTEROP predeploys
     ///         - 2 CGT predeploys (NativeAssetLiquidity, LiquidityController)
     ///         - 2 CGT variants (L1BlockCGT, L2ToL1MessagePasserCGT)
-    uint256 internal constant IMPLEMENTATION_COUNT = 27;
->>>>>>> 7c57cf9837850bc94625f73f5fee93cfcad58da2
+    uint256 internal constant IMPLEMENTATION_COUNT = 26;
 
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
@@ -57,21 +48,13 @@ library UpgradeUtils {
 
     /// @notice Returns the total number of transactions for the current upgrade.
     /// @dev Total count:
-<<<<<<< HEAD
-    ///      - 28 implementation deployments
-=======
     ///      - IMPLEMENTATION_COUNT implementation deployments
->>>>>>> 7c57cf9837850bc94625f73f5fee93cfcad58da2
     ///      - [KARST] 2 ConditionalDeployer (deployment + upgrade)
     ///      - [KARST] 1 ProxyAdmin upgrade
     ///      - 1 L2CM deployment
     ///      - 1 Upgrade Predeploys call
     function getTransactionCount() internal pure returns (uint256 txnCount_) {
-<<<<<<< HEAD
-        if (IMPLEMENTATION_COUNT != 28) {
-=======
-        if (IMPLEMENTATION_COUNT != 27) {
->>>>>>> 7c57cf9837850bc94625f73f5fee93cfcad58da2
+        if (IMPLEMENTATION_COUNT != 26) {
             revert(
                 "UpgradeUtils: implementation count changed, ensure that the txnCount_ calculation is still correct."
             );
@@ -132,40 +115,20 @@ library UpgradeUtils {
         implementations_[13] = "OperatorFeeVault";
         implementations_[14] = "SchemaRegistry";
         implementations_[15] = "EAS";
-<<<<<<< HEAD
-        implementations_[16] = "L2DevFeatureFlags";
+        implementations_[16] = "ConditionalDeployer";
+        implementations_[17] = "L2DevFeatureFlags";
 
         // INTEROP predeploys
-        implementations_[17] = "CrossL2Inbox";
-        implementations_[18] = "L2ToL2CrossDomainMessenger";
-        implementations_[19] = "SuperchainETHBridge";
-        implementations_[20] = "OptimismSuperchainERC20Factory";
-        implementations_[21] = "OptimismSuperchainERC20Beacon";
-        implementations_[22] = "SuperchainTokenBridge";
-        implementations_[23] = "ETHLiquidity";
+        implementations_[18] = "CrossL2Inbox";
+        implementations_[19] = "L2ToL2CrossDomainMessenger";
+        implementations_[20] = "SuperchainETHBridge";
+        implementations_[21] = "ETHLiquidity";
 
         // CGT predeploys
-        implementations_[24] = "L1BlockCGT";
-        implementations_[25] = "L2ToL1MessagePasserCGT";
-        implementations_[26] = "LiquidityController";
-        implementations_[27] = "NativeAssetLiquidity";
-=======
-        implementations_[16] = "FeeSplitter";
-        implementations_[17] = "ConditionalDeployer";
-        implementations_[18] = "L2DevFeatureFlags";
-
-        // INTEROP predeploys
-        implementations_[19] = "CrossL2Inbox";
-        implementations_[20] = "L2ToL2CrossDomainMessenger";
-        implementations_[21] = "SuperchainETHBridge";
-        implementations_[22] = "ETHLiquidity";
-
-        // CGT predeploys
-        implementations_[23] = "L1BlockCGT";
-        implementations_[24] = "L2ToL1MessagePasserCGT";
-        implementations_[25] = "LiquidityController";
-        implementations_[26] = "NativeAssetLiquidity";
->>>>>>> 7c57cf9837850bc94625f73f5fee93cfcad58da2
+        implementations_[22] = "L1BlockCGT";
+        implementations_[23] = "L2ToL1MessagePasserCGT";
+        implementations_[24] = "LiquidityController";
+        implementations_[25] = "NativeAssetLiquidity";
     }
 
     /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.
