@@ -74,9 +74,8 @@ impl KeyValueStore for DirectoryKeyValueStore {
         let mut tmp = tempfile::NamedTempFile::new_in(parent).map_err(|e| {
             HostError::KeyValueSetFailed(format!("failed to create temp file in {parent:?}: {e}"))
         })?;
-        tmp.write_all(hex::encode(&value).as_bytes()).map_err(|e| {
-            HostError::KeyValueSetFailed(format!("failed to write temp file: {e}"))
-        })?;
+        tmp.write_all(hex::encode(&value).as_bytes())
+            .map_err(|e| HostError::KeyValueSetFailed(format!("failed to write temp file: {e}")))?;
         tmp.persist(&path).map_err(|e| {
             HostError::KeyValueSetFailed(format!("failed to rename temp file to {path:?}: {e}"))
         })?;

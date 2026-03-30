@@ -43,8 +43,8 @@ impl DataFormat {
 
 /// Reads the `kvformat` marker file from the given directory. If the marker exists and contains
 /// a supported format, returns that format. Otherwise, returns `default_format`. The marker file
-/// is written by the individual store implementations (`DirectoryKeyValueStore`, `DiskKeyValueStore`)
-/// when they initialize.
+/// is written by the individual store implementations (`DirectoryKeyValueStore`,
+/// `DiskKeyValueStore`) when they initialize.
 pub(crate) fn detect_data_format(data_dir: &Path, default_format: DataFormat) -> DataFormat {
     let format_path = data_dir.join(FORMAT_FILENAME);
     std::fs::read_to_string(&format_path).map_or(default_format, |contents| {
