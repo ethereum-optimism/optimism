@@ -766,11 +766,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
 
-        // Validate that the ZK dispute game implementation is set when the feature is enabled.
-        if (isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME) && impls.zkDisputeGameImpl == address(0)) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
-        }
-
         // Validate the config.
         _assertValidFullConfig(_cfg, _isInitialDeployment);
 
