@@ -36,7 +36,7 @@ contract L2ContractsManager is ISemver {
 
     /// @notice The semantic version of the L2ContractsManager contract.
     /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    string public constant version = "1.3.1";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
