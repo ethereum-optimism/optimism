@@ -1,6 +1,7 @@
 package presets
 
 import (
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -236,6 +237,12 @@ func WithCannonKonaGameTypeAdded() Option {
 			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.CannonKonaGameType)
 		},
 	}
+}
+
+func WithBatcherStopped() Option {
+	return WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+		cfg.Stopped = true
+	})
 }
 
 func WithChallengerCannonKonaEnabled() Option {
