@@ -8,7 +8,14 @@ fi
 
 # Fallbacks when not a PR or API did not return a branch
 if [ -z "$TARGET_BRANCH" ] || [ "$TARGET_BRANCH" = "null" ]; then
-  TARGET_BRANCH="${CIRCLE_BRANCH:-develop}"
+  # In merge queues, CIRCLE_BRANCH is gh-readonly-queue/<base>/pr-<n>-<sha>.
+  # Extract the base branch via regex; BASH_REMATCH[1] captures the first
+  # parenthesised group, i.e. the <base> segment between the slashes.
+  if [[ "${CIRCLE_BRANCH:-}" =~ ^gh-readonly-queue/([^/]+)/ ]]; then
+    TARGET_BRANCH="${BASH_REMATCH[1]}"
+  else
+    TARGET_BRANCH="${CIRCLE_BRANCH:-develop}"
+  fi
 fi
 
 echo "Resolved TARGET_BRANCH=$TARGET_BRANCH" >&2
