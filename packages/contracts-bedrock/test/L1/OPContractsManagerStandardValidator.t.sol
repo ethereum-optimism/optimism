@@ -1047,7 +1047,7 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
     }
 
     /// @notice Tests that SCDG-NOSHAPE fires when SUPER_CANNON has a registered impl in non-super mode.
-    function test_validate_nonSuperMode_superCannonRegistered_succeeds() public {
+    function test_validate_nonSuperModeSuperCannonRegistered_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
@@ -1057,7 +1057,7 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
     }
 
     /// @notice Tests that SPDG-NOSHAPE fires when SUPER_PERMISSIONED_CANNON has a registered impl in non-super mode.
-    function test_validate_nonSuperMode_superPermissionedCannonRegistered_succeeds() public {
+    function test_validate_nonSuperModeSuperPermissionedCannonRegistered_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
@@ -1067,7 +1067,7 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
     }
 
     /// @notice Tests that SCKDG-NOSHAPE fires when SUPER_CANNON_KONA has a registered impl in non-super mode.
-    function test_validate_nonSuperMode_superCannonKonaRegistered_succeeds() public {
+    function test_validate_nonSuperModeSuperCannonKonaRegistered_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
@@ -1077,7 +1077,7 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
     }
 
     /// @notice Tests that all three NOSHAPE errors fire when all super game types are registered in non-super mode.
-    function test_validate_nonSuperMode_allSuperGamesRegistered_succeeds() public {
+    function test_validate_nonSuperModeAllSuperGamesRegistered_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
