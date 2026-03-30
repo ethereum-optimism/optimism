@@ -9,6 +9,8 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 ///         the stuff used in multiple contracts. Constants that only apply to a single contract
 ///         should be defined in that contract instead.
 library Constants {
+    // ci-watch-test: deliberate formatting violation for testing
+    uint256    internal   constant   CI_TEST_VALUE   =    42;
     /// @notice Special address to be used as the tx origin for gas estimation calls in the
     ///         OptimismPortal and CrossDomainMessenger calls. You only need to use this address if
     ///         the minimum gas limit specified by the user is not actually enough to execute the
