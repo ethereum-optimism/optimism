@@ -178,11 +178,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                     continue;
                 }
 
-                // Skip ZK dispute game if not deployed (feature disabled).
-                if (_isZKDisputeGameContractRef(ref) && ref.addr == address(0)) {
-                    continue;
-                }
-
                 harness.runSingle(ref.name, ref.addr, true);
             }
         }
@@ -530,10 +525,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     function _isSuperDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
         return LibString.eq(ref.name, "SuperFaultDisputeGame") || LibString.eq(ref.name, "SuperPermissionedDisputeGame");
-    }
-
-    function _isZKDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
-        return LibString.eq(ref.name, "ZKDisputeGame");
     }
 
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.
