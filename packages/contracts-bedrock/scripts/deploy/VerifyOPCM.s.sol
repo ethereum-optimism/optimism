@@ -201,6 +201,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["storageSetterImpl"] = "StorageSetter";
         fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
+        fieldNameOverrides["zkDisputeGameImpl"] = "ZKDisputeGame";
 
         // Overrides for situations where contracts have differently named source files.
         sourceNameOverrides["OPContractsManagerGameTypeAdder"] = "OPContractsManager";

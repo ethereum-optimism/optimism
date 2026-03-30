@@ -133,7 +133,7 @@ contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
         });
 
         // Deploy the container and utils.
-        container = new OPContractsManagerContainer(blueprints, implementations, devFeatureBitmap);
+        container = new OPContractsManagerContainer(blueprints, implementations, bytes32(0));
         utils = new OPContractsManagerUtils(IOPContractsManagerContainer(address(container)));
     }
 
