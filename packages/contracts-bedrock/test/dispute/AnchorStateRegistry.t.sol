@@ -305,6 +305,31 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
             GameTypes.SUPER_CANNON_KONA
         );
     }
+
+    /// @notice Fuzz test that initialize() faithfully preserves whatever respectedGameType it
+    ///         receives. OPCMv2's default behavior reads the current value via _loadFullConfig and
+    ///         passes it back unchanged, so the round-trip is safe.
+    function testFuzz_initialize_preservesRespectedGameType_succeeds(uint32 _gameTypeRaw) public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // Set the respected game type to a fuzzed value.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameType.wrap(_gameTypeRaw));
+        assertEq(anchorStateRegistry.respectedGameType().raw(), _gameTypeRaw);
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        // Re-initialize with the SAME respectedGameType (simulating default OPCM behavior).
+        Proposal memory currentRoot = anchorStateRegistry.getStartingAnchorRoot();
+
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(systemConfig, disputeGameFactory, currentRoot, GameType.wrap(_gameTypeRaw));
+
+        // respectedGameType must be unchanged.
+        assertEq(anchorStateRegistry.respectedGameType().raw(), _gameTypeRaw);
+    }
 }
 
 /// @title AnchorStateRegistry_Paused_Test
