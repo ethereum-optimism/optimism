@@ -261,7 +261,7 @@ impl SingleChainHost {
     /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
     pub fn create_key_value_store(&self) -> Result<SharedKeyValueStore, SingleChainHostError> {
         let local_kv_store = SingleChainLocalInputs::new(self.clone());
-        Ok(create_key_value_store(local_kv_store, self.data_dir.as_ref(), self.data_format))
+        Ok(create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format))
     }
 
     /// Creates the providers required for the host backend.

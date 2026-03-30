@@ -65,6 +65,7 @@ serde = { workspace = true, features = ["derive"] }
 clap = { workspace = true, features = ["derive", "env"] }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
 thiserror.workspace = true
+tempfile.workspace = true
 
 # KZG
 ark-ff.workspace = true
@@ -72,7 +73,6 @@ ark-ff.workspace = true
 [dev-dependencies]
 alloy-json-rpc.workspace = true
 proptest.workspace = true
-tempfile.workspace = true
 
 [features]
 default = [ "interop", "single" ]

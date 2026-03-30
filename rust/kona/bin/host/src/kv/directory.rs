@@ -4,7 +4,11 @@
 use super::{DataFormat, FORMAT_FILENAME, KeyValueStore};
 use crate::{HostError, Result};
 use alloy_primitives::{B256, hex};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 /// A key-value store that writes preimages as hex-encoded files in subdirectories.
 ///
@@ -19,8 +23,8 @@ pub struct DirectoryKeyValueStore {
 
 impl DirectoryKeyValueStore {
     /// Create a new [`DirectoryKeyValueStore`] with the given data directory.
-    pub fn new(data_directory: PathBuf) -> Self {
-        fs::create_dir_all(&data_directory)
+    pub fn new(data_directory: &Path) -> Self {
+        fs::create_dir_all(data_directory)
             .unwrap_or_else(|e| panic!("Failed to create directory {data_directory:?}: {e}"));
 
         let format_path = data_directory.join(FORMAT_FILENAME);
@@ -29,7 +33,7 @@ impl DirectoryKeyValueStore {
                 .unwrap_or_else(|e| panic!("Failed to write kvformat marker: {e}"));
         }
 
-        Self { data_directory }
+        Self { data_directory: data_directory.to_path_buf() }
     }
 
     /// Returns the file path for the given key.
@@ -45,19 +49,38 @@ impl DirectoryKeyValueStore {
 
 impl KeyValueStore for DirectoryKeyValueStore {
     fn get(&self, key: B256) -> Option<Vec<u8>> {
-        let data = fs::read_to_string(self.key_path(key)).ok()?;
-        hex::decode(data).ok()
+        let path = self.key_path(key);
+        let data = fs::read_to_string(&path).ok()?;
+        match hex::decode(&data) {
+            Ok(value) => Some(value),
+            Err(e) => {
+                tracing::warn!(key = %key, path = %path.display(), error = %e, "Corrupt preimage file, ignoring");
+                None
+            }
+        }
     }
 
     fn set(&mut self, key: B256, value: Vec<u8>) -> Result<()> {
         let path = self.key_path(key);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| {
-                HostError::KeyValueSetFailed(format!("failed to create directory {parent:?}: {e}"))
-            })?;
-        }
-        fs::write(&path, hex::encode(&value))
-            .map_err(|e| HostError::KeyValueSetFailed(format!("failed to write {path:?}: {e}")))
+        let parent = path.parent().ok_or_else(|| {
+            HostError::KeyValueSetFailed(format!("no parent directory for {path:?}"))
+        })?;
+        fs::create_dir_all(parent).map_err(|e| {
+            HostError::KeyValueSetFailed(format!("failed to create directory {parent:?}: {e}"))
+        })?;
+
+        // Write to a temp file and rename for atomicity — a crash during fs::write could leave
+        // a partially written (corrupt) file, but rename is atomic on POSIX.
+        let mut tmp = tempfile::NamedTempFile::new_in(parent).map_err(|e| {
+            HostError::KeyValueSetFailed(format!("failed to create temp file in {parent:?}: {e}"))
+        })?;
+        tmp.write_all(hex::encode(&value).as_bytes()).map_err(|e| {
+            HostError::KeyValueSetFailed(format!("failed to write temp file: {e}"))
+        })?;
+        tmp.persist(&path).map_err(|e| {
+            HostError::KeyValueSetFailed(format!("failed to rename temp file to {path:?}: {e}"))
+        })?;
+        Ok(())
     }
 }
 
@@ -79,7 +102,7 @@ mod test {
         #[test]
         fn directory_kv_roundtrip(k_v in hash_map(any::<[u8; 32]>(), vec(any::<u8>(), 0..128), 1..128)) {
             let tempdir = tempfile::TempDir::new().unwrap();
-            let mut kv = DirectoryKeyValueStore::new(tempdir.path().to_path_buf());
+            let mut kv = DirectoryKeyValueStore::new(tempdir.path());
 
             for (k, v) in &k_v {
                 kv.set((*k).into(), v.clone()).unwrap();
@@ -95,7 +118,7 @@ mod test {
     #[test]
     fn writes_kvformat_marker() {
         let tempdir = tempfile::TempDir::new().unwrap();
-        let _kv = DirectoryKeyValueStore::new(tempdir.path().to_path_buf());
+        let _kv = DirectoryKeyValueStore::new(tempdir.path());
 
         let marker = std::fs::read_to_string(tempdir.path().join("kvformat")).unwrap();
         assert_eq!(marker, "directory");
@@ -104,14 +127,17 @@ mod test {
     #[test]
     fn key_path_layout() {
         let tempdir = tempfile::TempDir::new().unwrap();
-        let kv = DirectoryKeyValueStore::new(tempdir.path().to_path_buf());
+        let kv = DirectoryKeyValueStore::new(tempdir.path());
 
         let key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             .parse::<B256>()
             .unwrap();
         let path = kv.key_path(key);
 
-        assert!(path.to_str().unwrap().contains("0123"));
-        assert!(path.file_name().unwrap().to_str().unwrap().ends_with(".txt"));
+        let expected = tempdir
+            .path()
+            .join("0123")
+            .join("456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.txt");
+        assert_eq!(path, expected);
     }
 }

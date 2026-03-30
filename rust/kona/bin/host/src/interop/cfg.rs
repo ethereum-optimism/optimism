@@ -260,7 +260,7 @@ impl InteropHost {
     /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
     fn create_key_value_store(&self) -> Result<SharedKeyValueStore, InteropHostError> {
         let local_kv_store = InteropLocalInputs::new(self.clone());
-        Ok(create_key_value_store(local_kv_store, self.data_dir.as_ref(), self.data_format))
+        Ok(create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format))
     }
 
     /// Creates the providers required for the preimage server backend.

@@ -42,9 +42,10 @@ impl DataFormat {
 }
 
 /// Reads the `kvformat` marker file from the given directory. If the marker exists and contains
-/// a supported format, returns that format. Otherwise, returns `default_format` and writes the
-/// marker so that future opens (including by op-challenger) detect the format automatically.
-pub fn detect_data_format(data_dir: &Path, default_format: DataFormat) -> DataFormat {
+/// a supported format, returns that format. Otherwise, returns `default_format`. The marker file
+/// is written by the individual store implementations (`DirectoryKeyValueStore`, `DiskKeyValueStore`)
+/// when they initialize.
+pub(crate) fn detect_data_format(data_dir: &Path, default_format: DataFormat) -> DataFormat {
     let format_path = data_dir.join(FORMAT_FILENAME);
     std::fs::read_to_string(&format_path).map_or(default_format, |contents| {
         match contents.as_str() {
@@ -65,9 +66,9 @@ pub type SharedKeyValueStore = Arc<RwLock<dyn KeyValueStore + Send + Sync>>;
 ///
 /// If `data_dir` is provided, the format is auto-detected from any existing `kvformat` marker file,
 /// falling back to `default_format`. Otherwise a [`MemoryKeyValueStore`] is used.
-pub fn create_key_value_store<L>(
+pub(crate) fn create_key_value_store<L>(
     local_kv_store: L,
-    data_dir: Option<&std::path::PathBuf>,
+    data_dir: Option<&Path>,
     default_format: DataFormat,
 ) -> SharedKeyValueStore
 where
@@ -78,11 +79,11 @@ where
             let format = detect_data_format(data_dir, default_format);
             match format {
                 DataFormat::Directory => {
-                    let dir_kv_store = DirectoryKeyValueStore::new(data_dir.clone());
+                    let dir_kv_store = DirectoryKeyValueStore::new(data_dir);
                     Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, dir_kv_store)))
                 }
                 DataFormat::Rocksdb => {
-                    let disk_kv_store = DiskKeyValueStore::new(data_dir.clone());
+                    let disk_kv_store = DiskKeyValueStore::new(data_dir.to_path_buf());
                     Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, disk_kv_store)))
                 }
             }
