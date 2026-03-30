@@ -109,14 +109,14 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
             // L1Block uses CGT variant on custom gas token networks
             string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
+            expectedImpl_ = generateScript.findImplByName(implName);
         } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
             // L2ToL1MessagePasser uses CGT variant on custom gas token networks
             string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
+            expectedImpl_ = generateScript.findImplByName(implName);
         } else {
             // Standard implementation lookup
-            (expectedImpl_,,,) = generateScript.implementationConfigs(_name);
+            expectedImpl_ = generateScript.findImplByName(_name);
         }
     }
 }
@@ -635,7 +635,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
         // Get StorageSetter implementation to filter out intermediate upgrade events
-        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
+        address storageSetterImpl = generateScript.findImplByName("StorageSetter");
 
         // Start recording logs
         vm.recordLogs();

@@ -9,7 +9,6 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
-import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 
@@ -71,7 +70,7 @@ contract GenerateNUTBundleTest is Test {
         );
 
         // Verify implementation deployments
-        string[] memory implementationsToUpgrade = UpgradeUtils.getImplementationsNamesToUpgrade();
+        string[] memory implementationsToUpgrade = script.getStandardDeploymentNames();
         for (uint256 i = 0; i < implementationsToUpgrade.length; i++) {
             assertEq(
                 output.txns[i + 2].intent,
@@ -131,10 +130,19 @@ contract GenerateNUTBundleTest is Test {
 
     /// @notice Tests that the number of implementations in the deployment list matches the number of fields in the
     /// Implementations struct.
-    function test_implementationCount_matchesStructFields_succeeds() public pure {
+    function test_implementationCount_matchesStructFields_succeeds() public {
         L2ContractsManagerTypes.Implementations memory emptyImpl;
         uint256 structFieldCount = abi.encode(emptyImpl).length / 32;
-        string[] memory names = UpgradeUtils.getImplementationsNamesToUpgrade();
-        assertEq(names.length, structFieldCount, "Deployment list must equal Implementations struct field count");
+
+        // Build implementation deployment configurations
+        script._buildImplementationDeploymentConfigs();
+
+        // Verify that the number of implementations in the deployment list matches the number of fields in the
+        // Implementations struct
+        assertEq(
+            script.implementationConfigs().length,
+            structFieldCount,
+            "Deployment list must equal Implementations struct field count"
+        );
     }
 }

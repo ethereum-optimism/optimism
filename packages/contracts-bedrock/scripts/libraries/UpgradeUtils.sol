@@ -21,15 +21,6 @@ import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
 library UpgradeUtils {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    /// @notice The number of implementations deployed in every upgrade.
-    ///         Includes:
-    ///         - 1 StorageSetter
-    ///         - 18 base predeploys
-    ///         - 4 INTEROP predeploys
-    ///         - 2 CGT predeploys (NativeAssetLiquidity, LiquidityController)
-    ///         - 2 CGT variants (L1BlockCGT, L2ToL1MessagePasserCGT)
-    uint256 internal constant IMPLEMENTATION_COUNT = 27;
-
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
     /// @param upgradeExecution Gas for L2ProxyAdmin.upgradePredeploys() call
@@ -44,22 +35,6 @@ library UpgradeUtils {
         uint64 conditionalDeployerDeployment;
         uint64 conditionalDeployerUpgrade;
         uint64 proxyAdminUpgrade;
-    }
-
-    /// @notice Returns the total number of transactions for the current upgrade.
-    /// @dev Total count:
-    ///      - IMPLEMENTATION_COUNT implementation deployments
-    ///      - [KARST] 2 ConditionalDeployer (deployment + upgrade)
-    ///      - [KARST] 1 ProxyAdmin upgrade
-    ///      - 1 L2CM deployment
-    ///      - 1 Upgrade Predeploys call
-    function getTransactionCount() internal pure returns (uint256 txnCount_) {
-        if (IMPLEMENTATION_COUNT != 27) {
-            revert(
-                "UpgradeUtils: implementation count changed, ensure that the txnCount_ calculation is still correct."
-            );
-        }
-        txnCount_ = IMPLEMENTATION_COUNT + 5;
     }
 
     /// @notice Returns the gas limits for all upgrade transaction types.
@@ -88,48 +63,6 @@ library UpgradeUtils {
             conditionalDeployerUpgrade: 50_000,
             proxyAdminUpgrade: 50_000
         });
-    }
-
-    /// @notice Returns the array of predeploy names to upgrade.
-    /// @dev Exception: StorageSetter is not a predeploy, but is upgraded in L2CM too.
-    /// @return implementations_ Array of implementation names to upgrade.
-    function getImplementationsNamesToUpgrade() internal pure returns (string[] memory implementations_) {
-        implementations_ = new string[](IMPLEMENTATION_COUNT);
-
-        // StorageSetter
-        implementations_[0] = "StorageSetter";
-
-        // Base predeploys
-        implementations_[1] = "L2CrossDomainMessenger";
-        implementations_[2] = "GasPriceOracle";
-        implementations_[3] = "L2StandardBridge";
-        implementations_[4] = "SequencerFeeVault";
-        implementations_[5] = "OptimismMintableERC20Factory";
-        implementations_[6] = "L2ERC721Bridge";
-        implementations_[7] = "L1Block";
-        implementations_[8] = "L2ToL1MessagePasser";
-        implementations_[9] = "OptimismMintableERC721Factory";
-        implementations_[10] = "L2ProxyAdmin";
-        implementations_[11] = "BaseFeeVault";
-        implementations_[12] = "L1FeeVault";
-        implementations_[13] = "OperatorFeeVault";
-        implementations_[14] = "SchemaRegistry";
-        implementations_[15] = "EAS";
-        implementations_[16] = "FeeSplitter";
-        implementations_[17] = "ConditionalDeployer";
-        implementations_[18] = "L2DevFeatureFlags";
-
-        // INTEROP predeploys
-        implementations_[19] = "CrossL2Inbox";
-        implementations_[20] = "L2ToL2CrossDomainMessenger";
-        implementations_[21] = "SuperchainETHBridge";
-        implementations_[22] = "ETHLiquidity";
-
-        // CGT predeploys
-        implementations_[23] = "L1BlockCGT";
-        implementations_[24] = "L2ToL1MessagePasserCGT";
-        implementations_[25] = "LiquidityController";
-        implementations_[26] = "NativeAssetLiquidity";
     }
 
     /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.
