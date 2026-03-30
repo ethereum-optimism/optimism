@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"fmt"
-	"math/big"
 	"net/url"
 	"path"
 	"runtime"
@@ -10,10 +9,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -92,7 +94,6 @@ func addGameTypeForRuntime(
 	require.NotNil(l2Net, "l2 network must exist")
 	require.NotNil(l2Net.deployment, "l2 deployment must exist")
 	require.NotEqual(common.Address{}, l2Net.opcmImpl, "missing OPCM implementation address")
-	require.NotEqual(common.Address{}, l2Net.mipsImpl, "missing MIPS implementation address")
 
 	rpcClient, err := rpc.DialContext(t.Ctx(), l1ELRPC)
 	require.NoError(err)
@@ -102,37 +103,54 @@ func addGameTypeForRuntime(
 	l1PAO, err := keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
 	require.NoError(err, "failed to get l1 proxy admin owner address")
 
-	cfg := manage.AddGameTypeConfig{
-		L1RPCUrl:                l1ELRPC,
-		Logger:                  t.Logger(),
-		ArtifactsLocator:        LocalArtifacts(t),
-		CacheDir:                t.TempDir(),
-		L1ProxyAdminOwner:       l1PAO,
-		OPCMImpl:                l2Net.opcmImpl,
-		SystemConfigProxy:       l2Net.deployment.SystemConfigProxyAddr(),
-		DelayedWETHProxy:        l2Net.deployment.PermissionlessDelayedWETHProxyAddr(),
-		DisputeGameType:         uint32(gameType),
-		DisputeAbsolutePrestate: absolutePrestate,
-		DisputeMaxGameDepth:     big.NewInt(73),
-		DisputeSplitDepth:       big.NewInt(30),
-		DisputeClockExtension:   10800,
-		DisputeMaxClockDuration: 302400,
-		InitialBond:             eth.GWei(80_000_000).ToBig(), // 0.08 ETH
-		VM:                      l2Net.mipsImpl,
-		Permissionless:          true,
-		SaltMixer:               fmt.Sprintf("devstack-%s-%s", l2Net.ChainID(), absolutePrestate.Hex()),
+	// Build the V2 upgrade input with a single dispute game config.
+	upgradeInput := embedded.UpgradeOPChainInput{
+		Prank: l1PAO,
+		Opcm:  l2Net.opcmImpl,
+		UpgradeInputV2: &embedded.UpgradeInputV2{
+			SystemConfig: l2Net.deployment.SystemConfigProxyAddr(),
+			DisputeGameConfigs: []embedded.DisputeGameConfig{
+				{
+					Enabled:  true,
+					InitBond: eth.GWei(80_000_000).ToBig(), // 0.08 ETH
+					GameType: embedded.GameType(gameType),
+					FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+						AbsolutePrestate: absolutePrestate,
+					},
+				},
+			},
+		},
 	}
 
-	_, addGameTypeCalldata, err := manage.AddGameType(t.Ctx(), cfg)
-	require.NoError(err, "failed to create add game type calldata")
-	require.Len(addGameTypeCalldata, 1, "calldata must contain one entry")
+	// Run UpgradeOPChain.s.sol via a forked script host to produce calldata.
+	loc := LocalArtifacts(t)
+	artifactsFS, err := artifacts.Download(t.Ctx(), loc, ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
+
+	bcaster := new(broadcaster.CalldataBroadcaster)
+	host, err := env.DefaultForkedScriptHost(
+		t.Ctx(),
+		bcaster,
+		t.Logger(),
+		common.Address{'D'},
+		artifactsFS,
+		rpcClient,
+	)
+	require.NoError(err, "failed to create script host")
+
+	err = embedded.Upgrade(host, upgradeInput)
+	require.NoError(err, "failed to run upgrade script for add game type")
+
+	calldata, err := bcaster.Dump()
+	require.NoError(err, "failed to dump calldata")
+	require.Len(calldata, 1, "calldata must contain one entry")
 
 	chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
 	l1PAOKey, err := keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
 	require.NoError(err, "failed to get l1 proxy admin owner key")
 
-	t.Log("Executing opcm.addGameType via SetCode delegatecall")
-	delegateCallWithSetCode(t, l1PAOKey, client, l2Net.opcmImpl, addGameTypeCalldata[0].Data)
+	t.Log("Executing opcmV2.upgrade via SetCode delegatecall")
+	delegateCallWithSetCode(t, l1PAOKey, client, l2Net.opcmImpl, calldata[0].Data)
 }
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {
