@@ -3,7 +3,7 @@
 use super::NextBatchProvider;
 use crate::{
     errors::{PipelineError, PipelineErrorKind, ResetError},
-    traits::{AttributesProvider, OriginAdvancer, OriginProvider, StageReset},
+    traits::{AttributesProvider, OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
@@ -21,7 +21,7 @@ use kona_protocol::{Batch, BatchValidity, BlockInfo, L2BlockInfo, SingleBatch};
 #[derive(Debug)]
 pub struct BatchValidator<P>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
@@ -40,7 +40,7 @@ where
 
 impl<P> BatchValidator<P>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Create a new [`BatchValidator`] stage.
     pub const fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
@@ -197,7 +197,7 @@ where
 #[async_trait]
 impl<P> AttributesProvider for BatchValidator<P>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn next_batch(&mut self, parent: L2BlockInfo) -> PipelineResult<SingleBatch> {
         // Update the L1 origin blocks within the stage.
@@ -283,7 +283,7 @@ where
 
 impl<P> OriginProvider for BatchValidator<P>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -293,7 +293,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for BatchValidator<P>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -301,9 +301,9 @@ where
 }
 
 #[async_trait]
-impl<P> StageReset for BatchValidator<P>
+impl<P> Stage for BatchValidator<P>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn reset(
         &mut self,
@@ -311,8 +311,10 @@ where
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
         self.prev.reset(l1_origin, system_config).await?;
-        self.origin = None;
+        let origin = self.prev.origin().ok_or(PipelineError::MissingOrigin.crit())?;
+        self.origin = Some(origin);
         self.l1_blocks.clear();
+        self.l1_blocks.push(origin);
         Ok(())
     }
 
@@ -333,7 +335,7 @@ where
 mod test {
     use crate::{
         AttributesProvider, BatchValidator, NextBatchProvider, OriginAdvancer, PipelineError,
-        PipelineErrorKind, PipelineResult, ResetError, StageReset,
+        PipelineErrorKind, PipelineResult, ResetError, Stage,
         test_utils::{CollectingLayer, TestNextBatchProvider, TraceStorage},
     };
     use alloc::{sync::Arc, vec, vec::Vec};

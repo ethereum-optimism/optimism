@@ -15,7 +15,7 @@ pub trait SignalReceiver {
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()>;
 }
 
-/// Trait for resetting pipeline stages.
+/// Trait for pipeline stages.
 ///
 /// The [`DerivationPipeline`] receives external [`Signal`]s, computes
 /// the correct L1 origin and system config, then dispatches to stages
@@ -23,7 +23,7 @@ pub trait SignalReceiver {
 ///
 /// [`DerivationPipeline`]: crate::DerivationPipeline
 #[async_trait]
-pub trait StageReset {
+pub trait Stage {
     /// Reset the stage to derive from the given L1 origin with the given system config.
     async fn reset(
         &mut self,

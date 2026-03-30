@@ -3,7 +3,7 @@
 use super::NextBatchProvider;
 use crate::{
     AttributesProvider, BatchQueue, BatchValidator, L2ChainProvider, OriginAdvancer,
-    OriginProvider, PipelineError, PipelineResult, StageReset,
+    OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, sync::Arc};
 use alloy_eips::BlockNumHash;
@@ -23,7 +23,7 @@ use kona_protocol::{BlockInfo, L2BlockInfo, SingleBatch};
 #[derive(Debug)]
 pub struct BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     /// The rollup configuration.
@@ -49,7 +49,7 @@ where
 
 impl<P, F> BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     /// Creates a new [`BatchProvider`] with the given configuration and previous stage.
@@ -94,7 +94,7 @@ where
 #[async_trait]
 impl<P, F> OriginAdvancer for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     F: L2ChainProvider + Clone + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
@@ -112,7 +112,7 @@ where
 
 impl<P, F> OriginProvider for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -143,9 +143,9 @@ macro_rules! dispatch_inner {
 }
 
 #[async_trait]
-impl<P, F> StageReset for BatchProvider<P, F>
+impl<P, F> Stage for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     F: L2ChainProvider + Clone + Send + Debug,
 {
     async fn reset(
@@ -172,7 +172,7 @@ where
 #[async_trait]
 impl<P, F> AttributesProvider for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug + Send,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug + Send,
     F: L2ChainProvider + Clone + Send + Debug,
 {
     fn is_last_in_span(&self) -> bool {
@@ -200,7 +200,7 @@ mod test {
     use super::BatchProvider;
     use crate::{
         test_utils::{TestL2ChainProvider, TestNextBatchProvider},
-        traits::{OriginProvider, StageReset},
+        traits::{OriginProvider, Stage},
     };
     use alloc::{sync::Arc, vec};
     use alloy_eips::BlockNumHash;
@@ -309,7 +309,7 @@ mod test {
         let Some(bq) = batch_provider.batch_queue else {
             panic!("Expected BatchQueue");
         };
-        assert!(bq.l1_blocks.len() == 1);
+        assert_eq!(bq.l1_blocks.len(), 1);
     }
 
     #[tokio::test]
@@ -328,7 +328,7 @@ mod test {
         let Some(bv) = batch_provider.batch_validator else {
             panic!("Expected BatchValidator");
         };
-        assert!(bv.l1_blocks.len() == 1);
+        assert_eq!(bv.l1_blocks.len(), 1);
     }
 
     // On Holocene activation, BatchProvider.attempt_update() must copy BOTH l1_blocks

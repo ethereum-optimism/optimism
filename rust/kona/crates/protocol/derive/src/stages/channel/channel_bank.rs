@@ -2,7 +2,7 @@
 
 use crate::{
     ChannelReaderProvider, NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError,
-    PipelineErrorKind, PipelineResult, StageReset,
+    PipelineErrorKind, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use alloy_eips::BlockNumHash;
@@ -32,7 +32,7 @@ pub(crate) const FJORD_MAX_CHANNEL_BANK_SIZE: usize = 1_000_000_000;
 #[derive(Debug)]
 pub struct ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
@@ -46,7 +46,7 @@ where
 
 impl<P> ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Create a new [`ChannelBank`] stage.
     pub fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
@@ -181,7 +181,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -191,7 +191,7 @@ where
 #[async_trait]
 impl<P> ChannelReaderProvider for ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn next_data(&mut self) -> PipelineResult<Option<Bytes>> {
         match self.read() {
@@ -218,7 +218,7 @@ where
 
 impl<P> OriginProvider for ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -226,9 +226,9 @@ where
 }
 
 #[async_trait]
-impl<P> StageReset for ChannelBank<P>
+impl<P> Stage for ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn reset(
         &mut self,

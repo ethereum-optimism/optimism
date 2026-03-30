@@ -1,7 +1,7 @@
 //! Mock types for the frame queue stage.
 
 use crate::{
-    FrameQueueProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
+    FrameQueueProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, vec::Vec};
 use alloy_eips::BlockNumHash;
@@ -58,7 +58,7 @@ impl FrameQueueProvider for TestFrameQueueProvider {
 }
 
 #[async_trait]
-impl StageReset for TestFrameQueueProvider {
+impl Stage for TestFrameQueueProvider {
     async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())

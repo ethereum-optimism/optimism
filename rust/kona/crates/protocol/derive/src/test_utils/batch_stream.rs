@@ -3,7 +3,7 @@
 //! [`BatchStream`]: crate::stages::BatchStream
 
 use crate::{
-    BatchStreamProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
+    BatchStreamProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, vec::Vec};
 use alloy_eips::BlockNumHash;
@@ -56,7 +56,7 @@ impl OriginAdvancer for TestBatchStreamProvider {
 }
 
 #[async_trait]
-impl StageReset for TestBatchStreamProvider {
+impl Stage for TestBatchStreamProvider {
     async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())

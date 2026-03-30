@@ -3,7 +3,7 @@
 use crate::{
     errors::PipelineError,
     stages::NextBatchProvider,
-    traits::{OriginAdvancer, OriginProvider, StageReset},
+    traits::{OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
 };
 use alloc::{boxed::Box, vec::Vec};
@@ -65,7 +65,7 @@ impl OriginAdvancer for TestNextBatchProvider {
 }
 
 #[async_trait]
-impl StageReset for TestNextBatchProvider {
+impl Stage for TestNextBatchProvider {
     async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())

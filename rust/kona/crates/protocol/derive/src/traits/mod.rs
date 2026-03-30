@@ -17,4 +17,4 @@ mod reset;
 pub use reset::ResetProvider;
 
 mod stages;
-pub use stages::{OriginAdvancer, OriginProvider, SignalReceiver, StageReset};
+pub use stages::{OriginAdvancer, OriginProvider, SignalReceiver, Stage};

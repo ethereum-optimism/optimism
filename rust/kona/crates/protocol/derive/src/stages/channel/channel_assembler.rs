@@ -3,7 +3,7 @@
 use super::{ChannelReaderProvider, NextFrameProvider};
 use crate::{
     errors::PipelineError,
-    traits::{OriginAdvancer, OriginProvider, StageReset},
+    traits::{OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
 };
 use alloc::{boxed::Box, sync::Arc};
@@ -25,7 +25,7 @@ use kona_protocol::{BlockInfo, Channel};
 #[derive(Debug)]
 pub struct ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
@@ -37,7 +37,7 @@ where
 
 impl<P> ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Creates a new [`ChannelAssembler`] stage with the given configuration and previous stage.
     pub const fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
@@ -58,7 +58,7 @@ where
 #[async_trait]
 impl<P> ChannelReaderProvider for ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn next_data(&mut self) -> PipelineResult<Option<Bytes>> {
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
@@ -171,7 +171,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -180,7 +180,7 @@ where
 
 impl<P> OriginProvider for ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -188,9 +188,9 @@ where
 }
 
 #[async_trait]
-impl<P> StageReset for ChannelAssembler<P>
+impl<P> Stage for ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn reset(
         &mut self,

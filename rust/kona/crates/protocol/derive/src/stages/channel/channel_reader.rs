@@ -1,7 +1,7 @@
 //! This module contains the `ChannelReader` struct.
 
 use crate::{
-    BatchStreamProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
+    BatchStreamProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, sync::Arc};
 use alloy_eips::BlockNumHash;
@@ -36,7 +36,7 @@ pub trait ChannelReaderProvider {
 #[derive(Debug)]
 pub struct ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The previous stage of the derivation pipeline.
     pub prev: P,
@@ -48,7 +48,7 @@ where
 
 impl<P> ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Create a new [`ChannelReader`] stage.
     pub const fn new(prev: P, cfg: Arc<RollupConfig>) -> Self {
@@ -86,7 +86,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -96,7 +96,7 @@ where
 #[async_trait]
 impl<P> BatchStreamProvider for ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     /// This method is called by the `BatchStream` if an invalid span batch is found.
     /// In the case of an invalid span batch, the associated channel must be flushed.
@@ -165,7 +165,7 @@ where
 
 impl<P> OriginProvider for ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -173,9 +173,9 @@ where
 }
 
 #[async_trait]
-impl<P> StageReset for ChannelReader<P>
+impl<P> Stage for ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + StageReset + Debug + Send,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug + Send,
 {
     async fn reset(
         &mut self,

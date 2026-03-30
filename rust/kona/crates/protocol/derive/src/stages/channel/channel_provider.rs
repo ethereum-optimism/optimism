@@ -3,7 +3,7 @@
 use super::{ChannelAssembler, ChannelBank, ChannelReaderProvider, NextFrameProvider};
 use crate::{
     errors::PipelineError,
-    traits::{OriginAdvancer, OriginProvider, StageReset},
+    traits::{OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
 };
 use alloc::{boxed::Box, sync::Arc};
@@ -23,7 +23,7 @@ use kona_protocol::BlockInfo;
 #[derive(Debug)]
 pub struct ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
@@ -46,7 +46,7 @@ where
 
 impl<P> ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Creates a new [`ChannelProvider`] with the given configuration and previous stage.
     pub const fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
@@ -86,7 +86,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.attempt_update()?;
@@ -103,7 +103,7 @@ where
 
 impl<P> OriginProvider for ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.channel_assembler.as_ref().map_or_else(
@@ -133,9 +133,9 @@ macro_rules! dispatch_inner {
 }
 
 #[async_trait]
-impl<P> StageReset for ChannelProvider<P>
+impl<P> Stage for ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn reset(
         &mut self,
@@ -161,7 +161,7 @@ where
 #[async_trait]
 impl<P> ChannelReaderProvider for ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn next_data(&mut self) -> PipelineResult<Option<Bytes>> {
         self.attempt_update()?;
@@ -179,7 +179,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        ChannelProvider, ChannelReaderProvider, OriginProvider, PipelineError, StageReset,
+        ChannelProvider, ChannelReaderProvider, OriginProvider, PipelineError, Stage,
         test_utils::TestNextFrameProvider,
     };
     use alloc::{sync::Arc, vec};

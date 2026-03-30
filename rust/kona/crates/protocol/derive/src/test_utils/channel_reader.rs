@@ -1,8 +1,7 @@
 //! Test utilities for the [`ChannelReader`](crate::stages::ChannelReader) stage.
 
 use crate::{
-    ChannelReaderProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult,
-    StageReset,
+    ChannelReaderProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, vec::Vec};
 use alloy_eips::BlockNumHash;
@@ -52,7 +51,7 @@ impl ChannelReaderProvider for TestChannelReaderProvider {
 }
 
 #[async_trait]
-impl StageReset for TestChannelReaderProvider {
+impl Stage for TestChannelReaderProvider {
     async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())

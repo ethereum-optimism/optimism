@@ -3,7 +3,7 @@
 use crate::{
     errors::PipelineError,
     stages::NextFrameProvider,
-    traits::{OriginAdvancer, OriginProvider, StageReset},
+    traits::{OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
 };
 use alloc::{boxed::Box, vec::Vec};
@@ -57,7 +57,7 @@ impl NextFrameProvider for TestNextFrameProvider {
 }
 
 #[async_trait]
-impl StageReset for TestNextFrameProvider {
+impl Stage for TestNextFrameProvider {
     async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())

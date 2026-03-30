@@ -2,7 +2,7 @@
 
 use crate::{
     DataAvailabilityProvider, FrameQueueProvider, OriginAdvancer, OriginProvider, PipelineError,
-    PipelineErrorKind, PipelineResult, StageReset,
+    PipelineErrorKind, PipelineResult, Stage,
 };
 use alloc::boxed::Box;
 use alloy_eips::BlockNumHash;
@@ -38,7 +38,7 @@ pub trait L1RetrievalProvider {
 pub struct L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + StageReset,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage,
 {
     /// The previous stage in the pipeline.
     pub prev: P,
@@ -51,7 +51,7 @@ where
 impl<DAP, P> L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + StageReset,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage,
 {
     /// Creates a new [`L1Retrieval`] stage with the previous [`PollingTraversal`] stage and given
     /// [`DataAvailabilityProvider`].
@@ -66,7 +66,7 @@ where
 impl<DAP, P> OriginAdvancer for L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider + Send,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + StageReset + Send,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage + Send,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -77,7 +77,7 @@ where
 impl<DAP, P> FrameQueueProvider for L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider + Send,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + StageReset + Send,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage + Send,
 {
     type Item = DAP::Item;
 
@@ -109,7 +109,7 @@ where
 impl<DAP, P> OriginProvider for L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + StageReset,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -117,10 +117,10 @@ where
 }
 
 #[async_trait]
-impl<DAP, P> StageReset for L1Retrieval<DAP, P>
+impl<DAP, P> Stage for L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider + Send,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + StageReset + Send,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage + Send,
 {
     async fn reset(
         &mut self,

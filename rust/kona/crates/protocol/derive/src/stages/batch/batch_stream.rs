@@ -2,7 +2,7 @@
 
 use crate::{
     L2ChainProvider, NextBatchProvider, OriginAdvancer, OriginProvider, PipelineError,
-    PipelineResult, StageReset,
+    PipelineResult, Stage,
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use alloy_eips::BlockNumHash;
@@ -36,7 +36,7 @@ pub trait BatchStreamProvider {
 #[derive(Debug)]
 pub struct BatchStream<P, BF>
 where
-    P: BatchStreamProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: BatchStreamProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     BF: L2ChainProvider + Debug,
 {
     /// The previous stage in the derivation pipeline.
@@ -54,7 +54,7 @@ where
 
 impl<P, BF> BatchStream<P, BF>
 where
-    P: BatchStreamProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: BatchStreamProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     BF: L2ChainProvider + Debug,
 {
     /// Create a new [`BatchStream`] stage.
@@ -105,7 +105,7 @@ where
 #[async_trait]
 impl<P, BF> NextBatchProvider for BatchStream<P, BF>
 where
-    P: BatchStreamProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: BatchStreamProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     BF: L2ChainProvider + Send + Debug,
 {
     fn flush(&mut self) {
@@ -211,7 +211,7 @@ where
 #[async_trait]
 impl<P, BF> OriginAdvancer for BatchStream<P, BF>
 where
-    P: BatchStreamProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: BatchStreamProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     BF: L2ChainProvider + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
@@ -221,7 +221,7 @@ where
 
 impl<P, BF> OriginProvider for BatchStream<P, BF>
 where
-    P: BatchStreamProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: BatchStreamProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     BF: L2ChainProvider + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -230,9 +230,9 @@ where
 }
 
 #[async_trait]
-impl<P, BF> StageReset for BatchStream<P, BF>
+impl<P, BF> Stage for BatchStream<P, BF>
 where
-    P: BatchStreamProvider + OriginAdvancer + OriginProvider + StageReset + Debug + Send,
+    P: BatchStreamProvider + OriginAdvancer + OriginProvider + Stage + Debug + Send,
     BF: L2ChainProvider + Send + Debug,
 {
     async fn reset(

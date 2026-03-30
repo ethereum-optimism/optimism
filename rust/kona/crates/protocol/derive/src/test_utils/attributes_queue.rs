@@ -2,7 +2,7 @@
 
 use crate::{
     errors::{PipelineError, PipelineErrorKind},
-    traits::{AttributesBuilder, AttributesProvider, OriginAdvancer, OriginProvider, StageReset},
+    traits::{AttributesBuilder, AttributesProvider, OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
 };
 use alloc::{boxed::Box, vec::Vec};
@@ -64,7 +64,7 @@ impl OriginAdvancer for TestAttributesProvider {
 }
 
 #[async_trait]
-impl StageReset for TestAttributesProvider {
+impl Stage for TestAttributesProvider {
     async fn reset(&mut self, _: alloy_eips::BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())

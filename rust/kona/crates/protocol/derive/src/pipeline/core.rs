@@ -2,8 +2,8 @@
 
 use crate::{
     ActivationSignal, L2ChainProvider, NextAttributes, OriginAdvancer, OriginProvider, Pipeline,
-    PipelineError, PipelineErrorKind, PipelineResult, ResetSignal, Signal, SignalReceiver,
-    StageReset, StepResult,
+    PipelineError, PipelineErrorKind, PipelineResult, ResetSignal, Signal, SignalReceiver, Stage,
+    StepResult,
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use alloy_eips::BlockNumHash;
@@ -16,7 +16,7 @@ use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 #[derive(Debug)]
 pub struct DerivationPipeline<S, P>
 where
-    S: NextAttributes + StageReset + OriginProvider + OriginAdvancer + Debug + Send,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     /// A handle to the next attributes.
@@ -33,7 +33,7 @@ where
 
 impl<S, P> DerivationPipeline<S, P>
 where
-    S: NextAttributes + StageReset + OriginProvider + OriginAdvancer + Debug + Send,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     /// Creates a new instance of the [`DerivationPipeline`].
@@ -56,22 +56,22 @@ where
 
         let mut current = l2_safe_head;
         loop {
-            let after_l2_genesis = current.block_info.number > self.rollup_config.genesis.l2.number;
-            let after_l1_genesis = current.l1_origin.number > self.rollup_config.genesis.l1.number;
-            let after_channel_timeout =
-                current.l1_origin.number + channel_timeout > l1_origin_number;
-
-            if after_l2_genesis && after_l1_genesis && after_channel_timeout {
-                current = self
-                    .l2_chain_provider
-                    .l2_block_info_by_number(current.block_info.number - 1)
-                    .await
-                    .map_err(|e| {
-                        PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp()
-                    })?;
-            } else {
+            let before_l2_genesis =
+                current.block_info.number < self.rollup_config.genesis.l2.number;
+            let before_l1_genesis = current.l1_origin.number < self.rollup_config.genesis.l1.number;
+            let before_channel_timeout =
+                current.l1_origin.number + channel_timeout < l1_origin_number;
+            if before_l2_genesis || before_l1_genesis || before_channel_timeout {
                 break;
             }
+
+            current = self
+                .l2_chain_provider
+                .l2_block_info_by_number(current.block_info.number - 1)
+                .await
+                .map_err(|e| {
+                    PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp()
+                })?;
         }
 
         let system_config = self
@@ -86,7 +86,7 @@ where
 
 impl<S, P> OriginProvider for DerivationPipeline<S, P>
 where
-    S: NextAttributes + StageReset + OriginProvider + OriginAdvancer + Debug + Send,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -96,7 +96,7 @@ where
 
 impl<S, P> Iterator for DerivationPipeline<S, P>
 where
-    S: NextAttributes + StageReset + OriginProvider + OriginAdvancer + Debug + Send + Sync,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send + Sync,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     type Item = OpAttributesWithParent;
@@ -114,7 +114,7 @@ where
 #[async_trait]
 impl<S, P> SignalReceiver for DerivationPipeline<S, P>
 where
-    S: NextAttributes + StageReset + OriginProvider + OriginAdvancer + Debug + Send + Sync,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send + Sync,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
@@ -167,7 +167,7 @@ where
 #[async_trait]
 impl<S, P> Pipeline for DerivationPipeline<S, P>
 where
-    S: NextAttributes + StageReset + OriginProvider + OriginAdvancer + Debug + Send + Sync,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send + Sync,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     /// Peeks at the next prepared [`OpAttributesWithParent`] from the pipeline.

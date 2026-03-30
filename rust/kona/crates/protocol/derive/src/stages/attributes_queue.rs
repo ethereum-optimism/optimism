@@ -4,7 +4,7 @@ use crate::{
     errors::{PipelineError, ResetError},
     traits::{
         AttributesBuilder, AttributesProvider, NextAttributes, OriginAdvancer, OriginProvider,
-        StageReset,
+        Stage,
     },
     types::PipelineResult,
 };
@@ -32,7 +32,7 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 #[derive(Debug)]
 pub struct AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     AB: AttributesBuilder + Debug,
 {
     /// The rollup config.
@@ -49,7 +49,7 @@ where
 
 impl<P, AB> AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     AB: AttributesBuilder + Debug,
 {
     /// Create a new [`AttributesQueue`] stage.
@@ -148,7 +148,7 @@ where
 #[async_trait]
 impl<P, AB> OriginAdvancer for AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug + Send,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + Stage + Debug + Send,
     AB: AttributesBuilder + Debug + Send,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
@@ -159,7 +159,7 @@ where
 #[async_trait]
 impl<P, AB> NextAttributes for AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug + Send,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + Stage + Debug + Send,
     AB: AttributesBuilder + Debug + Send,
 {
     async fn next_attributes(
@@ -172,7 +172,7 @@ where
 
 impl<P, AB> OriginProvider for AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     AB: AttributesBuilder + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -181,9 +181,9 @@ where
 }
 
 #[async_trait]
-impl<P, AB> StageReset for AttributesQueue<P, AB>
+impl<P, AB> Stage for AttributesQueue<P, AB>
 where
-    P: AttributesProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: AttributesProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     AB: AttributesBuilder + Send + Debug,
 {
     async fn reset(

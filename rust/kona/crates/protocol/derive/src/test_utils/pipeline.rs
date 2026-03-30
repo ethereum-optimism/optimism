@@ -13,7 +13,7 @@ use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use crate::{
     AttributesQueue, BatchStream, ChannelProvider, ChannelReader, DerivationPipeline, FrameQueue,
     L1Retrieval, NextAttributes, OriginAdvancer, OriginProvider, PipelineBuilder, PipelineError,
-    PollingTraversal, StageReset,
+    PollingTraversal, Stage,
     test_utils::{TestAttributesBuilder, TestDAP},
 };
 use alloy_eips::BlockNumHash;
@@ -27,7 +27,7 @@ pub struct TestNextAttributes {
 }
 
 #[async_trait::async_trait]
-impl StageReset for TestNextAttributes {
+impl Stage for TestNextAttributes {
     async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         Ok(())
     }

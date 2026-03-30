@@ -3,7 +3,7 @@
 use super::NextBatchProvider;
 use crate::{
     errors::{PipelineEncodingError, PipelineError, PipelineErrorKind, ResetError},
-    traits::{AttributesProvider, L2ChainProvider, OriginAdvancer, OriginProvider, StageReset},
+    traits::{AttributesProvider, L2ChainProvider, OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
@@ -32,7 +32,7 @@ use kona_protocol::{
 #[derive(Debug)]
 pub struct BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     BF: L2ChainProvider + Debug,
 {
     /// The rollup config.
@@ -60,7 +60,7 @@ where
 
 impl<P, BF> BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     BF: L2ChainProvider + Debug,
 {
     /// Creates a new [`BatchQueue`] stage.
@@ -259,7 +259,7 @@ where
 #[async_trait]
 impl<P, BF> OriginAdvancer for BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     BF: L2ChainProvider + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
@@ -270,7 +270,7 @@ where
 #[async_trait]
 impl<P, BF> AttributesProvider for BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     BF: L2ChainProvider + Send + Debug,
 {
     /// Returns the next valid batch upon the given safe head.
@@ -291,22 +291,6 @@ where
                 self.next_spans.len()
             );
             self.next_spans.clear();
-        }
-
-        // If the epoch is advanced, update the l1 blocks.
-        // Advancing epoch must be done after the pipeline successfully applies the entire span
-        // batch to the chain.
-        // Because the span batch can be reverted during processing the batch, then we must
-        // preserve existing l1 blocks to verify the epochs of the next candidate batch.
-        if !self.l1_blocks.is_empty() && parent.l1_origin.number > self.l1_blocks[0].number {
-            for (i, block) in self.l1_blocks.iter().enumerate() {
-                if parent.l1_origin.number == block.number {
-                    self.l1_blocks.drain(0..i);
-                    info!(target: "batch_queue", "Advancing epoch");
-                    break;
-                }
-            }
-            // If the origin of the parent block is not included, we must advance the origin.
         }
 
         // NOTE: The origin is used to determine if it's behind.
@@ -337,6 +321,18 @@ where
                 self.l1_blocks.push(*origin);
             }
             info!(target: "batch_queue", "Advancing batch queue origin: {:?}", self.origin);
+        }
+
+        // If the epoch is advanced, update the l1 blocks.
+        // This must run after update_origins so newly pushed blocks are available for draining.
+        if !self.l1_blocks.is_empty() && parent.l1_origin.number > self.l1_blocks[0].number {
+            for (i, block) in self.l1_blocks.iter().enumerate() {
+                if parent.l1_origin.number == block.number {
+                    self.l1_blocks.drain(0..i);
+                    info!(target: "batch_queue", "Advancing epoch");
+                    break;
+                }
+            }
         }
 
         // Load more data into the batch queue.
@@ -417,7 +413,7 @@ where
 
 impl<P, BF> OriginProvider for BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     BF: L2ChainProvider + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -426,9 +422,9 @@ where
 }
 
 #[async_trait]
-impl<P, BF> StageReset for BatchQueue<P, BF>
+impl<P, BF> Stage for BatchQueue<P, BF>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     BF: L2ChainProvider + Send + Debug,
 {
     async fn reset(
@@ -437,12 +433,11 @@ where
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
         self.prev.reset(l1_origin, system_config).await?;
-        // Clear all state. Don't populate l1_blocks with the walked-back origin —
-        // it may be far behind the L2 safe head's epoch. Let update_origins in
-        // next_batch populate l1_blocks correctly once the pipeline catches up.
-        self.origin = None;
+        let origin = self.prev.origin().ok_or(PipelineError::MissingOrigin.crit())?;
+        self.origin = Some(origin);
         self.batches.clear();
         self.l1_blocks.clear();
+        self.l1_blocks.push(origin);
         self.next_spans.clear();
         Ok(())
     }
@@ -521,9 +516,9 @@ mod tests {
         assert!(!bq.prev.reset);
         bq.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(bq.prev.reset);
-        assert_eq!(bq.origin, None);
+        assert_eq!(bq.origin, Some(BlockInfo::default()));
         assert!(bq.batches.is_empty());
-        assert!(bq.l1_blocks.is_empty());
+        assert_eq!(bq.l1_blocks, vec![BlockInfo::default()]);
         assert!(bq.next_spans.is_empty());
     }
 

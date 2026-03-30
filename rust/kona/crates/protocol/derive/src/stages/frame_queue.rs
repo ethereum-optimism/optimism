@@ -1,7 +1,7 @@
 //! This module contains the [`FrameQueue`] stage of the derivation pipeline.
 
 use crate::{
-    NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, StageReset,
+    NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
 use alloy_eips::BlockNumHash;
@@ -30,7 +30,7 @@ pub trait FrameQueueProvider {
 #[derive(Debug)]
 pub struct FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The previous stage in the pipeline.
     pub prev: P,
@@ -42,7 +42,7 @@ where
 
 impl<P> FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Create a new [`FrameQueue`] stage with the given previous [`L1Retrieval`] stage.
     ///
@@ -151,7 +151,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -161,7 +161,7 @@ where
 #[async_trait]
 impl<P> NextFrameProvider for FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn next_frame(&mut self) -> PipelineResult<Frame> {
         self.load_frames().await?;
@@ -178,7 +178,7 @@ where
 
 impl<P> OriginProvider for FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -186,9 +186,9 @@ where
 }
 
 #[async_trait]
-impl<P> StageReset for FrameQueue<P>
+impl<P> Stage for FrameQueue<P>
 where
-    P: FrameQueueProvider + OriginAdvancer + OriginProvider + StageReset + Send + Debug,
+    P: FrameQueueProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn reset(
         &mut self,

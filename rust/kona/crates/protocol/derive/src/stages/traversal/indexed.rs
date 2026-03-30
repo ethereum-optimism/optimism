@@ -2,7 +2,7 @@
 
 use crate::{
     ChainProvider, L1RetrievalProvider, OriginAdvancer, OriginProvider, PipelineError,
-    PipelineResult, ResetError, StageReset,
+    PipelineResult, ResetError, Stage,
 };
 use alloc::{boxed::Box, sync::Arc};
 use alloy_eips::BlockNumHash;
@@ -124,7 +124,7 @@ impl<F: ChainProvider> OriginProvider for IndexedTraversal<F> {
 }
 
 #[async_trait]
-impl<F: ChainProvider + Send> StageReset for IndexedTraversal<F> {
+impl<F: ChainProvider + Send> Stage for IndexedTraversal<F> {
     async fn reset(
         &mut self,
         l1_origin: BlockNumHash,
