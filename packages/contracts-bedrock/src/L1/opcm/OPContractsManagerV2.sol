@@ -705,7 +705,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Iterate over each provided config and confirm that it matches the game type array.
         // This places a requirement on the user to order the configs properly but that's
         // probably a good thing, keeps the config consistent.
-        bool permissionedFound = false;
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
@@ -725,17 +724,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (_isInitialDeployment && !isPermissioned && _cfg.disputeGameConfigs[i].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
-
-            // Track if we found an enabled permissioned game.
-            if (isPermissioned && _cfg.disputeGameConfigs[i].enabled) {
-                permissionedFound = true;
-            }
-        }
-
-        // We currently REQUIRE that at least one permissioned game (PERMISSIONED_CANNON or
-        // SUPER_PERMISSIONED_CANNON) is enabled.
-        if (!permissionedFound) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
         // Validate that the starting respected game type corresponds to an enabled game config.

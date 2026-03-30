@@ -1032,6 +1032,69 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
         );
         assertEq("DF-30", _validate(true));
     }
+
+    /// @notice Tests that the validate function returns DF-50 when neither PERMISSIONED_CANNON nor
+    ///         SUPER_PERMISSIONED_CANNON has a registered implementation in the DGF.
+    function test_validate_disputeGameFactoryNoPermissionedGame_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
+            abi.encode(address(0))
+        );
+        // SUPER_PERMISSIONED_CANNON is not registered in non-super mode, so DF-50 fires.
+        // PDDG-10 also fires because PERMISSIONED_CANNON impl is null.
+        assertEq("DF-50,PDDG-10", _validate(true));
+    }
+
+    /// @notice Tests that SCDG-NOSHAPE fires when SUPER_CANNON has a registered impl in non-super mode.
+    function test_validate_nonSuperMode_superCannonRegistered_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("SCDG-NOSHAPE", _validate(true));
+    }
+
+    /// @notice Tests that SPDG-NOSHAPE fires when SUPER_PERMISSIONED_CANNON has a registered impl in non-super mode.
+    function test_validate_nonSuperMode_superPermissionedCannonRegistered_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("SPDG-NOSHAPE", _validate(true));
+    }
+
+    /// @notice Tests that SCKDG-NOSHAPE fires when SUPER_CANNON_KONA has a registered impl in non-super mode.
+    function test_validate_nonSuperMode_superCannonKonaRegistered_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("SCKDG-NOSHAPE", _validate(true));
+    }
+
+    /// @notice Tests that all three NOSHAPE errors fire when all super game types are registered in non-super mode.
+    function test_validate_nonSuperMode_allSuperGamesRegistered_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("SCDG-NOSHAPE,SPDG-NOSHAPE,SCKDG-NOSHAPE", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_PermissionedDisputeGame_Test
@@ -1047,7 +1110,8 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
             abi.encode(address(0))
         );
-        assertEq("PDDG-10", _validate(true));
+        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
+        assertEq("DF-50,PDDG-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1994,7 +2058,8 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
             abi.encode(address(0))
         );
-        assertEq("SPDG-SHAPE,SPDG-10", _validate(true));
+        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
+        assertEq("DF-50,SPDG-SHAPE,SPDG-10", _validate(true));
     }
 }
 
@@ -2010,7 +2075,8 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
             abi.encode(address(0))
         );
-        assertEq("SPDG-SHAPE,SPDG-10", _validate(true));
+        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
+        assertEq("DF-50,SPDG-SHAPE,SPDG-10", _validate(true));
     }
 
     /// @notice Tests SPDG-20 when SUPER_PERMISSIONED_CANNON version is invalid.

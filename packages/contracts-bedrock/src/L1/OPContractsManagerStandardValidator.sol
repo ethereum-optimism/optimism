@@ -513,6 +513,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
         _errors = internalRequire(_factory.owner() == _l1PAOMultisig, "DF-30", _errors);
         _errors = internalRequire(getProxyAdmin(address(_factory)) == _admin, "DF-40", _errors);
+        // At least one permissioned game must be registered — either the legacy
+        // PERMISSIONED_CANNON or the super-root SUPER_PERMISSIONED_CANNON.
+        _errors = internalRequire(
+            address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0)
+                || address(_factory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0),
+            "DF-50",
+            _errors
+        );
         return _errors;
     }
 
@@ -541,6 +549,29 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0), "SPDG-SHAPE", _errors
         );
+
+        return _errors;
+    }
+
+    /// @notice Asserts that super game types are NOT registered in non-super-root mode.
+    ///         Mirrors assertValidSuperRootDisputeGames for the opposite direction.
+    function assertValidNonSuperRootDisputeGames(
+        string memory _errors,
+        ISystemConfig _sysCfg
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IDisputeGameFactory dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+
+        // Super game types must have no implementation in non-super mode.
+        _errors = internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-NOSHAPE", _errors);
+        _errors = internalRequire(
+            address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) == address(0), "SPDG-NOSHAPE", _errors
+        );
+        _errors =
+            internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0), "SCKDG-NOSHAPE", _errors);
 
         return _errors;
     }
@@ -1015,6 +1046,8 @@ contract OPContractsManagerStandardValidator is ISemver {
                 "SCKDG"
             );
         } else {
+            // Super game types must not be registered in non-super mode.
+            _errors = assertValidNonSuperRootDisputeGames(_errors, _input.sysCfg);
             _errors = assertValidPermissionedDisputeGame(
                 _errors,
                 _input.sysCfg,
