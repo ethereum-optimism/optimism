@@ -383,6 +383,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // Extract the output root claim. Super game types use rootClaimByChainId to extract
         // the per-chain output root from the super root. Legacy game types use rootClaim directly.
+        // TODO(#19816): Post interop clean up the legacy rootClaim() usage in OptimismPortal2.
         Claim outputRootClaim;
         if (_isSuperGameType(disputeGameProxy.gameType())) {
             outputRootClaim = disputeGameProxy.rootClaimByChainId(systemConfig.l2ChainId());
