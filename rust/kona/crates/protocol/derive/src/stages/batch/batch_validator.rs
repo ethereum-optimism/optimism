@@ -311,10 +311,8 @@ where
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
         self.prev.reset(l1_origin, system_config).await?;
-        let origin = self.prev.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-        self.origin = Some(origin);
+        self.origin = None;
         self.l1_blocks.clear();
-        self.l1_blocks.push(origin);
         Ok(())
     }
 

@@ -437,11 +437,12 @@ where
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
         self.prev.reset(l1_origin, system_config).await?;
-        let origin = self.prev.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-        self.origin = Some(origin);
+        // Clear all state. Don't populate l1_blocks with the walked-back origin —
+        // it may be far behind the L2 safe head's epoch. Let update_origins in
+        // next_batch populate l1_blocks correctly once the pipeline catches up.
+        self.origin = None;
         self.batches.clear();
         self.l1_blocks.clear();
-        self.l1_blocks.push(origin);
         self.next_spans.clear();
         Ok(())
     }
@@ -520,9 +521,9 @@ mod tests {
         assert!(!bq.prev.reset);
         bq.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(bq.prev.reset);
-        assert_eq!(bq.origin, Some(BlockInfo::default()));
+        assert_eq!(bq.origin, None);
         assert!(bq.batches.is_empty());
-        assert_eq!(bq.l1_blocks, vec![BlockInfo::default()]);
+        assert!(bq.l1_blocks.is_empty());
         assert!(bq.next_spans.is_empty());
     }
 
