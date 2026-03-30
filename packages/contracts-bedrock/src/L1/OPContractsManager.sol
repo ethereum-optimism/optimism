@@ -788,23 +788,9 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             upgradeTo(proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
         }
 
-        // Upgrade the AnchorStateRegistry contract and re-initialize to bump the initialized
-        // version. Uses the 4-param initialize() to preserve existing anchor state.
-        IAnchorStateRegistry asr = optimismPortal.anchorStateRegistry();
-        upgradeToAndCall(
-            proxyAdmin,
-            address(asr),
-            _impls.anchorStateRegistryImpl,
-            abi.encodeCall(
-                IAnchorStateRegistry.initialize,
-                (
-                    _opChainConfig.systemConfigProxy,
-                    asr.disputeGameFactory(),
-                    asr.getStartingAnchorRoot(),
-                    asr.respectedGameType()
-                )
-            )
-        );
+        // Upgrade the AnchorStateRegistry contract. No upgrade/initializer needed, just updating
+        // the implementation to latest.
+        upgradeTo(proxyAdmin, address(optimismPortal.anchorStateRegistry()), _impls.anchorStateRegistryImpl);
 
         // Upgrade the OptimismMintableERC20Factory contract.
         upgradeTo(
