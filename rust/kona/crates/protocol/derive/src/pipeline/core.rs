@@ -57,10 +57,11 @@ where
         let mut current = l2_safe_head;
         loop {
             let before_l2_genesis =
-                current.block_info.number < self.rollup_config.genesis.l2.number;
-            let before_l1_genesis = current.l1_origin.number < self.rollup_config.genesis.l1.number;
+                current.block_info.number <= self.rollup_config.genesis.l2.number;
+            let before_l1_genesis =
+                current.l1_origin.number <= self.rollup_config.genesis.l1.number;
             let before_channel_timeout =
-                current.l1_origin.number + channel_timeout < l1_origin_number;
+                current.l1_origin.number + channel_timeout <= l1_origin_number;
             if before_l2_genesis || before_l1_genesis || before_channel_timeout {
                 break;
             }

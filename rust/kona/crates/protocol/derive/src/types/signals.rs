@@ -2,10 +2,10 @@
 //!
 //! Signals are the primary method of communication between the pipeline driver
 //! and the [`DerivationPipeline`]. The pipeline receives [`Signal`]s and
-//! dispatches to stages via [`StageReset`] methods.
+//! dispatches to stages via [`Stage`] methods.
 //!
 //! [`DerivationPipeline`]: crate::DerivationPipeline
-//! [`StageReset`]: crate::StageReset
+//! [`Stage`]: crate::Stage
 
 use kona_protocol::{BlockInfo, L2BlockInfo};
 
