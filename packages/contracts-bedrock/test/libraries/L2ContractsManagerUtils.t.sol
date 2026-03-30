@@ -192,18 +192,21 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
         );
     }
 
-    /// @notice Tests that v4 upgrade works with a non-zero `_offset`, clearing only the target byte.
-    function test_upgrade_v4NonZeroOffset_succeeds() public {
+    /// @notice Tests that v4 upgrade works with arbitrary `_offset` and slot contents, clearing
+    ///         only the target byte while preserving all other bytes in the slot.
+    function testFuzz_upgrade_v4NonZeroOffset_succeeds(uint256 _slotValue, uint8 _offset) public {
+        _offset = uint8(bound(_offset, 0, 30));
+
         address proxy = Predeploys.L2_STANDARD_BRIDGE;
 
         // Set v1 as current implementation.
         vm.prank(Predeploys.PROXY_ADMIN);
         IProxy(payable(proxy)).upgradeTo(implV1);
 
-        // Simulate a v4 contract where `_initialized` lives at byte offset 2 in the slot.
-        // Pack: byte 0-1 = other data (0xBEEF), byte 2 = _initialized (1), byte 3 = _initializing (0).
-        uint8 offset = 2;
-        uint256 v4Value = uint256(0xBEEF) | (uint256(1) << (offset * 8));
+        // Clear the `_initializing` byte at offset+1 to avoid the revert, and set the
+        // `_initialized` byte at offset to a nonzero value. All other bytes are fuzzed.
+        uint256 mask = uint256(0xFFFF) << (_offset * 8);
+        uint256 v4Value = (_slotValue & ~mask) | (uint256(1) << (_offset * 8));
         vm.store(proxy, INITIALIZABLE_SLOT_OZ_V4, bytes32(v4Value));
 
         vm.startPrank(Predeploys.PROXY_ADMIN);
@@ -213,14 +216,15 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             _storageSetterImpl,
             abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
             INITIALIZABLE_SLOT_OZ_V4,
-            offset
+            _offset
         );
         vm.stopPrank();
 
         vm.prank(Predeploys.PROXY_ADMIN);
         assertEq(IProxy(payable(proxy)).implementation(), address(implV2));
-        // The _initialized byte at offset 2 should be cleared, but bytes 0-1 (0xBEEF) preserved.
-        assertEq(vm.load(proxy, INITIALIZABLE_SLOT_OZ_V4), bytes32(uint256(0xBEEF)));
+        // Only the _initialized byte at offset should be cleared, all other bytes preserved.
+        uint256 expected = v4Value & ~(uint256(0xFF) << (_offset * 8));
+        assertEq(vm.load(proxy, INITIALIZABLE_SLOT_OZ_V4), bytes32(expected));
     }
 
     /// @notice Tests that v4 upgrade reverts when `_initializing` is set at a non-zero offset.
@@ -249,7 +253,9 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
     }
 
     /// @notice Tests that upgrade reverts when v5 slot is passed with a non-zero offset.
-    function test_upgrade_v5InvalidOffset_reverts() public {
+    function testFuzz_upgrade_v5InvalidOffset_reverts(uint8 _offset) public {
+        vm.assume(_offset != 0);
+
         address proxy = Predeploys.SEQUENCER_FEE_WALLET;
 
         // Set v1 as current implementation.
@@ -263,7 +269,7 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             _storageSetterImpl,
             abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
             INITIALIZABLE_SLOT_OZ_V5,
-            1
+            _offset
         );
     }
 
