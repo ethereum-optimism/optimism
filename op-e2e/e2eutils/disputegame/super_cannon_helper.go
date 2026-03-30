@@ -73,7 +73,7 @@ func (g *SuperCannonGameHelper) CreateHonestActor(ctx context.Context, options .
 		logger,
 		metrics.NoopMetrics,
 		cfg.CannonKona,
-		vm.NewKonaExecutor(),
+		vm.NewKonaSuperExecutor(),
 		prestateProvider,
 		supervisorClient,
 		nil,
@@ -173,7 +173,7 @@ func (g *SuperCannonGameHelper) createSuperCannonTraceProvider(ctx context.Conte
 		localContext = split.CreateLocalContext(pre, post)
 		dir := filepath.Join(cfg.Datadir, "super-cannon-trace")
 		subdir := filepath.Join(dir, localContext.Hex())
-		return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics.ToTypedVmMetrics(gameTypes.SuperCannonKonaGameType.String()), cfg.CannonKona, vm.NewKonaExecutor(), cfg.CannonKonaAbsolutePreState, localInputs, subdir, g.splitGame.MaxDepth(ctx)-splitDepth-1), nil
+		return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics.ToTypedVmMetrics(gameTypes.SuperCannonKonaGameType.String()), cfg.CannonKona, vm.NewKonaSuperExecutor(), cfg.CannonKonaAbsolutePreState, localInputs, subdir, g.splitGame.MaxDepth(ctx)-splitDepth-1), nil
 	})
 
 	claims, err := g.splitGame.Game.GetAllClaims(ctx, rpcblock.Latest)
