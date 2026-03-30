@@ -24,8 +24,10 @@ kona-mpt = { workspace = true, features = ["serde"] }
 alloy-chains = { workspace = true }
 alloy-primitives = { workspace = true, features = ["std", "serde", "map-fxhash"] }
 alloy-consensus = { workspace = true, features = ["std", "serde", "k256"] }
-alloy-trie = { workspace = true, features = ["std", "serde"] }
 alloy-rlp = { workspace = true, features = ["std"] }
+reth-primitives-traits = { workspace = true }
+reth-trie = { workspace = true }
+reth-trie-common = { workspace = true, features = ["eip1186"] }
 alloy-eips = { workspace = true, features = ["std", "serde", "kzg"] }
 alloy-genesis = { workspace = true, features = ["std"] }
 

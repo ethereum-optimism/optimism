@@ -496,25 +496,18 @@ fn next_base_fee(parent: &Header, config: &DeterministicConfig) -> u64 {
 
 /// Compute the `L2ToL1MessagePasser` storage root from a state snapshot.
 fn message_passer_storage_root_from_snapshot(snapshot: &StateSnapshot) -> B256 {
-    snapshot
-        .storage
-        .get(&crate::config::L2_TO_L1_MESSAGE_PASSER)
-        .map(|storage| {
-            let mut node_store = crate::state::roots::TrieNodeStore::new();
-            crate::state::roots::compute_storage_root(storage, &mut node_store)
-        })
-        .unwrap_or(crate::state::roots::EMPTY_ROOT_HASH)
+    crate::state::storage_root_from_hashed_state(
+        &snapshot.hashed_state,
+        crate::config::L2_TO_L1_MESSAGE_PASSER,
+    )
 }
 
 /// Compute the `L2ToL1MessagePasser` storage root from the current state database.
 fn message_passer_storage_root_from_state(state: &TestStateDb) -> B256 {
-    state
-        .account_storage(&crate::config::L2_TO_L1_MESSAGE_PASSER)
-        .map(|storage| {
-            let mut node_store = crate::state::roots::TrieNodeStore::new();
-            crate::state::roots::compute_storage_root(storage, &mut node_store)
-        })
-        .unwrap_or(crate::state::roots::EMPTY_ROOT_HASH)
+    crate::state::storage_root_from_hashed_state(
+        state.hashed_state(),
+        crate::config::L2_TO_L1_MESSAGE_PASSER,
+    )
 }
 
 #[cfg(test)]

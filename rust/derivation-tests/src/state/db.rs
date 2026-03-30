@@ -1,27 +1,31 @@
 //! In-memory state database backed by revm's `CacheDB`.
 
 use alloy_genesis::GenesisAccount;
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::{Address, B256, U256, keccak256, map::B256Map};
+use reth_primitives_traits::Account;
+use reth_trie::{
+    HashedPostState, HashedStorage, KeccakKeyHasher, MultiProofTargets, StateRoot,
+    hashed_cursor::{HashedPostStateCursorFactory, noop::NoopHashedCursorFactory},
+    proof::Proof,
+    trie_cursor::noop::NoopTrieCursorFactory,
+};
 use revm::{
-    DatabaseCommit,
     database::{CacheDB, EmptyDB},
     state::{AccountInfo, Bytecode},
 };
 use std::collections::BTreeMap;
 
-use super::roots::{TrieNodeStore, compute_state_root, compute_storage_root};
+use super::roots::TrieNodeStore;
 
 /// Snapshot of the state at a particular block, used for historical queries and proof generation.
 #[derive(Debug, Clone)]
 pub struct StateSnapshot {
-    /// All accounts with their balances, nonces, and code hashes.
-    pub accounts: BTreeMap<Address, AccountState>,
-    /// All storage slots per account.
-    pub storage: BTreeMap<Address, BTreeMap<U256, U256>>,
-    /// Contract bytecode keyed by code hash.
-    pub code: BTreeMap<B256, Vec<u8>>,
     /// State root for this snapshot.
     pub state_root: B256,
+    /// Accumulated hashed post-state for trie computation.
+    pub hashed_state: HashedPostState,
+    /// Contract bytecode keyed by code hash.
+    pub code: BTreeMap<B256, Vec<u8>>,
     /// Trie node store accumulated during root computation.
     pub node_store: TrieNodeStore,
 }
@@ -45,10 +49,8 @@ pub struct AccountState {
 pub struct TestStateDb {
     /// Inner revm cache database.
     pub db: CacheDB<EmptyDB>,
-    /// Accumulated accounts for state root computation (address → account state).
-    accounts: BTreeMap<Address, AccountState>,
-    /// Storage per account.
-    storage: BTreeMap<Address, BTreeMap<U256, U256>>,
+    /// Accumulated hashed state from genesis + all block bundle states.
+    hashed_state: HashedPostState,
     /// Contract code keyed by code hash.
     code: BTreeMap<B256, Vec<u8>>,
 }
@@ -57,8 +59,7 @@ impl Default for TestStateDb {
     fn default() -> Self {
         Self {
             db: CacheDB::new(EmptyDB::default()),
-            accounts: BTreeMap::new(),
-            storage: BTreeMap::new(),
+            hashed_state: HashedPostState::default(),
             code: BTreeMap::new(),
         }
     }
@@ -72,7 +73,8 @@ impl TestStateDb {
 
     /// Initialize state from genesis allocations.
     pub fn init_genesis(&mut self, allocs: &BTreeMap<Address, GenesisAccount>) {
-        use alloy_primitives::keccak256;
+        let mut hashed_accounts = B256Map::default();
+        let mut hashed_storages = B256Map::default();
 
         for (address, account) in allocs {
             let code = account.code.as_ref().map(|c| c.to_vec()).unwrap_or_default();
@@ -91,113 +93,47 @@ impl TestStateDb {
                 },
             };
 
-            self.db.insert_account_info(*address, info);
+            self.db.insert_account_info(*address, info.clone());
 
-            // Insert storage
+            // Insert storage into CacheDB
             if let Some(ref storage) = account.storage {
                 for (slot, value) in storage {
                     self.db
                         .insert_account_storage(*address, (*slot).into(), (*value).into())
                         .expect("storage insert should not fail");
-                    self.storage
-                        .entry(*address)
-                        .or_default()
-                        .insert((*slot).into(), (*value).into());
                 }
             }
 
-            self.accounts.insert(
-                *address,
-                AccountState {
-                    nonce: account.nonce.unwrap_or(0),
-                    balance: account.balance,
-                    code_hash,
-                },
+            // Build HashedPostState entry
+            let hashed_addr = keccak256(address);
+            let bytecode_hash =
+                if code_hash == alloy_primitives::KECCAK256_EMPTY { None } else { Some(code_hash) };
+            hashed_accounts.insert(
+                hashed_addr,
+                Some(Account { nonce: info.nonce, balance: info.balance, bytecode_hash }),
             );
 
+            let storage_entries: Vec<_> = account
+                .storage
+                .as_ref()
+                .unwrap_or(&BTreeMap::new())
+                .iter()
+                .filter(|(_, v)| !v.is_zero())
+                .map(|(k, v)| (keccak256(B256::from(*k)), (*v).into()))
+                .collect();
+            if !storage_entries.is_empty() {
+                hashed_storages
+                    .insert(hashed_addr, HashedStorage::from_iter(false, storage_entries));
+            }
+
+            // Track code for debug_dbGet
             if !code.is_empty() {
                 self.code.insert(code_hash, code);
             }
         }
-    }
 
-    /// Apply execution results from revm's `BundleState` to the tracked state.
-    pub fn apply_evm_result(&mut self, result: &revm::state::EvmState) {
-        for (address, account) in result {
-            if account.is_selfdestructed() {
-                // Always clear storage for self-destructed accounts.
-                self.storage.remove(address);
-
-                let info = &account.info;
-                // If the account was recreated after self-destruct (e.g. CREATE2 reuse
-                // in the same tx under EIP-6780), preserve the new account state.
-                if info.nonce == 0 &&
-                    info.balance.is_zero() &&
-                    info.code_hash == alloy_primitives::KECCAK256_EMPTY
-                {
-                    self.accounts.remove(address);
-                } else {
-                    self.accounts.insert(
-                        *address,
-                        AccountState {
-                            nonce: info.nonce,
-                            balance: info.balance,
-                            code_hash: info.code_hash,
-                        },
-                    );
-
-                    if let Some(ref code) = info.code {
-                        let bytecode = code.original_bytes();
-                        if !bytecode.is_empty() {
-                            self.code.insert(info.code_hash, bytecode.to_vec());
-                        }
-                    }
-                }
-                continue;
-            }
-
-            let info = &account.info;
-            let code_hash = info.code_hash;
-
-            // EIP-161: Remove touched-but-empty accounts from state.
-            // An account is empty if nonce == 0, balance == 0, and has no code.
-            if account.is_touched() &&
-                info.nonce == 0 &&
-                info.balance.is_zero() &&
-                code_hash == alloy_primitives::KECCAK256_EMPTY
-            {
-                self.accounts.remove(address);
-                self.storage.remove(address);
-                continue;
-            }
-
-            self.accounts.insert(
-                *address,
-                AccountState { nonce: info.nonce, balance: info.balance, code_hash },
-            );
-
-            // Store code if present
-            if let Some(ref code) = info.code {
-                let bytecode = code.original_bytes();
-                if !bytecode.is_empty() {
-                    self.code.insert(code_hash, bytecode.to_vec());
-                }
-            }
-
-            // Apply storage changes
-            for (slot, slot_value) in &account.storage {
-                let value = slot_value.present_value;
-                let storage = self.storage.entry(*address).or_default();
-                if value.is_zero() {
-                    storage.remove(slot);
-                } else {
-                    storage.insert(*slot, value);
-                }
-            }
-        }
-
-        // Also commit to the CacheDB
-        self.db.commit(result.clone());
+        self.hashed_state =
+            HashedPostState { accounts: hashed_accounts, storages: hashed_storages };
     }
 
     /// Apply execution results from a `BundleState` (produced by `OpBlockExecutor`) to the
@@ -207,114 +143,16 @@ impl TestStateDb {
         bundle: &revm_database::BundleState,
         mut db: revm::database::CacheDB<revm::database::EmptyDB>,
     ) {
-        use revm_database::AccountStatus;
+        // Accumulate hashed state from this block's bundle.
+        // from_bundle_state handles all AccountStatus variants correctly:
+        // - Destroyed -> None (account removed from trie)
+        // - DestroyedChanged -> Some (account recreated)
+        // - LoadedEmptyEIP161 -> None (EIP-161 empty account removed)
+        // - Changed/InMemoryChange -> Some (account updated)
+        let bundle_hashed = HashedPostState::from_bundle_state::<KeccakKeyHasher>(&bundle.state);
+        self.hashed_state.extend(bundle_hashed);
 
-        for (address, account) in &bundle.state {
-            let is_destroyed = matches!(
-                account.status,
-                AccountStatus::Destroyed |
-                    AccountStatus::DestroyedChanged |
-                    AccountStatus::DestroyedAgain
-            );
-
-            if is_destroyed {
-                self.storage.remove(address);
-
-                match &account.info {
-                    Some(info)
-                        if info.nonce > 0 ||
-                            !info.balance.is_zero() ||
-                            info.code_hash != alloy_primitives::KECCAK256_EMPTY =>
-                    {
-                        // Account was recreated after destruction
-                        self.accounts.insert(
-                            *address,
-                            AccountState {
-                                nonce: info.nonce,
-                                balance: info.balance,
-                                code_hash: info.code_hash,
-                            },
-                        );
-                        if let Some(ref code) = info.code {
-                            let bytecode = code.original_bytes();
-                            if !bytecode.is_empty() {
-                                self.code.insert(info.code_hash, bytecode.to_vec());
-                            }
-                        }
-                        // Apply new storage for recreated account
-                        for (slot, slot_value) in &account.storage {
-                            let value = slot_value.present_value;
-                            let storage = self.storage.entry(*address).or_default();
-                            if value.is_zero() {
-                                storage.remove(slot);
-                            } else {
-                                storage.insert(*slot, value);
-                            }
-                        }
-                    }
-                    _ => {
-                        self.accounts.remove(address);
-                    }
-                }
-                continue;
-            }
-
-            let Some(info) = &account.info else {
-                // Account was loaded but doesn't exist; skip.
-                continue;
-            };
-
-            // EIP-161: Remove touched-but-empty accounts from state.
-            let is_empty = info.nonce == 0 &&
-                info.balance.is_zero() &&
-                info.code_hash == alloy_primitives::KECCAK256_EMPTY;
-            let was_changed = matches!(
-                account.status,
-                AccountStatus::Changed |
-                    AccountStatus::InMemoryChange |
-                    AccountStatus::LoadedEmptyEIP161
-            );
-
-            if is_empty && was_changed {
-                self.accounts.remove(address);
-                self.storage.remove(address);
-                continue;
-            }
-
-            // Only update accounts that were actually changed
-            if was_changed {
-                self.accounts.insert(
-                    *address,
-                    AccountState {
-                        nonce: info.nonce,
-                        balance: info.balance,
-                        code_hash: info.code_hash,
-                    },
-                );
-
-                if let Some(ref code) = info.code {
-                    let bytecode = code.original_bytes();
-                    if !bytecode.is_empty() {
-                        self.code.insert(info.code_hash, bytecode.to_vec());
-                    }
-                }
-            }
-
-            // Apply storage changes (only slots that actually changed)
-            for (slot, slot_value) in &account.storage {
-                if slot_value.present_value != slot_value.previous_or_original_value {
-                    let value = slot_value.present_value;
-                    let storage = self.storage.entry(*address).or_default();
-                    if value.is_zero() {
-                        storage.remove(slot);
-                    } else {
-                        storage.insert(*slot, value);
-                    }
-                }
-            }
-        }
-
-        // Also store any new contract code from the bundle
+        // Track new code deployments for debug_dbGet
         for (hash, bytecode) in &bundle.contracts {
             let bytes = bytecode.original_bytes();
             if !bytes.is_empty() {
@@ -344,37 +182,74 @@ impl TestStateDb {
 
     /// Capture a snapshot of the current state with computed state root.
     pub fn snapshot(&self) -> StateSnapshot {
-        let mut node_store = TrieNodeStore::new();
+        let sorted = self.hashed_state.clone().into_sorted();
+        let prefix_sets = self.hashed_state.construct_prefix_sets();
 
-        // Compute storage roots for all accounts and collect them
-        let mut storage_roots: BTreeMap<Address, B256> = BTreeMap::new();
-        for (address, storage) in &self.storage {
-            if !storage.is_empty() {
-                let root = compute_storage_root(storage, &mut node_store);
-                storage_roots.insert(*address, root);
+        // Compute state root via reth's StateRoot
+        let state_root = StateRoot::new(
+            NoopTrieCursorFactory::default(),
+            HashedPostStateCursorFactory::new(NoopHashedCursorFactory::default(), &sorted),
+        )
+        .with_prefix_sets(prefix_sets.clone().freeze())
+        .root()
+        .expect("state root computation should succeed");
+
+        // Capture all trie nodes for debug_dbGet via multiproof over entire state.
+        let all_targets: MultiProofTargets = self
+            .hashed_state
+            .accounts
+            .iter()
+            .filter(|(_, acct)| acct.is_some())
+            .map(|(addr_hash, _)| {
+                let storage_keys = self
+                    .hashed_state
+                    .storages
+                    .get(addr_hash)
+                    .map(|s| s.storage.keys().copied().collect())
+                    .unwrap_or_default();
+                (*addr_hash, storage_keys)
+            })
+            .collect();
+
+        let multiproof = Proof::new(
+            NoopTrieCursorFactory::default(),
+            HashedPostStateCursorFactory::new(NoopHashedCursorFactory::default(), &sorted),
+        )
+        .with_prefix_sets_mut(prefix_sets)
+        .multiproof(all_targets)
+        .expect("multiproof should succeed");
+
+        // Build hash->node index from proof nodes
+        let mut node_store = TrieNodeStore::new();
+        for (_, node_bytes) in multiproof.account_subtree.nodes_sorted() {
+            node_store.insert(keccak256(&node_bytes), node_bytes);
+        }
+        for storage_mp in multiproof.storages.values() {
+            for (_, node_bytes) in storage_mp.subtree.nodes_sorted() {
+                node_store.insert(keccak256(&node_bytes), node_bytes);
             }
         }
 
-        let state_root =
-            compute_state_root(&self.accounts, &storage_roots, &self.code, &mut node_store);
-
         StateSnapshot {
-            accounts: self.accounts.clone(),
-            storage: self.storage.clone(),
-            code: self.code.clone(),
             state_root,
+            hashed_state: self.hashed_state.clone(),
+            code: self.code.clone(),
             node_store,
         }
     }
 
-    /// Get the storage for a specific account.
-    pub fn account_storage(&self, address: &Address) -> Option<&BTreeMap<U256, U256>> {
-        self.storage.get(address)
+    /// Get the account state.
+    pub fn account(&self, address: &Address) -> Option<AccountState> {
+        self.db.cache.accounts.get(address).map(|db_account| AccountState {
+            nonce: db_account.info.nonce,
+            balance: db_account.info.balance,
+            code_hash: db_account.info.code_hash,
+        })
     }
 
-    /// Get the account state.
-    pub fn account(&self, address: &Address) -> Option<&AccountState> {
-        self.accounts.get(address)
+    /// Get the accumulated hashed state.
+    pub const fn hashed_state(&self) -> &HashedPostState {
+        &self.hashed_state
     }
 
     /// Fund an account with ETH (creates it if it doesn't exist).
@@ -382,7 +257,12 @@ impl TestStateDb {
         let code_hash = alloy_primitives::KECCAK256_EMPTY;
         let info = AccountInfo { balance, nonce: 0, code_hash, account_id: None, code: None };
         self.db.insert_account_info(address, info);
-        self.accounts.insert(address, AccountState { nonce: 0, balance, code_hash });
+
+        // Also insert into hashed_state so the funded account appears in trie computation
+        let hashed_addr = keccak256(address);
+        self.hashed_state
+            .accounts
+            .insert(hashed_addr, Some(Account { nonce: 0, balance, bytecode_hash: None }));
     }
 }
 

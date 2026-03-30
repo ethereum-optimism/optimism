@@ -225,22 +225,8 @@ impl L2RpcServer for L2RpcImpl {
 
         let snapshot = &self.snapshots[idx];
 
-        let mut storage_roots = std::collections::BTreeMap::new();
-        for (addr, storage) in &snapshot.storage {
-            if !storage.is_empty() {
-                let mut node_store = crate::state::TrieNodeStore::new();
-                let root = crate::state::compute_storage_root(storage, &mut node_store);
-                storage_roots.insert(*addr, root);
-            }
-        }
-
-        let proof = crate::state::generate_account_proof(
-            &snapshot.accounts,
-            &snapshot.storage,
-            &storage_roots,
-            address,
-            &storage_keys,
-        );
+        let proof =
+            crate::state::generate_account_proof(&snapshot.hashed_state, address, &storage_keys);
 
         serde_json::to_value(&proof).map_err(|e| {
             ErrorObjectOwned::owned(-32603, format!("serialization error: {e}"), None::<String>)

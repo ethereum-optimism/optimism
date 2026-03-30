@@ -34,16 +34,10 @@ pub fn compute_super_root(timestamp: u64, chains: Vec<(u64, B256)>) -> B256 {
 /// Compute the output root from a state snapshot, extracting the `L2ToL1MessagePasser` storage
 /// root.
 pub fn compute_output_root_from_state(block: &L2Block, snapshot: &StateSnapshot) -> B256 {
-    use crate::state::roots::{EMPTY_ROOT_HASH, TrieNodeStore, compute_storage_root};
+    use crate::state::storage_root_from_hashed_state;
 
-    let message_passer_storage_root = snapshot
-        .storage
-        .get(&L2_TO_L1_MESSAGE_PASSER)
-        .map(|storage| {
-            let mut node_store = TrieNodeStore::new();
-            compute_storage_root(storage, &mut node_store)
-        })
-        .unwrap_or(EMPTY_ROOT_HASH);
+    let message_passer_storage_root =
+        storage_root_from_hashed_state(&snapshot.hashed_state, L2_TO_L1_MESSAGE_PASSER);
 
     compute_output_root(block, message_passer_storage_root)
 }

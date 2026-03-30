@@ -1,20 +1,21 @@
-//! State root, storage root, and proof computation using `alloy-trie`.
+//! State root, storage root, and proof computation using reth's in-memory trie infrastructure.
 
-use alloy_primitives::{Address, B256, Bytes, KECCAK256_EMPTY, U256, keccak256};
-use alloy_rlp::Encodable;
-use alloy_rpc_types_eth::{EIP1186AccountProofResponse, EIP1186StorageProof};
-use alloy_trie::{
-    HashBuilder, Nibbles, TrieAccount,
-    proof::{ProofNodes, ProofRetainer},
-};
+use alloy_primitives::{Address, B256, Bytes, keccak256};
+use alloy_rpc_types_eth::EIP1186AccountProofResponse;
 use op_alloy_consensus::OpTxEnvelope;
-use std::collections::{BTreeMap, HashMap};
+use reth_trie::{
+    HashedPostState, StorageRoot,
+    hashed_cursor::{HashedPostStateCursorFactory, noop::NoopHashedCursorFactory},
+    proof::Proof,
+    trie_cursor::noop::NoopTrieCursorFactory,
+};
+use std::collections::HashMap;
 
-use super::db::AccountState;
+pub(crate) use reth_trie::EMPTY_ROOT_HASH;
 
 /// Store of trie nodes accumulated during root computation.
 ///
-/// Maps node hash → RLP-encoded node data. Also stores contract code
+/// Maps node hash -> RLP-encoded node data. Also stores contract code
 /// with a `0x63<code_hash>` prefix key (matching kona-host's `debug_dbGet` convention).
 #[derive(Debug, Clone, Default)]
 pub struct TrieNodeStore {
@@ -39,92 +40,6 @@ impl TrieNodeStore {
     }
 }
 
-pub(crate) use alloy_trie::EMPTY_ROOT_HASH;
-
-/// Compute the state root from account data.
-pub fn compute_state_root(
-    accounts: &BTreeMap<Address, AccountState>,
-    storage_roots: &BTreeMap<Address, B256>,
-    _code: &BTreeMap<B256, Vec<u8>>,
-    node_store: &mut TrieNodeStore,
-) -> B256 {
-    if accounts.is_empty() {
-        return EMPTY_ROOT_HASH;
-    }
-
-    // Sort accounts by keccak256(address) for trie ordering
-    let mut sorted: Vec<(Nibbles, Vec<u8>)> = Vec::with_capacity(accounts.len());
-    for (address, state) in accounts {
-        let hashed_key = Nibbles::unpack(keccak256(address));
-        let storage_root = storage_roots.get(address).copied().unwrap_or(EMPTY_ROOT_HASH);
-        let trie_account = TrieAccount {
-            nonce: state.nonce,
-            balance: state.balance,
-            storage_root,
-            code_hash: state.code_hash,
-        };
-        let mut encoded = Vec::with_capacity(trie_account.length());
-        trie_account.encode(&mut encoded);
-        sorted.push((hashed_key, encoded));
-    }
-    sorted.sort_by(|a, b| a.0.cmp(&b.0));
-
-    let keys: Vec<Nibbles> = sorted.iter().map(|(k, _)| *k).collect();
-    let mut hb = HashBuilder::default().with_proof_retainer(ProofRetainer::new(keys));
-
-    for (key, value) in &sorted {
-        hb.add_leaf(*key, value);
-    }
-
-    let root = hb.root();
-
-    // Store proof nodes
-    let proof_nodes = hb.take_proof_nodes();
-    store_proof_nodes(&proof_nodes, node_store);
-
-    root
-}
-
-/// Compute the storage root for an account's storage.
-pub fn compute_storage_root(
-    storage: &BTreeMap<U256, U256>,
-    node_store: &mut TrieNodeStore,
-) -> B256 {
-    if storage.is_empty() {
-        return EMPTY_ROOT_HASH;
-    }
-
-    let mut sorted: Vec<(Nibbles, Vec<u8>)> = Vec::with_capacity(storage.len());
-    for (slot, value) in storage {
-        if value.is_zero() {
-            continue;
-        }
-        let hashed_key = Nibbles::unpack(keccak256(slot.to_be_bytes::<32>()));
-        let mut encoded = Vec::new();
-        value.encode(&mut encoded);
-        sorted.push((hashed_key, encoded));
-    }
-
-    if sorted.is_empty() {
-        return EMPTY_ROOT_HASH;
-    }
-
-    sorted.sort_by(|a, b| a.0.cmp(&b.0));
-
-    let keys: Vec<Nibbles> = sorted.iter().map(|(k, _)| *k).collect();
-    let mut hb = HashBuilder::default().with_proof_retainer(ProofRetainer::new(keys));
-
-    for (key, value) in &sorted {
-        hb.add_leaf(*key, value);
-    }
-
-    let root = hb.root();
-    let proof_nodes = hb.take_proof_nodes();
-    store_proof_nodes(&proof_nodes, node_store);
-
-    root
-}
-
 /// Compute the transactions trie root.
 pub fn compute_transactions_root(txs: &[OpTxEnvelope]) -> B256 {
     if txs.is_empty() {
@@ -145,108 +60,45 @@ pub fn compute_receipts_root(receipts: &[op_alloy_consensus::OpReceiptEnvelope])
 
 /// Generate an EIP-1186 account proof response for a given address.
 pub fn generate_account_proof(
-    accounts: &BTreeMap<Address, AccountState>,
-    storage: &BTreeMap<Address, BTreeMap<U256, U256>>,
-    storage_roots: &BTreeMap<Address, B256>,
+    hashed_state: &HashedPostState,
     address: Address,
     storage_keys: &[B256],
 ) -> EIP1186AccountProofResponse {
-    // Build account trie with proof retainer for the target address
-    let target_key = Nibbles::unpack(keccak256(address));
+    let sorted = hashed_state.clone().into_sorted();
+    let prefix_sets = hashed_state.construct_prefix_sets();
 
-    let mut sorted_accounts: Vec<(Nibbles, Vec<u8>)> = Vec::new();
-    for (addr, state) in accounts {
-        let hashed_key = Nibbles::unpack(keccak256(addr));
-        let storage_root = storage_roots.get(addr).copied().unwrap_or(EMPTY_ROOT_HASH);
-        let trie_account = TrieAccount {
-            nonce: state.nonce,
-            balance: state.balance,
-            storage_root,
-            code_hash: state.code_hash,
-        };
-        let mut encoded = Vec::with_capacity(trie_account.length());
-        trie_account.encode(&mut encoded);
-        sorted_accounts.push((hashed_key, encoded));
-    }
-    sorted_accounts.sort_by(|a, b| a.0.cmp(&b.0));
-
-    let mut hb = HashBuilder::default().with_proof_retainer(ProofRetainer::new(vec![target_key]));
-    for (key, value) in &sorted_accounts {
-        hb.add_leaf(*key, value);
-    }
-    let _root = hb.root();
-    let proof_nodes = hb.take_proof_nodes();
-    let account_proof = proof_nodes_to_vec(&proof_nodes, &target_key);
-
-    let account_state = accounts.get(&address);
-    let account_storage = storage.get(&address);
-    let storage_root = storage_roots.get(&address).copied().unwrap_or(EMPTY_ROOT_HASH);
-
-    // Generate storage proofs
-    let storage_proofs: Vec<EIP1186StorageProof> = storage_keys
-        .iter()
-        .map(|key| {
-            let slot = U256::from_be_bytes(key.0);
-            let value = account_storage.and_then(|s| s.get(&slot)).copied().unwrap_or(U256::ZERO);
-
-            let hashed_key = Nibbles::unpack(keccak256(key));
-
-            // Build storage trie for this proof
-            let proof = account_storage.map_or_else(Vec::new, |acct_storage| {
-                let mut sorted_storage: Vec<(Nibbles, Vec<u8>)> = Vec::new();
-                for (s, v) in acct_storage {
-                    if v.is_zero() {
-                        continue;
-                    }
-                    let k = Nibbles::unpack(keccak256(s.to_be_bytes::<32>()));
-                    let mut encoded = Vec::new();
-                    v.encode(&mut encoded);
-                    sorted_storage.push((k, encoded));
-                }
-                sorted_storage.sort_by(|a, b| a.0.cmp(&b.0));
-
-                let mut shb = HashBuilder::default()
-                    .with_proof_retainer(ProofRetainer::new(vec![hashed_key]));
-                for (k, v) in &sorted_storage {
-                    shb.add_leaf(*k, v);
-                }
-                let _ = shb.root();
-                let storage_proof_nodes = shb.take_proof_nodes();
-                proof_nodes_to_vec(&storage_proof_nodes, &hashed_key)
-            });
-
-            EIP1186StorageProof {
-                key: alloy_serde::storage::JsonStorageKey::Hash(*key),
-                value,
-                proof,
-            }
-        })
-        .collect();
-
-    EIP1186AccountProofResponse {
-        address,
-        balance: account_state.map(|a| a.balance).unwrap_or(U256::ZERO),
-        code_hash: account_state.map(|a| a.code_hash).unwrap_or(KECCAK256_EMPTY),
-        nonce: account_state.map(|a| a.nonce).unwrap_or(0),
-        storage_hash: storage_root,
-        account_proof,
-        storage_proof: storage_proofs,
-    }
+    Proof::new(
+        NoopTrieCursorFactory::default(),
+        HashedPostStateCursorFactory::new(NoopHashedCursorFactory::default(), &sorted),
+    )
+    .with_prefix_sets_mut(prefix_sets)
+    .account_proof(address, storage_keys)
+    .expect("proof generation should succeed")
+    .into_eip1186_response(
+        storage_keys.iter().map(|k| alloy_serde::storage::JsonStorageKey::Hash(*k)).collect(),
+    )
 }
 
-/// Convert proof nodes to a `Vec<Bytes>` for the target key path.
-fn proof_nodes_to_vec(proof_nodes: &ProofNodes, _target: &Nibbles) -> Vec<Bytes> {
-    // ProofNodes contains all nodes along the path. We return them sorted.
-    let nodes = proof_nodes.nodes_sorted();
-    nodes.into_iter().map(|(_, v)| v).collect()
-}
+/// Compute the storage root for a single account from the accumulated hashed state.
+pub fn storage_root_from_hashed_state(hashed_state: &HashedPostState, address: Address) -> B256 {
+    let sorted = hashed_state.clone().into_sorted();
+    let hashed_address = keccak256(address);
 
-/// Store proof nodes from a `HashBuilder` into the `TrieNodeStore`.
-fn store_proof_nodes(proof_nodes: &ProofNodes, node_store: &mut TrieNodeStore) {
-    for (_, node_bytes) in proof_nodes.nodes_sorted() {
-        let hash = keccak256(&node_bytes);
-        node_store.insert(hash, node_bytes);
-    }
+    let prefix_set = hashed_state
+        .construct_prefix_sets()
+        .storage_prefix_sets
+        .remove(&hashed_address)
+        .unwrap_or_default()
+        .freeze();
+
+    StorageRoot::new_hashed(
+        NoopTrieCursorFactory::default(),
+        HashedPostStateCursorFactory::new(NoopHashedCursorFactory::default(), &sorted),
+        hashed_address,
+        prefix_set,
+    )
+    .root()
+    .expect("storage root computation should succeed")
 }
 
 #[cfg(test)]
@@ -254,7 +106,8 @@ mod tests {
     use super::*;
     use crate::state::TestStateDb;
     use alloy_genesis::GenesisAccount;
-    use alloy_primitives::address;
+    use alloy_primitives::{U256, address};
+    use std::collections::BTreeMap;
 
     #[test]
     fn empty_state_root() {
@@ -307,17 +160,33 @@ mod tests {
 
     #[test]
     fn storage_root_ordering_deterministic() {
-        let mut store = TrieNodeStore::new();
+        let addr = address!("0x0000000000000000000000000000000000001234");
 
+        let mut allocs1 = BTreeMap::new();
         let mut storage1 = BTreeMap::new();
-        storage1.insert(U256::from(1u64), U256::from(100u64));
-        storage1.insert(U256::from(2u64), U256::from(200u64));
-        let root1 = compute_storage_root(&storage1, &mut store);
+        storage1.insert(B256::from(U256::from(1u64)), B256::from(U256::from(100u64)));
+        storage1.insert(B256::from(U256::from(2u64)), B256::from(U256::from(200u64)));
+        allocs1.insert(
+            addr,
+            GenesisAccount::default().with_balance(U256::from(1u64)).with_storage(Some(storage1)),
+        );
 
+        let mut db1 = TestStateDb::new();
+        db1.init_genesis(&allocs1);
+        let root1 = storage_root_from_hashed_state(db1.hashed_state(), addr);
+
+        let mut allocs2 = BTreeMap::new();
         let mut storage2 = BTreeMap::new();
-        storage2.insert(U256::from(2u64), U256::from(200u64));
-        storage2.insert(U256::from(1u64), U256::from(100u64));
-        let root2 = compute_storage_root(&storage2, &mut store);
+        storage2.insert(B256::from(U256::from(2u64)), B256::from(U256::from(200u64)));
+        storage2.insert(B256::from(U256::from(1u64)), B256::from(U256::from(100u64)));
+        allocs2.insert(
+            addr,
+            GenesisAccount::default().with_balance(U256::from(1u64)).with_storage(Some(storage2)),
+        );
+
+        let mut db2 = TestStateDb::new();
+        db2.init_genesis(&allocs2);
+        let root2 = storage_root_from_hashed_state(db2.hashed_state(), addr);
 
         assert_eq!(root1, root2);
         assert_ne!(root1, EMPTY_ROOT_HASH);
