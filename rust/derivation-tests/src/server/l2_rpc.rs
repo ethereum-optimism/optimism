@@ -71,9 +71,9 @@ impl L2RpcImpl {
 
     fn resolve_block(&self, block_id: &str) -> Option<usize> {
         // Try as hash first
-        if block_id.starts_with("0x")
-            && block_id.len() == 66
-            && let Ok(hash) = block_id.parse::<B256>()
+        if block_id.starts_with("0x") &&
+            block_id.len() == 66 &&
+            let Ok(hash) = block_id.parse::<B256>()
         {
             return self.by_hash.get(&hash).copied();
         }
@@ -115,6 +115,7 @@ impl L2RpcImpl {
             "blobGasUsed": format!("0x{:x}", header.blob_gas_used.unwrap_or(0)),
             "excessBlobGas": format!("0x{:x}", header.excess_blob_gas.unwrap_or(0)),
             "parentBeaconBlockRoot": header.parent_beacon_block_root.unwrap_or(alloy_primitives::B256::ZERO),
+            "requestsHash": header.requests_hash.unwrap_or(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
             "transactions": block.transactions.iter().enumerate().map(|(i, _)| {
                 format!("0x{:064x}", i)
             }).collect::<Vec<_>>(),

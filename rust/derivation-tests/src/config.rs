@@ -1,62 +1,13 @@
 //! Deterministic configuration for derivation tests.
 //!
-//! Every value is pinned — no randomness, no `Option` fields. The same config
-//! always produces the same L1/L2 chains and super roots.
+//! Loads all configuration from the generated testdata files produced by
+//! op-deployer. Every value is pinned — no randomness, no `Option` fields.
+//! The same config always produces the same L1/L2 chains and super roots.
 
 use alloy_genesis::GenesisAccount;
-use alloy_primitives::{Address, B256, U256, address, b256};
-use kona_genesis::{ChainGenesis, HardForkConfig, RollupConfig, SystemConfig};
-use std::collections::BTreeMap;
-
-/// Fixed L1 chain ID for test chains.
-pub const L1_CHAIN_ID: u64 = 900;
-
-/// Fixed L2 chain ID for test chains.
-pub const L2_CHAIN_ID: u64 = 901;
-
-/// Fixed L1/L2 genesis timestamp (seconds since epoch).
-/// Also used as the beacon genesis time.
-pub const GENESIS_TIMESTAMP: u64 = 1_700_000_000;
-
-/// Fixed L1 block time in seconds.
-pub const L1_BLOCK_TIME: u64 = 12;
-
-/// Fixed L2 block time in seconds.
-pub const L2_BLOCK_TIME: u64 = 2;
-
-/// Beacon seconds per slot — matches L1 block time.
-pub const SECONDS_PER_SLOT: u64 = 12;
-
-/// Batch inbox address where batcher submits batches.
-pub const BATCH_INBOX_ADDRESS: Address = address!("0xff00000000000000000000000000000000000901");
-
-/// Batcher address — derived from `BATCHER_PRIVATE_KEY` (Hardhat account #1).
-pub const BATCHER_ADDRESS: Address = address!("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
-
-/// Sequencer address — derived from `SEQUENCER_PRIVATE_KEY` (Hardhat account #2).
-pub const SEQUENCER_ADDRESS: Address = address!("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC");
-
-/// Fee recipient for L2 blocks.
-pub const FEE_RECIPIENT: Address = address!("0x4200000000000000000000000000000000000011");
-
-/// `L2ToL1MessagePasser` predeploy address.
-pub const L2_TO_L1_MESSAGE_PASSER: Address = address!("0x4200000000000000000000000000000000000016");
-
-/// `L1Block` predeploy address.
-pub const L1_BLOCK_ADDRESS: Address = address!("0x4200000000000000000000000000000000000015");
-
-/// EIP-4788 beacon block root storage address (Cancun system contract).
-pub const BEACON_ROOTS_ADDRESS: Address = address!("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02");
-
-/// EIP-2935 history storage address (Prague system contract).
-pub const HISTORY_STORAGE_ADDRESS: Address = address!("0x0000F90827F1C53a10cb7A02335B175320002935");
-
-/// `OptimismPortal` (deposit contract) proxy address on L1.
-pub const DEPOSIT_CONTRACT_ADDRESS: Address =
-    address!("0x6900000000000000000000000000000000000002");
-
-/// `SystemConfig` proxy address on L1.
-pub const SYSTEM_CONFIG_ADDRESS: Address = address!("0x6900000000000000000000000000000000000001");
+use alloy_primitives::{Address, B256, Bytes, U256, address, b256, hex};
+use kona_genesis::RollupConfig;
+use std::{collections::BTreeMap, path::Path};
 
 /// Deterministic batcher private key (NOT secret — test-only, Hardhat account #1).
 pub const BATCHER_PRIVATE_KEY: B256 =
@@ -74,37 +25,27 @@ pub const PREFUNDED_ACCOUNT: Address = address!("0xf39Fd6e51aad88F6F4ce6aB882727
 pub const PREFUNDED_ACCOUNT_KEY: B256 =
     b256!("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-/// Pre-funded balance: 10,000 ETH in wei.
-pub const PREFUNDED_BALANCE: U256 = U256::from_limbs([
-    0x21E1_9E0C_9BAB_2400_0000_u128 as u64,
-    (0x21E1_9E0C_9BAB_2400_0000_u128 >> 64) as u64,
-    0,
-    0,
-]);
+/// `L2ToL1MessagePasser` predeploy address.
+pub const L2_TO_L1_MESSAGE_PASSER: Address = address!("0x4200000000000000000000000000000000000016");
 
-/// EIP-1559 denominator for Holocene blocks.
-pub const EIP1559_DENOMINATOR: u32 = 250;
-
-/// EIP-1559 elasticity multiplier for Holocene blocks.
-pub const EIP1559_ELASTICITY: u32 = 6;
-
-/// Build Holocene-formatted extra data for L2 block headers.
-///
-/// Format: `[version_byte, denominator_be32, elasticity_be32]` (9 bytes total).
-/// Go's `DecodeHoloceneExtraData` requires exactly 9 bytes.
-pub fn holocene_extra_data() -> alloy_primitives::Bytes {
-    let mut extra = [0u8; 9];
-    extra[1..5].copy_from_slice(&EIP1559_DENOMINATOR.to_be_bytes());
-    extra[5..9].copy_from_slice(&EIP1559_ELASTICITY.to_be_bytes());
-    alloy_primitives::Bytes::from(extra.to_vec())
-}
-
-/// Fully deterministic test configuration.
+/// Fully deterministic test configuration loaded from generated files.
 ///
 /// Every field is pinned — no `Option` values, no randomness.
 /// Creating the same config twice produces identical chains and roots.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct DeterministicConfig {
+    /// Full L2 genesis JSON.
+    pub l2_genesis: serde_json::Value,
+    /// Full L1 genesis JSON.
+    pub l1_genesis: serde_json::Value,
+    /// Parsed rollup config.
+    rollup_cfg: RollupConfig,
+    /// Raw rollup JSON bytes for passing to runners.
+    pub rollup_json: Vec<u8>,
+    /// Raw L1 genesis JSON bytes for passing to runners.
+    pub l1_genesis_json: Vec<u8>,
+    /// Raw L2 genesis JSON bytes for passing to runners.
+    pub l2_genesis_json: Vec<u8>,
     /// L1 chain ID.
     pub l1_chain_id: u64,
     /// L2 chain ID.
@@ -117,230 +58,314 @@ pub struct DeterministicConfig {
     pub l2_block_time: u64,
     /// Beacon seconds per slot.
     pub seconds_per_slot: u64,
+    /// Fee recipient for L2 blocks (coinbase from L2 genesis).
+    pub fee_recipient: Address,
     /// Batch inbox address.
     pub batch_inbox: Address,
     /// Batcher address.
     pub batcher: Address,
     /// Batcher private key.
     pub batcher_key: B256,
-    /// Sequencer address.
+    /// Sequencer address — derived from `SEQUENCER_PRIVATE_KEY`.
     pub sequencer: Address,
     /// Sequencer private key.
     pub sequencer_key: B256,
-    /// Fee recipient for L2 blocks.
-    pub fee_recipient: Address,
     /// `OptimismPortal` (deposit contract) proxy address on L1.
     pub deposit_contract: Address,
     /// `SystemConfig` proxy address on L1.
     pub system_config: Address,
-    /// Hardfork activation config.
-    pub hardforks: HardForkConfig,
+    /// L1 genesis state root (computed by go-ethereum's `Genesis.ToBlock()`).
+    pub l1_genesis_state_root: B256,
+    /// L2 genesis state root (computed by go-ethereum's `Genesis.ToBlock()`).
+    pub l2_genesis_state_root: B256,
 }
 
 impl Default for DeterministicConfig {
     fn default() -> Self {
-        Self {
-            l1_chain_id: L1_CHAIN_ID,
-            l2_chain_id: L2_CHAIN_ID,
-            genesis_timestamp: GENESIS_TIMESTAMP,
-            l1_block_time: L1_BLOCK_TIME,
-            l2_block_time: L2_BLOCK_TIME,
-            seconds_per_slot: SECONDS_PER_SLOT,
-            batch_inbox: BATCH_INBOX_ADDRESS,
-            batcher: BATCHER_ADDRESS,
-            batcher_key: BATCHER_PRIVATE_KEY,
-            sequencer: SEQUENCER_ADDRESS,
-            sequencer_key: SEQUENCER_PRIVATE_KEY,
-            fee_recipient: FEE_RECIPIENT,
-            deposit_contract: DEPOSIT_CONTRACT_ADDRESS,
-            system_config: SYSTEM_CONFIG_ADDRESS,
-            hardforks: HardForkConfig {
-                regolith_time: Some(0),
-                canyon_time: Some(0),
-                delta_time: Some(0),
-                ecotone_time: Some(0),
-                fjord_time: Some(0),
-                granite_time: Some(0),
-                holocene_time: Some(0),
-                isthmus_time: Some(0),
-                jovian_time: Some(0),
-                ..Default::default()
-            },
-        }
+        let dir = std::env::var("DERIVATION_TESTDATA")
+            .unwrap_or_else(|_| format!("{}/testdata/generated", env!("CARGO_MANIFEST_DIR")));
+        Self::from_genesis_dir(Path::new(&dir))
     }
 }
 
 impl DeterministicConfig {
-    /// Create a config with specific hardfork settings.
-    pub fn with_hardforks(hardforks: HardForkConfig) -> Self {
-        Self { hardforks, ..Self::default() }
-    }
+    /// Load config from a directory containing `genesis.json`, `rollup.json`, and
+    /// `l1-genesis.json`.
+    pub fn from_genesis_dir(dir: &Path) -> Self {
+        let l2_genesis_json =
+            std::fs::read(dir.join("genesis.json")).expect("failed to read genesis.json");
+        let l1_genesis_json =
+            std::fs::read(dir.join("l1-genesis.json")).expect("failed to read l1-genesis.json");
+        let rollup_json =
+            std::fs::read(dir.join("rollup.json")).expect("failed to read rollup.json");
+        let hashes_json = std::fs::read(dir.join("genesis-hashes.json"))
+            .expect("failed to read genesis-hashes.json");
+        let hashes: serde_json::Value =
+            serde_json::from_slice(&hashes_json).expect("failed to parse genesis-hashes.json");
 
-    /// Build the L2 genesis account allocations.
-    ///
-    /// Includes predeploy contracts and pre-funded test accounts.
-    pub fn l2_genesis_allocs(&self) -> BTreeMap<Address, GenesisAccount> {
-        let mut allocs = BTreeMap::new();
+        let l2_genesis: serde_json::Value =
+            serde_json::from_slice(&l2_genesis_json).expect("failed to parse genesis.json");
+        let l1_genesis: serde_json::Value =
+            serde_json::from_slice(&l1_genesis_json).expect("failed to parse l1-genesis.json");
+        let rollup_cfg: RollupConfig =
+            serde_json::from_slice(&rollup_json).expect("failed to parse rollup.json");
 
-        // Pre-funded test account
-        allocs.insert(PREFUNDED_ACCOUNT, GenesisAccount::default().with_balance(PREFUNDED_BALANCE));
+        let l1_chain_id = rollup_cfg.l1_chain_id;
+        let l2_chain_id = rollup_cfg.l2_chain_id.id();
+        let genesis_timestamp = rollup_cfg.genesis.l2_time;
+        let l2_block_time = rollup_cfg.block_time;
+        // L1 block time and seconds_per_slot are always 12s for our test chains
+        let l1_block_time = 12;
+        let seconds_per_slot = 12;
 
-        // L2ToL1MessagePasser predeploy — empty contract with storage
-        allocs.insert(L2_TO_L1_MESSAGE_PASSER, GenesisAccount::default().with_balance(U256::ZERO));
+        let fee_recipient = parse_address_field(&l2_genesis, "coinbase");
+        let batch_inbox = rollup_cfg.batch_inbox_address;
+        let deposit_contract = rollup_cfg.deposit_contract_address;
+        let system_config = rollup_cfg.l1_system_config_address;
 
-        // L1Block predeploy — empty contract
-        allocs.insert(L1_BLOCK_ADDRESS, GenesisAccount::default().with_balance(U256::ZERO));
+        let batcher = rollup_cfg
+            .genesis
+            .system_config
+            .as_ref()
+            .expect("rollup config must have genesis system config")
+            .batcher_address;
 
-        // EIP-4788 beacon block root storage (required for Cancun+)
-        allocs.insert(
-            BEACON_ROOTS_ADDRESS,
-            GenesisAccount {
-                code: Some(alloy_primitives::hex!("3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500").into()),
-                ..GenesisAccount::default()
-            },
-        );
+        let batcher_key = BATCHER_PRIVATE_KEY;
+        let sequencer_key = SEQUENCER_PRIVATE_KEY;
+        let sequencer = address!("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC");
 
-        // EIP-2935 history storage (required for Prague+)
-        allocs.insert(
-            HISTORY_STORAGE_ADDRESS,
-            GenesisAccount {
-                code: Some(alloy_primitives::hex!("3373fffffffffffffffffffffffffffffffffffffffe14604657602036036042575f35600143038111604257611fff81430311604257611fff9006545f5260205ff35b5f5ffd5b5f35611fff60014303065500").into()),
-                ..GenesisAccount::default()
-            },
-        );
+        // Load pre-computed genesis state roots from genesis-hashes.json.
+        // These are computed by go-ethereum's Genesis.ToBlock() and are authoritative.
+        let l1_genesis_state_root: B256 = hashes["l1"]["stateRoot"]
+            .as_str()
+            .expect("missing l1.stateRoot")
+            .parse()
+            .expect("invalid l1 state root");
+        let l2_genesis_state_root: B256 = hashes["l2"]["stateRoot"]
+            .as_str()
+            .expect("missing l2.stateRoot")
+            .parse()
+            .expect("invalid l2 state root");
 
-        allocs
-    }
-
-    /// Build the OP Stack `RollupConfig` from this deterministic config.
-    ///
-    /// Genesis L1/L2 block references are computed deterministically from the config
-    /// so they match the blocks produced by `L1ChainBuilder` and `L2ChainBuilder`.
-    pub fn rollup_config(&self) -> RollupConfig {
-        use alloy_consensus::Header;
-        use alloy_eips::eip1898::BlockNumHash;
-        use alloy_primitives::Sealable;
-
-        use crate::state::roots::EMPTY_ROOT_HASH;
-
-        // Compute the L1 genesis block hash deterministically (must match L1ChainBuilder::new).
-        // Post-Cancun headers need base_fee_per_gas, blob_gas_used, excess_blob_gas,
-        // and parent_beacon_block_root to produce correct RLP hashes.
-        let l1_genesis_header = Header {
-            number: 0,
-            timestamp: self.genesis_timestamp,
-            state_root: EMPTY_ROOT_HASH,
-            transactions_root: EMPTY_ROOT_HASH,
-            receipts_root: EMPTY_ROOT_HASH,
-            withdrawals_root: Some(EMPTY_ROOT_HASH),
-            base_fee_per_gas: Some(1),
-            blob_gas_used: Some(0),
-            excess_blob_gas: Some(0),
-            parent_beacon_block_root: Some(B256::ZERO),
-            requests_hash: Some(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
-            gas_limit: 30_000_000,
-            ..Default::default()
-        };
-        let l1_genesis_hash = l1_genesis_header.seal_slow().hash();
-
-        // Compute the L2 genesis state root and block hash deterministically
-        // (must match L2ChainBuilder::new)
-        let mut state = crate::state::TestStateDb::new();
-        state.init_genesis(&self.l2_genesis_allocs());
-        let genesis_state_root = state.snapshot().state_root;
-
-        // Isthmus requires requests_hash per EIP-7685 (must match L2ChainBuilder::new)
-        let requests_hash = self
-            .hardforks
-            .isthmus_time
-            .filter(|&t| self.genesis_timestamp >= t)
-            .map(|_| alloy_eips::eip7685::EMPTY_REQUESTS_HASH);
-
-        // Three-way withdrawals_root per OP Stack spec (must match L2ChainBuilder::new):
-        // - Isthmus active: L2ToL1MessagePasser storage root (empty at genesis)
-        // - Canyon active (pre-Isthmus): EMPTY_ROOT_HASH
-        // - Pre-Canyon: None
-        let withdrawals_root =
-            if self.hardforks.isthmus_time.is_some_and(|t| self.genesis_timestamp >= t) {
-                // At genesis, no messages have been sent, so the storage root is EMPTY_ROOT_HASH
-                Some(EMPTY_ROOT_HASH)
-            } else if self.hardforks.canyon_time.is_some_and(|t| self.genesis_timestamp >= t) {
-                Some(EMPTY_ROOT_HASH)
-            } else {
-                None
-            };
-
-        let l2_genesis_header = Header {
-            number: 0,
-            timestamp: self.genesis_timestamp,
-            state_root: genesis_state_root,
-            transactions_root: EMPTY_ROOT_HASH,
-            receipts_root: EMPTY_ROOT_HASH,
-            gas_limit: 30_000_000,
-            // Post-Shanghai/Cancun fields (must match L2ChainBuilder::new)
-            withdrawals_root,
-            base_fee_per_gas: Some(1),
-            blob_gas_used: Some(0),
-            excess_blob_gas: Some(0),
-            parent_beacon_block_root: Some(B256::ZERO),
-            // Holocene EIP-1559 params (must match L2ChainBuilder::new)
-            extra_data: holocene_extra_data(),
-            requests_hash,
-            ..Default::default()
-        };
-        let l2_genesis_hash = l2_genesis_header.seal_slow().hash();
-
-        RollupConfig {
-            genesis: ChainGenesis {
-                l1: BlockNumHash { number: 0, hash: l1_genesis_hash },
-                l2: BlockNumHash { number: 0, hash: l2_genesis_hash },
-                l2_time: self.genesis_timestamp,
-                system_config: Some(SystemConfig {
-                    batcher_address: self.batcher,
-                    gas_limit: 30_000_000,
-                    // Ecotone scalar format (big-endian U256):
-                    //   byte[0] = 0x01 (Ecotone version)
-                    //   bytes[24:28] = blobBaseFeeScalar
-                    //   bytes[28:32] = baseFeeScalar
-                    // Non-zero scalar is required by op-program validation.
-                    scalar: U256::from_be_bytes({
-                        let mut s = [0u8; 32];
-                        s[0] = 0x01; // Ecotone version
-                        s[31] = 0x01; // baseFeeScalar = 1
-                        s
-                    }),
-                    // Holocene EIP-1559 parameters — must be non-zero to avoid
-                    // divide-by-zero in Go's CalcBaseFee when Holocene is active.
-                    eip1559_denominator: Some(EIP1559_DENOMINATOR),
-                    eip1559_elasticity: Some(EIP1559_ELASTICITY),
-                    ..Default::default()
-                }),
-            },
-            l1_chain_id: self.l1_chain_id,
-            l2_chain_id: alloy_chains::Chain::from_id(self.l2_chain_id),
-            block_time: self.l2_block_time,
-            seq_window_size: 3600,
-            max_sequencer_drift: 600,
-            channel_timeout: 300,
-            batch_inbox_address: self.batch_inbox,
-            deposit_contract_address: self.deposit_contract,
-            l1_system_config_address: self.system_config,
-            hardforks: self.hardforks,
-            ..Default::default()
+        Self {
+            l2_genesis,
+            l1_genesis,
+            rollup_cfg,
+            rollup_json,
+            l1_genesis_json,
+            l2_genesis_json,
+            l1_chain_id,
+            l2_chain_id,
+            genesis_timestamp,
+            l1_block_time,
+            l2_block_time,
+            seconds_per_slot,
+            fee_recipient,
+            batch_inbox,
+            batcher,
+            batcher_key,
+            sequencer,
+            sequencer_key,
+            deposit_contract,
+            system_config,
+            l1_genesis_state_root,
+            l2_genesis_state_root,
         }
     }
 
-    /// Build an L1 chain config (alloy `ChainConfig`) for kona-host's `--l1-config-path`.
+    /// Returns the parsed rollup config.
+    pub const fn rollup_config(&self) -> &RollupConfig {
+        &self.rollup_cfg
+    }
+
+    /// Extract the L1 chain config from the L1 genesis JSON.
     pub fn l1_chain_config(&self) -> alloy_genesis::ChainConfig {
-        alloy_genesis::ChainConfig {
-            chain_id: self.l1_chain_id,
-            // Enable post-merge (Shanghai+) so withdrawals_root is expected
-            shanghai_time: Some(0),
-            cancun_time: Some(0),
-            prague_time: Some(0),
-            ..Default::default()
-        }
+        let config = &self.l1_genesis["config"];
+        serde_json::from_value(config.clone()).expect("failed to parse L1 chain config")
     }
+
+    /// Extract the L2 genesis allocs as a map.
+    pub fn l2_genesis_allocs(&self) -> BTreeMap<Address, GenesisAccount> {
+        let alloc =
+            self.l2_genesis["alloc"].as_object().expect("genesis.json must have alloc object");
+
+        let mut result = BTreeMap::new();
+        for (addr_hex, value) in alloc {
+            let addr: Address = addr_hex
+                .parse()
+                .unwrap_or_else(|e| panic!("failed to parse alloc address {addr_hex}: {e}"));
+
+            let balance = value.get("balance").and_then(|v| v.as_str()).map_or(U256::ZERO, |s| {
+                s.strip_prefix("0x").map_or_else(
+                    || s.parse().unwrap_or(U256::ZERO),
+                    |stripped| U256::from_str_radix(stripped, 16).unwrap_or(U256::ZERO),
+                )
+            });
+
+            let nonce = value
+                .get("nonce")
+                .and_then(|v| v.as_str())
+                .map_or(0u64, |s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0));
+
+            let code =
+                value.get("code").and_then(|v| v.as_str()).filter(|s| s.len() > 2).map(|s| {
+                    Bytes::from(hex::decode(s.trim_start_matches("0x")).expect("invalid code hex"))
+                });
+
+            let storage = value.get("storage").and_then(|v| v.as_object()).map(|obj| {
+                obj.iter()
+                    .map(|(k, v)| {
+                        let slot: B256 = k.parse().expect("invalid storage key");
+                        let val: B256 = v
+                            .as_str()
+                            .expect("storage value must be string")
+                            .parse()
+                            .expect("invalid storage value");
+                        (slot, val)
+                    })
+                    .collect::<BTreeMap<_, _>>()
+            });
+
+            let nonce_opt = (nonce > 0).then_some(nonce);
+            let mut account = GenesisAccount::default().with_balance(balance).with_nonce(nonce_opt);
+            if let Some(code) = code {
+                account.code = Some(code);
+            }
+            if let Some(storage) = storage {
+                account.storage = Some(storage);
+            }
+            result.insert(addr, account);
+        }
+
+        result
+    }
+
+    /// Extract L2 genesis header fields from the L2 genesis JSON.
+    ///
+    /// Returns (`timestamp`, `gas_limit`, `base_fee`, `extra_data`, `coinbase`, `difficulty`,
+    /// `mix_hash`).
+    pub fn l2_genesis_header_fields(&self) -> (u64, u64, u64, Bytes, Address, U256, B256) {
+        let g = &self.l2_genesis;
+        let timestamp = parse_u64_field(g, "timestamp");
+        let gas_limit = parse_u64_field(g, "gasLimit");
+        let base_fee = parse_u64_field(g, "baseFeePerGas");
+        let extra_data = parse_bytes_field(g, "extraData");
+        let coinbase = parse_address_field(g, "coinbase");
+        let difficulty = parse_u256_field(g, "difficulty");
+        let mix_hash = parse_b256_field(g, "mixHash");
+        (timestamp, gas_limit, base_fee, extra_data, coinbase, difficulty, mix_hash)
+    }
+
+    /// Extract L1 genesis header fields from the L1 genesis JSON.
+    ///
+    /// Returns (`timestamp`, `gas_limit`, `base_fee`, `extra_data`, `coinbase`, `difficulty`,
+    /// `mix_hash`).
+    pub fn l1_genesis_header_fields(&self) -> (u64, u64, u64, Bytes, Address, U256, B256) {
+        let g = &self.l1_genesis;
+        let timestamp = parse_u64_field(g, "timestamp");
+        let gas_limit = parse_u64_field(g, "gasLimit");
+        let base_fee = parse_u64_field(g, "baseFeePerGas");
+        let extra_data = parse_bytes_field(g, "extraData");
+        let coinbase = parse_address_field(g, "coinbase");
+        let difficulty = parse_u256_field(g, "difficulty");
+        let mix_hash = parse_b256_field(g, "mixHash");
+        (timestamp, gas_limit, base_fee, extra_data, coinbase, difficulty, mix_hash)
+    }
+
+    /// Check if the L2 genesis JSON has a `blobGasUsed` field.
+    pub fn l2_genesis_has_blob_gas_used(&self) -> bool {
+        self.l2_genesis.get("blobGasUsed").and_then(|v| v.as_str()).is_some()
+    }
+
+    /// Check if the L1 genesis JSON has a `blobGasUsed` field.
+    pub fn l1_genesis_has_blob_gas_used(&self) -> bool {
+        self.l1_genesis.get("blobGasUsed").and_then(|v| v.as_str()).is_some()
+    }
+
+    /// Get the L2 genesis excess blob gas (0 if present in JSON).
+    pub fn l2_genesis_excess_blob_gas(&self) -> Option<u64> {
+        self.l2_genesis
+            .get("excessBlobGas")
+            .and_then(|v| v.as_str())
+            .map(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0))
+    }
+
+    /// Get the L1 genesis excess blob gas.
+    pub fn l1_genesis_excess_blob_gas(&self) -> Option<u64> {
+        self.l1_genesis
+            .get("excessBlobGas")
+            .and_then(|v| v.as_str())
+            .map(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0))
+    }
+
+    /// Get the EIP-1559 denominator from the `chain_op_config`.
+    pub const fn eip1559_denominator(&self) -> u32 {
+        self.rollup_cfg.chain_op_config.eip1559_denominator as u32
+    }
+
+    /// Get the EIP-1559 elasticity from the `chain_op_config`.
+    pub const fn eip1559_elasticity(&self) -> u32 {
+        self.rollup_cfg.chain_op_config.eip1559_elasticity as u32
+    }
+
+    /// Get the minimum base fee from the rollup config's genesis system config.
+    pub fn min_base_fee(&self) -> u64 {
+        self.rollup_cfg.genesis.system_config.as_ref().and_then(|sc| sc.min_base_fee).unwrap_or(0)
+    }
+}
+
+fn parse_u64_field(json: &serde_json::Value, field: &str) -> u64 {
+    json.get(field)
+        .and_then(|v| v.as_str())
+        .map(|s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0))
+        .unwrap_or(0)
+}
+
+fn parse_u256_field(json: &serde_json::Value, field: &str) -> U256 {
+    json.get(field)
+        .and_then(|v| v.as_str())
+        .map(|s| {
+            s.strip_prefix("0x").map_or_else(
+                || s.parse().unwrap_or(U256::ZERO),
+                |stripped| U256::from_str_radix(stripped, 16).unwrap_or(U256::ZERO),
+            )
+        })
+        .unwrap_or(U256::ZERO)
+}
+
+fn parse_b256_field(json: &serde_json::Value, field: &str) -> B256 {
+    json.get(field)
+        .and_then(|v| v.as_str())
+        .map(|s| s.parse().unwrap_or(B256::ZERO))
+        .unwrap_or(B256::ZERO)
+}
+
+fn parse_address_field(json: &serde_json::Value, field: &str) -> Address {
+    json.get(field)
+        .and_then(|v| v.as_str())
+        .map(|s| s.parse().unwrap_or(Address::ZERO))
+        .unwrap_or(Address::ZERO)
+}
+
+fn parse_bytes_field(json: &serde_json::Value, field: &str) -> Bytes {
+    json.get(field)
+        .and_then(|v| v.as_str())
+        .filter(|s| s.len() > 2)
+        .map(|s| {
+            Bytes::from(hex::decode(s.trim_start_matches("0x")).expect("invalid hex in field"))
+        })
+        .unwrap_or_default()
+}
+
+/// Build Holocene-formatted extra data for L2 block headers.
+///
+/// Format: `[version_byte, denominator_be32, elasticity_be32]` (9 bytes total).
+/// Go's `DecodeHoloceneExtraData` requires exactly 9 bytes.
+pub fn holocene_extra_data(denominator: u32, elasticity: u32) -> Bytes {
+    let mut extra = [0u8; 9];
+    extra[1..5].copy_from_slice(&denominator.to_be_bytes());
+    extra[5..9].copy_from_slice(&elasticity.to_be_bytes());
+    Bytes::from(extra.to_vec())
 }
 
 #[cfg(test)]
@@ -351,43 +376,54 @@ mod tests {
     fn config_is_deterministic() {
         let a = DeterministicConfig::default();
         let b = DeterministicConfig::default();
-        assert_eq!(a, b);
+        // Same rollup config hashes
+        let hash_a = serde_json::to_vec(a.rollup_config()).unwrap();
+        let hash_b = serde_json::to_vec(b.rollup_config()).unwrap();
+        assert_eq!(hash_a, hash_b, "two loads should produce identical rollup configs");
     }
 
     #[test]
-    fn config_has_no_options() {
+    fn generated_files_load_successfully() {
         let config = DeterministicConfig::default();
-        assert_eq!(config.l1_chain_id, L1_CHAIN_ID);
-        assert_eq!(config.l2_chain_id, L2_CHAIN_ID);
-        assert_eq!(config.genesis_timestamp, GENESIS_TIMESTAMP);
-        assert_eq!(config.l1_block_time, L1_BLOCK_TIME);
-        assert_eq!(config.l2_block_time, L2_BLOCK_TIME);
-        assert_eq!(config.seconds_per_slot, SECONDS_PER_SLOT);
+        assert_eq!(config.l1_chain_id, 900);
+        assert_eq!(config.l2_chain_id, 901);
+        assert_eq!(config.genesis_timestamp, 1_700_000_000);
+        assert_eq!(config.l2_block_time, 2);
+        assert_eq!(config.l1_block_time, 12);
     }
 
     #[test]
-    fn hardfork_config_all_active() {
-        let config = DeterministicConfig::default();
-        assert_eq!(config.hardforks.regolith_time, Some(0));
-        assert_eq!(config.hardforks.isthmus_time, Some(0));
-    }
-
-    #[test]
-    fn genesis_allocs_include_prefunded_account() {
-        let config = DeterministicConfig::default();
-        let allocs = config.l2_genesis_allocs();
-        assert!(allocs.contains_key(&PREFUNDED_ACCOUNT));
-        assert!(allocs.contains_key(&L2_TO_L1_MESSAGE_PASSER));
-        assert!(allocs.contains_key(&L1_BLOCK_ADDRESS));
-    }
-
-    #[test]
-    fn rollup_config_has_hardforks() {
+    fn rollup_config_loaded_correctly() {
         let config = DeterministicConfig::default();
         let rollup = config.rollup_config();
-        assert_eq!(rollup.l2_chain_id, alloy_chains::Chain::from_id(L2_CHAIN_ID));
-        assert_eq!(rollup.block_time, L2_BLOCK_TIME);
+        assert_eq!(rollup.l1_chain_id, 900);
+        assert_eq!(rollup.l2_chain_id, alloy_chains::Chain::from_id(901));
+        assert_eq!(rollup.block_time, 2);
         assert!(rollup.hardforks.ecotone_time.is_some());
         assert!(rollup.hardforks.isthmus_time.is_some());
+    }
+
+    #[test]
+    fn l2_genesis_allocs_are_populated() {
+        let config = DeterministicConfig::default();
+        let allocs = config.l2_genesis_allocs();
+        assert!(
+            allocs.len() > 100,
+            "expected many allocs from op-deployer genesis, got {}",
+            allocs.len()
+        );
+        assert!(
+            allocs.contains_key(&L2_TO_L1_MESSAGE_PASSER),
+            "should contain L2ToL1MessagePasser"
+        );
+    }
+
+    #[test]
+    fn l1_chain_config_parses() {
+        let config = DeterministicConfig::default();
+        let chain_config = config.l1_chain_config();
+        assert_eq!(chain_config.chain_id, 900);
+        assert_eq!(chain_config.shanghai_time, Some(0));
+        assert_eq!(chain_config.cancun_time, Some(0));
     }
 }

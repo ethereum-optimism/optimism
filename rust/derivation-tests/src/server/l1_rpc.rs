@@ -125,6 +125,7 @@ impl L1RpcImpl {
             "blobGasUsed": format!("0x{:x}", header.blob_gas_used.unwrap_or(0)),
             "excessBlobGas": format!("0x{:x}", header.excess_blob_gas.unwrap_or(0)),
             "parentBeaconBlockRoot": header.parent_beacon_block_root.unwrap_or(alloy_primitives::B256::ZERO),
+            "requestsHash": header.requests_hash.unwrap_or(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
             "transactions": block.transactions.iter().enumerate().map(|(i, tx_bytes)| {
                 if full_txs {
                     tx_to_json(block.header.hash(), block.header.inner().number, i, tx_bytes)

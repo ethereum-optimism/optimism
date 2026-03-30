@@ -40,7 +40,7 @@ pub fn l1_info_deposit_tx(
     });
 
     let (_info, sealed_deposit) = L1BlockInfoTx::try_new_with_deposit_tx(
-        &rollup_config,
+        rollup_config,
         &l1_config,
         &system_config,
         seq_num,

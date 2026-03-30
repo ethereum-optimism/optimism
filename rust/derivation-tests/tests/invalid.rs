@@ -4,8 +4,10 @@
 //! and that `expected_super_root()` remains computable (doesn't panic).
 
 use alloy_primitives::Bytes;
-use derivation_tests::batch::{ChannelOut, CompressionAlgo, L1Origin};
-use derivation_tests::harness::DerivationTest;
+use derivation_tests::{
+    batch::{ChannelOut, CompressionAlgo, L1Origin},
+    harness::DerivationTest,
+};
 
 #[test]
 fn test_wrong_batcher_address() {

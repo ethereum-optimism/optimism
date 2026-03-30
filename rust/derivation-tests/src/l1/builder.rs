@@ -3,7 +3,7 @@
 use alloy_consensus::{
     Header, Receipt, ReceiptEnvelope, ReceiptWithBloom, SignableTransaction, TxEip1559, TxEip4844,
 };
-use alloy_eips::{Encodable2718, eip4844::DATA_GAS_PER_BLOB, eip7685::EMPTY_REQUESTS_HASH};
+use alloy_eips::{Encodable2718, eip4844::DATA_GAS_PER_BLOB};
 use alloy_primitives::{B256, Bloom, Bytes, Log, LogData, Sealable, TxKind};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
@@ -14,20 +14,23 @@ use crate::{config::DeterministicConfig, state::roots::EMPTY_ROOT_HASH};
 
 use super::types::{BatchSubmission, BlobWithCommitment, L1Block, SystemConfigUpdate};
 
-/// Shared defaults for post-Prague L1 block headers.
+/// Shared defaults for post-Cancun L1 block headers.
 ///
-/// Our test L1 chain has Shanghai+Cancun+Prague active from genesis, so every
+/// Our test L1 chain has Shanghai+Cancun active from genesis, so every
 /// header must include `base_fee_per_gas`, `blob_gas_used`, `excess_blob_gas`,
-/// `parent_beacon_block_root`, and `requests_hash` to produce the same RLP
+/// `parent_beacon_block_root`, and `withdrawals_root` to produce the same RLP
 /// hash that Go computes.
-fn prague_header_defaults() -> Header {
+///
+/// Post-merge L1 header defaults including Prague fields.
+fn post_merge_header_defaults(state_root: B256) -> Header {
     Header {
+        state_root,
         base_fee_per_gas: Some(1),
         blob_gas_used: Some(0),
         excess_blob_gas: Some(0),
         parent_beacon_block_root: Some(B256::ZERO),
         withdrawals_root: Some(EMPTY_ROOT_HASH),
-        requests_hash: Some(EMPTY_REQUESTS_HASH),
+        requests_hash: Some(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
         gas_limit: 30_000_000,
         ..Default::default()
     }
@@ -42,20 +45,62 @@ pub struct L1ChainBuilder {
     blobs: BTreeMap<u64, Vec<BlobWithCommitment>>,
     /// Batcher transaction nonce counter.
     batcher_nonce: u64,
+    /// State root from the genesis block (used for all blocks since we don't modify L1 state).
+    genesis_state_root: B256,
 }
 
 impl L1ChainBuilder {
     /// Create a new L1 chain builder with a genesis block.
     pub fn new(config: &DeterministicConfig) -> Self {
+        // Use the authoritative genesis state root computed by go-ethereum's Genesis.ToBlock(),
+        // NOT our own trie computation. This ensures the genesis block hash matches
+        // what op-program/op-geth expect.
+        let genesis_state_root = config.l1_genesis_state_root;
+
+        // Read header fields from L1 genesis JSON
+        let (timestamp, gas_limit, base_fee, extra_data, coinbase, _difficulty, mix_hash) =
+            config.l1_genesis_header_fields();
+        let excess_blob_gas = config.l1_genesis_excess_blob_gas();
+
+        // Determine which fork-dependent header fields to include based on L1 chain config.
+        // This mimics go-ethereum's Genesis.ToBlock() behavior.
+        let l1_chain_config = config.l1_chain_config();
+        let is_shanghai = l1_chain_config.shanghai_time.is_some();
+        let is_cancun = l1_chain_config.cancun_time.is_some();
+        let is_prague = l1_chain_config.prague_time.is_some();
+
         let genesis_header = Header {
             number: 0,
-            timestamp: config.genesis_timestamp,
-            state_root: EMPTY_ROOT_HASH,
+            timestamp,
+            state_root: genesis_state_root,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
-            ..prague_header_defaults()
+            // Shanghai+ includes withdrawals_root
+            withdrawals_root: is_shanghai.then_some(EMPTY_ROOT_HASH),
+            base_fee_per_gas: Some(base_fee),
+            // Cancun+ includes blob gas fields and parent beacon block root
+            blob_gas_used: is_cancun.then_some(0),
+            excess_blob_gas: is_cancun.then(|| excess_blob_gas.unwrap_or(0)),
+            parent_beacon_block_root: is_cancun.then_some(B256::ZERO),
+            // Prague+ includes requests_hash
+            requests_hash: is_prague.then_some(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
+            gas_limit,
+            beneficiary: coinbase,
+            mix_hash,
+            extra_data,
+            ..Default::default()
         };
         let sealed = genesis_header.seal_slow();
+
+        // Verify genesis hash matches rollup config
+        let expected_hash = config.rollup_config().genesis.l1.hash;
+        assert_eq!(
+            sealed.hash(),
+            expected_hash,
+            "L1 genesis hash mismatch: builder produced {:?} but rollup config expects {:?}",
+            sealed.hash(),
+            expected_hash,
+        );
 
         let genesis_block = L1Block { header: sealed, transactions: vec![], receipts: vec![] };
 
@@ -64,6 +109,7 @@ impl L1ChainBuilder {
             blocks: vec![genesis_block],
             blobs: BTreeMap::new(),
             batcher_nonce: 0,
+            genesis_state_root,
         }
     }
 
@@ -74,10 +120,9 @@ impl L1ChainBuilder {
             parent_hash: prev.header.hash(),
             number: prev.header.inner().number + 1,
             timestamp: prev.header.inner().timestamp + self.config.l1_block_time,
-            state_root: EMPTY_ROOT_HASH,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
-            ..prague_header_defaults()
+            ..post_merge_header_defaults(self.genesis_state_root)
         };
         let sealed = header.seal_slow();
         self.blocks.push(L1Block { header: sealed, transactions: vec![], receipts: vec![] });
@@ -123,10 +168,9 @@ impl L1ChainBuilder {
             parent_hash,
             number: block_num,
             timestamp,
-            state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            ..prague_header_defaults()
+            ..post_merge_header_defaults(self.genesis_state_root)
         };
         if total_blob_count > 0 {
             header.blob_gas_used = Some(total_blob_count * DATA_GAS_PER_BLOB);
@@ -148,10 +192,9 @@ impl L1ChainBuilder {
             parent_hash: prev.header.hash(),
             number: prev.header.inner().number + 1,
             timestamp: prev.header.inner().timestamp + self.config.l1_block_time,
-            state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            ..prague_header_defaults()
+            ..post_merge_header_defaults(self.genesis_state_root)
         };
         let sealed = header.seal_slow();
 
@@ -185,10 +228,9 @@ impl L1ChainBuilder {
             parent_hash: prev.header.hash(),
             number: block_num,
             timestamp,
-            state_root: EMPTY_ROOT_HASH,
             transactions_root,
             receipts_root,
-            ..prague_header_defaults()
+            ..post_merge_header_defaults(self.genesis_state_root)
         };
         let sealed = header.seal_slow();
 

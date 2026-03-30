@@ -1,6 +1,6 @@
 //! Tests for the L1 RPC, L2 RPC, and Beacon API servers.
 
-use derivation_tests::{config::DeterministicConfig, harness::DerivationTest};
+use derivation_tests::harness::DerivationTest;
 
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {
     let mut test = DerivationTest::new();
@@ -128,7 +128,6 @@ async fn test_debug_db_get() {
 
 #[tokio::test]
 async fn test_beacon_blobs() {
-    let config = DeterministicConfig::default();
     let mut test = DerivationTest::new();
 
     test.l1.emit_empty_block();
@@ -169,7 +168,7 @@ async fn test_beacon_blobs() {
 
     assert!(resp["data"]["genesis_time"].is_string());
     let genesis_time: u64 = resp["data"]["genesis_time"].as_str().unwrap().parse().unwrap();
-    assert_eq!(genesis_time, config.genesis_timestamp);
+    assert_eq!(genesis_time, test.config.genesis_timestamp);
 
     servers.stop();
 }

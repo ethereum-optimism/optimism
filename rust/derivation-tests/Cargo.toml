@@ -41,6 +41,8 @@ op-alloy-rpc-types-engine = { workspace = true, features = ["std", "serde"] }
 revm = { workspace = true, features = ["std"] }
 revm-database = { workspace = true, features = ["std"] }
 op-revm = { workspace = true, features = ["std"] }
+alloy-op-evm = { workspace = true }
+alloy-evm = { workspace = true, features = ["op"] }
 
 # RPC server
 jsonrpsee = { workspace = true, features = ["server"] }
@@ -65,7 +67,6 @@ alloy-signer = { workspace = true }
 alloy-signer-local = { workspace = true, features = ["keystore"] }
 
 # Utilities
-either = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

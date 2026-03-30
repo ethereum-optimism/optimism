@@ -11,8 +11,11 @@
 use std::{future::Future, pin::Pin, process::ExitStatus};
 
 use alloy_primitives::{Address, U256};
-use derivation_tests::harness::{
-    BatchConfig, DerivationTest, RunConfig, run_config_from_test, run_kona_host, run_op_program,
+use derivation_tests::{
+    config::DeterministicConfig,
+    harness::{
+        BatchConfig, DerivationTest, RunConfig, run_config_from_test, run_kona_host, run_op_program,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -21,9 +24,10 @@ use derivation_tests::harness::{
 
 type ProgramRunFn = for<'a> fn(
     &'a RunConfig,
-    &'a kona_genesis::RollupConfig,
-    &'a alloy_genesis::ChainConfig,
-) -> Pin<Box<dyn Future<Output = Result<ExitStatus, Box<dyn std::error::Error>>> + 'a>>;
+    &'a DeterministicConfig,
+) -> Pin<
+    Box<dyn Future<Output = Result<ExitStatus, Box<dyn std::error::Error>>> + 'a>,
+>;
 
 struct Program {
     name: &'static str,
@@ -34,13 +38,13 @@ struct Program {
 const OP_PROGRAM: Program = Program {
     name: "op-program",
     env_var: "OP_PROGRAM_PATH",
-    run: |config, rollup, l1_chain| Box::pin(run_op_program(config, rollup, l1_chain)),
+    run: |config, det_config| Box::pin(run_op_program(config, det_config)),
 };
 
 const KONA_HOST: Program = Program {
     name: "kona-host",
     env_var: "KONA_HOST_PATH",
-    run: |config, rollup, l1_chain| Box::pin(run_kona_host(config, rollup, l1_chain)),
+    run: |config, det_config| Box::pin(run_kona_host(config, det_config)),
 };
 
 async fn run_program(build: fn() -> DerivationTest, program: &Program) {
@@ -53,10 +57,8 @@ async fn run_program(build: fn() -> DerivationTest, program: &Program) {
     let test = build();
     let servers = test.serve().await.unwrap();
     let config = run_config_from_test(&test, &servers);
-    let rollup_config = test.config.rollup_config();
-    let l1_chain_config = test.config.l1_chain_config();
 
-    let status = (program.run)(&config, &rollup_config, &l1_chain_config)
+    let status = (program.run)(&config, &test.config)
         .await
         .unwrap_or_else(|e| panic!("{} failed to execute: {e}", program.name));
     servers.stop();

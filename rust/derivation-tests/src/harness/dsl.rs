@@ -74,7 +74,8 @@ impl<'a> BlockBuilder<'a> {
 
     /// Add a simple ETH transfer from the prefunded test account.
     ///
-    /// Signs an EIP-1559 transaction with `gas_limit=21000`, `max_fee=1`, `priority_fee=0`.
+    /// Signs an EIP-1559 transaction with `gas_limit=21000`, `max_fee` matching the
+    /// current base fee, and `priority_fee=0`.
     /// Nonce is auto-tracked across calls within the same [`DerivationTest`].
     pub fn with_funded_transfer(mut self, to: Address, value: U256) -> Self {
         use alloy_consensus::{SignableTransaction, TxEip1559};
@@ -87,11 +88,14 @@ impl<'a> BlockBuilder<'a> {
         let nonce = self.test.prefunded_nonce;
         self.test.prefunded_nonce += 1;
 
+        // max_fee_per_gas must be >= the block's base fee to avoid GasPriceLessThanBasefee.
+        let base_fee = self.test.l2.head().header.inner().base_fee_per_gas.unwrap_or(1_000_000_000);
+
         let tx = TxEip1559 {
             chain_id: self.test.config.l2_chain_id,
             nonce,
             gas_limit: 21_000,
-            max_fee_per_gas: 1,
+            max_fee_per_gas: base_fee as u128,
             max_priority_fee_per_gas: 0,
             to: alloy_primitives::TxKind::Call(to),
             value,

@@ -10,19 +10,19 @@ use derivation_tests::{
 
 /// Expected super root for 3 empty L2 blocks (deposit-only) derived from empty L1 blocks.
 const EXPECTED_EMPTY_BLOCKS_ROOT: alloy_primitives::B256 =
-    b256!("7cf5f5dc26908cbf2552e939379a9fd31ae57988770be2d3116bdec9f04001b1");
+    b256!("de76a53cb03a2edd456e9a851e3669e813e45bf580d9d3ec059d5b7511af3c11");
 
 /// Expected super root for 1 empty L2 block submitted as a singular batch.
 const EXPECTED_SINGLE_BATCH_ROOT: alloy_primitives::B256 =
-    b256!("3d7d6559d172c568ca2efbb41873a1a5950fc8bfb039fef03a19baabe10580c6");
+    b256!("5b9b5eee7af38d8507d59338a19cd9b51bf413d2806a5a7ee06bcd40bcfdec96");
 
 /// Expected super root for 1 L2 block containing a 1 ETH transfer.
 const EXPECTED_SINGLE_TRANSFER_ROOT: alloy_primitives::B256 =
-    b256!("c63880c5eb0e7bae454b8585ea863ec61840656a729f89eeb950f5f0c3745ac7");
+    b256!("4c48c6b9bdaf6e37fc2b57640df24110d5f54120ab6b176face666a15dd1fd73");
 
 /// Expected super root for 6 empty L2 blocks (one full epoch).
 const EXPECTED_MULTI_BLOCK_ROOT: alloy_primitives::B256 =
-    b256!("7176a1aac0ccd87bb985c4a98652cc9dc3b14698f4a20882f687cc098f8f11ce");
+    b256!("f69eca6bf54a6a5c2ff8b320bf045872dee2c086afb80bdb2b63f61eb008e975");
 
 /// Build a test with N empty L2 blocks derived from N empty L1 blocks.
 fn build_empty_blocks_test(l2_count: usize) -> DerivationTest {
@@ -164,7 +164,7 @@ fn test_span_batch_submission() {
     let rollup_config = test.config.rollup_config();
 
     // Build span batch
-    let span_batch = build_span_batch(&blocks, l1_origin, &rollup_config);
+    let span_batch = build_span_batch(&blocks, l1_origin, rollup_config);
     assert_eq!(span_batch.batches.len(), 3);
 
     // Encode into channel and produce calldata

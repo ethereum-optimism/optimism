@@ -196,8 +196,9 @@ mod tests {
         let inner = alloy_primitives::Bytes::decode(&mut decompressed.as_slice())
             .expect("outer RLP decode");
 
-        let rollup_config = crate::config::DeterministicConfig::default().rollup_config();
-        let decoded = Batch::decode(&mut inner.as_ref(), &rollup_config).expect("batch decode");
+        let config = crate::config::DeterministicConfig::default();
+        let rollup_config = config.rollup_config();
+        let decoded = Batch::decode(&mut inner.as_ref(), rollup_config).expect("batch decode");
 
         match decoded {
             Batch::Single(single) => {

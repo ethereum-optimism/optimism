@@ -27,7 +27,7 @@ pub struct StateSnapshot {
 }
 
 /// State of a single account.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountState {
     /// Account nonce.
     pub nonce: u64,
@@ -131,9 +131,9 @@ impl TestStateDb {
                 let info = &account.info;
                 // If the account was recreated after self-destruct (e.g. CREATE2 reuse
                 // in the same tx under EIP-6780), preserve the new account state.
-                if info.nonce == 0
-                    && info.balance.is_zero()
-                    && info.code_hash == alloy_primitives::KECCAK256_EMPTY
+                if info.nonce == 0 &&
+                    info.balance.is_zero() &&
+                    info.code_hash == alloy_primitives::KECCAK256_EMPTY
                 {
                     self.accounts.remove(address);
                 } else {
@@ -161,10 +161,10 @@ impl TestStateDb {
 
             // EIP-161: Remove touched-but-empty accounts from state.
             // An account is empty if nonce == 0, balance == 0, and has no code.
-            if account.is_touched()
-                && info.nonce == 0
-                && info.balance.is_zero()
-                && code_hash == alloy_primitives::KECCAK256_EMPTY
+            if account.is_touched() &&
+                info.nonce == 0 &&
+                info.balance.is_zero() &&
+                code_hash == alloy_primitives::KECCAK256_EMPTY
             {
                 self.accounts.remove(address);
                 self.storage.remove(address);
@@ -198,6 +198,132 @@ impl TestStateDb {
 
         // Also commit to the CacheDB
         self.db.commit(result.clone());
+    }
+
+    /// Apply execution results from a `BundleState` (produced by `OpBlockExecutor`) to the
+    /// tracked state.
+    pub fn apply_bundle_state(
+        &mut self,
+        bundle: &revm_database::BundleState,
+        db: revm::database::CacheDB<revm::database::EmptyDB>,
+    ) {
+        use revm_database::AccountStatus;
+
+        for (address, account) in &bundle.state {
+            let is_destroyed = matches!(
+                account.status,
+                AccountStatus::Destroyed |
+                    AccountStatus::DestroyedChanged |
+                    AccountStatus::DestroyedAgain
+            );
+
+            if is_destroyed {
+                self.storage.remove(address);
+
+                match &account.info {
+                    Some(info)
+                        if info.nonce > 0 ||
+                            !info.balance.is_zero() ||
+                            info.code_hash != alloy_primitives::KECCAK256_EMPTY =>
+                    {
+                        // Account was recreated after destruction
+                        self.accounts.insert(
+                            *address,
+                            AccountState {
+                                nonce: info.nonce,
+                                balance: info.balance,
+                                code_hash: info.code_hash,
+                            },
+                        );
+                        if let Some(ref code) = info.code {
+                            let bytecode = code.original_bytes();
+                            if !bytecode.is_empty() {
+                                self.code.insert(info.code_hash, bytecode.to_vec());
+                            }
+                        }
+                        // Apply new storage for recreated account
+                        for (slot, slot_value) in &account.storage {
+                            let value = slot_value.present_value;
+                            let storage = self.storage.entry(*address).or_default();
+                            if value.is_zero() {
+                                storage.remove(slot);
+                            } else {
+                                storage.insert(*slot, value);
+                            }
+                        }
+                    }
+                    _ => {
+                        self.accounts.remove(address);
+                    }
+                }
+                continue;
+            }
+
+            let Some(info) = &account.info else {
+                // Account was loaded but doesn't exist; skip.
+                continue;
+            };
+
+            // EIP-161: Remove touched-but-empty accounts from state.
+            let is_empty = info.nonce == 0 &&
+                info.balance.is_zero() &&
+                info.code_hash == alloy_primitives::KECCAK256_EMPTY;
+            let was_changed = matches!(
+                account.status,
+                AccountStatus::Changed |
+                    AccountStatus::InMemoryChange |
+                    AccountStatus::LoadedEmptyEIP161
+            );
+
+            if is_empty && was_changed {
+                self.accounts.remove(address);
+                self.storage.remove(address);
+                continue;
+            }
+
+            // Only update accounts that were actually changed
+            if was_changed {
+                self.accounts.insert(
+                    *address,
+                    AccountState {
+                        nonce: info.nonce,
+                        balance: info.balance,
+                        code_hash: info.code_hash,
+                    },
+                );
+
+                if let Some(ref code) = info.code {
+                    let bytecode = code.original_bytes();
+                    if !bytecode.is_empty() {
+                        self.code.insert(info.code_hash, bytecode.to_vec());
+                    }
+                }
+            }
+
+            // Apply storage changes (only slots that actually changed)
+            for (slot, slot_value) in &account.storage {
+                if slot_value.present_value != slot_value.previous_or_original_value {
+                    let value = slot_value.present_value;
+                    let storage = self.storage.entry(*address).or_default();
+                    if value.is_zero() {
+                        storage.remove(slot);
+                    } else {
+                        storage.insert(*slot, value);
+                    }
+                }
+            }
+        }
+
+        // Also store any new contract code from the bundle
+        for (hash, bytecode) in &bundle.contracts {
+            let bytes = bytecode.original_bytes();
+            if !bytes.is_empty() {
+                self.code.insert(*hash, bytes.to_vec());
+            }
+        }
+
+        // Replace the CacheDB with the post-execution one
+        self.db = db;
     }
 
     /// Capture a snapshot of the current state with computed state root.

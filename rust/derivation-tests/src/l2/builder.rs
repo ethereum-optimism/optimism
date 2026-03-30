@@ -1,24 +1,24 @@
 //! L2 chain builder that constructs valid OP Stack L2 blocks with real EVM execution.
 
 use alloy_consensus::{
-    EMPTY_OMMER_ROOT_HASH, Header, Receipt, ReceiptWithBloom, Transaction as _,
-    transaction::SignerRecoverable,
+    EMPTY_OMMER_ROOT_HASH, Header,
+    transaction::{Recovered, SignerRecoverable},
 };
-use alloy_eips::{
-    Encodable2718, Typed2718 as _, eip1559::BaseFeeParams, eip7685::EMPTY_REQUESTS_HASH,
+use alloy_eips::{eip1559::BaseFeeParams, eip7685::EMPTY_REQUESTS_HASH};
+use alloy_evm::{
+    EvmEnv, EvmFactory as _,
+    block::{BlockExecutor, BlockExecutorFactory},
 };
-use alloy_primitives::{Address, B256, Bloom, Bytes, Log, Sealable, U256};
-use either::Either;
-use op_alloy_consensus::{OpDepositReceipt, OpReceiptEnvelope, OpTxEnvelope};
-use op_revm::{
-    L1BlockInfo, OpBuilder, OpSpecId, OpTransaction, transaction::deposit::DepositTransactionParts,
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutorFactory, block::receipt_builder::OpAlloyReceiptBuilder,
 };
+use alloy_primitives::{B256, Bloom, Bytes, Sealable, U256};
+use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope};
+use op_revm::OpSpecId;
 use revm::{
-    Context, ExecuteEvm, Journal,
-    context::{BlockEnv, CfgEnv, TxEnv},
-    context_interface::{block::BlobExcessGasAndPrice, result::ExecutionResult},
+    context::{BlockEnv, CfgEnv},
+    context_interface::block::BlobExcessGasAndPrice,
     database::CacheDB,
-    handler::system_call::SystemCallEvm,
 };
 
 use crate::{
@@ -58,7 +58,10 @@ impl L2ChainBuilder {
         state.init_genesis(&allocs);
 
         let genesis_snapshot = state.snapshot();
-        let genesis_state_root = genesis_snapshot.state_root;
+        // Use the authoritative genesis state root computed by go-ethereum's Genesis.ToBlock(),
+        // NOT our own trie computation. The framework's trie is used for post-genesis blocks,
+        // but the genesis state root must match what op-program/op-geth expect.
+        let genesis_state_root = config.l2_genesis_state_root;
 
         // Read gas_limit from the rollup config's genesis system config
         let gas_limit = config
@@ -69,9 +72,10 @@ impl L2ChainBuilder {
             .map(|sc| sc.gas_limit)
             .expect("rollup config must have genesis system config with gas_limit");
 
+        let hardforks = &config.rollup_config().hardforks;
+
         // Isthmus requires requests_hash per EIP-7685
-        let requests_hash = config
-            .hardforks
+        let requests_hash = hardforks
             .isthmus_time
             .filter(|&t| config.genesis_timestamp >= t)
             .map(|_| EMPTY_REQUESTS_HASH);
@@ -81,34 +85,55 @@ impl L2ChainBuilder {
         // - Canyon active (pre-Isthmus): EMPTY_ROOT_HASH
         // - Pre-Canyon: None
         let withdrawals_root =
-            if config.hardforks.isthmus_time.is_some_and(|t| config.genesis_timestamp >= t) {
+            if hardforks.isthmus_time.is_some_and(|t| config.genesis_timestamp >= t) {
                 Some(message_passer_storage_root_from_snapshot(&genesis_snapshot))
-            } else if config.hardforks.canyon_time.is_some_and(|t| config.genesis_timestamp >= t) {
+            } else if hardforks.canyon_time.is_some_and(|t| config.genesis_timestamp >= t) {
                 Some(crate::state::roots::EMPTY_ROOT_HASH)
             } else {
                 None
             };
 
+        // Read genesis header fields from the JSON
+        let (timestamp, json_gas_limit, base_fee, extra_data, coinbase, _difficulty, mix_hash) =
+            config.l2_genesis_header_fields();
+
+        // Prefer the gas limit from JSON if it matches, otherwise use rollup config
+        let header_gas_limit = if json_gas_limit > 0 { json_gas_limit } else { gas_limit };
+
+        // blob gas fields from genesis JSON
+        let blob_gas_used = Some(0);
+        let excess_blob_gas = config.l2_genesis_excess_blob_gas().or(Some(0));
+
         let genesis_header = Header {
             number: 0,
-            timestamp: config.genesis_timestamp,
+            timestamp,
             state_root: genesis_state_root,
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             transactions_root: crate::state::roots::EMPTY_ROOT_HASH,
             receipts_root: crate::state::roots::EMPTY_ROOT_HASH,
-            gas_limit,
-            // Post-Shanghai/Cancun fields required for correct RLP hashing
+            gas_limit: header_gas_limit,
+            beneficiary: coinbase,
+            mix_hash,
             withdrawals_root,
-            base_fee_per_gas: Some(1),
-            blob_gas_used: Some(0),
-            excess_blob_gas: Some(0),
-            parent_beacon_block_root: Some(alloy_primitives::B256::ZERO),
-            // Holocene EIP-1559 params in extra data: [version, denom_be32, elasticity_be32]
-            extra_data: crate::config::holocene_extra_data(),
+            base_fee_per_gas: Some(base_fee),
+            blob_gas_used,
+            excess_blob_gas,
+            parent_beacon_block_root: Some(B256::ZERO),
+            extra_data,
             requests_hash,
             ..Default::default()
         };
         let sealed = genesis_header.seal_slow();
+
+        // Verify the genesis hash matches what the rollup config expects
+        let expected_hash = config.rollup_config().genesis.l2.hash;
+        assert_eq!(
+            sealed.hash(),
+            expected_hash,
+            "L2 genesis hash mismatch: builder produced {:?} but rollup config expects {:?}",
+            sealed.hash(),
+            expected_hash,
+        );
 
         let genesis_block = L2Block {
             header: sealed,
@@ -134,6 +159,12 @@ impl L2ChainBuilder {
         self.seq_num = 0;
     }
 
+    /// Advance the sequence number by 1 without building a block.
+    /// Used when the genesis block already consumed `seq_num` 0 for the genesis epoch.
+    pub const fn advance_seq_num(&mut self) {
+        self.seq_num += 1;
+    }
+
     /// Build the next L2 block with only the L1 info deposit transaction (empty block).
     pub fn build_empty_block(&mut self) -> Result<L2BlockRef, Box<dyn std::error::Error>> {
         self.build_block(vec![])
@@ -150,13 +181,14 @@ impl L2ChainBuilder {
     ) -> Result<L2BlockRef, Box<dyn std::error::Error>> {
         let epoch = self.current_epoch.as_ref().ok_or("must set epoch before building blocks")?;
 
-        let prev = self.blocks.last().expect("always have genesis");
-        let parent_header = prev.header.inner();
+        // Extract all values from the parent block before taking &mut self for execution.
+        let parent_header = self.blocks.last().expect("always have genesis").header.inner().clone();
+        let parent_hash = self.blocks.last().expect("always have genesis").header.hash();
         let block_num = parent_header.number + 1;
         let timestamp = parent_header.timestamp + self.config.l2_block_time;
 
         // Compute base fee from parent header using Holocene EIP-1559 params
-        let base_fee = next_base_fee(parent_header);
+        let base_fee = next_base_fee(&parent_header, &self.config);
 
         // Build L1 info deposit tx
         let deposit_tx = l1_info_deposit_tx(&self.config, &epoch.l1_block, self.seq_num)?;
@@ -187,57 +219,82 @@ impl L2ChainBuilder {
             ..Default::default()
         };
 
-        let parent_hash = prev.header.hash();
-
         // In OP Stack, the L2 block's parent_beacon_block_root comes from the L1 origin
         let parent_beacon_block_root = epoch.l1_block.header.inner().parent_beacon_block_root;
 
-        // Execute all transactions through the EVM (including pre-block system calls)
-        let (receipts, evm_state) = self.execute_transactions(
+        // Execute all transactions through OpBlockExecutor (same executor used by op-reth).
+        let (receipts, gas_used) = self.execute_transactions(
             &all_txs,
             spec_id,
             block_env,
-            block_num,
             parent_hash,
             parent_beacon_block_root,
         )?;
 
-        // Apply state changes to our tracked state
-        self.state.apply_evm_result(&evm_state);
-
         // Compute roots from real execution results
         let transactions_root = compute_transactions_root(&all_txs);
         let receipts_root = compute_receipts_root(&receipts);
-        let logs_bloom = receipts_bloom(&receipts);
-        let gas_used = cumulative_gas_from_receipts(&receipts);
+        let logs_bloom = {
+            let mut bloom = Bloom::default();
+            for receipt in &receipts {
+                bloom.accrue_bloom(receipt.logs_bloom());
+            }
+            bloom
+        };
 
         // Snapshot state after applying changes (for state root)
         let snapshot = self.state.snapshot();
         let state_root = snapshot.state_root;
 
+        let hardforks = &self.config.rollup_config().hardforks;
+
         // Three-way withdrawals_root per OP Stack spec (matching kona assemble.rs):
         // - Isthmus active: L2ToL1MessagePasser storage root
         // - Canyon active (pre-Isthmus): EMPTY_ROOT_HASH
         // - Pre-Canyon: None
-        let withdrawals_root = if self.config.hardforks.isthmus_time.is_some_and(|t| timestamp >= t)
-        {
+        let withdrawals_root = if hardforks.isthmus_time.is_some_and(|t| timestamp >= t) {
             Some(message_passer_storage_root_from_state(&self.state))
-        } else if self.config.hardforks.canyon_time.is_some_and(|t| timestamp >= t) {
+        } else if hardforks.canyon_time.is_some_and(|t| timestamp >= t) {
             Some(crate::state::roots::EMPTY_ROOT_HASH)
         } else {
             None
         };
 
         // Isthmus requires requests_hash per EIP-7685
-        let requests_hash = self
-            .config
-            .hardforks
-            .isthmus_time
-            .filter(|&t| timestamp >= t)
-            .map(|_| EMPTY_REQUESTS_HASH);
+        let requests_hash =
+            hardforks.isthmus_time.filter(|&t| timestamp >= t).map(|_| EMPTY_REQUESTS_HASH);
+
+        // Build EIP-1559 extra data for non-genesis blocks.
+        // Jovian: 17 bytes [0x01, denom_be32, elasticity_be32, min_base_fee_be64]
+        // Holocene: 9 bytes [0x00, denom_be32, elasticity_be32]
+        let extra_data = if hardforks.jovian_time.is_some_and(|t| timestamp >= t) {
+            let denom = self.config.eip1559_denominator();
+            let elasticity = self.config.eip1559_elasticity();
+            let min_base_fee = self.config.min_base_fee();
+            let eip_1559_params = alloy_primitives::B64::from({
+                let mut b = [0u8; 8];
+                b[0..4].copy_from_slice(&denom.to_be_bytes());
+                b[4..8].copy_from_slice(&elasticity.to_be_bytes());
+                b
+            });
+            let default_params =
+                alloy_eips::eip1559::BaseFeeParams::new(denom as u128, elasticity as u128);
+            op_alloy_consensus::encode_jovian_extra_data(
+                eip_1559_params,
+                default_params,
+                min_base_fee,
+            )
+            .expect("failed to encode jovian extra data")
+        } else {
+            crate::config::holocene_extra_data(
+                self.config.eip1559_denominator(),
+                self.config.eip1559_elasticity(),
+            )
+        };
 
         let header = Header {
-            parent_hash: prev.header.hash(),
+            parent_hash,
+            beneficiary: self.config.fee_recipient,
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             number: block_num,
             timestamp,
@@ -256,7 +313,7 @@ impl L2ChainBuilder {
             // EIP-4399: mix_hash carries L1 origin's prevRandao post-merge
             mix_hash: prev_randao,
             // Holocene EIP-1559 params in extra data
-            extra_data: crate::config::holocene_extra_data(),
+            extra_data,
             requests_hash,
             ..Default::default()
         };
@@ -270,103 +327,92 @@ impl L2ChainBuilder {
         Ok(L2BlockRef { index: self.blocks.len() - 1 })
     }
 
-    /// Execute all transactions through the OP Stack EVM.
+    /// Execute all transactions through the OP Stack EVM using `OpBlockExecutor`.
     ///
-    /// Applies EIP-4788 (beacon block root) and EIP-2935 (block hash history) system
-    /// calls before processing transactions, matching go-ethereum's block processing.
+    /// This uses the same block executor as op-reth, which handles system calls (EIP-4788
+    /// beacon block root, EIP-2935 block hash history), transaction execution, receipt
+    /// construction, and post-block balance increments canonically.
     fn execute_transactions(
-        &self,
+        &mut self,
         txs: &[OpTxEnvelope],
         spec_id: OpSpecId,
         block_env: BlockEnv,
-        block_num: u64,
         parent_hash: B256,
         parent_beacon_block_root: Option<B256>,
-    ) -> Result<(Vec<OpReceiptEnvelope>, revm::state::EvmState), Box<dyn std::error::Error>> {
+    ) -> Result<(Vec<OpReceiptEnvelope>, u64), Box<dyn std::error::Error>> {
         let cfg_env: CfgEnv<OpSpecId> = CfgEnv::new()
             .with_chain_id(self.config.l2_chain_id)
             .with_spec_and_mainnet_gas_params(spec_id);
 
-        let default_tx = OpTransaction::builder().build_fill();
+        // Wrap the CacheDB in a State wrapper (required by OpBlockExecutor for StateDB trait)
         let db = self.state.db.clone();
+        let mut state_db =
+            revm::database::State::builder().with_database(db).with_bundle_update().build();
 
-        type EvmDb = CacheDB<revm::database::EmptyDB>;
-        let base_ctx: Context<BlockEnv, TxEnv, CfgEnv<OpSpecId>, EvmDb, Journal<EvmDb>, ()> =
-            Context::new(db, spec_id);
+        // Create the EVM factory and block executor factory
+        let evm_factory =
+            alloy_op_evm::OpEvmFactory::<op_revm::OpTransaction<revm::context::TxEnv>>::default();
+        let executor_factory = OpBlockExecutorFactory::new(
+            OpAlloyReceiptBuilder::default(),
+            self.config.rollup_config().clone(),
+            evm_factory,
+        );
 
-        let ctx = base_ctx
-            .with_block(block_env)
-            .with_cfg(cfg_env)
-            .with_tx(default_tx)
-            .with_chain(L1BlockInfo::default());
+        // Create the EVM with the block and cfg environments
+        let evm_env = EvmEnv::new(cfg_env, block_env);
+        let evm = executor_factory.evm_factory().create_evm(&mut state_db, evm_env);
 
-        let mut evm = ctx.build_op();
+        // Create the block execution context
+        let ctx = OpBlockExecutionCtx {
+            parent_hash,
+            parent_beacon_block_root,
+            extra_data: Bytes::default(),
+        };
 
-        // Pre-block system calls (skip genesis block per EIP specs)
-        if block_num > 0 {
-            // EIP-4788: store parent beacon block root (Cancun+)
-            if let Some(beacon_root) = parent_beacon_block_root {
-                evm.system_call_one(
-                    alloy_eips::eip4788::BEACON_ROOTS_ADDRESS,
-                    beacon_root.0.into(),
-                )
-                .map_err(|e| format!("EIP-4788 system call failed: {e:?}"))?;
-            }
+        // Create the executor
+        let mut executor = executor_factory.create_executor(evm, ctx);
 
-            // EIP-2935: store parent block hash (Prague+ / Isthmus+)
-            if spec_id.is_enabled_in(OpSpecId::ISTHMUS) {
-                evm.system_call_one(
-                    alloy_eips::eip2935::HISTORY_STORAGE_ADDRESS,
-                    parent_hash.0.into(),
-                )
-                .map_err(|e| format!("EIP-2935 system call failed: {e:?}"))?;
-            }
-        }
+        // Apply pre-execution changes (system calls: EIP-4788, EIP-2935, create2 deployer)
+        executor
+            .apply_pre_execution_changes()
+            .map_err(|e| format!("pre-execution changes failed: {e:?}"))?;
 
-        let mut receipts = Vec::with_capacity(txs.len());
-        let mut cumulative_gas_used: u64 = 0;
-
+        // Execute each transaction
         for (i, tx) in txs.iter().enumerate() {
-            let is_deposit = matches!(tx, OpTxEnvelope::Deposit(_));
-            let sender = deposit_sender(tx);
-            let op_tx = envelope_to_op_transaction(tx)?;
-
-            let result = evm.transact_one(op_tx).map_err(|e| format!("EVM error tx {i}: {e:?}"))?;
-
-            // For deposit transactions, read the sender's post-execution nonce from the
-            // journal state. Per the OP Stack spec (Canyon+), the deposit nonce in the
-            // receipt must be the depositor's nonce after execution.
-            let deposit_nonce = if is_deposit {
-                sender.and_then(|addr| {
-                    evm.0.journaled_state.state.get(&addr).map(|acc| acc.info.nonce)
-                })
-            } else {
-                None
+            let sender = match tx {
+                OpTxEnvelope::Deposit(sealed_deposit) => sealed_deposit.inner().from,
+                _ => tx.recover_signer()?,
             };
+            let recovered = Recovered::new_unchecked(tx.clone(), sender);
 
-            let (gas_used, logs, success) = match &result {
-                ExecutionResult::Success { gas_used, logs, .. } => (*gas_used, logs.clone(), true),
-                ExecutionResult::Revert { gas_used, .. }
-                | ExecutionResult::Halt { gas_used, .. } => (*gas_used, vec![], false),
-            };
-
-            cumulative_gas_used += gas_used;
-
-            let is_canyon = spec_id.is_enabled_in(OpSpecId::CANYON);
-            let receipt = build_execution_receipt(
-                tx,
-                success,
-                cumulative_gas_used,
-                logs,
-                deposit_nonce,
-                is_canyon,
-            );
-            receipts.push(receipt);
+            executor
+                .execute_transaction(&recovered)
+                .map_err(|e| format!("EVM error tx {i}: {e:?}"))?;
         }
 
-        let evm_state = evm.finalize();
+        // Finish execution (applies post-block balance increments)
+        let (evm, result) =
+            executor.finish().map_err(|e| format!("block execution finish failed: {e:?}"))?;
 
-        Ok((receipts, evm_state))
+        let receipts = result.receipts;
+        let gas_used = result.gas_used;
+
+        // Extract the State wrapper from the EVM and get the bundle state.
+        // The EVM holds &mut State<CacheDB<EmptyDB>>; finish() returns it.
+        let (state_db_ref, _evm_env): (_, EvmEnv<OpSpecId>) = alloy_evm::Evm::finish(evm);
+        state_db_ref
+            .merge_transitions(revm_database::states::bundle_state::BundleRetention::PlainState);
+        let bundle = state_db_ref.take_bundle();
+
+        // Extract the underlying CacheDB from the State wrapper.
+        // The State's cache contains all committed changes, but we need a plain CacheDB.
+        // Rebuild it from the State's cache.
+        let post_db = rebuild_cache_db(state_db_ref);
+
+        // Apply the bundle state to our tracked state
+        self.state.apply_bundle_state(&bundle, post_db);
+
+        Ok((receipts, gas_used))
     }
 
     /// Build N empty (deposit-only) L2 blocks.
@@ -417,149 +463,57 @@ impl L2ChainBuilder {
     }
 }
 
-/// Extract the sender address from a deposit transaction.
-const fn deposit_sender(tx: &OpTxEnvelope) -> Option<Address> {
-    match tx {
-        OpTxEnvelope::Deposit(sealed_deposit) => Some(sealed_deposit.inner().from),
-        _ => None,
-    }
-}
+/// Rebuild a plain `CacheDB<EmptyDB>` from a `State<CacheDB<EmptyDB>>` after execution.
+///
+/// The `State` wrapper stores all committed changes in its internal cache. This function
+/// extracts those changes into a fresh `CacheDB` that can replace the pre-execution one.
+fn rebuild_cache_db(
+    state: &revm::database::State<CacheDB<revm::database::EmptyDB>>,
+) -> CacheDB<revm::database::EmptyDB> {
+    let mut db = CacheDB::new(revm::database::EmptyDB::default());
 
-/// Convert an `OpTxEnvelope` to an `OpTransaction<TxEnv>` for revm execution.
-fn envelope_to_op_transaction(
-    tx: &OpTxEnvelope,
-) -> Result<OpTransaction<TxEnv>, Box<dyn std::error::Error>> {
-    match tx {
-        OpTxEnvelope::Deposit(sealed_deposit) => {
-            let deposit = sealed_deposit.inner();
-            let base = TxEnv {
-                tx_type: 0x7E,
-                caller: deposit.from,
-                gas_limit: deposit.gas_limit,
-                gas_price: 0,
-                kind: deposit.to,
-                value: deposit.value,
-                data: deposit.input.clone(),
-                nonce: 0,
-                chain_id: None,
-                gas_priority_fee: None,
-                ..Default::default()
-            };
-
-            Ok(OpTransaction {
-                base,
-                enveloped_tx: None,
-                deposit: DepositTransactionParts {
-                    source_hash: deposit.source_hash,
-                    mint: (deposit.mint > 0).then_some(deposit.mint),
-                    is_system_transaction: deposit.is_system_transaction,
-                },
-            })
-        }
-        _ => {
-            let sender = tx.recover_signer()?;
-
-            // Encode the transaction envelope for L1 cost calculation
-            let mut encoded = Vec::new();
-            tx.encode_2718(&mut encoded);
-
-            let base = TxEnv {
-                tx_type: tx.ty(),
-                caller: sender,
-                gas_limit: tx.gas_limit(),
-                gas_price: tx.max_fee_per_gas(),
-                kind: tx.kind(),
-                value: tx.value(),
-                data: tx.input().clone(),
-                nonce: tx.nonce(),
-                chain_id: tx.chain_id(),
-                gas_priority_fee: tx.max_priority_fee_per_gas(),
-                access_list: tx.access_list().cloned().unwrap_or_default(),
-                // EIP-4844 blob txs cannot appear as L2 user transactions (L1-only),
-                // so blob fields use defaults.
-                blob_hashes: Vec::new(),
-                max_fee_per_blob_gas: 0,
-                authorization_list: tx
-                    .authorization_list()
-                    .map(|auths| auths.iter().cloned().map(Either::Left).collect())
-                    .unwrap_or_default(),
-            };
-
-            Ok(OpTransaction {
-                base,
-                enveloped_tx: Some(Bytes::from(encoded)),
-                deposit: DepositTransactionParts::default(),
-            })
+    // Copy all cached accounts from the State wrapper's cache
+    for (addr, cache_account) in &state.cache.accounts {
+        if let Some(ref account) = cache_account.account {
+            // Insert account info
+            db.insert_account_info(*addr, account.info.clone());
+            // Insert storage
+            for (slot, value) in &account.storage {
+                let _ = db.insert_account_storage(*addr, *slot, *value);
+            }
         }
     }
-}
 
-/// Build a receipt from EVM execution results.
-fn build_execution_receipt(
-    tx: &OpTxEnvelope,
-    success: bool,
-    cumulative_gas_used: u64,
-    logs: Vec<Log>,
-    deposit_nonce: Option<u64>,
-    is_canyon: bool,
-) -> OpReceiptEnvelope {
-    use alloy_consensus::Eip658Value;
-
-    let bloom = alloy_primitives::logs_bloom(logs.iter());
-    let status = Eip658Value::Eip658(success);
-
-    match tx {
-        OpTxEnvelope::Deposit(_) => {
-            let receipt = OpDepositReceipt {
-                inner: Receipt { status, cumulative_gas_used, logs },
-                deposit_nonce,
-                deposit_receipt_version: is_canyon.then_some(1),
-            };
-            OpReceiptEnvelope::Deposit(ReceiptWithBloom::new(receipt, bloom))
-        }
-        OpTxEnvelope::Legacy(_) => {
-            let receipt = Receipt { status, cumulative_gas_used, logs };
-            OpReceiptEnvelope::Legacy(ReceiptWithBloom::new(receipt, bloom))
-        }
-        OpTxEnvelope::Eip2930(_) => {
-            let receipt = Receipt { status, cumulative_gas_used, logs };
-            OpReceiptEnvelope::Eip2930(ReceiptWithBloom::new(receipt, bloom))
-        }
-        OpTxEnvelope::Eip1559(_) => {
-            let receipt = Receipt { status, cumulative_gas_used, logs };
-            OpReceiptEnvelope::Eip1559(ReceiptWithBloom::new(receipt, bloom))
-        }
-        OpTxEnvelope::Eip7702(_) => {
-            let receipt = Receipt { status, cumulative_gas_used, logs };
-            OpReceiptEnvelope::Eip7702(ReceiptWithBloom::new(receipt, bloom))
-        }
+    // Also copy contracts
+    for (hash, bytecode) in &state.cache.contracts {
+        db.cache.contracts.insert(*hash, bytecode.clone());
     }
-}
 
-/// Compute the aggregate logs bloom from all receipts.
-fn receipts_bloom(receipts: &[OpReceiptEnvelope]) -> Bloom {
-    let mut bloom = Bloom::default();
-    for receipt in receipts {
-        bloom.accrue_bloom(receipt.logs_bloom());
-    }
-    bloom
-}
-
-/// Get the cumulative gas used from the last receipt.
-fn cumulative_gas_from_receipts(receipts: &[OpReceiptEnvelope]) -> u64 {
-    receipts.last().map_or(0, |r| r.cumulative_gas_used())
+    db
 }
 
 /// Compute the next block's base fee from the parent header using Holocene EIP-1559 parameters.
 ///
 /// Decodes elasticity and denominator from the parent's `extra_data` field and uses the
-/// standard EIP-1559 formula. Falls back to the parent's base fee if params can't be decoded.
-fn next_base_fee(parent: &Header) -> u64 {
-    let (elasticity, denominator) =
-        op_alloy_consensus::decode_holocene_extra_data(&parent.extra_data)
-            .unwrap_or((crate::config::EIP1559_ELASTICITY, crate::config::EIP1559_DENOMINATOR));
+/// standard EIP-1559 formula. Falls back to the config's `chain_op_config` values.
+fn next_base_fee(parent: &Header, config: &DeterministicConfig) -> u64 {
+    // Try Jovian (17-byte) format first, then Holocene (9-byte), then fallback to config defaults.
+    let (elasticity, denominator, min_base_fee) =
+        op_alloy_consensus::decode_jovian_extra_data(&parent.extra_data)
+            .map(|(e, d, mbf)| (e, d, Some(mbf)))
+            .or_else(|_| {
+                op_alloy_consensus::decode_holocene_extra_data(&parent.extra_data)
+                    .map(|(e, d)| (e, d, None))
+            })
+            .unwrap_or_else(|_| (config.eip1559_elasticity(), config.eip1559_denominator(), None));
     let params = BaseFeeParams::new(denominator as u128, elasticity as u128);
-    parent.next_block_base_fee(params).unwrap_or_else(|| parent.base_fee_per_gas.unwrap_or(1))
+    let mut base_fee =
+        parent.next_block_base_fee(params).unwrap_or_else(|| parent.base_fee_per_gas.unwrap_or(1));
+    // Apply minimum base fee floor (Jovian+)
+    if let Some(mbf) = min_base_fee {
+        base_fee = base_fee.max(mbf);
+    }
+    base_fee
 }
 
 /// Compute the `L2ToL1MessagePasser` storage root from a state snapshot.
@@ -613,8 +567,20 @@ mod tests {
         // Genesis has no parent, so parent_hash is zero
         assert_eq!(genesis.header.inner().parent_hash, B256::ZERO);
         assert!(genesis.transactions.is_empty(), "genesis should have no transactions");
-        // Holocene extra data should be set
-        assert_eq!(genesis.header.inner().extra_data.len(), 9);
+        // Extra data should be set (from genesis JSON)
+        assert!(!genesis.header.inner().extra_data.is_empty());
+    }
+
+    #[test]
+    fn genesis_state_root_matches_go() {
+        let (config, _l1, l2) = setup_builder();
+        let snapshot = l2.head_snapshot();
+        let go_state_root = config.l2_genesis_state_root;
+        let framework_state_root = snapshot.state_root;
+        assert_eq!(
+            framework_state_root, go_state_root,
+            "Framework's trie-computed genesis state root must match Go's Genesis.ToBlock() state root"
+        );
     }
 
     #[test]
@@ -623,9 +589,6 @@ mod tests {
         let rollup = config.rollup_config();
         let builder_hash = l2.head().header.hash();
         let config_hash = rollup.genesis.l2.hash;
-        eprintln!("Builder genesis hash: {:?}", builder_hash);
-        eprintln!("Config genesis hash:  {:?}", config_hash);
-        eprintln!("Builder extra_data:   {:?}", l2.head().header.inner().extra_data);
         assert_eq!(builder_hash, config_hash, "Genesis hash from builder must match rollup config");
     }
 
@@ -648,11 +611,16 @@ mod tests {
 
         // The deposit tx in build_block will bump the nonce for the L1 info depositor,
         // but the prefunded account starts at nonce 0.
+        // max_fee_per_gas must be >= the current base fee (which starts at
+        // 1 gwei from the op-deployer genesis and decays each empty block).
+        let base_fee = l2.head().header.inner().base_fee_per_gas.unwrap_or(1_000_000_000);
+        // The prefunded account has nonce > 0 from op-deployer genesis deployment.
+        let prefunded_nonce = l2.state().account(&PREFUNDED_ACCOUNT).map_or(0, |a| a.nonce);
         let tx = TxEip1559 {
             chain_id: config.l2_chain_id,
-            nonce: 0,
+            nonce: prefunded_nonce,
             gas_limit: 21_000,
-            max_fee_per_gas: 1,
+            max_fee_per_gas: base_fee as u128,
             max_priority_fee_per_gas: 0,
             to: TxKind::Call(Address::with_last_byte(0x42)),
             value: U256::from(1u64),

@@ -57,23 +57,30 @@ test-docs:
 
 MONOREPO_ROOT := justfile_directory() / ".."
 
+# Generate genesis files for derivation tests via op-deployer
+generate-genesis:
+  bash derivation-tests/scripts/generate-genesis.sh
+
 # Run derivation-tests unit tests (excludes integration tests that require external binaries)
 test-derivation *args='':
   cargo nextest run -p derivation-tests -E '!binary(integration)' {{args}}
 
 # Run derivation-tests integration tests (builds op-program and kona-host first)
-test-derivation-integration: _build-op-program _build-kona-host
+test-derivation-integration: generate-genesis _build-op-program _build-kona-host
+  DERIVATION_TESTDATA={{justfile_directory()}}/derivation-tests/testdata/generated \
   OP_PROGRAM_PATH={{MONOREPO_ROOT}}/op-program/bin/op-program \
   KONA_HOST_PATH={{justfile_directory()}}/target/debug/kona-host \
     cargo nextest run -p derivation-tests -E 'binary(integration)'
 
 # Run derivation-tests integration tests against op-program only
-test-derivation-op-program: _build-op-program
+test-derivation-op-program: generate-genesis _build-op-program
+  DERIVATION_TESTDATA={{justfile_directory()}}/derivation-tests/testdata/generated \
   OP_PROGRAM_PATH={{MONOREPO_ROOT}}/op-program/bin/op-program \
     cargo nextest run -p derivation-tests -E 'binary(integration) & test(test_op_program)'
 
 # Run derivation-tests integration tests against kona-host only
-test-derivation-kona-host: _build-kona-host
+test-derivation-kona-host: generate-genesis _build-kona-host
+  DERIVATION_TESTDATA={{justfile_directory()}}/derivation-tests/testdata/generated \
   KONA_HOST_PATH={{justfile_directory()}}/target/debug/kona-host \
     cargo nextest run -p derivation-tests -E 'binary(integration) & test(test_kona_host)'
 

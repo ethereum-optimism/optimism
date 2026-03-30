@@ -49,6 +49,10 @@ impl DerivationTest {
     pub fn with_config(config: DeterministicConfig) -> Self {
         let l1 = L1ChainBuilder::new(&config);
         let l2 = L2ChainBuilder::new(&config);
+        // Initialize the prefunded nonce from genesis state (may be > 0 due to
+        // op-deployer using the account during deployment).
+        let prefunded_nonce =
+            l2.state().account(&crate::config::PREFUNDED_ACCOUNT).map_or(0, |a| a.nonce);
         Self {
             config,
             l1,
@@ -56,7 +60,7 @@ impl DerivationTest {
             channel_counter: 0,
             dsl_epoch_block: None,
             pending_l2_blocks: Vec::new(),
-            prefunded_nonce: 0,
+            prefunded_nonce,
         }
     }
 
@@ -101,15 +105,15 @@ impl DerivationTest {
         block_refs: &[L2BlockRef],
         l1_origin: &L1Block,
     ) -> BatchSubmission {
-        let rollup_config = self.config.rollup_config();
         let channel_id = self.next_channel_id();
+        let rollup_config = self.config.rollup_config();
         let origin =
             L1Origin { number: l1_origin.header.inner().number, hash: l1_origin.header.hash() };
 
         let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
         for block_ref in block_refs {
             let block = self.l2.block(*block_ref);
-            let batch = block_to_singular_batch(block, &rollup_config, origin);
+            let batch = block_to_singular_batch(block, rollup_config, origin);
             channel.add_singular_batch(&batch).expect("add batch failed");
         }
         channel.close().expect("close channel failed");
@@ -126,13 +130,13 @@ impl DerivationTest {
         block_refs: &[L2BlockRef],
         l1_origin: &L1Block,
     ) -> BatchSubmission {
-        let rollup_config = self.config.rollup_config();
         let channel_id = self.next_channel_id();
+        let rollup_config = self.config.rollup_config();
         let origin =
             L1Origin { number: l1_origin.header.inner().number, hash: l1_origin.header.hash() };
 
         let blocks: Vec<_> = block_refs.iter().map(|r| self.l2.block(*r)).collect();
-        let span_batch = build_span_batch(&blocks, origin, &rollup_config);
+        let span_batch = build_span_batch(&blocks, origin, rollup_config);
 
         let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
         channel.add_span_batch(&span_batch).expect("add span batch failed");
@@ -149,13 +153,13 @@ impl DerivationTest {
         block_refs: &[L2BlockRef],
         l1_origin: &L1Block,
     ) -> BatchSubmission {
-        let rollup_config = self.config.rollup_config();
         let channel_id = self.next_channel_id();
+        let rollup_config = self.config.rollup_config();
         let origin =
             L1Origin { number: l1_origin.header.inner().number, hash: l1_origin.header.hash() };
 
         let blocks: Vec<_> = block_refs.iter().map(|r| self.l2.block(*r)).collect();
-        let span_batch = build_span_batch(&blocks, origin, &rollup_config);
+        let span_batch = build_span_batch(&blocks, origin, rollup_config);
 
         let mut channel = ChannelOut::new(channel_id, CompressionAlgo::Zlib);
         channel.add_span_batch(&span_batch).expect("add span batch failed");
@@ -290,6 +294,9 @@ impl DerivationTest {
         if self.dsl_epoch_block.is_none() {
             let genesis = self.l1.block_at(0).expect("L1 must have a genesis block").clone();
             self.l2.set_epoch(&genesis);
+            // The L2 genesis block already consumed seq_num 0 for the genesis epoch,
+            // so the first derived block starts at seq_num 1.
+            self.l2.advance_seq_num();
             self.dsl_epoch_block = Some(genesis);
         }
     }

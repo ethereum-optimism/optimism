@@ -1,0 +1,48 @@
+configType = "custom"
+opDeployerVersion = "v0.0.0-dev"
+l1ChainID = 900
+fundDevAccounts = true
+l1ContractsLocator = "embedded"
+l2ContractsLocator = "embedded"
+useInterop = false
+
+# Pin the L1 genesis timestamp for deterministic genesis hashes.
+# This ensures every run of generate-genesis.sh produces the same L1 and L2
+# genesis blocks, making golden test hashes stable.
+[l1DevGenesisParams]
+  pragueTimeOffset = 0
+  [l1DevGenesisParams.blockParams]
+    timestamp = 1700000000
+    gasLimit = 30000000
+
+[superchainRoles]
+  SuperchainProxyAdminOwner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  SuperchainGuardian = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  ProtocolVersionsOwner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  Challenger = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+
+[[chains]]
+  id = "0x0000000000000000000000000000000000000000000000000000000000000385"
+  baseFeeVaultRecipient = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  l1FeeVaultRecipient = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  sequencerFeeVaultRecipient = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  operatorFeeVaultRecipient = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  eip1559DenominatorCanyon = 250
+  eip1559Denominator = 250
+  eip1559Elasticity = 6
+  gasLimit = 30000000
+  operatorFeeScalar = 0
+  operatorFeeConstant = 0
+  chainFeesRecipient = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  minBaseFee = 0
+  daFootprintGasScalar = 0
+  [chains.roles]
+    l1ProxyAdminOwner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    l2ProxyAdminOwner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    systemConfigOwner = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    unsafeBlockSigner = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+    batcher = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    proposer = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    challenger = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  [chains.customGasToken]
+    liquidityControllerOwner = "0x0000000000000000000000000000000000000000"
