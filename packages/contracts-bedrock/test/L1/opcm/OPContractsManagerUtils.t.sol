@@ -86,6 +86,8 @@ contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
     IStorageSetter internal storageSetter;
 
     function setUp() public virtual {
+        resolveFeaturesFromEnv();
+
         // Etch code into the magic testing address so we're recognized as a test env.
         vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"01");
 
@@ -131,7 +133,7 @@ contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
         });
 
         // Deploy the container and utils.
-        container = new OPContractsManagerContainer(blueprints, implementations, bytes32(0));
+        container = new OPContractsManagerContainer(blueprints, implementations, devFeatureBitmap);
         utils = new OPContractsManagerUtils(IOPContractsManagerContainer(address(container)));
     }
 

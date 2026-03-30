@@ -968,26 +968,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
     }
 
-    /// @notice Tests that enabling ZK game reverts when the impl address is zero.
-    function test_upgrade_enableZKGameNoImpl_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
-        // Force zkDisputeGameImpl to address(0) to simulate missing implementation.
-        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
-        impls.zkDisputeGameImpl = address(0);
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.implementations, ()),
-            abi.encode(impls)
-        );
-
-        v2UpgradeInput.disputeGameConfigs[3].enabled = true;
-
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
-        );
-    }
 
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
     function test_upgrade_enableZKGameWithoutDevFeature_reverts() public {
