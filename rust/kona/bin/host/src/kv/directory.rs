@@ -72,15 +72,14 @@ mod test {
         proptest,
         test_runner::Config,
     };
-    use std::env::temp_dir;
 
     proptest! {
         #![proptest_config(Config::with_cases(16))]
 
         #[test]
         fn directory_kv_roundtrip(k_v in hash_map(any::<[u8; 32]>(), vec(any::<u8>(), 0..128), 1..128)) {
-            let tempdir = temp_dir();
-            let mut kv = DirectoryKeyValueStore::new(tempdir);
+            let tempdir = tempfile::TempDir::new().unwrap();
+            let mut kv = DirectoryKeyValueStore::new(tempdir.path().to_path_buf());
 
             for (k, v) in &k_v {
                 kv.set((*k).into(), v.clone()).unwrap();
@@ -95,17 +94,17 @@ mod test {
 
     #[test]
     fn writes_kvformat_marker() {
-        let tempdir = temp_dir().join("kona_test_kvformat");
-        let _kv = DirectoryKeyValueStore::new(tempdir.clone());
+        let tempdir = tempfile::TempDir::new().unwrap();
+        let _kv = DirectoryKeyValueStore::new(tempdir.path().to_path_buf());
 
-        let marker = std::fs::read_to_string(tempdir.join("kvformat")).unwrap();
+        let marker = std::fs::read_to_string(tempdir.path().join("kvformat")).unwrap();
         assert_eq!(marker, "directory");
     }
 
     #[test]
     fn key_path_layout() {
-        let tempdir = temp_dir().join("kona_test_layout");
-        let kv = DirectoryKeyValueStore::new(tempdir);
+        let tempdir = tempfile::TempDir::new().unwrap();
+        let kv = DirectoryKeyValueStore::new(tempdir.path().to_path_buf());
 
         let key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             .parse::<B256>()

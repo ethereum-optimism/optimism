@@ -2,11 +2,10 @@
 
 use super::{SingleChainHintHandler, SingleChainLocalInputs};
 use crate::{
-    DirectoryKeyValueStore, DiskKeyValueStore, MemoryKeyValueStore, OfflineHostBackend,
-    OnlineHostBackend, OnlineHostBackendCfg, PreimageServer, SharedKeyValueStore,
-    SplitKeyValueStore,
+    OfflineHostBackend, OnlineHostBackend, OnlineHostBackendCfg, PreimageServer,
+    SharedKeyValueStore,
     eth::rpc_provider,
-    kv::{DataFormat, detect_data_format},
+    kv::{DataFormat, create_key_value_store},
     server::PreimageServerError,
 };
 use alloy_primitives::B256;
@@ -23,10 +22,7 @@ use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
 use serde::Serialize;
 use std::{path::PathBuf, sync::Arc};
-use tokio::{
-    sync::RwLock,
-    task::{self, JoinHandle},
-};
+use tokio::task::{self, JoinHandle};
 
 /// The host binary CLI application arguments.
 #[derive(Default, Parser, Serialize, Clone, Debug)]
@@ -265,26 +261,7 @@ impl SingleChainHost {
     /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
     pub fn create_key_value_store(&self) -> Result<SharedKeyValueStore, SingleChainHostError> {
         let local_kv_store = SingleChainLocalInputs::new(self.clone());
-
-        let kv_store: SharedKeyValueStore = if let Some(ref data_dir) = self.data_dir {
-            let format = detect_data_format(data_dir, self.data_format);
-            match format {
-                DataFormat::Directory => {
-                    let dir_kv_store = DirectoryKeyValueStore::new(data_dir.clone());
-                    Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, dir_kv_store)))
-                }
-                DataFormat::Rocksdb => {
-                    let disk_kv_store = DiskKeyValueStore::new(data_dir.clone());
-                    Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, disk_kv_store)))
-                }
-            }
-        } else {
-            let mem_kv_store = MemoryKeyValueStore::new();
-            let split_kv_store = SplitKeyValueStore::new(local_kv_store, mem_kv_store);
-            Arc::new(RwLock::new(split_kv_store))
-        };
-
-        Ok(kv_store)
+        Ok(create_key_value_store(local_kv_store, self.data_dir.as_ref(), self.data_format))
     }
 
     /// Creates the providers required for the host backend.
