@@ -385,7 +385,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // the per-chain output root from the super root. Legacy game types use rootClaim directly.
         // TODO(#19816): Post interop clean up the legacy rootClaim() usage in OptimismPortal2.
         Claim outputRootClaim;
-        if (_isSuperGameType(disputeGameProxy.gameType())) {
+        if (GameTypes.isSuperGame(disputeGameProxy.gameType())) {
             outputRootClaim = disputeGameProxy.rootClaimByChainId(systemConfig.l2ChainId());
         } else {
             outputRootClaim = disputeGameProxy.rootClaim();
@@ -633,15 +633,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
-    }
-
-    /// @notice Checks if a game type is a super game type. Super game types use super roots that
-    ///         contain per-chain output roots, requiring rootClaimByChainId to extract the output
-    ///         root for a specific chain.
-    /// @param _gameType The game type to check.
-    /// @return True if the game type is a super game type.
-    function _isSuperGameType(GameType _gameType) internal pure returns (bool) {
-        return GameTypes.isSuperGame(_gameType);
     }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
