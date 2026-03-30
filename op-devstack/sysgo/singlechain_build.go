@@ -157,7 +157,7 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 	case MixedL2ELOpGeth:
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	default: // op-reth
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil)
+		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, nil)
 	}
 }
 

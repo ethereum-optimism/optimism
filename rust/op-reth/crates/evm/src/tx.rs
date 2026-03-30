@@ -10,7 +10,7 @@ use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use core::ops::{Deref, DerefMut};
 use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
 use op_revm::{OpTransaction, transaction::deposit::DepositTransactionParts};
-use reth_evm::TransactionEnv;
+use alloy_evm::TransactionEnvMut;
 use revm::context::TxEnv;
 
 /// Helper to convert a deposit transaction into a [`TxEnv`].
@@ -229,13 +229,9 @@ impl<Spec, Block: alloy_evm::env::BlockEnvironment> alloy_evm::rpc::TryIntoTxEnv
     }
 }
 
-impl TransactionEnv for OpTx {
+impl TransactionEnvMut for OpTx {
     fn set_gas_limit(&mut self, gas_limit: u64) {
         self.0.base.gas_limit = gas_limit;
-    }
-
-    fn nonce(&self) -> u64 {
-        self.0.base.nonce
     }
 
     fn set_nonce(&mut self, nonce: u64) {

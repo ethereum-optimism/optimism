@@ -22,9 +22,7 @@ use core::fmt::Debug;
 use op_alloy_consensus::EIP1559ParamError;
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
-use reth_evm::{
-    ConfigureEvm, EvmEnv, TransactionEnv, eth::NextEvmEnvAttributes, precompiles::PrecompilesMap,
-};
+use reth_evm::{ConfigureEvm, EvmEnv, eth::NextEvmEnvAttributes, precompiles::PrecompilesMap};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
