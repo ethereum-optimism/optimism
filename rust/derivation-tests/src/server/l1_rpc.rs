@@ -162,10 +162,7 @@ fn tx_to_json(block_hash: B256, block_number: u64, tx_index: usize, tx_bytes: &B
         let sig = envelope.signature();
 
         // Serialize `to` as address or null for contract creation
-        let to_val = match to {
-            Some(addr) => serde_json::json!(addr),
-            None => Value::Null,
-        };
+        let to_val = to.map_or(Value::Null, |addr| serde_json::json!(addr));
 
         return serde_json::json!({
             "hash": tx_hash,

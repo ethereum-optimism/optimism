@@ -7,6 +7,7 @@ use alloy_primitives::Bytes;
 use derivation_tests::{
     batch::{ChannelOut, CompressionAlgo, L1Origin},
     harness::DerivationTest,
+    l1::BatchSubmission,
 };
 
 #[test]
@@ -15,9 +16,9 @@ fn test_wrong_batcher_address() {
     test.advance_l1(2);
     test.derive_empty_l2_block();
 
-    // Drop to low-level for adversarial part
+    // Submit garbage data as a calldata batch — the derivation pipeline should skip it
     let fake_batch_data = Bytes::from(vec![0x00, 0xDE, 0xAD, 0xBE, 0xEF]);
-    test.l1.emit_block_with_raw_txs(vec![fake_batch_data]);
+    test.l1.emit_block_with_batches(vec![BatchSubmission::Calldata(fake_batch_data)]);
 
     let root1 = test.expected_super_root();
     let root2 = test.expected_super_root();
@@ -30,12 +31,12 @@ fn test_truncated_frame() {
     test.advance_l1(2);
     test.derive_empty_l2_block();
 
-    // Drop to low-level for adversarial part
+    // Submit truncated/garbage calldata batches — derivation pipeline should skip them
     let truncated_frame = Bytes::from(vec![0x00, 0x01, 0x02]);
-    test.l1.emit_block_with_raw_txs(vec![truncated_frame]);
+    test.l1.emit_block_with_batches(vec![BatchSubmission::Calldata(truncated_frame)]);
 
     let random_garbage = Bytes::from(vec![0xFF, 0xFE, 0xFD, 0xFC, 0xFB, 0xFA]);
-    test.l1.emit_block_with_raw_txs(vec![random_garbage]);
+    test.l1.emit_block_with_batches(vec![BatchSubmission::Calldata(random_garbage)]);
 
     let root = test.expected_super_root();
     assert_ne!(
@@ -73,8 +74,7 @@ fn test_future_timestamp_batch() {
     channel.close().unwrap();
 
     let calldata = channel.to_calldata(100_000);
-    let batch =
-        derivation_tests::l1::BatchSubmission::Calldata(calldata.into_iter().next().unwrap());
+    let batch = BatchSubmission::Calldata(calldata.into_iter().next().unwrap());
     test.l1.emit_block_with_batches(vec![batch]);
 
     // The framework should handle this without panicking

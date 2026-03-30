@@ -44,6 +44,8 @@ revm-database = { workspace = true, features = ["std"] }
 op-revm = { workspace = true, features = ["std"] }
 alloy-op-evm = { workspace = true }
 alloy-evm = { workspace = true, features = ["op"] }
+reth-evm-ethereum = { workspace = true }
+reth-chainspec = { workspace = true }
 
 # RPC server
 jsonrpsee = { workspace = true, features = ["server"] }

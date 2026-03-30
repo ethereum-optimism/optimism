@@ -205,7 +205,7 @@ impl TestStateDb {
     pub fn apply_bundle_state(
         &mut self,
         bundle: &revm_database::BundleState,
-        db: revm::database::CacheDB<revm::database::EmptyDB>,
+        mut db: revm::database::CacheDB<revm::database::EmptyDB>,
     ) {
         use revm_database::AccountStatus;
 
@@ -322,7 +322,23 @@ impl TestStateDb {
             }
         }
 
-        // Replace the CacheDB with the post-execution one
+        // Merge the post-execution DB with accounts from the original DB that weren't
+        // touched during execution. This preserves funded test accounts on L1 that
+        // weren't accessed by any transaction.
+        for (addr, cache_account) in &self.db.cache.accounts {
+            if !db.cache.accounts.contains_key(addr) {
+                db.insert_account_info(*addr, cache_account.info.clone());
+                for (slot, value) in &cache_account.storage {
+                    let _ = db.insert_account_storage(*addr, *slot, *value);
+                }
+            }
+        }
+        // Also preserve contracts not in the new DB
+        for (hash, bytecode) in &self.db.cache.contracts {
+            if !db.cache.contracts.contains_key(hash) {
+                db.cache.contracts.insert(*hash, bytecode.clone());
+            }
+        }
         self.db = db;
     }
 
@@ -360,4 +376,37 @@ impl TestStateDb {
     pub fn account(&self, address: &Address) -> Option<&AccountState> {
         self.accounts.get(address)
     }
+
+    /// Fund an account with ETH (creates it if it doesn't exist).
+    pub fn fund_account(&mut self, address: Address, balance: U256) {
+        let code_hash = alloy_primitives::KECCAK256_EMPTY;
+        let info = AccountInfo { balance, nonce: 0, code_hash, account_id: None, code: None };
+        self.db.insert_account_info(address, info);
+        self.accounts.insert(address, AccountState { nonce: 0, balance, code_hash });
+    }
+}
+
+/// Rebuild a plain `CacheDB<EmptyDB>` from a `State<CacheDB<EmptyDB>>` after execution.
+///
+/// The `State` wrapper stores all committed changes in its internal cache. This function
+/// extracts those changes into a fresh `CacheDB` that can replace the pre-execution one.
+pub fn rebuild_cache_db(state: &revm::database::State<CacheDB<EmptyDB>>) -> CacheDB<EmptyDB> {
+    let mut db = CacheDB::new(EmptyDB::default());
+
+    // Copy all cached accounts from the State wrapper's cache
+    for (addr, cache_account) in &state.cache.accounts {
+        if let Some(ref account) = cache_account.account {
+            db.insert_account_info(*addr, account.info.clone());
+            for (slot, value) in &account.storage {
+                let _ = db.insert_account_storage(*addr, *slot, *value);
+            }
+        }
+    }
+
+    // Also copy contracts
+    for (hash, bytecode) in &state.cache.contracts {
+        db.cache.contracts.insert(*hash, bytecode.clone());
+    }
+
+    db
 }

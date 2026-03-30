@@ -18,13 +18,15 @@ use op_revm::OpSpecId;
 use revm::{
     context::{BlockEnv, CfgEnv},
     context_interface::block::BlobExcessGasAndPrice,
-    database::CacheDB,
 };
 
 use crate::{
     config::DeterministicConfig,
     l1::L1Block,
-    state::{StateSnapshot, TestStateDb, compute_receipts_root, compute_transactions_root},
+    state::{
+        StateSnapshot, TestStateDb, compute_receipts_root, compute_transactions_root,
+        rebuild_cache_db,
+    },
 };
 
 use super::{
@@ -466,35 +468,6 @@ impl L2ChainBuilder {
     pub fn head_snapshot(&self) -> &StateSnapshot {
         self.snapshots.last().expect("always have genesis snapshot")
     }
-}
-
-/// Rebuild a plain `CacheDB<EmptyDB>` from a `State<CacheDB<EmptyDB>>` after execution.
-///
-/// The `State` wrapper stores all committed changes in its internal cache. This function
-/// extracts those changes into a fresh `CacheDB` that can replace the pre-execution one.
-fn rebuild_cache_db(
-    state: &revm::database::State<CacheDB<revm::database::EmptyDB>>,
-) -> CacheDB<revm::database::EmptyDB> {
-    let mut db = CacheDB::new(revm::database::EmptyDB::default());
-
-    // Copy all cached accounts from the State wrapper's cache
-    for (addr, cache_account) in &state.cache.accounts {
-        if let Some(ref account) = cache_account.account {
-            // Insert account info
-            db.insert_account_info(*addr, account.info.clone());
-            // Insert storage
-            for (slot, value) in &account.storage {
-                let _ = db.insert_account_storage(*addr, *slot, *value);
-            }
-        }
-    }
-
-    // Also copy contracts
-    for (hash, bytecode) in &state.cache.contracts {
-        db.cache.contracts.insert(*hash, bytecode.clone());
-    }
-
-    db
 }
 
 /// Compute the next block's base fee from the parent header using Holocene EIP-1559 parameters.

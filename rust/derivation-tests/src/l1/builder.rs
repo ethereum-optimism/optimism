@@ -1,61 +1,80 @@
-//! L1 chain builder for constructing deterministic L1 blocks.
+//! L1 chain builder for constructing deterministic L1 blocks with real EVM execution.
 
 use alloy_consensus::{
-    Header, Receipt, ReceiptEnvelope, ReceiptWithBloom, SignableTransaction, TxEip1559, TxEip4844,
+    Header, SignableTransaction, TxEip1559, TxEip4844, TxEnvelope,
+    transaction::{Recovered, SignerRecoverable},
 };
-use alloy_eips::{Encodable2718, eip4844::DATA_GAS_PER_BLOB};
-use alloy_primitives::{B256, Bloom, Bytes, Log, LogData, Sealable, TxKind};
+use alloy_eips::{Encodable2718, eip4895::Withdrawals, eip7685::EMPTY_REQUESTS_HASH};
+use alloy_evm::{
+    EvmEnv, EvmFactory as _,
+    block::{BlockExecutor, BlockExecutorFactory},
+    eth::EthBlockExecutionCtx,
+};
+use alloy_primitives::{B256, Bloom, Bytes, Sealable, TxKind, U256, hex};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
-use kona_genesis::{CONFIG_UPDATE_EVENT_VERSION_0, CONFIG_UPDATE_TOPIC};
-use std::collections::BTreeMap;
+use reth_evm_ethereum::{EthEvmConfig, revm_spec_by_timestamp_and_block_number};
+use revm::context::{BlockEnv, CfgEnv};
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
-use crate::{config::DeterministicConfig, state::roots::EMPTY_ROOT_HASH};
+use alloy_genesis::GenesisAccount;
+
+use crate::{
+    config::{DeterministicConfig, PREFUNDED_ACCOUNT, PREFUNDED_ACCOUNT_KEY},
+    state::{StateSnapshot, TestStateDb, rebuild_cache_db, roots::EMPTY_ROOT_HASH},
+};
 
 use super::types::{BatchSubmission, BlobWithCommitment, L1Block, SystemConfigUpdate};
 
-/// Shared defaults for post-Cancun L1 block headers.
+/// Builds a deterministic L1 chain block by block with real EVM execution.
 ///
-/// Our test L1 chain has Shanghai+Cancun active from genesis, so every
-/// header must include `base_fee_per_gas`, `blob_gas_used`, `excess_blob_gas`,
-/// `parent_beacon_block_root`, and `withdrawals_root` to produce the same RLP
-/// hash that Go computes.
-///
-/// Post-merge L1 header defaults including Prague fields.
-fn post_merge_header_defaults(state_root: B256) -> Header {
-    Header {
-        state_root,
-        base_fee_per_gas: Some(1),
-        blob_gas_used: Some(0),
-        excess_blob_gas: Some(0),
-        parent_beacon_block_root: Some(B256::ZERO),
-        withdrawals_root: Some(EMPTY_ROOT_HASH),
-        requests_hash: Some(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
-        gas_limit: 30_000_000,
-        ..Default::default()
-    }
-}
-
-/// Builds a deterministic L1 chain block by block.
+/// Mirrors the `L2ChainBuilder` pattern: transactions execute through reth's Ethereum
+/// block executor, producing real state roots, receipts, gas accounting, and bloom filters.
 #[allow(missing_debug_implementations)]
 pub struct L1ChainBuilder {
     config: DeterministicConfig,
+    state: TestStateDb,
     blocks: Vec<L1Block>,
-    /// Blobs indexed by (slot, `versioned_hash`).
+    snapshots: Vec<StateSnapshot>,
+    /// Blobs indexed by beacon slot.
     blobs: BTreeMap<u64, Vec<BlobWithCommitment>>,
     /// Batcher transaction nonce counter.
     batcher_nonce: u64,
-    /// State root from the genesis block (used for all blocks since we don't modify L1 state).
-    genesis_state_root: B256,
+    /// `SystemConfig` owner (`PREFUNDED_ACCOUNT`) nonce counter.
+    owner_nonce: u64,
+    /// L1 chain spec for `EthEvmConfig`.
+    chain_spec: Arc<reth_chainspec::ChainSpec>,
 }
 
 impl L1ChainBuilder {
     /// Create a new L1 chain builder with a genesis block.
     pub fn new(config: &DeterministicConfig) -> Self {
-        // Use the authoritative genesis state root computed by go-ethereum's Genesis.ToBlock(),
-        // NOT our own trie computation. This ensures the genesis block hash matches
-        // what op-program/op-geth expect.
-        let genesis_state_root = config.l1_genesis_state_root;
+        // Initialize state from L1 genesis allocs, plus fund test accounts for gas.
+        // The batcher and owner (PREFUNDED_ACCOUNT) aren't in the L1 genesis allocs from
+        // op-deployer — they're Hardhat default accounts. We include them in the initial
+        // allocs so they survive state DB rebuilds across block executions.
+        let mut allocs = config.l1_genesis_allocs();
+        let test_balance = U256::from(1_000_000_000_000_000_000_000u128); // 1000 ETH
+        allocs
+            .entry(config.batcher)
+            .or_insert_with(|| GenesisAccount::default().with_balance(test_balance));
+        allocs
+            .entry(PREFUNDED_ACCOUNT)
+            .or_insert_with(|| GenesisAccount::default().with_balance(test_balance));
+
+        let mut state = TestStateDb::new();
+        state.init_genesis(&allocs);
+
+        // Take the genesis snapshot. Note: the state root will differ from go-ethereum's
+        // because we've added test accounts. The genesis HEADER still uses go-ethereum's
+        // state root to preserve the expected genesis block hash.
+        let genesis_snapshot = state.snapshot();
+
+        let chain_spec = config.l1_chain_spec();
+
+        // Read genesis account nonces (0 for newly funded accounts)
+        let batcher_nonce = state.account(&config.batcher).map_or(0, |a| a.nonce);
+        let owner_nonce = state.account(&PREFUNDED_ACCOUNT).map_or(0, |a| a.nonce);
 
         // Read header fields from L1 genesis JSON
         let (timestamp, gas_limit, base_fee, extra_data, coinbase, _difficulty, mix_hash) =
@@ -72,18 +91,15 @@ impl L1ChainBuilder {
         let genesis_header = Header {
             number: 0,
             timestamp,
-            state_root: genesis_state_root,
+            state_root: config.l1_genesis_state_root,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
-            // Shanghai+ includes withdrawals_root
             withdrawals_root: is_shanghai.then_some(EMPTY_ROOT_HASH),
             base_fee_per_gas: Some(base_fee),
-            // Cancun+ includes blob gas fields and parent beacon block root
             blob_gas_used: is_cancun.then_some(0),
             excess_blob_gas: is_cancun.then(|| excess_blob_gas.unwrap_or(0)),
             parent_beacon_block_root: is_cancun.then_some(B256::ZERO),
-            // Prague+ includes requests_hash
-            requests_hash: is_prague.then_some(alloy_eips::eip7685::EMPTY_REQUESTS_HASH),
+            requests_hash: is_prague.then_some(EMPTY_REQUESTS_HASH),
             gas_limit,
             beneficiary: coinbase,
             mix_hash,
@@ -106,26 +122,52 @@ impl L1ChainBuilder {
 
         Self {
             config: config.clone(),
+            state,
             blocks: vec![genesis_block],
+            snapshots: vec![genesis_snapshot],
             blobs: BTreeMap::new(),
-            batcher_nonce: 0,
-            genesis_state_root,
+            batcher_nonce,
+            owner_nonce,
+            chain_spec,
         }
     }
 
     /// Emit an empty L1 block with no transactions.
     pub fn emit_empty_block(&mut self) {
         let prev = self.blocks.last().expect("always have genesis");
+        let parent_hash = prev.header.hash();
+        let block_num = prev.header.inner().number + 1;
+        let timestamp = prev.header.inner().timestamp + self.config.l1_block_time;
+        let base_fee = self.next_l1_base_fee();
+
+        let block_env = self.build_block_env(block_num, timestamp, base_fee);
+        let (receipts, gas_used, blob_gas_used) = self
+            .execute_transactions(&[], block_env, parent_hash, Some(B256::ZERO))
+            .expect("empty block execution should not fail");
+
+        let snapshot = self.state.snapshot();
+
         let header = Header {
-            parent_hash: prev.header.hash(),
-            number: prev.header.inner().number + 1,
-            timestamp: prev.header.inner().timestamp + self.config.l1_block_time,
+            parent_hash,
+            number: block_num,
+            timestamp,
+            state_root: snapshot.state_root,
             transactions_root: EMPTY_ROOT_HASH,
             receipts_root: EMPTY_ROOT_HASH,
-            ..post_merge_header_defaults(self.genesis_state_root)
+            gas_used,
+            gas_limit: self.gas_limit(),
+            base_fee_per_gas: Some(base_fee),
+            blob_gas_used: Some(blob_gas_used),
+            excess_blob_gas: Some(self.current_excess_blob_gas()),
+            parent_beacon_block_root: Some(B256::ZERO),
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
+            requests_hash: Some(EMPTY_REQUESTS_HASH),
+            ..Default::default()
         };
         let sealed = header.seal_slow();
-        self.blocks.push(L1Block { header: sealed, transactions: vec![], receipts: vec![] });
+
+        self.blocks.push(L1Block { header: sealed, transactions: vec![], receipts });
+        self.snapshots.push(snapshot);
     }
 
     /// Emit an L1 block containing batch submissions.
@@ -134,119 +176,243 @@ impl L1ChainBuilder {
         let parent_hash = prev.header.hash();
         let block_num = prev.header.inner().number + 1;
         let timestamp = prev.header.inner().timestamp + self.config.l1_block_time;
+        let base_fee = self.next_l1_base_fee();
 
         let signer =
             PrivateKeySigner::from_bytes(&self.config.batcher_key).expect("valid batcher key");
 
-        let mut transactions = Vec::new();
-        let mut receipts = Vec::new();
-        let mut total_blob_count: u64 = 0;
+        let mut tx_envelopes = Vec::new();
+        let mut raw_txs = Vec::new();
 
         for batch in batches {
             match batch {
                 BatchSubmission::Calldata(data) => {
-                    let signed_tx = self.sign_batcher_tx(&signer, data);
-                    transactions.push(signed_tx);
-                    receipts.push(success_receipt(receipts.len() as u64));
+                    let (envelope, raw) = self.sign_batcher_tx(&signer, data, base_fee);
+                    tx_envelopes.push(envelope);
+                    raw_txs.push(raw);
                 }
                 BatchSubmission::Blob(blob_data) => {
                     let slot = self.timestamp_to_slot(timestamp);
                     let versioned_hash = blob_data.versioned_hash;
                     self.blobs.entry(slot).or_default().push(blob_data);
-                    let signed_tx = self.sign_blob_tx(&signer, vec![versioned_hash]);
-                    transactions.push(signed_tx);
-                    total_blob_count += 1;
-                    receipts.push(success_receipt(receipts.len() as u64));
+                    let (envelope, raw) =
+                        self.sign_blob_tx(&signer, vec![versioned_hash], base_fee);
+                    tx_envelopes.push(envelope);
+                    raw_txs.push(raw);
                 }
             }
         }
 
-        let transactions_root = compute_raw_transactions_root(&transactions);
-        let receipts_root = compute_l1_receipts_root(&receipts);
+        let block_env = self.build_block_env(block_num, timestamp, base_fee);
+        let (receipts, gas_used, blob_gas_used) = self
+            .execute_transactions(&tx_envelopes, block_env, parent_hash, Some(B256::ZERO))
+            .expect("batch block execution should not fail");
 
-        let mut header = Header {
+        let snapshot = self.state.snapshot();
+
+        let transactions_root = compute_raw_transactions_root(&raw_txs);
+        let receipts_root = compute_l1_receipts_root(&receipts);
+        let logs_bloom = aggregate_logs_bloom(&receipts);
+
+        let header = Header {
             parent_hash,
             number: block_num,
             timestamp,
+            state_root: snapshot.state_root,
             transactions_root,
             receipts_root,
-            ..post_merge_header_defaults(self.genesis_state_root)
-        };
-        if total_blob_count > 0 {
-            header.blob_gas_used = Some(total_blob_count * DATA_GAS_PER_BLOB);
-        }
-        let sealed = header.seal_slow();
-
-        self.blocks.push(L1Block { header: sealed, transactions, receipts });
-    }
-
-    /// Emit an L1 block with raw transaction data.
-    pub fn emit_block_with_raw_txs(&mut self, txs: Vec<Bytes>) {
-        let prev = self.blocks.last().expect("always have genesis");
-
-        let receipts: Vec<_> = (0..txs.len()).map(|i| success_receipt(i as u64)).collect();
-        let transactions_root = compute_raw_transactions_root(&txs);
-        let receipts_root = compute_l1_receipts_root(&receipts);
-
-        let header = Header {
-            parent_hash: prev.header.hash(),
-            number: prev.header.inner().number + 1,
-            timestamp: prev.header.inner().timestamp + self.config.l1_block_time,
-            transactions_root,
-            receipts_root,
-            ..post_merge_header_defaults(self.genesis_state_root)
+            logs_bloom,
+            gas_used,
+            gas_limit: self.gas_limit(),
+            base_fee_per_gas: Some(base_fee),
+            blob_gas_used: Some(blob_gas_used),
+            excess_blob_gas: Some(self.current_excess_blob_gas()),
+            parent_beacon_block_root: Some(B256::ZERO),
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
+            requests_hash: Some(EMPTY_REQUESTS_HASH),
+            ..Default::default()
         };
         let sealed = header.seal_slow();
 
-        self.blocks.push(L1Block { header: sealed, transactions: txs, receipts });
+        self.blocks.push(L1Block { header: sealed, transactions: raw_txs, receipts });
+        self.snapshots.push(snapshot);
     }
 
-    /// Emit an L1 block containing a system config update log event.
+    /// Emit an L1 block containing a system config update.
     ///
-    /// The log is emitted from the `SystemConfig` proxy address with the standard
-    /// `ConfigUpdate(uint256,uint8,bytes)` topic layout defined in the OP Stack spec.
+    /// Calls the `SystemConfig` contract directly (owned by `PREFUNDED_ACCOUNT`) to produce
+    /// real `ConfigUpdate` log events via EVM execution.
     pub fn emit_block_with_system_config_update(&mut self, update: SystemConfigUpdate) {
         let prev = self.blocks.last().expect("always have genesis");
+        let parent_hash = prev.header.hash();
         let block_num = prev.header.inner().number + 1;
         let timestamp = prev.header.inner().timestamp + self.config.l1_block_time;
+        let base_fee = self.next_l1_base_fee();
 
-        let log = system_config_update_log(self.config.system_config, &update);
-        let receipt = Receipt {
-            status: alloy_consensus::Eip658Value::Eip658(true),
-            cumulative_gas_used: 21_000,
-            logs: vec![log],
+        let owner_signer =
+            PrivateKeySigner::from_bytes(&PREFUNDED_ACCOUNT_KEY).expect("valid owner key");
+
+        let calldata = encode_system_config_calldata(&update);
+
+        let tx = TxEip1559 {
+            chain_id: self.config.l1_chain_id,
+            nonce: self.owner_nonce,
+            gas_limit: 200_000,
+            max_fee_per_gas: base_fee as u128 + 1,
+            max_priority_fee_per_gas: 1,
+            to: TxKind::Call(self.config.system_config),
+            value: U256::ZERO,
+            input: calldata,
+            ..Default::default()
         };
-        let receipt_envelope =
-            ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(receipt, Bloom::default()));
+        self.owner_nonce += 1;
 
-        let transactions = vec![Bytes::new()];
-        let receipts = vec![receipt_envelope];
-        let transactions_root = compute_raw_transactions_root(&transactions);
+        let sig =
+            owner_signer.sign_hash_sync(&tx.signature_hash()).expect("signing should not fail");
+        let signed = tx.into_signed(sig);
+        let envelope = TxEnvelope::Eip1559(signed);
+
+        let mut buf = Vec::new();
+        envelope.encode_2718(&mut buf);
+        let raw_tx = Bytes::from(buf);
+
+        let block_env = self.build_block_env(block_num, timestamp, base_fee);
+        let (receipts, gas_used, blob_gas_used) = self
+            .execute_transactions(&[envelope], block_env, parent_hash, Some(B256::ZERO))
+            .expect("system config update execution should not fail");
+
+        let snapshot = self.state.snapshot();
+
+        let transactions_root = compute_raw_transactions_root(std::slice::from_ref(&raw_tx));
         let receipts_root = compute_l1_receipts_root(&receipts);
+        let logs_bloom = aggregate_logs_bloom(&receipts);
 
         let header = Header {
-            parent_hash: prev.header.hash(),
+            parent_hash,
             number: block_num,
             timestamp,
+            state_root: snapshot.state_root,
             transactions_root,
             receipts_root,
-            ..post_merge_header_defaults(self.genesis_state_root)
+            logs_bloom,
+            gas_used,
+            gas_limit: self.gas_limit(),
+            base_fee_per_gas: Some(base_fee),
+            blob_gas_used: Some(blob_gas_used),
+            excess_blob_gas: Some(self.current_excess_blob_gas()),
+            parent_beacon_block_root: Some(B256::ZERO),
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
+            requests_hash: Some(EMPTY_REQUESTS_HASH),
+            ..Default::default()
         };
         let sealed = header.seal_slow();
 
-        self.blocks.push(L1Block { header: sealed, transactions, receipts });
+        self.blocks.push(L1Block { header: sealed, transactions: vec![raw_tx], receipts });
+        self.snapshots.push(snapshot);
     }
 
-    /// Sign a batcher transaction with the batcher key, returning RLP-encoded signed tx bytes.
-    fn sign_batcher_tx(&mut self, signer: &PrivateKeySigner, calldata: Bytes) -> Bytes {
+    /// Execute transactions through reth's Ethereum block executor.
+    ///
+    /// Mirrors the `L2ChainBuilder` pattern: creates an `EthEvmConfig`, wraps state in a
+    /// State wrapper, creates an executor, executes transactions, and applies results.
+    /// The reth Ethereum executor uses `EthereumTxEnvelope<TxEip4844>` (without variant)
+    /// as its transaction type. We accept `TxEnvelope` (with variant) and convert internally.
+    fn execute_transactions(
+        &mut self,
+        txs: &[TxEnvelope],
+        block_env: BlockEnv,
+        parent_hash: B256,
+        parent_beacon_block_root: Option<B256>,
+    ) -> Result<(Vec<alloy_consensus::ReceiptEnvelope>, u64, u64), Box<dyn std::error::Error>> {
+        // Convert TxEnvelope (with TxEip4844Variant) to reth's TransactionSigned (TxEip4844)
+        type TransactionSigned = alloy_consensus::EthereumTxEnvelope<alloy_consensus::TxEip4844>;
+        let reth_txs: Vec<TransactionSigned> = txs.iter().map(|tx| tx.clone().into()).collect();
+        let timestamp = block_env.timestamp.to::<u64>();
+        let block_number = block_env.number.to::<u64>();
+        let spec_id = revm_spec_by_timestamp_and_block_number(
+            self.chain_spec.as_ref(),
+            timestamp,
+            block_number,
+        );
+
+        let cfg_env = CfgEnv::new()
+            .with_chain_id(self.config.l1_chain_id)
+            .with_spec_and_mainnet_gas_params(spec_id);
+
+        // Clone state DB and wrap in State (same pattern as L2)
+        let db = self.state.db.clone();
+        let mut state_db =
+            revm::database::State::builder().with_database(db).with_bundle_update().build();
+
+        // Create the Ethereum EVM config and extract its executor factory
+        let evm_config = EthEvmConfig::ethereum(self.chain_spec.clone());
+        let evm_env = EvmEnv::new(cfg_env, block_env);
+        let evm = evm_config.executor_factory.evm_factory().create_evm(&mut state_db, evm_env);
+
+        // Post-merge: no ommers, empty withdrawals
+        let empty_withdrawals = Withdrawals::default();
+        let ctx = EthBlockExecutionCtx {
+            parent_hash,
+            parent_beacon_block_root,
+            ommers: &[],
+            withdrawals: Some(Cow::Borrowed(&empty_withdrawals)),
+            extra_data: Bytes::default(),
+            tx_count_hint: Some(txs.len()),
+        };
+
+        let mut executor = evm_config.executor_factory.create_executor(evm, ctx);
+
+        // Apply pre-execution changes (EIP-4788 beacon root, EIP-2935 block hashes)
+        executor
+            .apply_pre_execution_changes()
+            .map_err(|e| format!("pre-execution changes failed: {e:?}"))?;
+
+        // Execute each transaction
+        for (i, tx) in reth_txs.iter().enumerate() {
+            let sender = tx.recover_signer()?;
+            let recovered = Recovered::new_unchecked(tx.clone(), sender);
+
+            executor
+                .execute_transaction(&recovered)
+                .map_err(|e| format!("EVM error tx {i}: {e:?}"))?;
+        }
+
+        // Finish execution
+        let (evm, result) =
+            executor.finish().map_err(|e| format!("block execution finish failed: {e:?}"))?;
+
+        // Convert reth EthereumReceipt to alloy ReceiptEnvelope
+        let receipts: Vec<alloy_consensus::ReceiptEnvelope> =
+            result.receipts.into_iter().map(Into::into).collect();
+        let gas_used = result.gas_used;
+        let blob_gas_used = result.blob_gas_used;
+
+        // Extract bundle state and apply to tracked state (same as L2)
+        let (state_db_ref, _evm_env) = alloy_evm::Evm::finish(evm);
+        state_db_ref
+            .merge_transitions(revm_database::states::bundle_state::BundleRetention::PlainState);
+        let bundle = state_db_ref.take_bundle();
+        let post_db = rebuild_cache_db(state_db_ref);
+        self.state.apply_bundle_state(&bundle, post_db);
+
+        Ok((receipts, gas_used, blob_gas_used))
+    }
+
+    /// Sign a batcher transaction, returning both the decoded envelope and raw bytes.
+    fn sign_batcher_tx(
+        &mut self,
+        signer: &PrivateKeySigner,
+        calldata: Bytes,
+        base_fee: u64,
+    ) -> (TxEnvelope, Bytes) {
         let tx = TxEip1559 {
             chain_id: self.config.l1_chain_id,
             nonce: self.batcher_nonce,
             gas_limit: 1_000_000,
-            max_fee_per_gas: 0,
-            max_priority_fee_per_gas: 0,
+            max_fee_per_gas: base_fee as u128 + 1,
+            max_priority_fee_per_gas: 1,
             to: TxKind::Call(self.config.batch_inbox),
-            value: alloy_primitives::U256::ZERO,
+            value: U256::ZERO,
             input: calldata,
             ..Default::default()
         };
@@ -254,41 +420,81 @@ impl L1ChainBuilder {
 
         let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing should not fail");
         let signed = tx.into_signed(sig);
-        let envelope = alloy_consensus::TxEnvelope::Eip1559(signed);
+        let envelope = TxEnvelope::Eip1559(signed);
 
         let mut buf = Vec::new();
         envelope.encode_2718(&mut buf);
-        Bytes::from(buf)
+        (envelope, Bytes::from(buf))
     }
 
-    /// Sign an EIP-4844 blob transaction with the batcher key, returning encoded signed tx bytes.
+    /// Sign an EIP-4844 blob transaction, returning both the decoded envelope and raw bytes.
     fn sign_blob_tx(
         &mut self,
         signer: &PrivateKeySigner,
         blob_versioned_hashes: Vec<B256>,
-    ) -> Bytes {
+        base_fee: u64,
+    ) -> (TxEnvelope, Bytes) {
         let tx = TxEip4844 {
             chain_id: self.config.l1_chain_id,
             nonce: self.batcher_nonce,
             gas_limit: 1_000_000,
-            max_fee_per_gas: 0,
-            max_priority_fee_per_gas: 0,
+            max_fee_per_gas: base_fee as u128 + 1,
+            max_priority_fee_per_gas: 1,
             to: self.config.batch_inbox,
-            value: alloy_primitives::U256::ZERO,
+            value: U256::ZERO,
             input: Bytes::new(),
             blob_versioned_hashes,
-            max_fee_per_blob_gas: 0,
+            max_fee_per_blob_gas: 1,
             access_list: Default::default(),
         };
         self.batcher_nonce += 1;
 
         let sig = signer.sign_hash_sync(&tx.signature_hash()).expect("signing should not fail");
         let signed = tx.into_signed(sig);
-        let envelope: alloy_consensus::TxEnvelope = signed.into();
+        let envelope: TxEnvelope = signed.into();
 
         let mut buf = Vec::new();
         envelope.encode_2718(&mut buf);
-        Bytes::from(buf)
+        (envelope, Bytes::from(buf))
+    }
+
+    /// Compute the next block's base fee using EIP-1559 rules.
+    fn next_l1_base_fee(&self) -> u64 {
+        let parent = self.blocks.last().expect("always have genesis").header.inner();
+        let params = alloy_eips::eip1559::BaseFeeParams::ethereum();
+        parent.next_block_base_fee(params).unwrap_or_else(|| parent.base_fee_per_gas.unwrap_or(1))
+    }
+
+    /// Get the current excess blob gas for the next block.
+    fn current_excess_blob_gas(&self) -> u64 {
+        let parent = self.blocks.last().expect("always have genesis").header.inner();
+        alloy_eips::eip4844::calc_excess_blob_gas(
+            parent.excess_blob_gas.unwrap_or(0),
+            parent.blob_gas_used.unwrap_or(0),
+        )
+    }
+
+    /// Get the L1 gas limit (from genesis header).
+    fn gas_limit(&self) -> u64 {
+        self.blocks.first().expect("always have genesis").header.inner().gas_limit
+    }
+
+    /// Build a `BlockEnv` for a new block.
+    fn build_block_env(&self, block_num: u64, timestamp: u64, base_fee: u64) -> BlockEnv {
+        BlockEnv {
+            number: U256::from(block_num),
+            timestamp: U256::from(timestamp),
+            gas_limit: self.gas_limit(),
+            basefee: base_fee,
+            prevrandao: Some(B256::ZERO),
+            blob_excess_gas_and_price: Some(
+                revm::context_interface::block::BlobExcessGasAndPrice {
+                    excess_blob_gas: self.current_excess_blob_gas(),
+                    blob_gasprice: 1,
+                },
+            ),
+            ..Default::default()
+        }
     }
 
     /// Get all blocks.
@@ -327,82 +533,47 @@ impl L1ChainBuilder {
     }
 }
 
-/// Create a simple success receipt.
-fn success_receipt(cumulative_gas: u64) -> ReceiptEnvelope {
-    let receipt = Receipt {
-        status: alloy_consensus::Eip658Value::Eip658(true),
-        cumulative_gas_used: (cumulative_gas + 1) * 21_000,
-        logs: vec![],
-    };
-    ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(receipt, Bloom::default()))
-}
-
 /// Compute the transactions trie root from raw RLP-encoded transaction bytes.
-fn compute_raw_transactions_root(txs: &[Bytes]) -> alloy_primitives::B256 {
+fn compute_raw_transactions_root(txs: &[Bytes]) -> B256 {
     if txs.is_empty() {
         return EMPTY_ROOT_HASH;
     }
-    // Raw tx bytes are already in the correct encoding for the trie — just write them as-is.
     kona_mpt::ordered_trie_with_encoder(txs, |tx, buf| buf.put_slice(tx)).root()
 }
 
-/// Build a log event for a system config update.
-///
-/// The log format follows the OP Stack spec:
-/// - topic\[0\]: `CONFIG_UPDATE_TOPIC` (`keccak256("ConfigUpdate(uint256,uint8,bytes)")`)
-/// - topic\[1\]: `CONFIG_UPDATE_EVENT_VERSION_0` (`B256::ZERO`)
-/// - topic\[2\]: update type (0 = batcher address, 1 = gas config)
-/// - data: ABI-encoded update payload
-fn system_config_update_log(
-    system_config_address: alloy_primitives::Address,
-    update: &SystemConfigUpdate,
-) -> Log {
-    match update {
-        SystemConfigUpdate::BatcherAddress(addr) => {
-            let update_type = alloy_primitives::B256::ZERO; // type 0
-            let mut data = vec![0u8; 96];
-            // ABI offset to bytes: 0x20
-            data[31] = 0x20;
-            // ABI length of bytes: 0x20
-            data[63] = 0x20;
-            // Address padded to 32 bytes
-            data[76..96].copy_from_slice(addr.as_slice());
-
-            Log {
-                address: system_config_address,
-                data: LogData::new_unchecked(
-                    vec![CONFIG_UPDATE_TOPIC, CONFIG_UPDATE_EVENT_VERSION_0, update_type],
-                    data.into(),
-                ),
-            }
-        }
-        SystemConfigUpdate::GasConfig { overhead, scalar } => {
-            let update_type = alloy_primitives::B256::with_last_byte(1); // type 1
-            let mut data = vec![0u8; 128];
-            // ABI offset to bytes: 0x20
-            data[31] = 0x20;
-            // ABI length of bytes: 0x40
-            data[63] = 0x40;
-            // overhead as U256 in bytes 64..96
-            data[64..96].copy_from_slice(&overhead.to_be_bytes::<32>());
-            // scalar as U256 in bytes 96..128
-            data[96..128].copy_from_slice(&scalar.to_be_bytes::<32>());
-
-            Log {
-                address: system_config_address,
-                data: LogData::new_unchecked(
-                    vec![CONFIG_UPDATE_TOPIC, CONFIG_UPDATE_EVENT_VERSION_0, update_type],
-                    data.into(),
-                ),
-            }
-        }
-    }
-}
-
 /// Compute the receipts trie root from L1 receipt envelopes.
-fn compute_l1_receipts_root(receipts: &[ReceiptEnvelope]) -> alloy_primitives::B256 {
+fn compute_l1_receipts_root(receipts: &[alloy_consensus::ReceiptEnvelope]) -> B256 {
     if receipts.is_empty() {
         return EMPTY_ROOT_HASH;
     }
     kona_mpt::ordered_trie_with_encoder(receipts, |r, buf| r.encode_2718(buf)).root()
+}
+
+/// Aggregate logs bloom from receipts.
+fn aggregate_logs_bloom(receipts: &[alloy_consensus::ReceiptEnvelope]) -> Bloom {
+    let mut bloom = Bloom::default();
+    for receipt in receipts {
+        bloom.accrue_bloom(receipt.logs_bloom());
+    }
+    bloom
+}
+
+/// Encode a `SystemConfig` update as ABI-encoded calldata for the `SystemConfig` contract.
+fn encode_system_config_calldata(update: &SystemConfigUpdate) -> Bytes {
+    match update {
+        SystemConfigUpdate::BatcherAddress(addr) => {
+            // setBatcherHash(bytes32): selector 0xc9b26f61
+            let mut data = hex!("c9b26f61").to_vec();
+            let batcher_hash = B256::left_padding_from(addr.as_slice());
+            data.extend_from_slice(batcher_hash.as_slice());
+            Bytes::from(data)
+        }
+        SystemConfigUpdate::GasConfig { overhead, scalar } => {
+            // setGasConfig(uint256,uint256): selector 0x935f029e
+            let mut data = hex!("935f029e").to_vec();
+            data.extend_from_slice(&overhead.to_be_bytes::<32>());
+            data.extend_from_slice(&scalar.to_be_bytes::<32>());
+            Bytes::from(data)
+        }
+    }
 }

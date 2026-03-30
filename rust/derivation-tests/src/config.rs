@@ -7,7 +7,7 @@
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, Bytes, U256, address, b256, hex};
 use kona_genesis::RollupConfig;
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 /// Deterministic batcher private key (NOT secret — test-only, Hardhat account #1).
 pub const BATCHER_PRIVATE_KEY: B256 =
@@ -184,60 +184,21 @@ impl DeterministicConfig {
         serde_json::from_value(config.clone()).expect("failed to parse L1 chain config")
     }
 
+    /// Build a reth `ChainSpec` from the L1 genesis JSON for use with `EthEvmConfig`.
+    pub fn l1_chain_spec(&self) -> Arc<reth_chainspec::ChainSpec> {
+        let genesis: alloy_genesis::Genesis =
+            serde_json::from_value(self.l1_genesis.clone()).expect("L1 genesis must parse");
+        Arc::new(genesis.into())
+    }
+
     /// Extract the L2 genesis allocs as a map.
     pub fn l2_genesis_allocs(&self) -> BTreeMap<Address, GenesisAccount> {
-        let alloc =
-            self.l2_genesis["alloc"].as_object().expect("genesis.json must have alloc object");
+        parse_genesis_allocs(&self.l2_genesis)
+    }
 
-        let mut result = BTreeMap::new();
-        for (addr_hex, value) in alloc {
-            let addr: Address = addr_hex
-                .parse()
-                .unwrap_or_else(|e| panic!("failed to parse alloc address {addr_hex}: {e}"));
-
-            let balance = value.get("balance").and_then(|v| v.as_str()).map_or(U256::ZERO, |s| {
-                s.strip_prefix("0x").map_or_else(
-                    || s.parse().unwrap_or(U256::ZERO),
-                    |stripped| U256::from_str_radix(stripped, 16).unwrap_or(U256::ZERO),
-                )
-            });
-
-            let nonce = value
-                .get("nonce")
-                .and_then(|v| v.as_str())
-                .map_or(0u64, |s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0));
-
-            let code =
-                value.get("code").and_then(|v| v.as_str()).filter(|s| s.len() > 2).map(|s| {
-                    Bytes::from(hex::decode(s.trim_start_matches("0x")).expect("invalid code hex"))
-                });
-
-            let storage = value.get("storage").and_then(|v| v.as_object()).map(|obj| {
-                obj.iter()
-                    .map(|(k, v)| {
-                        let slot: B256 = k.parse().expect("invalid storage key");
-                        let val: B256 = v
-                            .as_str()
-                            .expect("storage value must be string")
-                            .parse()
-                            .expect("invalid storage value");
-                        (slot, val)
-                    })
-                    .collect::<BTreeMap<_, _>>()
-            });
-
-            let nonce_opt = (nonce > 0).then_some(nonce);
-            let mut account = GenesisAccount::default().with_balance(balance).with_nonce(nonce_opt);
-            if let Some(code) = code {
-                account.code = Some(code);
-            }
-            if let Some(storage) = storage {
-                account.storage = Some(storage);
-            }
-            result.insert(addr, account);
-        }
-
-        result
+    /// Extract the L1 genesis allocs as a map.
+    pub fn l1_genesis_allocs(&self) -> BTreeMap<Address, GenesisAccount> {
+        parse_genesis_allocs(&self.l1_genesis)
     }
 
     /// Extract L2 genesis header fields from the L2 genesis JSON.
@@ -312,6 +273,60 @@ impl DeterministicConfig {
     pub fn min_base_fee(&self) -> u64 {
         self.rollup_cfg.genesis.system_config.as_ref().and_then(|sc| sc.min_base_fee).unwrap_or(0)
     }
+}
+
+/// Parse genesis allocs from a genesis JSON value.
+fn parse_genesis_allocs(genesis: &serde_json::Value) -> BTreeMap<Address, GenesisAccount> {
+    let alloc = genesis["alloc"].as_object().expect("genesis JSON must have alloc object");
+
+    let mut result = BTreeMap::new();
+    for (addr_hex, value) in alloc {
+        let addr: Address = addr_hex
+            .parse()
+            .unwrap_or_else(|e| panic!("failed to parse alloc address {addr_hex}: {e}"));
+
+        let balance = value.get("balance").and_then(|v| v.as_str()).map_or(U256::ZERO, |s| {
+            s.strip_prefix("0x").map_or_else(
+                || s.parse().unwrap_or(U256::ZERO),
+                |stripped| U256::from_str_radix(stripped, 16).unwrap_or(U256::ZERO),
+            )
+        });
+
+        let nonce = value
+            .get("nonce")
+            .and_then(|v| v.as_str())
+            .map_or(0u64, |s| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0));
+
+        let code = value.get("code").and_then(|v| v.as_str()).filter(|s| s.len() > 2).map(|s| {
+            Bytes::from(hex::decode(s.trim_start_matches("0x")).expect("invalid code hex"))
+        });
+
+        let storage = value.get("storage").and_then(|v| v.as_object()).map(|obj| {
+            obj.iter()
+                .map(|(k, v)| {
+                    let slot: B256 = k.parse().expect("invalid storage key");
+                    let val: B256 = v
+                        .as_str()
+                        .expect("storage value must be string")
+                        .parse()
+                        .expect("invalid storage value");
+                    (slot, val)
+                })
+                .collect::<BTreeMap<_, _>>()
+        });
+
+        let nonce_opt = (nonce > 0).then_some(nonce);
+        let mut account = GenesisAccount::default().with_balance(balance).with_nonce(nonce_opt);
+        if let Some(code) = code {
+            account.code = Some(code);
+        }
+        if let Some(storage) = storage {
+            account.storage = Some(storage);
+        }
+        result.insert(addr, account);
+    }
+
+    result
 }
 
 fn parse_u64_field(json: &serde_json::Value, field: &str) -> u64 {
@@ -425,5 +440,23 @@ mod tests {
         assert_eq!(chain_config.chain_id, 900);
         assert_eq!(chain_config.shanghai_time, Some(0));
         assert_eq!(chain_config.cancun_time, Some(0));
+    }
+
+    #[test]
+    fn l1_genesis_allocs_are_populated() {
+        let config = DeterministicConfig::default();
+        let allocs = config.l1_genesis_allocs();
+        assert!(
+            allocs.len() > 10,
+            "expected many allocs from op-deployer L1 genesis, got {}",
+            allocs.len()
+        );
+    }
+
+    #[test]
+    fn l1_chain_spec_parses() {
+        let config = DeterministicConfig::default();
+        let chain_spec = config.l1_chain_spec();
+        assert_eq!(chain_spec.chain().id(), 900);
     }
 }

@@ -3221,6 +3221,8 @@ dependencies = [
  "op-revm",
  "paste",
  "reqwest 0.13.2",
+ "reth-chainspec",
+ "reth-evm-ethereum",
  "revm",
  "revm-database",
  "serde",
