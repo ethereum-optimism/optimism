@@ -1,4 +1,4 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 
 interface CardListItemProps {
   number?: string;
@@ -48,7 +48,7 @@ export function CardListItem({
 }
 
 interface CardListProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export function CardList({ children }: CardListProps) {
@@ -61,7 +61,7 @@ export function CardList({ children }: CardListProps) {
 
 interface HomeCardProps {
   title: string;
-  content?: React.ReactNode
+  content?: ReactNode
   className?: string;
   footerLink?: {
     text: string;
@@ -97,7 +97,7 @@ export function HomeCard({
 }
 
 interface HomeCardsProps {
-  children: React.ReactNode;
+  children: ReactNode;
   layout?: 'equal' | 'unequal';
   columns?: string;
   gap?: string;

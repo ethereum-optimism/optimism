@@ -20,7 +20,7 @@ var outputRootGameTypes = []types.GameType{
 	types.AsteriscKonaGameType,
 	types.OPSuccinctGameType,
 	types.CannonKonaGameType,
-	types.OptimisticZKGameType,
+	types.ZKDisputeGameType,
 	types.FastGameType,
 	types.AlphabetGameType,
 	types.KailuaGameType,

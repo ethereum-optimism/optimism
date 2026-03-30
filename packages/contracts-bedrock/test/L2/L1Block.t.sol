@@ -8,11 +8,14 @@ import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title L1Block_ TestInit
 /// @notice Reusable test initialization for `L1Block` tests.
@@ -476,29 +479,101 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
         // This test uses the setUp that already activates custom gas token
         assertTrue(l1BlockCGT.isCustomGasToken());
 
-        vm.expectRevert("L1Block: CustomGasToken already active");
+        vm.expectRevert(L1Block_FeatureAlreadyEnabled.selector);
         vm.prank(depositor);
-        IL1BlockCGT(address(l1BlockCGT)).setCustomGasToken();
+        IL1Block(address(l1BlockCGT)).setFeature(Features.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Tests that `setCustomGasToken` updates the flag correctly when called by depositor.
     function test_setCustomGasToken_succeeds() external {
+        // Reset the isCustomGasToken() and isFeatureEnabled(CUSTOM_GAS_TOKEN) flags
         stdstore.target(address(l1BlockCGT)).sig("isCustomGasToken()").checked_write(false);
+        stdstore.target(address(l1BlockCGT)).sig("isFeatureEnabled(bytes32)").with_key(Features.CUSTOM_GAS_TOKEN)
+            .checked_write(false);
         // This test uses the setUp that already activates custom gas token
         assertFalse(l1BlockCGT.isCustomGasToken());
 
         vm.prank(depositor);
-        l1BlockCGT.setCustomGasToken();
+        IL1Block(address(l1BlockCGT)).setFeature(Features.CUSTOM_GAS_TOKEN);
 
         assertTrue(l1BlockCGT.isCustomGasToken());
     }
 
     /// @notice Tests that `setCustomGasToken` reverts if sender address is not the depositor.
-    function test_setCustomGasToken_notDepositor_reverts(address nonDepositor) external {
+    function test_setCustomGasToken_notAuthorized_reverts(address notAuthorized) external {
         stdstore.target(address(l1BlockCGT)).sig("isCustomGasToken()").checked_write(false);
-        vm.assume(nonDepositor != depositor);
-        vm.expectRevert("L1Block: only the depositor account can set isCustomGasToken flag");
-        vm.prank(nonDepositor);
-        l1BlockCGT.setCustomGasToken();
+        vm.assume(
+            notAuthorized != depositor && notAuthorized != IProxyAdminOwnedBase(address(l1BlockCGT)).proxyAdminOwner()
+                && notAuthorized != address(IProxyAdminOwnedBase(address(l1BlockCGT)).proxyAdmin())
+        );
+        vm.expectRevert(L1Block_NotAuthorizedToSetFeature.selector);
+        vm.prank(notAuthorized);
+        IL1Block(address(l1BlockCGT)).setFeature(Features.CUSTOM_GAS_TOKEN);
+    }
+}
+
+/// @title L1Block_SetFeature_Test
+/// @notice Tests for the system customization feature set functionality.
+contract L1Block_SetFeature_Test is L1Block_TestInit {
+    /// @notice Redeclare the event for expectEmit.
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
+
+    /// @notice Tests that setFeature succeeds when called by the depositor.
+    function test_setFeature_succeeds() external {
+        vm.expectEmit(Predeploys.L1_BLOCK_ATTRIBUTES);
+        emit FeatureSet(Features.INTEROP, true);
+
+        vm.prank(depositor);
+        l1Block.setFeature(Features.INTEROP);
+
+        assertTrue(l1Block.isFeatureEnabled(Features.INTEROP));
+    }
+
+    /// @notice Tests that setFeature reverts when called by a non-depositor.
+    function testFuzz_setFeature_notDepositor_reverts(address notAuthorized) external {
+        vm.assume(
+            notAuthorized != depositor && notAuthorized != IProxyAdminOwnedBase(address(l1Block)).proxyAdminOwner()
+                && notAuthorized != address(IProxyAdminOwnedBase(address(l1Block)).proxyAdmin())
+        );
+        vm.expectRevert(L1Block_NotAuthorizedToSetFeature.selector);
+        vm.prank(notAuthorized);
+        l1Block.setFeature(Features.INTEROP);
+    }
+
+    /// @notice Tests that setFeature reverts when the feature is already enabled.
+    function test_setFeature_alreadyEnabled_reverts() external {
+        vm.prank(depositor);
+        l1Block.setFeature(Features.INTEROP);
+
+        vm.prank(depositor);
+        vm.expectRevert(L1Block_FeatureAlreadyEnabled.selector);
+        l1Block.setFeature(Features.INTEROP);
+    }
+
+    /// @notice Tests that isFeatureEnabled returns false by default.
+    function test_isFeatureEnabled_defaultFalse_succeeds() external view {
+        assertFalse(l1Block.isFeatureEnabled(Features.INTEROP));
+    }
+
+    /// @notice Tests that multiple features can be enabled independently.
+    function test_setFeature_multipleFeatures_succeeds() external {
+        vm.startPrank(depositor);
+        l1Block.setFeature(Features.INTEROP);
+
+        // The custom gas token feature may already be enabled in the setUp if
+        // SYSTEM_FEATURE__CUSTOM_GAS_TOKEN is enabled.
+        if (!sysCfg.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            l1Block.setFeature(Features.CUSTOM_GAS_TOKEN);
+        }
+        vm.stopPrank();
+
+        assertTrue(l1Block.isFeatureEnabled(Features.INTEROP));
+        assertTrue(l1Block.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
+        assertFalse(l1Block.isFeatureEnabled(Features.ETH_LOCKBOX));
+    }
+
+    /// @notice Tests that isFeatureEnabled with zero bytes32 returns false.
+    function test_isFeatureEnabled_zero_succeeds() external view {
+        assertFalse(l1Block.isFeatureEnabled(bytes32(0)));
     }
 }

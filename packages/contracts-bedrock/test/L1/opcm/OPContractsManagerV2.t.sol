@@ -478,6 +478,15 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
     }
 
+    /// @notice Tests that calling upgrade twice does not revert, ensuring the upgrade function
+    ///         has no one-time-only state transitions that would block a subsequent upgrade call.
+    function test_upgrade_calledTwice_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
+
+        runCurrentUpgradeV2(chainPAO);
+        runCurrentUpgradeV2(chainPAO);
+    }
+
     /// @notice Tests that the upgrade function reverts when not delegatecalled.
     function test_upgrade_notDelegateCalled_reverts() public {
         vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_OnlyDelegateCall.selector);

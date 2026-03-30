@@ -166,17 +166,8 @@ func addSingleChainOpNode(
 ) *SingleChainNodeRuntime {
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	identity := NewELNodeIdentity(0)
-	l2EL := startL2ELNode(t, runtime.L2Network, jwtPath, jwtSecret, name, identity)
-	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-		Key:            name,
-		IsSequencer:    isSequencer,
-		NoDiscovery:    true,
-		EnableReqResp:  true,
-		UseReqResp:     true,
-		L2FollowSource: followSource,
-		L2CLOptions:    l2Opts,
-	})
+	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts)
 	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
 	runtime.Nodes[name] = node
 	return node

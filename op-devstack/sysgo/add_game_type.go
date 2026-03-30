@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -124,8 +123,6 @@ func addGameTypeForRuntime(
 		SaltMixer:               fmt.Sprintf("devstack-%s-%s", l2Net.ChainID(), absolutePrestate.Hex()),
 	}
 
-	opChainProxyAdmin := l2Net.deployment.ProxyAdminAddr()
-
 	_, addGameTypeCalldata, err := manage.AddGameType(t.Ctx(), cfg)
 	require.NoError(err, "failed to create add game type calldata")
 	require.Len(addGameTypeCalldata, 1, "calldata must contain one entry")
@@ -133,26 +130,9 @@ func addGameTypeForRuntime(
 	chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
 	l1PAOKey, err := keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
 	require.NoError(err, "failed to get l1 proxy admin owner key")
-	transactOpts, err := bind.NewKeyedTransactorWithChainID(l1PAOKey, l1ChainID.ToBig())
-	require.NoError(err, "must have transact opts")
-	transactOpts.Context = t.Ctx()
 
-	t.Log("Deploying delegate call proxy contract")
-	delegateCallProxy, proxyContract := deployDelegateCallProxy(t, transactOpts, client, l1PAO)
-	// transfer ownership to the proxy so that we can delegatecall the opcm
-	transferOwnership(t, l1PAOKey, client, opChainProxyAdmin, delegateCallProxy)
-	dgf := l2Net.deployment.DisputeGameFactoryProxyAddr()
-	transferOwnership(t, l1PAOKey, client, dgf, delegateCallProxy)
-
-	t.Log("sending opcm.addGameType transaction")
-	tx, err := proxyContract.ExecuteDelegateCall(transactOpts, l2Net.opcmImpl, addGameTypeCalldata[0].Data)
-	require.NoError(err, "failed to send add game type tx")
-	_, err = wait.ForReceiptOK(t.Ctx(), client, tx.Hash())
-	require.NoError(err, "failed to wait for add game type receipt")
-
-	// reset ProxyAdmin ownership transfers
-	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, opChainProxyAdmin, l1PAO)
-	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, dgf, l1PAO)
+	t.Log("Executing opcm.addGameType via SetCode delegatecall")
+	delegateCallWithSetCode(t, l1PAOKey, client, l2Net.opcmImpl, addGameTypeCalldata[0].Data)
 }
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {

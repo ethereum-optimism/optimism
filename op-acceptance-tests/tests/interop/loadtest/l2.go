@@ -1,11 +1,13 @@
 package loadtest
 
 import (
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -75,4 +77,43 @@ func (l2 *L2) Include(t devtest.T, opts ...txplan.Option) (*txinclude.IncludedTx
 	}
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, includedTx.Receipt.Status)
 	return includedTx, nil
+}
+
+func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Duration, el *dsl.L2ELNode, wallet *dsl.HDWallet, faucet *dsl.Faucet) []*SyncEOA {
+	t.Require().Equal(faucet.Escape().ChainID(), el.ChainID())
+
+	// Fund a lot of spammer EOAs. The funder provided by the devstack isn't very reliable when
+	// funding lots of different accounts. We fund one account from the faucet and then use that
+	// account to fund all the others.
+	spammerELClient := txinclude.NewReliableEL(el.Escape().EthClient(), blockTime)
+	funderEOA := newSyncEOA(dsl.NewFunder(wallet, faucet, el).NewFundedEOA(budget), spammerELClient)
+	budget = budget.Sub(budget.Div(50)) // Reserve 2% of the balance for gas.
+	ethPerAccount := budget.Div(numAccounts)
+	var eoas []*SyncEOA
+	var mu sync.Mutex
+	var wgEOA sync.WaitGroup
+	for range numAccounts {
+		wgEOA.Add(1)
+		go func() {
+			defer wgEOA.Done()
+
+			eoa := wallet.NewEOA(el)
+			addr := eoa.Address()
+			_, err := funderEOA.Include(t, txplan.WithTo(&addr), txplan.WithValue(ethPerAccount))
+			t.Require().NoError(err)
+
+			mu.Lock()
+			defer mu.Unlock()
+			eoas = append(eoas, newSyncEOA(eoa, spammerELClient))
+		}()
+	}
+	wgEOA.Wait()
+
+	return eoas
+}
+
+func newSyncEOA(eoa *dsl.EOA, el txinclude.EL) *SyncEOA {
+	signer := txinclude.NewPkSigner(eoa.Key().Priv(), eoa.ChainID().ToBig())
+	const maxConcurrentTxs = 16 // Reth's mempool limits the number of txs per account to 16.
+	return NewSyncEOA(txinclude.NewLimit(txinclude.NewPersistent(signer, el), maxConcurrentTxs), eoa.Plan())
 }

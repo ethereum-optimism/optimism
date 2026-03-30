@@ -100,6 +100,7 @@ where
             self.interop_provider.local_safe_heads(),
             &self.interop_provider,
             &self.boot_info.rollup_configs,
+            self.boot_info.dependency_set.get_message_expiry_window(),
         )
         .await?;
 

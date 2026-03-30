@@ -452,7 +452,7 @@ rules:
         - packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
+        - packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol
         # ProtocolVersions is being deprecated.
         - packages/contracts-bedrock/src/L1/ProtocolVersions.sol
         # DataAvailabilityChallenge is a beta/non-standard contract.

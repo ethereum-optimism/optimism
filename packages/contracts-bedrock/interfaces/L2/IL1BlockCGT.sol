@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IL1BlockCGT {
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+
+interface IL1BlockCGT is IProxyAdminOwnedBase {
+    error L1Block_FeatureAlreadyEnabled();
+    error L1Block_NotAuthorizedToSetFeature();
+
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
+
     function DEPOSITOR_ACCOUNT() external pure returns (address addr_);
     function number() external view returns (uint64);
     function timestamp() external view returns (uint64);
@@ -35,8 +42,9 @@ interface IL1BlockCGT {
     function setL1BlockValuesEcotone() external;
     function setL1BlockValuesIsthmus() external;
     function setL1BlockValuesJovian() external;
-    function setCustomGasToken() external;
     function gasPayingToken() external view returns (address, uint8);
+    function setFeature(bytes32 _feature) external;
+    function isFeatureEnabled(bytes32) external view returns (bool);
 
     function __constructor__() external;
 }

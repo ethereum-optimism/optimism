@@ -11,12 +11,10 @@ import (
 	batcherConfig "github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -39,9 +37,7 @@ func TestDABlockThrottling(gt *testing.T) {
 		cfg.PollInterval = 500 * time.Millisecond // Fast poll for quicker test feedback.
 	}))
 
-	spamCtx, cancelSpam := context.WithCancel(t.Ctx())
-	defer cancelSpam()
-	spamTxs(spamCtx, sys)
+	spamTxs(sys)
 
 	const minFullSize = blockSizeLimit * 95 / 100
 
@@ -77,37 +73,9 @@ func TestDABlockThrottling(gt *testing.T) {
 	}
 }
 
-func spamTxs(ctx context.Context, sys *presets.Minimal) {
+func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-
-	// Fund a lot of spammer EOAs. The funder provided by the devstack isn't very reliable when
-	// funding lots of different accounts. We fund one account from the faucet and then use that
-	// account to fund all the others.
-	const numAccounts = 50
-	totalETH := eth.OneEther.Mul(numAccounts)
-	spammerELClient := txinclude.NewReliableEL(sys.L2EL.Escape().EthClient(), l2BlockTime)
-	funder := newSyncEOA(sys.FunderL2.NewFundedEOA(totalETH), spammerELClient)
-	totalETH = totalETH.Sub(totalETH.Div(50)) // Reserve 2% of the balance for gas.
-	ethPerAccount := totalETH.Div(numAccounts)
-	var eoas []*loadtest.SyncEOA
-	var mu sync.Mutex
-	var wgEOA sync.WaitGroup
-	for range numAccounts {
-		wgEOA.Add(1)
-		go func() {
-			defer wgEOA.Done()
-			eoa := sys.Wallet.NewEOA(sys.L2EL)
-			addr := eoa.Address()
-			_, err := funder.Include(sys.T, txplan.WithTo(&addr), txplan.WithValue(ethPerAccount))
-			sys.T.Require().NoError(err)
-
-			mu.Lock()
-			defer mu.Unlock()
-			eoas = append(eoas, newSyncEOA(eoa, spammerELClient))
-		}()
-	}
-	wgEOA.Wait()
-
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
 	eoasRR := loadtest.NewRoundRobin(eoas)
 	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
 		_, err := eoasRR.Get().Include(t, txplan.WithTo(&predeploys.L1BlockAddr), txplan.WithData(make([]byte, 0)), txplan.WithGasLimit(70_000))
@@ -115,19 +83,15 @@ func spamTxs(ctx context.Context, sys *presets.Minimal) {
 	})
 	schedule := loadtest.NewBurst(l2BlockTime, loadtest.WithBaseRPS(50))
 
+	ctx, cancel := context.WithCancel(sys.T.Ctx())
 	var wg sync.WaitGroup
 	wg.Add(1)
 	sys.T.Cleanup(func() {
+		cancel()
 		wg.Wait()
 	})
 	go func() {
 		defer wg.Done()
 		schedule.Run(sys.T.WithCtx(ctx), spammer)
 	}()
-}
-
-func newSyncEOA(eoa *dsl.EOA, el txinclude.EL) *loadtest.SyncEOA {
-	signer := txinclude.NewPkSigner(eoa.Key().Priv(), eoa.ChainID().ToBig())
-	const maxConcurrentTxs = 16 // Reth's mempool limits the number of txs per account to 16.
-	return loadtest.NewSyncEOA(txinclude.NewLimit(txinclude.NewPersistent(signer, el), maxConcurrentTxs), eoa.Plan())
 }

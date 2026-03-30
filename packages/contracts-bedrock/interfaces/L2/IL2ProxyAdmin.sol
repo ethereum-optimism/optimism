@@ -14,6 +14,9 @@ interface IL2ProxyAdmin is IProxyAdmin, ISemver {
     /// @notice Thrown when the caller is not the depositor account.
     error L2ProxyAdmin__Unauthorized();
 
+    /// @notice Thrown when the L2ContractsManager has no code.
+    error L2ProxyAdmin__L2ContractsManagerNotDeployed(address l2ContractsManager);
+
     /// @notice Thrown when the upgrade fails.
     error L2ProxyAdmin__UpgradeFailed(bytes data);
 

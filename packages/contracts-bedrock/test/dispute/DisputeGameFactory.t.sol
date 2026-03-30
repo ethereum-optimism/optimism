@@ -23,12 +23,12 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 // Mocks
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
-import { SP1MockVerifier } from "test/dispute/zk/mocks/SP1MockVerifier.sol";
+import { ZKMockVerifier } from "test/dispute/zk/ZKMockVerifier.sol";
 
-// OptimisticZk
-import { OptimisticZkGame } from "src/dispute/zk/OptimisticZkGame.sol";
-import { AccessManager } from "src/dispute/zk/AccessManager.sol";
-import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
+// ZKDisputeGame
+import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
+
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 
 /// @notice A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
 contract DisputeGameFactory_FakeClone_Harness {
@@ -305,56 +305,47 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
     }
 
-    /// @notice Parameters for OptimisticZk game setup
-    struct OptimisticZkGameParams {
+    /// @notice Parameters for ZKDisputeGame setup
+    struct ZKDisputeGameParams {
         Duration maxChallengeDuration;
         Duration maxProveDuration;
-        address proposer;
-        address challenger;
-        bytes32 rollupConfigHash;
-        bytes32 aggregationVkey;
-        bytes32 rangeVkeyCommitment;
+        bytes32 absolutePrestate;
         uint256 challengerBond;
     }
 
-    /// @notice Sets up an OptimisticZk game implementation
-    function setupOptimisticZkGame(OptimisticZkGameParams memory _params)
+    /// @notice Sets up a ZKDisputeGame implementation with gameArgs
+    function setupZKDisputeGame(ZKDisputeGameParams memory _params)
         internal
-        returns (address gameImpl_, AccessManager accessManager_, ISP1Verifier sp1Verifier_)
+        returns (address gameImpl_, IZKVerifier zkVerifier_)
     {
         // Deploy mock verifier
-        sp1Verifier_ = ISP1Verifier(address(new SP1MockVerifier()));
+        zkVerifier_ = IZKVerifier(address(new ZKMockVerifier()));
 
-        // Deploy access manager
-        accessManager_ = new AccessManager(2 weeks, disputeGameFactory);
-        accessManager_.setProposer(_params.proposer, true);
-        accessManager_.setChallenger(_params.challenger, true);
+        // Deploy game implementation (no constructor args)
+        gameImpl_ = address(new ZKDisputeGame());
 
-        // Deploy game implementation
-        gameImpl_ = address(
-            new OptimisticZkGame(
-                _params.maxChallengeDuration,
-                _params.maxProveDuration,
-                disputeGameFactory,
-                sp1Verifier_,
-                _params.rollupConfigHash,
-                _params.aggregationVkey,
-                _params.rangeVkeyCommitment,
-                _params.challengerBond,
-                anchorStateRegistry,
-                accessManager_
-            )
+        GameType zkGameType = GameTypes.ZK_DISPUTE_GAME;
+
+        // Encode the gameArgs for CWIA (tightly packed)
+        bytes memory gameArgs = abi.encodePacked(
+            _params.absolutePrestate, // 32 bytes
+            zkVerifier_, // 20 bytes
+            _params.maxChallengeDuration, // 8 bytes
+            _params.maxProveDuration, // 8 bytes
+            _params.challengerBond, // 32 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            l2ChainId // 32 bytes
         );
 
-        // Set respected game type for OptimisticZk
-        GameType gameType = GameTypes.OPTIMISTIC_ZK_GAME_TYPE;
+        // Set respected game type
         vm.prank(superchainConfig.guardian());
-        anchorStateRegistry.setRespectedGameType(gameType);
+        anchorStateRegistry.setRespectedGameType(zkGameType);
 
-        // Register with factory
+        // Register with factory using 3-arg setImplementation
         vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(gameType, IDisputeGame(gameImpl_));
-        disputeGameFactory.setInitBond(gameType, _params.challengerBond);
+        disputeGameFactory.setImplementation(zkGameType, IDisputeGame(gameImpl_), gameArgs);
+        disputeGameFactory.setInitBond(zkGameType, _params.challengerBond);
         vm.stopPrank();
     }
 }

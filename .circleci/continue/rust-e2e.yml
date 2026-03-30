@@ -83,9 +83,6 @@ parameters:
   github-event-base64:
     type: string
     default: "__not_set__"
-  devnet-metrics-collect:
-    type: boolean
-    default: false
   go-cache-version:
     type: string
     default: "v0.0"

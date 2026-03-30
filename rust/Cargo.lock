@@ -5843,6 +5843,7 @@ dependencies = [
  "kona-driver",
  "kona-executor",
  "kona-genesis",
+ "kona-interop",
  "kona-mpt",
  "kona-preimage",
  "kona-proof",

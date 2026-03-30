@@ -396,7 +396,7 @@ contract Initializer_Test is CommonTest {
         excludes[j++] = "src/dispute/PermissionedDisputeGame.sol";
         excludes[j++] = "src/dispute/SuperFaultDisputeGame.sol";
         excludes[j++] = "src/dispute/SuperPermissionedDisputeGame.sol";
-        excludes[j++] = "src/dispute/zk/OptimisticZkGame.sol";
+        excludes[j++] = "src/dispute/zk/ZKDisputeGame.sol";
         // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
         excludes[j++] = "src/L1/OPContractsManager.sol";
         // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.

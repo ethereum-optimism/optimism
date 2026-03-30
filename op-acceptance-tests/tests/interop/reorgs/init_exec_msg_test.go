@@ -23,7 +23,6 @@ import (
 )
 
 func TestReorgInitExecMsg(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
