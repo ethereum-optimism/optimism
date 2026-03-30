@@ -109,7 +109,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			DevFeatureBitmap:                deployer.OPCMV2DevFlag,
+			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           bstrap.ProtocolVersionsProxy,
 			L1ProxyAdminOwner:               superchainPAO,
@@ -127,6 +127,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainRoles = nil
 		intent.OPCMAddress = &impls.OpcmV2
+		intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,

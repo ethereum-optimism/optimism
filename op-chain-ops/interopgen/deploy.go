@@ -273,39 +273,43 @@ func MigrateInterop(
 ) (*InteropDeployment, error) {
 	l2ChainIDs := maps.Keys(l2Deployments)
 	sort.Strings(l2ChainIDs)
-	chainConfigs := make([]manage.OPChainConfig, len(l2Deployments))
-	for i, l2ChainID := range l2ChainIDs {
-		l2Deployment := l2Deployments[l2ChainID]
-		chainConfigs[i] = manage.OPChainConfig{
-			SystemConfigProxy:  l2Deployment.SystemConfigProxy,
-			CannonPrestate:     l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
-			CannonKonaPrestate: l2Cfgs[l2ChainID].DisputeKonaAbsolutePrestate,
-		}
-	}
 
-	// For now get the fault game parameters from the first chain
-	l2ChainID := l2ChainIDs[0]
 	// We don't have a super root at genesis. But stub the starting anchor root anyways to facilitate super DG testing.
 	startingAnchorRoot := common.Hash(opcm.PermissionedGameStartingAnchorRoot)
+
+	// Build chain system config addresses for V2 migrate input.
+	chainSystemConfigs := make([]common.Address, len(l2Deployments))
+	for i, l2ChainID := range l2ChainIDs {
+		chainSystemConfigs[i] = l2Deployments[l2ChainID].SystemConfigProxy
+	}
+
+	// ABI-encode the cannon prestate as game args (from the first chain config).
+	l2ChainID := l2ChainIDs[0]
+	gameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeAbsolutePrestate.Bytes(), 32)
+
+	const (
+		GameTypeCannon      = uint32(0)
+		GameTypeSuperCannon = uint32(4)
+	)
+
 	imi := manage.InteropMigrationInput{
 		Prank: superCfg.ProxyAdminOwner,
 		Opcm:  superDeployment.OpcmV2,
-		MigrateInputV1: &manage.MigrateInputV1{
-			UsePermissionlessGame: true,
+		MigrateInputV2: &manage.MigrateInputV2{
+			ChainSystemConfigs: chainSystemConfigs,
+			DisputeGameConfigs: []manage.DisputeGameConfig{
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(0),
+					GameType: GameTypeCannon,
+					GameArgs: gameArgs,
+				},
+			},
 			StartingAnchorRoot: manage.Proposal{
 				Root:             startingAnchorRoot,
 				L2SequenceNumber: big.NewInt(int64(l1GenesisTimestamp)),
 			},
-			GameParameters: manage.GameParameters{
-				Proposer:         l2Cfgs[l2ChainID].Proposer,
-				Challenger:       l2Cfgs[l2ChainID].Challenger,
-				MaxGameDepth:     l2Cfgs[l2ChainID].DisputeMaxGameDepth,
-				SplitDepth:       l2Cfgs[l2ChainID].DisputeSplitDepth,
-				InitBond:         big.NewInt(0),
-				ClockExtension:   l2Cfgs[l2ChainID].DisputeClockExtension,
-				MaxClockDuration: l2Cfgs[l2ChainID].DisputeMaxClockDuration,
-			},
-			OpChainConfigs: chainConfigs,
+			StartingRespectedGameType: GameTypeSuperCannon,
 		},
 	}
 	output, err := manage.Migrate(l1Host, imi)
