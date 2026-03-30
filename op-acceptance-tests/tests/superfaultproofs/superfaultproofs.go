@@ -573,6 +573,10 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].EL.Reached(eth.Safe, target1, 60)
 	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
+	// Stop batchers so the t.Cleanup(Start) calls don't fail with "already running".
+	chains[0].Batcher.Stop()
+	chains[1].Batcher.Stop()
+
 	// --- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
@@ -658,6 +662,10 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
 	chains[1].EL.Reached(eth.Safe, target1, 60)
 	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
+
+	// Stop batchers so the t.Cleanup(Start) calls don't fail with "already running".
+	chains[0].Batcher.Stop()
+	chains[1].Batcher.Stop()
 
 	// -- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)

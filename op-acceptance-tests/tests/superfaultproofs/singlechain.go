@@ -54,6 +54,9 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 	c.EL.Reached(eth.Safe, target, 60)
 	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
+	// Stop batcher so the t.Cleanup(Start) call doesn't fail with "already running".
+	c.Batcher.Stop()
+
 	// Build expected transition states for a single chain.
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
