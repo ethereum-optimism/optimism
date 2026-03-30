@@ -23,6 +23,8 @@ library NetworkUpgradeTxns {
     ///         This struct is serialized to JSON and later converted to a DepositTx by op-node.
     ///         See op-node/rollup/derive/parse_upgrade_transactions.go for conversion logic.
     /// @dev Fields MUST be in alphabetical order for JSON parseJson/abi.decode to work.
+    /// @dev The `intent` field MUST be a simple human-readable string (no special or non-ASCII
+    ///      characters) to avoid JSON serialization issues in the NUT bundle artifact.
     /// @param data The calldata for the transaction.
     /// @param from The address of the sender of the transaction.
     /// @param gasLimit The gas limit for the transaction.

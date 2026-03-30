@@ -115,21 +115,6 @@
           },
           {
             "internalType": "address",
-            "name": "optimismSuperchainERC20FactoryImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "optimismSuperchainERC20BeaconImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "superchainTokenBridgeImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "nativeAssetLiquidityImpl",
             "type": "address"
           },
@@ -275,21 +260,6 @@
           },
           {
             "internalType": "address",
-            "name": "optimismSuperchainERC20FactoryImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "optimismSuperchainERC20BeaconImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "superchainTokenBridgeImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "nativeAssetLiquidityImpl",
             "type": "address"
           },
@@ -346,6 +316,11 @@
       }
     ],
     "name": "L2ContractsManager_DowngradeNotAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L2ContractsManager_FeatureFlagMismatch",
     "type": "error"
   },
   {

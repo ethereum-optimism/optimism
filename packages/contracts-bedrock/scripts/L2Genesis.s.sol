@@ -32,6 +32,7 @@ import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
@@ -255,15 +256,7 @@ contract L2Genesis is Script {
         setOptimismMintableERC20Factory(); // 12
         setL1BlockNumber(); // 13
         setL2ERC721Bridge(_input.l1ERC721BridgeProxy); // 14
-
-        // Stop pranking as the proxy admin owner.
-        vm.stopPrank();
-
-        // Set L1 Block has its own pranking requirements which it handles internally.
-        setL1Block(_input.useCustomGasToken); // 15
-
-        // Resume pranking as the proxy admin owner.
-        vm.startPrank(_input.opChainProxyAdminOwner);
+        setL1Block(_input); // 15
         setL2ToL1MessagePasser(_input.useCustomGasToken); // 16
         setOptimismMintableERC721Factory(_input); // 17
         setBaseFeeVault(_input); // 19
@@ -287,11 +280,13 @@ contract L2Genesis is Script {
             setLiquidityController(_input); // 29
             setNativeAssetLiquidity(_input); // 2A
         }
+        vm.stopPrank();
+        // These calls don't need the opChainProxyAdminOwner prank: setConditionalDeployer uses
+        // vm.etch and setL2DevFeatureFlags manages its own prank as DEPOSITOR_ACCOUNT.
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.L2CM)) {
             setConditionalDeployer(); // 2C
             setL2DevFeatureFlags(_input); // 2D
         }
-        vm.stopPrank();
     }
 
     function setInteropPredeployProxies() internal { }
@@ -387,19 +382,20 @@ contract L2Genesis is Script {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL1Block(bool _useCustomGasToken) internal {
-        if (_useCustomGasToken) {
+    function setL1Block(Input memory _input) internal {
+        if (_input.useCustomGasToken) {
             // Set the implementation code for L1BlockCGT
             string memory cname = "L1BlockCGT";
             address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
             vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
 
             // Set the custom gas token flag
-            vm.startPrank(IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
-            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setCustomGasToken();
-            vm.stopPrank();
+            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
         } else {
             _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
+        }
+        if (_input.useInterop) {
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.INTEROP);
         }
     }
 
@@ -600,9 +596,8 @@ contract L2Genesis is Script {
     /// @notice Sets up the L2DevFeatureFlags predeploy with the development feature bitmap.
     function setL2DevFeatureFlags(Input memory _input) internal {
         _setImplementationCode(Predeploys.L2_DEV_FEATURE_FLAGS);
-        vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
         IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);
-        vm.stopPrank();
     }
 
     /// @notice Sets all the preinstalls.

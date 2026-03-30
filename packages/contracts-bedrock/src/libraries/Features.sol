@@ -15,4 +15,7 @@ library Features {
     ///         gas token in the OptimismPortal. When the CUSTOM_GAS_TOKEN feature is active, the
     ///         deposits and withdrawals of native ETH are disabled.
     bytes32 internal constant CUSTOM_GAS_TOKEN = "CUSTOM_GAS_TOKEN";
+
+    /// @notice The INTEROP feature determines if the system is configured to use interop.
+    bytes32 internal constant INTEROP = "INTEROP";
 }

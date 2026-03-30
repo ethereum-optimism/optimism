@@ -73,9 +73,11 @@ fs_permissions = [
   { access='read', path='./lib/superchain-registry/validation/standard/' },
 ]
 
-# 5159 error code is selfdestruct error code
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159]
-deny_warnings = true
+# 5159 = selfdestruct deprecation
+# 8429 = virtual modifiers deprecated (solc 0.8.31, triggered by solmate)
+# 2424 = natspec memory-safe-assembly comment deprecated (solc 0.8.31, triggered by forge-std)
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424]
+deny = "warnings"
 ffi = true
 
 # We set the gas limit to max int64 to avoid running out of gas during testing, since the default

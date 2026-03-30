@@ -11,6 +11,7 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 
 /// @title GenerateNUTBundleTest
 /// @notice Tests that GenerateNUTBundle correctly generates Network Upgrade Transaction bundles
@@ -126,5 +127,14 @@ contract GenerateNUTBundleTest is Test {
                 keccak256(_output1.txns[i].data), keccak256(_output2.txns[i].data), "Transaction data should match"
             );
         }
+    }
+
+    /// @notice Tests that the number of implementations in the deployment list matches the number of fields in the
+    /// Implementations struct.
+    function test_implementationCount_matchesStructFields_succeeds() public pure {
+        L2ContractsManagerTypes.Implementations memory emptyImpl;
+        uint256 structFieldCount = abi.encode(emptyImpl).length / 32;
+        string[] memory names = UpgradeUtils.getImplementationsNamesToUpgrade();
+        assertEq(names.length, structFieldCount, "Deployment list must equal Implementations struct field count");
     }
 }

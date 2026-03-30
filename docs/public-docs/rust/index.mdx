@@ -1,0 +1,64 @@
+---
+title: "OP Stack Rust"
+description: "Documentation for Rust implementations of the OP Stack: Kona, op-reth, and op-alloy"
+---
+
+# OP Stack Rust
+
+Rust implementations for the OP Stack, built by [OP Labs](https://www.oplabs.co/).
+
+A unified documentation site for OP Stack Rust components: **Kona** (rollup node & fault proofs),
+**op-reth** (execution client), and **op-alloy** (types & providers).
+
+## Quick Start
+
+<CodeGroup>
+```bash Run a Kona Node
+# Install the kona-node
+cargo install kona-node
+
+# Start the node
+kona-node --chain base --port 8545
+```
+
+```bash Run op-reth
+# Install op-reth
+cargo install op-reth
+
+# Start the execution client
+op-reth node --chain base
+```
+</CodeGroup>
+
+## Components
+
+<CardGroup cols={3}>
+  <Card title="Kona" icon="lock" href="/rust/kona/intro/overview">
+    Modular rollup node and fault proof system. Spec-compliant, performant, and extensible with `no_std` support.
+  </Card>
+  <Card title="op-reth" icon="bolt" href="/rust/op-reth">
+    High-performance OP Stack execution client built on reth. Full superchain registry support.
+  </Card>
+  <Card title="op-alloy" icon="puzzle-piece" href="/rust/op-alloy/intro">
+    OP Stack types and providers for the Alloy ecosystem. Consensus, RPC, and network crates.
+  </Card>
+</CardGroup>
+
+## Built with Kona SDK
+
+Production implementations using Kona's modular architecture:
+
+<CardGroup cols={2}>
+  <Card title="Kona Client" href="https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/client">
+    Fault proof program for rollup state transitions (~3K LoC)
+  </Card>
+  <Card title="Kona Node" href="https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/node">
+    Modular OP Stack rollup node implementation (~8K LoC)
+  </Card>
+  <Card title="OP Succinct" href="https://github.com/succinctlabs/op-succinct">
+    zkVM-based proof system using Kona (~2K LoC)
+  </Card>
+  <Card title="Kailua" href="https://github.com/boundless-xyz/kailua">
+    zkVM-based proof system using Kona (~5K LoC)
+  </Card>
+</CardGroup>

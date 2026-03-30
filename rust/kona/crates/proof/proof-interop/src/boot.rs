@@ -6,6 +6,7 @@ use alloc::{string::ToString, vec::Vec};
 use alloy_primitives::{B256, Bytes, U256};
 use alloy_rlp::Decodable;
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_preimage::{
     CommsClient, HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
     errors::PreimageOracleError,
@@ -34,6 +35,9 @@ pub const L2_ROLLUP_CONFIG_KEY: U256 = U256::from_be_slice(&[6]);
 /// The local key ident for the l1 config.
 pub const L1_CONFIG_KEY: U256 = U256::from_be_slice(&[7]);
 
+/// The local key ident for the dependency set.
+pub const DEPENDENCY_SET_KEY: U256 = U256::from_be_slice(&[8]);
+
 /// The boot information for the interop client program.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BootInfo {
@@ -49,6 +53,8 @@ pub struct BootInfo {
     pub claimed_l2_timestamp: u64,
     /// The rollup config for the L2 chain.
     pub rollup_configs: HashMap<u64, RollupConfig>,
+    /// The dependency set configuration for the interop cluster.
+    pub dependency_set: DependencySet,
     /// The L1 config for the L2 chain.
     pub l1_config: L1ChainConfig,
 }
@@ -139,6 +145,15 @@ impl BootInfo {
             serde_json::from_slice(&ser_cfg).map_err(OracleProviderError::Serde)?
         };
 
+        // Load the dependency set configuration from the preimage oracle.
+        let dependency_set: DependencySet = {
+            let ser_cfg = oracle
+                .get(PreimageKey::new_local(DEPENDENCY_SET_KEY.to()))
+                .await
+                .map_err(OracleProviderError::Preimage)?;
+            serde_json::from_slice(&ser_cfg).map_err(OracleProviderError::Serde)?
+        };
+
         // Attempt to load the l1 config from the chain ID. If there is no config for the chain,
         // fall back to loading the config from the preimage oracle.
 
@@ -170,6 +185,7 @@ impl BootInfo {
             l1_head,
             l1_config,
             rollup_configs,
+            dependency_set,
             agreed_pre_state_commitment: l2_pre,
             agreed_pre_state,
             claimed_post_state: l2_post,

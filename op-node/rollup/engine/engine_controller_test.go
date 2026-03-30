@@ -390,10 +390,97 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
 	}, nil)
 
-	// Trigger forkchoice update
-	ec.needFCUCall = true
+	// Trigger forkchoice update (fires because lastForkchoice differs from current state)
 	err := ec.tryUpdateEngineInternal(context.Background())
 	require.NoError(t, err)
+}
+
+// TestConsolidation_BatchesFCUPerL1Block verifies that on the consolidation path,
+// PromoteSafe does NOT trigger an FCU per L2 block. Instead, a single FCU is sent
+// when DeriverL1StatusEvent fires (at L1 origin transitions).
+func TestConsolidation_BatchesFCUPerL1Block(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(4321))
+	l1A := testutils.RandomBlockRef(rng)
+	l1B := testutils.RandomBlockRef(rng)
+	l1B.Number = l1A.Number + 1
+	l1B.ParentHash = l1A.Hash
+
+	genesis := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 0,
+		ParentHash: common.Hash{}, Time: l1A.Time,
+		L1Origin: l1A.ID(), SequenceNumber: 0,
+	}
+	block1 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 1,
+		ParentHash: genesis.Hash, Time: l1A.Time + 2,
+		L1Origin: l1A.ID(), SequenceNumber: 1,
+	}
+	block2 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 2,
+		ParentHash: block1.Hash, Time: l1A.Time + 4,
+		L1Origin: l1A.ID(), SequenceNumber: 2,
+	}
+	block3 := eth.L2BlockRef{
+		Hash: testutils.RandomHash(rng), Number: 3,
+		ParentHash: block2.Hash, Time: l1A.Time + 6,
+		L1Origin: l1A.ID(), SequenceNumber: 3,
+	}
+
+	cfg := &rollup.Config{}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, nil)
+
+	// Initial state: unsafe chain is ahead, safe at genesis.
+	// Set all heads directly to avoid initializeUnknowns engine calls.
+	ec.unsafeHead = block3
+	ec.localSafeHead = genesis
+	ec.deprecatedSafeHead = genesis
+	ec.pendingSafeHead = genesis
+	ec.localFinalizedHead = genesis
+	ec.deprecatedFinalizedHead = genesis
+
+	// Allow any emitted events
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+
+	// Simulate consolidation path: local-safe and cross-safe advance per-block
+	// (as TryUpdateLocalSafe + LocalSafeUpdateEvent → PromoteSafe does).
+	// PromoteSafe no longer calls tryUpdateEngine. tryUpdateEngine compares
+	// against lastForkchoice — no FCU per block because only SafeBlockHash changes.
+	for _, blk := range []eth.L2BlockRef{block1, block2, block3} {
+		ec.SetLocalSafeHead(blk)
+		ec.SetPendingSafeL2Head(blk)
+		ec.PromoteSafe(context.Background(), blk, l1A)
+	}
+
+	// Verify: no ForkchoiceUpdate was called on the mock engine.
+	// If FCU had been called, mockEngine would panic on an unexpected call.
+	mockEngine.AssertExpectations(t)
+
+	// Verify cross-safe advanced correctly despite no FCU
+	require.Equal(t, block3.Hash, ec.deprecatedSafeHead.Hash, "cross-safe should advance per-block")
+	require.Equal(t, block3.Hash, ec.localSafeHead.Hash, "local-safe should advance per-block")
+
+	// Now simulate DeriverL1StatusEvent (L1 origin transition).
+	// This should trigger exactly one FCU with the latest safe head.
+	// In non-interop mode, SafeL2Head() returns localSafeHead.
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      block3.Hash,
+			SafeBlockHash:      block3.Hash, // localSafeHead = block3
+			FinalizedBlockHash: genesis.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+
+	ec.OnEvent(context.Background(), derive.DeriverL1StatusEvent{
+		Origin: l1B,
+	})
+
+	// Verify exactly one FCU was sent
+	mockEngine.AssertExpectations(t)
 }
 
 // SuperAuthority tests are in super_authority_deny_test.go
@@ -452,7 +539,12 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	ec.SetLocalSafeHead(block2)
 	ec.SetSafeHead(block2)      // deprecatedSafeHead = block2
 	ec.SetFinalizedHead(block1) // deprecatedFinalizedHead = block1
-	ec.needFCUCall = false      // reset after setup
+	// Set lastForkchoice to match initial state so setup doesn't trigger FCU
+	ec.lastForkchoice = eth.ForkchoiceState{
+		HeadBlockHash:      block5.Hash,
+		SafeBlockHash:      block2.Hash,
+		FinalizedBlockHash: block1.Hash,
+	}
 
 	// Mock expectations:
 	// Allow any events from the emitter (LocalSafeUpdateEvent, SafeDerivedEvent, etc.)
@@ -461,16 +553,8 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	// Consolidation lookup: after fix, uses eLocalSafeRef.Number (5)
 	mockEngine.ExpectL2BlockRefByNumber(5, block5, nil)
 
-	// FCU from PromoteSafe's tryUpdateEngine: safe=block4, finalized still block1
-	mockEngine.ExpectForkchoiceUpdate(
-		&eth.ForkchoiceState{
-			HeadBlockHash:      block5.Hash,
-			SafeBlockHash:      block4.Hash,
-			FinalizedBlockHash: block1.Hash,
-		}, nil,
-		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
-	)
-	// FCU from promoteFinalized's tryUpdateEngine: finalized now block3
+	// Single FCU from promoteFinalized's tryUpdateEngine — PromoteSafe no longer
+	// calls tryUpdateEngine, so the safe and finalized updates are batched together.
 	mockEngine.ExpectForkchoiceUpdate(
 		&eth.ForkchoiceState{
 			HeadBlockHash:      block5.Hash,

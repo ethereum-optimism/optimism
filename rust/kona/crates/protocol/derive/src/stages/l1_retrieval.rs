@@ -125,6 +125,7 @@ where
         match signal {
             Signal::Reset(ResetSignal { l1_origin, .. }) |
             Signal::Activation(ActivationSignal { l1_origin, .. }) => {
+                self.provider.clear();
                 self.next = Some(l1_origin);
             }
             _ => {}
@@ -156,7 +157,7 @@ mod tests {
     #[tokio::test]
     async fn test_l1_retrieval_activation_signal() {
         let traversal = TraversalTestHelper::new_populated();
-        let dap = TestDAP { results: vec![] };
+        let dap = TestDAP { results: vec![Ok(Bytes::default())] };
         let mut retrieval = L1Retrieval::new(traversal, dap);
         retrieval.prev.block = None;
         assert!(retrieval.prev.block.is_none());
@@ -170,12 +171,14 @@ mod tests {
             .unwrap();
         assert!(retrieval.next.is_some());
         assert_eq!(retrieval.prev.block, Some(BlockInfo::default()));
+        // Provider must be cleared on activation to flush stale data.
+        assert!(retrieval.provider.results.is_empty());
     }
 
     #[tokio::test]
     async fn test_l1_retrieval_reset_signal() {
         let traversal = TraversalTestHelper::new_populated();
-        let dap = TestDAP { results: vec![] };
+        let dap = TestDAP { results: vec![Ok(Bytes::default())] };
         let mut retrieval = L1Retrieval::new(traversal, dap);
         retrieval.prev.block = None;
         assert!(retrieval.prev.block.is_none());
@@ -189,6 +192,8 @@ mod tests {
             .unwrap();
         assert!(retrieval.next.is_some());
         assert_eq!(retrieval.prev.block, Some(BlockInfo::default()));
+        // Provider must be cleared on reset to flush stale data.
+        assert!(retrieval.provider.results.is_empty());
     }
 
     #[tokio::test]
@@ -237,6 +242,35 @@ mod tests {
         let err = retrieval.next_data().await.unwrap_err();
         assert_eq!(err, PipelineError::Eof.temp());
         assert!(retrieval.next.is_none());
+    }
+
+    async fn test_l1_retrieval_clears_stale_data(signal: Signal) {
+        let traversal = TraversalTestHelper::new_populated();
+        // Pre-load a stale entry that should never be served after activation or reset.
+        let dap = TestDAP { results: vec![Ok(Bytes::from_static(b"stale"))] };
+        let mut retrieval = L1Retrieval::new(traversal, dap);
+        retrieval.next = Some(BlockInfo::default());
+        retrieval.signal(signal).await.unwrap();
+        // next_data must not return the stale bytes; the cleared provider yields EOF.
+        let err = retrieval.next_data().await.unwrap_err();
+        assert_eq!(err, PipelineError::Eof.temp());
+    }
+
+    /// Regression test: stale DAP data loaded before a reset must not be returned after the reset.
+    #[tokio::test]
+    async fn test_l1_retrieval_reset_clears_stale_data() {
+        let reset_signal =
+            ResetSignal { system_config: Some(Default::default()), ..Default::default() }.signal();
+        test_l1_retrieval_clears_stale_data(reset_signal).await
+    }
+
+    /// Regression test: stale DAP data loaded before an activation must not be returned after it.
+    #[tokio::test]
+    async fn test_l1_retrieval_activation_clears_stale_data() {
+        let activation_signal =
+            ActivationSignal { system_config: Some(Default::default()), ..Default::default() }
+                .signal();
+        test_l1_retrieval_clears_stale_data(activation_signal).await
     }
 
     #[tokio::test]

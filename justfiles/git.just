@@ -15,12 +15,14 @@ _PREFERRED_TAG := shell("echo $1 | tr ' ' '\n' | grep -v -- '-rc' | tail -n 1", 
 _LAST_TAG := shell("echo $1 | tr ' ' '\n' | tail -n 1", _PROJECT_TAGS)
 
 # Find version tag, prioritizing non-rc release tags
-VERSION := if _PREFERRED_TAG != "" {
+_COMPUTED_VERSION := if _PREFERRED_TAG != "" {
     _PREFERRED_TAG
 } else if _LAST_TAG != "" {
     _LAST_TAG
 } else {
     "untagged"
 }
+
+VERSION := env('VERSION', _COMPUTED_VERSION)
 
 VERSION_META := ""

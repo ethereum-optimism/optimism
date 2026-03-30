@@ -238,8 +238,8 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
         // and this task will always succeed. If not, task failure will be relayed to the caller.
         if let Some(tx) = &self.result_tx {
             tx.send(res).await.map_err(|e| SealTaskError::MpscSend(Box::new(e)))?;
-        } else if let Err(x) = res {
-            return Err(x);
+        } else {
+            res?;
         }
 
         Ok(())
