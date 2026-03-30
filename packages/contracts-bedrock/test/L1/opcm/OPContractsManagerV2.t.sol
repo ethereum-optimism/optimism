@@ -2087,6 +2087,11 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @param _owner2 The owner address for the second chain's ProxyAdmin.
     function testFuzz_migrate_mismatchedProxyAdminOwners_reverts(address _owner1, address _owner2) public {
         vm.assume(_owner1 != _owner2);
+        // Exclude the OPCM address itself: when the pranked delegate-call address equals
+        // address(opcmV2), the _onlyDelegateCall guard reverts before the owner check,
+        // producing a different revert selector than this test expects.
+        vm.assume(_owner1 != address(opcmV2));
+        vm.assume(_owner2 != address(opcmV2));
         assumeNotPrecompile(_owner1);
         assumeNotPrecompile(_owner2);
         assumeNotForgeAddress(_owner1);

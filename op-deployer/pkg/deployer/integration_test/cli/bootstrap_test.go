@@ -183,7 +183,7 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NoError(t, err)
 
 		// We only check specific addresses that are always set
-		require.NotEqual(t, common.Address{}, implsOutput.Opcm, "Opcm should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.OpcmV2, "OpcmV2 should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.OpcmStandardValidator, "OpcmStandardValidator should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.DelayedWETHImpl, "DelayedWETHImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.OptimismPortalImpl, "OptimismPortalImpl should be set")

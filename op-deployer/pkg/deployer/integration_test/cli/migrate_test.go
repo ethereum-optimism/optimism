@@ -156,8 +156,8 @@ func TestCLIMigrateV1(t *testing.T) {
 
 	impls, err := bootstrap.Implementations(ctx, cfg)
 	require.NoError(t, err, "Failed to deploy implementations")
-	require.NotEqual(t, common.Address{}, impls.Opcm, "OPCM V1 address should be set")
-	require.Equal(t, common.Address{}, impls.OpcmV2, "OPCM V2 address should be zero when V1 is deployed")
+	require.NotEqual(t, common.Address{}, impls.OpcmV2, "OPCM V2 address should be set")
+	require.Equal(t, common.Address{}, impls.Opcm, "OPCM V1 address should be zero (v1 deleted)")
 
 	// Set up a test chain
 	l1ChainID := uint64(11155111) // Sepolia chain ID
@@ -221,7 +221,8 @@ func TestCLIMigrateV1(t *testing.T) {
 	// Set implementations deployment addresses
 	if st.ImplementationsDeployment == nil {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmImpl:                         impls.Opcm,
+			OpcmImpl:                         impls.OpcmV2, // v1 deleted; populate with v2 for downstream compat
+			OpcmV2Impl:                       impls.OpcmV2,
 			OptimismPortalImpl:               impls.OptimismPortalImpl,
 			DelayedWethImpl:                  impls.DelayedWETHImpl,
 			EthLockboxImpl:                   impls.ETHLockboxImpl,
@@ -441,7 +442,8 @@ func TestCLIMigrateV2(t *testing.T) {
 	// Set implementations deployment addresses
 	if st.ImplementationsDeployment == nil {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmImpl:                         impls.OpcmV2,
+			OpcmImpl:                         impls.OpcmV2, // v1 deleted; populate with v2 for downstream compat
+			OpcmV2Impl:                       impls.OpcmV2,
 			OpcmContainerImpl:                impls.OpcmContainer,
 			OpcmUtilsImpl:                    impls.OpcmUtils,
 			OpcmMigratorImpl:                 impls.OpcmMigrator,
