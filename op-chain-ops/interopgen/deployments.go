@@ -40,6 +40,7 @@ type Implementations struct {
 	PermissionedDisputeGameImpl      common.Address `json:"PermissionedDisputeGameImpl"`
 	SuperFaultDisputeGameImpl        common.Address `json:"SuperFaultDisputeGameImpl"`
 	SuperPermissionedDisputeGameImpl common.Address `json:"SuperPermissionedDisputeGameImpl"`
+	ZkDisputeGameImpl                common.Address `json:"ZkDisputeGameImpl"`
 	StorageSetterImpl                common.Address `json:"StorageSetterImpl"`
 }
 
