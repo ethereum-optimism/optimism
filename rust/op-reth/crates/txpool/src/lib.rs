@@ -27,9 +27,9 @@ use reth_transaction_pool::{CoinbaseTipOrdering, Pool, TransactionValidationTask
 
 /// Type alias for default optimism transaction pool.
 ///
-/// The outer [`OpPool`] wrapper filters interop transactions during the active
-/// post-reorg filter period. The inner [`Pool`] handles all standard pool
-/// operations.
+/// The [`OpPool`] wrapper delegates most behavior to the inner [`Pool`] handle,
+/// and overrides only a subset of the functions.
+/// This enables implementing custom behaviors and filtering of the pooled transactions.
 pub type OpTransactionPool<Client, S, Evm, T = OpPooledTransaction> = OpPool<
     Pool<
         TransactionValidationTaskExecutor<OpTransactionValidator<Client, T, Evm>>,

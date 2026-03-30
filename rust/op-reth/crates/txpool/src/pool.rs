@@ -1,5 +1,4 @@
-//! OP-specific transaction pool wrapper that filters interop transactions during reorg
-//! reinsertion.
+//! OP-specific transaction pool wrapper
 //!
 //! See [`OpPool`] for details.
 
@@ -12,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use alloy_consensus::Transaction;
 use alloy_eips::eip7594::BlobTransactionSidecarVariant;
 use alloy_primitives::{Address, B256, TxHash};
 use metrics::Counter;
@@ -24,43 +24,50 @@ use reth_transaction_pool::{
     ValidPoolTransaction,
 };
 use tokio::sync::mpsc::Receiver;
+use tracing::debug;
 
 use crate::supervisor::CROSS_L2_INBOX_ADDRESS;
 
 /// Duration after a reorg during which all interop transactions are filtered
 /// from `add_external_transactions`.
-const REORG_WINDOW: Duration = Duration::from_secs(60);
+/// It is safe to drop the interop transactions during reorg while the chain
+/// stabilizes, since those transactions are system-generated and can be
+/// reinjected after the chain recovers.
+/// This window exists to prevent potential race conditions that could lead to
+/// interop transactions not being filtered after a reorg, which could cause
+/// the supernode to enter a rewind loop.
+const REORG_WINDOW: Duration = Duration::from_secs(30);
 
-/// Transaction pool wrapper that filters interop transactions during the
-/// active reorg filter period. Delegates all other operations to the inner
-/// pool.
+/// Optimism-specific transaction pool wrapper. Delegates most operations
+/// directly to the inner transaction pool.
 ///
-/// On each reorg, the wrapper records the reorg time and arms a one-shot
-/// fallback. Every `add_external_transactions` call within the `REORG_WINDOW`
-/// filters interop transactions. After the window expires, the armed one-shot
-/// still allows one best-effort filter pass if it was not already consumed.
-///
-/// This wrapper is OP-specific. It assumes the inner pool's transaction type
-/// supports access-list inspection (`alloy_consensus::Transaction`).
+/// Currently, the only difference is a transaction filter that stops
+/// interop transactions from being added to the pool after a reorg.
 #[derive(Clone)]
-pub struct OpPool<P> {
+pub struct OpPool<P>
+where
+    P: TransactionPool,
+    P::Transaction: Transaction,
+{
     /// The wrapped inner pool.
     inner: P,
-    /// Whether the reorg interop filter is enabled for this pool instance.
-    ///
-    /// Set at pool construction time when interop is active at the startup
-    /// head timestamp.
-    enabled: bool,
     /// Shared state for reorg tracking. Wrapped in Arc so clones share state.
-    reorg_state: Arc<ReorgFilterState>,
+    /// If the interop filter is disabled at pool creation, this is `None`.
+    reorg_state: Option<Arc<ReorgFilterState>>,
     /// Metrics for reorg filtering.
     metrics: OpPoolMetrics,
 }
 
 /// Reorg filter state, shared across `OpPool` clones.
+///
+/// On each reorg, the wrapper records the reorg time and arms a one-shot
+/// fallback. Every `add_external_transactions` call within the `REORG_WINDOW`
+/// filters interop transactions. After at least one filtered batch, we clear
+/// the one-shot atomic flag.
+/// still allows one best-effort filter pass if it was not already consumed.
+#[derive(Debug)]
 struct ReorgFilterState {
-    /// Timestamp of the most recent reorg, used to keep filtering active for a
-    /// short window after the reorg is observed.
+    /// Timestamp of the most recent reorg observed via `on_canonical_state_change`.
     last_reorg_at: RwLock<Option<Instant>>,
     /// One-shot post-reorg filter flag. Set to `false` (armed) on each reorg,
     /// set to `true` (consumed) by the first `add_external_transactions` call
@@ -68,63 +75,52 @@ struct ReorgFilterState {
     /// consumed even if the batch contains no interop txs, because a given
     /// reorg may legitimately have nothing to filter.
     ///
-    /// This is best-effort: it filters the first eligible
-    /// `add_external_transactions` call after a reorg if the reorg window was
-    /// missed. If a concurrent P2P batch races and consumes the one-shot
-    /// first, that batch gets filtered instead. This is acceptable because
-    /// interop txs are system-managed and can be resent.
+    /// This is safe because we know there will always be at least one
+    /// `add_external_transactions` call after a reorg inside reth's
+    /// transaction pool maintenance task.
     filter_armed: AtomicBool,
 }
 
-/// Metrics for the [`OpPool`] reorg interop filter.
-///
-/// `Clone` is required because `OpPool` derives Clone and contains this.
-/// `Debug` is NOT derived — `metrics::Counter` does not implement `Debug`.
-#[derive(Metrics, Clone)]
-#[metrics(scope = "transaction_pool")]
-struct OpPoolMetrics {
-    /// Number of interop transactions filtered during reorg reinsertion
-    reorg_interop_txs_filtered: Counter,
-}
+impl ReorgFilterState {
+    /// Atomically consumes the one-shot reorg fallback filter.
+    ///
+    /// Returns `true` exactly once per reorg (until re-armed in
+    /// `on_canonical_state_change`), even under concurrency.
+    fn consume_filter(&self) -> bool {
+        self.filter_armed.compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire).is_ok()
+    }
 
-impl<P: fmt::Debug> fmt::Debug for OpPool<P> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OpPool")
-            .field("inner", &self.inner)
-            .field("enabled", &self.enabled)
-            .field("last_reorg_at", &self.reorg_state.last_reorg_at.read().unwrap())
-            .field("filter_armed", &self.reorg_state.filter_armed.load(Ordering::Relaxed))
-            .finish()
+    fn in_reorg_window(&self) -> bool {
+        self.last_reorg_at.read().unwrap().is_some_and(|reorg_at| reorg_at.elapsed() < REORG_WINDOW)
     }
 }
 
-impl<P> OpPool<P> {
-    /// Wraps an inner pool with interop reorg filtering.
-    ///
-    /// When `enabled` is `false`, the wrapper is fully transparent — no reorg
-    /// state is tracked and no filtering ever fires.
-    pub fn new(inner: P, enabled: bool) -> Self {
-        Self {
-            inner,
-            enabled,
-            reorg_state: Arc::new(ReorgFilterState {
-                last_reorg_at: RwLock::new(None),
-                // Not armed at construction time.
-                filter_armed: AtomicBool::new(false),
-            }),
-            metrics: OpPoolMetrics::default(),
-        }
+/// Metrics for the [`OpPool`] reorg interop filter.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "transaction_pool")]
+struct OpPoolMetrics {
+    /// Number of interop transactions filtered by the reorg filter
+    reorg_interop_txs_filtered: Counter,
+}
+
+impl<P> fmt::Debug for OpPool<P>
+where
+    P: fmt::Debug + TransactionPool,
+    P::Transaction: Transaction,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OpPool")
+            .field("inner", &self.inner)
+            .field("reorg_state", &self.reorg_state)
+            .finish()
     }
 }
 
 /// Returns true if the transaction's access list targets `CROSS_L2_INBOX_ADDRESS`
 /// with at least one storage key.
-///
-/// Equivalent to op-geth's `len(interoptypes.TxToInteropAccessList(tx)) > 0`
-/// in `core/types/interoptypes/interop.go:88-103`.
 fn is_interop_tx<T>(tx: &T) -> bool
 where
-    T: PoolTransaction + alloy_consensus::Transaction,
+    T: PoolTransaction + Transaction,
 {
     tx.access_list()
         .map(|al| {
@@ -137,25 +133,20 @@ where
 impl<P> OpPool<P>
 where
     P: TransactionPool,
-    P::Transaction: alloy_consensus::Transaction,
+    P::Transaction: Transaction,
 {
-    /// Atomically consumes the one-shot reorg fallback filter.
+    /// Wraps an inner pool with interop reorg filtering.
     ///
-    /// Returns `true` exactly once per reorg (until re-armed in
-    /// `on_canonical_state_change`), even under concurrency.
-    fn consume_filter(&self) -> bool {
-        self.reorg_state
-            .filter_armed
-            .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
-            .is_ok()
-    }
-
-    fn in_reorg_window(&self) -> bool {
-        self.reorg_state
-            .last_reorg_at
-            .read()
-            .unwrap()
-            .is_some_and(|reorg_at| reorg_at.elapsed() < REORG_WINDOW)
+    /// When `interop_enabled` is `false`, the wrapper is fully transparent.
+    pub fn new(inner: P, interop_enabled: bool) -> Self {
+        let reorg_state = interop_enabled.then(|| {
+            Arc::new(ReorgFilterState {
+                last_reorg_at: RwLock::new(None),
+                // Not armed at construction time.
+                filter_armed: AtomicBool::new(false),
+            })
+        });
+        Self { inner, reorg_state, metrics: OpPoolMetrics::default() }
     }
 
     /// Returns true if interop filtering should fire on this
@@ -164,33 +155,32 @@ where
     /// Filtering stays active for the full `REORG_WINDOW` after a reorg.
     /// Outside the window, a one-shot fallback still filters the first
     /// eligible batch if the fallback has not been consumed yet.
-    fn should_filter(&self) -> bool {
-        if !self.enabled {
-            return false;
-        }
+    fn should_filter_interop(&self) -> bool {
+        if let Some(state) = &self.reorg_state {
+            if state.in_reorg_window() {
+                // Prevent an extra post-window filter pass after the window has
+                // already covered the normal reinsertion flow.
+                let _ = state.consume_filter();
+                return true;
+            }
 
-        if self.in_reorg_window() {
-            // Prevent an extra post-window filter pass after the window has
-            // already covered the normal reinsertion flow.
-            let _ = self.consume_filter();
-            return true;
+            state.consume_filter()
+        } else {
+            false
         }
-
-        self.consume_filter()
     }
 
     /// Filters interop transactions from the batch, logging each removal.
-    /// Equivalent to op-geth's `filterInteropTxs()` in `legacypool.go:1512-1522`.
     fn filter_interop_txs(&self, txs: Vec<P::Transaction>) -> Vec<P::Transaction> {
         let before = txs.len();
         let filtered: Vec<_> = txs
             .into_iter()
             .filter(|tx| {
                 if is_interop_tx(tx) {
-                    tracing::warn!(
+                    debug!(
                         target: "txpool",
                         hash = %tx.hash(),
-                        "Filtering interop tx during active reorg filter period"
+                        "Filtering interop tx from pool"
                     );
                     false
                 } else {
@@ -199,7 +189,7 @@ where
             })
             .collect();
         let removed = before - filtered.len();
-        tracing::debug!(
+        debug!(
             target: "txpool",
             batch_size = before,
             interop_filtered = removed,
@@ -213,9 +203,7 @@ where
     }
 }
 
-// ── TransactionPool implementation ──────────────────────────────────────────
-
-/// Macro for delegating sync methods to the inner pool.
+/// Convenience macro for delegating methods to the inner pool.
 macro_rules! delegate {
     // No-arg methods returning a value.
     (fn $name:ident(&self) -> $ret:ty) => {
@@ -223,19 +211,19 @@ macro_rules! delegate {
             self.inner.$name()
         }
     };
-    // Single-arg methods.
+    // Single-arg methods returning a value.
     (fn $name:ident(&self, $arg:ident : $arg_ty:ty) -> $ret:ty) => {
         fn $name(&self, $arg: $arg_ty) -> $ret {
             self.inner.$name($arg)
         }
     };
-    // Two-arg methods.
+    // Two-arg methods returning a value.
     (fn $name:ident(&self, $a1:ident : $a1_ty:ty, $a2:ident : $a2_ty:ty) -> $ret:ty) => {
         fn $name(&self, $a1: $a1_ty, $a2: $a2_ty) -> $ret {
             self.inner.$name($a1, $a2)
         }
     };
-    // Three-arg methods.
+    // Three-arg methods returning a value.
     (
         fn
         $name:ident(&self, $a1:ident : $a1_ty:ty, $a2:ident : $a2_ty:ty, $a3:ident : $a3_ty:ty) ->
@@ -245,22 +233,38 @@ macro_rules! delegate {
             self.inner.$name($a1, $a2, $a3)
         }
     };
+    // No-arg void methods.
+    (fn $name:ident(&self)) => {
+        fn $name(&self) {
+            self.inner.$name()
+        }
+    };
+    // Single-arg void methods.
+    (fn $name:ident(&self, $arg:ident : $arg_ty:ty)) => {
+        fn $name(&self, $arg: $arg_ty) {
+            self.inner.$name($arg)
+        }
+    };
+    // Async two-arg methods.
+    (async fn $name:ident(&self, $a1:ident : $a1_ty:ty, $a2:ident : $a2_ty:ty) -> $ret:ty) => {
+        async fn $name(&self, $a1: $a1_ty, $a2: $a2_ty) -> $ret {
+            self.inner.$name($a1, $a2).await
+        }
+    };
 }
 
 impl<P> TransactionPool for OpPool<P>
 where
     P: TransactionPool,
-    P::Transaction: alloy_consensus::Transaction,
+    P::Transaction: Transaction,
 {
     type Transaction = P::Transaction;
-
-    // ── Intercepted method ──────────────────────────────────────────────
 
     async fn add_external_transactions(
         &self,
         transactions: Vec<Self::Transaction>,
     ) -> Vec<PoolResult<reth_transaction_pool::pool::AddedTransactionOutcome>> {
-        let txs = if self.should_filter() {
+        let txs = if self.should_filter_interop() {
             self.filter_interop_txs(transactions)
         } else {
             tracing::trace!(
@@ -273,32 +277,13 @@ where
         self.inner.add_external_transactions(txs).await
     }
 
-    // ── Delegated async methods ─────────────────────────────────────────
+    // Delegated methods below
 
-    async fn add_transaction_and_subscribe(
-        &self,
-        origin: TransactionOrigin,
-        transaction: Self::Transaction,
-    ) -> PoolResult<TransactionEvents> {
-        self.inner.add_transaction_and_subscribe(origin, transaction).await
-    }
+    delegate!(async fn add_transaction_and_subscribe(&self, origin: TransactionOrigin, transaction: Self::Transaction) -> PoolResult<TransactionEvents>);
+    delegate!(async fn add_transaction(&self, origin: TransactionOrigin, transaction: Self::Transaction) -> PoolResult<reth_transaction_pool::pool::AddedTransactionOutcome>);
+    delegate!(async fn add_transactions(&self, origin: TransactionOrigin, transactions: Vec<Self::Transaction>) -> Vec<PoolResult<reth_transaction_pool::pool::AddedTransactionOutcome>>);
 
-    async fn add_transaction(
-        &self,
-        origin: TransactionOrigin,
-        transaction: Self::Transaction,
-    ) -> PoolResult<reth_transaction_pool::pool::AddedTransactionOutcome> {
-        self.inner.add_transaction(origin, transaction).await
-    }
-
-    async fn add_transactions(
-        &self,
-        origin: TransactionOrigin,
-        transactions: Vec<Self::Transaction>,
-    ) -> Vec<PoolResult<reth_transaction_pool::pool::AddedTransactionOutcome>> {
-        self.inner.add_transactions(origin, transactions).await
-    }
-
+    // Cannot delegate via macro: `impl IntoIterator` arg not matchable by macro `:ty`.
     async fn add_transactions_with_origins(
         &self,
         transactions: impl IntoIterator<Item = (TransactionOrigin, Self::Transaction)> + Send,
@@ -306,105 +291,33 @@ where
         self.inner.add_transactions_with_origins(transactions).await
     }
 
-    // ── Delegated sync methods ──────────────────────────────────────────
-
     delegate!(fn pool_size(&self) -> PoolSize);
     delegate!(fn block_info(&self) -> BlockInfo);
-
-    fn transaction_event_listener(&self, tx_hash: TxHash) -> Option<TransactionEvents> {
-        self.inner.transaction_event_listener(tx_hash)
-    }
-
-    fn all_transactions_event_listener(&self) -> AllTransactionsEvents<Self::Transaction> {
-        self.inner.all_transactions_event_listener()
-    }
-
-    fn pending_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<TxHash> {
-        self.inner.pending_transactions_listener_for(kind)
-    }
-
-    fn blob_transaction_sidecars_listener(
-        &self,
-    ) -> Receiver<reth_transaction_pool::NewBlobSidecar> {
-        self.inner.blob_transaction_sidecars_listener()
-    }
-
-    fn new_transactions_listener_for(
-        &self,
-        kind: TransactionListenerKind,
-    ) -> Receiver<NewTransactionEvent<Self::Transaction>> {
-        self.inner.new_transactions_listener_for(kind)
-    }
-
+    delegate!(fn transaction_event_listener(&self, tx_hash: TxHash) -> Option<TransactionEvents>);
+    delegate!(fn all_transactions_event_listener(&self) -> AllTransactionsEvents<Self::Transaction>);
+    delegate!(fn pending_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<TxHash>);
+    delegate!(fn blob_transaction_sidecars_listener(&self) -> Receiver<reth_transaction_pool::NewBlobSidecar>);
+    delegate!(fn new_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<NewTransactionEvent<Self::Transaction>>);
     delegate!(fn pooled_transaction_hashes(&self) -> Vec<TxHash>);
     delegate!(fn pooled_transaction_hashes_max(&self, max: usize) -> Vec<TxHash>);
     delegate!(fn pooled_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn pooled_transactions_max(&self, max: usize) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
-
-    fn get_pooled_transaction_elements(
-        &self,
-        tx_hashes: Vec<TxHash>,
-        limit: GetPooledTransactionLimit,
-    ) -> Vec<<Self::Transaction as PoolTransaction>::Pooled> {
-        self.inner.get_pooled_transaction_elements(tx_hashes, limit)
-    }
-
-    fn get_pooled_transaction_element(
-        &self,
-        tx_hash: TxHash,
-    ) -> Option<reth_primitives_traits::Recovered<<Self::Transaction as PoolTransaction>::Pooled>>
-    {
-        self.inner.get_pooled_transaction_element(tx_hash)
-    }
-
-    fn best_transactions(
-        &self,
-    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Transaction>>>> {
-        self.inner.best_transactions()
-    }
-
-    fn best_transactions_with_attributes(
-        &self,
-        best_transactions_attributes: BestTransactionsAttributes,
-    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Transaction>>>> {
-        self.inner.best_transactions_with_attributes(best_transactions_attributes)
-    }
-
+    delegate!(fn get_pooled_transaction_elements(&self, tx_hashes: Vec<TxHash>, limit: GetPooledTransactionLimit) -> Vec<<Self::Transaction as PoolTransaction>::Pooled>);
+    delegate!(fn get_pooled_transaction_element(&self, tx_hash: TxHash) -> Option<reth_primitives_traits::Recovered<<Self::Transaction as PoolTransaction>::Pooled>>);
+    delegate!(fn best_transactions(&self) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Transaction>>>>);
+    delegate!(fn best_transactions_with_attributes(&self, best_transactions_attributes: BestTransactionsAttributes) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Transaction>>>>);
     delegate!(fn pending_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn pending_transactions_max(&self, max: usize) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn queued_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn pending_and_queued_txn_count(&self) -> (usize, usize));
     delegate!(fn all_transactions(&self) -> AllPoolTransactions<Self::Transaction>);
     delegate!(fn all_transaction_hashes(&self) -> Vec<TxHash>);
+    delegate!(fn remove_transactions(&self, hashes: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn remove_transactions_and_descendants(&self, hashes: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn remove_transactions_by_sender(&self, sender: Address) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn prune_transactions(&self, hashes: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
 
-    fn remove_transactions(
-        &self,
-        hashes: Vec<TxHash>,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.remove_transactions(hashes)
-    }
-
-    fn remove_transactions_and_descendants(
-        &self,
-        hashes: Vec<TxHash>,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.remove_transactions_and_descendants(hashes)
-    }
-
-    fn remove_transactions_by_sender(
-        &self,
-        sender: Address,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.remove_transactions_by_sender(sender)
-    }
-
-    fn prune_transactions(
-        &self,
-        hashes: Vec<TxHash>,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.prune_transactions(hashes)
-    }
-
+    // Cannot delegate via macro: generic type parameter `<A>` with where clause.
     fn retain_unknown<A>(&self, announcement: &mut A)
     where
         A: reth_eth_wire_types::HandleMempoolData,
@@ -412,25 +325,12 @@ where
         self.inner.retain_unknown(announcement)
     }
 
-    fn get(&self, tx_hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get(tx_hash)
-    }
+    delegate!(fn get(&self, tx_hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn get_all(&self, txs: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn on_propagated(&self, txs: PropagatedTransactions));
+    delegate!(fn get_transactions_by_sender(&self, sender: Address) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
 
-    fn get_all(&self, txs: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_all(txs)
-    }
-
-    fn on_propagated(&self, txs: PropagatedTransactions) {
-        self.inner.on_propagated(txs)
-    }
-
-    fn get_transactions_by_sender(
-        &self,
-        sender: Address,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_transactions_by_sender(sender)
-    }
-
+    // Cannot delegate via macro: `impl FnMut` arg not matchable by macro `:ty`.
     fn get_pending_transactions_with_predicate(
         &self,
         predicate: impl FnMut(&ValidPoolTransaction<Self::Transaction>) -> bool,
@@ -438,108 +338,26 @@ where
         self.inner.get_pending_transactions_with_predicate(predicate)
     }
 
-    fn get_pending_transactions_by_sender(
-        &self,
-        sender: Address,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_pending_transactions_by_sender(sender)
-    }
-
-    fn get_queued_transactions_by_sender(
-        &self,
-        sender: Address,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_queued_transactions_by_sender(sender)
-    }
-
-    fn get_highest_transaction_by_sender(
-        &self,
-        sender: Address,
-    ) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_highest_transaction_by_sender(sender)
-    }
-
-    fn get_highest_consecutive_transaction_by_sender(
-        &self,
-        sender: Address,
-        on_chain_nonce: u64,
-    ) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_highest_consecutive_transaction_by_sender(sender, on_chain_nonce)
-    }
-
-    fn get_transaction_by_sender_and_nonce(
-        &self,
-        sender: Address,
-        nonce: u64,
-    ) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_transaction_by_sender_and_nonce(sender, nonce)
-    }
-
-    fn get_transactions_by_origin(
-        &self,
-        origin: TransactionOrigin,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_transactions_by_origin(origin)
-    }
-
-    fn get_pending_transactions_by_origin(
-        &self,
-        origin: TransactionOrigin,
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
-        self.inner.get_pending_transactions_by_origin(origin)
-    }
-
+    delegate!(fn get_pending_transactions_by_sender(&self, sender: Address) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn get_queued_transactions_by_sender(&self, sender: Address) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn get_highest_transaction_by_sender(&self, sender: Address) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn get_highest_consecutive_transaction_by_sender(&self, sender: Address, on_chain_nonce: u64) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn get_transaction_by_sender_and_nonce(&self, sender: Address, nonce: u64) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn get_transactions_by_origin(&self, origin: TransactionOrigin) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
+    delegate!(fn get_pending_transactions_by_origin(&self, origin: TransactionOrigin) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn unique_senders(&self) -> alloy_primitives::map::AddressSet);
-
-    fn get_blob(
-        &self,
-        tx_hash: TxHash,
-    ) -> Result<Option<Arc<BlobTransactionSidecarVariant>>, BlobStoreError> {
-        self.inner.get_blob(tx_hash)
-    }
-
-    fn get_all_blobs(
-        &self,
-        tx_hashes: Vec<TxHash>,
-    ) -> Result<Vec<(TxHash, Arc<BlobTransactionSidecarVariant>)>, BlobStoreError> {
-        self.inner.get_all_blobs(tx_hashes)
-    }
-
-    fn get_all_blobs_exact(
-        &self,
-        tx_hashes: Vec<TxHash>,
-    ) -> Result<Vec<Arc<BlobTransactionSidecarVariant>>, BlobStoreError> {
-        self.inner.get_all_blobs_exact(tx_hashes)
-    }
-
-    fn get_blobs_for_versioned_hashes_v1(
-        &self,
-        versioned_hashes: &[B256],
-    ) -> Result<Vec<Option<alloy_eips::eip4844::BlobAndProofV1>>, BlobStoreError> {
-        self.inner.get_blobs_for_versioned_hashes_v1(versioned_hashes)
-    }
-
-    fn get_blobs_for_versioned_hashes_v2(
-        &self,
-        versioned_hashes: &[B256],
-    ) -> Result<Option<Vec<alloy_eips::eip4844::BlobAndProofV2>>, BlobStoreError> {
-        self.inner.get_blobs_for_versioned_hashes_v2(versioned_hashes)
-    }
-
-    fn get_blobs_for_versioned_hashes_v3(
-        &self,
-        versioned_hashes: &[B256],
-    ) -> Result<Vec<Option<alloy_eips::eip4844::BlobAndProofV2>>, BlobStoreError> {
-        self.inner.get_blobs_for_versioned_hashes_v3(versioned_hashes)
-    }
+    delegate!(fn get_blob(&self, tx_hash: TxHash) -> Result<Option<Arc<BlobTransactionSidecarVariant>>, BlobStoreError>);
+    delegate!(fn get_all_blobs(&self, tx_hashes: Vec<TxHash>) -> Result<Vec<(TxHash, Arc<BlobTransactionSidecarVariant>)>, BlobStoreError>);
+    delegate!(fn get_all_blobs_exact(&self, tx_hashes: Vec<TxHash>) -> Result<Vec<Arc<BlobTransactionSidecarVariant>>, BlobStoreError>);
+    delegate!(fn get_blobs_for_versioned_hashes_v1(&self, versioned_hashes: &[B256]) -> Result<Vec<Option<alloy_eips::eip4844::BlobAndProofV1>>, BlobStoreError>);
+    delegate!(fn get_blobs_for_versioned_hashes_v2(&self, versioned_hashes: &[B256]) -> Result<Option<Vec<alloy_eips::eip4844::BlobAndProofV2>>, BlobStoreError>);
+    delegate!(fn get_blobs_for_versioned_hashes_v3(&self, versioned_hashes: &[B256]) -> Result<Vec<Option<alloy_eips::eip4844::BlobAndProofV2>>, BlobStoreError>);
 }
-
-// ── TransactionPoolExt implementation ───────────────────────────────────────
 
 impl<P> TransactionPoolExt for OpPool<P>
 where
     P: TransactionPoolExt,
-    P::Transaction: alloy_consensus::Transaction,
+    P::Transaction: Transaction,
 {
     type Block = P::Block;
 
@@ -547,39 +365,26 @@ where
         &self,
         update: reth_transaction_pool::CanonicalStateUpdate<'_, Self::Block>,
     ) {
-        if self.enabled && update.update_kind == PoolUpdateKind::Reorg {
-            *self.reorg_state.last_reorg_at.write().unwrap() = Some(Instant::now());
-            self.reorg_state.filter_armed.store(true, Ordering::Release);
-            tracing::debug!(
+        if let Some(reorg_state) = &self.reorg_state &&
+            update.update_kind == PoolUpdateKind::Reorg
+        {
+            *reorg_state.last_reorg_at.write().unwrap() = Some(Instant::now());
+            reorg_state.filter_armed.store(true, Ordering::Release);
+            debug!(
                 target: "txpool",
-                reorg_window_secs = REORG_WINDOW.as_secs(),
-                "Reorg detected, interop filter window activated"
+                "reorg detected, filtering interop txs from the pool"
             );
         }
-        // MUST delegate to inner pool — inner pool handles fee updates,
-        // mined tx removal, block info tracking, etc.
         self.inner.on_canonical_state_change(update);
     }
 
-    fn set_block_info(&self, info: BlockInfo) {
-        self.inner.set_block_info(info);
-    }
+    // Delegated methods below
 
-    fn update_accounts(&self, accounts: Vec<reth_execution_types::ChangedAccount>) {
-        self.inner.update_accounts(accounts);
-    }
-
-    fn delete_blob(&self, tx: B256) {
-        self.inner.delete_blob(tx);
-    }
-
-    fn delete_blobs(&self, txs: Vec<B256>) {
-        self.inner.delete_blobs(txs);
-    }
-
-    fn cleanup_blobs(&self) {
-        self.inner.cleanup_blobs();
-    }
+    delegate!(fn set_block_info(&self, info: BlockInfo));
+    delegate!(fn update_accounts(&self, accounts: Vec<reth_execution_types::ChangedAccount>));
+    delegate!(fn delete_blob(&self, tx: B256));
+    delegate!(fn delete_blobs(&self, txs: Vec<B256>));
+    delegate!(fn cleanup_blobs(&self));
 }
 
 #[cfg(test)]
@@ -611,7 +416,7 @@ mod tests {
         MockTransaction::eip1559()
     }
 
-    // ── is_interop_tx unit tests ────────────────────────────────────────
+    // is_interop_tx unit tests
 
     #[test]
     fn test_is_interop_tx_no_access_list() {
@@ -657,49 +462,25 @@ mod tests {
         assert!(!is_interop_tx(&tx));
     }
 
-    // ── OpPool filtering tests ──────────────────────────────────────────
+    // OpPool filtering tests
 
     /// Helper to simulate a reorg without waiting for wall-clock time.
     fn mark_reorg(
         pool: &OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>>,
     ) {
-        *pool.reorg_state.last_reorg_at.write().unwrap() = Some(Instant::now());
-        pool.reorg_state.filter_armed.store(true, Ordering::Release);
+        if let Some(state) = &pool.reorg_state {
+            *state.last_reorg_at.write().unwrap() = Some(Instant::now());
+            state.filter_armed.store(true, Ordering::Release);
+        }
     }
 
     fn expire_reorg_window(
         pool: &OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>>,
     ) {
-        *pool.reorg_state.last_reorg_at.write().unwrap() =
-            Some(Instant::now() - REORG_WINDOW - Duration::from_secs(1));
-    }
-
-    #[test]
-    fn test_should_filter_disabled() {
-        let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
-            OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), false);
-
-        mark_reorg(&pool);
-        assert!(!pool.should_filter());
-    }
-
-    #[test]
-    fn test_should_filter_no_reorg() {
-        let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
-            OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
-        // Not armed — should not filter.
-        assert!(!pool.should_filter());
-    }
-
-    #[test]
-    fn test_should_filter_window_stays_active_across_calls() {
-        let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
-            OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
-
-        mark_reorg(&pool);
-        assert!(pool.should_filter());
-        // Still within the reorg window, so filtering remains active.
-        assert!(pool.should_filter());
+        if let Some(state) = &pool.reorg_state {
+            *state.last_reorg_at.write().unwrap() =
+                Some(Instant::now() - REORG_WINDOW - Duration::from_secs(1));
+        }
     }
 
     #[test]
@@ -710,8 +491,8 @@ mod tests {
         mark_reorg(&pool);
         expire_reorg_window(&pool);
 
-        assert!(pool.should_filter());
-        assert!(!pool.should_filter());
+        assert!(pool.should_filter_interop());
+        assert!(!pool.should_filter_interop());
     }
 
     #[test]
@@ -721,24 +502,12 @@ mod tests {
 
         mark_reorg(&pool);
         expire_reorg_window(&pool);
-        assert!(pool.should_filter());
-        assert!(!pool.should_filter());
+        assert!(pool.should_filter_interop());
+        assert!(!pool.should_filter_interop());
 
         // Re-arm (new reorg).
         mark_reorg(&pool);
-        assert!(pool.should_filter());
-    }
-
-    #[test]
-    fn test_should_filter_window_expired_and_fallback_spent() {
-        let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
-            OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
-
-        mark_reorg(&pool);
-        let _ = pool.should_filter();
-        expire_reorg_window(&pool);
-
-        assert!(!pool.should_filter());
+        assert!(pool.should_filter_interop());
     }
 
     #[test]
@@ -754,21 +523,12 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         assert_eq!(*result[0].hash(), normal_hash);
+
+        // All-normal batch passes through unchanged.
+        assert_eq!(pool.filter_interop_txs(vec![mock_normal_tx(), mock_normal_tx()]).len(), 2);
     }
 
-    #[test]
-    fn test_filter_interop_txs_all_normal_pass_through() {
-        let pool: OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>> =
-            OpPool::new(reth_transaction_pool::noop::NoopTransactionPool::new(), true);
-
-        let tx1 = mock_normal_tx();
-        let tx2 = mock_normal_tx();
-
-        let result = pool.filter_interop_txs(vec![tx1, tx2]);
-        assert_eq!(result.len(), 2);
-    }
-
-    // ── End-to-end async tests through add_external_transactions ────────
+    // Async tests that call through add_external_transactions
     //
     // These use NoopTransactionPool as the inner pool. The number of results
     // returned equals the number of transactions forwarded (one Err per tx

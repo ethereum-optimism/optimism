@@ -51,7 +51,7 @@ use reth_optimism_rpc::{
     witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
-use reth_optimism_txpool::{OpPooledTx, supervisor::SupervisorClient};
+use reth_optimism_txpool::{OpPool, OpPooledTx, supervisor::SupervisorClient};
 use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
 use reth_rpc_api::{DebugApiServer, L2EthApiExtServer, eth::RpcTypes};
 use reth_rpc_server_types::RethRpcModule;
@@ -1020,34 +1020,23 @@ where
 
         let final_pool_config = pool_config_overrides.apply(ctx.pool_config());
 
-        // Build inner pool without spawning maintenance — we need to wrap in
-        // OpPool first so that the maintenance task calls our intercepted
-        // `on_canonical_state_change` and `add_external_transactions`.
         let inner_pool = TxPoolBuilder::new(ctx)
             .with_validator(validator)
             .build(blob_store, final_pool_config.clone());
 
-        // Enable the reorg interop filter whenever interop is active at the
-        // startup head timestamp, regardless of supervisor availability.
+        // Enable the interop filter on reorg whenever interop is active at the startup head
+        // timestamp
         let interop_filter_enabled =
             ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp);
-        let transaction_pool =
-            reth_optimism_txpool::OpPool::new(inner_pool, interop_filter_enabled);
+        let transaction_pool = OpPool::new(inner_pool, interop_filter_enabled);
 
-        debug!(target: "reth::cli",
-            interop_reorg_filter_enabled = interop_filter_enabled,
-            "OpPool wrapper initialized"
-        );
-
-        // Spawn maintenance tasks on the wrapped OpPool so that reorg
-        // reinsertion flows through our interop filter.
         reth_node_builder::components::spawn_maintenance_tasks(
             ctx,
             transaction_pool.clone(),
             &final_pool_config,
         )?;
 
-        info!(target: "reth::cli", "Transaction pool initialized");
+        info!(target: "reth::cli", "Transaction pool initialized (interop enabled = {interop_filter_enabled})");
         debug!(target: "reth::cli", "Spawned txpool maintenance task");
 
         // The Op txpool maintenance task is only spawned when interop is active and a supervisor is
