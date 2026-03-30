@@ -191,14 +191,17 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
     /// @notice Tests that re-initializing with a different (higher sequence number) anchor root
     ///         automatically clears the anchor game so getAnchorRoot returns the new startingAnchorRoot.
     function test_initialize_clearsAnchorGameOnNewRoot_succeeds() public {
-        skipIfForkTest("State has changed since initialization on a forked network.");
+        // Read current anchor sequence number so offsets work on both fresh and forked state.
+        (, uint256 currentSeqNum) = anchorStateRegistry.getAnchorRoot();
 
         // First, set an anchor game so there's something to clear.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(uint256(10)));
+        vm.mockCall(
+            address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(currentSeqNum + 10)
+        );
         anchorStateRegistry.setAnchorState(gameProxy);
         assertFalse(address(anchorStateRegistry.anchorGame()) == address(0));
 
@@ -206,8 +209,9 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
         vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
 
-        // New root with a higher sequence number than the anchor game (10).
-        Proposal memory newStartingRoot = Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 });
+        // New root with a higher sequence number than the anchor game.
+        Proposal memory newStartingRoot =
+            Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: currentSeqNum + 42 });
 
         vm.prank(anchorStateRegistry.proxyAdminOwner());
         anchorStateRegistry.initialize(systemConfig, disputeGameFactory, newStartingRoot, GameTypes.SUPER_CANNON_KONA);
