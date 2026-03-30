@@ -423,9 +423,7 @@ contract OPContractsManagerUtils {
         // Super game types require l2ChainId=0 in game args because the chain ID is
         // embedded in the super root proof extraData, not in the game args.
         uint32 rawGT = _gcfg.gameType.raw();
-        bool isSuperGame = rawGT == GameTypes.SUPER_CANNON.raw() || rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-            || rawGT == GameTypes.SUPER_CANNON_KONA.raw() || rawGT == GameTypes.SUPER_ASTERISC_KONA.raw();
-        uint256 chainId = isSuperGame ? 0 : _l2ChainId;
+        uint256 chainId = GameTypes.isSuperGame(_gcfg.gameType) ? 0 : _l2ChainId;
 
         if (
             rawGT == GameTypes.CANNON.raw() || rawGT == GameTypes.CANNON_KONA.raw()

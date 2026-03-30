@@ -417,8 +417,7 @@ abstract contract OPContractsManagerBase {
 
     /// @notice Returns true iff the game type uses super roots
     function isSuperGameVariant(GameType _gameType) internal pure returns (bool) {
-        return (_gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw())
-            || (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw());
+        return GameTypes.isSuperGame(_gameType);
     }
 
     /// @notice Returns the dispute game implementation address in opcm for the specified game type

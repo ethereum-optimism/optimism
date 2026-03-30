@@ -93,6 +93,13 @@ library GameTypes {
     GameType internal constant KAILUA = GameType.wrap(1337);
 
     GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
+
+    /// @notice Returns true if the game type uses super roots.
+    function isSuperGame(GameType _gameType) internal pure returns (bool) {
+        uint32 raw = _gameType.raw();
+        return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED_CANNON.raw() || raw == SUPER_ASTERISC_KONA.raw()
+            || raw == SUPER_CANNON_KONA.raw();
+    }
 }
 
 /// @title VMStatuses

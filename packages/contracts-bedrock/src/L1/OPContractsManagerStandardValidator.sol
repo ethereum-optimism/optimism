@@ -818,9 +818,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns true if the game type is a super game type.
     function isSuperGame(GameType _gameType) internal pure returns (bool) {
-        uint32 raw = _gameType.raw();
-        return raw == GameTypes.SUPER_PERMISSIONED_CANNON.raw() || raw == GameTypes.SUPER_CANNON_KONA.raw()
-            || raw == GameTypes.SUPER_CANNON.raw() || raw == GameTypes.SUPER_ASTERISC_KONA.raw();
+        return GameTypes.isSuperGame(_gameType);
     }
 
     /// @notice Returns the expected implementation address for a given game type.
@@ -828,6 +826,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         uint32 raw = _gameType.raw();
         if (raw == GameTypes.PERMISSIONED_CANNON.raw()) return permissionedDisputeGameImpl;
         if (raw == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) return superPermissionedDisputeGameImpl;
+        if (raw == GameTypes.SUPER_CANNON.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return superFaultDisputeGameImpl;
         return faultDisputeGameImpl;
     }

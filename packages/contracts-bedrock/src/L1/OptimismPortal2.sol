@@ -641,9 +641,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _gameType The game type to check.
     /// @return True if the game type is a super game type.
     function _isSuperGameType(GameType _gameType) internal pure returns (bool) {
-        uint32 rawType = _gameType.raw();
-        return rawType == GameTypes.SUPER_CANNON.raw() || rawType == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-            || rawType == GameTypes.SUPER_ASTERISC_KONA.raw() || rawType == GameTypes.SUPER_CANNON_KONA.raw();
+        return GameTypes.isSuperGame(_gameType);
     }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
