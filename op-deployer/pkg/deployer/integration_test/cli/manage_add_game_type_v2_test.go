@@ -163,6 +163,11 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 					InitBond: big.NewInt(0),
 					GameType: embedded.GameTypeCannonKona,
 				},
+				{
+					Enabled:  false,
+					InitBond: big.NewInt(0),
+					GameType: embedded.GameTypeZKDisputeGame,
+				},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{
 				{

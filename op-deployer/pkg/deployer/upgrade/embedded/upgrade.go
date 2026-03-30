@@ -22,6 +22,7 @@ const (
 	GameTypeSuperPermCannon    GameType = 5
 	GameTypeCannonKona         GameType = 8
 	GameTypeSuperCannonKona    GameType = 9
+	GameTypeZKDisputeGame      GameType = 10
 )
 
 var (
