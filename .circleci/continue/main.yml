@@ -695,6 +695,13 @@ jobs:
     steps:
       - utils/ci-gate
 
+  ci-gate-skip:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - run: echo "Skipped — docs-only change"
+
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
     description: "Build a Rust workspace with target directory caching"
@@ -2834,6 +2841,36 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
+
+  main-skip:
+    when:
+      and:
+        - equal: ["", << pipeline.git.tag >>]
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - not: << pipeline.parameters.c-non_docs_changes >>
+    jobs:
+      - ci-gate-skip:
+          name: check-kontrol-build
+      - ci-gate-skip:
+          name: shell-check
+      - ci-gate-skip:
+          name: go-lint
+      - ci-gate-skip:
+          name: semgrep-scan-local
+      - ci-gate-skip:
+          name: go-tests-short
+      - ci-gate-skip:
+          name: contracts-bedrock-coverage main
+      - ci-gate-skip:
+          name: contracts-bedrock-tests main
+      - ci-gate-skip:
+          name: contracts-bedrock-tests-heavy-fuzz-modified main
+      - ci-gate-skip:
+          name: contracts-bedrock-tests-upgrade op-mainnet main
+      - ci-gate-skip:
+          name: memory-all
+      - ci-gate-skip:
+          name: contracts-bedrock-checks-fast
 
   go-release-op-deployer:
     jobs:
