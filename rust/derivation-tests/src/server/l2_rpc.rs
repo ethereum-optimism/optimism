@@ -27,7 +27,7 @@ pub(crate) trait L2Rpc {
     #[method(name = "eth_getBlockByNumber")]
     fn get_block_by_number(
         &self,
-        number: String,
+        number: Value,
         full_txs: bool,
     ) -> Result<Option<Value>, ErrorObjectOwned>;
 
@@ -37,16 +37,16 @@ pub(crate) trait L2Rpc {
         &self,
         address: alloy_primitives::Address,
         storage_keys: Vec<B256>,
-        block_id: String,
+        block_id: Value,
     ) -> Result<Value, ErrorObjectOwned>;
 
     /// Returns raw trie node or contract code by hash.
     #[method(name = "debug_dbGet")]
-    fn db_get(&self, key: Bytes) -> Result<Bytes, ErrorObjectOwned>;
+    fn db_get(&self, key: Value) -> Result<Bytes, ErrorObjectOwned>;
 
     /// Returns RLP-encoded header.
     #[method(name = "debug_getRawHeader")]
-    fn get_raw_header(&self, block_id: String) -> Result<Bytes, ErrorObjectOwned>;
+    fn get_raw_header(&self, block_id: Value) -> Result<Bytes, ErrorObjectOwned>;
 
     /// Unsupported — returns method not found.
     #[method(name = "debug_executePayload")]
@@ -69,7 +69,7 @@ impl L2RpcImpl {
         Self { blocks, snapshots, by_hash, chain_id }
     }
 
-    fn resolve_block(&self, block_id: &str) -> Option<usize> {
+    fn resolve_block_str(&self, block_id: &str) -> Option<usize> {
         // Try as hash first
         if block_id.starts_with("0x") &&
             block_id.len() == 66 &&
@@ -86,6 +86,33 @@ impl L2RpcImpl {
                 let n = u64::from_str_radix(hex.trim_start_matches("0x"), 16).ok()?;
                 ((n as usize) < self.blocks.len()).then_some(n as usize)
             }
+        }
+    }
+
+    /// Resolve a block ID from a JSON value.
+    /// Handles both string values ("0x1", "latest", "0xhash...") and
+    /// object values ({"blockNumber": "0x1"}, {"blockHash": "0x..."}).
+    fn resolve_block(&self, block_id: &Value) -> Option<usize> {
+        match block_id {
+            Value::String(s) => self.resolve_block_str(s),
+            Value::Object(map) => {
+                if let Some(Value::String(hash)) = map.get("blockHash") {
+                    self.resolve_block_str(hash)
+                } else if let Some(Value::String(num)) = map.get("blockNumber") {
+                    self.resolve_block_str(num)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Parse a key from a JSON value (string hex bytes).
+    fn parse_bytes_key(val: &Value) -> Option<Bytes> {
+        match val {
+            Value::String(s) => s.parse::<Bytes>().ok(),
+            _ => None,
         }
     }
 
@@ -138,7 +165,7 @@ impl L2RpcServer for L2RpcImpl {
 
     fn get_block_by_number(
         &self,
-        number: String,
+        number: Value,
         full_txs: bool,
     ) -> Result<Option<Value>, ErrorObjectOwned> {
         Ok(self.resolve_block(&number).map(|i| self.block_to_json(&self.blocks[i], full_txs)))
@@ -148,11 +175,11 @@ impl L2RpcServer for L2RpcImpl {
         &self,
         address: alloy_primitives::Address,
         storage_keys: Vec<B256>,
-        block_id: String,
+        block_id: Value,
     ) -> Result<Value, ErrorObjectOwned> {
         let idx = self
             .resolve_block(&block_id)
-            .ok_or_else(|| ErrorObjectOwned::owned(-32602, "block not found", None::<String>))?;
+            .ok_or_else(|| ErrorObjectOwned::owned(-32602, format!("block not found: {block_id}"), None::<String>))?;
 
         let snapshot = &self.snapshots[idx];
 
@@ -179,14 +206,17 @@ impl L2RpcServer for L2RpcImpl {
         })
     }
 
-    fn db_get(&self, key: Bytes) -> Result<Bytes, ErrorObjectOwned> {
+    fn db_get(&self, key: Value) -> Result<Bytes, ErrorObjectOwned> {
+        let key_bytes = Self::parse_bytes_key(&key)
+            .ok_or_else(|| ErrorObjectOwned::owned(-32602, format!("invalid key: {key}"), None::<String>))?;
+
         if self.snapshots.is_empty() {
             return Err(ErrorObjectOwned::owned(-32603, "no state available", None::<String>));
         }
 
         // kona-host convention: 0x63 prefix + 32-byte code hash → contract code lookup
-        if key.len() == 33 && key[0] == 0x63 {
-            let code_hash = B256::from_slice(&key[1..]);
+        if key_bytes.len() == 33 && key_bytes[0] == 0x63 {
+            let code_hash = B256::from_slice(&key_bytes[1..]);
             for snapshot in &self.snapshots {
                 if let Some(code) = snapshot.code.get(&code_hash) {
                     return Ok(Bytes::from(code.clone()));
@@ -196,10 +226,8 @@ impl L2RpcServer for L2RpcImpl {
         }
 
         // Try hash lookup for trie nodes across all snapshots.
-        // Op-program may request nodes from any historical state (e.g. the agreed
-        // L2 head at genesis), not just the latest block's state.
-        if key.len() == 32 {
-            let hash = B256::from_slice(&key);
+        if key_bytes.len() == 32 {
+            let hash = B256::from_slice(&key_bytes);
             for snapshot in &self.snapshots {
                 if let Some(data) = snapshot.node_store.get(&hash) {
                     return Ok(data.clone());
@@ -210,10 +238,10 @@ impl L2RpcServer for L2RpcImpl {
         Err(ErrorObjectOwned::owned(-32602, "key not found", None::<String>))
     }
 
-    fn get_raw_header(&self, block_id: String) -> Result<Bytes, ErrorObjectOwned> {
+    fn get_raw_header(&self, block_id: Value) -> Result<Bytes, ErrorObjectOwned> {
         let idx = self
             .resolve_block(&block_id)
-            .ok_or_else(|| ErrorObjectOwned::owned(-32602, "block not found", None::<String>))?;
+            .ok_or_else(|| ErrorObjectOwned::owned(-32602, format!("block not found: {block_id}"), None::<String>))?;
 
         let mut buf = Vec::new();
         self.blocks[idx].header.inner().encode(&mut buf);

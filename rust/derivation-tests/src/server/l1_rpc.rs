@@ -161,13 +161,19 @@ fn tx_to_json(block_hash: B256, block_number: u64, tx_index: usize, tx_bytes: &B
 
         let sig = envelope.signature();
 
+        // Serialize `to` as address or null for contract creation
+        let to_val = match to {
+            Some(addr) => serde_json::json!(addr),
+            None => Value::Null,
+        };
+
         return serde_json::json!({
             "hash": tx_hash,
             "blockHash": block_hash,
             "blockNumber": format!("0x{:x}", block_number),
             "transactionIndex": format!("0x{:x}", tx_index),
             "from": from,
-            "to": to,
+            "to": to_val,
             "nonce": format!("0x{:x}", nonce),
             "value": format!("0x{:x}", value),
             "gas": format!("0x{:x}", gas_limit),
@@ -175,11 +181,13 @@ fn tx_to_json(block_hash: B256, block_number: u64, tx_index: usize, tx_bytes: &B
             "type": format!("0x{:x}", envelope.ty()),
             "chainId": format!("0x{:x}", chain_id.unwrap_or(0)),
             "v": format!("0x{:x}", sig.v() as u64),
+            "yParity": format!("0x{:x}", sig.v() as u64),
             "r": format!("0x{:x}", sig.r()),
             "s": format!("0x{:x}", sig.s()),
             "maxFeePerGas": format!("0x{:x}", envelope.max_fee_per_gas()),
             "maxPriorityFeePerGas": format!("0x{:x}", envelope.max_priority_fee_per_gas().unwrap_or(0)),
             "gasPrice": format!("0x{:x}", envelope.max_fee_per_gas()),
+            "accessList": [],
         });
     }
 

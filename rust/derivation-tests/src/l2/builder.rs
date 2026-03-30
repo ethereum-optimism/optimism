@@ -223,7 +223,7 @@ impl L2ChainBuilder {
         let parent_beacon_block_root = epoch.l1_block.header.inner().parent_beacon_block_root;
 
         // Execute all transactions through OpBlockExecutor (same executor used by op-reth).
-        let (receipts, gas_used) = self.execute_transactions(
+        let (receipts, gas_used, da_footprint) = self.execute_transactions(
             &all_txs,
             spec_id,
             block_env,
@@ -292,6 +292,13 @@ impl L2ChainBuilder {
             )
         };
 
+        // Jovian repurposes blob_gas_used to store the DA footprint
+        let blob_gas_used = if hardforks.jovian_time.is_some_and(|t| timestamp >= t) {
+            da_footprint
+        } else {
+            0
+        };
+
         let header = Header {
             parent_hash,
             beneficiary: self.config.fee_recipient,
@@ -307,7 +314,7 @@ impl L2ChainBuilder {
             withdrawals_root,
             // Post-Cancun fields required for correct RLP hashing
             base_fee_per_gas: Some(base_fee),
-            blob_gas_used: Some(0),
+            blob_gas_used: Some(blob_gas_used),
             excess_blob_gas: Some(0),
             parent_beacon_block_root,
             // EIP-4399: mix_hash carries L1 origin's prevRandao post-merge
@@ -339,7 +346,7 @@ impl L2ChainBuilder {
         block_env: BlockEnv,
         parent_hash: B256,
         parent_beacon_block_root: Option<B256>,
-    ) -> Result<(Vec<OpReceiptEnvelope>, u64), Box<dyn std::error::Error>> {
+    ) -> Result<(Vec<OpReceiptEnvelope>, u64, u64), Box<dyn std::error::Error>> {
         let cfg_env: CfgEnv<OpSpecId> = CfgEnv::new()
             .with_chain_id(self.config.l2_chain_id)
             .with_spec_and_mainnet_gas_params(spec_id);
@@ -396,6 +403,7 @@ impl L2ChainBuilder {
 
         let receipts = result.receipts;
         let gas_used = result.gas_used;
+        let da_footprint = result.blob_gas_used;
 
         // Extract the State wrapper from the EVM and get the bundle state.
         // The EVM holds &mut State<CacheDB<EmptyDB>>; finish() returns it.
@@ -412,7 +420,7 @@ impl L2ChainBuilder {
         // Apply the bundle state to our tracked state
         self.state.apply_bundle_state(&bundle, post_db);
 
-        Ok((receipts, gas_used))
+        Ok((receipts, gas_used, da_footprint))
     }
 
     /// Build N empty (deposit-only) L2 blocks.

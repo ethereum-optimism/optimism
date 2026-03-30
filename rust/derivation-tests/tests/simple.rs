@@ -18,7 +18,7 @@ const EXPECTED_SINGLE_BATCH_ROOT: alloy_primitives::B256 =
 
 /// Expected super root for 1 L2 block containing a 1 ETH transfer.
 const EXPECTED_SINGLE_TRANSFER_ROOT: alloy_primitives::B256 =
-    b256!("4c48c6b9bdaf6e37fc2b57640df24110d5f54120ab6b176face666a15dd1fd73");
+    b256!("5af9017c6c4bdade2aa25ec666b7e49a47b3d7f8bda6552ad2d9c3a9eff15289");
 
 /// Expected super root for 6 empty L2 blocks (one full epoch).
 const EXPECTED_MULTI_BLOCK_ROOT: alloy_primitives::B256 =
