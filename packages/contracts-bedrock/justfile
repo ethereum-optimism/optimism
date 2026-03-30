@@ -327,7 +327,7 @@ semver-diff-check-no-build:
   ./scripts/checks/check-semver-diff.sh
 
 # Checks that any contracts with a modified semver lock also have a modified semver version.
-semver-diff-check: build semver-diff-check-no-build
+semver-diff-check: build-no-tests semver-diff-check-no-build
 
 # Checks that the semgrep tests are valid.
 semgrep-test-validity-check:
