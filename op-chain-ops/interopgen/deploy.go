@@ -304,6 +304,12 @@ func MigrateInterop(
 					GameType: GameTypeCannon,
 					GameArgs: gameArgs,
 				},
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(0),
+					GameType: GameTypeSuperCannon,
+					GameArgs: gameArgs,
+				},
 			},
 			StartingAnchorRoot: manage.Proposal{
 				Root:             startingAnchorRoot,
