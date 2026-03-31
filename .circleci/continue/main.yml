@@ -1777,7 +1777,8 @@ jobs:
         description: Environment overrides
         type: string
         default: ""
-    machine: true
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: <<parameters.resource_class>>
     steps:
       - utils/checkout-with-mise:
@@ -1796,11 +1797,6 @@ jobs:
       - run:
           name: build cannon
           command: just cannon
-      - run:
-          name: build kona-host (native for machine executor)
-          command: |
-            cd rust && cargo build --release -p kona-host
-          no_output_timeout: 30m
       - run:
           name: run tests
           no_output_timeout: <<parameters.no_output_timeout>>
@@ -3022,7 +3018,7 @@ workflows:
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: xlarge
+          resource_class: 2xlarge
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
