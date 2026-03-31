@@ -1733,14 +1733,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: bytes("")
-            })
-        );
-        deployConfig.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
                 gameType: GameTypes.SUPER_CANNON_KONA,
                 gameArgs: bytes("")
             })
