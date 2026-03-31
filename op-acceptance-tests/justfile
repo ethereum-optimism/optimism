@@ -129,7 +129,7 @@ acceptance-test gate="":
         fi
         echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
 
-        circleci tests split --split-by=timings /tmp/tests.txt > /tmp/tests_shard.txt
+        circleci tests split --split-by=timings --timings-type=name /tmp/tests.txt > /tmp/tests_shard.txt
 
         SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
         echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
