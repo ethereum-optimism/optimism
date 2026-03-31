@@ -6,9 +6,9 @@ use crate::blobs::BoxedBlob;
 use alloy_eips::eip4844::{env_settings::EnvKzgSettings, kzg_to_versioned_hash};
 use alloy_primitives::{B256, FixedBytes};
 use alloy_rpc_types_beacon::sidecar::GetBlobsResponse;
-use alloy_transport_http::reqwest::{self, Client};
 use async_trait::async_trait;
 use c_kzg::Blob;
+use reqwest::{self, Client};
 use std::{boxed::Box, collections::HashMap, format, string::String, vec::Vec};
 use thiserror::Error;
 

@@ -326,8 +326,11 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(
             IOptimismMintableERC20Factory(impls.OptimismMintableERC20Factory)
         );
+        GameType permGameType = DevFeatures.isDevFeatureEnabled(
+            cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
+        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
-            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false
+            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
         );
         ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
         ChainAssertions.checkMIPS({
@@ -412,7 +415,9 @@ contract Deploy is Deployer {
         // Ensure that the requisite contracts are deployed
         IOPContractsManagerV2 opcm = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
 
-        IOPContractsManagerV2.FullConfig memory deployInput = getDeployInputV2();
+        IOPContractsManagerV2.FullConfig memory deployInput = DevFeatures.isDevFeatureEnabled(
+            cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
+        ) ? getSuperRootDeployInputV2() : getDeployInputV2();
         IOPContractsManagerV2.ChainContracts memory deployOutput = opcm.deploy(deployInput);
 
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
@@ -493,9 +498,81 @@ contract Deploy is Deployer {
         });
     }
 
+    function getSuperRootDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
+                    proposer: cfg.l2OutputOracleProposer(),
+                    challenger: cfg.l2OutputOracleChallenger()
+                })
+            )
+        });
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
+                })
+            )
+        });
+
+        return IOPContractsManagerV2.FullConfig({
+            saltMixer: "salt mixer",
+            superchainConfig: ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")),
+            proxyAdminOwner: cfg.finalSystemOwner(),
+            systemConfigOwner: cfg.finalSystemOwner(),
+            unsafeBlockSigner: cfg.p2pSequencerAddress(),
+            batcher: cfg.batchSenderAddress(),
+            startingAnchorRoot: Proposal({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
+            }),
+            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            basefeeScalar: cfg.basefeeScalar(),
+            blobBasefeeScalar: cfg.blobbasefeeScalar(),
+            gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
+            l2ChainId: cfg.l2ChainID(),
+            resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
+            disputeGameConfigs: disputeGameConfigs,
+            useCustomGasToken: cfg.useCustomGasToken()
+        });
+    }
+
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](4);
+            new IOPContractsManagerUtils.DisputeGameConfig[](7);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -521,6 +598,18 @@ contract Deploy is Deployer {
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.FaultDisputeGameConfig({
@@ -528,7 +617,13 @@ contract Deploy is Deployer {
                 })
             )
         });
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: cfg.zkDisputeGameInitBond(),
             gameType: GameTypes.ZK_DISPUTE_GAME,

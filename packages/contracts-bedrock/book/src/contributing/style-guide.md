@@ -283,6 +283,8 @@ Additionally, contracts MUST use the following versioning scheme when incrementi
 - `minor` releases are to be used for changes that modify bytecode OR changes that expand the contract ABI provided that these changes do NOT break the existing interface.
 - `major` releases are to be used for changes that break the existing contract interface OR changes that modify the security model of a contract.
 
+Version bumps should be done **once per PR**, not per commit. Since PRs are squash-merged, only one commit appears in the git history. The version should reflect the aggregate change from the PR's base branch.
+
 The remainder of the contract versioning and release process can be found in [`VERSIONING.md](../policies/VERSIONING.md).
 
 #### Exceptions

@@ -34,7 +34,6 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 
 	// Stop batch submission so safe head stalls, then we have a known boundary.
 	c.Batcher.Stop()
-	t.Cleanup(c.Batcher.Start)
 	sys.L2CLA.WaitForStall(types.CrossSafe)
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
@@ -45,20 +44,20 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 	t.Require().NoError(err)
 	c.EL.Reached(eth.Unsafe, target, 60)
 
-	// L1 head where chain has no batch data at endTimestamp.
-	l1HeadBefore := l1BlockWithLocalSafeBlocks(t, sys.L1EL, sys.SuperRoots, endTimestamp, nil, []eth.ChainID{c.ID})
+	// Batcher is stopped, so no batch data for endTimestamp is on L1.
+	l1HeadBefore := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
-	// Resume batching so the chain's data at endTimestamp becomes available.
+	// Resume batching and wait for the safe head to reach the target.
 	c.Batcher.Start()
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
-	c.Batcher.Stop()
+	c.EL.Reached(eth.Safe, target, 60)
+	l1HeadCurrent := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
 	// Build expected transition states for a single chain.
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
 
-	optimistic := optimisticBlockAtTimestamp(t, c, endTimestamp)
+	optimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), c.ID, endTimestamp)
 
 	// With one chain: step 0 = chain's optimistic block, steps 1..consolidateStep-1 = padding,
 	// consolidateStep = consolidation to next super root.

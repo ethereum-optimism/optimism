@@ -30,8 +30,9 @@ func TestPreinteropFaultProofs_UnsafeProposal(gt *testing.T) {
 
 func TestPreinteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19010): Unskip once varied block time fault proofs are stable.
-	t.Skip("Skipping flaky varied block time fault proof test")
+	// TODO(#19828): endTimestamp may align with a no-op transition for the slower chain,
+	// causing kona to skip the L1 data sufficiency check.
+	t.MarkFlaky("ethereum-optimism/optimism#19828")
 	sys := presets.NewSimpleInteropIsthmusSuper(
 		t,
 		presets.WithChallengerCannonKonaEnabled(),
@@ -45,8 +46,9 @@ func TestPreinteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 
 func TestPreinteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19010): Unskip once varied block time fault proofs are stable.
-	t.Skip("Skipping flaky varied block time fault proof test")
+	// TODO(#19828): endTimestamp may align with a no-op transition for the slower chain,
+	// causing kona to skip the L1 data sufficiency check.
+	t.MarkFlaky("ethereum-optimism/optimism#19828")
 	sys := presets.NewSimpleInteropIsthmusSuper(
 		t,
 		presets.WithChallengerCannonKonaEnabled(),

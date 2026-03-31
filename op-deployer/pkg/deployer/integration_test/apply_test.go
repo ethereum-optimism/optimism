@@ -995,7 +995,22 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
+								GameType: embedded.GameTypeSuperCannon,
+							},
+							{
+								Enabled:  false,
+								InitBond: big.NewInt(0),
+								GameType: embedded.GameTypeSuperPermCannon,
+							},
+							{
+								Enabled:  false,
+								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeCannonKona,
+							},
+							{
+								Enabled:  false,
+								InitBond: big.NewInt(0),
+								GameType: embedded.GameTypeSuperCannonKona,
 							},
 							{
 								Enabled:  false,
@@ -1024,23 +1039,29 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				// Structure breakdown:
 				// - Tuple offset (0x20)
 				// - SystemConfig address (0x034edd2a225f7f429a63e0f1d2084b9e0a93b538)
-				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x3c0)
-				// - DisputeGameConfigs[]: 4 configs
+				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x640)
+				// - DisputeGameConfigs[]: 7 configs
 				//   [0] Cannon: enabled=true, initBond=1e18, gameType=0, gameArgs="PRESTATE"
 				//   [1] PermissionedCannon: enabled=true, initBond=1e18, gameType=1, gameArgs="PRESTATE"+proposer+challenger
-				//   [2] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
-				//   [3] ZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
+				//   [2] SuperCannon: enabled=false, initBond=0, gameType=4, gameArgs=empty
+				//   [3] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
+				//   [4] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
+				//   [5] SuperCannonKona: enabled=false, initBond=0, gameType=9, gameArgs=empty
+				//   [6] ZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
 				// - ExtraInstructions[]: 1 instruction
 				//   [0] key="PermittedProxyDeployment", data="DelayedWETH"
 				expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
 					"000000000000000000000000034edd2a225f7f429a63e0f1d2084b9e0a93b538" + // systemConfig address
 					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
-					"0000000000000000000000000000000000000000000000000000000000000400" + // offset to extraInstructions
-					"0000000000000000000000000000000000000000000000000000000000000004" + // disputeGameConfigs.length (4)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to disputeGameConfigs[0]
-					"0000000000000000000000000000000000000000000000000000000000000140" + // offset to disputeGameConfigs[1]
-					"0000000000000000000000000000000000000000000000000000000000000240" + // offset to disputeGameConfigs[2]
-					"00000000000000000000000000000000000000000000000000000000000002e0" + // offset to disputeGameConfigs[3]
+					"0000000000000000000000000000000000000000000000000000000000000640" + // offset to extraInstructions
+					"0000000000000000000000000000000000000000000000000000000000000007" + // disputeGameConfigs.length (7)
+					"00000000000000000000000000000000000000000000000000000000000000e0" + // offset to disputeGameConfigs[0]
+					"00000000000000000000000000000000000000000000000000000000000001a0" + // offset to disputeGameConfigs[1]
+					"00000000000000000000000000000000000000000000000000000000000002a0" + // offset to disputeGameConfigs[2]
+					"0000000000000000000000000000000000000000000000000000000000000340" + // offset to disputeGameConfigs[3]
+					"00000000000000000000000000000000000000000000000000000000000003e0" + // offset to disputeGameConfigs[4]
+					"0000000000000000000000000000000000000000000000000000000000000480" + // offset to disputeGameConfigs[5]
+					"0000000000000000000000000000000000000000000000000000000000000520" + // offset to disputeGameConfigs[6]
 					// DisputeGameConfigs[0] - Cannon
 					"0000000000000000000000000000000000000000000000000000000000000001" + // enabled=true
 					"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // initBond=1e18
@@ -1057,13 +1078,31 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					"5052455354415445000000000000000000000000000000000000000000000000" + // gameArgs data "PRESTATE"
 					"0000000000000000000000005000000000000000000000000000000000000000" + // proposer address
 					"0000000000000000000000004300000000000000000000000000000000000000" + // challenger address
-					// DisputeGameConfigs[2] - CannonKona (disabled)
+					// DisputeGameConfigs[2] - SuperCannon (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"0000000000000000000000000000000000000000000000000000000000000004" + // gameType=4 (SuperCannon)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// DisputeGameConfigs[3] - SuperPermCannon (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"0000000000000000000000000000000000000000000000000000000000000005" + // gameType=5 (SuperPermCannon)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// DisputeGameConfigs[4] - CannonKona (disabled)
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
 					"0000000000000000000000000000000000000000000000000000000000000008" + // gameType=8 (CannonKona)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[3] - ZKDisputeGame (disabled)
+					// DisputeGameConfigs[5] - SuperCannonKona (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"0000000000000000000000000000000000000000000000000000000000000009" + // gameType=9 (SuperCannonKona)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// DisputeGameConfigs[6] - ZKDisputeGame (disabled)
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
 					"000000000000000000000000000000000000000000000000000000000000000a" + // gameType=10 (ZKDisputeGame)

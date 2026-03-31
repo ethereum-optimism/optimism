@@ -4,9 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+)
+
+const (
+	// fcuRetryDelay is the delay between FCU retry attempts when the head has not yet
+	// converged to the expected value. This gives the execution layer time to flush
+	// internal caches between forkchoice updates.
+	fcuRetryDelay = 500 * time.Millisecond
+	// maxFCUAttempts is the maximum number of times to retry an FCU before giving up.
+	maxFCUAttempts = 20
 )
 
 var (
@@ -21,6 +31,7 @@ var (
 	ErrRewindTimestampToBlockConversion = errors.New("failed to convert timestamp to block number")
 	ErrRewindPayloadNotFound            = errors.New("failed to get payload for block")
 	ErrRewindOverFinalizedHead          = errors.New("cannot rewind over finalized head")
+	ErrRewindFCUHeadMismatch            = errors.New("FCU head did not converge to expected value")
 )
 
 // RewindToTimestamp rewinds the L2 execution layer to the block at or before the given timestamp.
@@ -68,7 +79,7 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	//      |\
 	//       \_______ [n,synthetic,unsafe]
 	parentHash := targetBlock.ParentHash
-	if err := e.forkchoiceUpdate(ctx, syntheticBlockHash, parentHash, parentHash); err != nil {
+	if err := e.forkchoiceUpdateWithRetry(ctx, syntheticBlockHash, parentHash, parentHash); err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindFCUSyntheticFailed, err)
 	}
 	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", parentHash, "finalized", parentHash)
@@ -77,15 +88,15 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	// [n-1,parent] <-- [n,target, unsafe]
 	//
 	//                  [n,synthetic]
-	if err := e.forkchoiceUpdate(ctx, targetBlock.Hash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
+	if err := e.forkchoiceUpdateWithRetry(ctx, targetBlock.Hash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindFCUTargetFailed, err)
 	}
 	e.log.Info("executed FCU to target block", "head", targetBlock.Hash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
 
-	// Step 5: Verify the rewind state
-	if err := e.verifyRewindState(ctx, targetBlock, targetSafeBlock, targetFinalizedBlock); err != nil {
-		return fmt.Errorf("%w: %w", ErrRewindVerificationFailed, err)
-	}
+	// Note: forkchoiceUpdateWithRetry calls verifyRewindState with the expected
+	// arguments, so if execution reaches here, we're done and there's no error
+	// to report
+
 	return nil
 }
 
@@ -156,42 +167,60 @@ func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blo
 	return syntheticHash, nil
 }
 
-// verifyRewindState checks that the engine state matches the expected targets after a rewind.
-func (e *simpleEngineController) verifyRewindState(ctx context.Context, targetUnsafe, targetSafe, targetFinalized eth.L2BlockRef) error {
+// verifyRewindState checks that the engine's unsafe, safe, and finalized heads match the
+// expected block hashes. Hash equality is the authoritative check — if the hash matches,
+// the block number is correct by definition.
+func (e *simpleEngineController) verifyRewindState(ctx context.Context, targetUnsafe, targetSafe, targetFinalized common.Hash) error {
 	unsafe, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return fmt.Errorf("failed to verify unsafe block: %w", err)
 	}
-	if unsafe.Number != targetUnsafe.Number {
-		return fmt.Errorf("unexpected unsafe block number: got %d, want %d", unsafe.Number, targetUnsafe.Number)
-	}
-	if unsafe.Hash != targetUnsafe.Hash {
-		return fmt.Errorf("unexpected unsafe block hash: got %s, want %s", unsafe.Hash, targetUnsafe.Hash)
+	if unsafe.Hash != targetUnsafe {
+		return fmt.Errorf("unexpected unsafe block hash: got %s, want %s", unsafe.Hash, targetUnsafe)
 	}
 
 	safe, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)
 	if err != nil {
 		return fmt.Errorf("failed to verify safe block: %w", err)
 	}
-	if safe.Number != targetSafe.Number {
-		return fmt.Errorf("unexpected safe block number: got %d, want %d", safe.Number, targetSafe.Number)
-	}
-	if safe.Hash != targetSafe.Hash {
-		return fmt.Errorf("unexpected safe block hash: got %s, want %s", safe.Hash, targetSafe.Hash)
+	if safe.Hash != targetSafe {
+		return fmt.Errorf("unexpected safe block hash: got %s, want %s", safe.Hash, targetSafe)
 	}
 
 	finalized, err := e.l2.L2BlockRefByLabel(ctx, eth.Finalized)
 	if err != nil {
 		return fmt.Errorf("failed to verify finalized block: %w", err)
 	}
-	if finalized.Number != targetFinalized.Number {
-		return fmt.Errorf("unexpected finalized block number: got %d, want %d", finalized.Number, targetFinalized.Number)
-	}
-	if finalized.Hash != targetFinalized.Hash {
-		return fmt.Errorf("unexpected finalized block hash: got %s, want %s", finalized.Hash, targetFinalized.Hash)
+	if finalized.Hash != targetFinalized {
+		return fmt.Errorf("unexpected finalized block hash: got %s, want %s", finalized.Hash, targetFinalized)
 	}
 
 	return nil
+}
+
+// forkchoiceUpdateWithRetry sends a forkchoice update and then verifies that the engine state
+// matches the expected values. If the state hasn't converged (e.g. due to an execution layer
+// race condition like reth#23205), it sleeps and retries the FCU up to maxFCUAttempts.
+// TODO(#19772): track whether this workaround is going to be permanent or temporary.
+func (e *simpleEngineController) forkchoiceUpdateWithRetry(ctx context.Context, head, safe, finalized common.Hash) error {
+	for attempt := 1; attempt <= maxFCUAttempts; attempt++ {
+		if err := e.forkchoiceUpdate(ctx, head, safe, finalized); err != nil {
+			return err
+		}
+		if err := e.verifyRewindState(ctx, head, safe, finalized); err == nil {
+			return nil
+		} else if attempt == maxFCUAttempts {
+			return fmt.Errorf("%w after %d attempts: %w", ErrRewindFCUHeadMismatch, maxFCUAttempts, err)
+		} else {
+			e.log.Warn("FCU state not yet converged, retrying", "attempt", attempt, "expectedHead", head, "err", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(fcuRetryDelay):
+			}
+		}
+	}
+	return nil // unreachable
 }
 
 // forkchoiceUpdate sends a forkchoice update to the engine and validates the response.

@@ -124,66 +124,8 @@ genesis and rollup config files.
 
 ## Upgrading
 
-You can upgrade between smart contract versions using the [`upgrade`](/chain-operators/tools/op-deployer/usage/upgrade) family of commands. As a prerequisite,
-you must deploy OPCMs for each version you want to upgrade between using the `bootstrap implementations` command.
-
-You will need to use the correct sub-command for the version you are upgrading from. For example, if you are
-upgrading from `v2.0.0` to `v3.0.0`, you will need to use the `upgrade v3.0.0` subcommand.
-
-Unlike the `bootstrap` and `apply` commands, the `upgrade` command does not interact with the chain directly. Instead,
-it generates calldata that you can use with `cast`, Gnosis SAFE, or whatever tooling you use to manage your L1.
-
-To run the upgrade command, use the following:
-
 <Warning>
-Upgrading between non-standard contract versions is not supported.
+The `op-deployer upgrade` command has been deprecated. For L1 contract upgrades, use
+[superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) or interact with the
+OPCM directly. See the [deprecation notice](/notices/op-deployer-upgrade-deprecation) for details.
 </Warning>
-
-```shell
-op-deployer upgrade <version> \
-  --config <path to config JSON> \
-  --l1-rpc-url="<rpc url>"
-```
-
-The contents of your config JSON should look something like this:
-
-```json
-{
-  "prank": "<address of the contract that owns the chain - likely the same as the superchain owner>",
-  "opcm": "<address of new OPCM>",
-  "chainConfigs": [
-    {
-      "systemConfigProxy": "<address of the chain's system config proxy>",
-      "proxyAdmin": "<address of the chain's proxy admin>",
-      "absolutePrestate": "<32-byte hash of the chain's absolute prestate>"
-    }
-  ]
-}
-```
-
-You will get output that looks something like this:
-
-```json
-{
-  "to": "<maps to the prank address>",
-  "data": "<calldata>",
-  "value": "0x0"
-}
-```
-
-At this point, you will need to build a transaction that uses the calldata and calls the `upgrade()` method on the
-OPCM. The exact method you use to do this will depend on your tooling. As an example, you can craft a transaction
-for use with Gnosis SAFE CLI using the command below:
-
-<Info>
-The Gnosis SAFE UI does not support the `--delegate` flag, so the CLI is required if you're using a Gnosis SAFE.
-</Info>
-
-```shell
-safe-cli send-custom <owner SAFE address> <l1 rpc URL> <opcm address> 0 <calldata> --private-key <signer private key>
---delegate
-```
-
-Note that no matter which method you use to broadcast the calldata, the call to OPCM **must** come from the smart
-contract that owns the chain and the call must be via `DELEGATECALL`. If your upgrade command reverts, it is likely
-due to one of these conditions not being met.

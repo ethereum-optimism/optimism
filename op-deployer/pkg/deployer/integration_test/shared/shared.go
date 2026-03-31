@@ -284,6 +284,21 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 		{
 			Enabled:  false,
 			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypeSuperCannon,
+		},
+		{
+			Enabled:  false,
+			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypeSuperPermCannon,
+		},
+		{
+			Enabled:  false,
+			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypeSuperCannonKona,
+		},
+		{
+			Enabled:  false,
+			InitBond: big.NewInt(0),
 			GameType: embedded.GameTypeZKDisputeGame,
 		},
 	}

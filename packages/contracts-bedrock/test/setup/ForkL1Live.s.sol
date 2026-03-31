@@ -16,7 +16,7 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
-import { GameTypes, Claim, Duration } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Claim, Duration, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -287,61 +287,191 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         address challenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
         address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
 
-        // Prepare the upgrade input.
-        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](4);
-        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
-            gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate")))
-                })
-            )
-        });
-        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
-                    proposer: proposer,
-                    challenger: challenger
-                })
-            )
-        });
-        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
-                })
-            )
-        });
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.ZKDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                    verifier: IZKVerifier(address(0)),
-                    maxChallengeDuration: Duration.wrap(0),
-                    maxProveDuration: Duration.wrap(0),
-                    challengerBond: 0
-                })
-            )
-        });
+        // Prepare the upgrade input based on whether we're doing a super root migration.
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs;
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions;
 
-        // Add extra instructions to allow the DelayedWETH proxy to be deployed.
-        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerUtils.ExtraInstruction[](1);
-        extraInstructions[0] =
-            IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
+        if (Config.devFeatureSuperRootGamesMigration()) {
+            // Read the current respected game type from the ASR.
+            IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
+            GameType originalGameType = asr.respectedGameType();
+            uint32 originalRaw = originalGameType.raw();
+            bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+
+            // Determine the target SUPER_* game type.
+            GameType targetGameType =
+                isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
+
+            // Read the current anchor root sequence number so we can set a higher one.
+            (, uint256 currentAnchorSeqNum) = asr.getAnchorRoot();
+
+            // Migration upgrade: legacy types disabled, super types enabled.
+            // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+            // Numerical order: 0, 1, 4, 5, 8, 9, 10.
+            disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: 0.08 ether,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+                        proposer: proposer,
+                        challenger: challenger
+                    })
+                )
+            });
+            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.CANNON_KONA,
+                gameArgs: hex""
+            });
+            if (isPermissionless) {
+                disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: true,
+                    initBond: 0.08 ether,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.FaultDisputeGameConfig({
+                            absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
+                        })
+                    )
+                });
+            } else {
+                disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    gameArgs: hex""
+                });
+            }
+            disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.ZKDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
+                        verifier: IZKVerifier(address(0)),
+                        maxChallengeDuration: Duration.wrap(0),
+                        maxProveDuration: Duration.wrap(0),
+                        challengerBond: 0
+                    })
+                )
+            });
+
+            // Migration needs 3 extra instructions: DelayedWETH proxy + anchor root + game type overrides.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](3);
+            extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "PermittedProxyDeployment",
+                data: bytes("DelayedWETH")
+            });
+            extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingAnchorRoot",
+                data: abi.encode(
+                    Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: currentAnchorSeqNum + 1 })
+                )
+            });
+            extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(targetGameType)
+            });
+        } else {
+            // Standard upgrade path: legacy types enabled, super types disabled.
+            // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+            // Numerical order: 0, 1, 4, 5, 8, 9, 10.
+            disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                gameType: GameTypes.CANNON,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.FaultDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate")))
+                    })
+                )
+            });
+            disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+                        proposer: proposer,
+                        challenger: challenger
+                    })
+                )
+            });
+            disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                gameType: GameTypes.CANNON_KONA,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.FaultDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
+                    })
+                )
+            });
+            disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON_KONA,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.ZKDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
+                        verifier: IZKVerifier(address(0)),
+                        maxChallengeDuration: Duration.wrap(0),
+                        maxProveDuration: Duration.wrap(0),
+                        challengerBond: 0
+                    })
+                )
+            });
+
+            // Standard path only needs DelayedWETH proxy deployment permission.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
+            extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "PermittedProxyDeployment",
+                data: bytes("DelayedWETH")
+            });
+        }
 
         vm.prank(_delegateCaller, true);
         (bool upgradeSuccess,) = address(_opcm).delegatecall(
@@ -384,15 +514,18 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
         console.log("ForkL1Live: Saving newly deployed contracts");
 
-        // A new ASR and new dispute games were deployed, so we need to update them
+        // A new ASR and new dispute games were deployed, so we need to update them.
+        // With super root migration, standard game types are zeroed; read from SUPER_ variants.
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        GameType permGameType = Config.devFeatureSuperRootGamesMigration()
+            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            : GameTypes.PERMISSIONED_CANNON;
+        address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
-        IAnchorStateRegistry newAnchorStateRegistry = IAnchorStateRegistry(
-            LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).anchorStateRegistry
-        );
+        IAnchorStateRegistry newAnchorStateRegistry =
+            IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
@@ -402,7 +535,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
         IDelayedWETH newDelayedWeth =
-            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).weth));
+            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).weth));
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }

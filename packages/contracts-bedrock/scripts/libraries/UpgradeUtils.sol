@@ -24,12 +24,11 @@ library UpgradeUtils {
     /// @notice The number of implementations deployed in every upgrade.
     ///         Includes:
     ///         - 1 StorageSetter
-    ///         - 16 base predeploys
-    ///         - 7 INTEROP predeploys
+    ///         - 18 base predeploys
+    ///         - 4 INTEROP predeploys
     ///         - 2 CGT predeploys (NativeAssetLiquidity, LiquidityController)
     ///         - 2 CGT variants (L1BlockCGT, L2ToL1MessagePasserCGT)
-    ///         Total: 29 implementations
-    uint256 internal constant IMPLEMENTATION_COUNT = 29;
+    uint256 internal constant IMPLEMENTATION_COUNT = 27;
 
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
@@ -49,13 +48,13 @@ library UpgradeUtils {
 
     /// @notice Returns the total number of transactions for the current upgrade.
     /// @dev Total count:
-    ///      - 29 implementation deployments
+    ///      - IMPLEMENTATION_COUNT implementation deployments
     ///      - [KARST] 2 ConditionalDeployer (deployment + upgrade)
     ///      - [KARST] 1 ProxyAdmin upgrade
     ///      - 1 L2CM deployment
     ///      - 1 Upgrade Predeploys call
     function getTransactionCount() internal pure returns (uint256 txnCount_) {
-        if (IMPLEMENTATION_COUNT != 29) {
+        if (IMPLEMENTATION_COUNT != 27) {
             revert(
                 "UpgradeUtils: implementation count changed, ensure that the txnCount_ calculation is still correct."
             );
@@ -117,22 +116,20 @@ library UpgradeUtils {
         implementations_[14] = "SchemaRegistry";
         implementations_[15] = "EAS";
         implementations_[16] = "FeeSplitter";
-        implementations_[17] = "L2DevFeatureFlags";
+        implementations_[17] = "ConditionalDeployer";
+        implementations_[18] = "L2DevFeatureFlags";
 
         // INTEROP predeploys
-        implementations_[18] = "CrossL2Inbox";
-        implementations_[19] = "L2ToL2CrossDomainMessenger";
-        implementations_[20] = "SuperchainETHBridge";
-        implementations_[21] = "OptimismSuperchainERC20Factory";
-        implementations_[22] = "OptimismSuperchainERC20Beacon";
-        implementations_[23] = "SuperchainTokenBridge";
-        implementations_[24] = "ETHLiquidity";
+        implementations_[19] = "CrossL2Inbox";
+        implementations_[20] = "L2ToL2CrossDomainMessenger";
+        implementations_[21] = "SuperchainETHBridge";
+        implementations_[22] = "ETHLiquidity";
 
         // CGT predeploys
-        implementations_[25] = "L1BlockCGT";
-        implementations_[26] = "L2ToL1MessagePasserCGT";
-        implementations_[27] = "LiquidityController";
-        implementations_[28] = "NativeAssetLiquidity";
+        implementations_[23] = "L1BlockCGT";
+        implementations_[24] = "L2ToL1MessagePasserCGT";
+        implementations_[25] = "LiquidityController";
+        implementations_[26] = "NativeAssetLiquidity";
     }
 
     /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.

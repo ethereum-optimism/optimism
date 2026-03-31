@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"time"
@@ -98,13 +97,10 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 	return runtime
 }
 
-// startSupernodeEL starts an L2 EL node for the supernode runtime.
-// It respects the DEVSTACK_L2EL_KIND env var: "op-geth" uses op-geth, otherwise op-reth is used.
+// startSupernodeEL starts an L2 EL node for the supernode runtime,
+// respecting DEVSTACK_L2EL_KIND (defaults to op-geth when unset).
 func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
-	if MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar)) == MixedL2ELOpGeth {
-		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
-	}
-	return startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil)
+	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
@@ -208,9 +204,9 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		jwtSecret,
 	)
 
-	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL)
+	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL, cfg.BatcherOptions...)
 	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, l2ACL)
-	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL)
+	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL, cfg.BatcherOptions...)
 	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, l2BCL)
 
 	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{

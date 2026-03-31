@@ -230,9 +230,10 @@ library PastUpgrades {
         // Acceptable to fail if already up to date
         scSuccess;
 
-        // Build dispute game configs with dummy prestates
+        // Build dispute game configs with dummy prestates.
+        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](4);
+            new IOPContractsManagerUtils.DisputeGameConfig[](7);
 
         // CANNON (game type 0)
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -268,8 +269,32 @@ library PastUpgrades {
             )
         });
 
-        // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
+        // SUPER_CANNON (disabled)
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: hex""
+        });
+
+        // SUPER_PERMISSIONED_CANNON (disabled)
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: hex""
+        });
+
+        // SUPER_CANNON_KONA (disabled)
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: hex""
+        });
+
+        // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
+        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: _disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
             gameType: GameTypes.ZK_DISPUTE_GAME,
@@ -284,7 +309,7 @@ library PastUpgrades {
             )
         });
 
-        // Sort by game type (already sorted: 0, 1, 8, 10)
+        // Sort by game type (numerical order: 0, 1, 4, 5, 8, 9, 10)
         _sortDisputeGameConfigs(disputeGameConfigs);
 
         // Execute the V2 upgrade

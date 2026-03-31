@@ -26,6 +26,9 @@ contract L2ProxyAdmin is ProxyAdmin, ISemver {
     /// @notice Thrown when the caller is not the depositor account.
     error L2ProxyAdmin__Unauthorized();
 
+    /// @notice Thrown when the L2ContractsManager has no code.
+    error L2ProxyAdmin__L2ContractsManagerNotDeployed(address l2ContractsManager);
+
     /// @notice Thrown when the upgrade fails.
     error L2ProxyAdmin__UpgradeFailed(bytes data);
 
@@ -42,6 +45,9 @@ contract L2ProxyAdmin is ProxyAdmin, ISemver {
     /// @param _l2ContractsManager Address of the l2ContractsManager contract.
     function upgradePredeploys(address _l2ContractsManager) external {
         if (msg.sender != Constants.DEPOSITOR_ACCOUNT) revert L2ProxyAdmin__Unauthorized();
+        if (_l2ContractsManager.code.length == 0) {
+            revert L2ProxyAdmin__L2ContractsManagerNotDeployed(_l2ContractsManager);
+        }
 
         (bool success, bytes memory data) =
             _l2ContractsManager.delegatecall(abi.encodeCall(IL2ContractsManager.upgrade, ()));
