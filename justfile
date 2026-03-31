@@ -311,12 +311,20 @@ go-tests-ci-kona-action:
   just _go-tests-ci-internal "-count=1 -timeout 60m -run Test_ProgramAction"
 
 # Runs fraud proofs Go tests with gotestsum for CI.
+# Builds fraud proof dependencies, then runs tests with optional CircleCI test splitting.
 [script('bash')]
 go-tests-fraud-proofs-ci:
   set -euo pipefail
+
+  # Build fraud proof dependencies (each parallel node builds its own)
+  echo "Building fraud proof dependencies..."
+  (cd op-program && just op-program-client)
+  (cd op-program && just op-program-host)
+  just cannon
+
   echo "Setting up test directories..."
   mkdir -p ./tmp/test-results ./tmp/testlogs
-  echo "Running Go tests with gotestsum..."
+
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="true"
   export OP_E2E_USE_HTTP=true
@@ -327,13 +335,53 @@ go-tests-fraud-proofs-ci:
   export MAINNET_RPC_URL="https://ci-mainnet-l1-archive.optimism.io"
   export NAT_INTEROP_LOADTEST_TARGET=10
   export NAT_INTEROP_LOADTEST_TIMEOUT=30s
-  ./ops/scripts/gotestsum-split.sh --format=testname \
-      --junitfile=./tmp/test-results/results.xml \
-      --jsonfile=./tmp/testlogs/log.json \
-      --rerun-fails=3 \
-      --rerun-fails-max-failures=50 \
-      --packages="{{FRAUD_PROOF_TEST_PKGS}}" \
-      -- -parallel="$PARALLEL" -coverprofile=coverage.out -timeout={{TEST_TIMEOUT}}
+
+  if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+      NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+      NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
+
+      # Enumerate top-level test functions
+      go test -list '^Test' ./op-e2e/faultproofs/... 2>/dev/null | grep -E '^Test' > /tmp/tests.txt
+
+      TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
+      if [ "$TOTAL_TESTS" -eq 0 ]; then
+          echo "ERROR: no tests found in ./op-e2e/faultproofs/..."
+          exit 1
+      fi
+      echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
+
+      # Split by timings (falls back to name-based if no timing data yet)
+      circleci tests split --split-by=timings /tmp/tests.txt > /tmp/tests_shard.txt
+
+      SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
+      echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
+      cat /tmp/tests_shard.txt
+
+      if [ "$SHARD_COUNT" -eq 0 ]; then
+          echo "No tests assigned to this node, skipping."
+          exit 0
+      fi
+
+      # Build -run regex: ^(TestFoo|TestBar|TestBaz)$
+      RUN_REGEX="^($(paste -sd '|' /tmp/tests_shard.txt))$"
+
+      ./ops/scripts/gotestsum-split.sh --format=testname \
+          --junitfile=./tmp/test-results/results-"$NODE_INDEX".xml \
+          --jsonfile=./tmp/testlogs/log-"$NODE_INDEX".json \
+          --rerun-fails=3 \
+          --rerun-fails-max-failures=50 \
+          --packages="{{FRAUD_PROOF_TEST_PKGS}}" \
+          -- -parallel="$PARALLEL" -coverprofile=coverage-"$NODE_INDEX".out \
+             -run "$RUN_REGEX" -timeout={{TEST_TIMEOUT}} -tags="ci"
+  else
+      ./ops/scripts/gotestsum-split.sh --format=testname \
+          --junitfile=./tmp/test-results/results.xml \
+          --jsonfile=./tmp/testlogs/log.json \
+          --rerun-fails=3 \
+          --rerun-fails-max-failures=50 \
+          --packages="{{FRAUD_PROOF_TEST_PKGS}}" \
+          -- -parallel="$PARALLEL" -coverprofile=coverage.out -timeout={{TEST_TIMEOUT}}
+  fi
 
 # Runs comprehensive Go tests (alias for go-tests).
 test: go-tests

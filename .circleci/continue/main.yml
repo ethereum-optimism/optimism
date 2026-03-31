@@ -1703,10 +1703,14 @@ jobs:
         description: Number machines to distribute the tests across
         type: integer
         default: 1
+      ip_ranges:
+        description: Whether to use CircleCI IP ranges (adds credit surcharge)
+        type: boolean
+        default: true
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
-    circleci_ip_ranges: true
+    circleci_ip_ranges: <<parameters.ip_ranges>>
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
@@ -1741,77 +1745,6 @@ jobs:
           name: Clean up op-deployer artifacts
           command: |
             rm -rf ~/.op-deployer/*
-          when: always
-      - store_artifacts:
-          path: testlogs.tar.gz
-          when: always
-      - when:
-          condition: "<<parameters.notify>>"
-          steps:
-            - notify-failures-on-develop:
-                mentions: "<<parameters.mentions>>"
-
-  go-tests-with-fault-proof-deps:
-    parameters:
-      notify:
-        description: Whether to notify on failure
-        type: boolean
-        default: false
-      mentions:
-        description: Slack user or group to mention when notifying of failures
-        type: string
-        default: ""
-      resource_class:
-        description: Machine resource class
-        type: string
-        default: 2xlarge
-      no_output_timeout:
-        description: Timeout for when CircleCI kills the job if there's no output
-        type: string
-        default: 60m
-      test_timeout:
-        description: Timeout for running tests
-        type: string
-        default: 10m
-      environment_overrides:
-        description: Environment overrides
-        type: string
-        default: ""
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: <<parameters.resource_class>>
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - attach_workspace:
-          at: .
-      - run:
-          name: build op-program-client
-          command: just op-program-client
-          working_directory: op-program
-      - run:
-          name: build op-program-host
-          command: just op-program-host
-          working_directory: op-program
-      - run:
-          name: build cannon
-          command: just cannon
-      - run:
-          name: run tests
-          no_output_timeout: <<parameters.no_output_timeout>>
-          command: |
-            <<parameters.environment_overrides>>
-            export TEST_TIMEOUT=<<parameters.test_timeout>>
-            just go-tests-fraud-proofs-ci
-      - codecov/upload:
-          disable_search: true
-          files: ./coverage.out
-      - store_test_results:
-          path: ./tmp/test-results
-      - run:
-          name: Compress test logs
-          command: tar -czf testlogs.tar.gz -C ./tmp testlogs
           when: always
       - store_artifacts:
           path: testlogs.tar.gz
@@ -3012,13 +2945,15 @@ workflows:
           rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - go-tests-with-fault-proof-deps:
+      - go-tests:
           name: op-e2e-cannon-tests
+          rule: go-tests-fraud-proofs-ci
+          parallelism: 4
+          ip_ranges: false
+          no_output_timeout: 45m
+          test_timeout: 120m
           notify: true
           mentions: "@proofs-team"
-          no_output_timeout: 90m
-          test_timeout: 480m
-          resource_class: 2xlarge
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
