@@ -1798,11 +1798,6 @@ jobs:
           name: build cannon
           command: just cannon
       - run:
-          name: build kona-host (native for machine executor)
-          command: |
-            cd rust && cargo build --release -p kona-host
-          no_output_timeout: 30m
-      - run:
           name: run tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
