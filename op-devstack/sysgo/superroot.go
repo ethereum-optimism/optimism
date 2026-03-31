@@ -205,6 +205,13 @@ func migrateSuperRoots(
 	w3Client := w3.NewClient(rpcClient)
 
 	absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
+	absoluteCannonKonaPrestate := getCannonKonaAbsolutePrestate(t)
+
+	permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
+	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
+	require.NoError(err, "must have configured proposer")
+	challenger, err := keys.Address(permissionedChainOps(devkeys.ChallengerRole))
+	require.NoError(err, "must have configured challenger")
 
 	var chainSystemConfigs []common.Address
 	for _, l2Deployment := range migration.l2Deployments {
@@ -216,6 +223,16 @@ func migrateSuperRoots(
 	require.NoError(err, "invalid migrator ABI")
 	contract := batching.NewBoundContract(migratorABI, migration.opcmImpl)
 
+	// ABI-encode permissioned game args: (bytes32 absolutePrestate, address proposer, address challenger)
+	bytes32Ty, _ := abi.NewType("bytes32", "", nil)
+	addressTy, _ := abi.NewType("address", "", nil)
+	permGameArgs, err := abi.Arguments{
+		{Type: bytes32Ty},
+		{Type: addressTy},
+		{Type: addressTy},
+	}.Pack(absoluteCannonPrestate, proposer, challenger)
+	require.NoError(err, "failed to encode permissioned game args")
+
 	migrateInputV2 := MigrateInputV2{
 		ChainSystemConfigs: chainSystemConfigs,
 		DisputeGameConfigs: []DisputeGameConfigV2{
@@ -224,6 +241,18 @@ func migrateSuperRoots(
 				InitBond: big.NewInt(0),
 				GameType: superCannonGameType,
 				GameArgs: absoluteCannonPrestate[:],
+			},
+			{
+				Enabled:  true,
+				InitBond: big.NewInt(0),
+				GameType: superPermissionedCannonGameType,
+				GameArgs: permGameArgs,
+			},
+			{
+				Enabled:  true,
+				InitBond: big.NewInt(0),
+				GameType: superCannonKonaGameType,
+				GameArgs: absoluteCannonKonaPrestate[:],
 			},
 		},
 		StartingAnchorRoot: bindings.Proposal{
@@ -285,7 +314,9 @@ func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
 }
 
 const (
-	superCannonGameType = 4
+	superCannonGameType              = 4
+	superPermissionedCannonGameType  = 5
+	superCannonKonaGameType          = 9
 )
 
 var (
