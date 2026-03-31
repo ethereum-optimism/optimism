@@ -91,7 +91,7 @@ func FirstPrecompilePreimageLoad() PreimageOpt {
 
 func PreimageLargerThan(size int) PreimageOpt {
 	return func() preimageOpts {
-		return []string{"--stop-at-preimage-larger-than", strconv.Itoa(size)}
+		return []string{"--stop-at-preimage-type", "keccak", "--stop-at-preimage-larger-than", strconv.Itoa(size)}
 	}
 }
 
