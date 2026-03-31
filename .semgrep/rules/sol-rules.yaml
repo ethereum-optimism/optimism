@@ -458,7 +458,6 @@ rules:
         # DataAvailabilityChallenge is a beta/non-standard contract.
         - packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
 
-
   - id: sol-safety-use-deployutils-getcode
     languages: [solidity]
     severity: ERROR
