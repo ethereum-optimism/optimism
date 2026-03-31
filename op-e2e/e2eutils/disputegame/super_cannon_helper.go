@@ -103,6 +103,7 @@ func (g *SuperCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, top
 
 	targetTraceIndex, err := provider.FindStep(ctx, 0, preimage)
 	g.require.NoError(err)
+	g.t.Logf("FindStep returned targetTraceIndex=%d", targetTraceIndex)
 
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	execDepth := g.splitGame.ExecDepth(ctx)
@@ -110,17 +111,22 @@ func (g *SuperCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, top
 	g.require.EqualValues(splitDepth+1, topGameLeaf.Depth(), "supplied claim must be the root of an execution game")
 	g.require.EqualValues(execDepth%2, 0, "execution game depth must be even") // since we're supporting the execution root claim
 
+	// Verify the step actually has preimage data before proceeding with the game
+	_, _, verifyData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
+	g.require.NoError(err, "Failed to get step data at target trace index")
+	g.require.NotNil(verifyData, "Step at target trace index %d must have preimage data", targetTraceIndex)
+	g.t.Logf("Verified step %d has preimage: key=%x keyType=0x%02x", targetTraceIndex, verifyData.OracleKey, verifyData.OracleKey[0])
+
 	if preloadPreimage {
-		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
-		g.require.NoError(err)
-		g.UploadPreimage(ctx, preimageData)
-		g.WaitForPreimageInOracle(ctx, preimageData)
+		g.UploadPreimage(ctx, verifyData)
+		g.WaitForPreimageInOracle(ctx, verifyData)
 	}
 
 	bisectTraceIndex := func(claim *ClaimHelper) *ClaimHelper {
 		return traceBisection(g.t, ctx, claim, splitDepth, execDepth, targetTraceIndex, provider)
 	}
 	leafClaim := g.splitGame.DefendClaim(ctx, topGameLeaf, bisectTraceIndex, WithoutWaitingForStep())
+	g.t.Logf("Leaf claim at depth=%d, claimIndex=%d (target was %d)", leafClaim.Depth(), leafClaim.Index, targetTraceIndex)
 
 	// Validate that the preimage was loaded correctly
 	g.require.NoError(preimageCheck(provider, targetTraceIndex))
