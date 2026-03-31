@@ -828,6 +828,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
                 _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
             }
+            if (!_cts.systemConfig.isFeatureEnabled(Features.INTEROP)) {
+                _cts.systemConfig.setFeature(Features.INTEROP, true);
+            }
 
             // Migrate any ETH into the ETHLockbox.
             IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();

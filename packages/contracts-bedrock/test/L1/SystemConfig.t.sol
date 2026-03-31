@@ -100,6 +100,16 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         skipIfForkTest("SystemConfig_Initialize_Test: cannot test initialization on forked network");
     }
 
+    function test_initialize_interopFlag_succeeds() external view {
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            /// if devfeature flag is on, check in system config is on
+            vm.assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
+        } else {
+            /// if dev feature flag is off, check system config is off
+            vm.assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
+        }
+    }
+
     /// @notice Tests that initialization sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
