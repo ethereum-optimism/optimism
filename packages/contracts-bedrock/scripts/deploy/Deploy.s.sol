@@ -517,11 +517,7 @@ contract Deploy is Deployer {
             enabled: false,
             initBond: 0,
             gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
-                })
-            )
+            gameArgs: bytes("")
         });
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -533,7 +529,13 @@ contract Deploy is Deployer {
             enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
+                    proposer: cfg.l2OutputOracleProposer(),
+                    challenger: cfg.l2OutputOracleChallenger()
+                })
+            )
         });
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -596,24 +598,24 @@ contract Deploy is Deployer {
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: bytes("")
-        });
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
-        });
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.FaultDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
                 })
             )
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: bytes("")
         });
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
