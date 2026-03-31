@@ -219,7 +219,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Check if V2 dispute games feature is enabled
         bytes32 bitmap = opcm.devFeatureBitmap();
-        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
         // Change 256 bytes at random.
         for (uint256 i = 0; i < 255; i++) {
@@ -290,7 +291,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Check if V2 dispute games feature is enabled
         bytes32 bitmap = opcm.devFeatureBitmap();
-        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
         // Change 256 bytes at random.
         for (uint8 i = 0; i < 255; i++) {
