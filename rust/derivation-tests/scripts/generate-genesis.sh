@@ -49,12 +49,12 @@ mkdir -p "$OUTPUT_DIR"
 # op-deployer does not serialize L1DevGenesis to state.json (tagged json:"-"),
 # so we reconstruct it using the same logic as SealL1DevGenesis.
 echo "Reconstructing L1 genesis..."
-go run "$SCRIPT_DIR/extract-l1-genesis.go" "$WORKDIR/state.json" "$OUTPUT_DIR/l1-genesis.json"
+go run "$SCRIPT_DIR/extract-l1-genesis" "$WORKDIR/state.json" "$OUTPUT_DIR/l1-genesis.json"
 
 # Compute genesis block hashes and state roots using go-ethereum's Genesis.ToBlock().
 # This ensures hash values match exactly what op-program/op-geth compute.
 echo "Computing genesis hashes..."
-go run "$SCRIPT_DIR/compute-genesis-hashes.go" \
+go run "$SCRIPT_DIR/compute-genesis-hashes" \
   "$OUTPUT_DIR/l1-genesis.json" \
   "$OUTPUT_DIR/genesis.json" \
   "$OUTPUT_DIR/genesis-hashes.json"

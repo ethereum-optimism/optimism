@@ -76,6 +76,9 @@ tempfile = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 
+[features]
+metrics = ["reth-trie/metrics"]
+
 [dev-dependencies]
 paste = { workspace = true }
 tokio = { workspace = true, features = ["full", "test-util"] }

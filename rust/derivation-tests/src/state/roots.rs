@@ -96,6 +96,8 @@ pub fn storage_root_from_hashed_state(hashed_state: &HashedPostState, address: A
         HashedPostStateCursorFactory::new(NoopHashedCursorFactory::default(), &sorted),
         hashed_address,
         prefix_set,
+        #[cfg(feature = "metrics")]
+        reth_trie::metrics::StateRootMetrics::default().storage_trie,
     )
     .root()
     .expect("storage root computation should succeed")
