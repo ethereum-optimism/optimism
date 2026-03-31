@@ -1135,7 +1135,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         // Rebuild dispute game configs: legacy (disabled) + super types.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
-        // Numerical order: 0, 1, 4, 5, 8, 9, 10.
         delete v2UpgradeInput.disputeGameConfigs;
 
         // CANNON (0) - disabled.

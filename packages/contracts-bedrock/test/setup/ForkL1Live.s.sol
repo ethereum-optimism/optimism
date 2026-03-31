@@ -307,7 +307,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
             // Migration upgrade: legacy types disabled, super types enabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
-            // Numerical order: 0, 1, 4, 5, 8, 9, 10.
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](7);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -324,10 +323,16 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
+                gameType: GameTypes.CANNON_KONA,
                 gameArgs: hex""
             });
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: 0.08 ether,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -338,12 +343,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                         challenger: challenger
                     })
                 )
-            });
-            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: hex""
             });
             if (isPermissionless) {
                 disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -398,7 +397,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         } else {
             // Standard upgrade path: legacy types enabled, super types disabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
-            // Numerical order: 0, 1, 4, 5, 8, 9, 10.
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](7);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
@@ -423,18 +421,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 )
             });
             disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
-                gameArgs: hex""
-            });
-            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: hex""
-            });
-            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
                 gameType: GameTypes.CANNON_KONA,
@@ -443,6 +429,18 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                         absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
                     })
                 )
+            });
+            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameArgs: hex""
             });
             disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,

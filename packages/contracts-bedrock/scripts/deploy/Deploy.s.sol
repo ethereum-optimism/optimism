@@ -517,7 +517,11 @@ contract Deploy is Deployer {
             enabled: false,
             initBond: 0,
             gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
+                })
+            )
         });
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -529,13 +533,7 @@ contract Deploy is Deployer {
             enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
-                    proposer: cfg.l2OutputOracleProposer(),
-                    challenger: cfg.l2OutputOracleChallenger()
-                })
-            )
+            gameArgs: bytes("")
         });
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,

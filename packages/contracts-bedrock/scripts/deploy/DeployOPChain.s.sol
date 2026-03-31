@@ -205,16 +205,24 @@ contract DeployOPChain is Script {
                 gameArgs: abi.encode(pdgConfig)
             });
 
-        // Config 2: SUPER_CANNON (disabled for initial deployment — no prestate exists)
+        // Config 2: CANNON_KONA (disabled for initial deployment — no prestate exists)
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+
+        // Config 3: SUPER_CANNON (disabled for initial deployment — no prestate exists)
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON,
             gameArgs: bytes("")
         });
 
-        // Config 3: SUPER_PERMISSIONED_CANNON — enabled only in super-root mode.
-        disputeGameConfigs[3] = isSuperRoot
+        // Config 4: SUPER_PERMISSIONED_CANNON — enabled only in super-root mode.
+        disputeGameConfigs[4] = isSuperRoot
             ? IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: DEFAULT_INIT_BOND,
@@ -227,14 +235,6 @@ contract DeployOPChain is Script {
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                 gameArgs: bytes("")
             });
-
-        // Config 4: CANNON_KONA (disabled for initial deployment — no prestate exists)
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
-        });
 
         // Config 5: SUPER_CANNON_KONA (disabled for initial deployment)
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({

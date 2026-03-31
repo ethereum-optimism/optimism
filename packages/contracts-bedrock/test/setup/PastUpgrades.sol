@@ -309,7 +309,6 @@ library PastUpgrades {
             )
         });
 
-        // Sort by game type (numerical order: 0, 1, 4, 5, 8, 9, 10)
         _sortDisputeGameConfigs(disputeGameConfigs);
 
         // Execute the V2 upgrade

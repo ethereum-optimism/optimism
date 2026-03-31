@@ -276,24 +276,24 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                     )
                 });
                 disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-                    enabled: false,
-                    initBond: 0,
-                    gameType: GameTypes.SUPER_CANNON,
-                    gameArgs: hex""
-                });
-                disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-                    enabled: false,
-                    initBond: 0,
-                    gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                    gameArgs: hex""
-                });
-                disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: true,
                     initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
                     gameType: GameTypes.CANNON_KONA,
                     gameArgs: abi.encode(
                         IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
                     )
+                });
+                disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_CANNON,
+                    gameArgs: hex""
+                });
+                disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                    gameArgs: hex""
                 });
                 disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                     enabled: false,

@@ -692,9 +692,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         GameType[] memory validGameTypes = new GameType[](7);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-        validGameTypes[2] = GameTypes.SUPER_CANNON;
-        validGameTypes[3] = GameTypes.SUPER_PERMISSIONED_CANNON;
-        validGameTypes[4] = GameTypes.CANNON_KONA;
+        validGameTypes[2] = GameTypes.CANNON_KONA;
+        validGameTypes[3] = GameTypes.SUPER_CANNON;
+        validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
         validGameTypes[5] = GameTypes.SUPER_CANNON_KONA;
         validGameTypes[6] = GameTypes.ZK_DISPUTE_GAME;
 
