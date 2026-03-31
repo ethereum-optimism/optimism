@@ -5,12 +5,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestExecuteStep_Cannon(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	sysgo.SkipUnlessOpGeth(t, "op-reth not supported (timeout)")
 	sys := newSystem(t)
 
 	l1User := sys.FunderL1.NewFundedEOA(eth.ThousandEther)

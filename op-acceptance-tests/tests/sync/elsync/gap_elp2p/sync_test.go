@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
@@ -55,6 +56,17 @@ import (
 //   - With ELP2P enabled, repeated FCU attempts eventually validate and advance the canonical chain.
 func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with op-reth:
+	//
+	// assertions.go:387:             ERROR[03-31|09:58:15.522]
+	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_el.go:64
+	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/elsync/gap_elp2p/sync_test.go:111
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	failed to determine block-hash of hash 0x8b94830f261ef4568bc2ba248f52b27f9a7c366e8157794c93bdd05ca4735564, could not get payload: not found
+	// assertions.go:387:             	Test:       	TestL2ELP2PCanonicalChainAdvancedByFCU
+	// assertions.go:387:             	Messages:   	block not found using block hash
+	// assertions.go:387:
+	sysgo.SkipUnlessOpGeth(t, "op-reth not supported")
 	sys := newGapELP2PSystem(t)
 	require := t.Require()
 	logger := t.Logger()
