@@ -69,6 +69,12 @@ var Commands = []*cli.Command{
 		Action:    L2SemversCLI,
 		Flags:     Flags,
 	},
+	{
+		Name:   "l1-genesis",
+		Usage:  "outputs the L1 genesis for the deployment",
+		Action: L1GenesisCLI,
+		Flags:  Flags,
+	},
 }
 
 type cliConfig struct {
