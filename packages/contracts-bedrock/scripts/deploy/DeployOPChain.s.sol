@@ -75,8 +75,7 @@ contract DeployOPChain is Script {
         require(address(_input.opcm).code.length > 0, "DeployOPChain: OPCM address has no code");
 
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
-        isSuperRoot =
-            DevFeatures.isDevFeatureEnabled(opcmV2.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        isSuperRoot = DevFeatures.isDevFeatureEnabled(opcmV2.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         IOPContractsManagerV2.FullConfig memory config = _toOPCMV2DeployInput(_input);
 
         vm.broadcast(msg.sender);

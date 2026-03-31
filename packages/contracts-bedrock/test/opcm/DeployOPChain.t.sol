@@ -14,6 +14,7 @@ import { Types } from "scripts/libraries/Types.sol";
 
 // Libraries
 import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
