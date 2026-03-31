@@ -359,12 +359,8 @@ func TestEndToEndApply(t *testing.T) {
 		require.Equal(t, amount, account.Balance, "Native asset liquidity predeploy should have the configured balance")
 	})
 
-	t.Run("with L2CM", func(t *testing.T) {
+	t.Run("with ConditionalDeployer deployment", func(t *testing.T) {
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
-
-		intent.GlobalDeployOverrides = map[string]any{
-			"devFeatureBitmap": deployer.L2CMDevFlag,
-		}
 
 		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
 			DeploymentTarget:   deployer.DeploymentTargetLive,
