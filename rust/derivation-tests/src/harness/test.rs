@@ -235,8 +235,8 @@ impl DerivationTest {
 
     /// Start building an L2 block with user transactions.
     ///
-    /// Returns a [`BlockBuilder`] that collects transactions and builds the
-    /// block on [`.build()`](super::BlockBuilder::build).
+    /// Returns a [`BlockBuilder`](super::BlockBuilder) that collects transactions and builds the
+    /// block on `.build()`.
     pub fn derive_l2_block(&mut self) -> super::BlockBuilder<'_> {
         self.ensure_epoch();
         super::BlockBuilder::new(self)

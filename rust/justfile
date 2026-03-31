@@ -42,7 +42,7 @@ build-op-reth:
 test: test-unit test-docs
 
 # Run unit tests (excluding online tests and derivation-tests integration binary)
-test-unit *args="-E '!test(test_online) & !(package(derivation-tests) & binary(integration))'":
+test-unit *args="-E '!test(test_online) & !(package(derivation-tests) & binary(integration))'": generate-genesis
   cargo nextest run --workspace --all-features {{args}}
 
 # Run online tests only
@@ -62,7 +62,7 @@ generate-genesis:
   bash derivation-tests/scripts/generate-genesis.sh
 
 # Run derivation-tests unit tests (excludes integration tests that require external binaries)
-test-derivation *args='':
+test-derivation *args='': generate-genesis
   cargo nextest run -p derivation-tests -E '!binary(integration)' {{args}}
 
 # Run derivation-tests integration tests (builds op-program and kona-host first)

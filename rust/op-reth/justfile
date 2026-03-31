@@ -25,7 +25,7 @@ test edge='':
     --features "asm-keccak {{edge}}" --locked \
     --workspace \
     --no-tests=warn \
-    -E "!kind(test) and not binary(e2e_testsuite) and not test(test_online)"
+    -E "!kind(test) and not binary(e2e_testsuite) and not test(test_online) and not package(derivation-tests)"
 
 # Run integration tests for reth-optimism-node
 test-integration:

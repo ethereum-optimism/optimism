@@ -1,7 +1,7 @@
 //! Scenario-oriented DSL types for derivation tests.
 //!
 //! These types provide a high-level API for constructing test scenarios.
-//! See [`DerivationTest`](super::DerivationTest) for the DSL methods.
+//! See [`DerivationTest`] for the DSL methods.
 
 use alloy_primitives::{Address, U256};
 use op_alloy_consensus::OpTxEnvelope;
