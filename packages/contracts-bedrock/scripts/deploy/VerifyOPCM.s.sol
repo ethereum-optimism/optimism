@@ -256,6 +256,8 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["mipsImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["faultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["permissionedDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["superFaultDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["superPermissionedDisputeGameImpl"] = "CONTAINER_IMPL";
 
         // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
