@@ -1798,6 +1798,15 @@ jobs:
           name: build cannon
           command: just cannon
       - run:
+          name: verify kona-host binary
+          command: |
+            echo "=== kona-host binary ==="
+            ls -la rust/target/release/kona-host || echo "kona-host not found!"
+            echo "=== ldd output ==="
+            ldd rust/target/release/kona-host 2>&1 || echo "ldd failed"
+            echo "=== running kona-host --help ==="
+            rust/target/release/kona-host --help 2>&1 || echo "kona-host --help exited with $?"
+      - run:
           name: run tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
