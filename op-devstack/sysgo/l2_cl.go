@@ -35,6 +35,8 @@ type L2CLConfig struct {
 	NoDiscovery bool
 
 	FollowSource string
+
+	Kind MixedL2CLKind
 }
 
 func L2CLSequencer() L2CLOption {
@@ -91,4 +93,12 @@ func (l L2CLOptionBundle) Apply(p devtest.T, target ComponentTarget, cfg *L2CLCo
 		p.Require().NotNil(opt, "cannot Apply nil L2CLOption")
 		opt.Apply(p, target, cfg)
 	}
+}
+
+func WithAlwaysOpNode(p devtest.T, target ComponentTarget, cfg *L2CLConfig) {
+	cfg.Kind = MixedL2CLOpNode
+}
+
+func WithAlwaysKonaNode(p devtest.T, target ComponentTarget, cfg *L2CLConfig) {
+	cfg.Kind = MixedL2CLKona
 }

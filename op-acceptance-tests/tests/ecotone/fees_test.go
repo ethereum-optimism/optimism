@@ -12,8 +12,11 @@ import (
 )
 
 func TestFees(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithEcotoneAtGenesis))
+	presets.RunCLAndELMatrix(devtest.ParallelT(gt), testFees)
+}
+
+func testFees(t devtest.T, opt presets.Option) {
+	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithEcotoneAtGenesis), opt)
 
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 	bob := sys.Wallet.NewEOA(sys.L2EL)

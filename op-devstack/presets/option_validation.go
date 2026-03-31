@@ -160,4 +160,5 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL
 
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindOPRBuilder
+	optionKindOPRBuilder |
+	optionKindGlobalL2CL
