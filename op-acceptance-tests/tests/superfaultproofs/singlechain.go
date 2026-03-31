@@ -58,7 +58,7 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
 
-	optimistic := optimisticBlockAtTimestamp(t, c, endTimestamp)
+	optimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), c.ID, endTimestamp)
 
 	// With one chain: step 0 = chain's optimistic block, steps 1..consolidateStep-1 = padding,
 	// consolidateStep = consolidation to next super root.

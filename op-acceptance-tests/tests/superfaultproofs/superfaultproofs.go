@@ -96,12 +96,14 @@ func superRootAtTimestamp(t devtest.T, chains []*chain, timestamp uint64) eth.Su
 }
 
 // optimisticBlockAtTimestamp returns the optimistic block for a single chain at the given timestamp.
-func optimisticBlockAtTimestamp(t devtest.T, c *chain, timestamp uint64) interopTypes.OptimisticBlock {
-	blockNum, err := c.Cfg.TargetBlockNumber(timestamp)
+// It queries the supernode's super_atTimestamp API which returns the true optimistic output root,
+// even after an invalid block has been replaced during cross-safe validation.
+func optimisticBlockAtTimestamp(t devtest.T, queryAPI apis.SupernodeQueryAPI, chainID eth.ChainID, timestamp uint64) interopTypes.OptimisticBlock {
+	resp, err := queryAPI.SuperRootAtTimestamp(t.Ctx(), timestamp)
 	t.Require().NoError(err)
-	out, err := c.Rollup.OutputAtBlock(t.Ctx(), blockNum)
-	t.Require().NoError(err)
-	return interopTypes.OptimisticBlock{BlockHash: out.BlockRef.Hash, OutputRoot: out.OutputRoot}
+	out, ok := resp.OptimisticAtTimestamp[chainID]
+	t.Require().Truef(ok, "no optimistic output for chain %v at timestamp %d", chainID, timestamp)
+	return interopTypes.OptimisticBlock{BlockHash: out.Output.BlockRef.Hash, OutputRoot: out.Output.OutputRoot}
 }
 
 // marshalTransition serializes a transition state with the given super root, step, and progress.
@@ -404,7 +406,7 @@ func RunTraceExtensionActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	// The disputed claim transitions to the next timestamp by including the
 	// first chain's optimistic block at endTimestamp+1.
-	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp+1)
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp+1)
 	disputedClaim := marshalTransition(agreedSuperRoot, 1, firstOptimistic)
 	disputedTraceIndex := int64(stepsPerTimestamp)
 
@@ -607,8 +609,8 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
 
-	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
-	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
 
 	step1 := marshalTransition(start, 1, firstOptimistic)
 	step2 := marshalTransition(start, 2, firstOptimistic, secondOptimistic)
@@ -686,8 +688,8 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
 
-	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
-	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
 
 	step1 := marshalTransition(start, 1, firstOptimistic)
 	step2 := marshalTransition(start, 2, firstOptimistic, secondOptimistic)
@@ -738,8 +740,8 @@ func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleIn
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	end := superRootAtTimestamp(t, chains, endTimestamp)
 
-	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
-	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
 	paddingStep := func(step uint64) []byte {
 		return marshalTransition(start, step, firstOptimistic, secondOptimistic)
 	}
@@ -809,8 +811,8 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	crossSafeSuperRootEnd := superRootAtTimestamp(t, chains, endTimestamp)
 
-	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
-	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
 	paddingStep := func(step uint64) []byte {
 		return marshalTransition(start, step, firstOptimistic, secondOptimistic)
 	}
