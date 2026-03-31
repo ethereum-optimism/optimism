@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -81,22 +80,10 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 		return err
 	}
 	c.CannonKona.Server = root + "rust/target/release/kona-host"
-	absRoot, err := filepath.Abs(root)
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path to prestate dir: %w", err)
-	}
 	if interop {
 		c.CannonKonaAbsolutePreState = root + "rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
-		c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/rust/kona/prestate-artifacts-cannon-interop")
-		if err != nil {
-			return err
-		}
 	} else {
 		c.CannonKonaAbsolutePreState = root + "rust/kona/prestate-artifacts-cannon/prestate.bin.gz"
-		c.CannonKonaAbsolutePreStateBaseURL, err = url.Parse("file:" + absRoot + "/rust/kona/prestate-artifacts-cannon")
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
