@@ -314,9 +314,9 @@ func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
 }
 
 const (
-	superCannonGameType              = 4
-	superPermissionedCannonGameType  = 5
-	superCannonKonaGameType          = 9
+	superCannonGameType             = 4
+	superPermissionedCannonGameType = 5
+	superCannonKonaGameType         = 9
 )
 
 var (
