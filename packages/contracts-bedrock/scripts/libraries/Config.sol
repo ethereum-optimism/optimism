@@ -318,11 +318,6 @@ library Config {
         return vm.envOr("DEV_FEATURE__OPCM_V2", false);
     }
 
-    /// @notice Returns true if the development feature l2cm is enabled.
-    function devFeatureL2CM() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__L2CM", false);
-    }
-
     /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.
     function devFeatureZkDisputeGame() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
