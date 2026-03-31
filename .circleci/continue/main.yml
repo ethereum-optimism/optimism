@@ -2771,7 +2771,7 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
-          parallelism: 2
+          parallelism: 3
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
