@@ -10,7 +10,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Fork } from "scripts/libraries/Config.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title Predeploys_TestInit
 /// @notice Reusable test initialization for `Predeploys` tests.
@@ -173,7 +172,6 @@ contract Predeploys_Uncategorized_Test is Predeploys_TestInit {
     /// @notice Tests that the predeploy addresses are set correctly. They have code
     ///         and the proxied accounts have the correct admin. Using l2cm.
     function test_predeploys_l2cm_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
         _test_predeploys(Fork.ISTHMUS, false, false);
     }
 }

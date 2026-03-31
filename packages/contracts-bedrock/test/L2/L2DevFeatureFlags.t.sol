@@ -22,7 +22,6 @@ abstract contract L2DevFeatureFlags_TestInit is CommonTest {
     /// @notice Test setup.
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
         l2DevFeatureFlags = IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS);
     }
 }

@@ -45,10 +45,6 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__OPCM_V2 is enabled");
             devFeatureBitmap |= DevFeatures.OPCM_V2;
         }
-        if (Config.devFeatureL2CM()) {
-            console.log("Setup: DEV_FEATURE__L2CM is enabled");
-            devFeatureBitmap |= DevFeatures.L2CM;
-        }
         if (Config.devFeatureZkDisputeGame()) {
             console.log("Setup: DEV_FEATURE__ZK_DISPUTE_GAME is enabled");
             devFeatureBitmap |= DevFeatures.ZK_DISPUTE_GAME;
@@ -71,8 +67,6 @@ abstract contract FeatureFlags {
             return "DEV_FEATURE__OPTIMISM_PORTAL_INTEROP";
         } else if (_feature == DevFeatures.OPCM_V2) {
             return "DEV_FEATURE__OPCM_V2";
-        } else if (_feature == DevFeatures.L2CM) {
-            return "DEV_FEATURE__L2CM";
         } else if (_feature == DevFeatures.ZK_DISPUTE_GAME) {
             return "DEV_FEATURE__ZK_DISPUTE_GAME";
         } else if (_feature == DevFeatures.CANNON_KONA) {

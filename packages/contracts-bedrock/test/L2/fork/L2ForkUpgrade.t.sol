@@ -14,7 +14,6 @@ import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
@@ -56,9 +55,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
 
         // Skip if not L2 fork test
         skipIfNotL2ForkTest("L2ForkUpgrade: not a fork test");
-
-        // Skip if L2CM dev feature is not enabled
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
 
         // Initialize scripts
         executeScript = new ExecuteNUTBundle();

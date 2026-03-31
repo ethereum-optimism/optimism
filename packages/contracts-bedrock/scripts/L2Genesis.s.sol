@@ -298,10 +298,8 @@ contract L2Genesis is Script {
         vm.stopPrank();
         // These calls don't need the opChainProxyAdminOwner prank: setConditionalDeployer uses
         // vm.etch and setL2DevFeatureFlags manages its own prank as DEPOSITOR_ACCOUNT.
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.L2CM)) {
-            setConditionalDeployer(); // 2C
-            setL2DevFeatureFlags(_input); // 2D
-        }
+        setConditionalDeployer(); // 2C
+        setL2DevFeatureFlags(_input); // 2D
     }
 
     function setInteropPredeployProxies() internal { }

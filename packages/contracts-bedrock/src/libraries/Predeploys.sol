@@ -195,7 +195,6 @@ library Predeploys {
         pure
         returns (bool)
     {
-        bool _useL2CM = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.L2CM);
         bool _isInteropDevFeatureEnabled =
             DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
@@ -216,8 +215,8 @@ library Predeploys {
                     && _addr == SUPERCHAIN_ETH_BRIDGE
             ) || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == ETH_LIQUIDITY)
             || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
-            || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY) || (_useL2CM && _addr == CONDITIONAL_DEPLOYER)
-            || (_useL2CM && _addr == L2_DEV_FEATURE_FLAGS);
+            || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY) || _addr == CONDITIONAL_DEPLOYER
+            || _addr == L2_DEV_FEATURE_FLAGS;
     }
 
     /// @notice Returns true if the address is in the predeploy namespace.

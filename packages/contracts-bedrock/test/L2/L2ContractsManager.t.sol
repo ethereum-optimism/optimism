@@ -103,8 +103,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         super.setUp();
         _loadImplementations();
         _deployL2CM();
-
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
     }
 
     /// @notice Deploys the target implementations for the predeploys.

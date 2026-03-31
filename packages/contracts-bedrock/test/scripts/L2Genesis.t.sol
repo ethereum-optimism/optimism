@@ -475,7 +475,6 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
 
     /// @notice Tests that enabling l2cm succeeds.
     function test_run_l2cm_succeeds() external {
-        input.devFeatureBitmap |= DevFeatures.L2CM;
         genesis.run(input);
 
         testProxyAdmin();
