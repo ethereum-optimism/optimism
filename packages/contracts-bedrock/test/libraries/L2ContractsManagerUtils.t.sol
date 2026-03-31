@@ -341,9 +341,7 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
     /// @notice Tests that upgradeTo reverts for a non-upgradeable predeploy (WETH is not proxied).
     function test_upgradeTo_notUpgradeable_reverts() public {
         vm.expectRevert(
-            abi.encodeWithSelector(
-                L2ContractsManagerUtils.L2ContractsManager_NotUpgradeable.selector, Predeploys.WETH
-            )
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_NotUpgradeable.selector, Predeploys.WETH)
         );
         this._callUpgradeTo(Predeploys.WETH, implV1);
     }
@@ -351,9 +349,7 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
     /// @notice Tests that upgradeToAndCall reverts for a non-upgradeable predeploy (WETH is not proxied).
     function test_upgradeToAndCall_notUpgradeable_reverts() public {
         vm.expectRevert(
-            abi.encodeWithSelector(
-                L2ContractsManagerUtils.L2ContractsManager_NotUpgradeable.selector, Predeploys.WETH
-            )
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_NotUpgradeable.selector, Predeploys.WETH)
         );
         this._callUpgradeToAndCall(
             Predeploys.WETH,
