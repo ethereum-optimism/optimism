@@ -789,7 +789,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 address(_cts.optimismPortal),
                 impls.optimismPortalInteropImpl,
                 abi.encodeCall(
-                    IOptimismPortalInterop.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
+                    IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
                 )
             );
         } else {
@@ -797,7 +797,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cts.proxyAdmin,
                 address(_cts.optimismPortal),
                 impls.optimismPortalImpl,
-                abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry))
+                abi.encodeCall(
+                    IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, IETHLockbox(address(0)))
+                )
             );
         }
 

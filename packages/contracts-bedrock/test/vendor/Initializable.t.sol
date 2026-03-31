@@ -15,6 +15,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -151,7 +152,9 @@ contract Initializer_Test is CommonTest {
                 InitializeableContract({
                     name: "OptimismPortal2Impl",
                     target: EIP1967Helper.getImplementation(address(optimismPortal2)),
-                    initCalldata: abi.encodeCall(optimismPortal2.initialize, (systemConfig, anchorStateRegistry))
+                    initCalldata: abi.encodeCall(
+                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, IETHLockbox(address(0)))
+                    )
                 })
             );
             // OptimismPortal2Proxy
@@ -159,7 +162,9 @@ contract Initializer_Test is CommonTest {
                 InitializeableContract({
                     name: "OptimismPortal2Proxy",
                     target: address(optimismPortal2),
-                    initCalldata: abi.encodeCall(optimismPortal2.initialize, (systemConfig, anchorStateRegistry))
+                    initCalldata: abi.encodeCall(
+                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, IETHLockbox(address(0)))
+                    )
                 })
             );
         }

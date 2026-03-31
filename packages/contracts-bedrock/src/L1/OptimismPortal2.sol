@@ -224,7 +224,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     function initialize(
         ISystemConfig _systemConfig,
-        IAnchorStateRegistry _anchorStateRegistry
+        IAnchorStateRegistry _anchorStateRegistry,
+        IETHLockbox _ethLockbox
     )
         external
         reinitializer(initVersion())
@@ -235,6 +236,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Now perform initialization logic.
         systemConfig = _systemConfig;
         anchorStateRegistry = _anchorStateRegistry;
+        ethLockbox = _ethLockbox;
 
         // Assert that the lockbox state is valid.
         _assertValidLockboxState();
@@ -444,6 +446,73 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
     }
 
+    event ETHMigrated(address indexed lockbox, uint256 balance);
+    /// @notice Migrates the total ETH balance to the ETHLockbox.
+
+    function migrateLiquidity() public {
+        if (!_isUsingInterop()) revert OptimismPortal_NotUsingInterop();
+        // Liquidity migration can only be triggered by the ProxyAdmin owner.
+        _assertOnlyProxyAdminOwner();
+
+        // Migrate the liquidity.
+        uint256 ethBalance = address(this).balance;
+        ethLockbox.lockETH{ value: ethBalance }();
+        emit ETHMigrated(address(ethLockbox), ethBalance);
+    }
+
+    error OptimismPortal_MigratingToSameRegistry();
+    error OptimismPortal_NotUsingInterop();
+
+    event PortalMigrated(
+        IETHLockbox indexed oldLockbox,
+        IETHLockbox indexed _newLockbox,
+        IAnchorStateRegistry indexed oldAnchorStateRegistry,
+        IAnchorStateRegistry _newAnchorStateRegistry
+    );
+    /// @notice Allows the owner of the ProxyAdmin to migrate the OptimismPortal to use a new
+    ///         lockbox, point at a new AnchorStateRegistry, and start to use the Super Roots proof
+    ///         method. Primarily used for OptimismPortal instances to join the interop set, but
+    ///         can also be used to swap the proof method from Output Roots to Super Roots if the
+    ///         provided lockbox is the same as the current one.
+    /// @dev    It is possible to change lockboxes without migrating liquidity. This can cause one
+    ///         of the OptimismPortal instances connected to the new lockbox to not be able to
+    ///         unlock sufficient ETH to finalize withdrawals which would trigger reverts. To avoid
+    ///         this issue, guarantee that this function is called atomically alongside the
+    ///         ETHLockbox.migrateLiquidity() function within the same transaction.
+    /// @param _newLockbox The address of the new ETHLockbox contract.
+    /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
+
+    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
+        if (!_isUsingInterop()) revert OptimismPortal_NotUsingInterop();
+        // Migration can only be triggered when the system is not paused because the migration can
+        // potentially unpause the system as a result of the modified ETHLockbox address.
+        _assertNotPaused();
+
+        // Migration can only be triggered by the ProxyAdmin owner.
+        _assertOnlyProxyAdminOwner();
+
+        // Chains can use this method to swap the proof method from Output Roots to Super Roots
+        // without joining the interop set. In this case, the old and new lockboxes will be the
+        // same. However, whether or not a chain is joining the interop set, all chains will need a
+        // new AnchorStateRegistry when migrating to Super Roots. We therefore check that the new
+        // AnchorStateRegistry is different than the old one to prevent this function from being
+        // accidentally misused.
+        if (anchorStateRegistry == _newAnchorStateRegistry) {
+            revert OptimismPortal_MigratingToSameRegistry();
+        }
+
+        // Update the ETHLockbox.
+        IETHLockbox oldLockbox = ethLockbox;
+        ethLockbox = _newLockbox;
+
+        // Update the AnchorStateRegistry.
+        IAnchorStateRegistry oldAnchorStateRegistry = anchorStateRegistry;
+        anchorStateRegistry = _newAnchorStateRegistry;
+
+        // Emit a PortalMigrated event.
+        emit PortalMigrated(oldLockbox, _newLockbox, oldAnchorStateRegistry, _newAnchorStateRegistry);
+    }
+
     /// @notice Finalizes a withdrawal transaction, using an external proof submitter.
     /// @param _tx Withdrawal transaction to finalize.
     /// @param _proofSubmitter Address of the proof submitter.
@@ -641,8 +710,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0);
     }
 
+    /// @notice Checks if the Interop feature is enabled.
+    /// @return bool True if the Interop feature is enabled.
+    function _isUsingInterop() internal view returns (bool) {
+        return systemConfig.isFeatureEnabled(Features.INTEROP);
+    }
     /// @notice Checks if the Custom Gas Token feature is enabled.
     /// @return bool True if the Custom Gas Token feature is enabled.
+
     function _isUsingCustomGasToken() internal view returns (bool) {
         // NOTE: Chains are not supposed to enable Custom Gas Token (CGT) mode after initial deployment.
         //       Enabling CGT post-deployment is strongly discouraged and may lead to unexpected behavior.
@@ -654,6 +729,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         if (paused()) {
             revert OptimismPortal_CallPaused();
         }
+    }
+
+    function _assertValidInteropState() internal view {
+        /// interop on
+        /// lockbox system feature set
     }
 
     /// @notice Asserts that the ETHLockbox is set/unset correctly depending on the feature flag.
