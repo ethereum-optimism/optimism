@@ -15,6 +15,7 @@ use spin::RwLock;
 pub async fn new_oracle_pipeline_cursor<L1, L2>(
     rollup_config: &RollupConfig,
     safe_header: Sealed<Header>,
+    agreed_l2_output_root: B256,
     chain_provider: &mut L1,
     l2_chain_provider: &mut L2,
 ) -> Result<Arc<RwLock<PipelineCursor>>, OracleProviderError>
@@ -38,7 +39,7 @@ where
 
     // Construct the cursor.
     let mut cursor = PipelineCursor::new(channel_timeout, origin);
-    let tip = TipCursor::new(safe_head_info, safe_header, B256::ZERO);
+    let tip = TipCursor::new(safe_head_info, safe_header, agreed_l2_output_root);
     cursor.advance(origin, tip);
 
     // Wrap the cursor in a shared read-write lock

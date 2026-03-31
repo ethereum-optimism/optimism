@@ -1,0 +1,13 @@
+{
+  "op-mainnet": "https://mainnet.optimism.io",
+  "zora": "https://rpc.zora.energy",
+  "ink": "https://rpc-gel.inkonchain.com",
+  "mode": "https://mainnet.mode.network",
+  "metal": "https://rpc.metall2.com",
+  "arena-z": "https://rpc.arena-z.gg",
+  "swell": "https://swell-mainnet.alt.technology",
+  "unichain": "https://mainnet.unichain.org",
+  "soneium": "https://rpc.soneium.org",
+  "world-chain": "https://worldchain-mainnet.g.alchemy.com/public",
+  "base": "https://mainnet.base.org"
+}

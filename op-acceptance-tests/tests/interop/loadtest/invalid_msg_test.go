@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
@@ -85,8 +84,6 @@ func (ie *InvalidExecMsgSpammer) Spam(t devtest.T) error {
 // configurable via NAT_INVALID_MPS (default: 1_000).
 func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
-	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 
 	// Emit a valid initiating message.
 	initTx, err := l2A.Include(t, planCall(t, &txintent.InitTrigger{

@@ -101,7 +101,7 @@ This component enables upgrade transactions to unconditionally deploy for all im
 requiring developers to manually track which contracts have changed between upgrades.
 
 The ConditionalDeployer is included in the L2Genesis state to ensure availability for all future network upgrades. It is
-deployed as a preinstall at a deterministic address and does not require upgradeability.
+deployed as a proxied predeploy at a deterministic address.
 
 The deployment function returns an address for off-chain convenience, but this return value is not used in Network
 Upgrade Transactions, as deployment addresses must be pre-computed before transaction generation.
@@ -457,10 +457,14 @@ inconsistent system state that breaks inter-contract dependencies.
 
 For each predeploy being upgraded, the L2ContractsManager MUST:
 1. use `upgradeTo()` to set the implementation to the StorageSetter
-2. Reset the `initialized` value to 0
+2. Reset the `initialized` value to 0 for both the OZ v4 storage slot and the OZ v5 ERC-7201 namespaced storage slot
 3. use `upgradeToAndCall()` to call the `initialize()` method.
 
 This ensures storage is properly cleared and reconstructed, avoiding storage layout conflicts.
+
+If the `_initializing` flag is set during the upgrade—whether in the OZ v4 storage slot or the OZ v5 ERC-7201
+namespaced storage slot—the operation MUST revert. A contract should never be mid-initialization when an upgrade is
+applied.
 
 ##### Impact
 
@@ -494,6 +498,19 @@ upgrade.
 
 If predeploys are skipped incorrectly, chains would have inconsistent contract versions, violating the goal of bringing
 all chains to a consistent version.
+
+#### iL2CM-007: Downgrade Prevention
+
+The L2ContractsManager MUST NOT downgrade a predeploy to a lower semantic version than the currently deployed
+implementation. Before upgrading, if the proxy already has code, the current version MUST be compared against the new
+implementation version. If the current version is greater, the upgrade MUST revert.
+
+##### Impact
+
+**Severity: High**
+
+If downgrades are allowed, predeploys could revert to older versions with known bugs or missing features, breaking
+chain functionality and violating the deterministic upgrade guarantee.
 
 ## Upgrade Execution
 

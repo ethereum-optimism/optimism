@@ -82,6 +82,12 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	rc.HeartbeatTimeout = cfg.HeartbeatTimeout
 	rc.LeaderLeaseTimeout = cfg.LeaderLeaseTimeout
 	rc.LocalID = raft.ServerID(cfg.ServerID)
+	// Don't shutdown raft when the leader removes itself from the cluster.
+	// Default raft behavior (ShutdownOnRemove=true) causes the raft instance to
+	// fully shut down while the process stays alive, creating a zombie node that
+	// cannot rejoin without a restart. With this set to false, the node transitions
+	// to follower state and can be re-added to the cluster immediately.
+	rc.ShutdownOnRemove = false
 
 	baseDir := filepath.Join(cfg.StorageDir, cfg.ServerID)
 	if _, err := os.Stat(baseDir); os.IsNotExist(err) {

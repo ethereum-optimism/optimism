@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -26,9 +25,6 @@ import (
 // TestReorgInvalidExecMsgs tests that the supernode reorgs the chain when an invalid exec msg is included
 // Each subtest runs a test with  a different invalid message, by modifying the message in the txModifierFn
 func TestReorgInvalidExecMsgs(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	// TODO(#19411): remove skip once op-reth safe head mismatch is fixed
-	sysgo.SkipUnlessOpGeth(t, "panics due to safe head mismatch in EngineController")
 	gt.Run("invalid log index", func(gt *testing.T) {
 		testReorgInvalidExecMsg(gt, func(msg *suptypes.Message) {
 			msg.Identifier.LogIndex = 1024

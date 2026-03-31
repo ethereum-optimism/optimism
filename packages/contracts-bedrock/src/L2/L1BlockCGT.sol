@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Libraries
-import { Constants } from "src/libraries/Constants.sol";
+import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 
@@ -17,22 +17,14 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
 contract L1BlockCGT is L1Block {
-    /// @notice Storage slot for the isCustomGasToken flag
-    /// @dev bytes32(uint256(keccak256("l1block.isCustomGasToken")) - 1)
-    bytes32 private constant IS_CUSTOM_GAS_TOKEN_SLOT =
-        0xd2ff82c9b477ff6a09f530b1c627ffb4b0b81e2ae2ba427f824162e8dad020aa;
-
-    /// @custom:semver +custom-gas-token
+    /// @custom:semver +custom-gas-token.1
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+custom-gas-token");
+        return string.concat(super.version(), "+custom-gas-token.1");
     }
 
     /// @notice Returns whether the gas paying token is custom.
     function isCustomGasToken() public view override returns (bool isCustom_) {
-        bytes32 slot = IS_CUSTOM_GAS_TOKEN_SLOT;
-        assembly {
-            isCustom_ := sload(slot)
-        }
+        isCustom_ = isFeatureEnabled[Features.CUSTOM_GAS_TOKEN];
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -54,19 +46,5 @@ contract L1BlockCGT is L1Block {
     function gasPayingTokenSymbol() public view override returns (string memory symbol_) {
         symbol_ =
             isCustomGasToken() ? ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).gasPayingTokenSymbol() : "ETH";
-    }
-
-    /// @notice Set chain to use custom gas token (callable by depositor account)
-    function setCustomGasToken() external {
-        require(
-            msg.sender == Constants.DEPOSITOR_ACCOUNT,
-            "L1Block: only the depositor account can set isCustomGasToken flag"
-        );
-        require(isCustomGasToken() == false, "L1Block: CustomGasToken already active");
-
-        bytes32 slot = IS_CUSTOM_GAS_TOKEN_SLOT;
-        assembly {
-            sstore(slot, 1)
-        }
     }
 }
