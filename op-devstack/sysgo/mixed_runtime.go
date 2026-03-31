@@ -75,6 +75,12 @@ func SkipUnlessOpNode(t devtest.T, reason string) {
 	}
 }
 
+func FlakyUnlessOpNode(t devtest.T, reason string) {
+	if MixedL2CLKind(os.Getenv(DevstackL2CLKindEnvVar)) != MixedL2CLOpNode {
+		t.MarkFlaky(reason)
+	}
+}
+
 // devstackL2ELKind returns the L2 EL kind requested via the DEVSTACK_L2EL_KIND
 // environment variable. Returns the empty string when the variable is unset,
 // meaning "use the runtime's default".
