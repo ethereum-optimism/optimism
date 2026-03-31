@@ -41,6 +41,10 @@ const REORG_WINDOW: Duration = Duration::from_secs(30);
 /// Optimism-specific transaction pool wrapper. Delegates most operations
 /// directly to the inner transaction pool.
 ///
+/// This type derives [`Clone`] and is expected to be cloned across tasks. Clones
+/// share underlying state via `Arc` internally. Make sure any mutable state
+/// added to this struct is shared across clones (e.g. via `Arc`).
+///
 /// Currently, the only difference is a transaction filter that stops
 /// interop transactions from being added to the pool after a reorg.
 #[derive(Clone)]

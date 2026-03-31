@@ -8,7 +8,7 @@ use crate::{
 };
 use op_alloy_consensus::{OpPooledTransaction, interop::SafetyLevel};
 use op_alloy_rpc_types_engine::OpExecutionData;
-use reth_chainspec::{ChainSpecProvider, EthChainSpec, Hardforks};
+use reth_chainspec::{ChainSpecProvider, EthChainSpec, ForkCondition, Hardforks};
 use reth_engine_local::LocalPayloadAttributesBuilder;
 use reth_evm::ConfigureEvm;
 use reth_network::{
@@ -1024,10 +1024,9 @@ where
             .with_validator(validator)
             .build(blob_store, final_pool_config.clone());
 
-        // Enable the interop filter on reorg whenever interop is active at the startup head
-        // timestamp
+        // Enable the interop filter on reorg whenever interop is scheduled or already active
         let interop_filter_enabled =
-            ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp);
+            ctx.chain_spec().op_fork_activation(OpHardfork::Interop) != ForkCondition::Never;
         let transaction_pool = OpPool::new(inner_pool, interop_filter_enabled);
 
         reth_node_builder::components::spawn_maintenance_tasks(
@@ -1036,12 +1035,12 @@ where
             &final_pool_config,
         )?;
 
-        info!(target: "reth::cli", "Transaction pool initialized (interop enabled = {interop_filter_enabled})");
+        info!(target: "reth::cli", "Transaction pool initialized (interop filter enabled = {interop_filter_enabled})");
         debug!(target: "reth::cli", "Spawned txpool maintenance task");
 
-        // The Op txpool maintenance task is only spawned when interop is active and a supervisor is
-        // configured
-        if ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) &&
+        // The Op txpool maintenance task is only spawned when interop is scheduled/active and a
+        // supervisor is configured
+        if ctx.chain_spec().op_fork_activation(OpHardfork::Interop) != ForkCondition::Never &&
             let Some(supervisor) = supervisor_client
         {
             // spawn the Op txpool maintenance task
