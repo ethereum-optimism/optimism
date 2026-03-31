@@ -77,6 +77,7 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 
 [features]
+default = ["metrics"]
 metrics = ["reth-trie/metrics"]
 
 [dev-dependencies]
