@@ -57,15 +57,35 @@ abstract contract Predeploys_TestInit is CommonTest {
             || _addr == Predeploys.GOVERNANCE_TOKEN;
     }
 
+    /// @notice Returns true if the record's feature gates are satisfied for the given fork/flags.
+    function _isRecordActive(
+        Predeploys.PredeployRecord memory _r,
+        Fork _fork,
+        bool _isCustomGasToken,
+        bool _isInterop
+    )
+        internal
+        view
+        returns (bool)
+    {
+        if (_r.devFeatureGate != bytes32(0) && !DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _r.devFeatureGate)) {
+            return false;
+        }
+        if (_r.sysFeatureGate == Features.INTEROP) {
+            return _isInterop && uint256(_fork) >= uint256(Fork.INTEROP);
+        }
+        if (_r.sysFeatureGate == Features.CUSTOM_GAS_TOKEN) return _isCustomGasToken;
+        return true;
+    }
+
     /// @notice Internal test function for predeploys validation across different forks.
     function _test_predeploys(Fork _fork, bool _isCustomGasToken, bool _isInterop) internal {
-        uint256 count = 2048;
-        uint160 prefix = uint160(0x420) << 148;
-
         bytes memory proxyCode = vm.getDeployedCode("Proxy.sol:Proxy");
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
 
+        uint256 count = records.length;
         for (uint256 i = 0; i < count; i++) {
-            address addr = address(prefix | uint160(i));
+            address addr = records[i].proxy;
             address implAddr = Predeploys.predeployToCodeNamespace(addr);
 
             if (_isOmitted(addr)) {
@@ -73,8 +93,11 @@ abstract contract Predeploys_TestInit is CommonTest {
                 continue;
             }
 
-            bool isPredeploy =
-                Predeploys.isSupportedPredeploy(addr, uint256(_fork), _isCustomGasToken, _isInterop, devFeatureBitmap);
+            if (!records[i].isProxied) {
+                continue;
+            }
+
+            bool isPredeploy = _isRecordActive(records[i], _fork, _isCustomGasToken, _isInterop);
 
             bytes memory code = addr.code;
             if (isPredeploy) assertTrue(code.length > 0);

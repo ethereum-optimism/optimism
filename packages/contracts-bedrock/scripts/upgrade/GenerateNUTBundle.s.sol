@@ -380,300 +380,44 @@ contract GenerateNUTBundle is Script {
         });
     }
 
-    /// @notice Builds the implementation configuration mapping for all contracts to be deployed.
-    /// @dev IMPORTANT: Only modify this function if you need to add or modify a deployment implementation
-    /// configuration.
-    /// @dev An array of strings is used to add contracts that are not predeploys (StorageSetter) or have
-    /// feature-specific variants (e.g. CGT).
-    /// @dev Gas limits are based on actual gas profiling of mainnet fork execution with 1.5x safety margin.
+    /// @notice Builds the implementation configurations for all contracts to be deployed.
+    /// @dev Iterates the predeploy registry as the single source of truth.
+    ///      All records are deployed unconditionally. L2CM selects the correct variant at runtime.
+    ///      StorageSetter is prepended first; it is a utility impl, not a predeploy.
     function _buildImplementationDeploymentConfigs() public {
         // Gas profiling: 280,600 gas used → 420,900 recommended → 500K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "StorageSetter",
-                artifactPath: "StorageSetter.sol:StorageSetter",
-                deploymentGasLimit: 500_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("StorageSetter.sol:StorageSetter"), SALT
-                )
-            })
-        );
-        // Gas profiling: 1,708,099 gas used → 2,562,148 recommended → 2.6M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L2CrossDomainMessenger",
-                artifactPath: "L2CrossDomainMessenger.sol:L2CrossDomainMessenger",
-                deploymentGasLimit: 2_600_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("L2CrossDomainMessenger.sol:L2CrossDomainMessenger"), SALT
-                )
-            })
-        );
-        // Gas profiling: 1,681,024 gas used → 2,521,536 recommended → 2.6M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "GasPriceOracle",
-                artifactPath: "GasPriceOracle.sol:GasPriceOracle",
-                deploymentGasLimit: 2_600_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("GasPriceOracle.sol:GasPriceOracle"), SALT
-                )
-            })
-        );
-        // Gas profiling: 2,358,092 gas used → 3,537,138 recommended → 3.6M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L2StandardBridge",
-                artifactPath: "L2StandardBridge.sol:L2StandardBridge",
-                deploymentGasLimit: 3_600_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("L2StandardBridge.sol:L2StandardBridge"), SALT
-                )
-            })
-        );
-        // Gas profiling: 841,152 gas used → 1,261,728 recommended → 1.3M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "SequencerFeeVault",
-                artifactPath: "SequencerFeeVault.sol:SequencerFeeVault",
-                deploymentGasLimit: 1_300_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("SequencerFeeVault.sol:SequencerFeeVault"), SALT
-                )
-            })
-        );
-        // Gas profiling: 2,347,504 gas used → 3,521,256 recommended → 3.6M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "OptimismMintableERC20Factory",
-                artifactPath: "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
-                deploymentGasLimit: 3_600_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory"), SALT
-                )
-            })
-        );
-        // Gas profiling: 1,242,108 gas used → 1,863,162 recommended → 1.9M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L2ERC721Bridge",
-                artifactPath: "L2ERC721Bridge.sol:L2ERC721Bridge",
-                deploymentGasLimit: 1_900_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("L2ERC721Bridge.sol:L2ERC721Bridge"), SALT
-                )
-            })
-        );
-        // Gas profiling: 707,557 gas used → 1,061,335 recommended → 1.1M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L1Block",
-                artifactPath: "L1Block.sol:L1Block",
-                deploymentGasLimit: 1_100_000,
-                implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1Block.sol:L1Block"), SALT)
-            })
-        );
-        // Gas profiling: 710,257 gas used → 1,065,385 recommended → 1.1M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L1BlockCGT",
-                artifactPath: "L1BlockCGT.sol:L1BlockCGT",
-                deploymentGasLimit: 1_100_000,
-                implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1BlockCGT.sol:L1BlockCGT"), SALT)
-            })
-        );
-        // Gas profiling: 400,911 gas used → 601,366 recommended → 650K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L2ToL1MessagePasser",
-                artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
-                deploymentGasLimit: 650_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("L2ToL1MessagePasser.sol:L2ToL1MessagePasser"), SALT
-                )
-            })
-        );
-        // Gas profiling: 484,560 gas used → 726,840 recommended → 750K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L2ToL1MessagePasserCGT",
-                artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
-                deploymentGasLimit: 750_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT"), SALT
-                )
-            })
-        );
-        // Gas profiling: 3,248,395 gas used → 4,872,592 recommended → 4.9M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "OptimismMintableERC721Factory",
-                artifactPath: "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
-                deploymentGasLimit: 4_900_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory"), SALT
-                )
-            })
-        );
-        // Gas profiling: 1,538,265 gas used → 2,307,397 recommended → 2.4M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L2ProxyAdmin",
-                artifactPath: "L2ProxyAdmin.sol:L2ProxyAdmin",
-                deploymentGasLimit: 2_400_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("L2ProxyAdmin.sol:L2ProxyAdmin"), SALT
-                )
-            })
-        );
-        // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "BaseFeeVault",
-                artifactPath: "BaseFeeVault.sol:BaseFeeVault",
-                deploymentGasLimit: 1_300_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("BaseFeeVault.sol:BaseFeeVault"), SALT
-                )
-            })
-        );
-        // Gas profiling: 14,439 gas used → 21,658 recommended → 50K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L1FeeVault",
-                artifactPath: "L1FeeVault.sol:L1FeeVault",
-                deploymentGasLimit: 50_000,
-                implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1FeeVault.sol:L1FeeVault"), SALT)
-            })
-        );
-        // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "OperatorFeeVault",
-                artifactPath: "OperatorFeeVault.sol:OperatorFeeVault",
-                deploymentGasLimit: 1_300_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("OperatorFeeVault.sol:OperatorFeeVault"), SALT
-                )
-            })
-        );
-        // Gas profiling: 464,947 gas used → 697,420 recommended → 700K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "SchemaRegistry",
-                artifactPath: "SchemaRegistry.sol:SchemaRegistry",
-                deploymentGasLimit: 700_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("SchemaRegistry.sol:SchemaRegistry"), SALT
-                )
-            })
-        );
-        // Gas profiling: 3,820,943 gas used → 5,731,414 recommended → 5.8M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "EAS",
-                artifactPath: "EAS.sol:EAS",
-                deploymentGasLimit: 5_800_000,
-                implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("EAS.sol:EAS"), SALT)
-            })
-        );
-        // Gas profiling: 385,975 gas used → 578,962 recommended → 600K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "CrossL2Inbox",
-                artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
-                deploymentGasLimit: 600_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("CrossL2Inbox.sol:CrossL2Inbox"), SALT
-                )
-            })
-        );
-        // Gas profiling: 965,734 gas used → 1,448,601 recommended → 1.5M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L2ToL2CrossDomainMessenger",
-                artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
-                deploymentGasLimit: 1_500_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger"), SALT
-                )
-            })
-        );
-        // Gas profiling: 441,198 gas used → 661,797 recommended → 700K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "SuperchainETHBridge",
-                artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
-                deploymentGasLimit: 700_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("SuperchainETHBridge.sol:SuperchainETHBridge"), SALT
-                )
-            })
-        );
-        // Gas profiling: 230,857 gas used → 346,285 recommended → 400K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "ETHLiquidity",
-                artifactPath: "ETHLiquidity.sol:ETHLiquidity",
-                deploymentGasLimit: 400_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("ETHLiquidity.sol:ETHLiquidity"), SALT
-                )
-            })
-        );
-        // Gas profiling: 215,592 gas used → 323,388 recommended → 400K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "NativeAssetLiquidity",
-                artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
-                deploymentGasLimit: 400_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("NativeAssetLiquidity.sol:NativeAssetLiquidity"), SALT
-                )
-            })
-        );
-        // Gas profiling: 914,648 gas used → 1,371,972 recommended → 1.4M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "LiquidityController",
-                artifactPath: "LiquidityController.sol:LiquidityController",
-                deploymentGasLimit: 1_400_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("LiquidityController.sol:LiquidityController"), SALT
-                )
-            })
-        );
-        // Gas profiling: 1,077,380 gas used → 1,616,070 recommended → 1.7M with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "FeeSplitter",
-                artifactPath: "FeeSplitter.sol:FeeSplitter",
-                deploymentGasLimit: 1_700_000,
-                implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("FeeSplitter.sol:FeeSplitter"), SALT)
-            })
-        );
-        // Gas profiling: 339,403 gas used → 509,104 recommended → 600K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "ConditionalDeployer",
-                artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
-                deploymentGasLimit: 600_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
-                )
-            })
-        );
-        // Gas profiling: 167,063 gas used → 250,594 recommended → 260K with safety margin
-        _implementationConfigs.push(
-            ImplementationConfig({
-                name: "L2DevFeatureFlags",
-                artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-                deploymentGasLimit: 260_000,
-                implementation: UpgradeUtils.computeCreate2Address(
-                    DeployUtils.getCode("L2DevFeatureFlags.sol:L2DevFeatureFlags"), SALT
-                )
-            })
-        );
+        _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 500_000));
+
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            // Non-proxied predeploys (WETH, GovernanceToken) are not deployed via NUT bundles.
+            if (!records[i].isProxied) continue;
+            _implementationConfigs.push(
+                _makeConfig(records[i].name, records[i].artifactPath, records[i].deployGasLimit)
+            );
+        }
+    }
+
+    /// @notice Builds a single ImplementationConfig from name, artifact path, and gas limit.
+    /// @param _name The name of the implementation.
+    /// @param _artifactPath The artifact path of the implementation.
+    /// @param _gasLimit The gas limit for the implementation deployment.
+    /// @return config_ The implementation configuration.
+    function _makeConfig(
+        string memory _name,
+        string memory _artifactPath,
+        uint64 _gasLimit
+    )
+        internal
+        view
+        returns (ImplementationConfig memory config_)
+    {
+        config_ = ImplementationConfig({
+            name: _name,
+            artifactPath: _artifactPath,
+            deploymentGasLimit: _gasLimit,
+            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode(_artifactPath), SALT)
+        });
     }
 
     /// @notice Returns the implementation configurations.

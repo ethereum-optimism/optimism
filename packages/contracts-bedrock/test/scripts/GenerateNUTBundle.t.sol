@@ -6,6 +6,7 @@ import { Test } from "test/setup/Test.sol";
 
 // Scripts
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
@@ -128,21 +129,38 @@ contract GenerateNUTBundleTest is Test {
         }
     }
 
-    /// @notice Tests that the number of implementations in the deployment list matches the number of fields in the
-    /// Implementations struct.
+    /// @notice Tests that the implementation deployment list length matches the Implementations struct field count.
+    /// @dev The deployment list is: 1 StorageSetter + all registry records.
+    ///      The Implementations struct has one field per record plus StorageSetter.
+    ///      If these diverge, a new predeploy was added to one location but not the other.
     function test_implementationCount_matchesStructFields_succeeds() public {
         L2ContractsManagerTypes.Implementations memory emptyImpl;
         uint256 structFieldCount = abi.encode(emptyImpl).length / 32;
 
-        // Build implementation deployment configurations
         script._buildImplementationDeploymentConfigs();
 
-        // Verify that the number of implementations in the deployment list matches the number of fields in the
-        // Implementations struct
         assertEq(
             script.implementationConfigs().length,
             structFieldCount,
-            "Deployment list must equal Implementations struct field count"
+            "Config count (registry records + StorageSetter) must equal Implementations struct field count"
+        );
+    }
+
+    /// @notice Tests that the registry record count matches the implementation config count.
+    /// @dev registry records + 1 StorageSetter = total implementation configs.
+    function test_registryRecordCount_matchesImplementationConfigs_succeeds() public {
+        script._buildImplementationDeploymentConfigs();
+        // Only proxied records appear in the bundle; non-proxied (WETH, GovernanceToken) are skipped.
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        uint256 proxiedCount = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].isProxied) proxiedCount++;
+        }
+        // StorageSetter is always prepended as the first entry.
+        assertEq(
+            script.implementationConfigs().length,
+            proxiedCount + 1,
+            "Implementation configs must be proxied registry records + 1 StorageSetter"
         );
     }
 }

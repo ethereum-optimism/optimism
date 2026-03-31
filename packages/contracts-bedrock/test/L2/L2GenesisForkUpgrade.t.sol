@@ -45,9 +45,11 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         // Generate bundle
         generateScript.run();
 
-        // Capture feature flags from deploy config (genesis state)
-        commonState.isInteropEnabled =
-            DevFeatures.isDevFeatureEnabled(deploy.cfg().devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        // Capture feature flags from deploy config (genesis state).
+        // Interop predeploys are upgraded only when BOTH the INTEROP sys feature (useInterop) AND
+        // the OPTIMISM_PORTAL_INTEROP dev feature are enabled — mirroring the L2CM gating logic.
+        commonState.isInteropEnabled = deploy.cfg().useInterop()
+            && DevFeatures.isDevFeatureEnabled(deploy.cfg().devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP);
         console.log("L2GenesisForkUpgrade isInteropEnabled", commonState.isInteropEnabled);
 
         commonState.isCustomGasToken = deploy.cfg().useCustomGasToken();

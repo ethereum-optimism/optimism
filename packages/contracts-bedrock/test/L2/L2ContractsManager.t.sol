@@ -801,9 +801,11 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
 }
 
 /// @title L2ContractsManager_Upgrade_InteropFlag_Test
-/// @notice Tests that interop predeploy upgrades are correctly gated behind the OPTIMISM_PORTAL_INTEROP dev feature
-/// flag.
+/// @notice Tests that interop predeploy upgrades are correctly gated behind both the INTEROP sys feature
+///         (set on L1Block) and the OPTIMISM_PORTAL_INTEROP dev feature (must match for consistency).
 contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgrade_Test {
+    using stdStorage for StdStorage;
+
     /// @notice The list of interop predeploy addresses.
     address[] internal interopPredeploys;
 
@@ -815,9 +817,15 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
         interopPredeploys.push(Predeploys.ETH_LIQUIDITY);
     }
 
-    /// @notice Tests that all 4 interop predeploys are upgraded when OPTIMISM_PORTAL_INTEROP flag is enabled.
+    /// @notice Tests that all 4 interop predeploys are upgraded when the INTEROP sys feature is enabled
+    ///         (which requires OPTIMISM_PORTAL_INTEROP dev feature to also be enabled for consistency).
     function test_upgradeUpgradesInteropPredeploys_whenInteropFlagEnabled_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Genesis runs without useInterop, so L1Block doesn't have the INTEROP sys feature set.
+        // Set it explicitly here — L2CM reads isFeatureEnabled(INTEROP) from L1Block to gate upgrades.
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+            .checked_write(true);
 
         // Capture pre-upgrade implementations
         address[] memory preUpgradeImpls = new address[](interopPredeploys.length);
@@ -941,11 +949,27 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         return impl != address(0) && impl.code.length > 0;
     }
 
-    /// @notice Tests that all predeploys from Predeploys.sol receive the expected upgrade call.
+    /// @notice Tests that all predeploys from the registry receive the expected upgrade call.
     ///         Uses vm.expectCall() to verify that upgradeTo or upgradeToAndCall is called.
-    /// @dev If L2CM misses a predeploy that exists in Predeploys.sol, this test will fail.
+    /// @dev If L2CM misses a predeploy that exists in PredeployRegistry, this test will fail.
     function test_allPredeploysReceiveUpgradeCall_succeeds() public {
-        address[] memory allPredeploys = Predeploys.getUpgradeablePredeploys();
+        // Deduplicate proxy addresses (CGT variants share a proxy with the standard record).
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        address[] memory tmp = new address[](records.length);
+        uint256 count = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!records[i].isProxied) continue;
+
+            if (
+                keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L1BlockCGT"))
+                    || keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L2ToL1MessagePasserCGT"))
+            ) continue;
+            tmp[count++] = records[i].proxy;
+        }
+        address[] memory allPredeploys = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            allPredeploys[i] = tmp[i];
+        }
         bool interopEnabled = isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         for (uint256 i = 0; i < allPredeploys.length; i++) {
