@@ -351,7 +351,7 @@ go-tests-fraud-proofs-ci:
       echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
 
       # Split by timings (falls back to name-based if no timing data yet)
-      circleci tests split --split-by=timings --timings-type=name /tmp/tests.txt > /tmp/tests_shard.txt
+      circleci tests split --split-by=timings --timings-type=testname /tmp/tests.txt > /tmp/tests_shard.txt
 
       SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
       echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
