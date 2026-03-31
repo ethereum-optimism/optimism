@@ -1184,14 +1184,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 )
             })
         );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: hex""
-            })
-        );
         if (_isPermissionless) {
             v2UpgradeInput.disputeGameConfigs.push(
                 IOPContractsManagerUtils.DisputeGameConfig({
