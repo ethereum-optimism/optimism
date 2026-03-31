@@ -112,16 +112,50 @@ acceptance-test gate="":
         TEST_PACKAGES=("./op-acceptance-tests/tests/...")
     fi
 
+    # CircleCI test-level splitting
+    RUN_FLAG=""
+    JUNIT_FILE="$RESULTS_DIR/results.xml"
+    JSON_FILE="$LOG_DIR/raw_go_events.log"
+    if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+        NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+        NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
+
+        go test -list '^Test' "${TEST_PACKAGES[@]}" 2>/dev/null | grep -E '^Test' > /tmp/tests.txt
+
+        TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
+        if [ "$TOTAL_TESTS" -eq 0 ]; then
+            echo "ERROR: no tests found in packages: ${TEST_PACKAGES[*]}"
+            exit 1
+        fi
+        echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
+
+        circleci tests split --split-by=timings /tmp/tests.txt > /tmp/tests_shard.txt
+
+        SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
+        echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
+        cat /tmp/tests_shard.txt
+
+        if [ "$SHARD_COUNT" -eq 0 ]; then
+            echo "No tests assigned to this node, skipping."
+            exit 0
+        fi
+
+        RUN_FLAG="-run=^($(paste -sd '|' /tmp/tests_shard.txt))$"
+        JUNIT_FILE="$RESULTS_DIR/results-${NODE_INDEX}.xml"
+        JSON_FILE="$LOG_DIR/raw_go_events-${NODE_INDEX}.log"
+    fi
+
     set +e
     LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
         --format testname \
-        --junitfile "$RESULTS_DIR/results.xml" \
-        --jsonfile "$LOG_DIR/raw_go_events.log" \
+        --junitfile "$JUNIT_FILE" \
+        --jsonfile "$JSON_FILE" \
         -- \
         -count=1 \
         -p "${JOBS}" \
         -parallel "${TEST_PARALLEL}" \
         -timeout "${TEST_TIMEOUT}" \
+        ${RUN_FLAG:+"$RUN_FLAG"} \
         "${TEST_PACKAGES[@]}" \
         2>&1 | tee "$LOG_DIR/all.log"
     TEST_STATUS=${PIPESTATUS[0]}

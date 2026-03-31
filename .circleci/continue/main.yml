@@ -1839,10 +1839,15 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
+      parallelism:
+        description: Number of machines to distribute the tests across
+        type: integer
+        default: 1
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     circleci_ip_ranges: true
     resource_class: 2xlarge+
+    parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2766,6 +2771,7 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
+          parallelism: 2
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
