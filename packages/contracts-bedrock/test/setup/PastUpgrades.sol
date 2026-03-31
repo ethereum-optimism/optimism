@@ -284,7 +284,7 @@ library PastUpgrades {
             )
         });
 
-        // Sort by game type (already sorted: 0, 1, 8)
+        // Sort by game type (already sorted: 0, 1, 8, 10)
         _sortDisputeGameConfigs(disputeGameConfigs);
 
         // Execute the V2 upgrade

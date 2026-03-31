@@ -763,11 +763,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         returns (ChainContracts memory)
     {
-        // Load the implementations.
-        IOPContractsManagerContainer.Implementations memory impls = implementations();
-
         // Validate the config.
         _assertValidFullConfig(_cfg, _isInitialDeployment);
+
+        // Load the implementations.
+        IOPContractsManagerContainer.Implementations memory impls = implementations();
 
         // Make sure the provided SuperchainConfig is up to date.
         if (SemverComp.lt(_cfg.superchainConfig.version(), ISuperchainConfig(impls.superchainConfigImpl).version())) {

@@ -1,0 +1,36 @@
+---
+title: "Kona as a Library"
+---
+
+Kona is designed as a modular, library-first OP Stack implementation in Rust. This design philosophy allows developers to integrate Kona components into their applications and build custom solutions on top of the OP Stack.
+
+## Library Structure
+
+Kona is organized as a collection of focused crates that can be used independently or together:
+
+- **Protocol Libraries**: Core protocol logic and data structures
+- **Node Components**: Modular node architecture for building custom rollup nodes
+- **Proof System**: Fault proof generation and verification
+- **Utilities**: Common utilities and helper functions
+
+## Key Benefits
+
+- **Modularity**: Use only the components you need
+- **Performance**: Rust's zero-cost abstractions and memory safety
+- **Extensibility**: Easy to extend and customize for specific use cases
+- **Reliability**: Strong typing and comprehensive testing
+
+## Getting Started
+
+To use Kona as a library, add the relevant crates to your `Cargo.toml`:
+
+```toml
+[dependencies]
+kona-derive = "0.1"
+kona-protocol = "0.1"
+kona-node = "0.1"
+```
+
+## Examples
+
+See the [Examples](/rust/kona/sdk/examples/intro) section for practical usage examples and integration patterns.
