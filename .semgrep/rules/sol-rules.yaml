@@ -452,6 +452,7 @@ rules:
         - /packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
         - /packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - /packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
+        - /packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol
         - /packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
         # ProtocolVersions is being deprecated.
         - /packages/contracts-bedrock/src/L1/ProtocolVersions.sol
