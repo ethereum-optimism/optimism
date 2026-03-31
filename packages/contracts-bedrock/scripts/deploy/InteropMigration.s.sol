@@ -4,6 +4,8 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -66,6 +68,10 @@ contract InteropMigration is Script {
     function run(InteropMigrationInput _imi, InteropMigrationOutput _imo) public {
         address opcm = _imi.opcm();
         require(opcm.code.length > 0, "InteropMigration: OPCM address has no code");
+        require(
+            SemverComp.gte(ISemver(opcm).version(), "7.0.0"),
+            "InteropMigration: OPCM must be v7.0.0 or later (OPCMv2). OPCMv1 is no longer supported."
+        );
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -41,10 +41,16 @@ type DisputeGameConfigV2 struct {
 	GameArgs []byte
 }
 
+// Proposal matches the Solidity Proposal struct: (bytes32 root, uint256 l2SequenceNumber)
+type Proposal struct {
+	Root             common.Hash
+	L2SequenceNumber *big.Int
+}
+
 type MigrateInputV2 struct {
 	ChainSystemConfigs        []common.Address
 	DisputeGameConfigs        []DisputeGameConfigV2
-	StartingAnchorRoot        bindings.Proposal
+	StartingAnchorRoot        Proposal
 	StartingRespectedGameType uint32
 }
 
@@ -255,7 +261,7 @@ func migrateSuperRoots(
 				GameArgs: absoluteCannonKonaPrestate[:],
 			},
 		},
-		StartingAnchorRoot: bindings.Proposal{
+		StartingAnchorRoot: Proposal{
 			Root:             common.Hash(superRoot),
 			L2SequenceNumber: big.NewInt(int64(superrootTime)),
 		},
@@ -346,13 +352,28 @@ func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) 
 	return addr
 }
 
-// OPContractsManagerMigratorABI returns the ABI for the v2 OPContractsManagerMigrator contract.
-// The v1 OPCM Go bindings are stale (v1 contract deleted), so we parse the ABI inline.
+// OPContractsManagerMigratorABI loads the ABI for the OPContractsManagerMigrator contract
+// from the forge artifact file.
 func OPContractsManagerMigratorABI() (*abi.ABI, error) {
-	const migratorABIJSON = `[{"inputs":[{"components":[{"internalType":"address[]","name":"chainSystemConfigs","type":"address[]"},{"components":[{"internalType":"bool","name":"enabled","type":"bool"},{"internalType":"uint256","name":"initBond","type":"uint256"},{"internalType":"uint32","name":"gameType","type":"uint32"},{"internalType":"bytes","name":"gameArgs","type":"bytes"}],"internalType":"tuple[]","name":"disputeGameConfigs","type":"tuple[]"},{"components":[{"internalType":"bytes32","name":"root","type":"bytes32"},{"internalType":"uint256","name":"l2SequenceNumber","type":"uint256"}],"internalType":"tuple","name":"startingAnchorRoot","type":"tuple"},{"internalType":"uint32","name":"startingRespectedGameType","type":"uint32"}],"internalType":"tuple","name":"_input","type":"tuple"}],"name":"migrate","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
-	parsed, err := abi.JSON(strings.NewReader(migratorABIJSON))
+	root, err := findMonorepoRoot("packages/contracts-bedrock/forge-artifacts")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find monorepo root: %w", err)
+	}
+	artifactPath := path.Join(root, "packages", "contracts-bedrock", "forge-artifacts",
+		"OPContractsManagerMigrator.sol", "OPContractsManagerMigrator.json")
+	data, err := os.ReadFile(artifactPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read migrator artifact: %w", err)
+	}
+	var artifact struct {
+		ABI json.RawMessage `json:"abi"`
+	}
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		return nil, fmt.Errorf("failed to parse migrator artifact: %w", err)
+	}
+	parsed, err := abi.JSON(strings.NewReader(string(artifact.ABI)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse migrator ABI: %w", err)
 	}
 	return &parsed, nil
 }

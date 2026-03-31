@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { DummyCaller } from "scripts/libraries/DummyCaller.sol";
 
@@ -53,6 +55,11 @@ contract UpgradeOPChainInput is BaseDeployIO {
 contract UpgradeOPChain is Script {
     function run(UpgradeOPChainInput _uoci) external {
         address opcm = _uoci.opcm();
+        require(opcm.code.length > 0, "UpgradeOPChain: OPCM address has no code");
+        require(
+            SemverComp.gte(ISemver(opcm).version(), "7.0.0"),
+            "UpgradeOPChain: OPCM must be v7.0.0 or later (OPCMv2). OPCMv1 is no longer supported."
+        );
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
