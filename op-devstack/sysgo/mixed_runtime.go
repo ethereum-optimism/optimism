@@ -40,13 +40,23 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
-type MixedL2ELKind string
+const (
+	DevstackL2ELKindEnvVar = "DEVSTACK_L2EL_KIND"
+	DevstackL2CLKindEnvVar = "DEVSTACK_L2CL_KIND"
+)
 
-const DevstackL2ELKindEnvVar = "DEVSTACK_L2EL_KIND"
+type MixedL2ELKind string
 
 const (
 	MixedL2ELOpGeth MixedL2ELKind = "op-geth"
 	MixedL2ELOpReth MixedL2ELKind = "op-reth"
+)
+
+type MixedL2CLKind string
+
+const (
+	MixedL2CLOpNode MixedL2CLKind = "op-node"
+	MixedL2CLKona   MixedL2CLKind = "kona-node"
 )
 
 // SkipUnlessOpGeth skips the test when the L2 execution layer is op-reth
@@ -57,12 +67,13 @@ func SkipUnlessOpGeth(t devtest.T, reason string) {
 	}
 }
 
-type MixedL2CLKind string
-
-const (
-	MixedL2CLOpNode MixedL2CLKind = "op-node"
-	MixedL2CLKona   MixedL2CLKind = "kona-node"
-)
+// SkipUnlessOpNode skips the test when the L2 consensus layer is op-node
+// (i.e. DEVSTACK_L2CL_KIND is not "op-node").
+func SkipUnlessOpNode(t devtest.T, reason string) {
+	if MixedL2CLKind(os.Getenv(DevstackL2ELKindEnvVar)) != MixedL2CLOpNode {
+		t.Skipf("skipping on op-node: %s", reason)
+	}
+}
 
 // devstackL2ELKind returns the L2 EL kind requested via the DEVSTACK_L2EL_KIND
 // environment variable. Returns the empty string when the variable is unset,
@@ -75,7 +86,7 @@ func devstackL2ELKind() MixedL2ELKind {
 // environment variable. Returns the empty string when the variable is unset,
 // meaning "use the runtime's default".
 func devstackL2CLKind() MixedL2CLKind {
-	return MixedL2CLKind(os.Getenv("DEVSTACK_L2CL_KIND"))
+	return MixedL2CLKind(os.Getenv(DevstackL2CLKindEnvVar))
 }
 
 type MixedSingleChainNodeSpec struct {

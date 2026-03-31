@@ -63,6 +63,16 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 
 func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-31|10:35:59.154]
+	// assertions.go:387:             	Error Trace:	/Users/josh/repos/optimism/op-devstack/dsl/safedb.go:22
+	// assertions.go:387:             	            				/Users/josh/repos/optimism/op-devstack/dsl/l2_cl.go:432
+	// assertions.go:387:             	            				/Users/josh/repos/optimism/op-acceptance-tests/tests/safeheaddb_elsync/safeheaddb_test.go:74
+	// assertions.go:387:             	Error:      	Expected value not to be nil.
+	// assertions.go:387:             	Test:       	TestNotTruncateDatabaseOnRestartWithExistingDatabase
+	// assertions.go:387:             	Messages:   	no safe head data available at L1 block 4
+	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,

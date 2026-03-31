@@ -405,6 +405,14 @@ func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 // invalid payloads—whether rejected at the CL or EL—do not advance the chain.
 func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-31|10:42:03.034]
+	// assertions.go:387:             	Error Trace:	/Users/josh/repos/optimism/op-acceptance-tests/tests/sync/elsync/gap_elp2p/sync_test.go:436
+	// assertions.go:387:             	Error:      	An error is expected but got nil.
+	// assertions.go:387:             	Test:       	TestInvalidPayloadThroughCLP2P
+	// assertions.go:387:
+	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
 	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 	require := t.Require()

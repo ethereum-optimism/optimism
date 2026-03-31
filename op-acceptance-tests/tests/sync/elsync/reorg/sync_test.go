@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -18,6 +19,15 @@ import (
 //  4. CLP2P is restored, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-30|22:17:00.549]
+	// assertions.go:387:             	Error Trace:	/op-devstack/dsl/l2_el.go:204
+	// assertions.go:387:             	            				/op-acceptance-tests/tests/sync/elsync/reorg/sync_test.go:78
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	operation failed permanently after 30 attempts: expected head to reorg 0xae5a516a6654d4ee6a2edfb9a8e2db12106991b1a29fbb3953dd5afb8a60914e:12, but got 0xae5a516a6654d4ee6a2edfb9a8e2db12106991b1a29fbb3953dd5afb8a60914e:12
+	// assertions.go:387:             	Test:       	TestUnsafeGapFillAfterSafeReorg
+	sysgo.SkipUnlessOpNode(t, "kona-node not supported (timeout)")
 	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -95,6 +105,15 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 //  4. Verifier then backfills and closes the unsafe gap once reconnected via CLP2P.
 func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-30|22:17:07.231]
+	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_el.go:204
+	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/elsync/reorg/sync_test.go:211
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	operation failed permanently after 30 attempts: expected head to reorg 0x893d77533b0ff9b37a92090679bf256d987b4535f06186ec71f29e68ddccd9a5:14, but got 0x893d77533b0ff9b37a92090679bf256d987b4535f06186ec71f29e68ddccd9a5:14
+	// assertions.go:387:             	Test:       	TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL
+	sysgo.SkipUnlessOpNode(t, "kona-node not supported (timeout)")
 	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -217,6 +236,15 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 //  4. CLP2P is restored Verifier, the verifier backfills and the unsafe gap is closed.
 func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-31|11:15:39.398]
+	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_el.go:204
+	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/elsync/reorg/sync_test.go:356
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	operation failed permanently after 30 attempts: expected head to reorg 0x166970054ad16ad090210e5d1045538eeccd2afd88ea991b010de026d0106870:18, but got 0x166970054ad16ad090210e5d1045538eeccd2afd88ea991b010de026d0106870:18
+	// assertions.go:387:             	Test:       	TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P
+	sysgo.SkipUnlessOpNode(t, "kona-node not supported (timeout)")
 	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()
