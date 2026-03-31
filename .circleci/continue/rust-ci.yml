@@ -1162,16 +1162,6 @@ workflows:
           context: *rust-ci-context
 
       # -----------------------------------------------------------------------
-      # Derivation test framework
-      # -----------------------------------------------------------------------
-      - rust-ci-cargo-tests:
-          name: derivation-tests
-          directory: rust
-          command: "test-derivation"
-          cache_profile: debug
-          context: *rust-ci-context
-
-      # -----------------------------------------------------------------------
       # OP-Reth crate-specific jobs
       # -----------------------------------------------------------------------
       - op-reth-compact-codec:

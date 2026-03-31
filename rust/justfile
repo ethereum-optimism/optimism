@@ -41,8 +41,11 @@ build-op-reth:
 # Run all tests (unit + doc tests)
 test: test-unit test-docs
 
-# Run unit tests (excluding online tests and derivation-tests integration binary)
-test-unit *args="-E '!test(test_online) & !(package(derivation-tests) & binary(integration))'": generate-genesis
+# Run unit tests (excluding online tests and derivation-tests package)
+# derivation-tests are run separately via `just test-derivation` because they
+# require generated genesis files (from forge artifacts) that aren't available
+# in the general rust-tests CI job.
+test-unit *args="-E '!test(test_online) & !package(derivation-tests)'":
   cargo nextest run --workspace --all-features {{args}}
 
 # Run online tests only
@@ -63,6 +66,10 @@ generate-genesis:
 
 # Run derivation-tests unit tests (excludes integration tests that require external binaries)
 test-derivation *args='': generate-genesis
+  cargo nextest run -p derivation-tests -E '!binary(integration)' {{args}}
+
+# Run derivation-tests unit tests without genesis generation (for CI where genesis is pre-built)
+_test-derivation-run *args='':
   cargo nextest run -p derivation-tests -E '!binary(integration)' {{args}}
 
 # Run derivation-tests integration tests (builds op-program and kona-host first)

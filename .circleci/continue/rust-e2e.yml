@@ -280,6 +280,40 @@ jobs:
           path: op-e2e/actions/proofs/tmp/testlogs
           when: always
 
+  # Derivation test framework — unit tests requiring generated genesis files
+  derivation-tests:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - attach_workspace:
+          at: .
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          prefix: rust-derivation-tests
+          profile: debug
+      - rust-install-toolchain
+      - install-cargo-binstall
+      - run:
+          name: Install nextest
+          command: |
+            command -v cargo-nextest >/dev/null || cargo binstall --locked --no-confirm cargo-nextest
+      - run:
+          name: Generate genesis testdata
+          working_directory: rust
+          command: just generate-genesis
+      - run:
+          name: Run derivation-tests
+          working_directory: rust
+          no_output_timeout: 20m
+          command: just _test-derivation-run
+      - rust-save-build-cache:
+          directory: rust
+          prefix: rust-derivation-tests
+          profile: debug
+
   required-rust-e2e:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -366,6 +400,14 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # -----------------------------------------------------------------------
+      # Derivation test framework
+      # -----------------------------------------------------------------------
+      - derivation-tests:
+          requires:
+            - contracts-bedrock-build
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # -----------------------------------------------------------------------
       # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
       - required-rust-e2e:
@@ -375,6 +417,7 @@ workflows:
             - rust-e2e-simple-kona-sequencer
             - rust-e2e-restart
             - kona-proof-action-single
+            - derivation-tests
 
   # Required Rust E2E gate (skip) — runs when no rust changes and no dispatch
   # Just runs action tests
