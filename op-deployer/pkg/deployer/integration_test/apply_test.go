@@ -995,17 +995,17 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
+								GameType: embedded.GameTypeCannonKona,
+							},
+							{
+								Enabled:  false,
+								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeSuperCannon,
 							},
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeSuperPermCannon,
-							},
-							{
-								Enabled:  false,
-								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeCannonKona,
 							},
 							{
 								Enabled:  false,
@@ -1043,9 +1043,9 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				// - DisputeGameConfigs[]: 7 configs
 				//   [0] Cannon: enabled=true, initBond=1e18, gameType=0, gameArgs="PRESTATE"
 				//   [1] PermissionedCannon: enabled=true, initBond=1e18, gameType=1, gameArgs="PRESTATE"+proposer+challenger
-				//   [2] SuperCannon: enabled=false, initBond=0, gameType=4, gameArgs=empty
-				//   [3] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
-				//   [4] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
+				//   [2] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
+				//   [3] SuperCannon: enabled=false, initBond=0, gameType=4, gameArgs=empty
+				//   [4] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
 				//   [5] SuperCannonKona: enabled=false, initBond=0, gameType=9, gameArgs=empty
 				//   [6] ZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
 				// - ExtraInstructions[]: 1 instruction
@@ -1078,22 +1078,22 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					"5052455354415445000000000000000000000000000000000000000000000000" + // gameArgs data "PRESTATE"
 					"0000000000000000000000005000000000000000000000000000000000000000" + // proposer address
 					"0000000000000000000000004300000000000000000000000000000000000000" + // challenger address
-					// DisputeGameConfigs[2] - SuperCannon (disabled)
+					// DisputeGameConfigs[2] - CannonKona (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"0000000000000000000000000000000000000000000000000000000000000008" + // gameType=8 (CannonKona)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// DisputeGameConfigs[3] - SuperCannon (disabled)
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
 					"0000000000000000000000000000000000000000000000000000000000000004" + // gameType=4 (SuperCannon)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[3] - SuperPermCannon (disabled)
+					// DisputeGameConfigs[4] - SuperPermCannon (disabled)
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
-					"0000000000000000000000000000000000000000000000000000000000000005" + // gameType=5 (SuperPermCannon)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[4] - CannonKona (disabled)
-					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
-					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
-					"0000000000000000000000000000000000000000000000000000000000000008" + // gameType=8 (CannonKona)
+					"0000000000000000000000000000000000000000000000000000000000000005" + // gameType=8 (SuperPermCannon)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
 					// DisputeGameConfigs[5] - SuperCannonKona (disabled)
