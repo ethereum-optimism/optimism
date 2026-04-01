@@ -126,10 +126,24 @@
     "type": "address"
   },
   {
+    "bytes": "20",
+    "label": "superFaultDisputeGameImpl",
+    "offset": 0,
+    "slot": "18",
+    "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "superPermissionedDisputeGameImpl",
+    "offset": 0,
+    "slot": "19",
+    "type": "address"
+  },
+  {
     "bytes": "32",
     "label": "devFeatureBitmap",
     "offset": 0,
-    "slot": "18",
+    "slot": "20",
     "type": "bytes32"
   }
 ]

@@ -91,17 +91,17 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 		{
 			name:            "incorrect post-state (unsafe)",
 			incorrectUnsafe: true,
-			expectedError:   ErrRewindVerificationFailed,
+			expectedError:   ErrRewindFCUHeadMismatch,
 		},
 		{
-			name:            "incorrect post-state (safe)",
-			incorrectUnsafe: true,
-			expectedError:   ErrRewindVerificationFailed,
+			name:          "incorrect post-state (safe)",
+			incorrectSafe: true,
+			expectedError: ErrRewindFCUHeadMismatch,
 		},
 		{
-			name:            "incorrect post-state (finalized)",
-			incorrectUnsafe: true,
-			expectedError:   ErrRewindVerificationFailed,
+			name:               "incorrect post-state (finalized)",
+			incorrectFinalized: true,
+			expectedError:      ErrRewindFCUHeadMismatch,
 		},
 		{
 			name:                "target before genesis",
@@ -140,16 +140,10 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			refsByNumber: map[uint64]eth.L2BlockRef{
 				targetBlockNum: targetRef,
 			},
-			// Initial state before rewind
+			// Initial state before rewind — used by computeRewindTargets
 			refsByLabel: map[eth.BlockLabel]eth.L2BlockRef{
 				eth.Safe:      {Number: 10, Hash: common.Hash{0x0a}},
 				eth.Finalized: {Number: 2, Hash: common.Hash{0x08}},
-			},
-			// State after FCU completes - verification reads these values
-			refsByLabelAfterFCU: map[eth.BlockLabel]eth.L2BlockRef{
-				eth.Unsafe:    targetRef,
-				eth.Safe:      targetRef,                            // clamped to target (min of 10 and 5)
-				eth.Finalized: {Number: 2, Hash: common.Hash{0x08}}, // clamped to finalized head (min of 2 and 5)
 			},
 			payloadsByNumber: map[uint64]*eth.ExecutionPayloadEnvelope{
 				targetBlockNum: &payloadEnvelope,
@@ -183,14 +177,15 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			if tc.fcuResult != nil {
 				l2.fcuResult = tc.fcuResult
 			}
+			l2.labelOverrides = make(map[eth.BlockLabel]eth.L2BlockRef)
 			if tc.incorrectUnsafe {
-				l2.refsByLabelAfterFCU[eth.Unsafe] = eth.L2BlockRef{Number: targetBlockNum, Hash: common.Hash{0xff}}
+				l2.labelOverrides[eth.Unsafe] = eth.L2BlockRef{Number: targetBlockNum, Hash: common.Hash{0xff}}
 			}
 			if tc.incorrectSafe {
-				l2.refsByLabelAfterFCU[eth.Safe] = eth.L2BlockRef{Number: targetBlockNum, Hash: common.Hash{0xff}}
+				l2.labelOverrides[eth.Safe] = eth.L2BlockRef{Number: targetBlockNum, Hash: common.Hash{0xff}}
 			}
 			if tc.incorrectFinalized {
-				l2.refsByLabelAfterFCU[eth.Finalized] = eth.L2BlockRef{Number: targetBlockNum, Hash: common.Hash{0xff}}
+				l2.labelOverrides[eth.Finalized] = eth.L2BlockRef{Number: targetBlockNum, Hash: common.Hash{0xff}}
 			}
 			if tc.targetBeforeGenesis {
 				rollupConfig.Genesis = rollup.Genesis{L2Time: 2000}

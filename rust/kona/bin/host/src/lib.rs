@@ -7,9 +7,10 @@ pub use error::{HostError, Result};
 mod server;
 pub use server::{PreimageServer, PreimageServerError};
 
-mod kv;
+pub(crate) mod kv;
 pub use kv::{
-    DiskKeyValueStore, KeyValueStore, MemoryKeyValueStore, SharedKeyValueStore, SplitKeyValueStore,
+    DataFormat, DirectoryKeyValueStore, DiskKeyValueStore, KeyValueStore, MemoryKeyValueStore,
+    SharedKeyValueStore, SplitKeyValueStore,
 };
 
 mod backend;

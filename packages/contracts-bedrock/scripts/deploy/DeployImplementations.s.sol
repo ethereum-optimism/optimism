@@ -19,7 +19,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { Duration } from "src/dispute/lib/Types.sol";
+import { Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
@@ -136,7 +136,10 @@ contract DeployImplementations is Script {
         deployAnchorStateRegistryImpl(_input, output_);
         deployFaultDisputeGameImpl(_input, output_);
         deployPermissionedDisputeGameImpl(_input, output_);
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (
+            DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+        ) {
             deploySuperFaultDisputeGameImpl(_input, output_);
             deploySuperPermissionedDisputeGameImpl(_input, output_);
         }
@@ -784,6 +787,8 @@ contract DeployImplementations is Script {
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
         opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
         opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
+        opcmImplementations.superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
+        opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
@@ -858,6 +863,8 @@ contract DeployImplementations is Script {
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
         opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
         opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
+        opcmImplementations.superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
+        opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
@@ -991,7 +998,10 @@ contract DeployImplementations is Script {
             address(_output.permissionedDisputeGameImpl)
         );
 
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (
+            DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+        ) {
             address[] memory superGameAddrs = Solarray.addresses(
                 address(_output.superFaultDisputeGameImpl), address(_output.superPermissionedDisputeGameImpl)
             );
@@ -1021,21 +1031,29 @@ contract DeployImplementations is Script {
             );
         }
 
-        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (
+            !DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+                && !DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+        ) {
             require(
                 address(_output.superFaultDisputeGameImpl) == address(0),
-                "DeployImplementations: OptimismPortalInterop flag disabled but SuperFaultDisputeGame was deployed"
+                "DeployImplementations: super game flag disabled but SuperFaultDisputeGame was deployed"
             );
             require(
                 address(_output.superPermissionedDisputeGameImpl) == address(0),
-                "DeployImplementations: OptimismPortalInterop flag disabled but SuperPermissionedDisputeGame was deployed"
+                "DeployImplementations: super game flag disabled but SuperPermissionedDisputeGame was deployed"
             );
         }
 
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
         ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
-        ChainAssertions.checkDisputeGameFactory(_output.disputeGameFactoryImpl, address(0), address(0), false);
+        GameType permGameType = DevFeatures.isDevFeatureEnabled(
+            _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
+        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        ChainAssertions.checkDisputeGameFactory(
+            _output.disputeGameFactoryImpl, address(0), address(0), false, permGameType
+        );
         DeployUtils.assertInitialized({
             _contractAddress: address(_output.anchorStateRegistryImpl),
             _isProxy: false,

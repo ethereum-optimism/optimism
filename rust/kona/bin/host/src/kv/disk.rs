@@ -1,7 +1,7 @@
 //! Contains a concrete implementation of the [`KeyValueStore`] trait that stores data on disk
 //! using [rocksdb].
 
-use super::{KeyValueStore, MemoryKeyValueStore};
+use super::{DataFormat, FORMAT_FILENAME, KeyValueStore, MemoryKeyValueStore};
 use crate::{HostError, Result};
 use alloy_primitives::B256;
 use rocksdb::{DB, Options};
@@ -19,6 +19,13 @@ impl DiskKeyValueStore {
     pub fn new(data_directory: PathBuf) -> Self {
         let db = DB::open(&Self::get_db_options(), data_directory.as_path())
             .unwrap_or_else(|e| panic!("Failed to open database at {data_directory:?}: {e}"));
+
+        // Write the kvformat marker file for op-challenger compatibility.
+        let format_path = data_directory.join(FORMAT_FILENAME);
+        if !format_path.exists() {
+            std::fs::write(&format_path, DataFormat::Rocksdb.as_str())
+                .unwrap_or_else(|e| panic!("Failed to write kvformat marker: {e}"));
+        }
 
         Self { data_directory, db }
     }
@@ -77,16 +84,14 @@ mod test {
         proptest,
         test_runner::Config,
     };
-    use std::env::temp_dir;
-
     proptest! {
         #![proptest_config(Config::with_cases(16))]
 
         /// Test that converting from a [DiskKeyValueStore] to a [MemoryKeyValueStore] is lossless.
         #[test]
         fn convert_disk_kv_to_mem_kv(k_v in hash_map(any::<[u8; 32]>(), vec(any::<u8>(), 0..128), 1..128)) {
-            let tempdir = temp_dir();
-            let mut disk_kv = DiskKeyValueStore::new(tempdir);
+            let tempdir = tempfile::TempDir::new().unwrap();
+            let mut disk_kv = DiskKeyValueStore::new(tempdir.path().to_path_buf());
             for (k, v) in &k_v {
                 disk_kv.set(k.into(), v.clone()).unwrap();
             }

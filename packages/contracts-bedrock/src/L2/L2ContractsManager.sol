@@ -16,9 +16,11 @@ import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.s
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
+
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 
 // Libraries
+import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
@@ -30,10 +32,11 @@ import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.s
 contract L2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
+    error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -157,11 +160,29 @@ contract L2ContractsManager is ISemver {
     /// @notice Loads the full configuration for the L2 Predeploys.
     /// @return fullConfig_ The full configuration.
     function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
-        // Note: Currently, this is the only way to determine if the network is a custom gas token network.
-        // We need our upgrades be able to determine if the network is a custom gas token network so that we can
-        // apply the appropriate configuration to the LiquidityController predeploy. In networks without custom gas
-        // tokens, the LiquidityController predeploy is not used and points to address(0).
+        // First we read the system customization and dev feature flags from the state.
+        // Because the L2CM's upgrade function does not accept arguments, these values must be set from outside of the
+        // Network Upgrade Transactions bundle. The expectation is that they will be set at the start of a
+        // hard fork block, within the consensus client's code.
+
+        // Read system customization flags from L1Block.
+        // Uses the legacy isCustomGasToken() getter which has existed since custom gas token shipped.
         fullConfig_.isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
+
+        // Uses try/catch because isFeatureEnabled() may not exist on pre-upgrade L1Block contracts.
+        // The INTEROP feature is enabled after genesis via a Network Upgrade Transaction (NUT) issued
+        // by the consensus client at the start of the hard fork block.
+        // eip150-safe
+        try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP) returns (bool isInterop_) {
+            fullConfig_.isInterop = isInterop_;
+        } catch {
+            fullConfig_.isInterop = false;
+        }
+        // The INTEROP system customization can only be enabled if the dev feature is also enabled.
+        // The dev feature gates whether interop code was deployed; the system customization controls activation.
+        if (fullConfig_.isInterop && !_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            revert L2ContractsManager_FeatureFlagMismatch();
+        }
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
@@ -240,9 +261,6 @@ contract L2ContractsManager is ISemver {
     ///         configuration to each predeploy.
     /// @param _config The full configuration for the L2 Predeploys.
     function _apply(L2ContractsManagerTypes.FullConfig memory _config) internal {
-        // Read any dev flags
-        bool _useInterop = _isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Initializable predeploys.
 
         // L2CrossDomainMessenger
@@ -407,6 +425,14 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L1_BLOCK_ATTRIBUTES, _config.isCustomGasToken ? L1_BLOCK_CGT_IMPL : L1_BLOCK_IMPL
         );
+        // TODO(#19468): Remove this migration step after Karst. Post-Karst, the feature
+        // mapping will already be populated from the upgrade, making this call unnecessary.
+        // After upgrading L1Block to the CGT impl, populate the feature mapping so that
+        // isCustomGasToken() continues to return true. The new impl reads from the mapping
+        // rather than the legacy storage slot.
+        if (_config.isCustomGasToken) {
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
+        }
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             _config.isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL
@@ -415,7 +441,7 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
 
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
-        if (_useInterop) {
+        if (_config.isInterop) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
             L2ContractsManagerUtils.upgradeTo(
                 Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL

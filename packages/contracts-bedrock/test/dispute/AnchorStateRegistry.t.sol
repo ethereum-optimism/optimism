@@ -5,7 +5,7 @@ pragma solidity ^0.8.15;
 import { BaseFaultDisputeGame_TestInit, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Libraries
-import { GameType, GameStatus, Hash, Claim, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, GameStatus, Hash, Claim, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
@@ -186,6 +186,151 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
             }),
             GameType.wrap(0)
         );
+    }
+
+    /// @notice Tests that re-initializing with a different (higher sequence number) anchor root
+    ///         automatically clears the anchor game so getAnchorRoot returns the new startingAnchorRoot.
+    function test_initialize_clearsAnchorGameOnNewRoot_succeeds() public {
+        // Read current anchor sequence number so offsets work on both fresh and forked state.
+        (, uint256 currentSeqNum) = anchorStateRegistry.getAnchorRoot();
+
+        // First, set an anchor game so there's something to clear.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(currentSeqNum + 10));
+        anchorStateRegistry.setAnchorState(gameProxy);
+        assertFalse(address(anchorStateRegistry.anchorGame()) == address(0));
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        // New root with a higher sequence number than the anchor game.
+        Proposal memory newStartingRoot =
+            Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: currentSeqNum + 42 });
+
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(systemConfig, disputeGameFactory, newStartingRoot, GameTypes.SUPER_CANNON_KONA);
+
+        // anchorGame should be cleared.
+        assertEq(address(anchorStateRegistry.anchorGame()), address(0));
+
+        // getAnchorRoot should return the new startingAnchorRoot.
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(root.raw(), newStartingRoot.root.raw());
+        assertEq(l2BlockNumber, newStartingRoot.l2SequenceNumber);
+    }
+
+    /// @notice Tests that re-initializing with the same anchor root preserves the existing anchorGame.
+    function test_initialize_preservesAnchorGameOnSameRoot_succeeds() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // Set an anchor game.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+        anchorStateRegistry.setAnchorState(gameProxy);
+        address anchorGameBefore = address(anchorStateRegistry.anchorGame());
+        assertFalse(anchorGameBefore == address(0));
+
+        // Get the current starting anchor root to re-use it.
+        Proposal memory currentRoot = anchorStateRegistry.getStartingAnchorRoot();
+
+        // Reset initialized state.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        // Re-initialize with the same starting anchor root.
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(systemConfig, disputeGameFactory, currentRoot, GameTypes.SUPER_CANNON_KONA);
+
+        // anchorGame should still be the same.
+        assertEq(address(anchorStateRegistry.anchorGame()), anchorGameBefore);
+    }
+
+    /// @notice Tests that reinitializer V2 succeeds on an already-initialized proxy.
+    /// @notice Tests that re-initialization does NOT update the retirementTimestamp.
+    function test_initialize_retirementUnchangedOnNewRoot_succeeds() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // Set a retirement timestamp.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
+        uint64 originalTimestamp = anchorStateRegistry.retirementTimestamp();
+        assertTrue(originalTimestamp > 0);
+
+        // Warp forward.
+        vm.warp(block.timestamp + 1000);
+
+        // Reset initialized state.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(
+            systemConfig,
+            disputeGameFactory,
+            Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 }),
+            GameTypes.SUPER_CANNON_KONA
+        );
+
+        // retirementTimestamp should be unchanged.
+        assertEq(anchorStateRegistry.retirementTimestamp(), originalTimestamp);
+    }
+
+    /// @notice Tests that re-initializing with a lower/equal sequence number reverts when an anchor game exists.
+    function test_initialize_lowerSequenceNumber_reverts() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // Set an anchor game with l2SequenceNumber = 100.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(uint256(100)));
+        anchorStateRegistry.setAnchorState(gameProxy);
+
+        // Reset initialized state.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        // Try to reinitialize with a lower sequence number.
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
+        anchorStateRegistry.initialize(
+            systemConfig,
+            disputeGameFactory,
+            Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 50 }),
+            GameTypes.SUPER_CANNON_KONA
+        );
+    }
+
+    /// @notice Fuzz test that initialize() faithfully preserves whatever respectedGameType it
+    ///         receives. OPCMv2's default behavior reads the current value via _loadFullConfig and
+    ///         passes it back unchanged, so the round-trip is safe.
+    function testFuzz_initialize_preservesRespectedGameType_succeeds(uint32 _gameTypeRaw) public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        // Set the respected game type to a fuzzed value.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameType.wrap(_gameTypeRaw));
+        assertEq(anchorStateRegistry.respectedGameType().raw(), _gameTypeRaw);
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        // Re-initialize with the SAME respectedGameType (simulating default OPCM behavior).
+        Proposal memory currentRoot = anchorStateRegistry.getStartingAnchorRoot();
+
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.initialize(systemConfig, disputeGameFactory, currentRoot, GameType.wrap(_gameTypeRaw));
+
+        // respectedGameType must be unchanged.
+        assertEq(anchorStateRegistry.respectedGameType().raw(), _gameTypeRaw);
     }
 }
 
@@ -392,6 +537,9 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_TestInit 
         // Mock the game to be the defender wins.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
 
+        // Mock wasRespectedGameTypeWhenCreated so setAnchorState works in super mode.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+
         // Set the anchor game to the game proxy.
         anchorStateRegistry.setAnchorState(gameProxy);
 
@@ -410,6 +558,9 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_TestInit 
 
         // Mock the game to be the defender wins.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Mock wasRespectedGameTypeWhenCreated so setAnchorState works in super mode.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
 
         // Set the anchor game to the game proxy.
         anchorStateRegistry.setAnchorState(gameProxy);
@@ -432,6 +583,9 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_TestInit 
 
         // Mock the game to be the defender wins.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Mock wasRespectedGameTypeWhenCreated so setAnchorState works in super mode.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
 
         // Set the anchor game to the game proxy.
         anchorStateRegistry.setAnchorState(gameProxy);
@@ -471,6 +625,9 @@ contract AnchorStateRegistry_GetStartingAnchorRoot_Test is AnchorStateRegistry_T
             abi.encodeCall(IDisputeGame.rootClaim, ()),
             abi.encode(Claim.wrap(keccak256(abi.encode(123))))
         );
+
+        // Mock wasRespectedGameTypeWhenCreated so setAnchorState works in super mode.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
 
         // Set the anchor game to the game proxy.
         anchorStateRegistry.setAnchorState(gameProxy);

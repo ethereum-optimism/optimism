@@ -137,7 +137,7 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 
 		if gameConfig.Enabled {
 			switch gameConfig.GameType {
-			case GameTypeCannon, GameTypeCannonKona:
+			case GameTypeCannon, GameTypeCannonKona, GameTypeSuperCannon, GameTypeSuperCannonKona:
 				if gameConfig.FaultDisputeGameConfig == nil {
 					return nil, fmt.Errorf("faultDisputeGameConfig is required for game type %d", gameConfig.GameType)
 				}
@@ -146,7 +146,7 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 				if err != nil {
 					return nil, fmt.Errorf("failed to encode fault game config: %w", err)
 				}
-			case GameTypePermissionedCannon:
+			case GameTypePermissionedCannon, GameTypeSuperPermCannon:
 				if gameConfig.PermissionedDisputeGameConfig == nil {
 					return nil, fmt.Errorf("permissionedDisputeGameConfig is required for game type %d", gameConfig.GameType)
 				}

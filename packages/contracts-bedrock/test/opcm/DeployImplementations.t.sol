@@ -84,7 +84,10 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         );
 
         // for the super DG implementation deployments
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (
+            isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
+                || isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+        ) {
             assertNotEq(
                 address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should be deployed"
             );
@@ -308,7 +311,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             "PDGv2 maxClockDuration"
         );
 
-        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            || DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         if (superGamesEnabled) {
             assertNotEq(
                 address(output.superFaultDisputeGameImpl), address(0), "super game should be deployed when enabled"

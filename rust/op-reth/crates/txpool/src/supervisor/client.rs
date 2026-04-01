@@ -42,8 +42,11 @@ pub struct SupervisorClient {
 
 impl SupervisorClient {
     /// Returns a new [`SupervisorClientBuilder`].
-    pub fn builder(supervisor_endpoint: impl Into<String>) -> SupervisorClientBuilder {
-        SupervisorClientBuilder::new(supervisor_endpoint)
+    pub fn builder(
+        supervisor_endpoint: impl Into<String>,
+        chain_id: u64,
+    ) -> SupervisorClientBuilder {
+        SupervisorClientBuilder::new(supervisor_endpoint, chain_id)
     }
 
     /// Returns configured timeout. See [`SupervisorClientInner`].
@@ -108,7 +111,7 @@ impl SupervisorClient {
         if let Err(err) = self
             .check_access_list(
                 inbox_entries.as_slice(),
-                ExecutingDescriptor::new(timestamp, timeout),
+                ExecutingDescriptor::new(self.inner.chain_id, timestamp, timeout),
             )
             .await
         {
@@ -166,6 +169,8 @@ impl SupervisorClient {
 #[derive(Debug, Clone)]
 pub struct SupervisorClientInner {
     client: ReqwestClient,
+    /// The chain ID of the executing chain
+    chain_id: u64,
     /// The default
     safety: SafetyLevel,
     /// The default request timeout
@@ -179,6 +184,8 @@ pub struct SupervisorClientInner {
 pub struct SupervisorClientBuilder {
     /// Supervisor server's socket.
     endpoint: String,
+    /// The chain ID of the executing chain.
+    chain_id: u64,
     /// Timeout for requests.
     ///
     /// NOTE: this timeout is only effective if it's shorter than the timeout configured for the
@@ -190,9 +197,10 @@ pub struct SupervisorClientBuilder {
 
 impl SupervisorClientBuilder {
     /// Creates a new builder.
-    pub fn new(supervisor_endpoint: impl Into<String>) -> Self {
+    pub fn new(supervisor_endpoint: impl Into<String>, chain_id: u64) -> Self {
         Self {
             endpoint: supervisor_endpoint.into(),
+            chain_id,
             timeout: DEFAULT_REQUEST_TIMEOUT,
             safety: SafetyLevel::CrossUnsafe,
         }
@@ -212,7 +220,7 @@ impl SupervisorClientBuilder {
 
     /// Creates a new supervisor validator.
     pub async fn build(self) -> SupervisorClient {
-        let Self { endpoint, timeout, safety } = self;
+        let Self { endpoint, chain_id, timeout, safety } = self;
 
         let client = ReqwestClient::builder()
             .connect(endpoint.as_str())
@@ -222,6 +230,7 @@ impl SupervisorClientBuilder {
         SupervisorClient {
             inner: Arc::new(SupervisorClientInner {
                 client,
+                chain_id,
                 safety,
                 timeout,
                 metrics: SupervisorMetrics::default(),

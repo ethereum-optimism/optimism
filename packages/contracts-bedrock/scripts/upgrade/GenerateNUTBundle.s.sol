@@ -415,11 +415,11 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("L2ERC721Bridge.sol:L2ERC721Bridge"), SALT
             )
         });
-        // Gas profiling: 416,606 gas used → 624,909 recommended → 650K with safety margin
+        // Gas profiling: 750K with safety margin
         implementationConfigs["L1Block"] = ImplementationConfig({
             name: "L1Block",
             artifactPath: "L1Block.sol:L1Block",
-            deploymentGasLimit: 650_000,
+            deploymentGasLimit: 750_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1Block.sol:L1Block"), SALT)
         });
         // Gas profiling: 710,257 gas used → 1,065,385 recommended → 1.1M with safety margin

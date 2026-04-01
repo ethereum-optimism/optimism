@@ -16,6 +16,7 @@ import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
@@ -1997,6 +1998,8 @@ contract FaultDisputeGame_Resolve_Test is FaultDisputeGame_TestInit {
     /// @notice Static unit test asserting that the anchor state updates when the game resolves in
     ///         favor of the defender and the anchor state is older than the game state.
     function test_resolve_validNewerStateUpdatesAnchor_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
         // Confirm that the anchor state is older than the game state.
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
         assert(l2BlockNumber < gameProxy.l2BlockNumber());
@@ -2406,6 +2409,8 @@ contract FaultDisputeGame_CloseGame_Test is FaultDisputeGame_TestInit {
 
     /// @notice Tests that closeGame succeeds for a proper game (normal distribution)
     function test_closeGame_properGame_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
         // Resolve the game
         vm.warp(block.timestamp + 3 days + 12 hours);
         gameProxy.resolveClaim(0, 0);
@@ -2477,6 +2482,8 @@ contract FaultDisputeGame_CloseGame_Test is FaultDisputeGame_TestInit {
     ///      AnchorStateRegistry but successfully execute the remainder of the function.
     /// @param _gas Amount of gas to provide to closeGame.
     function testFuzz_closeGame_canUpdateAnchorStateAndDoes_succeeds(uint256 _gas) public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
         // Resolve and close the game first
         vm.warp(block.timestamp + 3 days + 12 hours);
         gameProxy.resolveClaim(0, 0);

@@ -278,7 +278,7 @@ mod tests {
     use alloy_rlp::Decodable;
     use async_trait::async_trait;
     use kona_genesis::RollupConfig;
-    use kona_interop::SuperRoot;
+    use kona_interop::{DependencySet, SuperRoot};
     use kona_preimage::{
         HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
         errors::PreimageOracleResult,
@@ -430,6 +430,10 @@ mod tests {
             claimed_post_state: B256::ZERO,
             claimed_l2_timestamp: 0,
             rollup_configs,
+            dependency_set: DependencySet {
+                dependencies: Default::default(),
+                override_message_expiry_window: None,
+            },
             l1_config: Default::default(),
         };
 

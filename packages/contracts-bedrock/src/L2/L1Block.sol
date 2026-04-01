@@ -3,6 +3,8 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { L1Block_FeatureAlreadyEnabled, L1Block_NotAuthorizedToSetFeature } from "src/libraries/L1BlockErrors.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -14,7 +16,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         Values within this contract are updated once per epoch (every L1 block) and can only be
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
-contract L1Block is ISemver {
+contract L1Block is ISemver, ProxyAdminOwnedBase {
     /// @notice Address of the special depositor account.
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
         addr_ = Constants.DEPOSITOR_ACCOUNT;
@@ -64,9 +66,18 @@ contract L1Block is ISemver {
     /// @notice The DA footprint gas scalar.
     uint16 public daFootprintGasScalar;
 
-    /// @custom:semver 1.8.0
+    /// @notice Mapping of system customization feature names to their enabled status.
+    ///         Once a feature is enabled, it cannot be disabled.
+    mapping(bytes32 => bool) public isFeatureEnabled;
+
+    /// @notice Emitted when a system customization feature is set.
+    /// @param feature Feature that was set.
+    /// @param enabled Whether the feature is enabled.
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
+
+    /// @custom:semver 1.9.0
     function version() public pure virtual returns (string memory) {
-        return "1.8.0";
+        return "1.9.0";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -213,6 +224,37 @@ contract L1Block is ISemver {
             let slotVal := or(shl(96, daScalar), opFeeParams) // 96 = 32 + 64
 
             sstore(operatorFeeConstant.slot, slotVal)
+        }
+    }
+
+    /// @notice Sets a feature flag enabled.
+    ///         Once enabled, a feature cannot be disabled.
+    /// @param _feature The feature to set.
+    function setFeature(bytes32 _feature) external {
+        _assertSetFeatureAuthorized(msg.sender);
+        _setFeature(_feature);
+    }
+
+    /// @notice Internal helper to enable a feature. Reverts if the feature is already enabled.
+    /// @param _feature The feature to enable.
+    function _setFeature(bytes32 _feature) internal {
+        if (isFeatureEnabled[_feature]) revert L1Block_FeatureAlreadyEnabled();
+
+        isFeatureEnabled[_feature] = true;
+        emit FeatureSet(_feature, true);
+    }
+
+    /// @notice Reverts if the sender is not authorized to set a feature. The different callers and the motivation for
+    ///         authorization are as follows:
+    ///         - Depositor: Allows setting features by the depositor account from within the CL client's derivation
+    ///           pipeline.
+    ///         - ProxyAdmin: Allows setting system features by the L2ContractsManager.
+    ///         - ProxyAdmin Owner: Allows setting system features by a deposit transactions from the ProxyAdminOwner on
+    ///           L1.
+    /// @param _sender The address to check.
+    function _assertSetFeatureAuthorized(address _sender) internal view {
+        if (!(_sender == DEPOSITOR_ACCOUNT() || _sender == proxyAdminOwner() || _sender == address(proxyAdmin()))) {
+            revert L1Block_NotAuthorizedToSetFeature();
         }
     }
 }
