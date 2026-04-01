@@ -56,29 +56,37 @@ abstract contract L2Genesis_TestInit is Test {
     }
 
     function testPredeploys() internal view {
-        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        uint160 prefix = uint160(0x420) << 148;
 
-        for (uint256 i = 0; i < records.length; i++) {
-            // TODO: Remove this once the deprecated predeploys are removed.
-            // if (records[i].isDeprecated) continue;
+        for (uint256 i = 0; i < Predeploys.PREDEPLOY_COUNT; i++) {
+            address addr = address(prefix | uint160(i));
+            // If it's not proxied, skip next checks.
+            if (Predeploys.notProxied(addr)) {
+                continue;
+            }
 
+            // All predeploys should have code
+            assertGt(addr.code.length, 0);
+            // All proxied predeploys should have the 1967 admin slot set to the ProxyAdmin
+            assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
+
+            // If it's not a supported predeploy, skip next checks.
             if (
-                keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L1BlockCGT"))
-                    || keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L2ToL1MessagePasserCGT"))
-            ) continue;
+                !Predeploys.isSupportedPredeploy(
+                    addr, uint256(LATEST_FORK), input.useCustomGasToken, input.useInterop, input.devFeatureBitmap
+                )
+            ) {
+                continue;
+            }
 
-            address addr = records[i].proxy;
-            assertGt(addr.code.length, 0, string.concat("Predeploy has no code: ", records[i].name));
-
-            if (!records[i].isProxied) continue;
-
-            // Proxied predeploys must have proxy admin set.
-            assertEq(
-                Predeploys.PROXY_ADMIN,
-                EIP1967Helper.getAdmin(addr),
-                string.concat("Proxy admin mismatch: ", records[i].name)
-            );
+            // All proxied predeploys should have the 1967 admin slot set to the ProxyAdmin
+            // predeploy
+            address impl = Predeploys.predeployToCodeNamespace(addr);
+            assertGt(impl.code.length, 0);
         }
+
+        assertGt(Predeploys.WETH.code.length, 0);
+        assertGt(Predeploys.GOVERNANCE_TOKEN.code.length, 0);
     }
 
     function testVaultsWithoutRevenueShare() internal view {

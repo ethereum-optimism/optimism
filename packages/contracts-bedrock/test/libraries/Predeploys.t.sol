@@ -80,15 +80,13 @@ abstract contract Predeploys_TestInit is CommonTest {
 
     /// @notice Internal test function for predeploys validation across different forks.
     function _test_predeploys(Fork _fork, bool _isCustomGasToken, bool _isInterop) internal {
+        uint256 count = 2048;
+        uint160 prefix = uint160(0x420) << 148;
+
         bytes memory proxyCode = vm.getDeployedCode("Proxy.sol:Proxy");
-        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
 
-        uint256 count = records.length;
         for (uint256 i = 0; i < count; i++) {
-            // TODO: Remove this once the deprecated predeploys are removed.
-            // if (records[i].isDeprecated) continue;
-
-            address addr = records[i].proxy;
+            address addr = address(prefix | uint160(i));
             address implAddr = Predeploys.predeployToCodeNamespace(addr);
 
             if (_isOmitted(addr)) {
@@ -96,11 +94,8 @@ abstract contract Predeploys_TestInit is CommonTest {
                 continue;
             }
 
-            if (!records[i].isProxied) {
-                continue;
-            }
-
-            bool isPredeploy = _isRecordActive(records[i], _fork, _isCustomGasToken, _isInterop);
+            bool isPredeploy =
+                Predeploys.isSupportedPredeploy(addr, uint256(_fork), _isCustomGasToken, _isInterop, devFeatureBitmap);
 
             bytes memory code = addr.code;
             if (isPredeploy) assertTrue(code.length > 0);

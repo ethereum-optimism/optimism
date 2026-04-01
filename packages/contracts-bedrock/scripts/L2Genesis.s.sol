@@ -140,7 +140,7 @@ contract L2Genesis is Script {
         vm.chainId(_input.l2ChainID);
 
         dealEthToPrecompiles();
-        setPredeployProxies();
+        setPredeployProxies(_input);
         vm.stopPrank();
 
         // Set L1 Block has its own pranking requirements which it handles internally
@@ -222,29 +222,27 @@ contract L2Genesis is Script {
     ///         to the expected nonce of 1 per EIP-161. This is because the legacy go genesis
     //          script didn't set the nonce and we didn't want to change that behavior when
     ///         migrating genesis generation to Solidity.
-    function setPredeployProxies() internal {
+    function setPredeployProxies(Input memory _input) internal {
         bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
-        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        uint160 prefix = uint160(0x420) << 148;
 
-        for (uint256 i = 0; i < records.length; i++) {
+        for (uint256 i = 0; i < Predeploys.PREDEPLOY_COUNT; i++) {
+            address addr = address(prefix | uint160(i));
+
             // Non-proxied predeploys are excluded from proxy setup.
-            if (!records[i].isProxied) continue;
+            if (Predeploys.notProxied(addr)) continue;
 
-            // TODO: Remove tnhis once the deprecated predeploys are removed.
-            // if (records[i].isDeprecated) continue;
-
-            // Skip duplicates — CGT variant records share a proxy with their standard counterpart.
-            if (
-                keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L1BlockCGT"))
-                    || keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L2ToL1MessagePasserCGT"))
-            ) continue;
-
-            address addr = records[i].proxy;
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            address implementation = Predeploys.predeployToCodeNamespace(addr);
-            EIP1967Helper.setImplementation(addr, implementation);
+            if (
+                Predeploys.isSupportedPredeploy(
+                    addr, _input.fork, _input.useCustomGasToken, _input.useInterop, _input.devFeatureBitmap
+                )
+            ) {
+                address implementation = Predeploys.predeployToCodeNamespace(addr);
+                EIP1967Helper.setImplementation(addr, implementation);
+            }
         }
     }
 

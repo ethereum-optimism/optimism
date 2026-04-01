@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 // Libraries
+import { Fork } from "scripts/libraries/Config.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
@@ -520,8 +521,8 @@ library Predeploys {
         // Excluded from NUT bundles and proxy setup. deployGasLimit is unused.
         records_[26] = PredeployRecord({
             proxy: WETH,
-            name: "WETH9",
-            artifactPath: "WETH9.sol:WETH9",
+            name: "WETH",
+            artifactPath: "WETH.sol:WETH",
             deployGasLimit: 0,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
@@ -590,5 +591,53 @@ library Predeploys {
             }
         }
         revert("Predeploys: proxy not found");
+    }
+
+    function isSupportedPredeploy(
+        address _addr,
+        uint256 _fork,
+        bool _isCustomGasToken,
+        bool _useInterop,
+        bytes32 _devFeatureBitmap
+    )
+        internal
+        pure
+        returns (bool)
+    {
+        // iterate over all records and check if the predeploy is supported based on the arguments
+        PredeployRecord[] memory records = getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _addr) {
+                if (records[i].devFeatureGate != 0) {
+                    // If the feature on the gate is not present on the bitmap, the predeploy is not supported.
+                    if (!DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, records[i].devFeatureGate)) {
+                        return false;
+                    }
+                    // Additional conditions for interop
+                    if (DevFeatures.isDevFeatureEnabled(records[i].devFeatureGate, DevFeatures.OPTIMISM_PORTAL_INTEROP))
+                    {
+                        if (_fork < uint256(Fork.INTEROP) || !_useInterop) {
+                            return false;
+                        }
+                    }
+                }
+
+                if (records[i].sysFeatureGate != 0) {
+                    // If the feature on the gate is not present on the bitmap, the predeploy is not supported.
+                    if (
+                        DevFeatures.isDevFeatureEnabled(records[i].sysFeatureGate, Features.CUSTOM_GAS_TOKEN)
+                            && !_isCustomGasToken
+                    ) {
+                        return false;
+                    }
+
+                    if (DevFeatures.isDevFeatureEnabled(records[i].sysFeatureGate, Features.INTEROP) && !_useInterop) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
     }
 }
