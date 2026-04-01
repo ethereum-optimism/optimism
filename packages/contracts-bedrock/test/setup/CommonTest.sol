@@ -103,7 +103,7 @@ abstract contract CommonTest is Test, Setup, Events {
             deploy.cfg().setOperatorFeeVaultWithdrawalNetwork(1);
         }
 
-        if (useInteropOverride) {
+        if (useInteropOverride || Config.devFeatureInterop()) {
             console.log("CommonTest: enabling interop");
             devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
             deploy.cfg().setUseInterop(true);
