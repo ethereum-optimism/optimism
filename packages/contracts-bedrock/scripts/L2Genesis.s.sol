@@ -627,7 +627,6 @@ contract L2Genesis is Script {
         _setImplementationCode(Predeploys.L2_COMPLIANCE);
     }
 
-
     /// @notice Sets all the preinstalls.
     function setPreinstalls() internal {
         address tmpSetPreinstalls = address(uint160(uint256(keccak256("SetPreinstalls"))));

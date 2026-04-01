@@ -131,8 +131,7 @@ library Predeploys {
     address internal constant L2_DEV_FEATURE_FLAGS = 0x420000000000000000000000000000000000002d;
 
     /// @notice Address of the L2Compliance predeploy.
-    address internal constant L2_COMPLIANCE = 0x420000000000000000000000000000000000002e;
-
+    address internal constant L2_COMPLIANCE = 0x420000000000000000000000000000000000002E;
 
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
