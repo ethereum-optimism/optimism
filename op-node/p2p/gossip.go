@@ -631,7 +631,9 @@ func (p *publisher) Close() error {
 	p.p2pCancel()
 	e1 := p.blocksV1.Close()
 	e2 := p.blocksV2.Close()
-	return errors.Join(e1, e2)
+	e3 := p.blocksV3.Close()
+	e4 := p.blocksV4.Close()
+	return errors.Join(e1, e2, e3, e4)
 }
 
 func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn, gossipConf GossipSetupConfigurables, clk clock.Clock) (GossipOut, error) {
