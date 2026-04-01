@@ -222,7 +222,10 @@ where
             // For DestroyedChanged accounts the account was re-created after destruction, so
             // fall through to re-insert the new state rather than skipping it.
             if bundle_account.was_destroyed() {
-                self.root_node.delete(&account_path, &self.fetcher, &self.hinter)?;
+                match self.root_node.delete(&account_path, &self.fetcher, &self.hinter) {
+                    Ok(()) | Err(TrieNodeError::KeyNotFound) => {}
+                    Err(e) => return Err(e.into()),
+                }
                 self.storage_roots.remove(address);
                 if bundle_account.account_info().is_none() {
                     continue;
@@ -569,6 +572,33 @@ mod tests {
         assert_ne!(
             root, EMPTY_ROOT_HASH,
             "DestroyedChanged account with storage must appear in trie"
+        );
+    }
+
+    // A DestroyedChanged account that was never in the parent trie (e.g. CREATE+SELFDESTRUCT+
+    // re-CREATE in a single block) must not fail when the delete is a no-op.
+    #[test]
+    fn test_destroyed_changed_new_account_never_in_trie() {
+        let mut db = new_test_db();
+        let address = Address::repeat_byte(0x05);
+        // No insert_account — this address has never existed in the parent trie.
+
+        let new_info =
+            AccountInfo { balance: U256::from(1_000_000_000_000_000_000u64), ..Default::default() };
+        let root = db
+            .state_root(&bundle_with_account(
+                address,
+                BundleAccount::new(
+                    None,
+                    Some(new_info),
+                    Default::default(),
+                    AccountStatus::DestroyedChanged,
+                ),
+            ))
+            .unwrap();
+        assert_ne!(
+            root, EMPTY_ROOT_HASH,
+            "DestroyedChanged account never in parent trie must be re-inserted"
         );
     }
 
