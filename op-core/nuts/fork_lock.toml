@@ -1,7 +1,7 @@
 # NUT Bundle Fork Lock
-# To update a locked bundle, update both the bundle file and this hash in the same PR.
+# To update a locked fork, set locked = false, run: just nut-snapshot-for <fork>, then re-lock.
 
 [karst]
-bundle = "op-node/rollup/derive/karst_nut_bundle.json"
-hash = "sha256:b9c610d09ca05ab24ef84ea38e4f563d71401f592f9eff13fa97dac879bee600"
-commit = "0777438dc0c3cbedd5fa478c00d5a7305b991347"
+  bundle = "op-node/rollup/derive/karst_nut_bundle.json"
+  hash = "sha256:6145f900384f0aa2cdc63f2267a747b8c958bf1c09bacce8c29037c3eaa75d44"
+  commit = "c9b648345b4e3b89f7f6fb242e77576bf0c5c668"
