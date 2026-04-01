@@ -1199,6 +1199,41 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
         assertEq(g2, address(game2));
         assertEq(g1, address(game1));
     }
+
+    /// @notice Tests that findLatestGames returns only available ZK games when fewer exist than requested.
+    function test_findLatestGames_lessThanNAvailable_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        // Setup ZK game and create only 1 game.
+        setupZKDisputeGame(
+            ZKDisputeGameParams({
+                maxChallengeDuration: Duration.wrap(3.5 days),
+                maxProveDuration: Duration.wrap(12 hours),
+                absolutePrestate: keccak256("absolutePrestate"),
+                challengerBond: 1 ether
+            })
+        );
+
+        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
+        address proposer = makeAddr("proposer");
+        vm.deal(proposer, 1 ether);
+        vm.warp(block.timestamp + 1000);
+
+        Claim rootClaim1 = changeClaimStatus(Claim.wrap(keccak256("zkRoot1")), VMStatuses.INVALID);
+
+        vm.prank(proposer);
+        disputeGameFactory.create{ value: 1 ether }(
+            GameTypes.ZK_DISPUTE_GAME, rootClaim1, abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max)
+        );
+
+        uint256 latestIdx = disputeGameFactory.gameCount() - 1;
+
+        // Request 5 ZK games but only 1 exists.
+        IDisputeGameFactory.GameSearchResult[] memory results =
+            disputeGameFactory.findLatestGames(GameTypes.ZK_DISPUTE_GAME, latestIdx, 5);
+
+        assertEq(results.length, 1);
+    }
 }
 
 /// @title DisputeGameFactory_Uncategorized_Test
