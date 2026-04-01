@@ -1784,7 +1784,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that deploy reverts when missing game configs.
     function test_deploy_missingGameConfigs_reverts() public {
         // Delete the Cannon Kona game configuration.
-        delete deployConfig.disputeGameConfigs[4];
+        delete deployConfig.disputeGameConfigs[2];
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
