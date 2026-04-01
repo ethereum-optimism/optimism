@@ -1265,13 +1265,9 @@ abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegis
     function _mockZkGameAsValid() internal {
         vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
         vm.mockCall(
-            address(zkGameProxy),
-            abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()),
-            abi.encode(true)
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true)
         );
-        vm.mockCall(
-            address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp)
-        );
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp));
         vm.mockCall(
             address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(zkL2SequenceNumber)
         );
@@ -1352,13 +1348,9 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
             address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.CHALLENGER_WINS)
         );
         vm.mockCall(
-            address(zkGameProxy),
-            abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()),
-            abi.encode(true)
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true)
         );
-        vm.mockCall(
-            address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp)
-        );
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp));
         vm.mockCall(
             address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(zkL2SequenceNumber)
         );
@@ -1373,13 +1365,9 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
     function test_setAnchorState_notFinalized_fails() public {
         vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
         vm.mockCall(
-            address(zkGameProxy),
-            abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()),
-            abi.encode(true)
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true)
         );
-        vm.mockCall(
-            address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp)
-        );
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp));
         vm.mockCall(
             address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(zkL2SequenceNumber)
         );
@@ -1428,9 +1416,7 @@ contract AnchorStateRegistry_IsGameClaimValid_ZkDisputeGame_Test is AnchorStateR
 
         // Mock that the game was not respected when created.
         vm.mockCall(
-            address(zkGameProxy),
-            abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()),
-            abi.encode(false)
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(false)
         );
 
         assertFalse(anchorStateRegistry.isGameClaimValid(zkGameProxy));
