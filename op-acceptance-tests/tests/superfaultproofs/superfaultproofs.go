@@ -86,6 +86,29 @@ func nextTimestampAfterSafeHeads(t devtest.T, chains []*chain) uint64 {
 		}
 	}
 	t.Require().NotZero(ts, "end timestamp must be non-zero")
+
+	// Advance ts until every chain produces a new block at ts compared to ts-1.
+	// With varied block times (e.g. 1s and 2s), the initial ts may land on a
+	// no-op boundary for the slower chain. The L1-head-constrained subtests
+	// assume every chain has a real transition to validate, so we need all
+	// chains to have TargetBlockNumber(ts) > TargetBlockNumber(ts-1).
+	for {
+		allNew := true
+		for _, c := range chains {
+			curr, err := c.Cfg.TargetBlockNumber(ts)
+			t.Require().NoError(err)
+			prev, err := c.Cfg.TargetBlockNumber(ts - 1)
+			t.Require().NoError(err)
+			if curr <= prev {
+				allNew = false
+				break
+			}
+		}
+		if allNew {
+			break
+		}
+		ts++
+	}
 	return ts
 }
 
