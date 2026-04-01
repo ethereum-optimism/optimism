@@ -23,7 +23,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 
 /// @title Initializer_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than
@@ -124,14 +123,13 @@ contract Initializer_Test is CommonTest {
         );
 
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            // OptimismPortal2Impl
+            // TODO(#19709): Remove this branching logic when we remove the OptimismPortalInterop from src
             contracts.push(
                 InitializeableContract({
                     name: "OptimismPortal2Impl",
                     target: EIP1967Helper.getImplementation(address(optimismPortal2)),
                     initCalldata: abi.encodeCall(
-                        IOptimismPortalInterop(payable(optimismPortal2)).initialize,
-                        (systemConfig, anchorStateRegistry, ethLockbox)
+                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, ethLockbox)
                     )
                 })
             );
@@ -141,13 +139,11 @@ contract Initializer_Test is CommonTest {
                     name: "OptimismPortal2Proxy",
                     target: address(optimismPortal2),
                     initCalldata: abi.encodeCall(
-                        IOptimismPortalInterop(payable(optimismPortal2)).initialize,
-                        (systemConfig, anchorStateRegistry, ethLockbox)
+                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, ethLockbox)
                     )
                 })
             );
         } else {
-            // OptimismPortal2Impl
             contracts.push(
                 InitializeableContract({
                     name: "OptimismPortal2Impl",

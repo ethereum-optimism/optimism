@@ -723,9 +723,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
 
         vm.prank(_caller);
-        optimismPortal2.migrateToSharedDisputeGame(
-            IETHLockbox(address(1)), IAnchorStateRegistry(address(1))
-        );
+        optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(address(1)), IAnchorStateRegistry(address(1)));
     }
 
     /// @notice Tests that `migrateToSharedDisputeGame` reverts if the new registry is the same as the
@@ -743,9 +741,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         // Expect the migration to revert.
         vm.expectRevert(IOptimismPortal.OptimismPortal_MigratingToSameRegistry.selector);
         vm.prank(caller);
-        optimismPortal2.migrateToSharedDisputeGame(
-            IETHLockbox(_newLockbox), newAnchorStateRegistry
-        );
+        optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(_newLockbox), newAnchorStateRegistry);
     }
 
     /// @notice Tests that `migrateToSharedDisputeGame` updates the ETHLockbox contract, updates the
@@ -785,9 +781,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         address caller = optimismPortal2.proxyAdminOwner();
         vm.expectRevert(IOptimismPortal.OptimismPortal_CallPaused.selector);
         vm.prank(caller);
-        optimismPortal2.migrateToSharedDisputeGame(
-            IETHLockbox(address(1)), IAnchorStateRegistry(address(1))
-        );
+        optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(address(1)), IAnchorStateRegistry(address(1)));
     }
 }
 
