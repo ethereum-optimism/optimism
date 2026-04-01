@@ -123,6 +123,41 @@ func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp
 	})
 }
 
+// LastDeniedOutputV0 returns the OutputV0 for the most recently denied block at the given height.
+// Returns nil if no blocks are denied at that height.
+// Note: supernode does not currently behave in well defined ways when there are multiple denied blocks at the same height.
+func (d *DenyList) LastDeniedOutputV0(height uint64) (*eth.OutputV0, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	key := heightToKey(height)
+	var result *eth.OutputV0
+
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		existing := b.Get(key)
+		if existing == nil {
+			return nil
+		}
+
+		records, err := decodeDenyRecords(existing)
+		if err != nil {
+			return err
+		}
+		if len(records) > 0 {
+			r := records[len(records)-1]
+			result = &eth.OutputV0{
+				StateRoot:                r.StateRoot,
+				MessagePasserStorageRoot: r.MessagePasserStorageRoot,
+				BlockHash:                r.PayloadHash,
+			}
+		}
+		return nil
+	})
+
+	return result, err
+}
+
 // GetOutputV0 reconstructs and returns the full OutputV0 for a denied block.
 // Returns nil if the hash is not denied at that height.
 func (d *DenyList) GetOutputV0(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {

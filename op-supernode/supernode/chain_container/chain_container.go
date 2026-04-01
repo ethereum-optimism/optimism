@@ -465,18 +465,39 @@ func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2,
 	return l2Block.ID(), l1Block, nil
 }
 
-// OptimisticOutputAtTimestamp returns the full Output for the optimistic L2 block at the given timestamp.
-// For now this simply calls the op-node's normal OutputAtBlock for the block number computed from the timestamp.
+// OptimisticOutputAtTimestamp returns the output for the "optimistic" L2 block at the given timestamp.
+// If the block at this height has been denied (invalidated and replaced), the optimistic output
+// is the original (pre-replacement) block's output from the deny list — because optimistically
+// the block would not have been replaced. Otherwise it returns the current local safe block's output.
 func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+	blockNum, err := c.TimestampToBlockNumber(ctx, ts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert timestamp to block number: %w", err)
+	}
+
+	if c.denyList != nil {
+		outV0, err := c.denyList.LastDeniedOutputV0(blockNum)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query deny list at height %d: %w", blockNum, err)
+		}
+		if outV0 != nil {
+			return &eth.OutputResponse{
+				Version:               eth.OutputVersionV0,
+				OutputRoot:            eth.OutputRoot(outV0),
+				BlockRef:              eth.L2BlockRef{Number: blockNum, Hash: outV0.BlockHash, Time: ts},
+				WithdrawalStorageRoot: common.Hash(outV0.MessagePasserStorageRoot),
+				StateRoot:             common.Hash(outV0.StateRoot),
+			}, nil
+		}
+	}
+
 	if c.rollupClient == nil {
 		return nil, fmt.Errorf("rollup client not initialized")
 	}
-	// Determine the optimistic L2 block at timestamp (currently same as safe block at ts)
 	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve L2 block at timestamp: %w", err)
 	}
-	// Call the standard OutputAtBlock RPC
 	out, err := c.rollupClient.OutputAtBlock(ctx, l2Block.Number)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get output at block %d: %w", l2Block.Number, err)

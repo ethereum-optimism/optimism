@@ -766,6 +766,54 @@ func TestDenyList_GetOutputV0(t *testing.T) {
 	})
 }
 
+func TestDenyList_LastDeniedOutputV0(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	t.Run("returns nil for empty height", func(t *testing.T) {
+		got, err := dl.LastDeniedOutputV0(999)
+		require.NoError(t, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("returns the single record", func(t *testing.T) {
+		hash := common.HexToHash("0xaaaa")
+		stateRoot := eth.Bytes32(common.HexToHash("0xstate1"))
+		msgPasser := eth.Bytes32(common.HexToHash("0xmp1"))
+		require.NoError(t, dl.Add(50, hash, 100, stateRoot, msgPasser))
+
+		got, err := dl.LastDeniedOutputV0(50)
+		require.NoError(t, err)
+		require.Equal(t, &eth.OutputV0{
+			StateRoot:                stateRoot,
+			MessagePasserStorageRoot: msgPasser,
+			BlockHash:                hash,
+		}, got)
+	})
+
+	t.Run("returns the last record when multiple exist", func(t *testing.T) {
+		firstHash := common.HexToHash("0xbbbb")
+		require.NoError(t, dl.Add(60, firstHash, 100, eth.Bytes32{0x01}, eth.Bytes32{0x02}))
+
+		lastHash := common.HexToHash("0xcccc")
+		lastState := eth.Bytes32(common.HexToHash("0xlast_state"))
+		lastMsgPasser := eth.Bytes32(common.HexToHash("0xlast_mp"))
+		require.NoError(t, dl.Add(60, lastHash, 200, lastState, lastMsgPasser))
+
+		got, err := dl.LastDeniedOutputV0(60)
+		require.NoError(t, err)
+		require.Equal(t, &eth.OutputV0{
+			StateRoot:                lastState,
+			MessagePasserStorageRoot: lastMsgPasser,
+			BlockHash:                lastHash,
+		}, got)
+	})
+}
+
 func TestDenyList_OutputPersistence(t *testing.T) {
 	t.Parallel()
 
