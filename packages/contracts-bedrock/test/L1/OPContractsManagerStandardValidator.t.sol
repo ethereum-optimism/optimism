@@ -1923,7 +1923,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Comm
         address owner = proxyAdmin.owner();
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+            new IOPContractsManagerUtils.DisputeGameConfig[](7);
 
         // Legacy types (all disabled).
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -1969,6 +1969,12 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Comm
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
+        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: hex""
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
