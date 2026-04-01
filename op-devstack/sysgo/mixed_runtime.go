@@ -62,7 +62,7 @@ const (
 // SkipUnlessOpGeth skips the test when the L2 execution layer is op-reth
 // (i.e. DEVSTACK_L2EL_KIND is not "op-geth").
 func SkipUnlessOpGeth(t devtest.T, reason string) {
-	if MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar)) != MixedL2ELOpGeth {
+	if MixedL2ELKind(devstackL2ELKind()) != MixedL2ELOpGeth {
 		t.Skipf("skipping on op-reth: %s", reason)
 	}
 }
@@ -70,13 +70,13 @@ func SkipUnlessOpGeth(t devtest.T, reason string) {
 // SkipUnlessOpNode skips the test when the L2 consensus layer is op-node
 // (i.e. DEVSTACK_L2CL_KIND is not "op-node").
 func SkipUnlessOpNode(t devtest.T, reason string) {
-	if MixedL2CLKind(os.Getenv(DevstackL2ELKindEnvVar)) != MixedL2CLOpNode {
-		t.Skipf("skipping on op-node: %s", reason)
+	if MixedL2CLKind(devstackL2CLKind()) != MixedL2CLOpNode {
+		t.Skipf("skipping on kona-node: %s", reason)
 	}
 }
 
 func FlakyUnlessOpNode(t devtest.T, reason string) {
-	if MixedL2CLKind(os.Getenv(DevstackL2CLKindEnvVar)) != MixedL2CLOpNode {
+	if MixedL2CLKind(devstackL2CLKind()) != MixedL2CLOpNode {
 		t.MarkFlaky(reason)
 	}
 }
