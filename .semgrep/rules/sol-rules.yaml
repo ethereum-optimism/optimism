@@ -4,12 +4,6 @@ rules:
     severity: ERROR
     message: _args parameter should be wrapped with DeployUtils.encodeConstructor
     pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave|createDeterministic)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
-    paths:
-      exclude:
-        # ZKDisputeGame uses CWIA (Clone With Immutable Args) and has no constructor args.
-        # Passing hex"" is intentional and correct for this pattern.
-        - "packages/contracts-bedrock/scripts/deploy/DeployImplementations.s.sol"
-
   - id: sol-safety-deployutils-named-args-parameter
     languages: [solidity]
     severity: ERROR
