@@ -1026,4 +1026,3 @@ func RunDepositMessageTest(t devtest.T, sys *presets.SimpleInterop) {
 		})
 	}
 }
-

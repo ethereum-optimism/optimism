@@ -4,6 +4,7 @@ import (
 	"math/rand"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
@@ -57,7 +58,7 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Rec
 	}
 	t.Require().NotNil(l2DepositTx, "no TransactionDeposited event in L1 receipt")
 
-	d.l2EL.WaitL1OriginReached(eth.Unsafe, l1Receipt.BlockNumber.Uint64(), 120)
+	d.l2EL.WaitL1OriginReached(eth.Unsafe, bigs.Uint64Strict(l1Receipt.BlockNumber), 120)
 	l2Receipt := d.l2EL.WaitForReceipt(ethtypes.NewTx(l2DepositTx).Hash())
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit tx failed on L2")
 	return l2Receipt
@@ -75,7 +76,7 @@ func (d *DepositEOA) SendInitMessage(trigger *txintent.InitTrigger) *InitMessage
 	l2Receipt := d.DepositTx(trigger.Emitter, calldata)
 	t.Require().NotZero(len(l2Receipt.Logs), "deposit tx emitted no logs on L2")
 
-	l2BlockRef := d.l2EL.BlockRefByNumber(l2Receipt.BlockNumber.Uint64())
+	l2BlockRef := d.l2EL.BlockRefByNumber(bigs.Uint64Strict(l2Receipt.BlockNumber))
 	var result txintent.InteropOutput
 	err = result.FromReceipt(d.l2.ctx, l2Receipt, l2BlockRef.BlockRef(), d.l2.ChainID())
 	t.Require().NoError(err, "failed to build InteropOutput from L2 deposit receipt")

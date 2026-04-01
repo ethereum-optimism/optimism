@@ -1127,7 +1127,6 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 	runFppAndChallengerTests(gt, system, tests)
 }
 
-
 func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 
