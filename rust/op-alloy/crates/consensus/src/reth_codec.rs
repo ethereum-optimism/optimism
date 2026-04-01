@@ -1,4 +1,15 @@
 //! Compact codec implementations for OP Stack consensus types.
+//!
+//! Ported from reth v1.11.3 (`d6324d63e`), where they lived behind the `op` feature:
+//! - Transaction codecs: `crates/storage/codecs/src/alloy/transaction/optimism.rs`
+//! - Receipt codecs: `crates/storage/codecs/src/alloy/optimism.rs`
+//!
+//! Differences from upstream:
+//! - `CompactOpReceipt` uses `Vec<Log>` instead of `Cow<'a, Vec<Log>>` because the crates.io
+//!   `reth-codecs-derive` macro doesn't support lifetime parameters. The wire format is identical;
+//!   only serialization performance differs (clone vs borrow).
+//! - `Compress`/`Decompress` impls for `OpTxEnvelope` and `OpReceipt` are added here since they
+//!   were previously provided by reth's in-tree codecs crate.
 
 use crate::{OpReceipt, OpTxEnvelope, OpTxType, OpTypedTransaction, TxDeposit};
 use alloc::vec::Vec;
@@ -61,7 +72,7 @@ struct CompactTxDeposit {
     source_hash: B256,
     from: Address,
     to: TxKind,
-    mint: u128,
+    mint: Option<u128>,
     value: U256,
     gas_limit: u64,
     is_system_transaction: bool,
@@ -74,7 +85,10 @@ impl From<&TxDeposit> for CompactTxDeposit {
             source_hash: tx.source_hash,
             from: tx.from,
             to: tx.to,
-            mint: tx.mint,
+            mint: match tx.mint {
+                0 => None,
+                v => Some(v),
+            },
             value: tx.value,
             gas_limit: tx.gas_limit,
             is_system_transaction: tx.is_system_transaction,
@@ -89,7 +103,7 @@ impl From<CompactTxDeposit> for TxDeposit {
             source_hash: tx.source_hash,
             from: tx.from,
             to: tx.to,
-            mint: tx.mint,
+            mint: tx.mint.unwrap_or_default(),
             value: tx.value,
             gas_limit: tx.gas_limit,
             is_system_transaction: tx.is_system_transaction,
@@ -295,16 +309,16 @@ struct CompactOpReceipt {
 
 impl From<&OpReceipt> for CompactOpReceipt {
     fn from(receipt: &OpReceipt) -> Self {
-        let inner = receipt.as_receipt();
+        use alloy_consensus::TxReceipt;
         let (deposit_nonce, deposit_receipt_version) = match receipt {
             OpReceipt::Deposit(deposit) => (deposit.deposit_nonce, deposit.deposit_receipt_version),
             _ => (None, None),
         };
         Self {
             tx_type: receipt.tx_type(),
-            success: inner.status.coerce_status(),
-            cumulative_gas_used: inner.cumulative_gas_used,
-            logs: inner.logs.clone(),
+            success: receipt.status(),
+            cumulative_gas_used: receipt.cumulative_gas_used(),
+            logs: receipt.as_receipt().logs.clone(),
             deposit_nonce,
             deposit_receipt_version,
         }
@@ -314,7 +328,7 @@ impl From<&OpReceipt> for CompactOpReceipt {
 impl From<CompactOpReceipt> for OpReceipt {
     fn from(compact: CompactOpReceipt) -> Self {
         let receipt = Receipt {
-            status: alloy_consensus::Eip658Value::Eip658(compact.success),
+            status: compact.success.into(),
             cumulative_gas_used: compact.cumulative_gas_used,
             logs: compact.logs,
         };

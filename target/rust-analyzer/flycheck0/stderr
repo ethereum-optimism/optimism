@@ -1,5 +1,0 @@
-error: key with no value, expected `=`
-   --> Cargo.toml:311:9
-    |
-311 | <<<<<<< conflict 1 of 1
-    |         ^

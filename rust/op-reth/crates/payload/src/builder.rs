@@ -8,6 +8,7 @@ use alloy_evm::Evm as AlloyEvm;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
+use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
@@ -16,7 +17,6 @@ use reth_evm::{
     execute::{
         BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutor, BlockValidationError,
     },
-    op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT},
 };
 use reth_execution_types::BlockExecutionOutput;
 use reth_optimism_forks::OpHardforks;
@@ -283,6 +283,7 @@ where
             config,
             cached_reads: Default::default(),
             execution_cache: None,
+            trie_handle: None,
             cancel: Default::default(),
             best_payload: None,
         };
@@ -303,7 +304,8 @@ fn convert_build_args<N: OpPayloadPrimitives>(
     BuildArguments<OpPayloadBuilderAttributes<N::SignedTx>, OpBuiltPayload<N>>,
     PayloadBuilderError,
 > {
-    let BuildArguments { config, cached_reads, execution_cache, cancel, best_payload } = args;
+    let BuildArguments { config, cached_reads, execution_cache, trie_handle, cancel, best_payload } =
+        args;
     let parent_hash = config.parent_header.hash();
     let payload_id = config.payload_id;
     let builder_attrs =
@@ -317,6 +319,7 @@ fn convert_build_args<N: OpPayloadPrimitives>(
         },
         cached_reads,
         execution_cache,
+        trie_handle,
         cancel,
         best_payload,
     })
@@ -406,7 +409,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         }
 
         let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =
-            builder.finish(state_provider)?;
+            builder.finish(state_provider, None)?;
 
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");

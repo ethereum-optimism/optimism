@@ -67,11 +67,11 @@ impl ExecutionPayload for CustomExecutionData {
     }
 
     fn timestamp(&self) -> u64 {
-        self.inner.timestamp()
+        self.inner.payload.timestamp()
     }
 
     fn gas_used(&self) -> u64 {
-        self.inner.gas_used()
+        self.inner.payload.as_v1().gas_used
     }
 
     fn transaction_count(&self) -> usize {

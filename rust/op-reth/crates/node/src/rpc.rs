@@ -5,7 +5,7 @@
 //! Builds offline `TraceApi` with only EVM and database. This can be useful
 //! for example when downloading a state snapshot (pre-synced node) from some mirror.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use alloy_rpc_types_eth::BlockId;
 //! use op_alloy_network::Optimism;
 //! use reth_db::test_utils::create_test_rw_db_with_path;
@@ -23,7 +23,7 @@
 //! use reth_provider::providers::BlockchainProvider;
 //! use reth_rpc::TraceApi;
 //! use reth_rpc_eth_types::{EthConfig, EthStateCache};
-//! use reth_tasks::{Runtime, pool::BlockingTaskGuard};
+//! use reth_tasks::{RuntimeBuilder, pool::BlockingTaskGuard};
 //! use reth_trie_db::ChangesetCache;
 //! use std::sync::Arc;
 //!
@@ -32,7 +32,8 @@
 //!     // build core node with all components disabled except EVM and state
 //!     let sepolia = NodeConfig::new(OP_SEPOLIA.clone());
 //!     let db = create_test_rw_db_with_path(sepolia.datadir());
-//!     let runtime = Runtime::test();
+//!     let runtime =
+//!         RuntimeBuilder::new(Default::default()).build().expect("failed to build runtime");
 //!     let launch_ctx = LaunchContext::new(runtime, sepolia.datadir());
 //!     let node = launch_ctx
 //!         .with_loaded_toml_config(sepolia)

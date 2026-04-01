@@ -113,7 +113,7 @@ consensus = [
 ]
 evm = ["dep:reth-evm", "dep:reth-optimism-evm", "dep:reth-revm"]
 exex = ["provider", "dep:reth-exex"]
-node-api = ["dep:reth-node-api", "dep:reth-node-core"]
+node-api = ["dep:reth-node-api", "dep:reth-node-core", "dep:reth-codecs", "reth-optimism-primitives/reth-codec"]
 node = [
     "provider",
     "consensus",
@@ -162,4 +162,4 @@ provider = ["storage-api", "tasks", "dep:reth-provider", "dep:reth-db", "dep:ret
 pool = ["dep:reth-transaction-pool"]
 storage-api = ["dep:reth-storage-api"]
 trie = ["dep:reth-trie", "alloy-primitives/rayon"]
-trie-db = ["trie", "dep:reth-trie-db"]
+trie-db = ["trie", "dep:reth-trie-db", "dep:reth-codecs", "reth-optimism-primitives/reth-codec"]

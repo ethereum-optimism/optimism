@@ -168,27 +168,11 @@ pub struct OpPayloadBuilderAttributes<T> {
     pub min_base_fee: Option<u64>,
 }
 
-impl<T> Default for OpPayloadBuilderAttributes<T> {
-    fn default() -> Self {
-        Self {
-            id: Default::default(),
-            parent: Default::default(),
-            timestamp: Default::default(),
-            suggested_fee_recipient: Default::default(),
-            prev_randao: Default::default(),
-            withdrawals: Default::default(),
-            parent_beacon_block_root: Default::default(),
-            no_tx_pool: Default::default(),
-            gas_limit: Default::default(),
-            eip_1559_params: Default::default(),
-            transactions: Default::default(),
-            min_base_fee: Default::default(),
-        }
-    }
-}
-
-// Manual serde implementations to satisfy the PayloadAttributes trait bound.
-// The transactions field is serialized as the encoded bytes form.
+// Manual serde implementations required because:
+// - Serialize: the `transactions` field must serialize as encoded bytes (Vec<&Bytes>), not as the
+//   inner `WithEncoded<T>` type, so #[derive(Serialize)] can't be used.
+// - Deserialize: intentionally errors out since this builder type is never deserialized from the
+//   wire (the engine API uses OpPayloadAttributes, not this builder type).
 impl<T> serde::Serialize for OpPayloadBuilderAttributes<T> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
@@ -244,6 +228,25 @@ impl<T: Decodable2718 + Send + Sync + Debug + Clone + Unpin + 'static>
 
     fn parent_beacon_block_root(&self) -> Option<B256> {
         self.parent_beacon_block_root
+    }
+}
+
+impl<T> Default for OpPayloadBuilderAttributes<T> {
+    fn default() -> Self {
+        Self {
+            id: PayloadId::default(),
+            parent: B256::default(),
+            timestamp: 0,
+            suggested_fee_recipient: Address::default(),
+            prev_randao: B256::default(),
+            withdrawals: Default::default(),
+            parent_beacon_block_root: None,
+            no_tx_pool: false,
+            transactions: Vec::new(),
+            gas_limit: None,
+            eip_1559_params: None,
+            min_base_fee: None,
+        }
     }
 }
 

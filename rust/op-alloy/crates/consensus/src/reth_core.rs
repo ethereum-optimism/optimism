@@ -1,4 +1,13 @@
 //! Implementations of `InMemorySize` for OP Stack consensus types.
+//!
+//! Ported from reth v1.11.3 (`d6324d63e`):
+//! - `crates/primitives-traits/src/size.rs` (behind `cfg(feature = "op")`)
+//!
+//! Differences from upstream:
+//! - `OpTxType` and `TxDeposit` impls are new (upstream only had them for the compound types, but
+//!   the `reth-core` crate now requires them standalone).
+//! - `OpTxEnvelope::Deposit` explicitly sizes the seal hash + inner tx, whereas upstream delegated
+//!   to `Sealed<TxDeposit>::size()` which did the same internally.
 
 use crate::{
     OpDepositReceipt, OpPooledTransaction, OpReceipt, OpTxEnvelope, OpTxType, OpTypedTransaction,

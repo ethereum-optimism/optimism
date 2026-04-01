@@ -1,10 +1,13 @@
 //! Tests for custom genesis block number support.
 
+use alloy_consensus::{BlockHeader, Sealable};
 use alloy_genesis::Genesis;
 use alloy_primitives::B256;
 use reth_chainspec::EthChainSpec;
 use reth_db::test_utils::create_test_rw_db_with_path;
-use reth_e2e_test_utils::node::NodeTestContext;
+use reth_e2e_test_utils::{
+    node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
+};
 use reth_node_builder::{EngineNodeLauncher, Node, NodeBuilder, NodeConfig};
 use reth_node_core::args::DatadirArgs;
 use reth_optimism_chainspec::OpChainSpecBuilder;
@@ -12,6 +15,7 @@ use reth_optimism_node::{OpNode, utils::optimism_payload_attributes};
 use reth_provider::{HeaderProvider, StageCheckpointReader, providers::BlockchainProvider};
 use reth_stages_types::StageId;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Tests that an OP node can initialize with a custom genesis block number.
 #[tokio::test]
@@ -28,6 +32,8 @@ async fn test_op_node_custom_genesis_number() {
 
     let chain_spec =
         Arc::new(OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build());
+
+    let wallet = Arc::new(Mutex::new(Wallet::default().with_chain_id(chain_spec.chain().into())));
 
     // Configure and launch the node
     let config = NodeConfig::new(chain_spec.clone()).with_datadir_args(DatadirArgs {
@@ -58,7 +64,8 @@ async fn test_op_node_custom_genesis_number() {
         .await
         .expect("Failed to launch node");
 
-    let node = NodeTestContext::new(node_handle.node, optimism_payload_attributes).await.unwrap();
+    let mut node =
+        NodeTestContext::new(node_handle.node, optimism_payload_attributes).await.unwrap();
 
     // Verify stage checkpoints are initialized to genesis block number (1000)
     for stage in StageId::ALL {
@@ -80,4 +87,41 @@ async fn test_op_node_custom_genesis_number() {
         let header = node.inner.provider.header_by_number(block_num).unwrap();
         assert!(header.is_none(), "Block {block_num} before genesis should not exist");
     }
+
+    // Initialize the forkchoice state with the genesis block hash so that
+    // `current_forkchoice_state()` can resolve the latest header. With storage_v2,
+    // the canonical chain tip must be explicitly set via a forkchoice update.
+    let genesis_hash = genesis_header.unwrap().seal_slow().hash();
+    node.update_forkchoice(genesis_hash, genesis_hash).await.unwrap();
+
+    // Advance the chain with a single block.
+    let block_payloads = node
+        .advance(1, |_| {
+            Box::pin({
+                let value = wallet.clone();
+                async move {
+                    let mut wallet = value.lock().await;
+                    let tx_fut = TransactionTestContext::optimism_l1_block_info_tx(
+                        wallet.chain_id,
+                        wallet.inner.clone(),
+                        wallet.inner_nonce,
+                    );
+                    wallet.inner_nonce += 1;
+
+                    tx_fut.await
+                }
+            })
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(block_payloads.len(), 1);
+    let block = block_payloads.first().unwrap().block();
+
+    // Verify the new block is at 1001 (genesis 1000 + 1)
+    assert_eq!(
+        block.number(),
+        1001,
+        "Block number should be 1001 after advancing from genesis 1000"
+    );
 }

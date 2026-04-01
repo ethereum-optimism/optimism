@@ -154,8 +154,6 @@ impl IsTyped2718 for OpTransactionSigned {
     }
 }
 
-// SignedTransaction is now a blanket impl — no manual impl needed.
-
 macro_rules! impl_from_signed {
     ($($tx:ident),*) => {
         $(

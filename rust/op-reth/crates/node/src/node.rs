@@ -8,7 +8,7 @@ use crate::{
 };
 use op_alloy_consensus::{OpPooledTransaction, interop::SafetyLevel};
 use reth_chainspec::{
-    BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, Hardforks,
+    BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
 };
 use reth_evm::ConfigureEvm;
 use reth_network::{
@@ -38,7 +38,7 @@ use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
-    OpBuiltPayload, OpExecData, OpPayloadPrimitives,
+    OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
     builder::OpPayloadTransactions,
     config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig},
 };
@@ -565,7 +565,7 @@ where
             Types: NodeTypes<ChainSpec: OpHardforks, Primitives: OpPayloadPrimitives>,
             Evm: ConfigureEvm<
                 NextBlockEnvCtx: BuildNextEnv<
-                    reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<N::Types>>,
+                    OpPayloadBuilderAttributes<TxTy<N::Types>>,
                     HeaderTy<N::Types>,
                     <N::Types as NodeTypes>::ChainSpec,
                 >,
@@ -623,14 +623,12 @@ where
             ctx.node.evm_config().clone(),
         );
         // install additional OP specific rpc methods
-        let debug_ext = OpDebugWitnessApi::<
-            _,
-            _,
-            _,
-            reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<N::Types>>,
-        >::new(
-            ctx.node.provider().clone(), ctx.node.task_executor().clone(), builder
-        );
+        let debug_ext =
+            OpDebugWitnessApi::<_, _, _, OpPayloadBuilderAttributes<TxTy<N::Types>>>::new(
+                ctx.node.provider().clone(),
+                ctx.node.task_executor().clone(),
+                builder,
+            );
         let miner_ext = OpMinerExtApi::new(da_config, gas_limit_config);
 
         let sequencer_client = if let Some(url) = sequencer_url {
@@ -692,7 +690,7 @@ where
             Types: NodeTypes<ChainSpec: OpHardforks, Primitives: OpPayloadPrimitives>,
             Evm: ConfigureEvm<
                 NextBlockEnvCtx: BuildNextEnv<
-                    reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<N::Types>>,
+                    OpPayloadBuilderAttributes<TxTy<N::Types>>,
                     HeaderTy<N::Types>,
                     <N::Types as NodeTypes>::ChainSpec,
                 >,
@@ -1203,7 +1201,7 @@ where
     Evm: ConfigureEvm<
             Primitives = PrimitivesTy<Node::Types>,
             NextBlockEnvCtx: BuildNextEnv<
-                reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<Node::Types>>,
+                OpPayloadBuilderAttributes<TxTy<Node::Types>>,
                 HeaderTy<Node::Types>,
                 <Node::Types as NodeTypes>::ChainSpec,
             >,
@@ -1216,7 +1214,7 @@ where
         Node::Provider,
         Evm,
         Txs,
-        reth_optimism_payload_builder::OpPayloadBuilderAttributes<TxTy<Node::Types>>,
+        OpPayloadBuilderAttributes<TxTy<Node::Types>>,
     >;
 
     async fn build_payload_builder(

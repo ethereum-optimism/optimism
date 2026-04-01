@@ -794,7 +794,8 @@ jobs:
   op-reth-compact-codec:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    # This job frequently gets killed for smaller resource_class
+    resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless

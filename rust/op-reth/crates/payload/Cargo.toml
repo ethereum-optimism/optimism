@@ -34,6 +34,7 @@ reth-optimism-txpool.workspace = true
 
 # ethereum
 revm.workspace = true
+op-revm.workspace = true
 alloy-eips.workspace = true
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true

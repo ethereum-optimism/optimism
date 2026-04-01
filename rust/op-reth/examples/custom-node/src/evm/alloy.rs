@@ -1,6 +1,6 @@
 use crate::evm::{CustomTxEnv, PaymentTxEnv};
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
-use alloy_op_evm::{OpEvm, OpEvmFactory, OpTxError};
+use alloy_op_evm::{OpEvm, OpEvmFactory, OpTx, OpTxError};
 use alloy_primitives::{Address, Bytes};
 use op_revm::{
     L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles,
@@ -20,11 +20,11 @@ pub type CustomContext<DB> =
     Context<BlockEnv, OpTransaction<PaymentTxEnv>, CfgEnv<OpSpecId>, DB, Journal<DB>, L1BlockInfo>;
 
 pub struct CustomEvm<DB: Database, I, P = OpPrecompiles> {
-    inner: OpEvm<DB, I, P>,
+    inner: OpEvm<DB, I, P, OpTx>,
 }
 
 impl<DB: Database, I, P> CustomEvm<DB, I, P> {
-    pub fn new(op: OpEvm<DB, I, P>) -> Self {
+    pub fn new(op: OpEvm<DB, I, P, OpTx>) -> Self {
         Self { inner: op }
     }
 }
@@ -57,7 +57,7 @@ where
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
         match tx {
-            CustomTxEnv::Op(tx) => self.inner.transact_raw(tx.into()),
+            CustomTxEnv::Op(tx) => self.inner.transact_raw(tx),
             CustomTxEnv::Payment(..) => todo!(),
         }
     }

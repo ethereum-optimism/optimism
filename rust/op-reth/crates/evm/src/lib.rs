@@ -141,7 +141,7 @@ where
     EvmF: EvmFactory<
             Tx: FromRecoveredTx<R::Transaction>
                     + FromTxWithEncoded<R::Transaction>
-                    + TransactionEnv
+                    + alloy_evm::TransactionEnvMut
                     + OpTxEnv,
             Precompiles = PrecompilesMap,
             Spec = OpSpecId,

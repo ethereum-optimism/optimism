@@ -376,9 +376,9 @@ where
             let BlockBuilderOutcome { execution_result, block, hashed_state, .. } =
                 if args.compute_state_root {
                     trace!(target: "flashblocks", "Computing block state root");
-                    builder.finish(&state_provider)?
+                    builder.finish(&state_provider, None)?
                 } else {
-                    builder.finish(NoopProvider::default())?
+                    builder.finish(NoopProvider::default(), None)?
                 };
             let bundle = state.take_bundle();
 

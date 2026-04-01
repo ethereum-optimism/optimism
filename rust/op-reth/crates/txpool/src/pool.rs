@@ -287,10 +287,9 @@ where
     delegate!(async fn add_transaction(&self, origin: TransactionOrigin, transaction: Self::Transaction) -> PoolResult<reth_transaction_pool::pool::AddedTransactionOutcome>);
     delegate!(async fn add_transactions(&self, origin: TransactionOrigin, transactions: Vec<Self::Transaction>) -> Vec<PoolResult<reth_transaction_pool::pool::AddedTransactionOutcome>>);
 
-    // Cannot delegate via macro: `impl IntoIterator` arg not matchable by macro `:ty`.
     async fn add_transactions_with_origins(
         &self,
-        transactions: impl IntoIterator<Item = (TransactionOrigin, Self::Transaction)> + Send,
+        transactions: Vec<(TransactionOrigin, Self::Transaction)>,
     ) -> Vec<PoolResult<reth_transaction_pool::pool::AddedTransactionOutcome>> {
         self.inner.add_transactions_with_origins(transactions).await
     }
