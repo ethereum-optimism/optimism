@@ -60,7 +60,11 @@ contract L2DevFeatureFlags_SetDevFeatureBitmap_Test is L2DevFeatureFlags_TestIni
 /// @notice Tests the `isDevFeatureEnabled` function of the `L2DevFeatureFlags` contract.
 contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestInit {
     /// @notice Tests that `isDevFeatureEnabled` returns false when the bitmap is zero.
-    function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public view {
+    function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
+        // Ensure the stored dev feature bitmap is 0
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        l2DevFeatureFlags.setDevFeatureBitmap(bytes32(0));
+
         vm.assume(_feature != bytes32(0));
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
     }
