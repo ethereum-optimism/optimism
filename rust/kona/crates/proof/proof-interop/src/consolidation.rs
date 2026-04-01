@@ -122,12 +122,14 @@ where
         chain_ids: &[u64],
     ) -> Result<(), ConsolidationError> {
         for chain_id in chain_ids {
-            // Find the optimistic block header for the chain ID.
+            // Find the optimistic block header for the chain ID. Clone to release the borrow
+            // on `self.interop_provider` so we can call `cache_receipts` later.
             let header = self
                 .interop_provider
                 .local_safe_heads()
                 .get(chain_id)
-                .ok_or(MessageGraphError::EmptyDependencySet)?;
+                .ok_or(MessageGraphError::EmptyDependencySet)?
+                .clone();
 
             // Look up the parent header for the block.
             let parent_header =
@@ -177,7 +179,7 @@ where
 
             // Add the deposit replacement system transaction at the end of the list.
             transactions.push(Self::craft_replacement_transaction(
-                header,
+                &header,
                 original_optimistic_block.output_root,
             ));
 
@@ -234,8 +236,25 @@ where
 
             // Execute the block and take the new header. At this point, the block is guaranteed to
             // be canonical.
-            let new_header = executor.build_block(deposit_only_payload)?.header;
+            let outcome = executor.build_block(deposit_only_payload)?;
+            let new_header = outcome.header;
+
+            // Cache the receipts for the replacement block. The next consolidation loop will
+            // need to derive the message graph from this block's receipts, but the block only
+            // exists in-memory — it can't be fetched from the L2 node.
+            self.interop_provider
+                .cache_receipts(new_header.hash(), outcome.execution_result.receipts);
+
             let new_output_root = executor.compute_output_root()?;
+
+            info!(
+                target: "superchain_consolidator",
+                chain_id = *chain_id,
+                old_hash = ?header.hash(),
+                new_hash = ?new_header.hash(),
+                new_output_root = ?new_output_root,
+                "Replaced invalid block with deposit-only block"
+            );
 
             // Replace the original optimistic block with the deposit only block.
             *original_optimistic_block = OptimisticBlock::new(new_header.hash(), new_output_root);

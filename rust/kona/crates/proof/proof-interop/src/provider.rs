@@ -24,6 +24,9 @@ pub struct OracleInteropProvider<C> {
     boot: BootInfo,
     /// The local safe head block header cache.
     local_safe_heads: HashMap<u64, Sealed<Header>>,
+    /// Cached receipts for replacement blocks built during consolidation.
+    /// These blocks only exist in-memory and can't be fetched from the L2 node.
+    cached_receipts: HashMap<B256, Vec<OpReceiptEnvelope>>,
     /// The chain ID for the current call context. Used to declare the chain ID for the trie hints.
     chain_id: Arc<RwLock<Option<u64>>>,
 }
@@ -42,6 +45,7 @@ where
             oracle,
             boot,
             local_safe_heads: local_safe_headers,
+            cached_receipts: HashMap::default(),
             chain_id: Arc::new(RwLock::new(None)),
         }
     }
@@ -49,6 +53,12 @@ where
     /// Returns a reference to the local safe heads map.
     pub const fn local_safe_heads(&self) -> &HashMap<u64, Sealed<Header>> {
         &self.local_safe_heads
+    }
+
+    /// Caches receipts for a replacement block that was built in-memory during consolidation.
+    /// These blocks don't exist on the L2 node, so receipts must be served from this cache.
+    pub fn cache_receipts(&mut self, block_hash: B256, receipts: Vec<OpReceiptEnvelope>) {
+        self.cached_receipts.insert(block_hash, receipts);
     }
 
     /// Replaces a local safe head with the given header.
@@ -178,6 +188,10 @@ where
         chain_id: u64,
         block_hash: B256,
     ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
+        // Check the cache first for replacement blocks built during consolidation.
+        if let Some(receipts) = self.cached_receipts.get(&block_hash) {
+            return Ok(receipts.clone());
+        }
         let header = self.header_by_hash(chain_id, block_hash).await?;
         self.derive_receipts(chain_id, block_hash, &header).await
     }
@@ -520,5 +534,28 @@ mod tests {
 
         assert_eq!(header.hash_slow(), expected_hash);
         assert_eq!(header.number, fixture.target_block_number);
+    }
+
+    #[test]
+    fn test_cached_receipts_served_from_cache() {
+        use alloc::vec;
+        use alloy_primitives::B256;
+        use op_alloy_consensus::OpReceiptEnvelope;
+
+        let (client, fixture) = load_fixture();
+        let mut provider = build_provider(client, &fixture);
+
+        let fake_hash = B256::from([0x42u8; 32]);
+        let receipts: Vec<OpReceiptEnvelope> = vec![];
+
+        // Cache empty receipts for a fake block
+        provider.cache_receipts(fake_hash, receipts.clone());
+
+        // Verify the cache is hit
+        let result = kona_proof::block_on(async {
+            provider.receipts_by_hash(fixture.chain_id, fake_hash).await
+        });
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
     }
 }
