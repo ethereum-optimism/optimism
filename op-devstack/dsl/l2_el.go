@@ -235,6 +235,34 @@ func (el *L2ELNode) WaitL1OriginReached(label eth.BlockLabel, l1OriginTarget uin
 	el.require.NoError(el.L1OriginReachedFn(label, l1OriginTarget, attempts)())
 }
 
+// WaitL1OriginHash polls until the L2 chain at the given label references the target L1 block.
+// If the head's L1 origin has advanced past the target number (e.g. due to a large batch),
+// it walks back through L2 blocks to find one with the target L1 origin number and checks its hash.
+func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, attempts int) {
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label, "target", target)
+	logger.Info("Expecting L2EL L1 origin to match")
+	el.require.NoError(retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+		func() error {
+			head := el.BlockRefByLabel(label)
+			if head.L1Origin.Number < target.Number {
+				logger.Debug("L2EL L1 origin not yet reached", "head", head.ID(), "l1Origin", head.L1Origin)
+				return fmt.Errorf("L1 origin of %s head has not reached target yet", label)
+			}
+			// Head's L1 origin is at or past the target number. Walk back to find
+			// the L2 block whose L1 origin number matches the target.
+			block := head
+			for block.L1Origin.Number > target.Number && block.Number > 0 {
+				block = el.BlockRefByNumber(block.Number - 1)
+			}
+			if block.L1Origin.Hash == target.Hash {
+				logger.Info("L2EL L1 origin matched", "l2Block", block.ID(), "l1Origin", block.L1Origin)
+				return nil
+			}
+			logger.Debug("L2EL L1 origin hash mismatch", "l2Block", block.ID(), "l1Origin", block.L1Origin)
+			return fmt.Errorf("L1 origin hash of %s head does not match target", label)
+		}))
+}
+
 // VerifyWithdrawalHashChangedIn verifies that the withdrawal hash changed between the parent and current block
 // This is used to verify that the withdrawal hash changed in the block where the withdrawal was initiated
 func (el *L2ELNode) VerifyWithdrawalHashChangedIn(blockHash common.Hash) {

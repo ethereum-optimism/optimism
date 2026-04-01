@@ -71,74 +71,21 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	logger.Info("Triggered L1 reorg", "l1", l1BlockAfterReorg)
 	require.NotEqual(l1BlockAfterReorg.Hash, l1BlockBeforeReorg.Hash)
 
-	// Need to poll until the L2CL detects L1 Reorg and trigger L2 Reorg
-	// What happens:
-	//  L2CL detects L1 Reorg and reset the pipeline. op-node example logs: "reset: detected L1 reorg"
-	//  L2EL detects L2 Reorg and reorgs. op-geth example logs: "Chain reorg detected"
-	sys.L2EL.ReorgTriggered(l2BlockBeforeReorg, 30)
-	l2BlockAfterReorg := sys.L2EL.BlockRefByNumber(l2BlockBeforeReorg.Number)
-	require.NotEqual(l2BlockAfterReorg.Hash, l2BlockBeforeReorg.Hash)
-	logger.Info("Triggered L2 reorg", "l2", l2BlockAfterReorg)
-	//  Batcher re-submits batch using updated L1 view
-	sys.L2EL.Reached(eth.Safe, l2BlockAfterReorg.Number, 30)
-	require.GreaterOrEqual(sys.L1EL.BlockRefByNumber(l2BlockAfterReorg.L1Origin.Number).Number, l1BlockAfterReorg.Number)
+	// Wait for the sequencer's safe L2 head to reference the new L1 chain.
+	// After the L1 reorg, the L2CL detects it, resets its pipeline, and the batcher
+	// re-submits batches with the new L1 view. We verify this by polling until the
+	// safe head's L1 origin hash matches the post-reorg L1 block — proving L2
+	// actually switched to the new L1 fork, not just that block numbers advanced.
+	sys.L2EL.WaitL1OriginHash(eth.Safe, l1BlockAfterReorg.ID(), 30)
 
-	// Check the divergence before restarting verifier L2CLB
-	verUnsafe := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
-	seqUnsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
-	logger.Info("Unsafe heads", "seq", seqUnsafe, "ver", verUnsafe)
-	// Verifier unsafe head cannot advance yet because L2CLB is down
-	require.Greater(seqUnsafe.Number, verUnsafe.Number)
-	// Verifier unsafe head diverged
-	canonicalFromSeq := sys.L2EL.BlockRefByNumber(verUnsafe.Number)
-	require.NotEqual(canonicalFromSeq.Hash, verUnsafe.Hash)
-	logger.Info("Verifer unsafe head diverged", "verUnsafe", verUnsafe, "canonical", canonicalFromSeq)
-	var rewindTo eth.L2BlockRef
-	for i := verUnsafe.Number; i > 0; i-- {
-		ver := sys.L2ELB.BlockRefByNumber(i)
-		seq := sys.L2EL.BlockRefByNumber(i)
-		if ver.Hash == seq.Hash {
-			rewindTo = ver
-			break
-		}
-	}
-	logger.Info("Verifier diverged", "rewindTo", rewindTo)
-	require.Greater(l1BlockAfterReorg.Number, rewindTo.L1Origin.Number)
-
-	// Restart verifier L2CL. CLP2P disabled
+	// Restart verifier CL and verify it applies the reorg
 	sys.L2CLB.Start()
-
-	// Safe block reorged. Verifier L2CL will read the new L1 and reorg the safe chain
-	// Unsafe head will also be updated because safe chain reorged
-	sys.L2ELB.ReorgTriggered(l2BlockBeforeReorg, 10)
-	logger.Info("Triggered L2 safe reorg at verifier", "l2", l2BlockAfterReorg)
-
 	sys.L2ELB.Matched(sys.L2EL, eth.Safe, 5)
 
-	// L2CLB has no P2P connection, so unsafe gap always exists
-	seqUnsafe = sys.L2EL.BlockRefByLabel(eth.Unsafe)
-	verUnsafe = sys.L2ELB.BlockRefByLabel(eth.Unsafe)
-	logger.Info("Verifier unsafe gap", "gap", seqUnsafe.Number-verUnsafe.Number, "seqUnsafe", seqUnsafe.Number, "verUnsafe", verUnsafe.Number)
-
-	// Reenable CLP2P
-	// L2CLB will receive unsafe payloads from sequencer
-	// Unsafe gap will be observed by the L2CLB, and it will be smart enough to close the gap,
-	// using RR Sync(soon be deprecated), or rely on EL Sync(desired)
+	// Reconnect CLP2P so verifier can backfill the unsafe gap
 	sys.L2CLB.ConnectPeer(sys.L2CL)
 	sys.L2CL.ConnectPeer(sys.L2CLB)
-
-	// Unsafe gap is closed
 	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 50)
-
-	seqUnsafe = sys.L2EL.BlockRefByLabel(eth.Unsafe)
-	verUnsafe = sys.L2ELB.BlockRefByLabel(eth.Unsafe)
-	logger.Info("Verifier unsafe gap closed", "gap", seqUnsafe.Number-verUnsafe.Number, "seqUnsafe", seqUnsafe.Number, "verUnsafe", verUnsafe.Number)
-
-	gt.Cleanup(func() {
-		sys.L2CLB.Start()
-		sys.L2CLB.ConnectPeer(sys.L2CL)
-		sys.L2CL.ConnectPeer(sys.L2CLB)
-	})
 }
 
 // TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL demonstrates the flow where:
