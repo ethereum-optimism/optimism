@@ -43,7 +43,7 @@ func (b *Blob) UnmarshalJSON(text []byte) error {
 }
 
 func (b *Blob) UnmarshalText(text []byte) error {
-	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
+	return hexutil.UnmarshalFixedText("Blob", text, b[:])
 }
 
 func (b *Blob) MarshalText() ([]byte, error) {
