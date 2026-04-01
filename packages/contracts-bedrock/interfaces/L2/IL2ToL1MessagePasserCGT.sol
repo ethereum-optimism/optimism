@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IL2ToL1MessagePasserCGT {
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+
+interface IL2ToL1MessagePasserCGT is IProxyAdminOwnedBase {
     error L2ToL1MessagePasserCGT_NotAllowedOnCGTMode();
     error L2ToL1MessagePasser_OnlyCompliance();
-    error L2ToL1MessagePasser_OnlyProxyAdminOwner();
 
     event MessagePassed(
         uint256 indexed nonce,

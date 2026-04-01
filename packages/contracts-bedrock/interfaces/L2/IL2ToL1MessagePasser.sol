@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IL2ToL1MessagePasser {
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+
+interface IL2ToL1MessagePasser is IProxyAdminOwnedBase {
     event MessagePassed(
         uint256 indexed nonce,
         address indexed sender,
@@ -14,8 +16,6 @@ interface IL2ToL1MessagePasser {
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
     error L2ToL1MessagePasser_OnlyCompliance();
-    error L2ToL1MessagePasser_OnlyProxyAdminOwner();
-
     receive() external payable;
 
     function MESSAGE_VERSION() external view returns (uint16);

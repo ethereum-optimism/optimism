@@ -6,13 +6,13 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Burn } from "src/libraries/Burn.sol";
-import { Storage } from "src/libraries/Storage.sol";
-import { Constants } from "src/libraries/Constants.sol";
+
+// Contracts
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICompliance } from "interfaces/universal/ICompliance.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000016
@@ -20,7 +20,7 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 /// @notice The L2ToL1MessagePasser is a dedicated contract where messages that are being sent from
 ///         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level
 ///         of the L2 output to reduce the cost of proving the existence of sent messages.
-contract L2ToL1MessagePasser is ISemver {
+contract L2ToL1MessagePasser is ProxyAdminOwnedBase, ISemver {
     /// @notice The L1 gas limit set when eth is withdrawn using the receive() function.
     uint256 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
@@ -38,9 +38,6 @@ contract L2ToL1MessagePasser is ISemver {
 
     /// @notice Thrown when the caller is not the compliance contract.
     error L2ToL1MessagePasser_OnlyCompliance();
-
-    /// @notice Thrown when the caller is not the proxy admin or its owner.
-    error L2ToL1MessagePasser_OnlyProxyAdminOwner();
 
     /// @notice Emitted any time a withdrawal is initiated.
     /// @param nonce          Unique value corresponding to each withdrawal.
@@ -64,9 +61,9 @@ contract L2ToL1MessagePasser is ISemver {
     /// @param amount Amount of ETH that was burned.
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    /// @custom:semver 1.3.0
+    /// @custom:semver 1.4.0
     function version() public pure virtual returns (string memory) {
-        return "1.3.0";
+        return "1.4.0";
     }
 
     /// @notice Allows users to withdraw ETH by sending directly to this contract.
@@ -129,10 +126,7 @@ contract L2ToL1MessagePasser is ISemver {
     /// @notice Sets the compliance module address. Only callable by the proxy admin or its owner.
     /// @param _compliance Address of the compliance module (address(0) to disable).
     function setCompliance(address _compliance) external {
-        address proxyAdmin = Storage.getAddress(Constants.PROXY_OWNER_ADDRESS);
-        if (msg.sender != proxyAdmin && msg.sender != IProxyAdmin(proxyAdmin).owner()) {
-            revert L2ToL1MessagePasser_OnlyProxyAdminOwner();
-        }
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         compliance = _compliance;
     }
 

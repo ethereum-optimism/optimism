@@ -22,6 +22,7 @@ import { Features } from "src/libraries/Features.sol";
 import { ICompliance } from "interfaces/universal/ICompliance.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title L2Compliance_TestInit
 /// @notice Shared setup for L2 compliance integration tests.
@@ -422,7 +423,7 @@ contract L2Compliance_initialize_Test is L2Compliance_TestInit {
 
     function test_setCompliance_unauthorized_reverts() external {
         vm.prank(makeAddr("random"));
-        vm.expectRevert(IL2ToL1MessagePasser.L2ToL1MessagePasser_OnlyProxyAdminOwner.selector);
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
         l2ToL1MessagePasser.setCompliance(address(0xdead));
     }
 
