@@ -1,0 +1,175 @@
+---
+title: Upgrading Contracts with OPCM
+description: Learn how to upgrade your OP Stack chain's L1 contracts using the OP Contracts Manager (OPCM).
+lang: en-US
+---
+
+# Upgrading Contracts with OPCM
+
+The OP Contracts Manager (OPCM) is a smart contract that deploys and upgrades the full set of L1 contracts for an OP Stack chain in a single atomic transaction. Every governance-approved contract release (`op-contracts/vX.Y.Z`) ships with a corresponding OPCM instance. Each OPCM supports upgrading chains from one version prior to its corresponding release.
+
+There are several ways to perform an L1 contract upgrade:
+
+*   **[superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)**: For chains managed by the Security Council or with the Foundation as a signer. Provides a structured, security-focused workflow.
+*   **Direct OPCM interaction**: For non-governed chains that manage their own ProxyAdmin. You encode the upgrade calldata and execute it through your multisig or owner account.
+*   **Custom tooling**: Build your own scripts that call into the OPCM.
+
+This tutorial explains how OPCM works and walks you through upgrading your chain by interacting with the OPCM directly.
+
+## Before You Begin
+
+*   You are familiar with the [OP Stack architecture](/op-stack/protocol/components) and L1 smart contracts.
+*   You have access to the account that owns your chain's ProxyAdmin (typically a multisig).
+*   You know your chain's `SystemConfigProxy` address. You can find this in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry).
+*   You have an L1 RPC URL available (an archival node is recommended).
+*   You have `cast` installed from [Foundry](https://book.getfoundry.sh/getting-started/installation).
+*   You know the OPCM address for the target release. Find it in `standard-versions-mainnet.toml` or `standard-versions-sepolia.toml` in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry).
+
+## Understand the OPCM Architecture
+
+The OPCM consists of five contracts working together:
+
+| Contract | Role |
+|---|---|
+| `OPContractsManager` | Entry point that routes calls to the appropriate logic contract |
+| `OPContractsManagerUpgrader` | Contains the upgrade logic, called via `delegatecall` |
+| `OPContractsManagerDeployer` | Deploys new OP Chains, called via `staticcall` |
+| `OPContractsManagerGameTypeAdder` | Manages dispute game types and prestates, called via `delegatecall` |
+| `OPContractsManagerContractsContainer` | Stores implementation addresses and ERC-5202 blueprint contracts |
+
+The critical design principle is that `upgrade()` must be called via **DELEGATECALL** from the ProxyAdmin owner. When your multisig or governance contract delegatecalls into the OPCM, the upgrade logic executes in the caller's context. This gives the OPCM the authority to call `ProxyAdmin.upgrade()` on each proxy, since the caller is the ProxyAdmin owner.
+
+Chains that are multiple versions behind must be upgraded in stages, calling `upgrade()` on each successive OPCM in order.
+
+## Know What Gets Upgraded
+
+The `upgrade()` function atomically upgrades all proxy implementations for a chain in a single transaction:
+
+*   `SystemConfig`
+*   `OptimismPortal`
+*   `AnchorStateRegistry`
+*   `OptimismMintableERC20Factory`
+*   `DisputeGameFactory`
+*   `L1CrossDomainMessenger`
+*   `L1StandardBridge`
+*   `L1ERC721Bridge`
+
+It also updates dispute game implementations, including the `PermissionedDisputeGame`. If your chain has permissionless dispute games (`CANNON`, `CANNON_KONA`), those are updated as well.
+
+<Info>
+The OPCM requires that the chain's `SuperchainConfig` contract is already upgraded to the target version before you can upgrade your chain. If your chain shares a `SuperchainConfig` with other standard chains, it may already be at the correct version.
+</Info>
+
+## Upgrade Your Chain
+
+### Determine Your Current Version
+
+Check which contract version your chain is currently running:
+
+```bash
+# Get the implementation address of your SystemConfig proxy
+cast implementation $SYSTEM_CONFIG_PROXY --rpc-url $L1_RPC_URL
+
+# Check the version string
+cast call $SYSTEM_CONFIG_PROXY "version()(string)" --rpc-url $L1_RPC_URL
+```
+
+Look up the implementation address in `standard-versions-mainnet.toml` (or `standard-versions-sepolia.toml` for testnet) in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) to confirm your current release version.
+
+### Upgrade SuperchainConfig (If Needed)
+
+If your chain's `SuperchainConfig` is not already at the target version, it must be upgraded first. The ProxyAdmin owner of the `SuperchainConfig` must delegatecall the OPCM's `upgradeSuperchainConfig()` function:
+
+```bash
+# Encode the upgradeSuperchainConfig calldata
+CALLDATA=$(cast calldata "upgradeSuperchainConfig(address)" $SUPERCHAIN_CONFIG_PROXY)
+```
+
+Execute this calldata as a delegatecall from the SuperchainConfig's ProxyAdmin owner to the OPCM address. If your chain's `SuperchainConfig` is shared with other standard chains and already upgraded, you can skip this step.
+
+### Construct the Upgrade Calldata
+
+The OPCM `upgrade()` function accepts a configuration struct that identifies your chain and optionally sets new prestate hashes. The struct differs between OPCM versions.
+
+For **OPCM v1** (prior to version 7.0.0):
+
+```solidity
+struct OpChainConfig {
+    ISystemConfig systemConfigProxy;
+    Claim cannonPrestate;
+    Claim cannonKonaPrestate;
+}
+```
+
+*   `systemConfigProxy`: Your chain's SystemConfig proxy address.
+*   `cannonPrestate`: The absolute prestate hash for Cannon fault proofs. Set to `bytes32(0)` to keep the existing prestate.
+*   `cannonKonaPrestate`: The Kona variant prestate hash. Set to `bytes32(0)` to keep the existing prestate.
+
+For **OPCM v2** (version 7.0.0 and later):
+
+```solidity
+struct UpgradeInput {
+    ISystemConfig systemConfig;
+    DisputeGameConfig[] disputeGameConfigs;
+    ExtraInstruction[] extraInstructions;
+}
+```
+
+OPCM v2 provides more granular control over dispute game configuration. Check the release notes for your target version to determine which `DisputeGameConfig` entries and `ExtraInstruction` values are required.
+
+### Execute the Upgrade via DELEGATECALL
+
+Encode the `upgrade()` calldata and execute it as a **delegatecall** from your ProxyAdmin owner.
+
+For an OPCM v1 upgrade with a single chain (keeping existing prestates):
+
+```bash
+# Encode the upgrade calldata
+CALLDATA=$(cast calldata \
+  "upgrade((address,bytes32,bytes32)[])" \
+  "[($SYSTEM_CONFIG_PROXY,0x0000000000000000000000000000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000000000000000000000000000)]")
+```
+
+<Warning>
+In production, the ProxyAdmin owner is typically a multisig (e.g., a Safe). The upgrade **must** be submitted as a delegatecall from the multisig to the OPCM address. A direct call to the OPCM will revert. Use your multisig's transaction builder to create a delegatecall with the encoded calldata above, targeting the OPCM address.
+</Warning>
+
+For testing on a local fork or testnet where the ProxyAdmin owner is an EOA:
+
+```bash
+cast send $OPCM_ADDRESS $CALLDATA \
+  --rpc-url $L1_RPC_URL \
+  --private-key $PRIVATE_KEY
+```
+
+If the transaction reverts with `OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade`, you need to upgrade the `SuperchainConfig` first (see the previous section).
+
+## Verify the Upgrade
+
+After the upgrade transaction is confirmed, verify that all implementations were updated:
+
+```bash
+# Check SystemConfig implementation
+cast implementation $SYSTEM_CONFIG_PROXY --rpc-url $L1_RPC_URL
+
+# Check the version string
+cast call $SYSTEM_CONFIG_PROXY "version()(string)" --rpc-url $L1_RPC_URL
+```
+
+Compare the returned implementation addresses against the target release in `standard-versions-mainnet.toml`. You can repeat these checks for other proxies (e.g., `OptimismPortal`, `L1CrossDomainMessenger`) by looking up their addresses through your `SystemConfig`:
+
+```bash
+# Get OptimismPortal address
+cast call $SYSTEM_CONFIG_PROXY "optimismPortal()(address)" --rpc-url $L1_RPC_URL
+
+# Check its implementation
+cast implementation $OPTIMISM_PORTAL_PROXY --rpc-url $L1_RPC_URL
+```
+
+## Learn More
+
+*   [OP Contracts Manager reference](/chain-operators/reference/opcm)
+*   [OPCM specs](https://specs.optimism.io/experimental/op-contracts-manager.html)
+*   [OPCM design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/op-contracts-manager-arch.md)
+*   [Upgrade using superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) (for governed chains)
+*   [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry) for OPCM addresses and standard version mappings

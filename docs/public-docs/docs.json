@@ -1942,6 +1942,7 @@
               {
                 "group": "L1 contract upgrades",
                 "pages": [
+                  "chain-operators/tutorials/l1-contract-upgrades/opcm-upgrades",
                   "chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade",
                   "chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide",
                   "chain-operators/tutorials/l1-contract-upgrades/upgrade-op-contracts-1-3-1-8"
