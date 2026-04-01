@@ -16,7 +16,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "usage: update-nuts <fork>\n")
+		fmt.Fprintf(os.Stderr, "usage: nut-snapshot-for <fork>\n")
 		os.Exit(1)
 	}
 

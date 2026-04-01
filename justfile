@@ -349,12 +349,16 @@ build-rust-release:
   cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 
 # Checks that locked NUT bundles have not been modified.
-check-nut-locks:
-  go run ./ops/scripts/check-nut-locks
+nut-lock-check:
+  go run ./ops/scripts/nut-lock-check
 
 # Snapshots current-upgrade-bundle.json as a fork's NUT bundle and updates the lock file.
-update-nuts fork:
-  go run ./ops/scripts/update-nuts {{fork}}
+nut-snapshot-for fork:
+  go run ./ops/scripts/nut-snapshot-for {{fork}}
+
+# Verifies a fork's NUT bundle was correctly built from its recorded commit.
+nut-provenance-verify fork:
+  go run ./ops/scripts/nut-provenance-verify {{fork}}
 
 # Checks that TODO comments have corresponding issues.
 todo-checker:

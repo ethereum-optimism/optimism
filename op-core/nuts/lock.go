@@ -63,7 +63,7 @@ func WriteLockFile(lockPath string, locks ForkLock) error {
 	if _, err := fmt.Fprintln(f, "# NUT Bundle Fork Lock"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(f, "# To update a locked fork, set locked = false, run: just update-nuts <fork>, then re-lock."); err != nil {
+	if _, err := fmt.Fprintln(f, "# To update a locked fork, set locked = false, run: just nut-snapshot-for <fork>, then re-lock."); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(f); err != nil {

@@ -128,7 +128,7 @@ func run(dir string) error {
 
 		if entry.Commit == "" {
 			return fmt.Errorf("fork %s has no commit recorded; "+
-				"run 'just update-nuts %s' to populate the commit field", fork, fork)
+				"run 'just nut-snapshot-for %s' to populate the commit field", fork, fork)
 		}
 
 		fmt.Printf("fork %s: bundle hash OK\n", fork)
