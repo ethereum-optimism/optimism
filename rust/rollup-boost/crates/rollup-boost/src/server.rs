@@ -1047,10 +1047,10 @@ pub(crate) mod tests {
                 fcu_requests.push(params);
 
                 let mut response = mock_engine_server.fcu_response.clone();
-                if let Ok(ref mut fcu_response) = response {
-                    if let Some(override_id) = mock_engine_server.override_payload_id {
-                        fcu_response.payload_id = Some(override_id);
-                    }
+                if let Ok(ref mut fcu_response) = response
+                    && let Some(override_id) = mock_engine_server.override_payload_id
+                {
+                    fcu_response.payload_id = Some(override_id);
                 }
 
                 response
