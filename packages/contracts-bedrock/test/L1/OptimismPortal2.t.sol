@@ -1051,10 +1051,15 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         });
     }
 
-    /// @notice Tests that `proveWithdrawalTransaction` reverts when superRootsActive is true
+    /// @notice Tests that `proveWithdrawalTransaction` reverts when super roots are active
     ///         and the game's rootClaimByChainId reverts with UnknownChainId.
     function test_proveWithdrawalTransaction_superRootsVersionBadChainId_reverts() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Enable superRootsActive on the OptimismPortalInterop impl (slot 63, offset 20).
+        bytes32 slot = bytes32(uint256(63));
+        bytes32 existingValue = vm.load(address(optimismPortal2), slot);
+        vm.store(address(optimismPortal2), slot, existingValue | bytes32(uint256(1) << (20 * 8)));
 
         // Mock rootClaimByChainId to revert with UnknownChainId.
         vm.mockCallRevert(
@@ -1073,10 +1078,15 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         });
     }
 
-    /// @notice Tests that `proveWithdrawalTransaction` reverts when superRootsActive is true
+    /// @notice Tests that `proveWithdrawalTransaction` reverts when super roots are active
     ///         and the output root proof doesn't match the game's rootClaimByChainId.
     function test_proveWithdrawalTransaction_superRootsVersionBadOutputRootProof_reverts() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Enable superRootsActive on the OptimismPortalInterop impl (slot 63, offset 20).
+        bytes32 slot = bytes32(uint256(63));
+        bytes32 existingValue = vm.load(address(optimismPortal2), slot);
+        vm.store(address(optimismPortal2), slot, existingValue | bytes32(uint256(1) << (20 * 8)));
 
         // Mock rootClaimByChainId to return a different output root (wrong one).
         bytes32 wrongOutputRoot = keccak256(abi.encode(_outputRoot));
@@ -1096,10 +1106,15 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         });
     }
 
-    /// @notice Tests that `proveWithdrawalTransaction` succeeds when superRootsActive is true
+    /// @notice Tests that `proveWithdrawalTransaction` succeeds when super roots are active
     ///         and all parameters are valid.
     function test_proveWithdrawalTransaction_superRootsVersion_succeeds() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Enable superRootsActive on the OptimismPortalInterop impl (slot 63, offset 20).
+        bytes32 slot = bytes32(uint256(63));
+        bytes32 existingValue = vm.load(address(optimismPortal2), slot);
+        vm.store(address(optimismPortal2), slot, existingValue | bytes32(uint256(1) << (20 * 8)));
 
         // Mock rootClaimByChainId to return the correct output root.
         vm.mockCall(
