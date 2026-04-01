@@ -17,7 +17,6 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -240,7 +239,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         internal
     {
         // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.
-        IOptimismPortalInterop portal = IOptimismPortalInterop(payable(_systemConfig.optimismPortal()));
+        IOptimismPortal portal = IOptimismPortal(payable(_systemConfig.optimismPortal()));
         IETHLockbox existingLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
 
