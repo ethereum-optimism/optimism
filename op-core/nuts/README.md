@@ -36,13 +36,23 @@ just verify-nuts <fork>
 
 Checks that:
 1. The bundle file exists and its sha256 matches the lock
-2. If a `commit` is recorded, creates a temporary worktree at that commit, regenerates the bundle, and compares byte-for-byte
+2. Creates a temporary worktree at the recorded commit, regenerates the bundle, and compares byte-for-byte
 
 Requires `forge` for the provenance check (step 2).
 
+### Locking a fork
+
+Once a fork's bundle is finalized (e.g., governance post written), lock it:
+
+1. Ensure the `commit` field is populated (run `just update-nuts <fork>` if needed)
+2. Manually edit `fork_lock.toml` to add `locked = true` for the fork
+3. CI (`check-nut-locks`) will enforce that the locked fork's hash cannot change
+
+To unlock (e.g., for a critical fix), manually set `locked = false` in `fork_lock.toml`.
+
 ### CI checks
 
-- **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, and that every `*_nut_bundle.json` file has a corresponding lock entry. Runs in CI on every PR.
+- **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, locked forks haven't changed vs the base branch, and every `*_nut_bundle.json` file has a corresponding lock entry. Runs in CI on every PR.
 - **`nut-bundle-check`** — Verifies `current-upgrade-bundle.json` is up-to-date with the contracts. Runs as part of `just check` in `packages/contracts-bedrock/`.
 
 ## fork_lock.toml schema
@@ -51,6 +61,7 @@ Requires `forge` for the provenance check (step 2).
 [<fork-name>]
 bundle = "op-node/rollup/derive/<fork>_nut_bundle.json"  # repo-relative path
 hash = "sha256:<hex>"                                      # sha256 of bundle contents
-commit = "<full-sha>"                                      # commit that produced the bundle (optional)
+commit = "<full-sha>"                                      # commit that produced the bundle
+locked = true                                              # prevents update-nuts from overwriting (optional, default false)
 ```
 

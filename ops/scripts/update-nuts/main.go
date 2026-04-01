@@ -70,8 +70,10 @@ func run(fork forks.Name) error {
 	if err != nil {
 		return err
 	}
-	if locks == nil {
-		locks = make(nuts.ForkLock)
+
+	if existing, ok := locks[string(fork)]; ok && existing.Locked {
+		return fmt.Errorf("fork %q is locked in fork_lock.toml and cannot be updated; "+
+			"to unlock, manually set locked = false in %s", fork, lockPath)
 	}
 
 	locks[string(fork)] = nuts.ForkLockEntry{

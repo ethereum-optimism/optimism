@@ -57,17 +57,16 @@ func run(fork forks.Name) error {
 
 	hash := sha256.Sum256(bundleContent)
 	actual := "sha256:" + hex.EncodeToString(hash[:])
-	locked := strings.TrimSpace(entry.Hash)
+	expectedHash := strings.TrimSpace(entry.Hash)
 
-	if actual != locked {
-		return fmt.Errorf("hash mismatch: locked=%s actual=%s", locked, actual)
+	if actual != expectedHash {
+		return fmt.Errorf("hash mismatch: expected=%s actual=%s", expectedHash, actual)
 	}
 	fmt.Printf("PASS: bundle hash matches lock (%s)\n", actual)
 
-	// Step 2: If commit is recorded, verify the bundle was correctly built from that commit.
+	// Step 2: Verify the bundle was correctly built from the recorded commit.
 	if entry.Commit == "" {
-		fmt.Println("SKIP: no commit recorded, cannot verify bundle provenance")
-		return nil
+		return fmt.Errorf("fork %q has no commit recorded; cannot verify provenance", fork)
 	}
 
 	fmt.Printf("Verifying bundle provenance from commit %s...\n", entry.Commit[:12])

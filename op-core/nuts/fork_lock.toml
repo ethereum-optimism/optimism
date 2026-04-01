@@ -4,4 +4,4 @@
 [karst]
 bundle = "op-node/rollup/derive/karst_nut_bundle.json"
 hash = "sha256:b9c610d09ca05ab24ef84ea38e4f563d71401f592f9eff13fa97dac879bee600"
-commit = ""
+commit = "0777438dc0c3cbedd5fa478c00d5a7305b991347"
