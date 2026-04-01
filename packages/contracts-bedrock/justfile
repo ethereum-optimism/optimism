@@ -387,12 +387,13 @@ check-kontrol-summaries-unchanged:
   ./scripts/checks/check-kontrol-summaries-unchanged.sh
 
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
-# Does not build contracts.
+# Assumes contracts are already built.
 nut-bundle-check-no-build:
-  go run ./scripts/checks/nut-bundle-check
+  @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+  git diff --exit-code snapshots/upgrades/current-upgrade-bundle.json
 
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
-nut-bundle-check: build-source nut-bundle-check-no-build
+nut-bundle-check: build-no-tests nut-bundle-check-no-build
 
 # Runs semgrep on the contracts.
 semgrep:

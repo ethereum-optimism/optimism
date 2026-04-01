@@ -8,7 +8,7 @@ use crate::{
 };
 use op_alloy_consensus::{OpPooledTransaction, interop::SafetyLevel};
 use op_alloy_rpc_types_engine::OpExecutionData;
-use reth_chainspec::{ChainSpecProvider, EthChainSpec, Hardforks};
+use reth_chainspec::{ChainSpecProvider, EthChainSpec, ForkCondition, Hardforks};
 use reth_engine_local::LocalPayloadAttributesBuilder;
 use reth_evm::ConfigureEvm;
 use reth_network::{
@@ -51,7 +51,7 @@ use reth_optimism_rpc::{
     witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
-use reth_optimism_txpool::{OpPooledTx, supervisor::SupervisorClient};
+use reth_optimism_txpool::{OpPool, OpPooledTx, supervisor::SupervisorClient};
 use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
 use reth_rpc_api::{DebugApiServer, L2EthApiExtServer, eth::RpcTypes};
 use reth_rpc_server_types::RethRpcModule;
@@ -1020,16 +1020,27 @@ where
 
         let final_pool_config = pool_config_overrides.apply(ctx.pool_config());
 
-        let transaction_pool = TxPoolBuilder::new(ctx)
+        let inner_pool = TxPoolBuilder::new(ctx)
             .with_validator(validator)
-            .build_and_spawn_maintenance_task(blob_store, final_pool_config)?;
+            .build(blob_store, final_pool_config.clone());
 
-        info!(target: "reth::cli", "Transaction pool initialized");
+        // Enable the interop filter on reorg whenever interop is scheduled or already active
+        let interop_filter_enabled =
+            ctx.chain_spec().op_fork_activation(OpHardfork::Interop) != ForkCondition::Never;
+        let transaction_pool = OpPool::new(inner_pool, interop_filter_enabled);
+
+        reth_node_builder::components::spawn_maintenance_tasks(
+            ctx,
+            transaction_pool.clone(),
+            &final_pool_config,
+        )?;
+
+        info!(target: "reth::cli", "Transaction pool initialized (interop filter enabled = {interop_filter_enabled})");
         debug!(target: "reth::cli", "Spawned txpool maintenance task");
 
-        // The Op txpool maintenance task is only spawned when interop is active and a supervisor is
-        // configured
-        if ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) &&
+        // The Op txpool maintenance task is only spawned when interop is scheduled/active and a
+        // supervisor is configured
+        if ctx.chain_spec().op_fork_activation(OpHardfork::Interop) != ForkCondition::Never &&
             let Some(supervisor) = supervisor_client
         {
             // spawn the Op txpool maintenance task

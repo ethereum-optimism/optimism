@@ -965,65 +965,6 @@ jobs:
           flags: unit
       - rust-save-build-cache: *kona-coverage-cache
 
-  # Unified Rust Docs Build
-  rust-docs-build:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - run:
-          name: Install Node.js and Bun
-          command: |
-            curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-            curl -fsSL https://bun.sh/install | bash
-            echo 'export BUN_INSTALL="$HOME/.bun"' >> $BASH_ENV
-            echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $BASH_ENV
-      - run:
-          name: Install dependencies and Playwright browsers
-          working_directory: rust/docs
-          command: |
-            bun i
-            npx playwright install --with-deps chromium
-      - run:
-          name: Build Vocs documentation
-          working_directory: rust/docs
-          no_output_timeout: 60m
-          command: |
-            bun run build
-            echo "Vocs Build Complete"
-      - store_artifacts:
-          path: rust/docs/docs/docs/dist
-          destination: rust-docs
-
-    # OP-Reth docs build
-  op-reth-docs-build:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - run:
-          name: Install Node.js and Bun
-          command: |
-            curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-            curl -fsSL https://bun.sh/install | bash
-            echo 'export BUN_INSTALL="$HOME/.bun"' >> $BASH_ENV
-            echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $BASH_ENV
-      - run:
-          name: Build op-reth documentation
-          working_directory: rust/op-reth
-          no_output_timeout: 30m
-          command: |
-            just docs-build
-      - store_artifacts:
-          path: op-reth/docs/vocs/docs/dist
-          destination: op-reth-docs
-
   # Kona Link Checker
   kona-link-checker:
     docker:
@@ -1167,11 +1108,6 @@ workflows:
           name: rust-docs
           directory: rust
           context: *rust-ci-context
-
-      # Docs build
-      - rust-docs-build:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-udeps:
           name: rust-udeps

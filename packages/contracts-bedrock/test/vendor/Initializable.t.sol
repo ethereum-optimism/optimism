@@ -18,6 +18,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
@@ -329,7 +330,7 @@ contract Initializer_Test is CommonTest {
                 name: "AnchorStateRegistryImpl",
                 target: EIP1967Helper.getImplementation(address(anchorStateRegistry)),
                 initCalldata: abi.encodeCall(
-                    anchorStateRegistry.initialize,
+                    IAnchorStateRegistry.initialize,
                     (
                         ISystemConfig(address(0)),
                         IDisputeGameFactory(address(0)),
@@ -345,7 +346,7 @@ contract Initializer_Test is CommonTest {
                 name: "AnchorStateRegistryProxy",
                 target: address(anchorStateRegistry),
                 initCalldata: abi.encodeCall(
-                    anchorStateRegistry.initialize,
+                    IAnchorStateRegistry.initialize,
                     (
                         ISystemConfig(address(0)),
                         IDisputeGameFactory(address(0)),

@@ -2,13 +2,14 @@
 
 use crate::{
     ChannelReaderProvider, NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError,
-    PipelineErrorKind, PipelineResult, Signal, SignalReceiver,
+    PipelineErrorKind, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::{Bytes, hex, map::HashMap};
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, Channel, ChannelId, Frame};
 
 /// The maximum size of a channel bank.
@@ -31,7 +32,7 @@ pub(crate) const FJORD_MAX_CHANNEL_BANK_SIZE: usize = 1_000_000_000;
 #[derive(Debug)]
 pub struct ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
@@ -45,7 +46,7 @@ where
 
 impl<P> ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Create a new [`ChannelBank`] stage.
     pub fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
@@ -180,7 +181,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -190,7 +191,7 @@ where
 #[async_trait]
 impl<P> ChannelReaderProvider for ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn next_data(&mut self) -> PipelineResult<Option<Bytes>> {
         match self.read() {
@@ -217,7 +218,7 @@ where
 
 impl<P> OriginProvider for ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -225,25 +226,44 @@ where
 }
 
 #[async_trait]
-impl<P> SignalReceiver for ChannelBank<P>
+impl<P> Stage for ChannelBank<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        self.prev.signal(signal).await?;
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        self.prev.reset(l1_origin, system_config).await?;
         self.channels.clear();
         self.channel_queue = VecDeque::with_capacity(10);
         Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.channels.clear();
+        self.channel_queue = VecDeque::with_capacity(10);
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.prev.flush_channel().await?;
+        self.channels.clear();
+        self.channel_queue = VecDeque::with_capacity(10);
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.prev.provide_block(block).await
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        test_utils::{CollectingLayer, TestNextFrameProvider, TraceStorage},
-        types::ResetSignal,
-    };
+    use crate::test_utils::{CollectingLayer, TestNextFrameProvider, TraceStorage};
     use alloc::{vec, vec::Vec};
     use kona_genesis::HardForkConfig;
     use tracing::Level;
@@ -410,7 +430,7 @@ mod tests {
         channel_bank.channels.insert([0xFF; 16], Channel::default());
         channel_bank.channel_queue.push_back([0xFF; 16]);
         assert!(!channel_bank.prev.reset);
-        channel_bank.signal(ResetSignal::default().signal()).await.unwrap();
+        channel_bank.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert_eq!(channel_bank.channels.len(), 0);
         assert_eq!(channel_bank.channel_queue.len(), 0);
         assert!(channel_bank.prev.reset);

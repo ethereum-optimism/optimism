@@ -54,6 +54,12 @@ The OP Stack includes significant Rust implementations:
 - **op-e2e**: End-to-end testing framework
 - **op-acceptance-tests**: Acceptance test suite
 
+## Subdirectory Instructions
+
+Some subdirectories have their own CLAUDE.md with domain-specific conventions. Read the relevant file before working in that area — do not read them all upfront.
+
+- `rust/kona/CLAUDE.md` — Kona Rust workspace: build commands (`just b/t/l/f`), code style, architecture overview
+
 ## Additional Documentation
 
 More detailed guidance for AI agents can be found in:

@@ -23,7 +23,9 @@ alloy-serde.workspace = true
 
 # reth
 reth-chainspec.workspace = true
+reth-eth-wire-types.workspace = true
 reth-evm.workspace = true
+reth-execution-types.workspace = true
 reth-primitives-traits.workspace = true
 reth-chain-state.workspace = true
 reth-storage-api.workspace = true
@@ -57,3 +59,5 @@ tokio = { workspace = true, features = ["time"] }
 [dev-dependencies]
 reth-optimism-chainspec.workspace = true
 reth-provider = { workspace = true, features = ["test-utils"] }
+reth-transaction-pool = { workspace = true, features = ["test-utils"] }
+tokio = { workspace = true, features = ["rt", "macros"] }

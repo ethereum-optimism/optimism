@@ -14,6 +14,7 @@ import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -873,6 +874,37 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
     }
 }
 
+/// @title L2ContractsManager_Upgrade_FeatureFlagMismatch_Test
+/// @notice Tests that _loadFullConfig reverts when the INTEROP system customization is enabled
+///         but the OPTIMISM_PORTAL_INTEROP dev feature is not.
+contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManager_Upgrade_Test {
+    using stdStorage for StdStorage;
+
+    /// @notice Tests that upgrade succeeds when the dev feature is enabled but the system feature is not.
+    ///         This is a valid transitional state: interop code is deployed but not yet activated.
+    function test_upgrade_devEnabledSysDisabled_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Clear the INTEROP system feature on L1Block while the dev feature remains enabled.
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+            .checked_write(false);
+
+        _executeUpgrade();
+    }
+
+    /// @notice Tests that upgrade reverts when the system feature is enabled but the dev feature is not.
+    function test_upgrade_sysEnabledDevDisabled_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Set the INTEROP system feature on L1Block while the dev feature remains disabled.
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+            .checked_write(true);
+
+        vm.expectRevert(L2ContractsManager.L2ContractsManager_FeatureFlagMismatch.selector);
+        _executeUpgrade();
+    }
+}
+
 /// @title L2ContractsManager_Upgrade_Coverage_Test
 /// @notice Test that verifies all predeploys receive upgrade calls during L2CM upgrade.
 ///         Uses Predeploys.sol as the source of truth for which predeploys should be upgraded.
@@ -963,6 +995,8 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
 ///         implementation has no code, simulating existing chains where the predeploy was
 ///         never deployed.
 contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager_Upgrade_Test {
+    using stdStorage for StdStorage;
+
     /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags has not been deployed by:
     ///         1. Etching the current implementation to have no code.
     ///         2. Pointing implementations.l2DevFeatureFlagsImpl to a fresh address with no code,
@@ -971,6 +1005,11 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
     function _simulateNoFlagsImpl() internal {
         address currentImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.etch(currentImpl, bytes(""));
+
+        // Clear the INTEROP system feature on L1Block to stay consistent with the dev feature
+        // being unavailable, otherwise _loadFullConfig will revert on the mismatch check.
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+            .checked_write(false);
 
         implementations.l2DevFeatureFlagsImpl = makeAddr("emptyFlagsImpl");
         _deployL2CM();
