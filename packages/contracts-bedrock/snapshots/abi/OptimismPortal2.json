@@ -339,7 +339,7 @@
         "type": "address"
       }
     ],
-    "name": "migrateToSuperRoots",
+    "name": "migrateToSharedDisputeGame",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -701,7 +701,7 @@
       {
         "indexed": true,
         "internalType": "contract IETHLockbox",
-        "name": "_newLockbox",
+        "name": "newLockbox",
         "type": "address"
       },
       {
@@ -713,7 +713,7 @@
       {
         "indexed": false,
         "internalType": "contract IAnchorStateRegistry",
-        "name": "_newAnchorStateRegistry",
+        "name": "newAnchorStateRegistry",
         "type": "address"
       }
     ],

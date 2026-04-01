@@ -5,7 +5,7 @@
   },
   "src/L1/ETHLockbox.sol:ETHLockbox": {
     "initCodeHash": "0x781079a80d379658eb4553622a9da86f7532ffa424f1e8957a82680ee9435f66",
-    "sourceCodeHash": "0xf4d9f6adc3d99d65b70df3255976980d36d37f8a4514ecc24d786dd03efdb7be"
+    "sourceCodeHash": "0xba51f26758bf13f7c1029d154fa5e5afd06a2163563ded84cd3ef883b658d646"
   },
   "src/L1/FeesDepositor.sol:FeesDepositor": {
     "initCodeHash": "0xe2ca240d728f711df438b7aeb3589c95ad11a97d742539a692ddafaf1365eb54",
@@ -28,12 +28,12 @@
     "sourceCodeHash": "0x7c0cb663f82b07da8dec8a7497cf2fa56a335fb5bdc57b612c86462f8527d4d5"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
-    "initCodeHash": "0x874466f8cb6b49a464822a05733817aa21b205b590a23a25779b7e16d2a46f73",
-    "sourceCodeHash": "0xb5169dc246427c1c2cdba530c479bb0ec89b5cc875c98bcffe4bd63a222d5c72"
+    "initCodeHash": "0x2a6f3998d47c52ecdb0c08dbe2290b5e1b05670339bddb23f3eb43ea1912aefb",
+    "sourceCodeHash": "0x3a37d410bb549ca16030a7dfcc6cdf70d852e22b53542d4d6487226c9925bc8f"
   },
   "src/L1/OptimismPortalInterop.sol:OptimismPortalInterop": {
-    "initCodeHash": "0xbafd0b80deb0a834335052e32a4199a96121148d9bda05acb62535ac18bd9909",
-    "sourceCodeHash": "0x24373f3fd28c5c6ae93cc32e2a213bb47458bc0f36e81b2a7b20a7b6b0a97119"
+    "initCodeHash": "0x2a1bc53cca19588227849173d58ac2d1b85681ea1cde5b429077bd94ee745979",
+    "sourceCodeHash": "0x14cdbcb9bf42b67b9ca4fb89e7c43c97e421930db42d6037d7a780aeff6c067a"
   },
   "src/L1/ProtocolVersions.sol:ProtocolVersions": {
     "initCodeHash": "0xcb59ad9a5ec2a0831b7f4daa74bdacba82ffa03035dafb499a732c641e017f4e",
@@ -48,8 +48,8 @@
     "sourceCodeHash": "0xb09cb2f7cbde8585fad5c5beb6811fa9044b156b4203da8005d3f6a7a68c30b2"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0x535c0d6ae6d71675370ebdd8c8f63467b3fb5411347d5bd45916d91368c04c42",
-    "sourceCodeHash": "0xffa5d450e57e09e5afc72b4cf934999aad470866566fe24950893346b89f4bdc"
+    "initCodeHash": "0xd87b10a36b6e7a69fac4199651d118ca7841d1175faa0e954ade9f8b65577aa5",
+    "sourceCodeHash": "0x4bf8f8913b8a41fb064fff583078ded238035312116066e568794022b48d18d1"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0xf1fb169c6dd4eceb5cec6ed6dfa3affc45970e5a01e00827d06af1f9e8df026d",
