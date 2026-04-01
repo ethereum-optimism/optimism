@@ -176,7 +176,7 @@ func (b *Bytes256) UnmarshalJSON(text []byte) error {
 }
 
 func (b *Bytes256) UnmarshalText(text []byte) error {
-	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
+	return hexutil.UnmarshalFixedText("Bytes256", text, b[:])
 }
 
 func (b Bytes256) MarshalText() ([]byte, error) {
