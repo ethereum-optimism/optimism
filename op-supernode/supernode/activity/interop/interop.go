@@ -424,6 +424,10 @@ func (i *Interop) newInvalidHead(chainID eth.ChainID, blockID eth.BlockID) (Inva
 	if err != nil {
 		return head, fmt.Errorf("chain %s: failed to compute OutputV0 for block %d: %w", chainID, blockID.Number, err)
 	}
+	if outputV0.BlockHash != blockID.Hash {
+		return head, fmt.Errorf("chain %s: block %d hash changed (expected %s, got %s): possible reorg",
+			chainID, blockID.Number, blockID.Hash, outputV0.BlockHash)
+	}
 	head.StateRoot = outputV0.StateRoot
 	head.MessagePasserStorageRoot = outputV0.MessagePasserStorageRoot
 	return head, nil

@@ -1452,7 +1452,7 @@ func (m *mockChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockN
 	return &eth.OutputV0{
 		StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
 		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
-		BlockHash:                common.BigToHash(common.Big0.SetUint64(l2BlockNum)),
+		BlockHash:                common.BigToHash(new(big.Int).SetUint64(l2BlockNum)),
 	}, nil
 }
 func (m *mockChainContainer) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {

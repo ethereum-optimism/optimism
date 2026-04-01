@@ -22,15 +22,6 @@ type InvalidHead struct {
 	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
 }
 
-// OutputV0 reconstructs the full output from the stored preimage fields.
-func (h InvalidHead) OutputV0() *eth.OutputV0 {
-	return &eth.OutputV0{
-		StateRoot:                h.StateRoot,
-		MessagePasserStorageRoot: h.MessagePasserStorageRoot,
-		BlockHash:                h.Hash,
-	}
-}
-
 // Result represents the result of interop validation at a specific timestamp given current data.
 // it contains all the same information as VerifiedResult, but also contains a list of invalid heads.
 type Result struct {
