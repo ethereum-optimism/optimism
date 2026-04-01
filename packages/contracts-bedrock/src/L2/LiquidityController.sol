@@ -43,8 +43,8 @@ contract LiquidityController is ProxyAdminOwnedBase, ISemver, Initializable, Own
     error LiquidityController_Unauthorized();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.0.2
+    string public constant version = "1.0.2";
 
     /// @notice Mapping of addresses authorized to control liquidity operations
     mapping(address => bool) public minters;

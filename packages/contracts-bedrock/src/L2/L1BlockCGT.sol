@@ -17,9 +17,9 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
 contract L1BlockCGT is L1Block {
-    /// @custom:semver +custom-gas-token.1
+    /// @custom:semver +custom-gas-token.2
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+custom-gas-token.1");
+        return string.concat(super.version(), "+custom-gas-token.2");
     }
 
     /// @notice Returns whether the gas paying token is custom.
