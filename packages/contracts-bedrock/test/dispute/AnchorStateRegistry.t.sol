@@ -1595,6 +1595,21 @@ contract AnchorStateRegistry_IsGameProper_ZkDisputeGame_Test is AnchorStateRegis
 
         assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
     }
+
+    /// @notice Tests that an unregistered ZK game is not proper.
+    function test_isGameProper_notRegistered_succeeds() public {
+        // Mock the factory to report the ZK game as not registered.
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(
+                disputeGameFactory.games,
+                (zkGameProxy.gameType(), zkGameProxy.rootClaim(), zkGameProxy.extraData())
+            ),
+            abi.encode(address(0), 0)
+        );
+
+        assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
+    }
 }
 
 /// @title AnchorStateRegistry_BlacklistDisputeGame_ZkDisputeGame_Test
