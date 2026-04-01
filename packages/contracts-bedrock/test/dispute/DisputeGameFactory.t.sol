@@ -469,6 +469,30 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         disputeGameFactory.create(gt, rootClaim, extraData);
     }
 
+    /// @notice Tests that the `create` function reverts when sending more ETH than the required
+    ///         bond amount.
+    function testFuzz_create_overpayment_reverts(
+        uint32 gameType,
+        Claim rootClaim,
+        bytes calldata extraData
+    )
+        public
+    {
+        uint32 maxGameType = 10;
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
+        rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
+
+        for (uint8 i; i < maxGameType + 1; i++) {
+            GameType lgt = GameType.wrap(i);
+            disputeGameFactory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
+            disputeGameFactory.setInitBond(lgt, 1 ether);
+        }
+
+        vm.deal(address(this), 2 ether);
+        vm.expectRevert(IncorrectBondAmount.selector);
+        disputeGameFactory.create{ value: 2 ether }(gt, rootClaim, extraData);
+    }
+
     /// @notice Tests that the `create` function reverts when there is no implementation set for
     ///         the given `GameType`.
     function testFuzz_create_noImpl_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
