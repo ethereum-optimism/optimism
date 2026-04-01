@@ -122,10 +122,10 @@ library Predeploys {
     address internal constant LIQUIDITY_CONTROLLER = 0x420000000000000000000000000000000000002a;
 
     /// @notice Address of the ConditionalDeployer predeploy.
-    address internal constant CONDITIONAL_DEPLOYER = 0x420000000000000000000000000000000000002C;
+    address internal constant CONDITIONAL_DEPLOYER = 0x420000000000000000000000000000000000002B;
 
     /// @notice Address of the L2DevFeatureFlags predeploy.
-    address internal constant L2_DEV_FEATURE_FLAGS = 0x420000000000000000000000000000000000002d;
+    address internal constant L2_DEV_FEATURE_FLAGS = 0x420000000000000000000000000000000000002C;
 
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {

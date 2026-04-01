@@ -378,7 +378,7 @@ func TestEndToEndApply(t *testing.T) {
 		}))
 
 		// Check that the conditional deployer predeploy is deployed in L2 genesis
-		conditionalDeployerAddr := common.HexToAddress("0x420000000000000000000000000000000000002C")
+		conditionalDeployerAddr := common.HexToAddress("0x420000000000000000000000000000000000002B")
 		l2Genesis := st.Chains[0].Allocs.Data.Accounts
 		account, exists := l2Genesis[conditionalDeployerAddr]
 		require.True(t, exists, "Conditional deployer should exist in L2 genesis")

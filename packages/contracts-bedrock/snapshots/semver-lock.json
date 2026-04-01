@@ -57,7 +57,7 @@
   },
   "src/L2/ConditionalDeployer.sol:ConditionalDeployer": {
     "initCodeHash": "0x580996fd149ac478b9363399eab8ba479ed55a324a215ea8e4841f9e9f033ac5",
-    "sourceCodeHash": "0x7c83a95f65cfd963af0caf90579e8f8544e3f883a48bc803720ec251c72aeffe"
+    "sourceCodeHash": "0x8471fbbba9d510953f3cba6bc8466557a347bbe0e4099ce8b03b352e4f07c37f"
   },
   "src/L2/CrossL2Inbox.sol:CrossL2Inbox": {
     "initCodeHash": "0x56f868e561c4abe539043f98b16aad9305479e68fd03ece2233249b0c73a24ea",
@@ -84,7 +84,7 @@
     "sourceCodeHash": "0xea9fed192db1a7a1f39dd56ede98293e1bacc2275f58696e8b22f25f265be770"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0x48c9288af37a707fe31091577a382ad5526011a670810d166d16bde5606d864e",
+    "initCodeHash": "0x2ced4ee75a4a90660f0c1b505b1509108c942c01135d4714593bc2a430847a0b",
     "sourceCodeHash": "0xb36d1c2df5ff4dae418f35023ebc9e17940e30af31949b55006efc501c864e5b"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
@@ -93,7 +93,7 @@
   },
   "src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags": {
     "initCodeHash": "0x3670e04d782e5f829a6a55174fa30bc40951333f9a71c35c7c0d6978a01de639",
-    "sourceCodeHash": "0x4eaf830a1ccfc0e7426fbf21c4c284a81f49b16aa392b213c9894479d51a4a24"
+    "sourceCodeHash": "0x686541424690a560ab982c0fa7004a75607ba6ebd585d342abcc05aee5b24790"
   },
   "src/L2/L2ERC721Bridge.sol:L2ERC721Bridge": {
     "initCodeHash": "0x6a93ded273dc3c1b0ea3f351412e97f0c22efd89c9760e74258c8d4c315d1b5c",

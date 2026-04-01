@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @custom:proxied true
-/// @custom:predeploy 0x420000000000000000000000000000000000002C
+/// @custom:predeploy 0x420000000000000000000000000000000000002B
 /// @title ConditionalDeployer
 /// @notice ConditionalDeployer is used to deploy implementations for predeploys during network upgrades.
 ///         It uses Arachnid's DeterministicDeploymentProxy to deploy the implementations.

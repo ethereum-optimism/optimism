@@ -9,7 +9,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @notice Predeploy that stores the development feature bitmap. This bitmap is set at genesis by the
 ///         DEPOSITOR_ACCOUNT and read by the L2ContractsManager during upgrades.
 /// @custom:proxied true
-/// @custom:predeploy 0x420000000000000000000000000000000000002D
+/// @custom:predeploy 0x420000000000000000000000000000000000002C
 contract L2DevFeatureFlags is ISemver {
     /// @notice Thrown when the caller is not the depositor account.
     error L2DevFeatureFlags_Unauthorized();
