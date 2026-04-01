@@ -893,9 +893,11 @@ contract DisputeGameFactory_Create_FaultDisputeGame_Test is DisputeGameFactory_T
 /// @title DisputeGameFactory_ZkDisputeGame_TestInit
 /// @notice Reusable test initialization for ZKDisputeGame factory tests.
 abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactory_TestInit {
+    IZKVerifier zkVerifier;
+
     function _createZKGame() internal returns (ZKDisputeGame proxy_, address proposer_) {
         // Setup ZK game implementation: deploys impl, encodes gameArgs, registers with factory.
-        setupZKDisputeGame(
+        (, zkVerifier) = setupZKDisputeGame(
             ZKDisputeGameParams({
                 maxChallengeDuration: Duration.wrap(3.5 days),
                 maxProveDuration: Duration.wrap(12 hours),
@@ -949,10 +951,10 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         // Verify CWIA getters — confirms gameArgs were forwarded correctly without re-encoding.
         assertEq(GameType.unwrap(_proxy.gameType()), GameType.unwrap(GameTypes.ZK_DISPUTE_GAME));
         assertEq(_proxy.gameCreator(), _proposer);
-        assertTrue(_proxy.l1Head().raw() != bytes32(0));
+        assertEq(_proxy.l1Head().raw(), blockhash(block.number - 1));
         assertEq(_proxy.parentIndex(), type(uint32).max);
         assertEq(_proxy.absolutePrestate(), keccak256("absolutePrestate"));
-        assertTrue(address(_proxy.verifier()) != address(0));
+        assertEq(address(_proxy.verifier()), address(zkVerifier));
         assertEq(_proxy.maxChallengeDuration().raw(), uint64(3.5 days));
         assertEq(_proxy.maxProveDuration().raw(), uint64(12 hours));
         assertEq(_proxy.challengerBond(), 1 ether);
