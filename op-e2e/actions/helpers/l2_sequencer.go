@@ -114,7 +114,7 @@ func (s *L2Sequencer) ActMaybeL2StartBlock(t Testing) error {
 		return nil
 	}
 	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
-	err := s.drainer.DrainUntil(event.Is[engine.BuildStartedEvent], false)
+	err := s.drainer.DrainUntil(event.Is[engine.ForkchoiceUpdateEvent], false)
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) eth.L2BlockRef {
 	s.l2Building = false
 
 	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
-	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.PayloadSuccessEvent], false),
+	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.UnsafeUpdateEvent], false),
 		"failed to complete block building")
 
 	// After having built a L2 block, make sure to get an engine update processed,

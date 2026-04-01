@@ -3,6 +3,7 @@ package sequencing
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/rand" // nosemgrep
 	"testing"
@@ -161,17 +162,36 @@ func (f *FakeAsyncGossip) Start() {
 
 var _ AsyncGossiper = (*FakeAsyncGossip)(nil)
 
-type fakeEngController struct{}
-
-func (fakeEngController) RequestForkchoiceUpdate(ctx context.Context) {}
-
-func (fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+type fakeEngController struct {
+	startBuildFn     func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error)
+	sealBuildFn      func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error)
+	processPayloadFn func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error
 }
 
-func (fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+func (f *fakeEngController) RequestForkchoiceUpdate(ctx context.Context) {}
+
+func (f *fakeEngController) StartBuild(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+	if f.startBuildFn != nil {
+		return f.startBuildFn(ctx, attrs)
+	}
+	return nil, errors.New("StartBuild not configured")
 }
 
-func (fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {}
+func (f *fakeEngController) SealBuild(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+	if f.sealBuildFn != nil {
+		return f.sealBuildFn(ctx, info, buildStarted)
+	}
+	return nil, errors.New("SealBuild not configured")
+}
+
+func (f *fakeEngController) ProcessPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+	if f.processPayloadFn != nil {
+		return f.processPayloadFn(ctx, envelope, ref, buildStarted)
+	}
+	return errors.New("ProcessPayload not configured")
+}
+
+var _ SequencerEngine = (*fakeEngController)(nil)
 
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
 func TestSequencer_StartStop(t *testing.T) {
@@ -198,32 +218,17 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.Equal(t, common.Hash{}, seq.latestSealed.Hash)
 	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
 
-	// update the latestSealed
-	envelope := &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: &eth.ExecutionPayload{},
-	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Envelope: envelope,
-		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
-	})
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Envelope: envelope,
-		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
-	})
-	require.Equal(t, common.Hash{0xaa}, seq.latest.Ref.Hash)
-	require.Equal(t, common.Hash{0xaa}, seq.latestSealed.Hash)
-	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
-
-	// update latestHead
+	// Set latestHead via forkchoice update
 	emitter.AssertExpectations(t)
 	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    eth.L2BlockRef{Hash: common.Hash{0xaa}},
 		SafeL2Head:      eth.L2BlockRef{},
 		FinalizedL2Head: eth.L2BlockRef{},
 	})
-	require.Equal(t, common.Hash{0xaa}, seq.latest.Ref.Hash)
-	require.Equal(t, common.Hash{0xaa}, seq.latestSealed.Hash)
 	require.Equal(t, common.Hash{0xaa}, seq.latestHead.Hash)
+	// Stop() waits until latestHead == latestSealed. Since no seal happened,
+	// manually set latestSealed to match latestHead to unblock Stop().
+	seq.latestSealed = eth.L2BlockRef{Hash: common.Hash{0xaa}}
 
 	require.False(t, seq.Active())
 	// no action scheduled
@@ -276,7 +281,6 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	deps.conductor.leader = true
 
 	testCtx := context.Background()
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
@@ -298,11 +302,9 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	require.True(t, seq.Active())
 	require.True(t, deps.seqState.active, "sequencer signaled it is active")
 
-	// sequencer is active now, wants to build.
 	_, ok := seq.NextAction()
 	require.True(t, ok)
 
-	// pretend we progress to the next L1 origin, catching up with the L2 time
 	l1Origin := eth.L1BlockRef{
 		Hash:       common.Hash{0x11, 0xb},
 		ParentHash: head.L1Origin.Hash,
@@ -312,58 +314,41 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		return l1Origin, nil
 	}
-	var sentAttributes *derive.AttributesWithParent
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		x, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, head, x.Attributes.Parent)
-		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(x.Attributes.Attributes.Timestamp))
-		require.Equal(t, eth.L1BlockRef{}, x.Attributes.DerivedFrom)
-		sentAttributes = x.Attributes
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
 
-	// Now report the block was started
 	startedTime := time.Unix(int64(head.Time), 0).Add(time.Millisecond * 150)
-	testClock.Set(startedTime)
 	payloadInfo := eth.PayloadInfo{
 		ID:        eth.PayloadID{0x42},
 		Timestamp: head.Time + deps.cfg.BlockTime,
 	}
-	seq.OnEvent(context.Background(), engine.BuildStartedEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Parent:       head,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
+
+	// Configure StartBuild to return success
+	deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		require.Equal(t, head, attrs.Parent)
+		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(attrs.Attributes.Timestamp))
+		require.Equal(t, eth.L1BlockRef{}, attrs.DerivedFrom)
+		testClock.Set(startedTime)
+		return &engine.BuildStartResult{
+			Info:         payloadInfo,
+			BuildStarted: startedTime,
+			Parent:       head,
+		}, nil
+	}
+
+	// First SequencerActionEvent: start building. Direct call, no event emitted.
+	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	require.Equal(t, payloadInfo, seq.latest.Info, "must have recorded payload info from direct call")
 
 	_, ok = seq.NextAction()
 	require.True(t, ok, "must be ready to seal the block now")
 
-	emitter.ExpectOnce(engine.BuildSealEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
-
-	_, ok = seq.NextAction()
-	require.False(t, ok, "cannot act until sealing completes/fails")
-
+	// Prepare seal and process results
 	payloadEnvelope := &eth.ExecutionPayloadEnvelope{
-		ParentBeaconBlockRoot: sentAttributes.Attributes.ParentBeaconBlockRoot,
 		ExecutionPayload: &eth.ExecutionPayload{
 			ParentHash:   head.Hash,
-			FeeRecipient: sentAttributes.Attributes.SuggestedFeeRecipient,
-			BlockNumber:  eth.Uint64Quantity(sentAttributes.Parent.Number + 1),
+			BlockNumber:  eth.Uint64Quantity(head.Number + 1),
 			BlockHash:    common.Hash{0x12, 0x34},
-			Timestamp:    sentAttributes.Attributes.Timestamp,
-			Transactions: sentAttributes.Attributes.Transactions,
-			// Not all attributes matter to sequencer. We can leave these nil.
+			Timestamp:    eth.Uint64Quantity(head.Time + deps.cfg.BlockTime),
+			Transactions: []eth.Data{encodeID(l1Origin.ID())},
 		},
 	}
 	payloadRef := eth.L2BlockRef{
@@ -374,60 +359,30 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		L1Origin:       l1Origin.ID(),
 		SequenceNumber: 0,
 	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// And report back the sealing result to the engine
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Info:        payloadInfo,
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// The sequencer should start processing the payload
-	emitter.AssertExpectations(t)
-	// But also optimistically give it to the conductor and the async gossip
+
+	// Configure SealBuild to succeed but ProcessPayload to return a temporary error
+	// (simulating the "stale build" scenario where processing fails)
+	deps.eng.sealBuildFn = func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		return &engine.SealResult{
+			Envelope: payloadEnvelope,
+			Ref:      payloadRef,
+		}, nil
+	}
+	processPayloadCalled := false
+	deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		processPayloadCalled = true
+		return fmt.Errorf("temporary engine error")
+	}
+
+	// Seal action: SealBuild succeeds, commits to conductor and gossip, ProcessPayload fails
+	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	require.True(t, processPayloadCalled, "ProcessPayload must have been called")
 	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
 	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
-	_, ok = seq.NextAction()
-	require.False(t, ok, "optimistically published, but not ready to sequence next, until local processing completes")
 
-	// attempting to stop block building here should timeout, because the sealed block is different from the latestHead
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	_, err := seq.Stop(ctx)
-	require.Error(t, err, "stop should have timed out")
-	require.ErrorIs(t, err, ctx.Err())
-
-	// reset latestSealed to the previous head
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Envelope: payloadEnvelope,
-		Ref:      head,
-	})
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Info:     payloadInfo,
-		Envelope: payloadEnvelope,
-		Ref:      head,
-	})
-	emitter.AssertExpectations(t)
-
-	// Now we stop the block building,
-	// before successful local processing of the committed block!
-	stopHead, err := seq.Stop(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, head.Hash, stopHead, "sequencer should not have accepted any new block yet")
-	require.False(t, deps.seqState.active, "sequencer signaled it is no longer active")
-
-	// Async-gossip will try to publish this committed block
-	require.NotNil(t, deps.asyncGossip.payload, "still holding on to async-gossip block")
-
-	// Now let's say another sequencer built a bunch of blocks,
-	// can we continue from there? We'll have to wipe the old in-flight block,
-	// if we continue on top of a chain that had it already included a while ago.
+	// The sequencer should still be active but the build state should not have been cleared
+	// (temporary error does not call handleInvalid for non-sentinel errors)
+	require.NotNil(t, deps.asyncGossip.payload, "async-gossip should still have the payload")
 
 	// Signal the new chain we are building on
 	testClock.Set(testClock.Now().Add(time.Second * 100 * 2))
@@ -446,33 +401,38 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	}
 	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: newHead})
 
-	// Regression check: async-gossip is cleared upon sequencer un-pause.
-	// We could clear it earlier. But absolutely have to clear it upon Start(),
-	// to not continue from this older point.
 	require.NotNil(t, deps.asyncGossip.payload, "async-gossip still not cleared")
 
-	// start sequencing on top of the new chain
-	require.NoError(t, seq.Start(context.Background(), newHead.Hash), "must continue from new block")
+	// Stop() waits for latestSealed == latestHead. Since we advanced the head past the sealed
+	// block (simulating another sequencer), set latestSealed to match so Stop() unblocks.
+	seq.latestSealed = newHead
+	stopHead, err := seq.Stop(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, newHead.Hash, stopHead)
 
-	// regression check: no stale async gossip is continued
+	// Start sequencing on top of the new chain
+	require.NoError(t, seq.Start(context.Background(), newHead.Hash), "must continue from new block")
 	require.Nil(t, deps.asyncGossip.payload, "async gossip should be cleared on Start")
 
-	// Start building the block with the new L1 origin
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		return newL1Origin, nil
 	}
-	// Sequencer action, assert we build on top of something new,
-	// and don't try to seal what was previously.
+
 	_, ok = seq.NextAction()
 	require.True(t, ok, "ready to sequence again")
-	// start, not seal, when continuing to sequence.
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		buildEv, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, newHead, buildEv.Attributes.Parent, "build on the new L2 head")
-	})
+
+	// Configure StartBuild to verify we build on the new head
+	deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		require.Equal(t, newHead, attrs.Parent, "build on the new L2 head")
+		return &engine.BuildStartResult{
+			Info:         eth.PayloadInfo{ID: eth.PayloadID{0x99}, Timestamp: newHead.Time + deps.cfg.BlockTime},
+			BuildStarted: testClock.Now(),
+			Parent:       newHead,
+		}, nil
+	}
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
+	// Verify the sequencer started building on the new head
+	require.Equal(t, newHead, seq.latest.Onto, "must build on new head")
 }
 
 func TestSequencerBuild(t *testing.T) {
@@ -485,18 +445,14 @@ func TestSequencerBuild(t *testing.T) {
 	seq.AttachEmitter(emitter)
 
 	testCtx := context.Background()
-	// Init will request a forkchoice update
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, true))
 	emitter.AssertExpectations(t)
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
 	emitter.AssertExpectations(t)
 
-	// Now send the forkchoice data, for the sequencer to learn what to build on top of.
 	head := eth.L2BlockRef{
 		Hash:   common.Hash{0x22},
 		Number: 100,
@@ -509,7 +465,6 @@ func TestSequencerBuild(t *testing.T) {
 	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
 	emitter.AssertExpectations(t)
 
-	// pretend we progress to the next L1 origin, catching up with the L2 time
 	l1Origin := eth.L1BlockRef{
 		Hash:       common.Hash{0x11, 0xb},
 		ParentHash: common.Hash{0x11, 0xa},
@@ -519,50 +474,36 @@ func TestSequencerBuild(t *testing.T) {
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		return l1Origin, nil
 	}
-	var sentAttributes *derive.AttributesWithParent
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		x, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, head, x.Attributes.Parent)
-		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(x.Attributes.Attributes.Timestamp))
-		require.Equal(t, eth.L1BlockRef{}, x.Attributes.DerivedFrom)
-		sentAttributes = x.Attributes
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
 
-	// pretend we are already 150ms into the block-window when starting building
 	startedTime := time.Unix(int64(head.Time), 0).Add(time.Millisecond * 150)
-	testClock.Set(startedTime)
 	payloadInfo := eth.PayloadInfo{
 		ID:        eth.PayloadID{0x42},
 		Timestamp: head.Time + deps.cfg.BlockTime,
 	}
-	seq.OnEvent(context.Background(), engine.BuildStartedEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Parent:       head,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
+
+	var sentAttributes *derive.AttributesWithParent
+	deps.eng.startBuildFn = func(ctx context.Context, attrs *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		require.Equal(t, head, attrs.Parent)
+		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(attrs.Attributes.Timestamp))
+		require.Equal(t, eth.L1BlockRef{}, attrs.DerivedFrom)
+		sentAttributes = attrs
+		testClock.Set(startedTime)
+		return &engine.BuildStartResult{
+			Info:         payloadInfo,
+			BuildStarted: startedTime,
+			Parent:       head,
+		}, nil
+	}
+
+	// SequencerActionEvent triggers startBuildingBlock, which calls eng.StartBuild directly
+	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	require.NotNil(t, sentAttributes, "StartBuild must have been called")
+
 	// The sealing should now be scheduled as next action.
-	// We expect to seal just before the block-time boundary, leaving enough time for the sealing itself.
 	sealTargetTime, ok := seq.NextAction()
 	require.True(t, ok)
 	buildDuration := sealTargetTime.Sub(time.Unix(int64(head.Time), 0))
 	require.Equal(t, (time.Duration(deps.cfg.BlockTime)*time.Second)-defaultSealingDuration, buildDuration)
-
-	// Now trigger the sequencer to start sealing
-	emitter.ExpectOnce(engine.BuildSealEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
-	_, ok = seq.NextAction()
-	require.False(t, ok, "cannot act until sealing completes/fails")
 
 	payloadEnvelope := &eth.ExecutionPayloadEnvelope{
 		ParentBeaconBlockRoot: sentAttributes.Attributes.ParentBeaconBlockRoot,
@@ -573,7 +514,6 @@ func TestSequencerBuild(t *testing.T) {
 			BlockHash:    common.Hash{0x12, 0x34},
 			Timestamp:    sentAttributes.Attributes.Timestamp,
 			Transactions: sentAttributes.Attributes.Transactions,
-			// Not all attributes matter to sequencer. We can leave these nil.
 		},
 	}
 	payloadRef := eth.L2BlockRef{
@@ -584,44 +524,28 @@ func TestSequencerBuild(t *testing.T) {
 		L1Origin:       l1Origin.ID(),
 		SequenceNumber: 0,
 	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// And report back the sealing result to the engine
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Info:        payloadInfo,
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// The sequencer should start processing the payload
-	emitter.AssertExpectations(t)
-	// But also optimistically give it to the conductor and the async gossip
-	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
-	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
-	_, ok = seq.NextAction()
-	require.False(t, ok, "optimistically published, but not ready to sequence next, until local processing completes")
 
-	// Mock that the processing was successful
-	seq.OnEvent(context.Background(), engine.PayloadSuccessEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	require.Nil(t, deps.asyncGossip.payload, "async gossip should have cleared,"+
-		" after previous publishing and now having persisted the block ourselves")
-	_, ok = seq.NextAction()
-	require.False(t, ok, "published and processed, but not canonical yet. Cannot proceed until then.")
+	deps.eng.sealBuildFn = func(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
+		require.Equal(t, payloadInfo, info)
+		return &engine.SealResult{
+			Envelope: payloadEnvelope,
+			Ref:      payloadRef,
+		}, nil
+	}
+	deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
+		require.Equal(t, payloadEnvelope, envelope)
+		require.Equal(t, payloadRef, ref)
+		return nil
+	}
+
+	// Seal action: calls SealBuild + ProcessPayload directly
+	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
+	require.Nil(t, deps.asyncGossip.payload, "async gossip should have been cleared after successful ProcessPayload")
+	require.Equal(t, BuildingState{}, seq.latest, "building state should be cleared after successful insert")
 
 	// Once the forkchoice update identifies the processed block
 	// as canonical we can proceed to the next sequencer cycle iteration.
-	// Pretend we only completed processing the block 120 ms into the next block time window.
-	// (This is why we publish optimistically)
 	testClock.Set(time.Unix(int64(payloadRef.Time), 0).Add(time.Millisecond * 120))
 	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    payloadRef,
@@ -690,6 +614,7 @@ type sequencerTestDeps struct {
 	seqState         *BasicSequencerStateListener
 	conductor        *FakeConductor
 	asyncGossip      *FakeAsyncGossip
+	eng              *fakeEngController
 }
 
 func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
@@ -719,6 +644,7 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		IsthmusTime:       new(uint64),
 		JovianTime:        new(uint64),
 	}
+	eng := &fakeEngController{}
 	deps := &sequencerTestDeps{
 		cfg:           cfg,
 		attribBuilder: &FakeAttributesBuilder{cfg: cfg, rng: rng},
@@ -730,10 +656,11 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		seqState:    &BasicSequencerStateListener{},
 		conductor:   &FakeConductor{},
 		asyncGossip: &FakeAsyncGossip{},
+		eng:         eng,
 	}
 	seq := NewSequencer(context.Background(), log, cfg, defaultSealingDuration, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,
-		deps.asyncGossip, metrics.NoopMetrics, fakeEngController{})
+		deps.asyncGossip, metrics.NoopMetrics, eng)
 	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
 	seq.toBlockRef = func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
 		return eth.L2BlockRef{

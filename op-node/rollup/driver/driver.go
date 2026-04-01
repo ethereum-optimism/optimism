@@ -127,7 +127,7 @@ func NewDriver(
 		sequencer = sequencing.DisabledSequencer{}
 	}
 
-	driverEmitter := sys.Register("driver", nil)
+	driverEmitter := sys.Register("driver", nil, event.WithEmitPriority(event.High))
 	driver := &Driver{
 		StatusTracker:        statusTracker,
 		Finalizer:            finalizer,
@@ -349,6 +349,14 @@ func (s *Driver) eventLoop() {
 			s.metrics.RecordPipelineReset()
 			close(respCh)
 		case <-s.drain.Await():
+			// Safety net: if sequencer timer fired simultaneously with drain signal,
+			// service the sequencer first. The direct call completes before draining
+			// derivation events, preventing starvation of the seal phase.
+			select {
+			case <-sequencerCh:
+				s.emitter.Emit(s.driverCtx, sequencing.SequencerActionEvent{})
+			default:
+			}
 			if err := s.drain.Drain(); err != nil {
 				if s.driverCtx.Err() != nil {
 					return

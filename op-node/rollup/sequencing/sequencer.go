@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -105,7 +104,7 @@ type Sequencer struct {
 
 	emitter event.Emitter
 
-	eng attributes.EngineController
+	eng SequencerEngine
 
 	attrBuilder      derive.AttributesBuilder
 	l1OriginSelector L1OriginSelectorIface
@@ -139,7 +138,7 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 	conductor conductor.SequencerConductor,
 	asyncGossip AsyncGossiper,
 	metrics Metrics,
-	eng attributes.EngineController,
+	eng SequencerEngine,
 ) *Sequencer {
 	if sealingDuration <= 0 {
 		sealingDuration = defaultSealingDuration
@@ -214,42 +213,13 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 
 func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 	if x.DerivedFrom != (eth.L1BlockRef{}) {
-		// If we are adding new blocks onto the tip of the chain, derived from L1,
-		// then don't try to build on top of it immediately, as sequencer.
 		d.log.Warn("Detected new block-building from L1 derivation, avoiding sequencing for now.",
-			"build_job", x.Info.ID, "build_timestamp", x.Info.Timestamp,
-			"parent", x.Parent, "derived_from", x.DerivedFrom)
+			"build_job", x.Info.ID, "parent", x.Parent, "derived_from", x.DerivedFrom)
 		d.nextActionOK = false
 		return
 	}
-	if d.latest.Onto != x.Parent {
-		d.log.Warn("Canceling stale block-building job that was just started, as target to build onto has changed",
-			"stale", x.Parent, "new", d.latest.Onto, "job_id", x.Info.ID, "job_timestamp", x.Info.Timestamp)
-		d.emitter.Emit(d.ctx, engine.BuildCancelEvent{
-			Info:  x.Info,
-			Force: true,
-		})
-		d.handleInvalid()
-		return
-	}
-	// if not a derived block, then it is work of the sequencer
-	d.log.Debug("Sequencer started building new block",
-		"payloadID", x.Info.ID, "parent", x.Parent, "parent_time", x.Parent.Time)
-	d.latest.Info = x.Info
-	d.latest.Started = x.BuildStarted
-
-	d.nextActionOK = d.active.Load()
-
-	// schedule sealing
-	now := d.timeNow()
-	payloadTime := time.Unix(int64(x.Parent.Time+d.rollupCfg.BlockTime), 0)
-	remainingTime := payloadTime.Sub(now)
-	if remainingTime < d.sealingDuration {
-		d.nextAction = now // if there's not enough time for sealing, don't wait.
-	} else {
-		// finish with margin of sealing duration before payloadTime
-		d.nextAction = payloadTime.Add(-d.sealingDuration)
-	}
+	// Sequencer-originated builds are now handled inline via direct calls.
+	d.log.Debug("Ignoring BuildStartedEvent for sequencer build (handled via direct call)")
 }
 
 func (d *Sequencer) handleInvalid() {
@@ -274,39 +244,8 @@ func (d *Sequencer) onInvalidPayloadAttributes(x engine.InvalidPayloadAttributes
 }
 
 func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
-	if d.latest.Info != x.Info {
-		return // not our payload, should be ignored.
-	}
-	d.log.Info("Sequencer sealed block", "payloadID", x.Info.ID,
-		"block", x.Envelope.ExecutionPayload.ID(),
-		"parent", x.Envelope.ExecutionPayload.ParentID(),
-		"txs", len(x.Envelope.ExecutionPayload.Transactions),
-		"time", uint64(x.Envelope.ExecutionPayload.Timestamp))
-
-	// generous timeout, the conductor is important
-	ctx, cancel := context.WithTimeout(d.ctx, time.Second*30)
-	defer cancel()
-	if err := d.conductor.CommitUnsafePayload(ctx, x.Envelope); err != nil {
-		d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{
-			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err),
-		})
-		return
-	}
-
-	// begin gossiping as soon as possible
-	// asyncGossip.Clear() will be called later if an non-temporary error is found,
-	// or if the payload is successfully inserted
-	d.asyncGossip.Gossip(x.Envelope)
-	// Now after having gossiped the block, try to put it in our own canonical chain
-	d.emitter.Emit(d.ctx, engine.PayloadProcessEvent{
-		Concluding:   x.Concluding,
-		DerivedFrom:  x.DerivedFrom,
-		BuildStarted: x.BuildStarted,
-		Envelope:     x.Envelope,
-		Ref:          x.Ref,
-	})
-	d.latest.Ref = x.Ref
-	d.latestSealed = x.Ref
+	// Sequencer-originated seals are handled inline via direct calls in onSequencerAction.
+	// Derivation-originated seals are handled by the engine controller's onBuildSealed.
 }
 
 func (d *Sequencer) onPayloadSealInvalid(x engine.PayloadSealInvalidEvent) {
@@ -339,18 +278,9 @@ func (d *Sequencer) onPayloadInvalid(x engine.PayloadInvalidEvent) {
 }
 
 func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
-	// d.latest as building state may already be empty,
-	// if the forkchoice update (that dropped the stale building job) was received before the payload-success.
-	if d.latest.Ref != (eth.L2BlockRef{}) && d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
-		// Not a payload that was built by this sequencer. We can ignore it, and continue upon forkchoice update.
-		return
-	}
-	d.latest = BuildingState{}
-	d.log.Info("Sequencer inserted block",
-		"block", x.Ref, "parent", x.Envelope.ExecutionPayload.ParentID())
-	// The payload was already published upon sealing.
-	// Now that we have processed it ourselves we don't need it anymore.
-	d.asyncGossip.Clear()
+	// Sequencer-originated payload success is handled inline via direct calls.
+	// This handler fires for derivation-originated payloads; the sequencer
+	// doesn't need to act on those.
 }
 
 func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
@@ -371,30 +301,46 @@ func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
 		}
 		d.log.Info("Resuming sequencing with previously async-gossip confirmed payload",
 			"payload", payload.ExecutionPayload.ID())
-		// Payload is known, we must have resumed sequencer-actions after a temporary error,
-		// meaning that we have seen BuildSealedEvent already.
-		// We can retry processing to make it canonical.
-		d.emitter.Emit(d.ctx, engine.PayloadProcessEvent{
-			Concluding:  false,
-			DerivedFrom: eth.L1BlockRef{},
-			Envelope:    payload,
-			Ref:         ref,
-		})
-		d.latest.Ref = ref
+		if err := d.eng.ProcessPayload(d.ctx, payload, ref, time.Time{}); err != nil {
+			if errors.Is(err, engine.ErrPayloadDenied) || errors.Is(err, engine.ErrPayloadInvalid) {
+				d.handleInvalid()
+			}
+			return
+		}
+		d.latest = BuildingState{}
+		d.asyncGossip.Clear()
 	} else {
 		if d.latest.Info != (eth.PayloadInfo{}) {
-			// We should not repeat the seal request.
 			d.nextActionOK = false
-			// No known payload for block building job,
-			// we have to retrieve it first.
-			d.emitter.Emit(d.ctx, engine.BuildSealEvent{
-				Info:         d.latest.Info,
-				BuildStarted: d.latest.Started,
-				Concluding:   false,
-				DerivedFrom:  eth.L1BlockRef{},
-			})
+			sealResult, err := d.eng.SealBuild(d.ctx, d.latest.Info, d.latest.Started)
+			if err != nil {
+				d.handleInvalid()
+				return
+			}
+			d.log.Info("Sequencer sealed block", "payloadID", d.latest.Info.ID,
+				"block", sealResult.Envelope.ExecutionPayload.ID(),
+				"txs", len(sealResult.Envelope.ExecutionPayload.Transactions))
+			ctx, cancel := context.WithTimeout(d.ctx, time.Second*30)
+			defer cancel()
+			if err := d.conductor.CommitUnsafePayload(ctx, sealResult.Envelope); err != nil {
+				d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{
+					Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err),
+				})
+				return
+			}
+			d.asyncGossip.Gossip(sealResult.Envelope)
+			d.latest.Ref = sealResult.Ref
+			d.latestSealed = sealResult.Ref
+			if err := d.eng.ProcessPayload(d.ctx, sealResult.Envelope, sealResult.Ref, d.latest.Started); err != nil {
+				if errors.Is(err, engine.ErrPayloadDenied) || errors.Is(err, engine.ErrPayloadInvalid) {
+					d.handleInvalid()
+				}
+				return
+			}
+			d.latest = BuildingState{}
+			d.log.Info("Sequencer inserted block", "block", sealResult.Ref)
+			d.asyncGossip.Clear()
 		} else if d.latest == (BuildingState{}) {
-			// If we have not started building anything, start building.
 			d.startBuildingBlock()
 		}
 	}
@@ -623,9 +569,32 @@ func (d *Sequencer) startBuildingBlock() {
 	// If we get a forkchoice update that conflicts, we will have to abort building.
 	d.latest = BuildingState{Onto: l2Head}
 
-	d.emitter.Emit(d.ctx, engine.BuildStartEvent{
-		Attributes: withParent,
-	})
+	result, err := d.eng.StartBuild(d.ctx, withParent)
+	if err != nil {
+		d.handleInvalid()
+		return
+	}
+	if d.latest.Onto != result.Parent {
+		d.log.Warn("Canceling stale block-building job",
+			"stale", result.Parent, "new", d.latest.Onto)
+		d.emitter.Emit(d.ctx, engine.BuildCancelEvent{Info: result.Info, Force: true})
+		d.handleInvalid()
+		return
+	}
+	d.log.Debug("Sequencer started building new block",
+		"payloadID", result.Info.ID, "parent", result.Parent)
+	d.latest.Info = result.Info
+	d.latest.Started = result.BuildStarted
+	d.nextActionOK = d.active.Load()
+
+	now := d.timeNow()
+	payloadTime := time.Unix(int64(result.Parent.Time+d.rollupCfg.BlockTime), 0)
+	remainingTime := payloadTime.Sub(now)
+	if remainingTime < d.sealingDuration {
+		d.nextAction = now
+	} else {
+		d.nextAction = payloadTime.Add(-d.sealingDuration)
+	}
 }
 
 func (d *Sequencer) NextAction() (t time.Time, ok bool) {

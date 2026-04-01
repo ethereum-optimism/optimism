@@ -1,11 +1,12 @@
 package engine
 
 import (
-	"context"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+
+	"context"
 )
 
 type PayloadSuccessEvent struct {
@@ -25,37 +26,7 @@ func (ev PayloadSuccessEvent) String() string {
 }
 
 func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
-	if ev.DerivedFrom == ReplaceBlockSource {
-		e.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
-		// Change the engine state to make the replacement block the cross-safe head of the chain,
-		// And continue syncing from there.
-		e.forceReset(ctx, ev.Ref, ev.Ref, ev.Ref, ev.Ref, e.Finalized(), false)
-		e.emitter.Emit(ctx, InteropReplacedBlockEvent{
-			Envelope: ev.Envelope,
-			Ref:      ev.Ref.BlockRef(),
-		})
-		// Apply it to the execution engine
-		e.tryUpdateEngine(ctx)
-		// Not a regular reset, since we don't wind back to any L2 block.
-		// We start specifically from the replacement block.
-		return
-	}
-
-	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, tryUpdateEngine must be sequentially invoked
-	e.tryUpdateUnsafe(ctx, ev.Ref)
-	// If derived from L1, then it can be considered (pending) safe
-	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		e.tryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
-		e.tryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
-	}
-	// Now if possible synchronously call FCU
-	err := e.tryUpdateEngineInternal(ctx)
-	if err != nil {
-		e.log.Error("Failed to update engine", "error", err)
-	} else {
-		updateEngineFinish := time.Now()
-		e.logBlockProcessingMetrics(updateEngineFinish, ev)
-	}
+	e.finalizePayload(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom, ev.Envelope, ev.BuildStarted, ev.InsertStarted)
 }
 
 func (e *EngineController) logBlockProcessingMetrics(updateEngineFinish time.Time, ev PayloadSuccessEvent) {
