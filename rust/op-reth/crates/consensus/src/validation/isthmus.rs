@@ -3,6 +3,7 @@
 use crate::OpConsensusError;
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
+use alloy_primitives::keccak256;
 use alloy_trie::EMPTY_ROOT_HASH;
 use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
 use reth_storage_api::{StorageRootProvider, errors::ProviderResult};
@@ -34,9 +35,11 @@ pub fn withdrawals_root<DB: StorageRootProvider>(
             .state()
             .get(&L2_TO_L1_MESSAGE_PASSER_ADDRESS)
             .map(|acc| {
-                HashedStorage::from_plain_storage(
-                    acc.status,
-                    acc.storage.iter().map(|(slot, value)| (slot, &value.present_value)),
+                HashedStorage::from_iter(
+                    acc.status.was_destroyed(),
+                    acc.storage.iter().map(|(slot, value)| {
+                        (keccak256(B256::from(*slot)), value.present_value)
+                    }),
                 )
             })
             .unwrap_or_default(),

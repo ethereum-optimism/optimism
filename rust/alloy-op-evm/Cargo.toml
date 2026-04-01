@@ -2,7 +2,7 @@
 name = "alloy-op-evm"
 description = "OP EVM implementation"
 
-version = "0.26.3"
+version = "0.30.0"
 edition = "2021"
 rust-version = "1.92"
 authors = ["Alloy Contributors", "OpLabsPBC"]
@@ -14,7 +14,7 @@ repository = "https://github.com/ethereum-optimism/optimism"
 workspace = true
 
 [dependencies]
-alloy-evm = { workspace = true, features = ["op"] }
+alloy-evm = { workspace = true }
 
 alloy-eips = { workspace = true }
 alloy-consensus = { workspace = true }

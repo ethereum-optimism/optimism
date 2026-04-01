@@ -251,7 +251,6 @@ where
         let mut state = State::builder()
             .with_database(&mut self.trie_db)
             .with_bundle_update()
-            .without_state_clear()
             .build();
         let evm = self.factory.evm_factory().create_evm(&mut state, evm_env);
         let ctx = OpBlockExecutionCtx {
