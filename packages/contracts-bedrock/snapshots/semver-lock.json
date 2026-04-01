@@ -4,8 +4,8 @@
     "sourceCodeHash": "0xe772f7db8033e4a738850cb28ac4849d3a454c93732135a8a10d4f7cb498088e"
   },
   "src/L1/ETHLockbox.sol:ETHLockbox": {
-    "initCodeHash": "0x781079a80d379658eb4553622a9da86f7532ffa424f1e8957a82680ee9435f66",
-    "sourceCodeHash": "0xba51f26758bf13f7c1029d154fa5e5afd06a2163563ded84cd3ef883b658d646"
+    "initCodeHash": "0xb2ff8426ab2eb36352f790748963c8e1f7a91caf16bee6a035c2c41bac532836",
+    "sourceCodeHash": "0x870004d5acc24a704277680f09ccca51a020a512e6c6d48cca583a23a0de43a2"
   },
   "src/L1/FeesDepositor.sol:FeesDepositor": {
     "initCodeHash": "0xe2ca240d728f711df438b7aeb3589c95ad11a97d742539a692ddafaf1365eb54",
@@ -32,8 +32,8 @@
     "sourceCodeHash": "0x3a37d410bb549ca16030a7dfcc6cdf70d852e22b53542d4d6487226c9925bc8f"
   },
   "src/L1/OptimismPortalInterop.sol:OptimismPortalInterop": {
-    "initCodeHash": "0x2a1bc53cca19588227849173d58ac2d1b85681ea1cde5b429077bd94ee745979",
-    "sourceCodeHash": "0x14cdbcb9bf42b67b9ca4fb89e7c43c97e421930db42d6037d7a780aeff6c067a"
+    "initCodeHash": "0xa7262e160851c0de73b96943a28141ea23d3337494f1c507ecfc66d8a8d83024",
+    "sourceCodeHash": "0x941a3ba130742d8671c27f230635614589e851ab685cd7094e2c4487c5e05585"
   },
   "src/L1/ProtocolVersions.sol:ProtocolVersions": {
     "initCodeHash": "0xcb59ad9a5ec2a0831b7f4daa74bdacba82ffa03035dafb499a732c641e017f4e",
