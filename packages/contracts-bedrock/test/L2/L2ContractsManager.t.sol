@@ -959,6 +959,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         uint256 count = 0;
         for (uint256 i = 0; i < records.length; i++) {
             if (!records[i].isProxied) continue;
+            if (records[i].isDeprecated) continue;
 
             if (
                 keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L1BlockCGT"))

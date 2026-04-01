@@ -142,6 +142,9 @@ library Predeploys {
     /// @param isProxied         True if the predeploy uses a Proxy. Non-proxied predeploys
     ///                          (WETH, GovernanceToken) are etched directly without proxy or
     ///                          implementation slot setup, and are excluded from NUT bundles.
+    /// @param isDeprecated      True if the predeploy is deprecated. Deprecated predeploys are
+    ///                          present on-chain for backwards compatibility but are excluded from
+    ///                          proxy setup loops, NUT bundles, and upgrade checks.
     struct PredeployRecord {
         address proxy;
         string name;
@@ -150,6 +153,7 @@ library Predeploys {
         bytes32 devFeatureGate;
         bytes32 sysFeatureGate;
         bool isProxied;
+        bool isDeprecated;
     }
 
     /// @notice Returns the name of the predeploy at the given address.
@@ -206,8 +210,10 @@ library Predeploys {
     ///      Records are ordered to match the L2ContractsManagerTypes.Implementations struct field order.
     ///      Non-proxied records (isProxied = false) are appended at the end and must be skipped
     ///      by consumers that operate on proxy/implementation slots (NUT bundle, setPredeployProxies).
+    ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must
+    ///      be skipped by consumers that perform proxy setup, NUT bundles, or upgrade checks.
     function getAllRecords() internal pure returns (PredeployRecord[] memory records_) {
-        records_ = new PredeployRecord[](28);
+        records_ = new PredeployRecord[](31);
 
         // ── Core predeploys ────────────────────────────────────────────────────────────────
         // Gas profiling: 1,708,099 gas used → 2,562,148 recommended → 2.6M with safety margin
@@ -218,7 +224,8 @@ library Predeploys {
             deployGasLimit: 2_600_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 1,681,024 gas used → 2,521,536 recommended → 2.6M with safety margin
         records_[1] = PredeployRecord({
@@ -228,7 +235,8 @@ library Predeploys {
             deployGasLimit: 2_600_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 2,358,092 gas used → 3,537,138 recommended → 3.6M with safety margin
         records_[2] = PredeployRecord({
@@ -238,7 +246,8 @@ library Predeploys {
             deployGasLimit: 3_600_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 841,152 gas used → 1,261,728 recommended → 1.3M with safety margin
         records_[3] = PredeployRecord({
@@ -248,7 +257,8 @@ library Predeploys {
             deployGasLimit: 1_300_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 2,347,504 gas used → 3,521,256 recommended → 3.6M with safety margin
         records_[4] = PredeployRecord({
@@ -258,7 +268,8 @@ library Predeploys {
             deployGasLimit: 3_600_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 1,242,108 gas used → 1,863,162 recommended → 1.9M with safety margin
         records_[5] = PredeployRecord({
@@ -268,7 +279,8 @@ library Predeploys {
             deployGasLimit: 1_900_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 707,557 gas used → 1,061,335 recommended → 1.1M with safety margin
         // Standard variant — used on non-CGT chains. CGT variant follows immediately after.
@@ -279,7 +291,8 @@ library Predeploys {
             deployGasLimit: 1_100_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 710,257 gas used → 1,065,385 recommended → 1.1M with safety margin
         // CGT variant — used on custom gas token chains. Same proxy as L1Block.
@@ -290,7 +303,8 @@ library Predeploys {
             deployGasLimit: 1_100_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: Features.CUSTOM_GAS_TOKEN,
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 400,911 gas used → 601,366 recommended → 650K with safety margin
         // Standard variant — used on non-CGT chains. CGT variant follows immediately after.
@@ -301,7 +315,8 @@ library Predeploys {
             deployGasLimit: 650_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 484,560 gas used → 726,840 recommended → 750K with safety margin
         // CGT variant — used on custom gas token chains. Same proxy as L2ToL1MessagePasser.
@@ -312,7 +327,8 @@ library Predeploys {
             deployGasLimit: 750_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: Features.CUSTOM_GAS_TOKEN,
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 3,248,395 gas used → 4,872,592 recommended → 4.9M with safety margin
         records_[10] = PredeployRecord({
@@ -322,7 +338,8 @@ library Predeploys {
             deployGasLimit: 4_900_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 1,538,265 gas used → 2,307,397 recommended → 2.4M with safety margin
         records_[11] = PredeployRecord({
@@ -332,7 +349,8 @@ library Predeploys {
             deployGasLimit: 2_400_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
         records_[12] = PredeployRecord({
@@ -342,7 +360,8 @@ library Predeploys {
             deployGasLimit: 1_300_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 14,439 gas used → 21,658 recommended → 50K with safety margin
         records_[13] = PredeployRecord({
@@ -352,7 +371,8 @@ library Predeploys {
             deployGasLimit: 50_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
         records_[14] = PredeployRecord({
@@ -362,7 +382,8 @@ library Predeploys {
             deployGasLimit: 1_300_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 464,947 gas used → 697,420 recommended → 700K with safety margin
         records_[15] = PredeployRecord({
@@ -372,7 +393,8 @@ library Predeploys {
             deployGasLimit: 700_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 3,820,943 gas used → 5,731,414 recommended → 5.8M with safety margin
         records_[16] = PredeployRecord({
@@ -382,7 +404,8 @@ library Predeploys {
             deployGasLimit: 5_800_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 1,077,380 gas used → 1,616,070 recommended → 1.7M with safety margin
         records_[17] = PredeployRecord({
@@ -392,7 +415,8 @@ library Predeploys {
             deployGasLimit: 1_700_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
 
         // ── Interop predeploys ─────────────────────────────────────────────────────────────
@@ -406,7 +430,8 @@ library Predeploys {
             deployGasLimit: 600_000,
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             sysFeatureGate: Features.INTEROP,
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 965,734 gas used → 1,448,601 recommended → 1.5M with safety margin
         records_[19] = PredeployRecord({
@@ -416,7 +441,8 @@ library Predeploys {
             deployGasLimit: 1_500_000,
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             sysFeatureGate: Features.INTEROP,
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 441,198 gas used → 661,797 recommended → 700K with safety margin
         records_[20] = PredeployRecord({
@@ -426,7 +452,8 @@ library Predeploys {
             deployGasLimit: 700_000,
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             sysFeatureGate: Features.INTEROP,
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 230,857 gas used → 346,285 recommended → 400K with safety margin
         records_[21] = PredeployRecord({
@@ -436,7 +463,8 @@ library Predeploys {
             deployGasLimit: 400_000,
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             sysFeatureGate: Features.INTEROP,
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
 
         // ── CGT predeploys ─────────────────────────────────────────────────────────────────
@@ -448,7 +476,8 @@ library Predeploys {
             deployGasLimit: 400_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: Features.CUSTOM_GAS_TOKEN,
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 914,648 gas used → 1,371,972 recommended → 1.4M with safety margin
         records_[23] = PredeployRecord({
@@ -458,7 +487,8 @@ library Predeploys {
             deployGasLimit: 1_400_000,
             devFeatureGate: bytes32(0),
             sysFeatureGate: Features.CUSTOM_GAS_TOKEN,
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
 
         // ── L2CM predeploys ────────────────────────────────────────────────────────────────
@@ -470,7 +500,8 @@ library Predeploys {
             deployGasLimit: 600_000,
             devFeatureGate: DevFeatures.L2CM,
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
         // Gas profiling: 167,063 gas used → 250,594 recommended → 260K with safety margin
         records_[25] = PredeployRecord({
@@ -480,7 +511,8 @@ library Predeploys {
             deployGasLimit: 260_000,
             devFeatureGate: DevFeatures.L2CM,
             sysFeatureGate: bytes32(0),
-            isProxied: true
+            isProxied: true,
+            isDeprecated: false
         });
 
         // ── Non-proxied predeploys ─────────────────────────────────────────────────────────
@@ -493,7 +525,8 @@ library Predeploys {
             deployGasLimit: 0,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: false
+            isProxied: false,
+            isDeprecated: false
         });
         records_[27] = PredeployRecord({
             proxy: GOVERNANCE_TOKEN,
@@ -502,7 +535,42 @@ library Predeploys {
             deployGasLimit: 0,
             devFeatureGate: bytes32(0),
             sysFeatureGate: bytes32(0),
-            isProxied: false
+            isProxied: false,
+            isDeprecated: false
+        });
+
+        // ── Deprecated predeploys ──────────────────────────────────────────────────────────
+        // Present on-chain for backwards compatibility but excluded from proxy setup loops,
+        // NUT bundles, and upgrade checks. Handled by individual setters in L2Genesis.
+        records_[28] = PredeployRecord({
+            proxy: LEGACY_MESSAGE_PASSER,
+            name: "LegacyMessagePasser",
+            artifactPath: "LegacyMessagePasser.sol:LegacyMessagePasser",
+            deployGasLimit: 0,
+            devFeatureGate: bytes32(0),
+            sysFeatureGate: bytes32(0),
+            isProxied: true,
+            isDeprecated: true
+        });
+        records_[29] = PredeployRecord({
+            proxy: DEPLOYER_WHITELIST,
+            name: "DeployerWhitelist",
+            artifactPath: "DeployerWhitelist.sol:DeployerWhitelist",
+            deployGasLimit: 0,
+            devFeatureGate: bytes32(0),
+            sysFeatureGate: bytes32(0),
+            isProxied: true,
+            isDeprecated: true
+        });
+        records_[30] = PredeployRecord({
+            proxy: L1_BLOCK_NUMBER,
+            name: "L1BlockNumber",
+            artifactPath: "L1BlockNumber.sol:L1BlockNumber",
+            deployGasLimit: 0,
+            devFeatureGate: bytes32(0),
+            sysFeatureGate: bytes32(0),
+            isProxied: true,
+            isDeprecated: true
         });
     }
 

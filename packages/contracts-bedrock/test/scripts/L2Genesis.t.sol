@@ -59,6 +59,9 @@ abstract contract L2Genesis_TestInit is Test {
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
 
         for (uint256 i = 0; i < records.length; i++) {
+            // TODO: Remove this once the deprecated predeploys are removed.
+            // if (records[i].isDeprecated) continue;
+
             if (
                 keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L1BlockCGT"))
                     || keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L2ToL1MessagePasserCGT"))

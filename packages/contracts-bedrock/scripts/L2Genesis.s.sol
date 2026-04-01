@@ -227,8 +227,11 @@ contract L2Genesis is Script {
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
 
         for (uint256 i = 0; i < records.length; i++) {
-            // Non-proxied predeploys (WETH, GovernanceToken) are etched directly elsewhere.
+            // Non-proxied predeploys are excluded from proxy setup.
             if (!records[i].isProxied) continue;
+
+            // TODO: Remove tnhis once the deprecated predeploys are removed.
+            // if (records[i].isDeprecated) continue;
 
             // Skip duplicates — CGT variant records share a proxy with their standard counterpart.
             if (
@@ -256,9 +259,9 @@ contract L2Genesis is Script {
         // Must be first: other contracts' initialize() calls assert _assertOnlyProxyAdminOrProxyAdminOwner(),
         // which reads L2ProxyAdmin.owner(). The owner slot must be set before any initializer runs.
         setL2ProxyAdmin(_input); // 18
-        // setLegacyMessagePasser(); // 0: LEGACY_MESSAGE_PASSER is deprecated and not used in OP-Stack
+        setLegacyMessagePasser(); // 0: LEGACY_MESSAGE_PASSER is deprecated and not used in OP-Stack
         // 01: legacy, not used in OP-Stack
-        // setDeployerWhitelist(); // 2: DEPLOYER_WHITELIST is deprecated and not used in OP-Stack
+        setDeployerWhitelist(); // 2: DEPLOYER_WHITELIST is deprecated and not used in OP-Stack
         // 3,4,5: legacy, not used in OP-Stack.
         setWETH(); // 6: WETH (not behind a proxy)
         setL2CrossDomainMessenger(_input.l1CrossDomainMessengerProxy); // 7
@@ -267,7 +270,7 @@ contract L2Genesis is Script {
         setL2StandardBridge(_input.l1StandardBridgeProxy); // 10
         setSequencerFeeVault(_input); // 11
         setOptimismMintableERC20Factory(); // 12
-        // setL1BlockNumber(); // 13: L1_BLOCK_NUMBER is deprecated and not used in OP-Stack
+        setL1BlockNumber(); // 13: L1_BLOCK_NUMBER is deprecated and not used in OP-Stack
         setL2ERC721Bridge(_input.l1ERC721BridgeProxy); // 14
         setL1Block(_input); // 15
         setL2ToL1MessagePasser(_input.useCustomGasToken); // 16

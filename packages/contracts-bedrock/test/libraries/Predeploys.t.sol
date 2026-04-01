@@ -85,6 +85,9 @@ abstract contract Predeploys_TestInit is CommonTest {
 
         uint256 count = records.length;
         for (uint256 i = 0; i < count; i++) {
+            // TODO: Remove this once the deprecated predeploys are removed.
+            // if (records[i].isDeprecated) continue;
+
             address addr = records[i].proxy;
             address implAddr = Predeploys.predeployToCodeNamespace(addr);
 

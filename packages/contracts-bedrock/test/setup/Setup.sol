@@ -517,6 +517,9 @@ abstract contract Setup is FeatureFlags {
     function _labelPredeploys() internal {
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
         for (uint256 i = 0; i < records.length; i++) {
+            // TODO: Remove this once the deprecated predeploys are removed.
+            // if (records[i].isDeprecated) continue;
+
             // Default to normal for CGT variants
             if (records[i].proxy == Predeploys.L1_BLOCK_NUMBER) {
                 vm.label(records[i].proxy, "L1Block");

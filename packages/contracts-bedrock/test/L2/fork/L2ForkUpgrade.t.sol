@@ -139,6 +139,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
 
         for (uint256 i = 0; i < records.length; i++) {
             if (!records[i].isProxied) continue;
+            if (records[i].isDeprecated) continue;
             if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
             tmp[count++] = records[i].proxy;
         }

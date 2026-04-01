@@ -390,8 +390,9 @@ contract GenerateNUTBundle is Script {
 
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
         for (uint256 i = 0; i < records.length; i++) {
-            // Non-proxied predeploys (WETH, GovernanceToken) are not deployed via NUT bundles.
+            // Non-proxied and deprecated predeploys are not deployed via NUT bundles.
             if (!records[i].isProxied) continue;
+            if (records[i].isDeprecated) continue;
             _implementationConfigs.push(
                 _makeConfig(records[i].name, records[i].artifactPath, records[i].deployGasLimit)
             );
