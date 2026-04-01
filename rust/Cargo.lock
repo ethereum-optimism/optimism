@@ -13200,7 +13200,7 @@ dependencies = [
 
 [[package]]
 name = "rollup-boost"
-version = "0.7.13"
+version = "0.7.14"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
