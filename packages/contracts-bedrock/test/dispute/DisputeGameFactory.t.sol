@@ -471,13 +471,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
 
     /// @notice Tests that the `create` function reverts when sending more ETH than the required
     ///         bond amount.
-    function testFuzz_create_overpayment_reverts(
-        uint32 gameType,
-        Claim rootClaim,
-        bytes calldata extraData
-    )
-        public
-    {
+    function testFuzz_create_overpayment_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
         uint32 maxGameType = 10;
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
