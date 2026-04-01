@@ -549,7 +549,7 @@ mod tests {
         let receipts: Vec<OpReceiptEnvelope> = vec![];
 
         // Cache empty receipts for a fake block
-        provider.cache_receipts(fake_hash, receipts.clone());
+        provider.cache_receipts(fake_hash, receipts);
 
         // Verify the cache is hit
         let result = kona_proof::block_on(async {
