@@ -893,6 +893,12 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
             systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, false);
         }
 
+        // Normalize INTEROP to avoid environment-dependent state
+        if (systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            vm.prank(address(systemConfig.proxyAdmin()));
+            systemConfig.setFeature(Features.INTEROP, false);
+        }
+
         assertFalse(systemConfig.isFeatureEnabled(_feature));
     }
 
