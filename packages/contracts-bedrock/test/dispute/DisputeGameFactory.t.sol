@@ -930,6 +930,13 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         );
     }
 
+    /// @notice Returns valid rootClaim and extraData for creating a ZK game.
+    function _zkCreateParams() internal view returns (Claim rootClaim_, bytes memory extraData_) {
+        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
+        extraData_ = abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max);
+        rootClaim_ = changeClaimStatus(Claim.wrap(keccak256("zkRootClaim")), VMStatuses.INVALID);
+    }
+
     function _assertZKGameFactoryStorage(ZKDisputeGame _proxy) internal view {
         // extraData is 36 bytes: l2SequenceNumber (32) + parentIndex (4).
         bytes memory extraData_ = _proxy.extraData();
@@ -996,9 +1003,7 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
             })
         );
 
-        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
-        bytes memory extraData_ = abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max);
-        Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256("zkRootClaim")), VMStatuses.INVALID);
+        (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
 
         address proposer = makeAddr("proposer");
         vm.warp(block.timestamp + 1000);
@@ -1020,16 +1025,13 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
             })
         );
 
-        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
-        bytes memory extraData_ = abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max);
-        Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256("zkRootClaim")), VMStatuses.INVALID);
+        (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
 
         address proposer = makeAddr("proposer");
         vm.deal(proposer, 2 ether);
         vm.warp(block.timestamp + 1000);
         vm.prank(proposer);
         vm.expectRevert(IncorrectBondAmount.selector);
-        // Sending 0.5 ether instead of the required 1 ether.
         disputeGameFactory.create{ value: 0.5 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_);
     }
 
@@ -1037,9 +1039,7 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
     function test_create_noImpl_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
-        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
-        bytes memory extraData_ = abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max);
-        Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256("zkRootClaim")), VMStatuses.INVALID);
+        (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
 
         // ZK_DISPUTE_GAME implementation is not registered — factory must revert.
         vm.expectRevert(abi.encodeWithSelector(NoImplementation.selector, GameTypes.ZK_DISPUTE_GAME));
