@@ -973,7 +973,7 @@ func RunDepositMessageTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	eventLogger := aliceA.DeployEventLogger()
 	depositEOA := aliceA.ViaDepositTx(aliceL1, sys.L2ELA, sys.L2ChainA)
-	initMsg := depositEOA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+	initMsg := depositEOA.SendRandomInitMessage(rng, eventLogger)
 	execMsg := aliceB.SendExecMessage(initMsg)
 
 	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
