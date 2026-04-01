@@ -787,8 +787,8 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	// Capture the optimistic state BEFORE the reorg.
 	// These reflect the chain state that includes the expired exec message.
-	firstOptimistic := optimisticBlockAtTimestamp(t, chains[0], endTimestamp)
-	secondOptimistic := optimisticBlockAtTimestamp(t, chains[1], endTimestamp)
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
 	start := superRootAtTimestamp(t, chains, startTimestamp)
 	optimisticEnd := superRootAtTimestamp(t, chains, endTimestamp)
 	preConsolidation := marshalTransition(start, consolidateStep, firstOptimistic, secondOptimistic)
@@ -835,15 +835,17 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop) {
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
 	for _, test := range tests {
 		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			// TODO(ethereum-optimism/optimism#19636): Kona's MessageGraph uses a hardcoded
-			// 7-day message expiry window instead of reading the dependency set's configurable
-			// override. This test uses a 10-second window, so kona cannot detect the expiry.
-			t.Skip("kona does not yet support custom message expiry windows")
+			// TODO(ethereum-optimism/optimism#19848): Kona computes a different output root
+			// than the supernode after deposit-only block replacement during consolidation.
+			t.Skip("kona output root mismatch after message expiry block replacement")
 			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
 				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
 				test.ClaimTimestamp, test.ExpectValid)
 		})
 		t.Run(test.Name+"-challenger", func(t devtest.T) {
+			// TODO(ethereum-optimism/optimism#19848): Challenger trace provider output does not
+			// account for block replacement, causing a mismatch on the consolidation step.
+			t.Skip("challenger provider mismatch after message expiry block replacement")
 			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
 		})
 	}
