@@ -835,7 +835,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
 
             // Migrate any ETH into the ETHLockbox.
-            IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
+            IOptimismPortal(payable(_cts.optimismPortal)).migrateLiquidity();
         }
 
         // Update the L1CrossDomainMessenger.
