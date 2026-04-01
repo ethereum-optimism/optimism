@@ -1,0 +1,30 @@
+---
+title: "Kona Protocol Libraries"
+---
+
+The Kona monorepo contains a set of protocol crates that are designed
+to be `no_std` compatible for Kona's fault proof sdk. Protocol crates
+are built on [alloy][alloy] and [op-alloy][op-alloy] types.
+
+The following protocol crates are published to [crates.io][crates].
+
+At the lowest level, `kona-genesis` and `kona-hardforks` expose
+core genesis and hardfork types.
+
+`kona-protocol` sits just above `kona-genesis`, composing genesis types
+into other core protocol types, as well as many independent protocol types.
+
+More recently, the `kona-interop` crate was introduced that contains types
+specific to [Interop][interop].
+
+`kona-registry` contains bindings to the [superchain-registry][scr].
+The registry is available in a `no_std` environment
+but requires `serde` to read serialized configs at compile time. `kona-registry` uses
+types defined in `kona-genesis` to deserialize the superchain registry configs at compile time.
+
+
+[crates]: https://crates.io
+[alloy]: https://github.com/alloy-rs/alloy
+[op-alloy]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-alloy
+[interop]: https://specs.optimism.io/interop/overview.html
+[scr]: https://github.com/ethereum-optimism/superchain-registry
