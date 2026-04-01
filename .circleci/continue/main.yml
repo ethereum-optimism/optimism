@@ -2436,7 +2436,7 @@ workflows:
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
-          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||' | grep -v 'L2GenesisForkUpgrade'
+          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
           features: <<matrix.features>>
@@ -2458,7 +2458,7 @@ workflows:
       # On PRs, run tests with lite profile for better build times.
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
-          test_list: find test -name "*.t.sol" | grep -v 'L2GenesisForkUpgrade'
+          test_list: find test -name "*.t.sol"
           test_profile: liteci
           features: <<matrix.features>>
           matrix:
@@ -2468,21 +2468,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
           check_changed_patterns: contracts-bedrock,op-node
-          filters:
-            branches:
-              ignore: develop
-      # On PRs, run genesis upgrade tests with optimized profile (gas limits require optimizer).
-      - contracts-bedrock-tests:
-          name: contracts-bedrock-tests-genesis-upgrade <<matrix.features>>
-          test_list: echo "test/L2/L2GenesisForkUpgrade.t.sol"
-          test_profile: ci
-          features: <<matrix.features>>
-          matrix:
-            parameters:
-              features: *features_matrix
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
           filters:
             branches:
               ignore: develop
@@ -2842,7 +2827,6 @@ workflows:
             - go-tests-short: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-tests main: terminal
-            - contracts-bedrock-tests-genesis-upgrade main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - memory-all: terminal
