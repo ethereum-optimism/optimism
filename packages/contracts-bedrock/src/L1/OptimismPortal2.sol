@@ -130,6 +130,18 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:spacer superRootsActive
     bool private spacer_63_20_1;
 
+    /// @notice Emitted when the Portal is migrated to be shared by
+    /// @param oldLockbox The lockbox before the migration
+    /// @param newLockbox The shared lockbox
+    /// @param oldAnchorStateRegistry The anchorStateRegistry used before the migration
+    /// @param newAnchorStateRegistry The anchorStateRegistry used after the migration
+    event PortalMigrated(
+        IETHLockbox indexed oldLockbox,
+        IETHLockbox indexed newLockbox,
+        IAnchorStateRegistry indexed oldAnchorStateRegistry,
+        IAnchorStateRegistry newAnchorStateRegistry
+    );
+
     /// @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
     ///         are read by the rollup node and used to derive deposit transactions on L2.
     /// @param from       Address that triggered the deposit transaction.
@@ -168,6 +180,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when the portal is paused.
     error OptimismPortal_CallPaused();
 
+    event ETHMigrated(address indexed lockbox, uint256 balance);
+    /// @notice Migrates the total ETH balance to the ETHLockbox.
+
     /// @notice Thrown when a CGT withdrawal is not allowed.
     error OptimismPortal_NotAllowedOnCGTMode();
 
@@ -195,8 +210,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when the root claim of a dispute game is invalid.
     error OptimismPortal_InvalidRootClaim();
 
+    /// @notice Thrown when migrating to the registry that was previously
+    /// set on the OptimismPortal prior to the migration
+    error OptimismPortal_MigratingToSameRegistry();
+
     /// @notice Thrown when a withdrawal is being finalized by a reentrant call.
     error OptimismPortal_NoReentrancy();
+
+    /// @notice Thrown when calling a function that is only available when INTEROP
+    /// is enabled
+    error OptimismPortal_NotUsingInterop();
 
     /// @notice Thrown when a withdrawal has not been proven for long enough.
     error OptimismPortal_ProofNotOldEnough();
@@ -208,9 +231,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.3.0
+    /// @custom:semver 5.4.0
     function version() public pure virtual returns (string memory) {
-        return "5.3.0";
+        return "5.4.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -446,9 +469,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
     }
 
-    event ETHMigrated(address indexed lockbox, uint256 balance);
-    /// @notice Migrates the total ETH balance to the ETHLockbox.
-
     function migrateLiquidity() public {
         if (!_isUsingInterop()) revert OptimismPortal_NotUsingInterop();
         // Liquidity migration can only be triggered by the ProxyAdmin owner.
@@ -460,15 +480,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit ETHMigrated(address(ethLockbox), ethBalance);
     }
 
-    error OptimismPortal_MigratingToSameRegistry();
-    error OptimismPortal_NotUsingInterop();
-
-    event PortalMigrated(
-        IETHLockbox indexed oldLockbox,
-        IETHLockbox indexed _newLockbox,
-        IAnchorStateRegistry indexed oldAnchorStateRegistry,
-        IAnchorStateRegistry _newAnchorStateRegistry
-    );
     /// @notice Allows the owner of the ProxyAdmin to migrate the OptimismPortal to use a new
     ///         lockbox, point at a new AnchorStateRegistry, and start to use the Super Roots proof
     ///         method. Primarily used for OptimismPortal instances to join the interop set, but
@@ -482,7 +493,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
 
-    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
+    function migrateToSharedDisputeGame(
+        IETHLockbox _newLockbox,
+        IAnchorStateRegistry _newAnchorStateRegistry
+    )
+        external
+    {
         if (!_isUsingInterop()) revert OptimismPortal_NotUsingInterop();
         // Migration can only be triggered when the system is not paused because the migration can
         // potentially unpause the system as a result of the modified ETHLockbox address.
@@ -732,6 +748,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     function _assertValidInteropState() internal view {
+        /// TODO
         /// interop on
         /// lockbox system feature set
     }

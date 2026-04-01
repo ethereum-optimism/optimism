@@ -30,7 +30,9 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_InvalidOutputRootProof();
     error OptimismPortal_InvalidProofTimestamp();
     error OptimismPortal_InvalidRootClaim();
+    error OptimismPortal_MigratingToSameRegistry();
     error OptimismPortal_NoReentrancy();
+    error OptimismPortal_NotUsingInterop();
     error OptimismPortal_ProofNotOldEnough();
     error OptimismPortal_Unproven();
     error OptimismPortal_InvalidLockboxState();
@@ -39,6 +41,13 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error UnexpectedString();
 
     event Initialized(uint8 version);
+    event ETHMigrated(address indexed lockbox, uint256 balance);
+    event PortalMigrated(
+        IETHLockbox indexed oldLockbox,
+        IETHLockbox indexed _newLockbox,
+        IAnchorStateRegistry indexed oldAnchorStateRegistry,
+        IAnchorStateRegistry _newAnchorStateRegistry
+    );
     event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
@@ -74,6 +83,8 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function initialize(ISystemConfig _systemConfig, IAnchorStateRegistry _anchorStateRegistry, IETHLockbox _ethLockbox) external;
     function initVersion() external view returns (uint8);
     function l2Sender() external view returns (address);
+    function migrateLiquidity() external;
+    function migrateToSharedDisputeGame(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
     function minimumGasLimit(uint64 _byteCount) external pure returns (uint64);
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256);
     function params() external view returns (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum); // nosemgrep

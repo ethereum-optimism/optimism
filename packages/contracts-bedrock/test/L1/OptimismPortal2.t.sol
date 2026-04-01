@@ -851,30 +851,30 @@ contract OptimismPortal2_MigrateLiquidity_Test is CommonTest {
     }
 }
 
-/// @title OptimismPortal2_MigrateToSuperRoots_Test
-/// @notice Test contract for OptimismPortal2 `migrateToSuperRoots` function.
-contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
+/// @title OptimismPortal2_migrateToSharedDisputeGame_Test
+/// @notice Test contract for OptimismPortal2 `migrateToSharedDisputeGame` function.
+contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_TestInit {
     function setUp() public override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
-    /// @notice Tests that `migrateToSuperRoots` reverts if the caller is not the proxy admin
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts if the caller is not the proxy admin
     ///         owner.
-    function testFuzz_migrateToSuperRoots_notProxyAdminOwner_reverts(address _caller) external {
+    function testFuzz_migrateToSharedDisputeGame_notProxyAdminOwner_reverts(address _caller) external {
         vm.assume(_caller != optimismPortal2.proxyAdminOwner());
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
 
         vm.prank(_caller);
-        IOptimismPortalInterop(payable(optimismPortal2)).migrateToSuperRoots(
+        IOptimismPortalInterop(payable(optimismPortal2)).migrateToSharedDisputeGame(
             IETHLockbox(address(1)), IAnchorStateRegistry(address(1))
         );
     }
 
-    /// @notice Tests that `migrateToSuperRoots` reverts if the new registry is the same as the
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts if the new registry is the same as the
     ///         current one.
     /// @param _newLockbox The new ETHLockbox to migrate to.
-    function testFuzz_migrateToSuperRoots_usingSameRegistry_reverts(address _newLockbox) external {
+    function testFuzz_migrateToSharedDisputeGame_usingSameRegistry_reverts(address _newLockbox) external {
         vm.assume(_newLockbox != address(optimismPortal2.ethLockbox()));
 
         // Use the same registry as the current one.
@@ -886,16 +886,21 @@ contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
         // Expect the migration to revert.
         vm.expectRevert(IOptimismPortalInterop.OptimismPortal_MigratingToSameRegistry.selector);
         vm.prank(caller);
-        IOptimismPortalInterop(payable(optimismPortal2)).migrateToSuperRoots(
+        IOptimismPortalInterop(payable(optimismPortal2)).migrateToSharedDisputeGame(
             IETHLockbox(_newLockbox), newAnchorStateRegistry
         );
     }
 
-    /// @notice Tests that `migrateToSuperRoots` updates the ETHLockbox contract, updates the
+    /// @notice Tests that `migrateToSharedDisputeGame` updates the ETHLockbox contract, updates the
     ///         AnchorStateRegistry, and sets the superRootsActive flag to true.
     /// @param _newLockbox The new ETHLockbox to migrate to.
     /// @param _newAnchorStateRegistry The new AnchorStateRegistry to migrate to.
-    function testFuzz_migrateToSuperRoots_succeeds(address _newLockbox, address _newAnchorStateRegistry) external {
+    function testFuzz_migrateToSharedDisputeGame_succeeds(
+        address _newLockbox,
+        address _newAnchorStateRegistry
+    )
+        external
+    {
         address oldLockbox = address(optimismPortal2.ethLockbox());
         address oldAnchorStateRegistry = address(optimismPortal2.anchorStateRegistry());
         vm.assume(_newLockbox != oldLockbox);
@@ -905,7 +910,7 @@ contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
         emit PortalMigrated(oldLockbox, _newLockbox, oldAnchorStateRegistry, _newAnchorStateRegistry);
 
         vm.prank(optimismPortal2.proxyAdminOwner());
-        IOptimismPortalInterop(payable(optimismPortal2)).migrateToSuperRoots(
+        IOptimismPortalInterop(payable(optimismPortal2)).migrateToSharedDisputeGame(
             IETHLockbox(_newLockbox), IAnchorStateRegistry(_newAnchorStateRegistry)
         );
 
@@ -914,8 +919,8 @@ contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
         assertTrue(IOptimismPortalInterop(payable(optimismPortal2)).superRootsActive());
     }
 
-    /// @notice Tests that `migrateToSuperRoots` reverts when the system is paused.
-    function test_migrateToSuperRoots_paused_reverts() external {
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts when the system is paused.
+    function test_migrateToSharedDisputeGame_paused_reverts() external {
         vm.startPrank(optimismPortal2.guardian());
         systemConfig.superchainConfig().pause(address(0));
         vm.stopPrank();
@@ -923,7 +928,7 @@ contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
         address caller = optimismPortal2.proxyAdminOwner();
         vm.expectRevert(IOptimismPortal.OptimismPortal_CallPaused.selector);
         vm.prank(caller);
-        IOptimismPortalInterop(payable(optimismPortal2)).migrateToSuperRoots(
+        IOptimismPortalInterop(payable(optimismPortal2)).migrateToSharedDisputeGame(
             IETHLockbox(address(1)), IAnchorStateRegistry(address(1))
         );
     }

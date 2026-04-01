@@ -64,7 +64,7 @@ interface IOptimismPortalInterop is IProxyAdminOwnedBase {
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function donateETH() external payable;
     function superchainConfig() external view returns (ISuperchainConfig);
-    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
+    function migrateToSharedDisputeGame(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external;
     function finalizeWithdrawalTransactionExternalProof(
         Types.WithdrawalTransaction memory _tx,

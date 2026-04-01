@@ -276,7 +276,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // NOTE: This requires the portal to already be upgraded to the interop version
         // (OptimismPortalInterop). If the portal is not on the interop version, this call will
         // fail.
-        portal.migrateToSuperRoots(_newLockbox, _newASR);
+        portal.migrateToSharedDisputeGame(_newLockbox, _newASR);
     }
 
     /// @notice Returns the contracts container.
