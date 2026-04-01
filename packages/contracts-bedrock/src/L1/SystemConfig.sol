@@ -529,7 +529,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     function _setResourceConfig(IResourceMetering.ResourceConfig memory _config) internal {
         // Min base fee must be less than or equal to max base fee.
         require(
-            _config.minimumBaseFee <= _config.maximumBaseFee, "SystemConfig: min base fee must be less than max base"
+            _config.minimumBaseFee <= _config.maximumBaseFee, "SystemConfig: min base fee must be less than or equal to max base"
         );
         // Base fee change denominator must be greater than 1.
         require(_config.baseFeeMaxChangeDenominator > 1, "SystemConfig: denominator must be larger than 1");
