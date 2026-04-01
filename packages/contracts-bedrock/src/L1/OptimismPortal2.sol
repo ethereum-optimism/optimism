@@ -259,7 +259,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Now perform initialization logic.
         systemConfig = _systemConfig;
         anchorStateRegistry = _anchorStateRegistry;
-        ethLockbox = _ethLockbox;
+        if (address(_ethLockbox) != address(0)){
+            ethLockbox = _ethLockbox;
+
+        }
 
         // Assert that the lockbox state is valid.
         _assertValidLockboxState();
