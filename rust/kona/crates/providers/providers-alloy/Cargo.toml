@@ -38,6 +38,8 @@ alloy-primitives = { workspace = true, features = ["map"] }
 op-alloy-consensus.workspace = true
 op-alloy-network.workspace = true
 
+reqwest.workspace = true
+
 # Misc
 lru.workspace = true
 serde.workspace = true

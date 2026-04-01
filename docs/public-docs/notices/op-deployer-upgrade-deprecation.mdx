@@ -1,0 +1,33 @@
+---
+title: Deprecation of op-deployer upgrade and manage commands
+description: The op-deployer upgrade and manage commands are deprecated. Use superchain-ops or the OPCM directly for L1 contract upgrades.
+lang: en-US
+content_type: notice
+topic: op-deployer-upgrade-deprecation
+personas:
+  - chain-operator
+categories:
+  - infrastructure
+is_imported_content: 'false'
+---
+
+The `upgrade` and `manage` commands in `op-deployer` are deprecated and no longer maintained. OP Labs uses the OP Contracts Manager (OPCM) for upgrade and chain management operations, and will focus `op-deployer` on initial chain deployments only.
+
+## What this means
+
+*   The `op-deployer upgrade` and `op-deployer manage` subcommands are no longer supported and will not receive updates.
+*   `op-deployer` itself is **not** deprecated. It remains the recommended tool for initial chain deployments via the `bootstrap`, `init`, `apply`, and `inspect` commands.
+*   For L1 contract upgrades, use [superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) or interact with the OPCM directly.
+
+## Action required
+
+If you are currently using `op-deployer upgrade` or `op-deployer manage` for L1 contract upgrades, migrate to one of the following approaches:
+
+1.  **[superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)** — recommended for OP Stack chains managed by the Security Council, chains with the Foundation or Security Council as signers, and chains requiring a highly secure upgrade process.
+2.  **OPCM directly** — for non-Optimism governed chains, you can interact with the OP Contracts Manager directly using your own tooling.
+
+## Resources
+
+*   [superchain-ops upgrade guide](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)
+*   [OP Contracts Manager reference](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OPContractsManager.sol)
+*   [OPCM design documentation](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/op-contracts-manager-arch.md)

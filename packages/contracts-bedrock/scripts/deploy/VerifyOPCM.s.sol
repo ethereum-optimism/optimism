@@ -255,6 +255,8 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["mipsImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["faultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["permissionedDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["superFaultDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["superPermissionedDisputeGameImpl"] = "CONTAINER_IMPL";
 
         // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
@@ -746,7 +748,8 @@ contract VerifyOPCM is Script {
     /// @return True if super dispute games are enabled.
     function _isSuperDisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
         bytes32 bitmap = _opcm.devFeatureBitmap();
-        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
 
     /// @notice Checks if a contract is a Super dispute game implementation.

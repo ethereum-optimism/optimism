@@ -2451,6 +2451,7 @@ workflows:
                 - OPCM_V2,OPTIMISM_PORTAL_INTEROP
                 - OPCM_V2,ZK_DISPUTE_GAME
                 - OPCM_V2,CANNON_KONA
+                - OPCM_V2,SUPER_ROOT_GAMES_MIGRATION
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

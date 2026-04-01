@@ -55,6 +55,10 @@
   },
   "redirects": [
     {
+      "source": "/chain-operators/tools/op-deployer/usage/upgrade",
+      "destination": "/notices/op-deployer-upgrade-deprecation"
+    },
+    {
       "source": "/pages/app-developers/get-started",
       "destination": "/interop/get-started"
     },
@@ -1970,8 +1974,7 @@
                       "chain-operators/tools/op-deployer/usage/bootstrap",
                       "chain-operators/tools/op-deployer/usage/init",
                       "chain-operators/tools/op-deployer/usage/apply",
-                      "chain-operators/tools/op-deployer/usage/verify",
-                      "chain-operators/tools/op-deployer/usage/upgrade"
+                      "chain-operators/tools/op-deployer/usage/verify"
                     ]
                   },
                   "chain-operators/tools/op-deployer/known-limitations",
@@ -2366,6 +2369,7 @@
             "group": "Notices",
             "pages": [
               "notices/op-geth-deprecation",
+              "notices/op-deployer-upgrade-deprecation",
               {
                 "group": "Archive",
                 "pages": [

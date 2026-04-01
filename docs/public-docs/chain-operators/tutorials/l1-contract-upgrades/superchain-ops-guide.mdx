@@ -5,9 +5,9 @@ description: Learn about using superchain-ops to upgrade your chain
 
 This guide outlines the process for upgrading Optimism chains using the `superchain-ops` repository. It's intended primarily for OP Stack chains managed by the Security Council, those with the Foundation or Security Council as signers, and/or chains requiring a highly secure process.
 
-For chains that don't require the enhanced security of superchain-ops or security council signing, you can instead use [op-deployer](/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade) to upgrade your chain.
+For chains that don't require the enhanced security of superchain-ops or security council signing, alternative upgrade tooling may be used. Note that the `op-deployer upgrade` command [has been deprecated](/notices/op-deployer-upgrade-deprecation).
 
-For non-Optimism governed chains, you can use [op-deployer](/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade) and your own tooling to upgrade your chain.
+For non-Optimism governed chains, you can use your own tooling to interact with the OPCM directly to upgrade your chain.
 
 `superchain-ops` is a highly secure service designed for Optimism chains. It provides a structured and security-focused approach to chain upgrades. The process involves creating tasks that use predefined templates to generate the necessary upgrade transactions.
 

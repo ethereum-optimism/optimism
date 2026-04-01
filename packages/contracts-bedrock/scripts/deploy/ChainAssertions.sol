@@ -14,7 +14,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
@@ -183,12 +183,13 @@ library ChainAssertions {
         require(address(_bridge.systemConfig()) == address(0), "CHECK-L1SB-110");
     }
 
-    /// @notice Asserts that the DisputeGameFactory is setup correctly
+    /// @notice Asserts that the DisputeGameFactory is setup correctly with a specific game type.
     function checkDisputeGameFactory(
         IDisputeGameFactory _factory,
         address _expectedOwner,
         address _permissionedDisputeGame,
-        bool _isProxy
+        bool _isProxy,
+        GameType _permGameType
     )
         internal
         view
@@ -204,11 +205,9 @@ library ChainAssertions {
         DeployUtils.assertInitialized({ _contractAddress: address(_factory), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            require(
-                address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == _permissionedDisputeGame, "CHECK-DG-20"
-            );
+            require(address(_factory.gameImpls(_permGameType)) == _permissionedDisputeGame, "CHECK-DG-20");
         } else {
-            require(address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "CHECK-DG-20");
+            require(address(_factory.gameImpls(_permGameType)) == address(0), "CHECK-DG-20");
             // The same check is made for both proxy and implementation
             require(_factory.owner() == _expectedOwner, "CHECK-DG-30");
         }

@@ -9,6 +9,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
@@ -16,6 +17,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -107,13 +109,7 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
 
         respectedGameType = optimismPortal2.respectedGameType();
         game = IFaultDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(respectedGameType) }(
-                        respectedGameType, Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
-                    )
-                )
-            )
+            payable(address(_createDisputeGame(respectedGameType, _outputRoot, _proposedBlockNumber)))
         );
 
         // Grab the index of the game we just created.
@@ -127,6 +123,31 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         if (isUsingLockbox()) {
             vm.deal(address(ethLockbox), 0xFFFFFFFF);
         }
+    }
+
+    /// @notice Creates a dispute game with proper extraData for both regular and super game types.
+    function _createDisputeGame(
+        GameType _gameType,
+        bytes32 _outputRoot_,
+        uint256 _blockNumber
+    )
+        internal
+        returns (IDisputeGame)
+    {
+        Claim claim;
+        bytes memory extra;
+        if (DisputeGames.isSuperGame(_gameType)) {
+            Types.OutputRootWithChainId[] memory roots = new Types.OutputRootWithChainId[](1);
+            roots[0] = Types.OutputRootWithChainId({ chainId: systemConfig.l2ChainId(), root: _outputRoot_ });
+            Types.SuperRootProof memory proof =
+                Types.SuperRootProof({ version: bytes1(uint8(1)), timestamp: uint64(_blockNumber), outputRoots: roots });
+            claim = Claim.wrap(Hashing.hashSuperRootProof(proof));
+            extra = Encoding.encodeSuperRootProof(proof);
+        } else {
+            claim = Claim.wrap(_outputRoot_);
+            extra = abi.encode(_blockNumber);
+        }
+        return disputeGameFactory.create{ value: disputeGameFactory.initBonds(_gameType) }(_gameType, claim, extra);
     }
 
     /// @notice Asserts that the reentrant call will revert.
@@ -1011,9 +1032,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         });
 
         // Create a new dispute game, and mock both games to be CHALLENGER_WINS.
-        IDisputeGame game2 = disputeGameFactory.create{
-            value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType())
-        }(optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1));
+        IDisputeGame game2 =
+            _createDisputeGame(optimismPortal2.respectedGameType(), _outputRoot, _proposedBlockNumber + 1);
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
         vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
         vm.mockCall(address(game2), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
@@ -1101,9 +1121,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
 
         // Create a new game to re-prove against
-        disputeGameFactory.create{ value: disputeGameFactory.initBonds(respectedGameType) }(
-            respectedGameType, Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
-        );
+        _createDisputeGame(respectedGameType, _outputRoot, _proposedBlockNumber + 1);
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
         // Warp 1 second into the future so we're not in the same block as the dispute game.
@@ -1140,6 +1158,15 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         IDisputeGame newGame = disputeGameFactory.create{
             value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType())
         }(GameType.wrap(0), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1));
+
+        // In super mode, the new game's type differs from the respected type, so mock this.
+        if (DisputeGames.isSuperGame(respectedGameType)) {
+            vm.mockCall(
+                address(newGame),
+                abi.encodeCall(IFaultDisputeGame.wasRespectedGameTypeWhenCreated, ()),
+                abi.encode(true)
+            );
+        }
 
         // Update the respected game type to 0xbeef.
         vm.prank(optimismPortal2.guardian());
@@ -1243,6 +1270,68 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         });
     }
 
+    /// @notice Tests that `proveWithdrawalTransaction` uses rootClaimByChainId for super game types
+    ///         via the stateless _isSuperGameType check in OptimismPortal2.
+    function test_proveWithdrawalTransaction_superGameType_succeeds() external {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Mock the game type to be SUPER_CANNON_KONA.
+        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
+
+        // Mock rootClaimByChainId to return the correct output root.
+        vm.mockCall(
+            address(game),
+            abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+            abi.encode(Claim.wrap(_outputRoot))
+        );
+
+        // Should succeed using rootClaimByChainId.
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that `proveWithdrawalTransaction` uses rootClaim for legacy game types.
+    function test_proveWithdrawalTransaction_legacyGameType_succeeds() external {
+        // Default game type is legacy (PERMISSIONED_CANNON or CANNON). Just prove normally.
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that `proveWithdrawalTransaction` reverts when a super game type's
+    ///         rootClaimByChainId reverts with UnknownChainId.
+    function test_proveWithdrawalTransaction_superGameTypeWrongChainId_reverts() external {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Mock the game type to be SUPER_CANNON_KONA.
+        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
+
+        // Mock rootClaimByChainId to revert with UnknownChainId.
+        vm.mockCallRevert(
+            address(game),
+            abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+            abi.encodePacked(UnknownChainId.selector)
+        );
+
+        // Should revert because chainId not found in super root.
+        vm.expectRevert(UnknownChainId.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
     /// @notice Tests that `proveWithdrawalTransaction` succeeds.
     function test_proveWithdrawalTransaction_validWithdrawalProof_succeeds() external {
         vm.expectEmit(true, true, true, true);
@@ -1334,13 +1423,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         });
 
         IFaultDisputeGame game_noData = IFaultDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(respectedGameType) }(
-                        respectedGameType, Claim.wrap(_outputRoot_noData), abi.encode(_proposedBlockNumber)
-                    )
-                )
-            )
+            payable(address(_createDisputeGame(respectedGameType, _outputRoot_noData, _proposedBlockNumber)))
         );
 
         uint256 _proposedGameIndex_noData = disputeGameFactory.gameCount() - 1;
@@ -1413,9 +1496,8 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         uint256 bobBalanceBefore = address(bob).balance;
 
         // Create a secondary dispute game.
-        IDisputeGame secondGame = disputeGameFactory.create{
-            value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType())
-        }(optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1));
+        IDisputeGame secondGame =
+            _createDisputeGame(optimismPortal2.respectedGameType(), _outputRoot, _proposedBlockNumber + 1);
 
         // Warp 1 second into the future so that the proof is submitted after the timestamp of game creation.
         vm.warp(block.timestamp + 1);
@@ -1690,9 +1772,20 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
             latestBlockhash: bytes32(0)
         });
 
-        vm.mockCall(
-            address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(Hashing.hashOutputRootProof(outputRootProof))
-        );
+        // Mock the root claim. Super games use rootClaimByChainId, regular games use rootClaim.
+        if (DisputeGames.isSuperGame(game.gameType())) {
+            vm.mockCall(
+                address(game),
+                abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+                abi.encode(Claim.wrap(Hashing.hashOutputRootProof(outputRootProof)))
+            );
+        } else {
+            vm.mockCall(
+                address(game),
+                abi.encodeCall(game.rootClaim, ()),
+                abi.encode(Hashing.hashOutputRootProof(outputRootProof))
+            );
+        }
 
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
@@ -1736,8 +1829,16 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
             latestBlockhash: bytes32(0)
         });
 
-        // Return a mock output root from the game.
-        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
+        // Return a mock output root from the game. Super games use rootClaimByChainId.
+        if (DisputeGames.isSuperGame(game.gameType())) {
+            vm.mockCall(
+                address(game),
+                abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+                abi.encode(Claim.wrap(outputRoot))
+            );
+        } else {
+            vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
+        }
 
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(withdrawalHash, alice, address(this));
