@@ -189,7 +189,7 @@ func (c *ChannelBuilder) AddBlock(block SizedBlock) (*derive.L1BlockInfo, error)
 			Number: l1info.Number,
 		}
 	}
-	if c.oldestL1Origin.Number == 0 || l1info.Number < c.latestL1Origin.Number {
+	if c.oldestL1Origin.Number == 0 || l1info.Number < c.oldestL1Origin.Number {
 		c.oldestL1Origin = eth.BlockID{
 			Hash:   l1info.BlockHash,
 			Number: l1info.Number,
