@@ -44,9 +44,9 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event ETHMigrated(address indexed lockbox, uint256 balance);
     event PortalMigrated(
         IETHLockbox indexed oldLockbox,
-        IETHLockbox indexed _newLockbox,
+        IETHLockbox indexed newLockbox,
         IAnchorStateRegistry indexed oldAnchorStateRegistry,
-        IAnchorStateRegistry _newAnchorStateRegistry
+        IAnchorStateRegistry newAnchorStateRegistry
     );
     event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
