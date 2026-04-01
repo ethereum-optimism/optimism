@@ -61,13 +61,14 @@ type ChainContainer interface {
 	BlockTime() uint64
 	// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
 	// currently uses that block at the specified height.
+	// output is the marshaled eth.Output preimage for optimistic root computation.
 	// WARNING: this is a dangerous stateful operation and is intended to be called only
 	// by interop transition application. Other callers should not use it until the
 	// interface is refactored to make that ownership explicit.
 	// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
 	// smaller interop-owned interface.
 	// Returns true if a rewind was triggered, false otherwise.
-	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64) (bool, error)
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
 	// PruneDeniedAtOrAfterTimestamp removes deny-list entries with DecisionTimestamp >= timestamp.
 	// Returns map of removed hashes by height.
 	PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error)
@@ -77,6 +78,11 @@ type ChainContainer interface {
 	PauseAndStopVN(ctx context.Context) error
 	// IsDenied checks if a block hash is on the deny list at the given height.
 	IsDenied(height uint64, payloadHash common.Hash) (bool, error)
+	// GetDeniedOutput returns the reconstructed OutputV0 for a denied block.
+	// Returns nil if the block is not denied at that height.
+	GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error)
+	// OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
+	OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
 	// SetResetCallback sets a callback that is invoked when the chain resets.
 	// The supernode uses this to notify activities about chain resets.
 	SetResetCallback(cb ResetCallback)

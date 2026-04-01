@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
 )
 
 func TestDenyList_AddAndContains(t *testing.T) {
@@ -28,7 +27,7 @@ func TestDenyList_AddAndContains(t *testing.T) {
 			name: "single hash at height",
 			setup: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
-				require.NoError(t, dl.Add(100, hash, 0))
+				require.NoError(t, dl.Add(100, hash, 0, eth.Bytes32{}, eth.Bytes32{}))
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
@@ -46,7 +45,7 @@ func TestDenyList_AddAndContains(t *testing.T) {
 					common.HexToHash("0xcccc"),
 				}
 				for _, h := range hashes {
-					require.NoError(t, dl.Add(50, h, 0))
+					require.NoError(t, dl.Add(50, h, 0, eth.Bytes32{}, eth.Bytes32{}))
 				}
 			},
 			check: func(t *testing.T, dl *DenyList) {
@@ -66,7 +65,7 @@ func TestDenyList_AddAndContains(t *testing.T) {
 			name: "hash at wrong height returns false",
 			setup: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0xdddd")
-				require.NoError(t, dl.Add(10, hash, 0))
+				require.NoError(t, dl.Add(10, hash, 0, eth.Bytes32{}, eth.Bytes32{}))
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0xdddd")
@@ -85,9 +84,9 @@ func TestDenyList_AddAndContains(t *testing.T) {
 			name: "duplicate add is idempotent",
 			setup: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0xeeee")
-				require.NoError(t, dl.Add(200, hash, 0))
-				require.NoError(t, dl.Add(200, hash, 0)) // Add again
-				require.NoError(t, dl.Add(200, hash, 0)) // And again
+				require.NoError(t, dl.Add(200, hash, 0, eth.Bytes32{}, eth.Bytes32{}))
+				require.NoError(t, dl.Add(200, hash, 0, eth.Bytes32{}, eth.Bytes32{})) // Add again
+				require.NoError(t, dl.Add(200, hash, 0, eth.Bytes32{}, eth.Bytes32{})) // And again
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hash := common.HexToHash("0xeeee")
@@ -137,7 +136,7 @@ func TestDenyList_Persistence(t *testing.T) {
 					{300, common.HexToHash("0x4444")},
 				}
 				for _, h := range hashes {
-					require.NoError(t, dl.Add(h.height, h.hash, 0))
+					require.NoError(t, dl.Add(h.height, h.hash, 0, eth.Bytes32{}, eth.Bytes32{}))
 				}
 
 				require.NoError(t, dl.Close())
@@ -219,7 +218,7 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 			setup: func(t *testing.T, dl *DenyList) {
 				for i := 0; i < 5; i++ {
 					hash := common.BigToHash(common.Big1.Add(common.Big1, common.Big0.SetInt64(int64(i))))
-					require.NoError(t, dl.Add(100, hash, 0))
+					require.NoError(t, dl.Add(100, hash, 0, eth.Bytes32{}, eth.Bytes32{}))
 				}
 			},
 			check: func(t *testing.T, dl *DenyList) {
@@ -232,8 +231,8 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 			name: "empty for clean height",
 			setup: func(t *testing.T, dl *DenyList) {
 				// Add hashes at other heights
-				require.NoError(t, dl.Add(10, common.HexToHash("0xaaaa"), 0))
-				require.NoError(t, dl.Add(30, common.HexToHash("0xbbbb"), 0))
+				require.NoError(t, dl.Add(10, common.HexToHash("0xaaaa"), 0, eth.Bytes32{}, eth.Bytes32{}))
+				require.NoError(t, dl.Add(30, common.HexToHash("0xbbbb"), 0, eth.Bytes32{}, eth.Bytes32{}))
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hashes, err := dl.GetDeniedHashes(20)
@@ -245,12 +244,12 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 			name: "isolated by height",
 			setup: func(t *testing.T, dl *DenyList) {
 				// Add different hashes at different heights
-				require.NoError(t, dl.Add(10, common.HexToHash("0x1010"), 0))
-				require.NoError(t, dl.Add(10, common.HexToHash("0x1011"), 0))
-				require.NoError(t, dl.Add(20, common.HexToHash("0x2020"), 0))
-				require.NoError(t, dl.Add(20, common.HexToHash("0x2021"), 0))
-				require.NoError(t, dl.Add(20, common.HexToHash("0x2022"), 0))
-				require.NoError(t, dl.Add(30, common.HexToHash("0x3030"), 0))
+				require.NoError(t, dl.Add(10, common.HexToHash("0x1010"), 0, eth.Bytes32{}, eth.Bytes32{}))
+				require.NoError(t, dl.Add(10, common.HexToHash("0x1011"), 0, eth.Bytes32{}, eth.Bytes32{}))
+				require.NoError(t, dl.Add(20, common.HexToHash("0x2020"), 0, eth.Bytes32{}, eth.Bytes32{}))
+				require.NoError(t, dl.Add(20, common.HexToHash("0x2021"), 0, eth.Bytes32{}, eth.Bytes32{}))
+				require.NoError(t, dl.Add(20, common.HexToHash("0x2022"), 0, eth.Bytes32{}, eth.Bytes32{}))
+				require.NoError(t, dl.Add(30, common.HexToHash("0x3030"), 0, eth.Bytes32{}, eth.Bytes32{}))
 			},
 			check: func(t *testing.T, dl *DenyList) {
 				hashes10, err := dl.GetDeniedHashes(10)
@@ -408,7 +407,7 @@ func TestInvalidateBlock(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"), 0)
+		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"), 0, eth.Bytes32{}, eth.Bytes32{})
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cannot invalidate genesis block")
@@ -449,9 +448,16 @@ func TestInvalidateBlock(t *testing.T) {
 				c.engine = mockEng
 			}
 
-			// Call InvalidateBlock
+			testStateRoot := eth.Bytes32(common.HexToHash("0xstate"))
+			testMsgPasserRoot := eth.Bytes32(common.HexToHash("0xmsgpasser"))
+			testOut := &eth.OutputV0{
+				StateRoot:                testStateRoot,
+				MessagePasserStorageRoot: testMsgPasserRoot,
+				BlockHash:                tt.payloadHash,
+			}
+
 			ctx := context.Background()
-			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash, 0)
+			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash, 0, testStateRoot, testMsgPasserRoot)
 			require.NoError(t, err)
 
 			// Verify rewind behavior
@@ -466,8 +472,57 @@ func TestInvalidateBlock(t *testing.T) {
 			found, err := dl.Contains(tt.height, tt.payloadHash)
 			require.NoError(t, err)
 			require.True(t, found, "hash should be in denylist after InvalidateBlock")
+
+			storedOutput, err := dl.GetOutputV0(tt.height, tt.payloadHash)
+			require.NoError(t, err)
+			require.Equal(t, testOut, storedOutput, "OutputV0 should be stored in denylist after InvalidateBlock")
 		})
 	}
+}
+
+func TestGetDeniedOutput(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+	require.NoError(t, err)
+	defer dl.Close()
+
+	testStateRoot := eth.Bytes32(common.HexToHash("0xstate"))
+	testMsgPasserRoot := eth.Bytes32(common.HexToHash("0xmsgpasser"))
+	hash := common.HexToHash("0xdead")
+
+	c := &simpleChainContainer{
+		denyList: dl,
+		log:      testLogger(),
+	}
+
+	t.Run("returns output after InvalidateBlock", func(t *testing.T) {
+		require.NoError(t, dl.Add(100, hash, 0, testStateRoot, testMsgPasserRoot))
+
+		got, err := c.GetDeniedOutput(100, hash)
+		require.NoError(t, err)
+		want := &eth.OutputV0{
+			StateRoot:                testStateRoot,
+			MessagePasserStorageRoot: testMsgPasserRoot,
+			BlockHash:                hash,
+		}
+		require.Equal(t, want, got)
+	})
+
+	t.Run("returns nil for non-denied block", func(t *testing.T) {
+		got, err := c.GetDeniedOutput(999, common.HexToHash("0xunknown"))
+		require.NoError(t, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("returns error when denylist not initialized", func(t *testing.T) {
+		noDenyList := &simpleChainContainer{
+			log: testLogger(),
+		}
+		_, err := noDenyList.GetDeniedOutput(100, hash)
+		require.Error(t, err)
+	})
 }
 
 func TestIsDenied(t *testing.T) {
@@ -517,7 +572,7 @@ func TestIsDenied(t *testing.T) {
 			defer dl.Close()
 
 			// Setup
-			require.NoError(t, dl.Add(tt.setupHeight, tt.setupHash, 0))
+			require.NoError(t, dl.Add(tt.setupHeight, tt.setupHash, 0, eth.Bytes32{}, eth.Bytes32{}))
 
 			// Create container
 			c := &simpleChainContainer{
@@ -574,7 +629,7 @@ func TestDenyList_ConcurrentAccess(t *testing.T) {
 				hash := makeHash(accessorID, j)
 
 				// Write
-				err := dl.Add(height, hash, 0)
+				err := dl.Add(height, hash, 0, eth.Bytes32{}, eth.Bytes32{})
 				require.NoError(t, err)
 
 				// Read own write
@@ -617,9 +672,9 @@ func TestDenyList_PruneAtOrAfterTimestamp(t *testing.T) {
 	hashA := common.HexToHash("0xaaaa")
 	hashB := common.HexToHash("0xbbbb")
 	hashC := common.HexToHash("0xcccc")
-	require.NoError(t, dl.Add(100, hashA, 10))
-	require.NoError(t, dl.Add(100, hashB, 11))
-	require.NoError(t, dl.Add(200, hashC, 12))
+	require.NoError(t, dl.Add(100, hashA, 10, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(100, hashB, 11, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(200, hashC, 12, eth.Bytes32{}, eth.Bytes32{}))
 
 	removed, err := dl.PruneAtOrAfterTimestamp(11)
 	require.NoError(t, err)
@@ -641,32 +696,154 @@ func TestDenyList_PruneAtOrAfterTimestamp(t *testing.T) {
 	require.Empty(t, records200)
 }
 
-func TestDenyList_DecodesLegacyHashOnlyFormat(t *testing.T) {
+func TestDenyList_GetOutputV0(t *testing.T) {
 	t.Parallel()
+
 	dir := t.TempDir()
 	dl, err := OpenDenyList(dir)
 	require.NoError(t, err)
 	defer dl.Close()
 
-	hashA := common.HexToHash("0xaaaa")
-	hashB := common.HexToHash("0xbbbb")
-	raw := append(hashA.Bytes(), hashB.Bytes()...)
+	out := &eth.OutputV0{
+		StateRoot:                eth.Bytes32(common.HexToHash("0xstate")),
+		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsgpasser")),
+		BlockHash:                common.HexToHash("0xblock"),
+	}
+	hash := common.HexToHash("0x1111")
+	require.NoError(t, dl.Add(100, hash, 0, out.StateRoot, out.MessagePasserStorageRoot))
 
-	// Write legacy format directly to bbolt
-	dl.mu.Lock()
-	err = dl.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(denyListBucketName).Put(heightToKey(100), raw)
+	want := &eth.OutputV0{
+		StateRoot:                out.StateRoot,
+		MessagePasserStorageRoot: out.MessagePasserStorageRoot,
+		BlockHash:                hash,
+	}
+
+	t.Run("returns stored OutputV0 for matching hash and height", func(t *testing.T) {
+		got, err := dl.GetOutputV0(100, hash)
+		require.NoError(t, err)
+		require.Equal(t, want, got)
 	})
-	dl.mu.Unlock()
+
+	t.Run("returns nil for wrong hash at same height", func(t *testing.T) {
+		got, err := dl.GetOutputV0(100, common.HexToHash("0x9999"))
+		require.NoError(t, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("returns nil for correct hash at wrong height", func(t *testing.T) {
+		got, err := dl.GetOutputV0(200, hash)
+		require.NoError(t, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("returns nil for empty height", func(t *testing.T) {
+		got, err := dl.GetOutputV0(999, common.HexToHash("0xabcd"))
+		require.NoError(t, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("isolates outputs per hash at same height", func(t *testing.T) {
+		out2 := &eth.OutputV0{
+			StateRoot:                eth.Bytes32(common.HexToHash("0xstate2")),
+			MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsgpasser2")),
+			BlockHash:                common.HexToHash("0xblock2"),
+		}
+		hash2 := common.HexToHash("0x2222")
+		require.NoError(t, dl.Add(100, hash2, 0, out2.StateRoot, out2.MessagePasserStorageRoot))
+
+		got1, err := dl.GetOutputV0(100, hash)
+		require.NoError(t, err)
+		require.Equal(t, want, got1)
+
+		want2 := &eth.OutputV0{
+			StateRoot:                out2.StateRoot,
+			MessagePasserStorageRoot: out2.MessagePasserStorageRoot,
+			BlockHash:                hash2,
+		}
+		got2, err := dl.GetOutputV0(100, hash2)
+		require.NoError(t, err)
+		require.Equal(t, want2, got2)
+	})
+}
+
+func TestDenyList_OutputPersistence(t *testing.T) {
+	t.Parallel()
+
+	dir := filepath.Join(t.TempDir(), "denylist")
+
+	out := &eth.OutputV0{
+		StateRoot:                eth.Bytes32(common.HexToHash("0xpersist_state")),
+		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xpersist_msgpasser")),
+		BlockHash:                common.HexToHash("0xpersist_block"),
+	}
+	hash := common.HexToHash("0xdead")
+	want := &eth.OutputV0{
+		StateRoot:                out.StateRoot,
+		MessagePasserStorageRoot: out.MessagePasserStorageRoot,
+		BlockHash:                hash,
+	}
+
+	// Write and close
+	dl, err := OpenDenyList(dir)
 	require.NoError(t, err)
+	require.NoError(t, dl.Add(100, hash, 42, out.StateRoot, out.MessagePasserStorageRoot))
+	require.NoError(t, dl.Close())
+
+	// Reopen and verify output persisted
+	dl2, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl2.Close()
+
+	got, err := dl2.GetOutputV0(100, hash)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+
+	records, err := dl2.GetDeniedRecords(100)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, hash, records[0].PayloadHash)
+	require.Equal(t, uint64(42), records[0].DecisionTimestamp)
+	require.Equal(t, out.StateRoot, records[0].StateRoot)
+	require.Equal(t, out.MessagePasserStorageRoot, records[0].MessagePasserStorageRoot)
+}
+
+func TestDenyList_GetDeniedRecords_IncludesRoots(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	out1 := &eth.OutputV0{
+		StateRoot:                eth.Bytes32(common.HexToHash("0xstate1")),
+		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsg1")),
+		BlockHash:                common.HexToHash("0xblock1"),
+	}
+	out2 := &eth.OutputV0{
+		StateRoot:                eth.Bytes32(common.HexToHash("0xstate2")),
+		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsg2")),
+		BlockHash:                common.HexToHash("0xblock2"),
+	}
+	hash1 := common.HexToHash("0xaaaa")
+	hash2 := common.HexToHash("0xbbbb")
+
+	require.NoError(t, dl.Add(100, hash1, 10, out1.StateRoot, out1.MessagePasserStorageRoot))
+	require.NoError(t, dl.Add(100, hash2, 11, out2.StateRoot, out2.MessagePasserStorageRoot))
 
 	records, err := dl.GetDeniedRecords(100)
 	require.NoError(t, err)
 	require.Len(t, records, 2)
-	require.Equal(t, DenyRecord{PayloadHash: hashA, DecisionTimestamp: 0}, records[0])
-	require.Equal(t, DenyRecord{PayloadHash: hashB, DecisionTimestamp: 0}, records[1])
 
-	found, err := dl.Contains(100, hashA)
-	require.NoError(t, err)
-	require.True(t, found)
+	recordMap := make(map[common.Hash]DenyRecord)
+	for _, r := range records {
+		recordMap[r.PayloadHash] = r
+	}
+
+	require.Equal(t, out1.StateRoot, recordMap[hash1].StateRoot)
+	require.Equal(t, out1.MessagePasserStorageRoot, recordMap[hash1].MessagePasserStorageRoot)
+	require.Equal(t, uint64(10), recordMap[hash1].DecisionTimestamp)
+	require.Equal(t, out2.StateRoot, recordMap[hash2].StateRoot)
+	require.Equal(t, out2.MessagePasserStorageRoot, recordMap[hash2].MessagePasserStorageRoot)
+	require.Equal(t, uint64(11), recordMap[hash2].DecisionTimestamp)
 }

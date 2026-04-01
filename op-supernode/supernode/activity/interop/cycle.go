@@ -3,6 +3,7 @@ package interop
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -210,9 +211,13 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 		// (bystander chains that have same-ts EMs but aren't part of the cycle are spared)
 		cycleChains := collectCycleParticipants(graph)
 		if len(cycleChains) > 0 {
-			result.InvalidHeads = make(map[eth.ChainID]eth.BlockID)
+			result.InvalidHeads = make(map[eth.ChainID]InvalidHead)
 			for chainID := range cycleChains {
-				result.InvalidHeads[chainID] = blocksAtTimestamp[chainID]
+				invalid, err := i.newInvalidHead(chainID, blocksAtTimestamp[chainID])
+				if err != nil {
+					return Result{}, fmt.Errorf("chain %s: %w", chainID, err)
+				}
+				result.InvalidHeads[chainID] = invalid
 			}
 		}
 	}

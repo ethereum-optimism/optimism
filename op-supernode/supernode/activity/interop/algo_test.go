@@ -495,7 +495,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 				expectedBlock := eth.BlockID{Number: 100, Hash: common.HexToHash("0xExpected")}
 				require.False(t, result.IsValid())
 				require.Contains(t, result.InvalidHeads, chainID)
-				require.Equal(t, expectedBlock, result.InvalidHeads[chainID])
+				require.Equal(t, expectedBlock, result.InvalidHeads[chainID].BlockID)
 			},
 		},
 		{
@@ -930,8 +930,14 @@ func (m *algoMockChain) RewindEngine(ctx context.Context, timestamp uint64, inva
 	return nil
 }
 func (m *algoMockChain) BlockTime() uint64 { return 1 }
-func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64) (bool, error) {
+func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	return false, nil
+}
+func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	return &eth.OutputV0{}, nil
+}
+func (m *algoMockChain) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
 }
 func (m *algoMockChain) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
 	return nil, nil
