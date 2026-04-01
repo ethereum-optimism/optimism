@@ -1076,15 +1076,20 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
         address zkImpl = address(new ZKDisputeGame());
         IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
 
+        bytes32 absolutePrestate = keccak256("absolutePrestate");
+        uint64 maxChallengeDuration = uint64(3.5 days);
+        uint64 maxProveDuration = uint64(12 hours);
+        uint256 challengerBond = 1 ether;
+
         bytes memory args = abi.encodePacked(
-            keccak256("absolutePrestate"), // absolutePrestate  32 bytes
-            zkVerifier, // verifier          20 bytes
-            uint64(3.5 days), // maxChallengeDuration  8 bytes
-            uint64(12 hours), // maxProveDuration      8 bytes
-            uint256(1 ether), // challengerBond    32 bytes
-            anchorStateRegistry, // anchorStateRegistry   20 bytes
-            delayedWeth, // delayedWETH       20 bytes
-            uint256(l2ChainId) // l2ChainId         32 bytes
+            absolutePrestate,
+            zkVerifier,
+            maxChallengeDuration,
+            maxProveDuration,
+            challengerBond,
+            anchorStateRegistry,
+            delayedWeth,
+            uint256(l2ChainId)
         );
 
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
