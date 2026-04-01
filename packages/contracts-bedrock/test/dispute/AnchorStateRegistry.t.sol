@@ -5,7 +5,7 @@ pragma solidity ^0.8.15;
 import { BaseFaultDisputeGame_TestInit, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Libraries
-import { GameType, GameStatus, Hash, Claim, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, GameStatus, Hash, Claim, Duration, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
@@ -14,6 +14,8 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title AnchorStateRegistry_TestInit
 /// @notice Reusable test initialization for `AnchorStateRegistry` tests.
@@ -1215,5 +1217,251 @@ contract AnchorStateRegistry_SetAnchorState_Test is AnchorStateRegistry_TestInit
         vm.prank(address(gameProxy));
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(gameProxy);
+    }
+}
+
+/// @title AnchorStateRegistry_ZkDisputeGame_TestInit
+/// @notice Reusable test initialization for ZKDisputeGame AnchorStateRegistry tests.
+abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegistry_TestInit {
+    ZKDisputeGame zkGameProxy;
+    uint256 zkL2SequenceNumber;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        // Register ZK game implementation and set it as the respected game type.
+        setupZKDisputeGame(
+            ZKDisputeGameParams({
+                maxChallengeDuration: Duration.wrap(3.5 days),
+                maxProveDuration: Duration.wrap(12 hours),
+                absolutePrestate: keccak256("absolutePrestate"),
+                challengerBond: 1 ether
+            })
+        );
+
+        // Get anchor state to pick a valid l2SequenceNumber.
+        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
+        zkL2SequenceNumber = anchorL2SeqNum + 2000;
+
+        // Create a ZK game via the factory.
+        Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256("zkRootClaim")), VMStatuses.INVALID);
+        bytes memory extraData_ = abi.encodePacked(zkL2SequenceNumber, type(uint32).max);
+
+        address proposer = makeAddr("zkProposer");
+        vm.deal(proposer, 1 ether);
+        vm.warp(block.timestamp + 1000);
+
+        vm.prank(proposer);
+        zkGameProxy = ZKDisputeGame(
+            payable(
+                address(disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_))
+            )
+        );
+    }
+
+    /// @notice Mocks the ZK game as a valid, resolved, finalized game.
+    function _mockZkGameAsValid() internal {
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.mockCall(
+            address(zkGameProxy),
+            abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp)
+        );
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(zkL2SequenceNumber)
+        );
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+    }
+}
+
+/// @title AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test
+/// @notice Tests the `setAnchorState` function with ZKDisputeGame.
+contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateRegistry_ZkDisputeGame_TestInit {
+    /// @notice Tests that a valid ZK game can update the anchor state.
+    function test_setAnchorState_validNewerState_succeeds() public {
+        _mockZkGameAsValid();
+
+        vm.prank(address(zkGameProxy));
+        vm.expectEmit(address(anchorStateRegistry));
+        emit AnchorUpdated(IFaultDisputeGame(address(zkGameProxy)));
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        // Confirm anchor state updated to ZK game's claim.
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(l2BlockNumber, zkGameProxy.l2SequenceNumber());
+        assertEq(root.raw(), zkGameProxy.rootClaim().raw());
+
+        // Confirm anchor game is the ZK game.
+        IDisputeGame anchorGame = anchorStateRegistry.anchorGame();
+        assertEq(address(anchorGame), address(zkGameProxy));
+    }
+
+    /// @notice Tests that a valid ZK game with an older l2SequenceNumber cannot update the anchor.
+    function test_setAnchorState_olderValidGameClaim_fails() public {
+        // First, set the anchor to the ZK game so we have a known anchor block.
+        _mockZkGameAsValid();
+        vm.prank(address(zkGameProxy));
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        (, uint256 anchorBlockNumber) = anchorStateRegistry.getAnchorRoot();
+
+        // Mock the ZK game's sequence number to be at or below the anchor.
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(anchorBlockNumber)
+        );
+
+        vm.prank(address(zkGameProxy));
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+    }
+
+    /// @notice Tests that a blacklisted ZK game cannot update the anchor state.
+    function test_setAnchorState_blacklistedGame_fails() public {
+        _mockZkGameAsValid();
+
+        // Blacklist the ZK game.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(zkGameProxy);
+
+        vm.prank(address(zkGameProxy));
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+    }
+
+    /// @notice Tests that a retired ZK game cannot update the anchor state.
+    function test_setAnchorState_retiredGame_fails() public {
+        _mockZkGameAsValid();
+
+        // Retire all games by setting retirement timestamp before game creation.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
+
+        vm.prank(address(zkGameProxy));
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+    }
+
+    /// @notice Tests that a ZK game resolved as CHALLENGER_WINS cannot update the anchor state.
+    function test_setAnchorState_challengerWins_fails() public {
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.CHALLENGER_WINS)
+        );
+        vm.mockCall(
+            address(zkGameProxy),
+            abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp)
+        );
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(zkL2SequenceNumber)
+        );
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+
+        vm.prank(address(zkGameProxy));
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+    }
+
+    /// @notice Tests that an unfinalized ZK game cannot update the anchor state.
+    function test_setAnchorState_notFinalized_fails() public {
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.mockCall(
+            address(zkGameProxy),
+            abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp)
+        );
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(zkL2SequenceNumber)
+        );
+        // Do NOT warp past finality delay.
+
+        vm.prank(address(zkGameProxy));
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+    }
+}
+
+/// @title AnchorStateRegistry_IsGameClaimValid_ZkDisputeGame_Test
+/// @notice Tests the `isGameClaimValid` function with ZKDisputeGame.
+contract AnchorStateRegistry_IsGameClaimValid_ZkDisputeGame_Test is AnchorStateRegistry_ZkDisputeGame_TestInit {
+    /// @notice Tests that a valid ZK game claim is recognized.
+    function test_isGameClaimValid_validClaim_succeeds() public {
+        _mockZkGameAsValid();
+
+        assertTrue(anchorStateRegistry.isGameClaimValid(zkGameProxy));
+    }
+
+    /// @notice Tests that a blacklisted ZK game claim is not valid.
+    function test_isGameClaimValid_blacklisted_succeeds() public {
+        _mockZkGameAsValid();
+
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(zkGameProxy);
+
+        assertFalse(anchorStateRegistry.isGameClaimValid(zkGameProxy));
+    }
+
+    /// @notice Tests that a retired ZK game claim is not valid.
+    function test_isGameClaimValid_retired_succeeds() public {
+        _mockZkGameAsValid();
+
+        // Retire all games by setting retirement timestamp before game creation.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
+
+        assertFalse(anchorStateRegistry.isGameClaimValid(zkGameProxy));
+    }
+
+    /// @notice Tests that a ZK game claim is not valid when it was not the respected type at creation.
+    function test_isGameClaimValid_notRespected_succeeds() public {
+        _mockZkGameAsValid();
+
+        // Mock that the game was not respected when created.
+        vm.mockCall(
+            address(zkGameProxy),
+            abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()),
+            abi.encode(false)
+        );
+
+        assertFalse(anchorStateRegistry.isGameClaimValid(zkGameProxy));
+    }
+}
+
+/// @title AnchorStateRegistry_IsGameProper_ZkDisputeGame_Test
+/// @notice Tests the `isGameProper` function with ZKDisputeGame.
+contract AnchorStateRegistry_IsGameProper_ZkDisputeGame_Test is AnchorStateRegistry_ZkDisputeGame_TestInit {
+    /// @notice Tests that a ZK game meeting all conditions is proper.
+    function test_isGameProper_meetsAllConditions_succeeds() public view {
+        assertTrue(anchorStateRegistry.isGameProper(zkGameProxy));
+    }
+
+    /// @notice Tests that a blacklisted ZK game is not proper.
+    function test_isGameProper_blacklisted_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(zkGameProxy);
+
+        assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
+    }
+}
+
+/// @title AnchorStateRegistry_BlacklistDisputeGame_ZkDisputeGame_Test
+/// @notice Tests the `blacklistDisputeGame` function with ZKDisputeGame.
+contract AnchorStateRegistry_BlacklistDisputeGame_ZkDisputeGame_Test is AnchorStateRegistry_ZkDisputeGame_TestInit {
+    /// @notice Tests that a ZK game can be blacklisted.
+    function test_blacklistDisputeGame_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(zkGameProxy);
+
+        assertTrue(anchorStateRegistry.disputeGameBlacklist(zkGameProxy));
     }
 }
