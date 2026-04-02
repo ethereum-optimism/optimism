@@ -108,7 +108,6 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         harness = new VerifyOPCM_Harness();
         harness.setUp();
 
-        // Set up the test environment for OPCM V2.
         opcm = IOPContractsManagerV2(address(opcmV2));
 
         // Always set up the environment variables for the test.

@@ -258,7 +258,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertNotEq(address(output.l1StandardBridgeImpl), address(0), "600");
         assertNotEq(address(output.mipsSingleton), address(0), "700");
 
-        // OPCM V2 assertions
         assertNotEq(address(output.opcmV2), address(0), "800");
         assertNotEq(address(output.opcmContainer), address(0), "900");
         assertNotEq(address(output.opcmStandardValidator), address(0), "1000");
@@ -357,7 +356,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertNotEq(address(output.l1StandardBridgeImpl).code, empty, "1800");
         assertNotEq(address(output.mipsSingleton).code, empty, "1900");
 
-        // OPCM V2 code assertions
         assertNotEq(address(output.opcmV2).code, empty, "2000");
         assertNotEq(address(output.opcmContainer).code, empty, "2100");
         assertNotEq(address(output.opcmStandardValidator).code, empty, "2200");

@@ -58,16 +58,13 @@ contract ReadImplementationAddresses is Script {
         vm.prank(address(0));
         output_.l1StandardBridge = IStaticL1ChugSplashProxy(_input.l1StandardBridgeProxy).getImplementation();
 
-        // Get implementations from OPCM V2
         require(address(_input.opcm).code.length > 0, "ReadImplementationAddresses: OPCM address has no code");
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
 
-        // These addresses are deprecated in OPCM V2
         output_.opcmGameTypeAdder = address(0);
         output_.opcmDeployer = address(0);
         output_.opcmUpgrader = address(0);
 
-        // Get migrator and standard validator from OPCM V2
         output_.opcmInteropMigrator = address(opcmV2.opcmMigrator());
         output_.opcmStandardValidator = address(opcmV2.opcmStandardValidator());
 

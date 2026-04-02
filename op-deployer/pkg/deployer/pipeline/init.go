@@ -44,7 +44,6 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			superchainConfigAddr = *intent.SuperchainConfigProxy
 		}
 
-		// OPCMv1 has been removed — the ReadSuperchainDeployment script requires SuperchainConfigProxy.
 		// If only an OPCM address is provided, resolve SuperchainConfigProxy from it on-chain.
 		if superchainConfigAddr == (common.Address{}) && opcmAddr != (common.Address{}) {
 			opcmContract := opcm.NewContract(opcmAddr, env.L1Client)

@@ -131,7 +131,6 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	// OPCMv1 has been removed — always use OPCMv2.
 	opcmAddr := st.ImplementationsDeployment.OpcmV2Impl
 	if opcmAddr == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")

@@ -249,8 +249,6 @@ func TestPopulateSuperchainState(t *testing.T) {
 	opcmAddr := l1Versions["op-contracts/v2.0.0-rc.1"].OPContractsManager.Address
 
 	t.Run("OPCM address with SuperchainConfigProxy", func(t *testing.T) {
-		// OPCMv1 has been removed — the script now ignores opcmAddress and uses superchainConfigProxy directly.
-		// ProtocolVersions fields are always zero.
 		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
 		require.NoError(t, err)
 		require.Equal(t, addresses.SuperchainContracts{
@@ -278,7 +276,6 @@ func TestPopulateSuperchainState(t *testing.T) {
 	})
 
 	t.Run("output mapping validation", func(t *testing.T) {
-		// OPCMv1 has been removed — pass superchainConfigProxy since the script now requires it.
 		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
 		require.NoError(t, err)
 		require.NotNil(t, dep)
@@ -555,7 +552,6 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 }
 
 // Validates that providing both OPCMAddress and SuperchainConfigProxy works correctly.
-// OPCMv1 has been removed from Solidity — ProtocolVersions is no longer populated.
 func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
@@ -622,7 +618,6 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	// Should succeed - the script handles version detection
 	require.NoError(t, err)
 
-	// OPCMv1 has been removed — ProtocolVersions is no longer populated (always zero).
 	require.NotNil(t, st.SuperchainDeployment)
 	require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy)
 	require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl)
@@ -745,7 +740,6 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// OPCMv1 has been removed — ProtocolVersions fields are no longer populated.
 	require.NotNil(t, st.SuperchainDeployment)
 	require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy, "ProtocolVersionsProxy should be zero")
 	require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl, "ProtocolVersionsImpl should be zero")

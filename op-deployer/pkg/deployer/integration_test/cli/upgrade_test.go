@@ -77,8 +77,6 @@ func TestCLIUpgrade(t *testing.T) {
 			opcm, err := standard.OPCMImplAddressFor(11155111, tc.contractTag)
 			require.NoError(t, err)
 
-			// All remaining test cases use v1 OPCM (pre-v6) with v2_0_0 input structure.
-			// v6+ used embedded artifacts which no longer support v1 OPCM upgrades.
 			testConfig := v2_0_0.UpgradeOPChainInput{
 				Prank: l1ProxyAdminOwner,
 				Opcm:  opcm,
@@ -122,7 +120,6 @@ func TestCLIUpgrade(t *testing.T) {
 			require.Equal(t, l1ProxyAdminOwner.Hex(), dump[0].To.Hex())
 			dataHex := hex.EncodeToString(dump[0].Data)
 
-			// All remaining test cases use v1 OPCM upgrade: upgrade((address,address,bytes32)[])
 			expectedSelector := "ff2dd5a1"
 			require.True(t, strings.HasPrefix(dataHex, expectedSelector),
 				"calldata should have opcm.upgrade fcn selector %s, got: %s", expectedSelector, dataHex[:8])

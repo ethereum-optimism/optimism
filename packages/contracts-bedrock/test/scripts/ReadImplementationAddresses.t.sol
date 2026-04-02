@@ -67,10 +67,9 @@ contract ReadImplementationAddressesTest is CommonTest {
             output.opcmStandardValidator, address(opcm_.opcmStandardValidator()), "OPCM StandardValidator should match"
         );
 
-        // V2: deployer/upgrader/gameTypeAdder are zero, migrator comes from opcmMigrator()
-        assertEq(output.opcmDeployer, address(0), "OPCM Deployer should be zero in V2");
-        assertEq(output.opcmUpgrader, address(0), "OPCM Upgrader should be zero in V2");
-        assertEq(output.opcmGameTypeAdder, address(0), "OPCM GameTypeAdder should be zero in V2");
+        assertEq(output.opcmDeployer, address(0), "OPCM Deployer should be zero");
+        assertEq(output.opcmUpgrader, address(0), "OPCM Upgrader should be zero");
+        assertEq(output.opcmGameTypeAdder, address(0), "OPCM GameTypeAdder should be zero");
         assertEq(output.opcmInteropMigrator, address(opcm_.opcmMigrator()), "OPCM InteropMigrator should match");
     }
 
