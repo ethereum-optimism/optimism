@@ -100,6 +100,7 @@ contract OPContractsManagerUtils_TestInit is Test {
         });
 
         // Set up implementations - use real StorageSetter, mocks for the rest.
+        // TODO(#19709): Remove the reference to OptimismPortalImpl when we remove OptimismPortalInterop from src
         implementations = OPContractsManagerContainer.Implementations({
             superchainConfigImpl: makeAddr("superchainConfigImpl"),
             protocolVersionsImpl: makeAddr("protocolVersionsImpl"),

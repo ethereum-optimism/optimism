@@ -400,7 +400,7 @@ contract Initializer_Test is CommonTest {
         excludes[j++] = "src/dispute/SuperPermissionedDisputeGame.sol";
         excludes[j++] = "src/dispute/zk/ZKDisputeGame.sol";
         // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
-        // TODO(#19709): Eventually remove this exclusion. Same reason as above dispute contracts.
+        // TODO(#19709): Remove this exclusion as part of the OptimismPortalInterop removal
         excludes[j++] = "src/L1/OptimismPortalInterop.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
