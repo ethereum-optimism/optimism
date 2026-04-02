@@ -158,7 +158,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	// additional gas is allocated to the upgrade block so that upgrade transactions
 	// don't need to fit within the system tx gas limit.
 	var upgradeGas uint64
-	if ba.rollupCfg.IsKarstActivationBlock(nextL2Time) {
+	if ba.rollupCfg.IsL2CMActivationBlock(nextL2Time) {
 		nutTxs, nutGas, err := UpgradeTransactions(forks.Karst)
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build karst network upgrade txs: %w", err))
