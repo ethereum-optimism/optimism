@@ -149,6 +149,7 @@ where
     ) -> eyre::Result<Option<BuildResult<N>>> {
         trace!(target: "flashblocks", "Attempting new pending block from flashblocks");
 
+        panic!("PAANICKhiDDDDSFSDFSFSFSS");
         let latest = self
             .provider
             .latest_header()?

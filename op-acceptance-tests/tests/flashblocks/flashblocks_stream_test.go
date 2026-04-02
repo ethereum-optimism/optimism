@@ -27,7 +27,7 @@ func TestFlashblocksStream(gt *testing.T) {
 	filterHandler, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
 	if ok {
 		filterHandler.Set(logfilter.DefaultMute(
-			logfilter.Level(slog.LevelError).Show(),
+			logfilter.Level(slog.LevelDebug).Show(),
 			logfilter.Select("kind", "L2CLNode").Show(),
 		))
 	}
@@ -53,6 +53,8 @@ func TestFlashblocksStream(gt *testing.T) {
 
 	oprbuilderNode := sys.L2OPRBuilder
 	rollupBoostNode := sys.L2RollupBoost
+	opRethNode := sys.TestSequencer
+
 	_, span = tracer.Start(ctx, "test chain")
 	defer span.End()
 
