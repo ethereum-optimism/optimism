@@ -78,12 +78,11 @@ func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint6
 	}
 	return m.output, nil
 }
-func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	if m.optimisticErr != nil {
 		return nil, m.optimisticErr
 	}
-	// Return minimal output response; tests only assert presence/count
-	return &eth.OutputResponse{}, nil
+	return &eth.OutputV0{}, nil
 }
 func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil

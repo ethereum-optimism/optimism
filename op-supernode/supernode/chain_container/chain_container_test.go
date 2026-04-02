@@ -1199,17 +1199,11 @@ func TestChainContainer_OptimisticOutputAtTimestamp_ReturnsDeniedOutput(t *testi
 	out, err := container.OptimisticOutputAtTimestamp(context.Background(), ts)
 	require.NoError(t, err)
 
-	expectedV0 := &eth.OutputV0{
+	require.Equal(t, &eth.OutputV0{
 		StateRoot:                stateRoot,
 		MessagePasserStorageRoot: msgPasserRoot,
 		BlockHash:                payloadHash,
-	}
-	require.Equal(t, eth.OutputRoot(expectedV0), out.OutputRoot)
-	require.Equal(t, common.Hash(stateRoot), out.StateRoot)
-	require.Equal(t, common.Hash(msgPasserRoot), out.WithdrawalStorageRoot)
-	require.Equal(t, payloadHash, out.BlockRef.Hash)
-	require.Equal(t, height, out.BlockRef.Number)
-	require.Equal(t, ts, out.BlockRef.Time)
+	}, out)
 }
 
 func TestChainContainer_OptimisticOutputAtTimestamp_UsesLatestDeniedRecord(t *testing.T) {
@@ -1246,9 +1240,9 @@ func TestChainContainer_OptimisticOutputAtTimestamp_UsesLatestDeniedRecord(t *te
 
 	out, err := container.OptimisticOutputAtTimestamp(context.Background(), ts)
 	require.NoError(t, err)
-	require.Equal(t, latestHash, out.BlockRef.Hash)
-	require.Equal(t, common.Hash(latestState), out.StateRoot)
-	require.Equal(t, common.Hash(latestMsgPasser), out.WithdrawalStorageRoot)
+	require.Equal(t, latestHash, out.BlockHash)
+	require.Equal(t, latestState, out.StateRoot)
+	require.Equal(t, latestMsgPasser, out.MessagePasserStorageRoot)
 }
 
 func TestChainContainer_OptimisticOutputAtTimestamp_FallsThroughWhenNoDenied(t *testing.T) {
@@ -1270,12 +1264,12 @@ func TestChainContainer_OptimisticOutputAtTimestamp_FallsThroughWhenNoDenied(t *
 		vncfg:    vncfg,
 		denyList: dl,
 		log:      log,
-		// No rollupClient set, so the fallback path will error — proving we reached it
+		// No engine set, so the fallback path will error — proving we reached it
 	}
 
 	_, err = container.OptimisticOutputAtTimestamp(context.Background(), genesisTime+5*blockTime)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "rollup client not initialized")
+	require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
 }
 
 func TestChainContainer_SyncStatus_UninitializedVirtualNode(t *testing.T) {

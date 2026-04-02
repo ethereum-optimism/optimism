@@ -41,7 +41,7 @@ type ChainContainer interface {
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
-	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
+	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
 	// RewindEngine rewinds the engine to the highest block with timestamp less than or equal to the given timestamp.
 	// invalidatedBlock is the block that triggered the rewind and is passed to reset callbacks.
 	// WARNING: this is a dangerous stateful operation and is intended to be called only
@@ -465,11 +465,11 @@ func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2,
 	return l2Block.ID(), l1Block, nil
 }
 
-// OptimisticOutputAtTimestamp returns the output for the "optimistic" L2 block at the given timestamp.
+// OptimisticOutputAtTimestamp returns the OutputV0 for the "optimistic" L2 block at the given timestamp.
 // If the block at this height has been denied (invalidated and replaced), the optimistic output
 // is the original (pre-replacement) block's output from the deny list — because optimistically
 // the block would not have been replaced. Otherwise it returns the current local safe block's output.
-func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	blockNum, err := c.TimestampToBlockNumber(ctx, ts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert timestamp to block number: %w", err)
@@ -481,28 +481,11 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 			return nil, fmt.Errorf("failed to query deny list at height %d: %w", blockNum, err)
 		}
 		if outV0 != nil {
-			return &eth.OutputResponse{
-				Version:               eth.OutputVersionV0,
-				OutputRoot:            eth.OutputRoot(outV0),
-				BlockRef:              eth.L2BlockRef{Number: blockNum, Hash: outV0.BlockHash, Time: ts},
-				WithdrawalStorageRoot: common.Hash(outV0.MessagePasserStorageRoot),
-				StateRoot:             common.Hash(outV0.StateRoot),
-			}, nil
+			return outV0, nil
 		}
 	}
 
-	if c.rollupClient == nil {
-		return nil, fmt.Errorf("rollup client not initialized")
-	}
-	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve L2 block at timestamp: %w", err)
-	}
-	out, err := c.rollupClient.OutputAtBlock(ctx, l2Block.Number)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get output at block %d: %w", l2Block.Number, err)
-	}
-	return out, nil
+	return c.OutputV0AtBlockNumber(ctx, blockNum)
 }
 
 // FetchReceipts fetches the receipts for a given block by hash.
