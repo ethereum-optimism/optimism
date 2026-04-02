@@ -6,8 +6,7 @@ use crate::{
     NetworkActor, NetworkBuilder, NetworkConfig, NodeActor, NodeMode, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RollupBoostAdminApiClient, RollupBoostHealthRpcClient, RpcActor, RpcContext, SequencerActor,
-    SequencerConfig,
+    RpcActor, RpcContext, SequencerActor, SequencerConfig,
     actors::{BlockStream, NetworkInboundData, QueuedUnsafePayloadGossipClient},
 };
 use alloy_eips::BlockNumberOrTag;
@@ -203,10 +202,7 @@ impl RollupNode {
         let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
         let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
 
-        let engine_client = Arc::new(self.engine_config().build_engine_client().map_err(|e| {
-            error!(target: "service", error = ?e, "engine client build failed");
-            format!("Engine client build failed: {e:?}")
-        })?);
+        let engine_client = Arc::new(self.engine_config().build_engine_client());
 
         let engine_processor = EngineProcessor::new(
             engine_client.clone(),
@@ -217,8 +213,7 @@ impl RollupNode {
         );
 
         let engine_rpc_processor = EngineRpcProcessor::new(
-            engine_client.clone(),
-            engine_client.rollup_boost.clone(),
+            engine_client,
             self.config.clone(),
             engine_state_rx,
             engine_queue_length_rx,
@@ -391,12 +386,6 @@ impl RollupNode {
             RpcActor::new(
                 b,
                 QueuedEngineRpcClient::new(engine_actor_request_tx.clone()),
-                RollupBoostAdminApiClient {
-                    engine_actor_request_tx: engine_actor_request_tx.clone(),
-                },
-                RollupBoostHealthRpcClient {
-                    engine_actor_request_tx: engine_actor_request_tx.clone(),
-                },
                 sequencer_admin_client,
             )
         });

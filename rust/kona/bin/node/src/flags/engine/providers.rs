@@ -3,49 +3,10 @@ use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
 
-const DEFAULT_BUILDER_TIMEOUT: u64 = 30;
 const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
 
 const DEFAULT_L2_TRUST_RPC: bool = true;
 const DEFAULT_L1_TRUST_RPC: bool = true;
-
-/// Rollup-boost builder client arguments.
-#[derive(Clone, Debug, clap::Args)]
-pub struct BuilderClientArgs {
-    /// URL of the builder RPC API.
-    #[arg(
-        long,
-        visible_alias = "builder",
-        env = "KONA_NODE_BUILDER_RPC",
-        default_value = "http://localhost:8552"
-    )]
-    pub l2_builder_rpc: Url,
-    /// Hex encoded JWT secret to use for the authenticated builder RPC server.
-    #[arg(long, visible_alias = "builder.auth", env = "KONA_NODE_BUILDER_AUTH")]
-    pub builder_jwt_secret: Option<JwtSecret>,
-    /// Path to a JWT secret to use for the authenticated builder RPC server.
-    #[arg(long, visible_alias = "builder.jwt-path", env = "KONA_NODE_BUILDER_JWT_PATH")]
-    pub builder_jwt_path: Option<PathBuf>,
-    /// Timeout for http calls in milliseconds.
-    #[arg(
-        long,
-        visible_alias = "builder.timeout",
-        env = "KONA_NODE_BUILDER_TIMEOUT",
-        default_value_t = DEFAULT_BUILDER_TIMEOUT
-    )]
-    pub builder_timeout: u64,
-}
-
-impl Default for BuilderClientArgs {
-    fn default() -> Self {
-        Self {
-            l2_builder_rpc: Url::parse("http://localhost:8552").unwrap(),
-            builder_jwt_secret: None,
-            builder_jwt_path: None,
-            builder_timeout: DEFAULT_BUILDER_TIMEOUT,
-        }
-    }
-}
 
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
