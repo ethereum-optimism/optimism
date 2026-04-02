@@ -198,6 +198,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when a withdrawal has not been proven against a valid dispute game.
     error OptimismPortal_InvalidDisputeGame();
 
+    /// @notice Thrown when Interop is set without the lockbox feature flag
+    error OptimismPortal_InvalidInteropState();
+
     /// @notice Thrown when a withdrawal has not been proven against a valid merkle proof.
     error OptimismPortal_InvalidMerkleProof();
 
@@ -263,6 +266,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             ethLockbox = _ethLockbox;
         }
 
+        _assertValidInteropState();
         // Assert that the lockbox state is valid.
         _assertValidLockboxState();
 
@@ -749,10 +753,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
     }
 
+    /// @notice Asserts the ETHLockbox feature flag must be set if INTEROP is set
     function _assertValidInteropState() internal view {
-        /// TODO
-        /// interop on
-        /// lockbox system feature set
+        if (systemConfig.isFeatureEnabled(Features.INTEROP) && !systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            revert OptimismPortal_InvalidInteropState();
+        }
     }
 
     /// @notice Asserts that the ETHLockbox is set/unset correctly depending on the feature flag.
