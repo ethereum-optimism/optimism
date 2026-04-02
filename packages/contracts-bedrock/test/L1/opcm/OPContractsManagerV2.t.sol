@@ -2052,6 +2052,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         /// TODO: Can we use the INTEROP flag for these checks
 
+        assertTrue(
+            address(chainContracts1.systemConfig) == address(chainContracts2.systemConfig),
+            "system configs not the same"
+        );
         // Check that the ETH_LOCKBOX feature is enabled on both SystemConfigs.
         assertTrue(
             chainContracts1.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX),

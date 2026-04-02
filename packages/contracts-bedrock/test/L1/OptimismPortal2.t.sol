@@ -788,6 +788,20 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 /// @title OptimismPortal2_ProveWithdrawalTransaction_Test
 /// @notice Test contract for OptimismPortal2 `proveWithdrawalTransaction` function.
 contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_TestInit {
+    /// @notice Enables super root behavior on the portal for testing.
+    ///         Uses gameType mock for OptimismPortal2 (OPCM_V2) or slot manipulation for OptimismPortalInterop.
+    function _enableSuperRoots() internal {
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            // OptimismPortal2 uses stateless GameTypes.isSuperGame() check.
+            vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
+        } else {
+            // Legacy OptimismPortalInterop uses superRootsActive boolean at slot 63, offset 20.
+            bytes32 slot = bytes32(uint256(63));
+            bytes32 existingValue = vm.load(address(optimismPortal2), slot);
+            vm.store(address(optimismPortal2), slot, existingValue | bytes32(uint256(1) << (20 * 8)));
+        }
+    }
+
     /// @notice Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
         vm.startPrank(optimismPortal2.guardian());
@@ -1056,10 +1070,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     function test_proveWithdrawalTransaction_superRootsVersionBadChainId_reverts() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
-        // Enable superRootsActive on the OptimismPortalInterop impl (slot 63, offset 20).
-        bytes32 slot = bytes32(uint256(63));
-        bytes32 existingValue = vm.load(address(optimismPortal2), slot);
-        vm.store(address(optimismPortal2), slot, existingValue | bytes32(uint256(1) << (20 * 8)));
+        _enableSuperRoots();
 
         // Mock rootClaimByChainId to revert with UnknownChainId.
         vm.mockCallRevert(
@@ -1083,10 +1094,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     function test_proveWithdrawalTransaction_superRootsVersionBadOutputRootProof_reverts() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
-        // Enable superRootsActive on the OptimismPortalInterop impl (slot 63, offset 20).
-        bytes32 slot = bytes32(uint256(63));
-        bytes32 existingValue = vm.load(address(optimismPortal2), slot);
-        vm.store(address(optimismPortal2), slot, existingValue | bytes32(uint256(1) << (20 * 8)));
+        _enableSuperRoots();
 
         // Mock rootClaimByChainId to return a different output root (wrong one).
         bytes32 wrongOutputRoot = keccak256(abi.encode(_outputRoot));
@@ -1111,10 +1119,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     function test_proveWithdrawalTransaction_superRootsVersion_succeeds() external {
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
-        // Enable superRootsActive on the OptimismPortalInterop impl (slot 63, offset 20).
-        bytes32 slot = bytes32(uint256(63));
-        bytes32 existingValue = vm.load(address(optimismPortal2), slot);
-        vm.store(address(optimismPortal2), slot, existingValue | bytes32(uint256(1) << (20 * 8)));
+        _enableSuperRoots();
 
         // Mock rootClaimByChainId to return the correct output root.
         vm.mockCall(

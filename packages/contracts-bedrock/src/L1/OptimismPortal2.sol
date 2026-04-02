@@ -231,9 +231,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.4.0
+    /// @custom:semver 5.5.0
     function version() public pure virtual returns (string memory) {
-        return "5.4.0";
+        return "5.5.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
