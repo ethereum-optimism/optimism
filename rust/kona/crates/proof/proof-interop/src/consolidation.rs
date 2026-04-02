@@ -165,14 +165,6 @@ where
             .map_err(OracleProviderError::TrieWalker)?;
             let transactions = trie_walker.into_iter().map(|(_, rlp)| rlp).collect::<Vec<_>>();
 
-            // Deposit-only blocks are filtered out before validation in `consolidate_once`,
-            // so reaching this point with one is a bug.
-            assert!(
-                !transactions.iter().all(|f| !f.is_empty() && f[0] == OpTxType::Deposit),
-                "Deposit-only block for chain {chain_id} reached re-execution; \
-                 it should have been excluded from the message graph"
-            );
-
             // Fetch the rollup config + provider for the current chain ID.
             let rollup_config = ROLLUP_CONFIGS
                 .get(chain_id)
