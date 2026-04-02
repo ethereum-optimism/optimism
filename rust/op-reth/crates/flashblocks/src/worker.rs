@@ -432,7 +432,6 @@ where
 
             builder.apply_pre_execution_changes()?;
 
-            //unreachable!("execution path not tested");
             // this is the index of the fb in the pending sequence. I think this should always be
             // zero
             let mut received_fb_index = 0;
@@ -447,6 +446,7 @@ where
                     received_access_lists[received_fb_index].max_tx_index < index
                 {
                     // we expect this loop to run at most 1 iteration each time it is reached.
+                    // maybe use if instead of while
                     {
                         // this block does the actual fbal verification after the last txn in the fb
                         // has been added, i.e. when we reach txn + 1.
@@ -460,14 +460,21 @@ where
                         let min_tx_index = 0;
                         let computed_access_list =
                             FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
-                        debug!(target: "fBALs", "fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
-                        debug!(target: "fBALs", "fBALs access-list was received on verifier side: {:#?}", received_access_lists[received_fb_index]);
+                        warn!(
+                            "fBALs access-list was computed on verifier side: {:#?}",
+                            computed_access_list
+                        );
+                        warn!(
+                            "fBALs access-list was received on verifier side: {:#?}",
+                            received_access_lists[received_fb_index]
+                        );
 
                         // verify
                         if received_access_lists[received_fb_index] == computed_access_list {
-                            debug!(target: "fBALs", "Received fBAL and computed fBAL match.");
+                            warn!("Received fBAL and computed fBAL match.");
+                            panic!("GOAT");
                         } else {
-                            debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.");
+                            warn!("Received fBAL and computed fBAL do not match.");
                             panic!("GIRAF");
                             return Ok(None);
                         }
@@ -479,7 +486,7 @@ where
                 debug_assert!(index <= received_access_lists[received_fb_index].max_tx_index);
 
                 builder.evm_mut().db_mut().set_bal_index(index);
-                debug!(target: "fBALs", "fBALs index set to {:#?}", index);
+                warn!("fBALs index set to {:#?}", index);
                 let _gas_used = builder.execute_transaction(tx)?;
             }
             // verify last fb
@@ -541,19 +548,22 @@ where
         )
         .with_sealed_header(sealed_header);
 
-        let fbal = state.take_built_alloy_bal().expect("account changes was `None`");
-        let min_tx_index = 0;
-        let computed_access_list = FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
+        // let fbal = state.take_built_alloy_bal().expect("account changes was `None`");
+        // let min_tx_index = 0;
+        // let computed_access_list = FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
 
-        warn!("fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
-        // panic!("FBALS PANIC");
+        // warn!("fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
+        // // panic!("FBALS PANIC");
 
-        if received_access_lists[0] != computed_access_list {
-            debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.  Discarding
-        flashblock. {:#?} {:#?}", received_access_lists[0], computed_access_list);
-            unreachable!();
-            return Ok(None);
-        }
+        // if received_access_lists[0] != computed_access_list {
+        //     warn!(
+        //         "Received fBAL and computed fBAL do not match.  Discarding
+        // flashblock. {:#?} {:#?}",
+        //         received_access_lists[0], computed_access_list
+        //     );
+        //     unreachable!();
+        //     return Ok(None);
+        // }
 
         let pending_block = PendingBlock::with_executed_block(
             Instant::now() + Duration::from_secs(1),
@@ -573,9 +583,9 @@ where
             args.last_flashblock_index,
             args.last_flashblock_hash,
             args.compute_state_root,
-            Some(computed_access_list),
+            None,
         );
-        panic!("FBALS PANIC");
+        // panic!("FBALS PANIC");
 
         Ok(Some(BuildResult { pending_flashblock, cached_reads: request_cache, pending_state }))
     }
