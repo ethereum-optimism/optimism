@@ -14,7 +14,6 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title AnchorStateRegistry_TestInit
@@ -1380,7 +1379,7 @@ contract AnchorStateRegistry_SetAnchorState_Test is AnchorStateRegistry_TestInit
 /// @title AnchorStateRegistry_ZkDisputeGame_TestInit
 /// @notice Reusable test initialization for ZKDisputeGame AnchorStateRegistry tests.
 abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegistry_TestInit {
-    ZKDisputeGame zkGameProxy;
+    IDisputeGame zkGameProxy;
     uint256 zkL2SequenceNumber;
 
     function setUp() public virtual override {
@@ -1411,11 +1410,7 @@ abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegis
         vm.warp(block.timestamp + 1000);
 
         vm.prank(proposer);
-        zkGameProxy = ZKDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_))
-            )
-        );
+        zkGameProxy = disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_);
     }
 
     /// @notice Mocks the ZK game as a valid, resolved, finalized game.
