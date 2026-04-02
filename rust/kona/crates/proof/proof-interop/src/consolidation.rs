@@ -3,10 +3,9 @@
 use crate::{BootInfo, OptimisticBlock, OracleInteropProvider, PreState};
 use alloc::{collections::BTreeSet, vec::Vec};
 use alloy_consensus::{Header, Sealed};
-use alloy_eips::Encodable2718;
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
 use alloy_op_evm::block::OpTxEnv;
-use alloy_primitives::{Address, B256, Bytes, Sealable, TxKind, U256, address};
+use alloy_primitives::Sealable;
 use alloy_rpc_types_engine::PayloadAttributes;
 use core::fmt::Debug;
 use kona_executor::{Eip1559ValidationError, ExecutorError, StatelessL2Builder};
@@ -14,9 +13,8 @@ use kona_interop::{MessageGraph, MessageGraphError};
 use kona_mpt::OrderedListWalker;
 use kona_preimage::CommsClient;
 use kona_proof::{errors::OracleProviderError, l2::OracleL2ChainProvider};
-use kona_protocol::OutputRoot;
 use kona_registry::{HashMap, ROLLUP_CONFIGS};
-use op_alloy_consensus::{InteropBlockReplacementDepositSource, OpTxEnvelope, OpTxType, TxDeposit};
+use op_alloy_consensus::{OpTxEnvelope, OpTxType};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::context::BlockEnv;
@@ -186,17 +184,11 @@ where
                 .find(|block| block.block_hash == header.hash())
                 .ok_or(MessageGraphError::EmptyDependencySet)?;
 
-            // Filter out all transactions that are not deposits to start.
-            let mut transactions = transactions
+            // Filter out all transactions that are not deposits.
+            let transactions = transactions
                 .into_iter()
                 .filter(|t| !t.is_empty() && t[0] == OpTxType::Deposit)
                 .collect::<Vec<_>>();
-
-            // Add the deposit replacement system transaction at the end of the list.
-            transactions.push(Self::craft_replacement_transaction(
-                &header,
-                original_optimistic_block.output_root,
-            ));
 
             // Re-craft the execution payload, trimming off all non-deposit transactions.
             let deposit_only_payload = OpPayloadAttributes {
@@ -263,37 +255,6 @@ where
         }
 
         Ok(())
-    }
-
-    /// Forms the replacement transaction inserted into a deposit-only block in the event that a
-    /// block is reduced due to invalid messages.
-    ///
-    /// <https://specs.optimism.io/interop/derivation.html#optimistic-block-deposited-transaction>
-    fn craft_replacement_transaction(old_header: &Sealed<Header>, old_output_root: B256) -> Bytes {
-        const REPLACEMENT_SENDER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddead0002");
-        const REPLACEMENT_GAS: u64 = 36000;
-
-        let source = InteropBlockReplacementDepositSource::new(old_output_root);
-        let output_root = OutputRoot::from_parts(
-            old_header.state_root,
-            old_header.withdrawals_root.unwrap_or_default(),
-            old_header.hash(),
-        );
-        let replacement_tx = OpTxEnvelope::Deposit(
-            TxDeposit {
-                source_hash: source.source_hash(),
-                from: REPLACEMENT_SENDER,
-                to: TxKind::Call(Address::ZERO),
-                mint: 0,
-                value: U256::ZERO,
-                gas_limit: REPLACEMENT_GAS,
-                is_system_transaction: false,
-                input: output_root.encode().into(),
-            }
-            .seal(),
-        );
-
-        replacement_tx.encoded_2718().into()
     }
 }
 

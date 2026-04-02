@@ -64,9 +64,6 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 
 func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19411): Re-enable once the invalid-block supernode proof expectations match the
-	// native Kona FPP and challenger provider behavior again.
-	t.Skip("Temporarily skipped while investigating invalid-block supernode proof mismatches")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
 }
