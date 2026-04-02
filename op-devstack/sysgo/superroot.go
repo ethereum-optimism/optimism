@@ -105,7 +105,7 @@ func delegateCallWithSetCode(
 		// Use the EIP-7825 max transaction gas limit to give the migration maximum room.
 		txplan.WithGasLimit(params.MaxTxGas),
 		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(client, 5, retry.Exponential()),
+		txplan.WithRetryInclusion(client, 10, retry.Exponential()),
 	)
 
 	receipt, err := tx.Included.Eval(ctx)

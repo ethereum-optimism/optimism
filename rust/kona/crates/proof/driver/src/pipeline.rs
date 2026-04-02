@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 
 use kona_derive::{
-    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal,
+    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal, Signal,
     SignalReceiver, StepResult,
 };
 
@@ -114,41 +114,17 @@ where
                         }
                         PipelineErrorKind::Reset(e) => {
                             warn!(target: "client_derivation_driver", "Failed to step derivation pipeline due to reset: {:?}", e);
-                            let system_config = self
-                                .system_config_by_number(l2_safe_head.block_info.number)
-                                .await?;
 
                             if matches!(e, ResetError::HoloceneActivation) {
-                                let l1_origin =
-                                    self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-                                self.signal(
-                                    ActivationSignal {
-                                        l2_safe_head,
-                                        l1_origin,
-                                        system_config: Some(system_config),
-                                    }
-                                    .signal(),
-                                )
-                                .await?;
+                                self.signal(Signal::Activation(ActivationSignal { l2_safe_head }))
+                                    .await?;
                             } else {
                                 // Flushes cache if a reorg is detected.
                                 if matches!(e, ResetError::ReorgDetected(_, _)) {
                                     self.flush();
                                 }
 
-                                // Reset the pipeline to the initial L2 safe head and L1 origin,
-                                // and try again.
-                                let l1_origin =
-                                    self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-                                self.signal(
-                                    ResetSignal {
-                                        l2_safe_head,
-                                        l1_origin,
-                                        system_config: Some(system_config),
-                                    }
-                                    .signal(),
-                                )
-                                .await?;
+                                self.signal(Signal::Reset(ResetSignal { l2_safe_head })).await?;
                             }
                         }
                         PipelineErrorKind::Critical(_) => {

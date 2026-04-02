@@ -3,14 +3,15 @@
 use super::{ChannelAssembler, ChannelBank, ChannelReaderProvider, NextFrameProvider};
 use crate::{
     errors::PipelineError,
-    traits::{OriginAdvancer, OriginProvider, SignalReceiver},
-    types::{PipelineResult, Signal},
+    traits::{OriginAdvancer, OriginProvider, Stage},
+    types::PipelineResult,
 };
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::BlockInfo;
 
 /// The [`ChannelProvider`] stage is a mux between the [`ChannelBank`] and [`ChannelAssembler`]
@@ -22,7 +23,7 @@ use kona_protocol::BlockInfo;
 #[derive(Debug)]
 pub struct ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
@@ -45,7 +46,7 @@ where
 
 impl<P> ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Creates a new [`ChannelProvider`] with the given configuration and previous stage.
     pub const fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
@@ -85,7 +86,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.attempt_update()?;
@@ -102,7 +103,7 @@ where
 
 impl<P> OriginProvider for ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.channel_assembler.as_ref().map_or_else(
@@ -117,28 +118,50 @@ where
     }
 }
 
-#[async_trait]
-impl<P> SignalReceiver for ChannelProvider<P>
-where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
-{
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        self.attempt_update()?;
-
-        if let Some(channel_assembler) = self.channel_assembler.as_mut() {
-            channel_assembler.signal(signal).await
-        } else if let Some(channel_bank) = self.channel_bank.as_mut() {
-            channel_bank.signal(signal).await
+/// Dispatches a method call to the active inner channel stage.
+macro_rules! dispatch_inner {
+    ($self:ident, $method:ident $(, $arg:expr)*) => {{
+        $self.attempt_update()?;
+        if let Some(inner) = $self.channel_assembler.as_mut() {
+            inner.$method($($arg),*).await
+        } else if let Some(inner) = $self.channel_bank.as_mut() {
+            inner.$method($($arg),*).await
         } else {
             Err(PipelineError::NotEnoughData.temp())
         }
+    }};
+}
+
+#[async_trait]
+impl<P> Stage for ChannelProvider<P>
+where
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
+{
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        dispatch_inner!(self, reset, l1_origin, system_config)
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        dispatch_inner!(self, activate)
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        dispatch_inner!(self, flush_channel)
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        dispatch_inner!(self, provide_block, block)
     }
 }
 
 #[async_trait]
 impl<P> ChannelReaderProvider for ChannelProvider<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn next_data(&mut self) -> PipelineResult<Option<Bytes>> {
         self.attempt_update()?;
@@ -156,11 +179,12 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        ChannelProvider, ChannelReaderProvider, OriginProvider, PipelineError, ResetSignal,
-        SignalReceiver, test_utils::TestNextFrameProvider,
+        ChannelProvider, ChannelReaderProvider, OriginProvider, PipelineError, Stage,
+        test_utils::TestNextFrameProvider,
     };
     use alloc::{sync::Arc, vec};
-    use kona_genesis::{HardForkConfig, RollupConfig};
+    use alloy_eips::BlockNumHash;
+    use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
     use kona_protocol::BlockInfo;
 
     #[test]
@@ -319,7 +343,7 @@ mod test {
         assert!(channel_bank.channel_queue.len() == 1);
 
         // Reset the channel provider.
-        channel_provider.signal(ResetSignal::default().signal()).await.unwrap();
+        channel_provider.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
 
         // Ensure the channel queue is empty after reset.
         let Some(channel_bank) = channel_provider.channel_bank.as_mut() else {
@@ -353,7 +377,7 @@ mod test {
         assert!(channel_assembler.channel.is_some());
 
         // Reset the channel provider.
-        channel_provider.signal(ResetSignal::default().signal()).await.unwrap();
+        channel_provider.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
 
         // Ensure the channel assembler is empty after reset.
         let Some(channel_assembler) = channel_provider.channel_assembler.as_mut() else {

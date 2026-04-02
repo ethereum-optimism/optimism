@@ -1,12 +1,13 @@
 //! Test utilities for the [`ChannelReader`](crate::stages::ChannelReader) stage.
 
 use crate::{
-    ChannelReaderProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Signal,
-    SignalReceiver,
+    ChannelReaderProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, vec::Vec};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
+use kona_genesis::SystemConfig;
 use kona_protocol::BlockInfo;
 
 /// A mock [`ChannelReaderProvider`] for testing the [`ChannelReader`] stage.
@@ -50,9 +51,22 @@ impl ChannelReaderProvider for TestChannelReaderProvider {
 }
 
 #[async_trait]
-impl SignalReceiver for TestChannelReaderProvider {
-    async fn signal(&mut self, _: Signal) -> PipelineResult<()> {
+impl Stage for TestChannelReaderProvider {
+    async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.reset = true;
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.reset(BlockNumHash::default(), SystemConfig::default()).await
+    }
+
+    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
+        self.reset(BlockNumHash::default(), SystemConfig::default()).await
     }
 }

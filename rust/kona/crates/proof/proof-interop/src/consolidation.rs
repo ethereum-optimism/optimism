@@ -1,7 +1,7 @@
 //! Interop dependency resolution and consolidation logic.
 
 use crate::{BootInfo, OptimisticBlock, OracleInteropProvider, PreState};
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, vec::Vec};
 use alloy_consensus::{Header, Sealed};
 use alloy_eips::Encodable2718;
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
@@ -40,6 +40,9 @@ where
     l2_providers: HashMap<u64, OracleL2ChainProvider<C>>,
     /// The inner [`EvmFactory`] to create EVM instances for re-execution of bad blocks.
     evm_factory: Evm,
+    /// Chain IDs that have already been replaced with deposit-only blocks. These are skipped
+    /// during validation since deposit-only blocks cannot contain executing messages.
+    replaced_chains: BTreeSet<u64>,
 }
 
 impl<'a, C, Evm> SuperchainConsolidator<'a, C, Evm>
@@ -58,7 +61,13 @@ where
         l2_providers: HashMap<u64, OracleL2ChainProvider<C>>,
         evm_factory: Evm,
     ) -> Self {
-        Self { boot_info, interop_provider, l2_providers, evm_factory }
+        Self {
+            boot_info,
+            interop_provider,
+            l2_providers,
+            evm_factory,
+            replaced_chains: BTreeSet::new(),
+        }
     }
 
     /// Recursively consolidates the dependencies of the blocks within the [`MessageGraph`].
@@ -95,9 +104,20 @@ where
     ///
     /// [Header]: alloy_consensus::Header
     async fn consolidate_once(&mut self) -> Result<(), ConsolidationError> {
-        // Derive the message graph from the current set of block headers.
+        // Filter out chains that have already been replaced with deposit-only blocks.
+        // Deposit-only blocks cannot contain executing messages, so they are already
+        // cross-safe and do not need to be re-validated.
+        let heads_to_check: HashMap<u64, Sealed<Header>> = self
+            .interop_provider
+            .local_safe_heads()
+            .iter()
+            .filter(|(chain_id, _)| !self.replaced_chains.contains(chain_id))
+            .map(|(k, v)| (*k, v.clone()))
+            .collect();
+
+        // Derive the message graph from the non-replaced block headers.
         let graph = MessageGraph::derive(
-            self.interop_provider.local_safe_heads(),
+            &heads_to_check,
             &self.interop_provider,
             &self.boot_info.rollup_configs,
             self.boot_info.dependency_set.get_message_expiry_window(),
@@ -127,11 +147,15 @@ where
                 .interop_provider
                 .local_safe_heads()
                 .get(chain_id)
-                .ok_or(MessageGraphError::EmptyDependencySet)?;
+                .ok_or(MessageGraphError::EmptyDependencySet)?
+                .clone();
 
             // Look up the parent header for the block.
             let parent_header =
                 self.interop_provider.header_by_hash(*chain_id, header.parent_hash).await?;
+
+            // Send a hint for the block's transactions so the host pre-fetches the trie nodes.
+            self.interop_provider.hint_transactions(*chain_id, header.hash()).await?;
 
             // Traverse the transactions trie of the block to re-execute.
             let trie_walker = OrderedListWalker::try_new_hydrated(
@@ -140,13 +164,6 @@ where
             )
             .map_err(OracleProviderError::TrieWalker)?;
             let transactions = trie_walker.into_iter().map(|(_, rlp)| rlp).collect::<Vec<_>>();
-
-            // Explicitly panic if a block sent off for re-execution already contains nothing but
-            // deposits.
-            assert!(
-                !transactions.iter().all(|f| !f.is_empty() && f[0] == OpTxType::Deposit),
-                "Impossible case; Block with only deposits found to be invalid. Something has gone horribly wrong!"
-            );
 
             // Fetch the rollup config + provider for the current chain ID.
             let rollup_config = ROLLUP_CONFIGS
@@ -177,7 +194,7 @@ where
 
             // Add the deposit replacement system transaction at the end of the list.
             transactions.push(Self::craft_replacement_transaction(
-                header,
+                &header,
                 original_optimistic_block.output_root,
             ));
 
@@ -240,8 +257,9 @@ where
             // Replace the original optimistic block with the deposit only block.
             *original_optimistic_block = OptimisticBlock::new(new_header.hash(), new_output_root);
 
-            // Replace the original header with the new header.
+            // Replace the original header with the new header and mark the chain as replaced.
             self.interop_provider.replace_local_safe_head(*chain_id, new_header);
+            self.replaced_chains.insert(*chain_id);
         }
 
         Ok(())

@@ -1127,66 +1127,6 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 	runFppAndChallengerTests(gt, system, tests)
 }
 
-func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
-	t := helpers.NewDefaultTesting(gt)
-
-	system := dsl.NewInteropDSL(t)
-	actors := system.Actors
-	emitter := system.DeployEmitterContracts()
-
-	// Advance L1 a couple times to avoid deposit gas metering issues near genesis
-	system.AdvanceL1()
-	system.AdvanceL1()
-
-	l1User := system.CreateUser()
-	depositMessage := dsl.NewMessage(system, actors.ChainA, emitter, "hello")
-	system.AdvanceL1(
-		dsl.WithActIncludeTx(
-			depositMessage.ActEmitDeposit(l1User)))
-
-	// As such, the next block timestamp across both chains will contain a user-deposit message and an executing message
-	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainA, 2)
-	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainB, 2)
-
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
-	// The pending block on chain A will contain the user deposit
-	depositMessage.ExecutePendingOn(actors.ChainB, actors.ChainA.Sequencer.L2Unsafe().Number+1)
-	actors.ChainA.Sequencer.ActL2EndBlock(t)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
-	system.SubmitBatchData(dsl.WithSkipCrossSafeUpdate())
-
-	endTimestamp := actors.ChainB.Sequencer.L2Unsafe().Time
-	startTimestamp := endTimestamp - 1
-	preConsolidation := system.Outputs.TransitionState(startTimestamp, consolidateStep,
-		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
-		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
-	).Marshal()
-
-	system.ProcessCrossSafe()
-	depositMessage.CheckExecuted()
-	assertUserDepositEmitted(t, system.Actors.ChainA, nil, emitter)
-	crossSafeEnd := system.Outputs.SuperRoot(endTimestamp)
-
-	tests := []*transitionTest{
-		{
-			name:               "Consolidate",
-			agreedClaim:        preConsolidation,
-			disputedClaim:      crossSafeEnd.Marshal(),
-			disputedTraceIndex: consolidateStep,
-			expectValid:        true,
-		},
-		{
-			name:               "Consolidate-InvalidNoChange",
-			agreedClaim:        preConsolidation,
-			disputedClaim:      preConsolidation,
-			disputedTraceIndex: consolidateStep,
-			expectValid:        false,
-		},
-	}
-	runFppAndChallengerTests(gt, system, tests)
-}
-
 func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 

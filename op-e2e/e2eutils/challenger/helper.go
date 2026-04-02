@@ -146,10 +146,26 @@ func WithPermissioned(t *testing.T, system System) Option {
 	}
 }
 
+func WithCannonKona(t *testing.T, system System) Option {
+	return func(c *config.Config) {
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithCannonKonaConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
+		handleOptError(t, shared.WithCannonKonaGameType())(c)
+	}
+}
+
 func WithSuperCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
 		handleOptError(t, shared.WithSuperCannonGameType())(c)
+	}
+}
+
+func WithSuperCannonKona(t *testing.T, system System) Option {
+	return func(c *config.Config) {
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithCannonKonaInteropConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
+		handleOptError(t, shared.WithSuperCannonKonaGameType())(c)
 	}
 }
 
@@ -193,6 +209,7 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 		cfg = config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName).RPC(), sys.NodeEndpoint(l2NodeName).RPC(), t.TempDir())
 	}
 	cfg.Cannon.L2Custom = true
+	cfg.CannonKona.L2Custom = true
 	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
 	// before the L2 genesis is known.
 	cfg.AllowInvalidPrestate = true
@@ -224,6 +241,10 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 	if cfg.CannonAbsolutePreState != "" {
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
 		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestates")
+	}
+	if cfg.CannonKona.Server != "" {
+		_, err := os.Stat(cfg.CannonKona.Server)
+		require.NoError(t, err, "kona-host should be built. Run: cd rust/kona && just build-native --profile=release")
 	}
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = time.Second

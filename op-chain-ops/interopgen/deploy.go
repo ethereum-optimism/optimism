@@ -277,8 +277,9 @@ func MigrateInterop(
 	for i, l2ChainID := range l2ChainIDs {
 		l2Deployment := l2Deployments[l2ChainID]
 		chainConfigs[i] = manage.OPChainConfig{
-			SystemConfigProxy: l2Deployment.SystemConfigProxy,
-			CannonPrestate:    l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
+			SystemConfigProxy:  l2Deployment.SystemConfigProxy,
+			CannonPrestate:     l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
+			CannonKonaPrestate: l2Cfgs[l2ChainID].DisputeKonaAbsolutePrestate,
 		}
 	}
 
