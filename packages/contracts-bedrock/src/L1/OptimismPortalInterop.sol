@@ -32,6 +32,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
+///         TODO(#19709) remove this file and migrate fully to the OptimismPortal2
 contract OptimismPortalInterop is Initializable, ResourceMetering, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
     /// @notice Represents a proven withdrawal.
     /// @custom:field disputeGameProxy Game that the withdrawal was proven against.
