@@ -42,7 +42,7 @@ func ReadLockFile(dir string) (ForkLock, string, error) {
 	return locks, lockPath, nil
 }
 
-// WriteLockFile writes fork_lock.toml back to disk with a trailing comment.
+// WriteLockFile writes fork_lock.toml back to disk with a header comment.
 func WriteLockFile(lockPath string, locks ForkLock) error {
 	f, err := os.Create(lockPath)
 	if err != nil {
@@ -50,21 +50,24 @@ func WriteLockFile(lockPath string, locks ForkLock) error {
 	}
 	defer f.Close()
 
+	_, err = fmt.Fprint(f, `# To update a fork's bundle, run: just nut-snapshot-for <fork>
+# Contract changes must be merged to develop before snapshotting.
+
+`)
+	if err != nil {
+		return err
+	}
+
 	enc := toml.NewEncoder(f)
 	if err := enc.Encode(locks); err != nil {
 		return fmt.Errorf("writing fork lock file: %w", err)
 	}
 
-	if _, err := fmt.Fprintln(f); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(f, "# To update a fork's bundle, run: just nut-snapshot-for <fork>"); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(f, "# REVIEWER NOTE: Changes to this file affect which NUT bundles are embedded"); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(f, "# into op-node for hardfork activations. Review carefully."); err != nil {
+	_, err = fmt.Fprint(f, `
+# REVIEWER NOTE: Changes to this file affect which NUT bundles are embedded
+# into op-node for hardfork activations. Review carefully.
+`)
+	if err != nil {
 		return err
 	}
 	return nil

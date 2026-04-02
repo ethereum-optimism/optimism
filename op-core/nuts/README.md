@@ -24,7 +24,9 @@ just generate-nut-bundle
 just nut-snapshot-for <fork>
 ```
 
-This copies `current-upgrade-bundle.json` to `op-node/rollup/derive/<fork>_nut_bundle.json` and updates `fork_lock.toml` with the sha256 hash and current git commit.
+This copies `current-upgrade-bundle.json` to `op-node/rollup/derive/<fork>_nut_bundle.json` and updates `fork_lock.toml` with the sha256 hash and the merge-base commit with `origin/develop`.
+
+**Important:** The recorded commit is the merge-base with develop, not HEAD. This ensures the commit survives squash-merge. Contract changes must be merged to develop in a separate PR *before* snapshotting the bundle.
 
 
 ### Verifying a bundle
