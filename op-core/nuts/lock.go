@@ -50,10 +50,16 @@ func WriteLockFile(lockPath string, locks ForkLock) error {
 	}
 	defer f.Close()
 
-	if _, err := fmt.Fprintln(f, "# NUT Bundle Fork Lock"); err != nil {
+	if _, err := fmt.Fprintln(f, "# NUT Bundle Lock File"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(f, "# To update a bundle, run: just nut-snapshot-for <fork>"); err != nil {
+	if _, err := fmt.Fprintln(f, "# To update a fork's bundle, run: just nut-snapshot-for <fork>"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(f, "# REVIEWER NOTE: Changes to this file affect which NUT bundles are embedded"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(f, "# into op-node for hardfork activations. Review carefully."); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(f); err != nil {
