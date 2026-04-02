@@ -15,6 +15,9 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
+// bundleGenerator generates a NUT bundle in the given contracts directory.
+type bundleGenerator func(contractsDir string) error
+
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Fprintf(os.Stderr, "usage: nut-provenance-verify <fork>\n")
@@ -70,7 +73,13 @@ func run(fork forks.Name) error {
 	}
 
 	fmt.Printf("Verifying bundle provenance from commit %s...\n", entry.Commit[:12])
-	if err := verifyFromCommit(root, entry); err != nil {
+	if err := verifyFromCommit(root, entry, func(contractsDir string) error {
+		cmd := exec.Command("just", "generate-nut-bundle")
+		cmd.Dir = contractsDir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}); err != nil {
 		return fmt.Errorf("provenance verification: %w", err)
 	}
 
@@ -80,7 +89,7 @@ func run(fork forks.Name) error {
 
 // verifyFromCommit creates a temporary worktree at the recorded commit,
 // regenerates the NUT bundle, and compares it against the locked bundle.
-func verifyFromCommit(root string, entry nuts.ForkLockEntry) error {
+func verifyFromCommit(root string, entry nuts.ForkLockEntry, generate bundleGenerator) error {
 	worktreeDir, err := os.MkdirTemp("", "verify-nuts-*")
 	if err != nil {
 		return fmt.Errorf("creating temp dir: %w", err)
@@ -102,11 +111,7 @@ func verifyFromCommit(root string, entry nuts.ForkLockEntry) error {
 
 	// Generate NUT bundle in the worktree.
 	contractsDir := filepath.Join(worktreeDir, "packages", "contracts-bedrock")
-	genCmd := exec.Command("just", "generate-nut-bundle")
-	genCmd.Dir = contractsDir
-	genCmd.Stdout = os.Stdout
-	genCmd.Stderr = os.Stderr
-	if err := genCmd.Run(); err != nil {
+	if err := generate(contractsDir); err != nil {
 		return fmt.Errorf("generating NUT bundle at commit %s: %w", entry.Commit[:12], err)
 	}
 
