@@ -42,8 +42,6 @@ type ChaoticEngine struct {
 		Set(t time.Time)
 	}
 
-	deps *sequencerTestDeps
-
 	currentPayloadInfo eth.PayloadInfo
 	currentAttributes  *derive.AttributesWithParent
 
@@ -212,7 +210,7 @@ func (c *ChaoticEngine) ProcessPayload(ctx context.Context, envelope *eth.Execut
 
 // OnEvent handles events that are still routed via the event system (resets, errors, etc.)
 func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
-	switch ev.(type) {
+	switch ev := ev.(type) {
 	case rollup.EngineTemporaryErrorEvent:
 		c.clockRandomIncrement(0, time.Millisecond*100)
 		c.currentPayloadInfo = eth.PayloadInfo{}
@@ -232,8 +230,7 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 		c.clockRandomIncrement(0, time.Millisecond*50)
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
-		x := ev.(engine.BuildInvalidEvent)
-		c.emitter.Emit(ctx, engine.InvalidPayloadAttributesEvent(x))
+		c.emitter.Emit(ctx, engine.InvalidPayloadAttributesEvent(ev))
 	case engine.BuildCancelEvent:
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil

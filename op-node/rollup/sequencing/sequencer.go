@@ -279,8 +279,14 @@ func (d *Sequencer) onPayloadInvalid(x engine.PayloadInvalidEvent) {
 
 func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 	// Sequencer-originated payload success is handled inline via direct calls.
-	// This handler fires for derivation-originated payloads; the sequencer
-	// doesn't need to act on those.
+	// For derivation-originated payloads (e.g., interop replacement blocks),
+	// we still need to clear the async gossip buffer to prevent the sequencer
+	// from reusing a stale payload after a chain reset.
+	if d.latest.Ref != (eth.L2BlockRef{}) && d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
+		return // not relevant to us
+	}
+	d.latest = BuildingState{}
+	d.asyncGossip.Clear()
 }
 
 func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
