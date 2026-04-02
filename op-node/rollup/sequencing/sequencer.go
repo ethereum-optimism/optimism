@@ -181,16 +181,6 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case engine.BuildStartedEvent:
 		d.onBuildStarted(x)
-	case engine.InvalidPayloadAttributesEvent:
-		d.onInvalidPayloadAttributes(x)
-	case engine.BuildSealedEvent:
-		d.onBuildSealed(x)
-	case engine.PayloadSealInvalidEvent:
-		d.onPayloadSealInvalid(x)
-	case engine.PayloadSealExpiredErrorEvent:
-		d.onPayloadSealExpiredError(x)
-	case engine.PayloadInvalidEvent:
-		d.onPayloadInvalid(x)
 	case engine.PayloadSuccessEvent:
 		d.onPayloadSuccess(x)
 	case SequencerActionEvent:
@@ -230,51 +220,6 @@ func (d *Sequencer) handleInvalid() {
 	blockTime := time.Duration(d.rollupCfg.BlockTime) * time.Second
 	d.nextAction = d.timeNow().Add(blockTime)
 	d.nextActionOK = d.active.Load()
-}
-
-func (d *Sequencer) onInvalidPayloadAttributes(x engine.InvalidPayloadAttributesEvent) {
-	if x.Attributes.DerivedFrom != (eth.L1BlockRef{}) {
-		return // not our payload, should be ignored.
-	}
-	d.log.Error("Cannot sequence invalid payload attributes",
-		"attributes_parent", x.Attributes.Parent,
-		"timestamp", x.Attributes.Attributes.Timestamp, "err", x.Err)
-
-	d.handleInvalid()
-}
-
-func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
-	// Sequencer-originated seals are handled inline via direct calls in onSequencerAction.
-	// Derivation-originated seals are handled by the engine controller's onBuildSealed.
-}
-
-func (d *Sequencer) onPayloadSealInvalid(x engine.PayloadSealInvalidEvent) {
-	if d.latest.Info != x.Info {
-		return // not our payload, should be ignored.
-	}
-	d.log.Error("Sequencer could not seal block",
-		"payloadID", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
-	d.handleInvalid()
-}
-
-func (d *Sequencer) onPayloadSealExpiredError(x engine.PayloadSealExpiredErrorEvent) {
-	if d.latest.Info != x.Info {
-		return // not our payload, should be ignored.
-	}
-	d.log.Error("Sequencer temporarily could not seal block",
-		"payloadID", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
-	// Restart building, this way we get a block we should be able to seal
-	// (smaller, since we adapt build time).
-	d.handleInvalid()
-}
-
-func (d *Sequencer) onPayloadInvalid(x engine.PayloadInvalidEvent) {
-	if d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
-		return // not a payload from the sequencer
-	}
-	d.log.Error("Sequencer could not insert payload",
-		"block", x.Envelope.ExecutionPayload.ID(), "err", x.Err)
-	d.handleInvalid()
 }
 
 func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
