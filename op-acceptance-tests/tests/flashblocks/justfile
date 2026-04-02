@@ -27,10 +27,10 @@ transfer:
 	RUST_BACKTRACE=full \
 	RUST_BINARY_PATH_OP_RETH=$HOME/git/optimism/rust/target/debug/op-reth \
 	RUST_BINARY_PATH_OP_RBUILDER=$HOME/git/op-rbuilder/target/debug/op-rbuilder \
-	RUST_LOG=op_reth=trace,op_rbuilder=debug,rollup_boost=debug \
-	RUST_LOG=trace \
+	RUST_LOG=trace,fBALs=trace,flashblocks=trace,info \
 	go test -v -count=1 -timeout 10m ./utils.go ./flashblocks_transfer_test.go |& tee out.log
 
 
+# RUST_LOG=op_reth=trace,op_rbuilder=warn \
 # for custom rollup-boost add
 # RUST_BINARY_PATH_ROLLUP_BOOST=$HOME/git/rollup-boost/target/debug/rollup-boost \

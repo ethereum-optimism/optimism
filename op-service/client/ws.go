@@ -199,3 +199,7 @@ func ProbeWS(ctx context.Context, url string) error {
 	}
 	return conn.conn.CloseNow()
 }
+
+func (c *WSClient) Config() *WSConfig {
+	return &c.config
+}

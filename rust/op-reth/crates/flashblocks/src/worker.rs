@@ -149,8 +149,6 @@ where
     ) -> eyre::Result<Option<BuildResult<N>>> {
         trace!(target: "flashblocks", "Attempting new pending block from flashblocks");
 
-        warn!("FBALs PANIC");
-        panic!("FBALs PANIC");
         let latest = self
             .provider
             .latest_header()?
@@ -434,6 +432,7 @@ where
 
             builder.apply_pre_execution_changes()?;
 
+            //unreachable!("execution path not tested");
             // this is the index of the fb in the pending sequence. I think this should always be
             // zero
             let mut received_fb_index = 0;
@@ -469,7 +468,7 @@ where
                             debug!(target: "fBALs", "Received fBAL and computed fBAL match.");
                         } else {
                             debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.");
-                            panic!();
+                            panic!("GIRAF");
                             return Ok(None);
                         }
                     }
@@ -546,11 +545,12 @@ where
         let min_tx_index = 0;
         let computed_access_list = FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
 
-        debug!(target: "fBALs", "fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
+        warn!("fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
+        // panic!("FBALS PANIC");
 
         if received_access_lists[0] != computed_access_list {
             debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.  Discarding
-        flashblock.");
+        flashblock. {:#?} {:#?}", received_access_lists[0], computed_access_list);
             unreachable!();
             return Ok(None);
         }
@@ -575,6 +575,7 @@ where
             args.compute_state_root,
             Some(computed_access_list),
         );
+        panic!("FBALS PANIC");
 
         Ok(Some(BuildResult { pending_flashblock, cached_reads: request_cache, pending_state }))
     }

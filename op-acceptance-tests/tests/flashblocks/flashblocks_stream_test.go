@@ -53,6 +53,8 @@ func TestFlashblocksStream(gt *testing.T) {
 
 	oprbuilderNode := sys.L2OPRBuilder
 	rollupBoostNode := sys.L2RollupBoost
+	fburl := rollupBoostNode.FlashblocksClient().Config().URL
+	logger.Warn("ATTENTION: ", fburl)
 	// opRethNode := sys.L2EL.
 
 	//  --rollup.flashblocks-url=

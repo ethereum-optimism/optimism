@@ -417,9 +417,9 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 let last_fb = self.pending.sequence.last_flashblock()?;
                 let transactions = self.pending.transactions();
                 // let tx_per_fb : Vec<usize> = self.pending.sequence.flashblocks().
-                warn!("FBALs PANIC");
-                panic!("FBALs PANIC");
-                let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
+                // warn!("FBALs PANIC");
+                // panic!("FBALs PANIC");
+                let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| { let fbal = fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected."); warn!("OP_RETH::fBAL: {:#?}", fbal); fbal}).collect();
 
                 (ticket, base, last_fb, transactions, access_lists, cached_state, "pending", None)
             }
