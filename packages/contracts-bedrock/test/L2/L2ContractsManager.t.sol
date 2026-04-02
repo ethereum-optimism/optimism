@@ -801,17 +801,18 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
     }
 }
 
-/// @title L2ContractsManager_Upgrade_InteropFlag_Test
-/// @notice Tests that interop predeploy upgrades are correctly gated behind both the INTEROP sys feature
-///         (set on L1Block) and the OPTIMISM_PORTAL_INTEROP dev feature (must match for consistency).
-contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgrade_Test {
+/// @title L2ContractsManager_Upgrade_InteropFlagEnabled_Test
+/// @notice Tests that interop predeploy upgrades are correctly gated behind the INTEROP sys feature (set on L1Block).
+contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManager_Upgrade_Test {
     using stdStorage for StdStorage;
 
     /// @notice The list of interop predeploy addresses.
     address[] internal interopPredeploys;
 
     function setUp() public override {
+        super.enableInterop();
         super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
         interopPredeploys.push(Predeploys.CROSS_L2_INBOX);
         interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
@@ -821,13 +822,6 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
     /// @notice Tests that all 4 interop predeploys are upgraded when the INTEROP sys feature is enabled
     ///         (which requires OPTIMISM_PORTAL_INTEROP dev feature to also be enabled for consistency).
     function test_upgradeUpgradesInteropPredeploys_whenInteropFlagEnabled_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
-        // Genesis runs without useInterop, so L1Block doesn't have the INTEROP sys feature set.
-        // Set it explicitly here — L2CM reads isFeatureEnabled(INTEROP) from L1Block to gate upgrades.
-        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
-            .checked_write(true);
-
         // Capture pre-upgrade implementations
         address[] memory preUpgradeImpls = new address[](interopPredeploys.length);
         for (uint256 i = 0; i < interopPredeploys.length; i++) {
@@ -858,12 +852,28 @@ contract L2ContractsManager_Upgrade_InteropFlag_Test is L2ContractsManager_Upgra
             "ETHLiquidity should be upgraded"
         );
     }
+}
+
+/// @title L2ContractsManager_Upgrade_InteropFlagDisabled_Test
+/// @notice Tests that interop predeploy upgrades are skipped when the INTEROP sys feature is disabled.
+contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManager_Upgrade_Test {
+    using stdStorage for StdStorage;
+
+    /// @notice The list of interop predeploy addresses.
+    address[] internal interopPredeploys;
+
+    function setUp() public override {
+        super.setUp();
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        interopPredeploys.push(Predeploys.CROSS_L2_INBOX);
+        interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
+        interopPredeploys.push(Predeploys.ETH_LIQUIDITY);
+    }
 
     /// @notice Tests that all 4 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
     /// is disabled.
     function test_upgradeSkipsInteropPredeploys_whenInteropFlagDisabled_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Capture pre-upgrade implementations
         address[] memory preUpgradeImpls = new address[](interopPredeploys.length);
         for (uint256 i = 0; i < interopPredeploys.length; i++) {
