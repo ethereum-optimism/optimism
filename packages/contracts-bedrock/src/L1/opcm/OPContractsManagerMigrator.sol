@@ -271,7 +271,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
-        // This also sets superRootsActive = true.
         // NOTE: This requires the portal to already be upgraded to the interop version
         // (OptimismPortal2). If the portal is not on the interop version, this call will
         // fail.
