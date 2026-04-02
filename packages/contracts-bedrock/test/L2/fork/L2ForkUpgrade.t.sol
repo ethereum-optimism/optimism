@@ -127,27 +127,29 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     }
 
     /// @notice Returns the active proxied predeploys with their pre-upgrade versions.
-    /// @dev Deduplicates proxies (CGT variants share one proxy), skips non-proxied predeploys,
-    ///      and skips feature-gated predeploys that are disabled for the current chain config.
+    /// @dev Uses getUpgradeableRecords() which already filters non-proxied and deprecated records.
+    ///      Variant records (isVariant = true, e.g. L1BlockCGT) are skipped so each proxy appears
+    ///      once. Feature-gated predeploys disabled for the current chain config are also excluded.
     ///      Disabled predeploys must be excluded before calling _getVersion: their proxy has an
     ///      implementation slot pointing to a code namespace with no code, so the delegatecall
     ///      returns empty bytes and Solidity's ABI decoder for `string` fails outside try/catch.
     function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
-        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
-        address[] memory tmp = new address[](records.length);
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
         uint256 count = 0;
-
         for (uint256 i = 0; i < records.length; i++) {
-            if (!records[i].isProxied) continue;
-            if (records[i].isDeprecated) continue;
+            if (records[i].isVariant) continue;
             if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
-            tmp[count++] = records[i].proxy;
+            count++;
         }
 
         predeploys_ = new PredeployState[](count);
-        for (uint256 i = 0; i < count; i++) {
-            predeploys_[i].predeploy = tmp[i];
-            predeploys_[i].version = _getVersion(tmp[i]);
+        uint256 j = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].isVariant) continue;
+            if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
+            predeploys_[j].predeploy = records[i].proxy;
+            predeploys_[j].version = _getVersion(records[i].proxy);
+            j++;
         }
     }
 

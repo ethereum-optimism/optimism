@@ -15,7 +15,7 @@ import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
-import { LibString } from "lib/solady/src/utils/LibString.sol";
+import { console } from "forge-std/console.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -928,6 +928,13 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
 /// @notice Test that verifies all predeploys receive upgrade calls during L2CM upgrade.
 ///         Uses Predeploys.sol as the source of truth for which predeploys should be upgraded.
 contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_Test {
+    function setUp() public override {
+        super.setUp();
+        // Skip interop since it requires to call useInterop() on setUp.
+        // The upgrade test for interop is in L2ContractsManager_Upgrade_InteropFlagEnabled_Test.
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
     /// @notice Checks if a predeploy is an interop predeploy gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
     function _isInteropPredeploy(address _predeploy) internal pure returns (bool) {
         return _predeploy == Predeploys.CROSS_L2_INBOX || _predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
@@ -960,38 +967,37 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         return impl != address(0) && impl.code.length > 0;
     }
 
+    /// @notice Returns true if a predeploy is a feature predeploy and is disabled.
+    /// @param _predeploy The predeploy to check.
+    /// @return True if the predeploy is a feature predeploy and feature is disabled, false otherwise.
+    function _isFeaturePredeployAndDisabled(address _predeploy) internal view returns (bool) {
+        if (!isSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            if (_predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY || _predeploy == Predeploys.LIQUIDITY_CONTROLLER) {
+                return true;
+            }
+        }
+        if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) && _isInteropPredeploy(_predeploy)) {
+            return true;
+        }
+        return false;
+    }
+
     /// @notice Tests that all predeploys from the registry receive the expected upgrade call.
     ///         Uses vm.expectCall() to verify that upgradeTo or upgradeToAndCall is called.
     /// @dev If L2CM misses a predeploy that exists in PredeployRegistry, this test will fail.
     function test_allPredeploysReceiveUpgradeCall_succeeds() public {
-        // Deduplicate proxy addresses (CGT variants share a proxy with the standard record).
-        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
-        address[] memory tmp = new address[](records.length);
-        uint256 count = 0;
-        for (uint256 i = 0; i < records.length; i++) {
-            if (!records[i].isProxied) continue;
-            if (records[i].isDeprecated) continue;
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
 
-            if (LibString.eq(records[i].name, "L1BlockCGT") || LibString.eq(records[i].name, "L2ToL1MessagePasserCGT"))
-            {
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].isVariant) {
+                console.log("Skipping variant predeploy", records[i].name);
                 continue;
             }
-            tmp[count++] = records[i].proxy;
-        }
-        address[] memory allPredeploys = new address[](count);
-        for (uint256 i = 0; i < count; i++) {
-            allPredeploys[i] = tmp[i];
-        }
-        bool interopEnabled = isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
-        for (uint256 i = 0; i < allPredeploys.length; i++) {
-            address predeploy = allPredeploys[i];
-
-            // Skip predeploys that are not deployed on this chain (e.g., CGT-only, interop-only)
-            if (!_isPredeployUpgradeable(predeploy)) continue;
-
-            // Skip interop predeploys when OPTIMISM_PORTAL_INTEROP flag is disabled
-            if (_isInteropPredeploy(predeploy) && !interopEnabled) continue;
+            if (_isFeaturePredeployAndDisabled(records[i].proxy)) {
+                console.log("Skipping feature predeploy and feature disabled", records[i].name);
+                continue;
+            }
+            address predeploy = records[i].proxy;
 
             // Expect the appropriate upgrade call based on whether initialization is required
             if (_requiresInitialization(predeploy)) {

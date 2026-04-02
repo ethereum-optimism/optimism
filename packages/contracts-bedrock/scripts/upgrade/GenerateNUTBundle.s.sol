@@ -382,11 +382,8 @@ contract GenerateNUTBundle is Script {
         // Gas profiling: 280,600 gas used → 420,900 recommended → 500K with safety margin
         _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 500_000));
 
-        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
         for (uint256 i = 0; i < records.length; i++) {
-            // Non-proxied and deprecated predeploys are not deployed via NUT bundles.
-            if (!records[i].isProxied) continue;
-            if (records[i].isDeprecated) continue;
             _implementationConfigs.push(
                 _makeConfig(records[i].name, records[i].artifactPath, records[i].deployGasLimit)
             );
