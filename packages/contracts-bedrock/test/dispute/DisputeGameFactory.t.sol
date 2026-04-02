@@ -894,10 +894,7 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         return _createZKGameWithParams(defaultZKParams);
     }
 
-    function _createZKGameWithParams(ZKDisputeGameParams memory _params)
-        internal
-        returns (ZKDisputeGame proxy_)
-    {
+    function _createZKGameWithParams(ZKDisputeGameParams memory _params) internal returns (ZKDisputeGame proxy_) {
         // Setup ZK game implementation: deploys impl, encodes gameArgs, registers with factory.
         (, zkVerifier) = setupZKDisputeGame(_params);
 
@@ -1188,9 +1185,7 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
         for (uint256 i; i < _numGames; i++) {
             Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256(abi.encode("zkRoot", i))), VMStatuses.INVALID);
             disputeGameFactory.create{ value: defaultZKParams.challengerBond }(
-                GameTypes.ZK_DISPUTE_GAME,
-                rootClaim_,
-                abi.encodePacked(anchorL2SeqNum + 1000 + i, type(uint32).max)
+                GameTypes.ZK_DISPUTE_GAME, rootClaim_, abi.encodePacked(anchorL2SeqNum + 1000 + i, type(uint32).max)
             );
         }
         vm.stopPrank();
