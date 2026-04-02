@@ -272,7 +272,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
         // NOTE: This requires the portal to already be upgraded to the interop version
-        // (OptimismPortal2). If the portal is not on the interop version, this call will
+        // (OptimismPortal2). And it requires the feature flag for INTEROP to be enabled
+        // If the portal is not on the interop version, this call will
         // fail.
         portal.migrateToSharedDisputeGame(_newLockbox, _newASR);
     }
