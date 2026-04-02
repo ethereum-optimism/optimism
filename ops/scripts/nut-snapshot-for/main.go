@@ -56,12 +56,13 @@ func run(fork forks.Name) error {
 	hash := sha256.Sum256(content)
 	hashStr := "sha256:" + hex.EncodeToString(hash[:])
 
-	// Get current git commit.
-	commitCmd := exec.Command("git", "rev-parse", "HEAD")
+	// Record the merge-base with develop (not HEAD) so the commit survives
+	// squash-merge. Contracts must be merged to develop before snapshotting.
+	commitCmd := exec.Command("git", "merge-base", "HEAD", "origin/develop")
 	commitCmd.Dir = root
 	commitOut, err := commitCmd.Output()
 	if err != nil {
-		return fmt.Errorf("getting git commit: %w", err)
+		return fmt.Errorf("finding merge-base with origin/develop (fetch first?): %w", err)
 	}
 	commit := strings.TrimSpace(string(commitOut))
 

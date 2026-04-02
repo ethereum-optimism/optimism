@@ -89,10 +89,10 @@ func run(dir string) error {
 				"run 'just nut-snapshot-for %s' to populate the commit field", fork, fork)
 		}
 
-		cmd := exec.Command("git", "cat-file", "-t", entry.Commit)
+		cmd := exec.Command("git", "merge-base", "--is-ancestor", entry.Commit, "origin/develop")
 		cmd.Dir = root
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("fork %s: commit %s not found in git history", fork, entry.Commit[:12])
+			return fmt.Errorf("fork %s: commit %s is not an ancestor of origin/develop", fork, entry.Commit[:12])
 		}
 
 		fmt.Printf("fork %s: bundle hash OK\n", fork)
