@@ -228,9 +228,10 @@ library PastUpgrades {
         // Acceptable to fail if already up to date
         scSuccess;
 
-        // Build dispute game configs with dummy prestates
+        // Build dispute game configs with dummy prestates.
+        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
         // CANNON (game type 0)
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -266,7 +267,30 @@ library PastUpgrades {
             )
         });
 
-        // Sort by game type (already sorted: 0, 1, 8)
+        // SUPER_CANNON (disabled)
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: hex""
+        });
+
+        // SUPER_PERMISSIONED_CANNON (disabled)
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: hex""
+        });
+
+        // SUPER_CANNON_KONA (disabled)
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: hex""
+        });
+
         _sortDisputeGameConfigs(disputeGameConfigs);
 
         // Execute the V2 upgrade

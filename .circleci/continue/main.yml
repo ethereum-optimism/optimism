@@ -695,6 +695,13 @@ jobs:
     steps:
       - utils/ci-gate
 
+  ci-gate-skip:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - run: echo "Skipped — docs-only change"
+
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
     description: "Build a Rust workspace with target directory caching"
@@ -1770,7 +1777,8 @@ jobs:
         description: Environment overrides
         type: string
         default: ""
-    machine: true
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: <<parameters.resource_class>>
     steps:
       - utils/checkout-with-mise:
@@ -2444,6 +2452,7 @@ workflows:
                 - OPCM_V2,OPTIMISM_PORTAL_INTEROP
                 - OPCM_V2,ZK_DISPUTE_GAME
                 - OPCM_V2,CANNON_KONA
+                - OPCM_V2,SUPER_ROOT_GAMES_MIGRATION
                 - L2CM
                 - L2CM,CUSTOM_GAS_TOKEN
                 - L2CM,OPTIMISM_PORTAL_INTEROP
@@ -2838,6 +2847,36 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
 
+  main-skip:
+    when:
+      and:
+        - equal: ["", << pipeline.git.tag >>]
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - not: << pipeline.parameters.c-non_docs_changes >>
+    jobs:
+      - ci-gate-skip:
+          name: check-kontrol-build
+      - ci-gate-skip:
+          name: shell-check
+      - ci-gate-skip:
+          name: go-lint
+      - ci-gate-skip:
+          name: semgrep-scan-local
+      - ci-gate-skip:
+          name: go-tests-short
+      - ci-gate-skip:
+          name: contracts-bedrock-coverage main
+      - ci-gate-skip:
+          name: contracts-bedrock-tests main
+      - ci-gate-skip:
+          name: contracts-bedrock-tests-heavy-fuzz-modified main
+      - ci-gate-skip:
+          name: contracts-bedrock-tests-upgrade op-mainnet main
+      - ci-gate-skip:
+          name: memory-all
+      - ci-gate-skip:
+          name: contracts-bedrock-checks-fast
+
   go-release-op-deployer:
     jobs:
       - contracts-bedrock-build:
@@ -2967,19 +3006,29 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary:
+          name: rust-workspace-binaries
+          directory: rust
+          profile: "release"
+          save_cache: true
+          persist_to_workspace: true
+          rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: xlarge
+          resource_class: 2xlarge
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
             - cannon-prestate
+            - rust-workspace-binaries
       - publish-cannon-prestates:
           context:
             - slack

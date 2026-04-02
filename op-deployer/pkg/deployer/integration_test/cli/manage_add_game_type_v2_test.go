@@ -163,6 +163,21 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 					InitBond: big.NewInt(0),
 					GameType: embedded.GameTypeCannonKona,
 				},
+				{
+					Enabled:  false,
+					InitBond: big.NewInt(0),
+					GameType: embedded.GameTypeSuperCannon,
+				},
+				{
+					Enabled:  false,
+					InitBond: big.NewInt(0),
+					GameType: embedded.GameTypeSuperPermCannon,
+				},
+				{
+					Enabled:  false,
+					InitBond: big.NewInt(0),
+					GameType: embedded.GameTypeSuperCannonKona,
+				},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{
 				{

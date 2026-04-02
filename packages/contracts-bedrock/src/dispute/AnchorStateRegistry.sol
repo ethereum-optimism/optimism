@@ -24,8 +24,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.8.2
-    string public constant version = "3.8.2";
+    /// @custom:semver 3.9.0
+    string public constant version = "3.9.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -85,6 +85,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
+    /// @param _startingRespectedGameType The starting respected game type.
     function initialize(
         ISystemConfig _systemConfig,
         IDisputeGameFactory _disputeGameFactory,
@@ -100,8 +101,20 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         // Now perform initialization logic.
         systemConfig = _systemConfig;
         disputeGameFactory = _disputeGameFactory;
-        startingAnchorRoot = _startingAnchorRoot;
         respectedGameType = _startingRespectedGameType;
+
+        // If the starting anchor root is changing and an anchor game exists, verify the new root
+        // is ahead and clear the anchor game so getAnchorRoot() returns the new startingAnchorRoot.
+        bool rootChanged = _startingAnchorRoot.root.raw() != startingAnchorRoot.root.raw()
+            || _startingAnchorRoot.l2SequenceNumber != startingAnchorRoot.l2SequenceNumber;
+        if (rootChanged && address(anchorGame) != address(0)) {
+            (, uint256 currentSeqNum) = getAnchorRoot();
+            if (_startingAnchorRoot.l2SequenceNumber <= currentSeqNum) {
+                revert AnchorStateRegistry_InvalidAnchorGame();
+            }
+            anchorGame = IDisputeGame(address(0));
+        }
+        startingAnchorRoot = _startingAnchorRoot;
 
         // Set the retirement timestamp to the current timestamp the first time the contract is
         // initialized. This was originally done in U16a to guarantee that all games created before

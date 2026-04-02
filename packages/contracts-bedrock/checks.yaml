@@ -84,7 +84,7 @@ phases:
         command: forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
       - name: nut-bundle
         description: Check NUT bundle is up to date
-        command: go run ./scripts/checks/nut-bundle-check
+        command: just nut-bundle-check-no-build
       - name: opcm-upgrade-checks
         description: Check OPCM upgrade methods
         command: go run ./scripts/checks/opcm-upgrade-checks/

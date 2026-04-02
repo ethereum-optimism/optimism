@@ -12,11 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-const disabledReqRespSyncFlakyReason = "known flaky in the default acceptance run"
-
 func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	t.MarkFlaky(disabledReqRespSyncFlakyReason)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 	l := t.Logger()
 

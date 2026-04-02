@@ -1,15 +1,15 @@
 //! This module contains the `ChannelReader` struct.
 
 use crate::{
-    BatchStreamProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Signal,
-    SignalReceiver,
+    BatchStreamProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{
-    MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig,
+    MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig, SystemConfig,
 };
 use kona_protocol::{Batch, BatchReader, BlockInfo};
 use tracing::{debug, warn};
@@ -36,7 +36,7 @@ pub trait ChannelReaderProvider {
 #[derive(Debug)]
 pub struct ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The previous stage of the derivation pipeline.
     pub prev: P,
@@ -48,7 +48,7 @@ where
 
 impl<P> ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Create a new [`ChannelReader`] stage.
     pub const fn new(prev: P, cfg: Arc<RollupConfig>) -> Self {
@@ -86,7 +86,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -96,7 +96,7 @@ where
 #[async_trait]
 impl<P> BatchStreamProvider for ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     /// This method is called by the `BatchStream` if an invalid span batch is found.
     /// In the case of an invalid span batch, the associated channel must be flushed.
@@ -121,8 +121,8 @@ where
         match next_batch.decompress() {
             Ok(()) => {
                 // Record the decompressed size and type.
-                let size = next_batch.decompressed.len() as f64;
-                let ty = if next_batch.brotli_used {
+                let _size = next_batch.decompressed.len() as f64;
+                let _ty = if next_batch.brotli_used {
                     BatchReader::CHANNEL_VERSION_BROTLI
                 } else {
                     BatchReader::ZLIB_DEFLATE_COMPRESSION_METHOD
@@ -130,12 +130,12 @@ where
                 kona_macros::set!(
                     gauge,
                     crate::metrics::Metrics::PIPELINE_LATEST_DECOMPRESSED_BATCH_SIZE,
-                    size
+                    _size
                 );
                 kona_macros::set!(
                     gauge,
                     crate::metrics::Metrics::PIPELINE_LATEST_DECOMPRESSED_BATCH_TYPE,
-                    ty as f64
+                    _ty as f64
                 );
             }
             Err(err) => {
@@ -165,7 +165,7 @@ where
 
 impl<P> OriginProvider for ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -173,33 +173,42 @@ where
 }
 
 #[async_trait]
-impl<P> SignalReceiver for ChannelReader<P>
+impl<P> Stage for ChannelReader<P>
 where
-    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug + Send,
+    P: ChannelReaderProvider + OriginAdvancer + OriginProvider + Stage + Debug + Send,
 {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        match signal {
-            Signal::FlushChannel => {
-                // Drop the current in-progress channel.
-                warn!(target: "channel_reader", "Flushed channel");
-                self.next_batch = None;
-                kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_READER_SET, 0);
-            }
-            s => {
-                self.prev.signal(s).await?;
-                self.next_channel();
-            }
-        }
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        self.prev.reset(l1_origin, system_config).await?;
+        self.next_channel();
         Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.next_channel();
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        warn!(target: "channel_reader", "Flushed channel");
+        self.next_batch = None;
+        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_READER_SET, 0);
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.prev.provide_block(block).await
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{
-        errors::PipelineErrorKind, test_utils::TestChannelReaderProvider, types::ResetSignal,
-    };
+    use crate::{errors::PipelineErrorKind, test_utils::TestChannelReaderProvider};
     use alloc::vec;
     use kona_genesis::HardForkConfig;
 
@@ -219,7 +228,7 @@ mod test {
             new_compressed_batch_data(),
             MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize,
         ));
-        reader.signal(Signal::FlushChannel).await.unwrap();
+        reader.flush_channel().await.unwrap();
         assert!(reader.next_batch.is_none());
     }
 
@@ -232,7 +241,7 @@ mod test {
             MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize,
         ));
         assert!(!reader.prev.reset);
-        reader.signal(ResetSignal::default().signal()).await.unwrap();
+        reader.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(reader.next_batch.is_none());
         assert!(reader.prev.reset);
     }

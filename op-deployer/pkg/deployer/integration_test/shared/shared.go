@@ -281,6 +281,21 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 				AbsolutePrestate: opcmregistry.DummyCannonKonaPrestate,
 			},
 		},
+		{
+			Enabled:  false,
+			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypeSuperCannon,
+		},
+		{
+			Enabled:  false,
+			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypeSuperPermCannon,
+		},
+		{
+			Enabled:  false,
+			InitBond: big.NewInt(0),
+			GameType: embedded.GameTypeSuperCannonKona,
+		},
 	}
 
 	// Sort by game type (required by OPCM)

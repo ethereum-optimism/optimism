@@ -214,21 +214,21 @@ func runCannon(t *testing.T, ctx context.Context, sys *e2esys.System, inputs uti
 	l1Beacon := sys.L1BeaconEndpoint().RestHTTP()
 	rollupEndpoint := sys.RollupEndpoint("sequencer").RPC()
 	l2Endpoint := sys.NodeEndpoint("sequencer").RPC()
-	cannonOpts := challenger.WithCannon(t, sys)
+	cannonOpts := challenger.WithCannonKona(t, sys)
 	dir := t.TempDir()
 	proofsDir := filepath.Join(dir, "cannon-proofs")
 	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, rollupEndpoint, l2Endpoint, dir)
-	cfg.Cannon.L2Custom = true
+	cfg.CannonKona.L2Custom = true
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")
-	executor := vm.NewExecutor(logger, metrics.NoopMetrics.ToTypedVmMetrics("cannon"), cfg.Cannon, vm.NewOpProgramServerExecutor(logger), cfg.CannonAbsolutePreState, inputs)
+	executor := vm.NewExecutor(logger, metrics.NoopMetrics.ToTypedVmMetrics("cannon"), cfg.CannonKona, vm.NewKonaExecutor(), cfg.CannonKonaAbsolutePreState, inputs)
 
 	t.Log("Running cannon")
 	err := executor.DoGenerateProof(ctx, proofsDir, math.MaxUint, math.MaxUint, extraVmArgs...)
 	require.NoError(t, err, "failed to generate proof")
 
-	stdOut, _, err := runCmd(ctx, cfg.Cannon.VmBin, "witness", "--input", vm.FinalStatePath(proofsDir, cfg.Cannon.BinarySnapshots))
+	stdOut, _, err := runCmd(ctx, cfg.CannonKona.VmBin, "witness", "--input", vm.FinalStatePath(proofsDir, cfg.CannonKona.BinarySnapshots))
 	require.NoError(t, err, "failed to run witness cmd")
 	type stateData struct {
 		Step     uint64 `json:"step"`
