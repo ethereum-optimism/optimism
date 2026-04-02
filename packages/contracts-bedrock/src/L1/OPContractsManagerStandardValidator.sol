@@ -425,6 +425,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         return _errors;
     }
 
+    function isOPCMV1AndInterop(bytes32 _devFeatureBitmap) internal pure returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            && !DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPCM_V2);
+    }
+
     /// @notice Asserts that the OptimismPortal contract is valid.
     function assertValidOptimismPortal(
         string memory _errors,
@@ -437,34 +442,21 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
 
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.OPCM_V2)) {
-                _errors = internalRequire(
-                    LibString.eq(getVersion(address(_portal)), string.concat(getVersion(optimismPortalImpl))),
-                    "PORTAL-10",
-                    _errors
-                );
-                _errors = internalRequire(
-                    getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
-                );
-            } else {
-                _errors = internalRequire(
-                    LibString.eq(getVersion(address(_portal)), string.concat(getVersion(optimismPortalInteropImpl))),
-                    "PORTAL-10",
-                    _errors
-                );
-                _errors = internalRequire(
-                    getProxyImplementation(_admin, address(_portal)) == optimismPortalInteropImpl, "PORTAL-20", _errors
-                );
-            }
+        // Use the OptimismPortalInteropImpl only when OPTIMISM_PORTAL_INTEROP is enabled without OPCM_V2 (legacy path).
+        // With OPCM_V2, the portal is always optimismPortalImpl regardless of INTEROP.
+        address expectedPortalImpl;
+        if (isOPCMV1AndInterop(devFeatureBitmap)) {
+            expectedPortalImpl = optimismPortalInteropImpl;
         } else {
-            _errors = internalRequire(
-                LibString.eq(getVersion(address(_portal)), getVersion(optimismPortalImpl)), "PORTAL-10", _errors
-            );
-            _errors = internalRequire(
-                getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
-            );
+            expectedPortalImpl = optimismPortalImpl;
         }
+
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_portal)), getVersion(expectedPortalImpl)), "PORTAL-10", _errors
+        );
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_portal)) == expectedPortalImpl, "PORTAL-20", _errors
+        );
 
         IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
