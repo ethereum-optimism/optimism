@@ -12,7 +12,7 @@ import (
 
 func TestExecuteStep_Cannon(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipUnlessOpGeth(t, "op-reth not supported (timeout)")
+	sysgo.SkipOnOpReth(t, "not supported (timeout)")
 	sys := newSystem(t)
 
 	l1User := sys.FunderL1.NewFundedEOA(eth.ThousandEther)
@@ -42,7 +42,7 @@ func TestExecuteStep_CannonKona(gt *testing.T) {
 	// assertions.go:387:             	            	failed to get safe head at L1 block 0xe926b953777546729b2607011590354a6a42dc35e36b7ea68c9dd4b470261541:6: not found
 	// assertions.go:387:             	Test:       	TestExecuteStep_CannonKona
 	// assertions.go:387:             	Messages:   	Failed to get honest root claim
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newSystem(t)
 
 	l1User := sys.FunderL1.NewFundedEOA(eth.ThousandEther)

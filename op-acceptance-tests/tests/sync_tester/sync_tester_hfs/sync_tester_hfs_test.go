@@ -43,7 +43,7 @@ func TestSyncTesterHardforks(gt *testing.T) {
 	// assertions.go:387:             	Error:      	Received unexpected error:
 	// assertions.go:387:             	            	operation failed permanently after 42 attempts: expected head to advance: unsafe
 	// assertions.go:387:             	Test:       	TestSyncTesterHardforks
-	sysgo.SkipUnlessOpGeth(t, "op-reth not supported")
+	sysgo.SkipOnOpReth(t, "not supported")
 
 	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()

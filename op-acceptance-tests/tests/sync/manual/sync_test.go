@@ -23,7 +23,7 @@ func TestVerifierManualSync(gt *testing.T) {
 	// assertions.go:387:             	            	failed to determine block-hash of hash 0x2f6324eaff3942802eff5ddd47872544aa02182c222bf90042d5f715dfa72308, could not get payload: not found
 	// assertions.go:387:             	Test:       	TestVerifierManualSync
 	// assertions.go:387:             	Messages:   	block not found using block hash
-	sysgo.SkipUnlessOpGeth(t, "op-reth not supported")
+	sysgo.SkipOnOpReth(t, "not supported")
 
 	// Disable ELP2P and Batcher
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t,

@@ -28,7 +28,7 @@ func TestCLELDivergence(gt *testing.T) {
 	// assertions.go:387:             	            	expected: 0x1
 	// assertions.go:387:             	            	actual  : 0x0
 	// assertions.go:387:             	Test:       	TestCLELDivergence
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 	require := t.Require()
 	l := t.Logger()

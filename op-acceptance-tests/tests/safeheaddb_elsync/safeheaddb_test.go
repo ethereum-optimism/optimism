@@ -33,7 +33,7 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	// assertions.go:387:             	Test:       	TestTruncateDatabaseOnELResync
 	// assertions.go:387:             	Messages:   	The peer was not connected
 	// assertions.go:387:
-	sysgo.SkipUnlessOpGeth(t, "op-reth not supported (peering issue)")
+	sysgo.SkipOnOpReth(t, "not supported (peering issue)")
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,
@@ -72,7 +72,7 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	// assertions.go:387:             	Error:      	Expected value not to be nil.
 	// assertions.go:387:             	Test:       	TestNotTruncateDatabaseOnRestartWithExistingDatabase
 	// assertions.go:387:             	Messages:   	no safe head data available at L1 block 4
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,

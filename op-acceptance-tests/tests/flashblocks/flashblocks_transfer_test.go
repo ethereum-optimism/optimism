@@ -49,7 +49,7 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	// assertions.go:387:             	            	context deadline exceeded
 	// assertions.go:387:             	Test:       	TestFlashblocksTransfer
 	// assertions.go:387:             	Messages:   	need user RPC
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported (fail to get user rpc)")
+	sysgo.SkipOnKonaNode(t, "not supported (fail to get user rpc)")
 	logger := t.Logger()
 	tracer := t.Tracer()
 	ctx := t.Ctx()

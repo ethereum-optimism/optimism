@@ -29,7 +29,7 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 	// --- FAIL: TestConductorLeadershipTransfer (63.04s)
 	// panic: interface conversion: sysgo.L2CLNode is *sysgo.KonaNode, not *sysgo.OpNode [recovered]
 	//    panic: interface conversion: sysgo.L2CLNode is *sysgo.KonaNode, not *sysgo.OpNode
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
 	logger := testlog.Logger(t, log.LevelInfo).With("Test", "TestConductorLeadershipTransfer")
 
 	sys := presets.NewMinimalWithConductors(t)

@@ -26,7 +26,8 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	// assertions.go:387:             	Error:      	Should be true
 	// assertions.go:387:             	Test:       	TestFollowL2_Safe_Finalized_CurrentL1
 	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL node
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
+	sysgo.FlakyOnOpReth(t, "timeouts in merge queue but not locally")
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	logger := t.Logger()
 
@@ -80,7 +81,7 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	// assertions.go:387:             	Error:      	Should be true
 	// assertions.go:387:             	Test:       	TestFollowL2_ReorgRecovery
 	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL node
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -169,7 +170,7 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	// assertions.go:387:             	Error:      	Should be true
 	// assertions.go:387:             	Test:       	TestFollowL2_WithoutCLP2P
 	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL nod
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newSingleChainTwoVerifiersFollowL2(t)
 	require := t.Require()
 	logger := t.Logger()

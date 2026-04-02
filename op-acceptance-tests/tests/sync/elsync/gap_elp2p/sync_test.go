@@ -66,7 +66,7 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	// assertions.go:387:             	Test:       	TestL2ELP2PCanonicalChainAdvancedByFCU
 	// assertions.go:387:             	Messages:   	block not found using block hash
 	// assertions.go:387:
-	sysgo.SkipUnlessOpGeth(t, "op-reth not supported")
+	sysgo.SkipOnOpReth(t, "not supported")
 	sys := newGapELP2PSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -412,7 +412,7 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	// assertions.go:387:             	Error:      	An error is expected but got nil.
 	// assertions.go:387:             	Test:       	TestInvalidPayloadThroughCLP2P
 	// assertions.go:387:
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 	require := t.Require()

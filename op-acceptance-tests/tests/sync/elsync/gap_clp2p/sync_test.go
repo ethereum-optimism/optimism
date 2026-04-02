@@ -56,7 +56,7 @@ func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
 	// assertions.go:387:             	            	expected head not to advance: unsafe
 	// assertions.go:387:             	Test:       	TestCLUnsafeNotRewoundOnInvalidDuringELSync
 	// assertions.go:387:
-	sysgo.SkipUnlessOpGeth(t, "op-reth not supported")
+	sysgo.SkipOnOpReth(t, "not supported")
 	sys := newGapCLP2PSystem(t)
 	logger := t.Logger()
 	require := t.Require()

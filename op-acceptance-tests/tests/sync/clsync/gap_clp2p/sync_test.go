@@ -23,7 +23,7 @@ func TestSyncAfterInitialELSync(gt *testing.T) {
 	// but got current=2
 	// \tTest:      \tTestSyncAfterInitialELSync\n"
 
-	sysgo.SkipUnlessOpNode(t, "kona-node not supported")
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newGapCLP2PSystem(t)
 	require := t.Require()
 

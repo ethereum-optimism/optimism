@@ -40,11 +40,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
-const (
-	DevstackL2ELKindEnvVar = "DEVSTACK_L2EL_KIND"
-	DevstackL2CLKindEnvVar = "DEVSTACK_L2CL_KIND"
-)
-
 type MixedL2ELKind string
 
 const (
@@ -59,24 +54,28 @@ const (
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
 )
 
-// SkipUnlessOpGeth skips the test when the L2 execution layer is op-reth
-// (i.e. DEVSTACK_L2EL_KIND is not "op-geth").
-func SkipUnlessOpGeth(t devtest.T, reason string) {
-	if MixedL2ELKind(devstackL2ELKind()) != MixedL2ELOpGeth {
+// SkipOnOpReth skips the test when the L2 execution layer is op-reth
+func SkipOnOpReth(t devtest.T, reason string) {
+	if devstackL2ELKind() == MixedL2ELOpReth {
 		t.Skipf("skipping on op-reth: %s", reason)
 	}
 }
 
-// SkipUnlessOpNode skips the test when the L2 consensus layer is op-node
-// (i.e. DEVSTACK_L2CL_KIND is not "op-node").
-func SkipUnlessOpNode(t devtest.T, reason string) {
-	if MixedL2CLKind(devstackL2CLKind()) != MixedL2CLOpNode {
+// SkipOnKonaNode skips the test when the L2 consensus layer is kona-node
+func SkipOnKonaNode(t devtest.T, reason string) {
+	if devstackL2CLKind() == MixedL2CLKona {
 		t.Skipf("skipping on kona-node: %s", reason)
 	}
 }
 
-func FlakyUnlessOpNode(t devtest.T, reason string) {
-	if MixedL2CLKind(devstackL2CLKind()) != MixedL2CLOpNode {
+func FlakyOnOpReth(t devtest.T, reason string) {
+	if devstackL2ELKind() == MixedL2ELOpReth {
+		t.MarkFlaky(reason)
+	}
+}
+
+func FlakyOnKonaNode(t devtest.T, reason string) {
+	if devstackL2CLKind() == MixedL2CLKona {
 		t.MarkFlaky(reason)
 	}
 }
@@ -85,14 +84,14 @@ func FlakyUnlessOpNode(t devtest.T, reason string) {
 // environment variable. Returns the empty string when the variable is unset,
 // meaning "use the runtime's default".
 func devstackL2ELKind() MixedL2ELKind {
-	return MixedL2ELKind(os.Getenv(DevstackL2ELKindEnvVar))
+	return MixedL2ELKind(os.Getenv("DEVSTACK_L2EL_KIND"))
 }
 
 // devstackL2CLKind returns the L2 CL kind requested via the DEVSTACK_L2CL_KIND
 // environment variable. Returns the empty string when the variable is unset,
 // meaning "use the runtime's default".
 func devstackL2CLKind() MixedL2CLKind {
-	return MixedL2CLKind(os.Getenv(DevstackL2CLKindEnvVar))
+	return MixedL2CLKind(os.Getenv("DEVSTACK_L2CL_KIND"))
 }
 
 type MixedSingleChainNodeSpec struct {

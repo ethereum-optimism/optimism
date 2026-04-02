@@ -24,7 +24,7 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	// assertions.go:387:             	Test:       	TestPreserveDatabaseOnCLResync
 	// assertions.go:387:             	Messages:   	The peer was not connected
 	// assertions.go:387:
-	sysgo.SkipUnlessOpGeth(t, "op-reth not supported (peering issue)")
+	sysgo.SkipOnOpReth(t, "not supported (peering issue)")
 	sys := presets.NewSingleChainMultiNode(t,
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.SequencerSyncMode = sync.CLSync
