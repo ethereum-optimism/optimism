@@ -1436,8 +1436,19 @@ abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegis
 /// @notice Tests the `setAnchorState` function with ZKDisputeGame.
 contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateRegistry_ZkDisputeGame_TestInit {
     /// @notice Tests that a valid ZK game can update the anchor state.
-    function test_setAnchorState_validNewerState_succeeds() public {
-        _mockZkGameAsValid();
+    function testFuzz_setAnchorState_validNewerState_succeeds(uint256 _l2SequenceNumber) public {
+        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
+        _l2SequenceNumber = bound(_l2SequenceNumber, anchorL2SeqNum + 1, type(uint256).max);
+
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true)
+        );
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(_l2SequenceNumber)
+        );
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
 
         vm.prank(address(zkGameProxy));
         vm.expectEmit(address(anchorStateRegistry));
@@ -1446,7 +1457,7 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
 
         // Confirm anchor state updated to ZK game's claim.
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
-        assertEq(l2BlockNumber, zkGameProxy.l2SequenceNumber());
+        assertEq(l2BlockNumber, _l2SequenceNumber);
         assertEq(root.raw(), zkGameProxy.rootClaim().raw());
 
         // Confirm anchor game is the ZK game.
@@ -1455,7 +1466,7 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
     }
 
     /// @notice Tests that a valid ZK game with an older l2SequenceNumber cannot update the anchor.
-    function test_setAnchorState_olderValidGameClaim_fails() public {
+    function testFuzz_setAnchorState_olderValidGameClaim_fails(uint256 _l2SequenceNumber) public {
         // First, set the anchor to the ZK game so we have a known anchor block.
         _mockZkGameAsValid();
         vm.prank(address(zkGameProxy));
@@ -1463,9 +1474,12 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
 
         (, uint256 anchorBlockNumber) = anchorStateRegistry.getAnchorRoot();
 
+        // Bound to at or below the anchor.
+        _l2SequenceNumber = bound(_l2SequenceNumber, 0, anchorBlockNumber);
+
         // Mock the ZK game's sequence number to be at or below the anchor.
         vm.mockCall(
-            address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(anchorBlockNumber)
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(_l2SequenceNumber)
         );
 
         vm.prank(address(zkGameProxy));
@@ -1519,16 +1533,21 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
     }
 
     /// @notice Tests that an unfinalized ZK game cannot update the anchor state.
-    function test_setAnchorState_notFinalized_fails() public {
+    function testFuzz_setAnchorState_notFinalized_fails(uint256 _resolvedAtTimestamp) public {
+        uint256 finalityDelay = optimismPortal2.disputeGameFinalityDelaySeconds();
+        // Bound to avoid overflow when adding finalityDelay.
+        _resolvedAtTimestamp = bound(_resolvedAtTimestamp, block.timestamp, type(uint64).max);
+
         vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
         vm.mockCall(
             address(zkGameProxy), abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true)
         );
-        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(_resolvedAtTimestamp));
         vm.mockCall(
             address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(zkL2SequenceNumber)
         );
-        // Do NOT warp past finality delay.
+        // Warp to before the finality delay has elapsed.
+        vm.warp(_resolvedAtTimestamp + finalityDelay);
 
         vm.prank(address(zkGameProxy));
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
@@ -1602,8 +1621,7 @@ contract AnchorStateRegistry_IsGameProper_ZkDisputeGame_Test is AnchorStateRegis
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(
-                disputeGameFactory.games,
-                (zkGameProxy.gameType(), zkGameProxy.rootClaim(), zkGameProxy.extraData())
+                disputeGameFactory.games, (zkGameProxy.gameType(), zkGameProxy.rootClaim(), zkGameProxy.extraData())
             ),
             abi.encode(address(0), 0)
         );
