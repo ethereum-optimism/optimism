@@ -769,7 +769,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 
         assertEq(address(optimismPortal2.ethLockbox()), _newLockbox);
         assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
-        // assertTrue(optimismPortal2.superRootsActive()); /// TODO: Is checking the INTEROP feature flag sufficient
+        assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
     }
 
     /// @notice Tests that `migrateToSharedDisputeGame` reverts when the system is paused.
