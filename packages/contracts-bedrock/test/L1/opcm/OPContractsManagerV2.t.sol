@@ -2040,21 +2040,14 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertTrue(newLockbox.authorizedPortals(portal1), "ETHLockbox does not have portal 1 authorized");
         assertTrue(newLockbox.authorizedPortals(portal2), "ETHLockbox does not have portal 2 authorized");
 
-        // Check that superRootsActive is true on both portals.
-        // assertTrue(
-        //     portal1.superRootsActive(),
-        //     "Portal 1 superRootsActive should be true"
-        // );
-        // assertTrue(
-        //     portal2.superRootsActive(),
-        //     "Portal 2 superRootsActive should be true"
-        // );
-
-        /// TODO: Can we use the INTEROP flag for these checks
-
+        // Check that the ETH_LOCKBOX feature is enabled on both SystemConfigs.
         assertTrue(
-            address(chainContracts1.systemConfig) == address(chainContracts2.systemConfig),
-            "system configs not the same"
+            chainContracts1.systemConfig.isFeatureEnabled(Features.INTEROP),
+            "Chain 1 ETH_LOCKBOX feature should be enabled"
+        );
+        assertTrue(
+            chainContracts2.systemConfig.isFeatureEnabled(Features.INTEROP),
+            "Chain 2 ETH_LOCKBOX feature should be enabled"
         );
         // Check that the ETH_LOCKBOX feature is enabled on both SystemConfigs.
         assertTrue(
