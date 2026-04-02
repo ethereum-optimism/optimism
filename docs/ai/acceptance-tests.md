@@ -10,7 +10,7 @@ Acceptance tests live in `op-acceptance-tests/tests/` and run full in-process de
 
 All `just` targets below automatically build dependencies (contracts, cannon prestates, Rust binaries) before running tests. The builds are incremental — re-running is fast when nothing changed.
 
-**Prerequisites:** mise must be activated in the shell (see [dev-workflow.md](dev-workflow.md)), and a working C toolchain (`clang` or `gcc`) must be available for Rust builds.
+**Prerequisites:** mise tools must be installed (see [dev-workflow.md](dev-workflow.md#setup)), and a working C toolchain (`clang` or `gcc`) must be available for Rust builds.
 
 Always set `RUST_JIT_BUILD=1` when running locally. This lets the test framework automatically build any Rust binaries it needs (e.g. op-reth) using cargo's rebuild detection, so you don't have to pre-build them separately.
 
@@ -20,10 +20,10 @@ Run from `op-acceptance-tests/`:
 
 ```bash
 # Run a single test
-RUST_JIT_BUILD=1 cd op-acceptance-tests && just test -run TestMyTest ./op-acceptance-tests/tests/base/
+RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just test -run TestMyTest ./op-acceptance-tests/tests/base/
 
 # Run a package
-RUST_JIT_BUILD=1 cd op-acceptance-tests && just test ./op-acceptance-tests/tests/base/...
+RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just test ./op-acceptance-tests/tests/base/...
 ```
 
 The `just test` target builds deps, then runs `go test -count=1 -timeout 30m` with your arguments.
@@ -31,7 +31,7 @@ The `just test` target builds deps, then runs `go test -count=1 -timeout 30m` wi
 ### All Tests
 
 ```bash
-RUST_JIT_BUILD=1 cd op-acceptance-tests && just acceptance-test
+RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test
 ```
 
 Runs all test packages with gotestsum, structured logging, and auto-tuned parallelism.
@@ -41,7 +41,7 @@ Runs all test packages with gotestsum, structured logging, and auto-tuned parall
 Gate files in `op-acceptance-tests/gates/` list package subsets:
 
 ```bash
-RUST_JIT_BUILD=1 cd op-acceptance-tests && just acceptance-test base
+RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test base
 ```
 
 This runs only packages listed in `gates/base.txt`.
@@ -51,7 +51,7 @@ This runs only packages listed in `gates/base.txt`.
 Some tests (e.g. superfaultproofs, interop fault proofs) require a reproducible kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`:
 
 ```bash
-just reproducible-prestate-kona
+mise exec -- just reproducible-prestate-kona
 ```
 
 **Requires Docker.** If Docker is not available in your environment, ask the user to run this command for you.
@@ -77,7 +77,7 @@ When using `just acceptance-test`, the runner auto-detects CPU count and sets:
 Override with environment variables:
 
 ```bash
-ACCEPTANCE_TEST_PARALLEL=2 ACCEPTANCE_TEST_TIMEOUT=1h cd op-acceptance-tests && just acceptance-test
+ACCEPTANCE_TEST_PARALLEL=2 ACCEPTANCE_TEST_TIMEOUT=1h cd op-acceptance-tests && mise exec -- just acceptance-test
 ```
 
 ## Log Output (`acceptance-test` only)
@@ -93,7 +93,7 @@ When using `just test`, output goes to stdout only.
 
 ## Common Issues
 
-- **Missing prestates** — Run `cd op-acceptance-tests && just build-deps` or `just cannon-prestates` from the repo root.
-- **Stale contracts** — Rebuild with `cd packages/contracts-bedrock && just build-no-tests`.
-- **Missing Rust binaries** — Run `just build-rust-release` from the repo root.
+- **Missing prestates** — Run `cd op-acceptance-tests && mise exec -- just build-deps` or `mise exec -- just cannon-prestates` from the repo root.
+- **Stale contracts** — Rebuild with `cd packages/contracts-bedrock && mise exec -- just build-no-tests`.
+- **Missing Rust binaries** — Run `mise exec -- just build-rust-release` from the repo root.
 - **gotestsum not found** — Run `mise install` to install all pinned tools.

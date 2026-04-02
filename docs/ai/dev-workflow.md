@@ -8,6 +8,14 @@ All tool versions are pinned in `mise.toml` at the repo root. Always access tool
 
 If mise reports the repo isn't trusted, ask the user to run `mise trust` — never trust it automatically.
 
+### Setup
+
+Run `mise install` to install all pinned tools (just, gotestsum, forge, etc.). AI agent shells typically do not have mise activated, so prefix commands with `mise exec --` to ensure tools are on `PATH`:
+
+```bash
+mise exec -- just <target>
+```
+
 ## Build System
 
 The repo uses [Just](https://github.com/casey/just) as its build system. Shared justfile infrastructure lives in `justfiles/`. Each component has its own justfile — run `just --list` in any directory to see available targets.
