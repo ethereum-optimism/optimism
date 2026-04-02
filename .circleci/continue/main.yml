@@ -1686,6 +1686,9 @@ jobs:
       - run:
           name: verify NUT bundle provenance
           command: |
+            # For each fork whose hash changed vs develop, check out the recorded
+            # commit, regenerate the bundle, and verify it matches byte-for-byte.
+            # Unchanged forks are skipped to avoid expensive forge rebuilds.
             git show origin/develop:op-core/nuts/fork_lock.toml > /tmp/base_lock.toml 2>/dev/null || true
             for fork in $(yq -p toml -o json op-core/nuts/fork_lock.toml | jq -r 'keys[]'); do
               base_hash=$(yq -p toml ".${fork}.hash" /tmp/base_lock.toml 2>/dev/null || echo "")
