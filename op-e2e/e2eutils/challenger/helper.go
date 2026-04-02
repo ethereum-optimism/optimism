@@ -219,6 +219,12 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 		// Limit concurrency to something more reasonable when there are also multiple tests executing in parallel
 		cfg.MaxConcurrency = 4
 	}
+	// Use a much lower snapshot frequency in tests so that kona creates intermediate snapshots.
+	// The default (1 billion) means no snapshots are created for typical test traces (~100K steps),
+	// forcing every kona invocation to start from the absolute prestate. With multiple kona runs
+	// per bisection level and parallel subtests, this causes severe CPU contention under CI load.
+	cfg.Cannon.SnapshotFreq = 10_000
+	cfg.CannonKona.SnapshotFreq = 10_000
 	cfg.MetricsConfig = metrics.CLIConfig{
 		Enabled:    true,
 		ListenAddr: "127.0.0.1",
