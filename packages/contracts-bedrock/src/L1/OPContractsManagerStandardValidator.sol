@@ -425,11 +425,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         return _errors;
     }
 
-    function isOPCMV1AndInterop(bytes32 _devFeatureBitmap) internal pure returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            && !DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPCM_V2);
-    }
-
     /// @notice Asserts that the OptimismPortal contract is valid.
     function assertValidOptimismPortal(
         string memory _errors,
@@ -768,6 +763,13 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         return errors_;
+    }
+
+    /// @notice Helper function to clean up branching logic in the assertValidOptimismPortal block where
+    /// The PortalImplementation address is conditional based on the feature flags currently set
+    function isOPCMV1AndInterop(bytes32 _devFeatureBitmap) internal pure returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            && !DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPCM_V2);
     }
 
     /// @notice Returns true if the game type is a super game type.
