@@ -46,13 +46,13 @@ Once a fork's bundle is finalized (e.g., governance post written), lock it:
 
 1. Ensure the `commit` field is populated (run `just nut-snapshot-for <fork>` if needed)
 2. Manually edit `fork_lock.toml` to add `locked = true` for the fork
-3. CI (`nut-lock-check`) will enforce that the locked fork's hash cannot change
+3. CI (`check-nut-locks`) will enforce that the locked fork's hash cannot change
 
 To unlock (e.g., for a critical fix), manually set `locked = false` in `fork_lock.toml`.
 
 ### CI checks
 
-- **`nut-lock-check`** — Verifies all bundle hashes match their lock entries, all entries have a commit, locked forks haven't changed vs the base branch, and every `*_nut_bundle.json` file has a corresponding lock entry. Runs in CI on every PR.
+- **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, locked forks haven't changed vs the base branch, and every `*_nut_bundle.json` file has a corresponding lock entry. Runs in CI on every PR.
 - **`nut-bundle-check`** — Verifies `current-upgrade-bundle.json` is up-to-date with the contracts. Runs as part of `just check` in `packages/contracts-bedrock/`.
 
 ## fork_lock.toml schema

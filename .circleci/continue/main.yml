@@ -1660,7 +1660,7 @@ jobs:
           command: |
             just check-op-geth-version
 
-  nut-lock-check:
+  check-nut-locks:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
@@ -1671,7 +1671,7 @@ jobs:
       - run:
           name: check nut locks
           command: |
-            go run ./ops/scripts/nut-lock-check
+            go run ./ops/scripts/check-nut-locks
 
   go-tests:
     parameters:
@@ -2609,7 +2609,7 @@ workflows:
       - check-op-geth-version:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - nut-lock-check:
+      - check-nut-locks:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:

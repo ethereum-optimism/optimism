@@ -349,8 +349,8 @@ build-rust-release:
   cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 
 # Checks that locked NUT bundles have not been modified.
-nut-lock-check:
-  go run ./ops/scripts/nut-lock-check
+check-nut-locks:
+  go run ./ops/scripts/check-nut-locks
 
 # Snapshots current-upgrade-bundle.json as a fork's NUT bundle and updates the lock file.
 nut-snapshot-for fork:
