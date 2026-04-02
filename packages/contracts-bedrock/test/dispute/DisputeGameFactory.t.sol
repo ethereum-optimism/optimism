@@ -1062,24 +1062,26 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
 /// @notice Tests the `setImplementation` function with ZKDisputeGame.
 contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameFactory_ZkDisputeGame_TestInit {
     /// @notice Tests that setImplementation correctly stores the ZK game implementation and
-    ///         its CWIA gameArgs.
-    function test_setImplementation_succeeds() public {
+    ///         its CWIA gameArgs with fuzzed parameters.
+    function testFuzz_setImplementation_succeeds(
+        bytes32 _absolutePrestate,
+        uint64 _maxChallengeDuration,
+        uint64 _maxProveDuration,
+        uint256 _challengerBond
+    )
+        public
+    {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         address zkImpl = address(new ZKDisputeGame());
-        IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
-
-        bytes32 absolutePrestate = keccak256("absolutePrestate");
-        uint64 maxChallengeDuration = uint64(3.5 days);
-        uint64 maxProveDuration = uint64(12 hours);
-        uint256 challengerBond = 1 ether;
+        IZKVerifier _zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
 
         bytes memory args = abi.encodePacked(
-            absolutePrestate,
-            zkVerifier,
-            maxChallengeDuration,
-            maxProveDuration,
-            challengerBond,
+            _absolutePrestate,
+            _zkVerifier,
+            _maxChallengeDuration,
+            _maxProveDuration,
+            _challengerBond,
             anchorStateRegistry,
             delayedWeth,
             uint256(l2ChainId)
@@ -1193,39 +1195,40 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
         assertEq(g1, address(game1));
     }
 
-    /// @notice Tests that findLatestGames returns only available ZK games when fewer exist than requested.
-    function test_findLatestGames_lessThanNAvailable_succeeds() public {
+    /// @notice Tests that findLatestGames returns only available ZK games when fewer exist than
+    ///         requested. Fuzzes the number of games created and the number requested.
+    function testFuzz_findLatestGames_lessThanNAvailable_succeeds(uint256 _numGames, uint256 _numRequested) public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
-        // Setup ZK game and create only 1 game.
-        setupZKDisputeGame(
-            ZKDisputeGameParams({
-                maxChallengeDuration: Duration.wrap(3.5 days),
-                maxProveDuration: Duration.wrap(12 hours),
-                absolutePrestate: keccak256("absolutePrestate"),
-                challengerBond: 1 ether
-            })
-        );
+        // Bounded to avoid OOM: each game deploys a clone, and findLatestGames pre-allocates
+        // a result array of size _numRequested.
+        _numGames = bound(_numGames, 1, 256);
+        _numRequested = bound(_numRequested, _numGames + 1, 1024);
+
+        setupZKDisputeGame(defaultZKParams);
 
         (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
         address proposer = makeAddr("proposer");
-        vm.deal(proposer, 1 ether);
+        vm.deal(proposer, defaultZKParams.challengerBond * _numGames);
         vm.warp(block.timestamp + 1000);
 
-        Claim rootClaim1 = changeClaimStatus(Claim.wrap(keccak256("zkRoot1")), VMStatuses.INVALID);
-
-        vm.prank(proposer);
-        disputeGameFactory.create{ value: 1 ether }(
-            GameTypes.ZK_DISPUTE_GAME, rootClaim1, abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max)
-        );
+        vm.startPrank(proposer);
+        for (uint256 i; i < _numGames; i++) {
+            Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256(abi.encode("zkRoot", i))), VMStatuses.INVALID);
+            disputeGameFactory.create{ value: defaultZKParams.challengerBond }(
+                GameTypes.ZK_DISPUTE_GAME,
+                rootClaim_,
+                abi.encodePacked(anchorL2SeqNum + 1000 + i, type(uint32).max)
+            );
+        }
+        vm.stopPrank();
 
         uint256 latestIdx = disputeGameFactory.gameCount() - 1;
 
-        // Request 5 ZK games but only 1 exists.
         IDisputeGameFactory.GameSearchResult[] memory results =
-            disputeGameFactory.findLatestGames(GameTypes.ZK_DISPUTE_GAME, latestIdx, 5);
+            disputeGameFactory.findLatestGames(GameTypes.ZK_DISPUTE_GAME, latestIdx, _numRequested);
 
-        assertEq(results.length, 1);
+        assertEq(results.length, _numGames);
     }
 }
 
