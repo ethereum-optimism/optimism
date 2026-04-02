@@ -22,7 +22,12 @@ use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
 use serde::Serialize;
-use std::{collections::{BTreeMap, HashMap}, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 use tokio::task::{self, JoinHandle};
 
 /// The interop host application.

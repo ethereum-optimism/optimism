@@ -1,5 +1,5 @@
-use alloc::collections::BTreeMap;
 use crate::MESSAGE_EXPIRY_WINDOW;
+use alloc::collections::BTreeMap;
 use alloy_primitives::ChainId;
 
 /// Configuration for a dependency of a chain
