@@ -2,10 +2,10 @@ package eth
 
 import "encoding/json"
 
-// OutputWithRequiredL1 is the full Output and its source L1 block
+// OutputWithRequiredL1 is the OutputV0 pre-image and its source L1 block
 type OutputWithRequiredL1 struct {
-	Output     *OutputResponse `json:"output"`
-	RequiredL1 BlockID         `json:"required_l1"`
+	OutputRoot *OutputV0 `json:"output_root"`
+	RequiredL1 BlockID   `json:"required_l1"`
 }
 
 type SuperRootResponseData struct {

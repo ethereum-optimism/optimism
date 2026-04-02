@@ -110,7 +110,7 @@ func optimisticBlockAtTimestamp(t devtest.T, queryAPI apis.SupernodeQueryAPI, ch
 	t.Require().NoError(err)
 	out, ok := resp.OptimisticAtTimestamp[chainID]
 	t.Require().Truef(ok, "no optimistic output for chain %v at timestamp %d", chainID, timestamp)
-	return interopTypes.OptimisticBlock{BlockHash: out.Output.BlockRef.Hash, OutputRoot: out.Output.OutputRoot}
+	return interopTypes.OptimisticBlock{BlockHash: out.OutputRoot.BlockHash, OutputRoot: eth.OutputRoot(out.OutputRoot)}
 }
 
 // marshalTransition serializes a transition state with the given super root, step, and progress.

@@ -147,11 +147,10 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		prev.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number, Hash: common.Hash{0xaa}}
 		next.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}}
 		next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)] = eth.OutputWithRequiredL1{
-			Output: &eth.OutputResponse{
-				OutputRoot:            eth.Bytes32{0xad},
-				BlockRef:              eth.L2BlockRef{Hash: common.Hash{0xcd}},
-				WithdrawalStorageRoot: common.Hash{0xde},
-				StateRoot:             common.Hash{0xdf},
+			OutputRoot: &eth.OutputV0{
+				StateRoot:                eth.Bytes32{0xdf},
+				MessagePasserStorageRoot: eth.Bytes32{0xde},
+				BlockHash:                common.Hash{0xcd},
 			},
 			RequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}},
 		}
@@ -173,11 +172,10 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		prev.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number, Hash: common.Hash{0xaa}}
 		next.Data.VerifiedRequiredL1 = eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}}
 		next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)] = eth.OutputWithRequiredL1{
-			Output: &eth.OutputResponse{
-				OutputRoot:            eth.Bytes32{0xad},
-				BlockRef:              eth.L2BlockRef{Hash: common.Hash{0xcd}},
-				WithdrawalStorageRoot: common.Hash{0xde},
-				StateRoot:             common.Hash{0xdf},
+			OutputRoot: &eth.OutputV0{
+				StateRoot:                eth.Bytes32{0xdf},
+				MessagePasserStorageRoot: eth.Bytes32{0xde},
+				BlockHash:                common.Hash{0xcd},
 			},
 			RequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xbb}},
 		}
@@ -422,18 +420,6 @@ func createSuperNodeProvider(t *testing.T) (*SuperNodeTraceProvider, *stubSuperN
 	return provider, stubSuperNode, l1Head
 }
 
-func toOutputResponse(output *eth.OutputV0) *eth.OutputResponse {
-	return &eth.OutputResponse{
-		Version:    output.Version(),
-		OutputRoot: eth.OutputRoot(output),
-		BlockRef: eth.L2BlockRef{
-			Hash: output.BlockHash,
-		},
-		WithdrawalStorageRoot: common.Hash(output.MessagePasserStorageRoot),
-		StateRoot:             common.Hash(output.StateRoot),
-	}
-}
-
 func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (eth.SuperRootAtTimestampResponse, eth.SuperRootAtTimestampResponse) {
 	rng := rand.New(rand.NewSource(1))
 	outputA1 := testutils.RandomOutputV0(rng)
@@ -455,11 +441,11 @@ func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (eth.SuperRootAtTimestam
 		ChainIDs:  []eth.ChainID{chainID1, chainID2},
 		OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 			chainID1: {
-				Output:     toOutputResponse(outputA1),
+				OutputRoot: outputA1,
 				RequiredL1: l1Head,
 			},
 			chainID2: {
-				Output:     toOutputResponse(outputB1),
+				OutputRoot: outputB1,
 				RequiredL1: l1Head,
 			},
 		},
@@ -474,11 +460,11 @@ func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (eth.SuperRootAtTimestam
 		ChainIDs:  []eth.ChainID{chainID1, chainID2},
 		OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 			chainID1: {
-				Output:     toOutputResponse(outputA2),
+				OutputRoot: outputA2,
 				RequiredL1: l1Head,
 			},
 			chainID2: {
-				Output:     toOutputResponse(outputB2),
+				OutputRoot: outputB2,
 				RequiredL1: l1Head,
 			},
 		},
@@ -492,13 +478,15 @@ func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (eth.SuperRootAtTimestam
 }
 
 func expectSuperNodeValidTransition(t *testing.T, provider *SuperNodeTraceProvider, prev eth.SuperRootAtTimestampResponse, next eth.SuperRootAtTimestampResponse) {
+	chain1Out := next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)].OutputRoot
 	chain1OptimisticBlock := interopTypes.OptimisticBlock{
-		BlockHash:  next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)].Output.BlockRef.Hash,
-		OutputRoot: next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)].Output.OutputRoot,
+		BlockHash:  chain1Out.BlockHash,
+		OutputRoot: eth.OutputRoot(chain1Out),
 	}
+	chain2Out := next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)].OutputRoot
 	chain2OptimisticBlock := interopTypes.OptimisticBlock{
-		BlockHash:  next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)].Output.BlockRef.Hash,
-		OutputRoot: next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)].Output.OutputRoot,
+		BlockHash:  chain2Out.BlockHash,
+		OutputRoot: eth.OutputRoot(chain2Out),
 	}
 	expectedFirstStep := &interopTypes.TransitionState{
 		SuperRoot:       prev.Data.Super.Marshal(),
