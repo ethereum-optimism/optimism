@@ -44,6 +44,38 @@ func checkAllBundlesLocked(root string, lockedBundles map[string]bool) error {
 	return nil
 }
 
+// validateEntry checks a single fork lock entry against its bundle file content.
+func validateEntry(fork string, entry nuts.ForkLockEntry, bundleContent []byte) error {
+	hash := sha256.Sum256(bundleContent)
+	actual := "sha256:" + hex.EncodeToString(hash[:])
+
+	expectedHash := strings.TrimSpace(entry.Hash)
+	if actual != expectedHash {
+		return fmt.Errorf(
+			"bundle hash mismatch for fork %s: expected=%s actual=%s. "+
+				"If this change is intentional, update the hash in op-core/nuts/fork_lock.toml",
+			fork, expectedHash, actual,
+		)
+	}
+
+	if entry.Commit == "" {
+		return fmt.Errorf("fork %s has no commit recorded; "+
+			"run 'just nut-snapshot-for %s' to populate the commit field", fork, fork)
+	}
+
+	return nil
+}
+
+// checkCommitAncestry verifies that a commit is an ancestor of origin/develop.
+func checkCommitAncestry(root, fork string, commit string) error {
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, "origin/develop")
+	cmd.Dir = root
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("fork %s: commit %s is not an ancestor of origin/develop", fork, commit[:12])
+	}
+	return nil
+}
+
 func main() {
 	if err := run("."); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -72,27 +104,12 @@ func run(dir string) error {
 			return fmt.Errorf("fork %s: reading bundle %s: %w", fork, entry.Bundle, err)
 		}
 
-		hash := sha256.Sum256(content)
-		actual := "sha256:" + hex.EncodeToString(hash[:])
-
-		expectedHash := strings.TrimSpace(entry.Hash)
-		if actual != expectedHash {
-			return fmt.Errorf(
-				"bundle hash mismatch for fork %s: expected=%s actual=%s. "+
-					"If this change is intentional, update the hash in op-core/nuts/fork_lock.toml",
-				fork, expectedHash, actual,
-			)
+		if err := validateEntry(fork, entry, content); err != nil {
+			return err
 		}
 
-		if entry.Commit == "" {
-			return fmt.Errorf("fork %s has no commit recorded; "+
-				"run 'just nut-snapshot-for %s' to populate the commit field", fork, fork)
-		}
-
-		cmd := exec.Command("git", "merge-base", "--is-ancestor", entry.Commit, "origin/develop")
-		cmd.Dir = root
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("fork %s: commit %s is not an ancestor of origin/develop", fork, entry.Commit[:12])
+		if err := checkCommitAncestry(root, fork, entry.Commit); err != nil {
+			return err
 		}
 
 		fmt.Printf("fork %s: bundle hash OK\n", fork)
