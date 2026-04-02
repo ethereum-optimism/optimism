@@ -444,18 +444,15 @@ contract OPContractsManagerStandardValidator is ISemver {
                     "PORTAL-10",
                     _errors
                 );
+                _errors = internalRequire(
+                    getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
+                );
             } else {
                 _errors = internalRequire(
                     LibString.eq(getVersion(address(_portal)), string.concat(getVersion(optimismPortalInteropImpl))),
                     "PORTAL-10",
                     _errors
                 );
-            }
-            if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.OPCM_V2)) {
-                _errors = internalRequire(
-                    getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
-                );
-            } else {
                 _errors = internalRequire(
                     getProxyImplementation(_admin, address(_portal)) == optimismPortalInteropImpl, "PORTAL-20", _errors
                 );
