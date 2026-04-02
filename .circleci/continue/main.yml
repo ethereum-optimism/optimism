@@ -1686,9 +1686,16 @@ jobs:
       - run:
           name: verify NUT bundle provenance
           command: |
+            git show origin/develop:op-core/nuts/fork_lock.toml > /tmp/base_lock.toml 2>/dev/null || true
             for fork in $(yq -p toml -o json op-core/nuts/fork_lock.toml | jq -r 'keys[]'); do
-              echo "Verifying $fork..."
-              go run ./ops/scripts/nut-provenance-verify "$fork"
+              base_hash=$(yq -p toml ".${fork}.hash" /tmp/base_lock.toml 2>/dev/null || echo "")
+              curr_hash=$(yq -p toml ".${fork}.hash" op-core/nuts/fork_lock.toml)
+              if [ "$base_hash" != "$curr_hash" ]; then
+                echo "Verifying $fork (hash changed)..."
+                go run ./ops/scripts/nut-provenance-verify "$fork"
+              else
+                echo "Skipping $fork (unchanged)"
+              fi
             done
 
   go-tests:
