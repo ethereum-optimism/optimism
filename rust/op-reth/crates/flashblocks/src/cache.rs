@@ -417,6 +417,8 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 let last_fb = self.pending.sequence.last_flashblock()?;
                 let transactions = self.pending.transactions();
                 // let tx_per_fb : Vec<usize> = self.pending.sequence.flashblocks().
+                warn!("FBALs PANIC");
+                panic!("FBALs PANIC");
                 let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
 
                 (ticket, base, last_fb, transactions, access_lists, cached_state, "pending", None)
@@ -429,7 +431,9 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 let last_fb = cached.last();
                 let transactions = txs.clone();
                 //let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
-                let access_lists: Vec<FlashblockAccessList> = todo!();
+                warn!("FBALs PANIC");
+                panic!("FBALs PANIC");
+                let access_lists: Vec<FlashblockAccessList> = todo!("FBALs PANIC");
                 let cached_state = None;
                 (ticket, base, last_fb, transactions, access_lists, cached_state, "cached", None)
             }
@@ -453,6 +457,9 @@ impl<T: SignedTransaction> SequenceManager<T> {
                     let cached_state = self.pending.sequence.take_cached_reads().map(|r| (base.parent_hash, r));
                     let last_fb = self.pending.sequence.last_flashblock()?;
                     let transactions = self.pending.transactions();
+                    warn!("FBALs PANIC");
+                    panic!("FBALs PANIC");
+                    let access_lists: Vec<FlashblockAccessList> = todo!("FBALs PANIC");
                     let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
                     (
                         ticket,
@@ -472,7 +479,8 @@ impl<T: SignedTransaction> SequenceManager<T> {
                     let base = cached.payload_base().clone();
                     let last_fb = cached.last();
                     let transactions = txs.clone();
-                    panic!("FASDFDSFSFDSFS");
+                    warn!("FBALs PANIC");
+                    panic!("FBALs PANIC");
                     let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| { let fbal = fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected."); warn!("OP_RETH::fBAL: {:#?}", fbal); fbal}).collect();
                     let cached_state = None;
                     (

@@ -35,7 +35,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 /// The `FlashBlockBuilder` builds [`PendingBlock`] out of a sequence of transactions.
 #[derive(Debug)]
@@ -149,7 +149,8 @@ where
     ) -> eyre::Result<Option<BuildResult<N>>> {
         trace!(target: "flashblocks", "Attempting new pending block from flashblocks");
 
-        panic!("PAANICKhiDDDDSFSDFSFSFSS");
+        warn!("FBALs PANIC");
+        panic!("FBALs PANIC");
         let latest = self
             .provider
             .latest_header()?
