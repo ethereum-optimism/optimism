@@ -124,8 +124,6 @@ contract GenerateNUTBundle is Script {
     }
 
     /// @notice Returns the names of implementations scheduled for standard deployment.
-    /// @dev Excludes implementations with skipStandardDeploy = true.
-    ///      Requires setUp() + _buildImplementationDeploymentConfigs() to have been called first.
     function getStandardDeploymentNames() public view returns (string[] memory names_) {
         uint256 count = _implementationConfigs.length;
         names_ = new string[](count);
@@ -261,8 +259,6 @@ contract GenerateNUTBundle is Script {
     /// @notice Generates implementation deployment transactions for all the implementations to upgrade.
     /// @dev This function is called for all upgrades. It deploys implementation contracts
     ///      via ConditionalDeployer.deploy(), which ensures idempotent deployments.
-    ///      Implementations with skipStandardDeploy = true are skipped here and must be
-    ///      deployed via a custom phase (e.g. _preImplementationDeployments for Karst).
     /// @dev IMPORTANT: Only modify this function if you need to add or modify a fixed implementation deployment.
     function _generateImplementationDeployments() internal {
         for (uint256 i = 0; i < _implementationConfigs.length; i++) {
