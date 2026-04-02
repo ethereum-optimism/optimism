@@ -162,7 +162,7 @@ library Predeploys {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
 
         // Get default name for CGT variants
-        if (_addr == L1_BLOCK_NUMBER) return "L1Block";
+        if (_addr == L1_BLOCK_ATTRIBUTES) return "L1Block";
         if (_addr == L2_TO_L1_MESSAGE_PASSER) return "L2ToL1MessagePasser";
 
         // Get name from record
