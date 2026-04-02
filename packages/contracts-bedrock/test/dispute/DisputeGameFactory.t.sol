@@ -876,6 +876,7 @@ contract DisputeGameFactory_Create_FaultDisputeGame_Test is DisputeGameFactory_T
 /// @notice Reusable test initialization for ZKDisputeGame factory tests.
 abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactory_TestInit {
     IZKVerifier zkVerifier;
+    address proposer = makeAddr("proposer");
     ZKDisputeGameParams defaultZKParams = ZKDisputeGameParams({
         maxChallengeDuration: Duration.wrap(3.5 days),
         maxProveDuration: Duration.wrap(12 hours),
@@ -883,27 +884,30 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         challengerBond: 1 ether
     });
 
-    function _createZKGame() internal returns (ZKDisputeGame proxy_, address proposer_) {
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        vm.warp(block.timestamp + 1000);
+    }
+
+    function _createZKGame() internal returns (ZKDisputeGame proxy_) {
         return _createZKGameWithParams(defaultZKParams);
     }
 
     function _createZKGameWithParams(ZKDisputeGameParams memory _params)
         internal
-        returns (ZKDisputeGame proxy_, address proposer_)
+        returns (ZKDisputeGame proxy_)
     {
         // Setup ZK game implementation: deploys impl, encodes gameArgs, registers with factory.
         (, zkVerifier) = setupZKDisputeGame(_params);
 
         (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
 
-        proposer_ = makeAddr("proposer");
-        vm.deal(proposer_, _params.challengerBond);
-        // Warp past the respectedGameTypeUpdatedAt timestamp so the game can be created.
-        vm.warp(block.timestamp + 1000);
+        vm.deal(proposer, _params.challengerBond);
 
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), GameTypes.ZK_DISPUTE_GAME, rootClaim_);
-        vm.prank(proposer_);
+        vm.prank(proposer);
         proxy_ = ZKDisputeGame(
             payable(
                 address(
@@ -982,8 +986,6 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
     )
         public
     {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         vm.assume(_challengerBond > 0);
 
         ZKDisputeGameParams memory params = ZKDisputeGameParams({
@@ -993,7 +995,7 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
             challengerBond: _challengerBond
         });
 
-        (ZKDisputeGame proxy, address proposer) = _createZKGameWithParams(params);
+        ZKDisputeGame proxy = _createZKGameWithParams(params);
         _assertZKGameFactoryStorage(proxy);
         _assertZKGameCWIA(proxy, proposer, params);
     }
@@ -1002,8 +1004,6 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
     ///         Fuzzes both the required bond and the sent amount, covering underpayment,
     ///         overpayment, and zero-value scenarios via `_wrongBond != _challengerBond`.
     function testFuzz_create_wrongBond_reverts(uint256 _challengerBond, uint256 _wrongBond) public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         vm.assume(_challengerBond > 0);
         vm.assume(_wrongBond != _challengerBond);
 
@@ -1018,9 +1018,7 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
 
         (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
 
-        address proposer = makeAddr("proposer");
         vm.deal(proposer, _wrongBond);
-        vm.warp(block.timestamp + 1000);
         vm.prank(proposer);
         vm.expectRevert(IncorrectBondAmount.selector);
         disputeGameFactory.create{ value: _wrongBond }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_);
@@ -1028,8 +1026,6 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
 
     /// @notice Tests that creating a ZKDisputeGame without a registered implementation reverts.
     function test_create_noImpl_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
 
         // ZK_DISPUTE_GAME implementation is not registered — factory must revert.
@@ -1039,11 +1035,8 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
 
     /// @notice Tests that creating a duplicate ZKDisputeGame (same UUID) reverts.
     function test_create_duplicateUUID_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        ZKDisputeGame proxy = _createZKGame();
 
-        (ZKDisputeGame proxy,) = _createZKGame();
-
-        address proposer = makeAddr("proposer");
         vm.deal(proposer, 1 ether);
 
         // Cache args before applying prank — Solidity evaluates arguments before the call,
@@ -1071,8 +1064,6 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
     )
         public
     {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         address zkImpl = address(new ZKDisputeGame());
         IZKVerifier _zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
 
@@ -1101,7 +1092,6 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
 
     /// @notice Tests that setImplementation reverts when called by a non-owner.
     function testFuzz_setImplementation_notOwner_reverts(address _caller) public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         vm.assume(_caller != disputeGameFactory.owner());
 
         address zkImpl = address(new ZKDisputeGame());
@@ -1118,8 +1108,6 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
 contract DisputeGameFactory_SetInitBond_ZkDisputeGame_Test is DisputeGameFactory_ZkDisputeGame_TestInit {
     /// @notice Tests that setInitBond properly sets and updates the bond for ZK_DISPUTE_GAME.
     function testFuzz_setInitBond_succeeds(uint256 _bond1, uint256 _bond2) public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
         emit InitBondUpdated(GameTypes.ZK_DISPUTE_GAME, _bond1);
 
@@ -1135,7 +1123,6 @@ contract DisputeGameFactory_SetInitBond_ZkDisputeGame_Test is DisputeGameFactory
 
     /// @notice Tests that setInitBond reverts when called by a non-owner.
     function testFuzz_setInitBond_notOwner_reverts(address _caller, uint256 _bond) public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         vm.assume(_caller != disputeGameFactory.owner());
 
         vm.prank(_caller);
@@ -1149,22 +1136,11 @@ contract DisputeGameFactory_SetInitBond_ZkDisputeGame_Test is DisputeGameFactory
 contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFactory_ZkDisputeGame_TestInit {
     /// @notice Tests that findLatestGames correctly returns ZKDisputeGame entries.
     function test_findLatestGames_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         // Setup ZK game and create two games with different sequence numbers.
-        setupZKDisputeGame(
-            ZKDisputeGameParams({
-                maxChallengeDuration: Duration.wrap(3.5 days),
-                maxProveDuration: Duration.wrap(12 hours),
-                absolutePrestate: keccak256("absolutePrestate"),
-                challengerBond: 1 ether
-            })
-        );
+        setupZKDisputeGame(defaultZKParams);
 
         (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
-        address proposer = makeAddr("proposer");
         vm.deal(proposer, 10 ether);
-        vm.warp(block.timestamp + 1000);
 
         Claim rootClaim1 = changeClaimStatus(Claim.wrap(keccak256("zkRoot1")), VMStatuses.INVALID);
         Claim rootClaim2 = changeClaimStatus(Claim.wrap(keccak256("zkRoot2")), VMStatuses.INVALID);
@@ -1198,8 +1174,6 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
     /// @notice Tests that findLatestGames returns only available ZK games when fewer exist than
     ///         requested. Fuzzes the number of games created and the number requested.
     function testFuzz_findLatestGames_lessThanNAvailable_succeeds(uint256 _numGames, uint256 _numRequested) public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         // Bounded to avoid OOM: each game deploys a clone, and findLatestGames pre-allocates
         // a result array of size _numRequested.
         _numGames = bound(_numGames, 1, 256);
@@ -1208,9 +1182,7 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
         setupZKDisputeGame(defaultZKParams);
 
         (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
-        address proposer = makeAddr("proposer");
         vm.deal(proposer, defaultZKParams.challengerBond * _numGames);
-        vm.warp(block.timestamp + 1000);
 
         vm.startPrank(proposer);
         for (uint256 i; i < _numGames; i++) {
