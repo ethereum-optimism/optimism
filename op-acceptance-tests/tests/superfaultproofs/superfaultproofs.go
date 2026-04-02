@@ -729,14 +729,31 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 
 // RunPreForkActivationTest verifies that super-root transitions produce
 // correct results when the interop fork is scheduled but not yet active.
+// It sends an initiating message on chain A and a (reverting) executing
+// message on chain B to ensure the proof system handles interop-related
+// transactions correctly even before the fork activates.
 func RunPreForkActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	rng := rand.New(rand.NewSource(1234))
 
 	chains := orderedChains(sys)
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 
-	// Verify that interop is not active at the timestamp we'll be testing.
-	endTimestamp := uint64(time.Now().Unix())
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+
+	// Send an initiating message on chain A (just emits a log via EventLogger).
+	eventLogger := aliceA.DeployEventLogger()
+	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+
+	// Execute the message on chain B. Interop is not active so the CrossL2Inbox
+	// call reverts, but the tx is still included. This mirrors the original action
+	// test which verified the supervisor does not re-org out reverted interop
+	// transactions when the fork is inactive.
+	execMsg := aliceB.SendExecMessage(initMsg, dsl.WithFixedGasLimit(100_000), dsl.WithExpectRevert())
+
+	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
 	t.Require().False(chains[0].Cfg.IsInterop(endTimestamp), "Interop should not be active")
 
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
