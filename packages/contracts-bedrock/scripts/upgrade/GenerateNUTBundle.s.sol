@@ -37,12 +37,10 @@ contract GenerateNUTBundle is Script {
     }
 
     /// @notice Configuration for a implementation contract deployment.
-    /// @param implementation Expected implementation address after deployment.
     /// @param deploymentGasLimit Gas limit for the deployment transaction.
-    /// @param artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
+    /// @param implementation Expected implementation address after deployment.
     /// @param name Human-readable name for the contract.
-    /// @param skipStandardDeploy If true, this implementation is excluded from the standard deployment
-    ///        loop and must be deployed via a custom phase instead (e.g. Phase 1 for Karst).
+    /// @param artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
     struct ImplementationConfig {
         address implementation;
         uint64 deploymentGasLimit;
