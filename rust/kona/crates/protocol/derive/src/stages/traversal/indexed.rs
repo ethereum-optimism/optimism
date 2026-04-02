@@ -339,13 +339,7 @@ mod tests {
         let second = b256!("4444444444444444444444444444444444444444444444444444444444444444");
         // Block before Holocene activation (timestamp 99), block at activation (timestamp 100).
         let block1 = BlockInfo { hash: first, timestamp: 99, ..BlockInfo::default() };
-        let block2 = BlockInfo {
-            number: 1,
-            hash: second,
-            parent_hash: first,
-            timestamp: 100,
-            ..BlockInfo::default()
-        };
+        let block2 = BlockInfo { number: 1, hash: second, parent_hash: first, timestamp: 100 };
 
         let mut provider = TestChainProvider::default();
         provider.insert_block(0, block1);
