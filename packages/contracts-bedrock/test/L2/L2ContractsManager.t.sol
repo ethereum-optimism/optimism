@@ -15,6 +15,7 @@ import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
+import { LibString } from "lib/solady/src/utils/LibString.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -961,10 +962,10 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
             if (!records[i].isProxied) continue;
             if (records[i].isDeprecated) continue;
 
-            if (
-                keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L1BlockCGT"))
-                    || keccak256(abi.encodePacked(records[i].name)) == keccak256(abi.encodePacked("L2ToL1MessagePasserCGT"))
-            ) continue;
+            if (LibString.eq(records[i].name, "L1BlockCGT") || LibString.eq(records[i].name, "L2ToL1MessagePasserCGT"))
+            {
+                continue;
+            }
             tmp[count++] = records[i].proxy;
         }
         address[] memory allPredeploys = new address[](count);
