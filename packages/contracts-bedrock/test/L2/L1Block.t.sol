@@ -11,6 +11,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
@@ -520,6 +521,12 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
 
     /// @notice Tests that setFeature succeeds when called by the depositor.
     function test_setFeature_succeeds() external {
+        // Skip if interop was already enabled in setUp (e.g. via DEV_FEATURE__OPTIMISM_PORTAL_INTEROP),
+        // as setFeature would revert with FeatureAlreadyEnabled.
+        if (l1Block.isFeatureEnabled(Features.INTEROP)) {
+            vm.skip(true);
+        }
+
         vm.expectEmit(Predeploys.L1_BLOCK_ATTRIBUTES);
         emit FeatureSet(Features.INTEROP, true);
 
@@ -542,8 +549,12 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
 
     /// @notice Tests that setFeature reverts when the feature is already enabled.
     function test_setFeature_alreadyEnabled_reverts() external {
-        vm.prank(depositor);
-        l1Block.setFeature(Features.INTEROP);
+        // Interop may already be enabled in setUp (e.g. via DEV_FEATURE__OPTIMISM_PORTAL_INTEROP);
+        // only call setFeature if not already set to avoid reverts.
+        if (!l1Block.isFeatureEnabled(Features.INTEROP)) {
+            vm.prank(depositor);
+            l1Block.setFeature(Features.INTEROP);
+        }
 
         vm.prank(depositor);
         vm.expectRevert(L1Block_FeatureAlreadyEnabled.selector);
@@ -551,14 +562,24 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     }
 
     /// @notice Tests that isFeatureEnabled returns false by default.
-    function test_isFeatureEnabled_defaultFalse_succeeds() external view {
+    function test_isFeatureEnabled_defaultFalse_succeeds() external {
+        // Skip if the interop feature was already enabled in setUp (e.g. via
+        // DEV_FEATURE__OPTIMISM_PORTAL_INTEROP).
+        if (l1Block.isFeatureEnabled(Features.INTEROP)) {
+            vm.skip(true);
+        }
+
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
         assertFalse(l1Block.isFeatureEnabled(Features.INTEROP));
     }
 
     /// @notice Tests that multiple features can be enabled independently.
     function test_setFeature_multipleFeatures_succeeds() external {
         vm.startPrank(depositor);
-        l1Block.setFeature(Features.INTEROP);
+        // Interop may already be enabled in setUp (e.g. via DEV_FEATURE__OPTIMISM_PORTAL_INTEROP).
+        if (!l1Block.isFeatureEnabled(Features.INTEROP)) {
+            l1Block.setFeature(Features.INTEROP);
+        }
 
         // The custom gas token feature may already be enabled in the setUp if
         // SYSTEM_FEATURE__CUSTOM_GAS_TOKEN is enabled.
