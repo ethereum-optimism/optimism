@@ -18,8 +18,8 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	opRethELNode := sys.RethWithProofL2ELNode()
 
 	// Wait for the validator to sync the blocks produced by the funder on the sequencer.
-	// Without this, the validator may report a block as its unsafe head before its state
-	// is fully available, causing PayloadExecutionWitness to fail with "no state found".
+	// Without this, the validator's proofs store (managed by an async ExEx) may not have
+	// indexed the block yet, causing PayloadExecutionWitness to fail with "no state found".
 	seqHead, err := sys.L2ELSequencerNode().Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		gt.Fatal(err)
@@ -81,7 +81,9 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 	opRethELNode := sys.RethWithProofL2ELNode()
 
-	// Wait for the validator to fully sync the blocks produced by the funder.
+	// Wait for the validator to sync the blocks produced by the funder on the sequencer.
+	// Without this, the validator's proofs store (managed by an async ExEx) may not have
+	// indexed the block yet, causing PayloadExecutionWitness to fail with "no state found".
 	seqHead, err := sys.L2ELSequencerNode().Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		gt.Fatal(err)
