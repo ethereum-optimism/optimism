@@ -139,4 +139,3 @@ func TestVerifyFromCommit_GeneratorModifiesBundle(t *testing.T) {
 	err := verifyFromCommit(root, entry, modifyingGenerator)
 	require.NoError(t, err)
 }
-
