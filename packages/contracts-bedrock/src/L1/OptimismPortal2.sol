@@ -136,9 +136,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param oldAnchorStateRegistry The anchorStateRegistry used before the migration
     /// @param newAnchorStateRegistry The anchorStateRegistry used after the migration
     event PortalMigrated(
-        IETHLockbox indexed oldLockbox,
-        IETHLockbox indexed newLockbox,
-        IAnchorStateRegistry indexed oldAnchorStateRegistry,
+        IETHLockbox oldLockbox,
+        IETHLockbox newLockbox,
+        IAnchorStateRegistry oldAnchorStateRegistry,
         IAnchorStateRegistry newAnchorStateRegistry
     );
 

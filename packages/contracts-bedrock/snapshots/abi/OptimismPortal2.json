@@ -693,19 +693,19 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "contract IETHLockbox",
         "name": "oldLockbox",
         "type": "address"
       },
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "contract IETHLockbox",
         "name": "newLockbox",
         "type": "address"
       },
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "contract IAnchorStateRegistry",
         "name": "oldAnchorStateRegistry",
         "type": "address"
