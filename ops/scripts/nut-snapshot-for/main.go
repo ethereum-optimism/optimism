@@ -71,11 +71,6 @@ func run(fork forks.Name) error {
 		return err
 	}
 
-	if existing, ok := locks[string(fork)]; ok && existing.Locked {
-		return fmt.Errorf("fork %q is locked in fork_lock.toml and cannot be updated; "+
-			"to unlock, manually set locked = false in %s", fork, lockPath)
-	}
-
 	locks[string(fork)] = nuts.ForkLockEntry{
 		Bundle: bundleRel,
 		Hash:   hashStr,

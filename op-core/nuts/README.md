@@ -39,19 +39,9 @@ Checks that:
 
 Requires `forge` for the provenance check (step 2).
 
-### Locking a fork
-
-Once a fork's bundle is finalized (e.g., governance post written), lock it:
-
-1. Ensure the `commit` field is populated (run `just nut-snapshot-for <fork>` if needed)
-2. Manually edit `fork_lock.toml` to add `locked = true` for the fork
-3. CI (`check-nut-locks`) will enforce that the locked fork's hash cannot change
-
-To unlock (e.g., for a critical fix), manually set `locked = false` in `fork_lock.toml`.
-
 ### CI checks
 
-- **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, locked forks haven't changed vs the base branch, and every `*_nut_bundle.json` file has a corresponding lock entry. Runs in CI on every PR.
+- **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, and every `*_nut_bundle.json` file has a corresponding lock entry. Runs in CI on every PR.
 
 ## fork_lock.toml schema
 
@@ -60,6 +50,5 @@ To unlock (e.g., for a critical fix), manually set `locked = false` in `fork_loc
 bundle = "op-node/rollup/derive/<fork>_nut_bundle.json"  # repo-relative path
 hash = "sha256:<hex>"                                      # sha256 of bundle contents
 commit = "<full-sha>"                                      # commit that produced the bundle
-locked = true                                              # prevents nut-snapshot-for from overwriting (optional, default false)
 ```
 

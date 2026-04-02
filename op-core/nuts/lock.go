@@ -15,7 +15,6 @@ type ForkLockEntry struct {
 	Bundle string `toml:"bundle"`
 	Hash   string `toml:"hash"`
 	Commit string `toml:"commit"`
-	Locked bool   `toml:"locked,omitempty"`
 }
 
 // ForkLock is the full contents of fork_lock.toml, keyed by fork name.
@@ -43,15 +42,6 @@ func ReadLockFile(dir string) (ForkLock, string, error) {
 	return locks, lockPath, nil
 }
 
-// ParseLockFile parses fork_lock.toml content from raw bytes.
-func ParseLockFile(data []byte) (ForkLock, error) {
-	var locks ForkLock
-	if _, err := toml.Decode(string(data), &locks); err != nil {
-		return nil, fmt.Errorf("parsing fork lock data: %w", err)
-	}
-	return locks, nil
-}
-
 // WriteLockFile writes fork_lock.toml back to disk with a header comment.
 func WriteLockFile(lockPath string, locks ForkLock) error {
 	f, err := os.Create(lockPath)
@@ -63,7 +53,7 @@ func WriteLockFile(lockPath string, locks ForkLock) error {
 	if _, err := fmt.Fprintln(f, "# NUT Bundle Fork Lock"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(f, "# To update a locked fork, set locked = false, run: just nut-snapshot-for <fork>, then re-lock."); err != nil {
+	if _, err := fmt.Fprintln(f, "# To update a bundle, run: just nut-snapshot-for <fork>"); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(f); err != nil {
