@@ -42,6 +42,7 @@ contract ReadImplementationAddresses is Script {
         address permissionedDisputeGame;
         address superFaultDisputeGame;
         address superPermissionedDisputeGame;
+        address zkDisputeGame;
         address opcmDeployer;
         address opcmUpgrader;
         address opcmGameTypeAdder;
@@ -88,6 +89,7 @@ contract ReadImplementationAddresses is Script {
             output_.permissionedDisputeGame = impls.permissionedDisputeGameImpl;
             output_.superFaultDisputeGame = impls.superFaultDisputeGameImpl;
             output_.superPermissionedDisputeGame = impls.superPermissionedDisputeGameImpl;
+            output_.zkDisputeGame = impls.zkDisputeGameImpl;
         } else {
             // Get implementations from OPCM V1
             IOPContractsManager opcm = IOPContractsManager(_input.opcm);
