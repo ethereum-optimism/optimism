@@ -308,6 +308,7 @@ func startMixedOpRethNode(
 		"--ws.addr=127.0.0.1",
 		"--ws.port=0",
 		"-vvvv",
+		"--flashblocks-url=ws://127.0.0.1:8888",
 	}
 
 	if areMetricsEnabled() {

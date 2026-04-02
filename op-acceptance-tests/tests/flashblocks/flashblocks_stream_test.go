@@ -53,7 +53,9 @@ func TestFlashblocksStream(gt *testing.T) {
 
 	oprbuilderNode := sys.L2OPRBuilder
 	rollupBoostNode := sys.L2RollupBoost
-	//opRethNode := sys.TestSequencer
+	// opRethNode := sys.L2EL.
+
+	//  --rollup.flashblocks-url=
 
 	_, span = tracer.Start(ctx, "test chain")
 	defer span.End()

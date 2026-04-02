@@ -223,7 +223,7 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.CommonT) (args []string, env 
 		} else {
 			// Use port 0 to let the OS assign a port atomically at bind time.
 			// The actual port will be discovered by parsing the process logs.
-			args = append(args, "--flashblocks-port=0")
+			args = append(args, "--flashblocks-port=8888")
 		}
 		if cfg.FlashblocksBuilderURL != "" {
 			args = append(args, "--flashblocks-builder-url="+cfg.FlashblocksBuilderURL)
