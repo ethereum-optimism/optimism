@@ -8,7 +8,6 @@ Network Upgrade Transaction (NUT) bundles define the L2 deposit transactions tha
 |------|---------|
 | `fork_lock.toml` | Lock file mapping fork names to bundle paths, sha256 hashes, and source commits |
 | `op-node/rollup/derive/<fork>_nut_bundle.json` | Embedded bundle consumed by op-node at fork activation |
-| `packages/contracts-bedrock/snapshots/upgrades/current-upgrade-bundle.json` | Generated bundle (not committed, regenerated from contracts) |
 
 ## Workflow
 
@@ -53,7 +52,6 @@ To unlock (e.g., for a critical fix), manually set `locked = false` in `fork_loc
 ### CI checks
 
 - **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, locked forks haven't changed vs the base branch, and every `*_nut_bundle.json` file has a corresponding lock entry. Runs in CI on every PR.
-- **`nut-bundle-check`** — Verifies `current-upgrade-bundle.json` is up-to-date with the contracts. Runs as part of `just check` in `packages/contracts-bedrock/`.
 
 ## fork_lock.toml schema
 
