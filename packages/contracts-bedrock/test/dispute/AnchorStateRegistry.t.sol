@@ -1548,6 +1548,16 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(zkGameProxy);
     }
+
+    /// @notice Tests that a ZK game cannot update the anchor state when the superchain is paused.
+    function test_setAnchorState_superchainPaused_fails() public {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        vm.prank(address(zkGameProxy));
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+    }
 }
 
 /// @title AnchorStateRegistry_IsGameClaimValid_ZkDisputeGame_Test
@@ -1620,6 +1630,22 @@ contract AnchorStateRegistry_IsGameProper_ZkDisputeGame_Test is AnchorStateRegis
             ),
             abi.encode(address(0), 0)
         );
+
+        assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
+    }
+
+    /// @notice Tests that a ZK game is not proper when the superchain is paused.
+    function test_isGameProper_superchainPaused_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
+    }
+
+    /// @notice Tests that a retired ZK game is not proper.
+    function test_isGameProper_retired_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.updateRetirementTimestamp();
 
         assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
     }
