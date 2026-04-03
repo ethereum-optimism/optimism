@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/lmittmann/w3"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/lmittmann/w3"
 )
 
 // GameType represents the type of dispute game.
@@ -34,7 +35,6 @@ var (
 	// This is used to encode the upgrade input for the upgrade input
 	upgradeInputEncoder = w3.MustNewFunc("dummy((address systemConfig,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(string key,bytes data)[] extraInstructions))",
 		"")
-
 )
 
 // ScriptInput represents the input struct that is actually passed to the script.

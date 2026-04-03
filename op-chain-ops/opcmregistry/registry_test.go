@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestParseSemver(t *testing.T) {
@@ -161,8 +161,6 @@ func TestSemverIsPrerelease(t *testing.T) {
 		})
 	}
 }
-
-
 
 func TestAddressUnmarshalText(t *testing.T) {
 	tests := []struct {
