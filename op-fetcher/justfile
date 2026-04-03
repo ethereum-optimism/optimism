@@ -10,4 +10,4 @@ build-contracts:
   cd ../op-contracts
   just clean
   just build-dev --deny-warnings --skip test
-  cp -r forge-artifacts/FetchChainInfo.s.sol ../../op-fetcher/pkg/fetcher/fetch/forge-artifacts
+  cp -r forge-artifacts/FetchChainInfo.s.sol ../op-fetcher/pkg/fetcher/fetch/forge-artifacts
