@@ -474,9 +474,8 @@ where
                             warn!("Received fBAL and computed fBAL match.");
                             panic!("GOAT");
                         } else {
-                            warn!("Received fBAL and computed fBAL do not match.");
+                            debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.");
                             panic!("GIRAF");
-
                             return Ok(None);
                         }
                     }
