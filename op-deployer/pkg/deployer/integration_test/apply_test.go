@@ -434,10 +434,7 @@ func TestEndToEndApply(t *testing.T) {
 		// Verify that the dev feature bitmap is set to OPCMV2
 		require.Equal(t, deployer.OPCMV2DevFlag, intent.GlobalDeployOverrides["devFeatureBitmap"])
 
-		// OpcmImpl is populated with the v2 address for downstream compat (v1 deleted)
-		require.Equal(t, st.ImplementationsDeployment.OpcmV2Impl, st.ImplementationsDeployment.OpcmImpl, "OpcmImpl should equal OpcmV2Impl")
-		// V1 sub-contract addresses are zero (v1 deleted, deprecated output fields)
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmContractsContainerImpl, "OPCM container implementation should be zero")
+		require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OpcmV2Impl should be set")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmGameTypeAdderImpl, "OPCM game type adder implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmDeployerImpl, "OPCM deployer implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmUpgraderImpl, "OPCM upgrader implementation should be zero")

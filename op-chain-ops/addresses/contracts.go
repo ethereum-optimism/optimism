@@ -27,8 +27,6 @@ type SuperchainContracts struct {
 //   - these contracts are shared by all OpChains that are members of the same superchain
 //   - these contracts are not upgradable, but can be replaced by new contract releases/deployments
 type ImplementationsContracts struct {
-	OpcmImpl                         common.Address
-	OpcmContractsContainerImpl       common.Address
 	OpcmGameTypeAdderImpl            common.Address
 	OpcmDeployerImpl                 common.Address
 	OpcmUpgraderImpl                 common.Address

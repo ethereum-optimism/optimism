@@ -17,11 +17,11 @@ the OPCM's architecture, and how to hook your contracts into it.
 
 The OPCM consists of multiple contracts:
 
-1. `OPContractsManager`, which serves as the entry point.
+1. `OPContractsManagerV2`, which serves as the entry point.
 2. `OPContractsManagerGameTypeAdder`, which is used to add new game types and update prestates.
 3. `OPContractsManagerDeployer`, which is used to deploy new OP Chains.
 4. `OPContractsManagerUpgrader`, which is used to upgrade existing OP Chains.
-5. `OPContractsManagerContractsContainer`, which is a repository for contract implementations and blueprints.
+5. `OPContractsManagerContainer`, which is a repository for contract implementations and blueprints.
 
 They fit together like the diagram below:
 
@@ -94,7 +94,7 @@ When multiple upgrades are in flight at the same time, the fork tests stack upgr
 tip of `develop` must contain the implementation for the latest upgrade only, fork tests that run upgrades prior to
 the latest one must use deployed instances of the OPCM. For example, as of this writing upgrades 13, 14, and 15 are
 all in flight. Therefore, the fork tests will use deployed versions of the OPCM for upgrades 13 and 14 and whatever
-is on `develop` for upgrade 15. See `OPContractsManager.t.sol` for the implementation of the fork tests.
+is on `develop` for upgrade 15. See `OPContractsManagerV2.t.sol` for the implementation of the fork tests.
 
 ## Modifying Contracts for Upgrade
 

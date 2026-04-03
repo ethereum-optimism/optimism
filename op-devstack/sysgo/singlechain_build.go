@@ -98,7 +98,7 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, localContractArtifact
 		genesis:    wb.outL2Genesis[l2ID],
 		rollupCfg:  wb.outL2RollupCfg[l2ID],
 		deployment: wb.outL2Deployment[l2ID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmImpl,
+		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}

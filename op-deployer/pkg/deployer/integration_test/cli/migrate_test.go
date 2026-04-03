@@ -221,8 +221,7 @@ func TestCLIMigrateV1(t *testing.T) {
 	// Set implementations deployment addresses
 	if st.ImplementationsDeployment == nil {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmImpl:                         impls.OpcmV2, // v1 deleted; populate with v2 for downstream compat
-			OpcmV2Impl:                       impls.OpcmV2,
+OpcmV2Impl:                       impls.OpcmV2,
 			OptimismPortalImpl:               impls.OptimismPortalImpl,
 			DelayedWethImpl:                  impls.DelayedWETHImpl,
 			EthLockboxImpl:                   impls.ETHLockboxImpl,
@@ -442,8 +441,7 @@ func TestCLIMigrateV2(t *testing.T) {
 	// Set implementations deployment addresses
 	if st.ImplementationsDeployment == nil {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmImpl:                         impls.OpcmV2, // v1 deleted; populate with v2 for downstream compat
-			OpcmV2Impl:                       impls.OpcmV2,
+OpcmV2Impl:                       impls.OpcmV2,
 			OpcmContainerImpl:                impls.OpcmContainer,
 			OpcmUtilsImpl:                    impls.OpcmUtils,
 			OpcmMigratorImpl:                 impls.OpcmMigrator,
