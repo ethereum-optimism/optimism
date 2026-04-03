@@ -437,20 +437,11 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
 
-        // Use the OptimismPortalInteropImpl only when OPTIMISM_PORTAL_INTEROP is enabled without OPCM_V2 (legacy path).
-        // With OPCM_V2, the portal is always optimismPortalImpl regardless of INTEROP.
-        address expectedPortalImpl;
-        if (isOPCMV1AndInterop(devFeatureBitmap)) {
-            expectedPortalImpl = optimismPortalInteropImpl;
-        } else {
-            expectedPortalImpl = optimismPortalImpl;
-        }
-
         _errors = internalRequire(
-            LibString.eq(getVersion(address(_portal)), getVersion(expectedPortalImpl)), "PORTAL-10", _errors
+            LibString.eq(getVersion(address(_portal)), getVersion(optimismPortalImpl)), "PORTAL-10", _errors
         );
         _errors = internalRequire(
-            getProxyImplementation(_admin, address(_portal)) == expectedPortalImpl, "PORTAL-20", _errors
+            getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
         );
 
         IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
@@ -763,13 +754,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         return errors_;
-    }
-
-    /// @notice Helper function to clean up branching logic in the assertValidOptimismPortal block where
-    /// The PortalImplementation address is conditional based on the feature flags currently set
-    function isOPCMV1AndInterop(bytes32 _devFeatureBitmap) internal pure returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            && !DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPCM_V2);
     }
 
     /// @notice Returns true if the game type is a super game type.

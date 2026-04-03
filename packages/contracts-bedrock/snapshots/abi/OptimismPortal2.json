@@ -876,6 +876,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_InvalidInteropState",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_InvalidLockboxState",
     "type": "error"
   },

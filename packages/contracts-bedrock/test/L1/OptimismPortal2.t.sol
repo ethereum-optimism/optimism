@@ -28,7 +28,6 @@ import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -770,14 +769,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 
         assertEq(address(optimismPortal2.ethLockbox()), _newLockbox);
         assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
-        /// If OPCM_V2 we can do this check, if not we don't
-        /// We only couple the Dev Feature with the System config feature flag in OPCM_V2
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
-        } else {
-            assertTrue(IOptimismPortalInterop(payable(address(optimismPortal2))).superRootsActive());
-            assertTrue(IOptimismPortalInterop(payable(address(optimismPortal2))).superRootsActive());
-        }
+        assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
     }
 
     /// @notice Tests that `migrateToSharedDisputeGame` reverts when the system is paused.
@@ -797,17 +789,9 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 /// @notice Test contract for OptimismPortal2 `proveWithdrawalTransaction` function.
 contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_TestInit {
     /// @notice Enables super root behavior on the portal for testing.
-    ///         Uses gameType mock for OptimismPortal2 (OPCM_V2) or slot manipulation for OptimismPortalInterop.
     function _enableSuperRoots() internal {
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            // OptimismPortal2 uses stateless GameTypes.isSuperGame() check.
-            vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
-        } else {
-            // Legacy OptimismPortalInterop uses superRootsActive boolean at slot 63, offset 20.
-            bytes32 slot = bytes32(uint256(63));
-            bytes32 existingValue = vm.load(address(optimismPortal2), slot);
-            vm.store(address(optimismPortal2), slot, existingValue | bytes32(uint256(1) << (20 * 8)));
-        }
+        // OptimismPortal2 uses stateless GameTypes.isSuperGame() check.
+        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
     }
 
     /// @notice Tests that `proveWithdrawalTransaction` reverts when paused.
