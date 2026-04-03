@@ -15,6 +15,9 @@ contract DeployConfig is Script {
     using stdJson for string;
     using ForkUtils for Fork;
 
+    /// @notice Thrown when a config file cannot be read at the given path.
+    error UnableToReadConfigFile(string path);
+
     /// @notice Represents an unset offset value, as opposed to 0, which denotes no-offset.
     uint256 constant NULL_OFFSET = type(uint256).max;
 
@@ -116,7 +119,7 @@ contract DeployConfig is Script {
             _json = data_;
             console.log("DeployConfig: reading file %s", _path);
         } catch {
-            revert(string.concat("DeployConfig: unable to read config file at ", _path));
+            revert UnableToReadConfigFile(_path);
         }
 
         // Read values from JSON, using _readOr with hardcoded defaults for optional fields
