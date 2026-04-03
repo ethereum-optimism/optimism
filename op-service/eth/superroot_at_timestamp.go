@@ -2,9 +2,10 @@ package eth
 
 import "encoding/json"
 
-// OutputWithRequiredL1 is the OutputV0 pre-image and its source L1 block
+// OutputWithRequiredL1 is the OutputV0 pre-image, its hash, and its source L1 block
 type OutputWithRequiredL1 struct {
-	OutputRoot *OutputV0 `json:"output_root"`
+	Output     *OutputV0 `json:"output"`
+	OutputRoot Bytes32   `json:"output_root"`
 	RequiredL1 BlockID   `json:"required_l1"`
 }
 

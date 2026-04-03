@@ -102,7 +102,8 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get optimistic source L1 at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
 		}
 		optimistic[chainID] = eth.OutputWithRequiredL1{
-			OutputRoot: optimisticOut,
+			Output:     optimisticOut,
+			OutputRoot: eth.OutputRoot(optimisticOut),
 			RequiredL1: optimisticL1,
 		}
 	}

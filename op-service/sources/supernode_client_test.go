@@ -24,6 +24,11 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 
 		chainA := eth.ChainIDFromUInt64(1)
 		chainB := eth.ChainIDFromUInt64(4)
+		chainAOutput := &eth.OutputV0{
+			StateRoot:                eth.Bytes32{0xaa},
+			MessagePasserStorageRoot: eth.Bytes32{0xff},
+			BlockHash:                common.Hash{0x22},
+		}
 		expected := eth.SuperRootAtTimestampResponse{
 			CurrentL1: eth.BlockID{
 				Number: 305,
@@ -32,11 +37,8 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 			ChainIDs: []eth.ChainID{chainA, chainB},
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 				chainA: {
-					OutputRoot: &eth.OutputV0{
-						StateRoot:                eth.Bytes32{0xaa},
-						MessagePasserStorageRoot: eth.Bytes32{0xff},
-						BlockHash:                common.Hash{0x22},
-					},
+					Output:     chainAOutput,
+					OutputRoot: eth.OutputRoot(chainAOutput),
 					RequiredL1: eth.BlockID{
 						Hash:   common.Hash{0xbb},
 						Number: 7842,
@@ -77,6 +79,11 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 
 		chainA := eth.ChainIDFromUInt64(1)
 		chainB := eth.ChainIDFromUInt64(4)
+		chainAOutput := &eth.OutputV0{
+			StateRoot:                eth.Bytes32{0xaa},
+			MessagePasserStorageRoot: eth.Bytes32{0xff},
+			BlockHash:                common.Hash{0x22},
+		}
 		expected := eth.SuperRootAtTimestampResponse{
 			CurrentL1: eth.BlockID{
 				Number: 305,
@@ -85,11 +92,8 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 			ChainIDs: []eth.ChainID{chainA, chainB},
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 				chainA: {
-					OutputRoot: &eth.OutputV0{
-						StateRoot:                eth.Bytes32{0xaa},
-						MessagePasserStorageRoot: eth.Bytes32{0xff},
-						BlockHash:                common.Hash{0x22},
-					},
+					Output:     chainAOutput,
+					OutputRoot: eth.OutputRoot(chainAOutput),
 					RequiredL1: eth.BlockID{
 						Hash:   common.Hash{0xbb},
 						Number: 7842,
