@@ -59,7 +59,7 @@ for arg in "$@"; do
 done
 
 # Use ripgrep to search for the pattern in all files within the repo
-todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' -g '!packages/contracts-bedrock/lib' 'TODO\(([^)]+)\):? [^,;]*')
+todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' -g '!op-contracts/lib' 'TODO\(([^)]+)\):? [^,;]*')
 
 # Check each TODO comment in the repo
 IFS=$'\n' # Set Internal Field Separator to newline for iteration

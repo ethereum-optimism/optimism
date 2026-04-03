@@ -40,8 +40,8 @@ func setupAndRun(t *testing.T, config SuperSystemConfig, fn func(*testing.T, Sup
 		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
 	}
 	worldResources := WorldResourcePaths{
-		FoundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
-		SourceMap:        "../../packages/contracts-bedrock",
+		FoundryArtifacts: "../../op-contracts/forge-artifacts",
+		SourceMap:        "../../op-contracts",
 	}
 
 	// create a super system from the recipe

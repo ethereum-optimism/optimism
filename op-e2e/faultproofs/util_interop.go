@@ -37,8 +37,8 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
 	}
 	worldResources := interop.WorldResourcePaths{
-		FoundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
-		SourceMap:        "../../packages/contracts-bedrock",
+		FoundryArtifacts: "../../op-contracts/forge-artifacts",
+		SourceMap:        "../../op-contracts",
 	}
 	superCfg := interop.SuperSystemConfig{
 		SupportTimeTravel: true,

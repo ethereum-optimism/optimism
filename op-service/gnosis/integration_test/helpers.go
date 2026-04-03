@@ -66,7 +66,7 @@ func deploySafeContracts(t *testing.T, rpcUrl string, privateKey string) (common
 	// Check if safe-contracts is available in shared lib
 	safeContractsDir := filepath.Join(sharedLibDirAbs, "safe-contracts")
 	if _, err := os.Stat(safeContractsDir); os.IsNotExist(err) {
-		t.Fatalf("safe-contracts not found in shared lib at: %s.\n Try running 'forge install' in packages/contracts-bedrock first.", safeContractsDir)
+		t.Fatalf("safe-contracts not found in shared lib at: %s.\n Try running 'forge install' in op-contracts first.", safeContractsDir)
 	}
 
 	// Change to contracts directory

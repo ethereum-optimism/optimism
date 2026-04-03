@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	"github.com/ethereum-optimism/optimism/op-contracts/snapshots"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"

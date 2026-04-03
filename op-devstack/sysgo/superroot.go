@@ -355,7 +355,7 @@ func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) 
 // OPContractsManagerMigratorABI loads the ABI for the OPContractsManagerMigrator contract
 // from the forge artifact file.
 func OPContractsManagerMigratorABI() (*abi.ABI, error) {
-	root, err := findMonorepoRoot("packages/contracts-bedrock/forge-artifacts")
+	root, err := findMonorepoRoot("op-contracts/forge-artifacts")
 	if err != nil {
 		return nil, fmt.Errorf("failed to find monorepo root: %w", err)
 	}

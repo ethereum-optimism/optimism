@@ -337,7 +337,7 @@ else:
 ### Stage 1: Test Ranking
 
 **Process**:
-1. Scan `packages/contracts-bedrock/test/` for `*.t.sol` files
+1. Scan `op-contracts/test/` for `*.t.sol` files
 2. For each test file, find corresponding source contract:
    - Try matching directory structure: `test/L1/Foo.t.sol` → `src/L1/Foo.sol`
    - Fall back to recursive search in `src/` directory
@@ -455,12 +455,12 @@ cat ops/ai-eng/contracts-test-maintenance/log.json | jq .
 
 **Causes**:
 - All tests excluded via `exclusion.toml` (misconfiguration)
-- No test files found in `packages/contracts-bedrock/test/`
+- No test files found in `op-contracts/test/`
 - Test-to-contract mapping failed (contract files moved/renamed)
 
 **Resolution**:
 1. Check exclusion rules in `exclusion.toml` for overly broad patterns
-2. Verify `packages/contracts-bedrock/test/` contains `*.t.sol` files
+2. Verify `op-contracts/test/` contains `*.t.sol` files
 3. Run `just rank` locally to see detailed output and errors
 4. Check if contracts were recently reorganized/renamed
 

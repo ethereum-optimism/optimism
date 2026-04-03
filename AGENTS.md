@@ -31,7 +31,7 @@ The rollup node software and associated services, including:
 - **op-conductor**: High-availability sequencer service
 - **op-supervisor**: Cross-chain message safety monitor (DEPRECATED)
 
-### Smart Contracts (`packages/contracts-bedrock`)
+### Smart Contracts (`op-contracts`)
 
 Solidity smart contracts for the OP Stack, including the core protocol contracts deployed on L1 and L2.
 

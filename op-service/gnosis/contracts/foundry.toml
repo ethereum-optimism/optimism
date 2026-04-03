@@ -1,12 +1,12 @@
 [profile.default]
 src = "src"
 out = "out"
-libs = ["../../../packages/contracts-bedrock/lib"]
+libs = ["../../../op-contracts/lib"]
 
 optimizer = true
 optimizer_runs = 999999
 
 remappings = [
-  'forge-std/=../../../packages/contracts-bedrock/lib/forge-std/src',
-  'safe-contracts/=../../../packages/contracts-bedrock/lib/safe-contracts/contracts',
+  'forge-std/=../../../op-contracts/lib/forge-std/src',
+  'safe-contracts/=../../../op-contracts/lib/safe-contracts/contracts',
 ]

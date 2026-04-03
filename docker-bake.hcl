@@ -267,8 +267,8 @@ target "cannon" {
 }
 
 target "holocene-deployer" {
-  dockerfile = "./packages/contracts-bedrock/scripts/upgrades/holocene/upgrade.dockerfile"
-  context = "./packages/contracts-bedrock/scripts/upgrades/holocene"
+  dockerfile = "./op-contracts/scripts/upgrades/holocene/upgrade.dockerfile"
+  context = "./op-contracts/scripts/upgrades/holocene"
   args = {
     REV = "op-contracts/v1.8.0-rc.1"
   }

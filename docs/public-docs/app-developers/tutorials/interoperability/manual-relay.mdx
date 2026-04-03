@@ -257,7 +257,7 @@ Here is the detailed explanation:
     cast logs "SentMessage(uint256,address,uint256,address,bytes)" --rpc-url $URL_CHAIN_A | tail -14 > log-entry
     ```
 
-    Whenever `L2ToL2CrossDomainMessenger` sends a message to a different blockchain, it emits a [`SendMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol#L83-L91) event.
+    Whenever `L2ToL2CrossDomainMessenger` sends a message to a different blockchain, it emits a [`SendMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/L2ToL2CrossDomainMessenger.sol#L83-L91) event.
     Extract only the latest `SendMessage` event from the logs.
 
     <Expandable title="Example `log-entry`">
@@ -329,7 +329,7 @@ ACCESS_LIST=`cast rpc admin_getAccessListForIdentifier --rpc-url http://localhos
     To secure cross-chain messaging and prevent potential [denial-of-service attacks](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/interop-access-list.md), relay transactions require properly formatted access lists that include a checksum derived from the message data.
     This lets sequencers know what executing messages to expect in a transaction, which makes it easy not to include transactions that are invalid because they rely on messages that were never sent.
 
-    The [algorithm to calculate the access list](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L87-L115) is a bit complicated, but you dont need to worry about it.
+    The [algorithm to calculate the access list](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/CrossL2Inbox.sol#L87-L115) is a bit complicated, but you dont need to worry about it.
     Supersim exposes [RPC calls](https://supersim.pages.dev/guides/interop/cast?highlight=manuall#7-construct-the-access-list-for-the-message) that calculates it for you on port 8420.
     The code above will calculate the correct access list even if you're using a different interop cluster where autorelay is not functioning.
     This is because the code implements a [pure function](https://en.wikipedia.org/wiki/Pure_function), which produces consistent results regardless of external state.
@@ -351,7 +351,7 @@ ACCESS_LIST=`cast rpc admin_getAccessListForIdentifier --rpc-url http://localhos
     cast send -q $ORIGIN "relayMessage((address,uint256,uint256,uint256,uint256),bytes)" "($ORIGIN,$BLOCK_NUMBER,$LOG_INDEX,$TIMESTAMP,$CHAIN_ID_A)" $LOG_ENTRY --access-list "$ACCESS_LIST" --rpc-url $URL_CHAIN_B --private-key $PRIVATE_KEY
     ```
 
-    Call [`relayMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol#L197-L256) to relay the message.
+    Call [`relayMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/L2ToL2CrossDomainMessenger.sol#L197-L256) to relay the message.
 
 8.  Show the relay results
 

@@ -136,7 +136,7 @@ The Pectra upgrade changes the derivation rules, permissionless fault proof chai
   </Step>
 
   <Step title="Deploy new dispute game contracts">
-  You will then take the absolute prestate and deploy new `FaultDisputeGame` and `PermissionedDisputeGame` contracts with that value. You can reuse the [Holocene script](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene) to deploy the new contracts. The only change you will need to make is to update the `absolutePrestate` value in your [deploy-config](https://github.com/ethereum-optimism/optimism/blob/2073f4059bd806af3e8b76b820aa3fa0b42016d0/packages/contracts-bedrock/scripts/upgrades/holocene/README.md?plain=1#L53-L54). Alternatively we will be releasing an `OPPrestateUpdater` that can be used to deploy the new contracts.
+  You will then take the absolute prestate and deploy new `FaultDisputeGame` and `PermissionedDisputeGame` contracts with that value. You can reuse the [Holocene script](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/op-contracts/scripts/upgrades/holocene) to deploy the new contracts. The only change you will need to make is to update the `absolutePrestate` value in your [deploy-config](https://github.com/ethereum-optimism/optimism/blob/2073f4059bd806af3e8b76b820aa3fa0b42016d0/op-contracts/scripts/upgrades/holocene/README.md?plain=1#L53-L54). Alternatively we will be releasing an `OPPrestateUpdater` that can be used to deploy the new contracts.
   </Step>
 
   <Step title="Update the DisputeGameFactory">

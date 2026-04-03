@@ -6,7 +6,7 @@ This file explains the rules that you should use when reviewing a PR.
 
 You are ONLY to review changes to:
 - Solidity files (`*.sol`)
-- Storage layout snapshot files (`packages/contracts-bedrock/snapshots/storageLayout/*.json`)
+- Storage layout snapshot files (`op-contracts/snapshots/storageLayout/*.json`)
 
 Do NOT leave comments on any other file types.
 
@@ -74,7 +74,7 @@ If the PR changes the Foundry dependency versions, i.e the `forge`, `cast`, and 
 >
 > Please include a reference to the approved and merged design document that approves these foundry versions for usage in the PR description. Otherwise, the PR will not be approved.
 >
-> For more information on the Foundry version upgrade process, please see the [Foundry version upgrade policy](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/foundry-upgrades.md).
+> For more information on the Foundry version upgrade process, please see the [Foundry version upgrade policy](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/book/src/policies/foundry-upgrades.md).
 
 ### Non-Idempotent Initializers
 
@@ -100,7 +100,7 @@ Non-idempotent or unsafe-to-rerun behavior in initializers is **disallowed** unl
 
 ### Storage Layout Mutation Warnings
 
-If a PR modifies files in `packages/contracts-bedrock/snapshots/storageLayout/`, you MUST analyze the diff to determine if storage slots are being **mutated** (as opposed to purely added or deleted along with the contract).
+If a PR modifies files in `op-contracts/snapshots/storageLayout/`, you MUST analyze the diff to determine if storage slots are being **mutated** (as opposed to purely added or deleted along with the contract).
 
 **What constitutes a mutation:**
 - A storage slot's `slot` number changes for an existing field (field shifted to different slot)

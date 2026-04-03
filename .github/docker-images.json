@@ -83,7 +83,7 @@
     "op-deployer": {
       "type": "go",
       "check": "go",
-      "paths": ["op-deployer/**", "packages/contracts-bedrock/**"]
+      "paths": ["op-deployer/**", "op-contracts/**"]
     },
     "op-dripper": {
       "type": "go",

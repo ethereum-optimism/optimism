@@ -35,7 +35,7 @@ The L2 Proxy Admin is an address that can be used to upgrade most OP Stack chain
 *   Using `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b` as an example, the `0x6B` address is the L2 address that's been aliased, so to figure out the original L1 address you calculate `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b` - `0x1111000000000000000000000000000000001111`.
 *   That result gives an L1 contract address of `0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A`, which should be the 2/2 Safe owned by Foundation + Security Council that is L1 ProxyAdmin Owner.
 *   No one has the private key for `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b` on OP Stack chains, which means the only way for the L2 ProxyAdmin owner to send transactions is via deposit transactions from the L1 `0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A` address.
-*   For help with the calculations, see the [`AddressAliasHelper` library](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/vendor/AddressAliasHelper.sol).
+*   For help with the calculations, see the [`AddressAliasHelper` library](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/vendor/AddressAliasHelper.sol).
 
 ### Risks
 
@@ -58,7 +58,7 @@ These addresses are controlled by the same L1 Proxy Admin addresses. Please read
 
 ## System Config Owner
 
-The System Config Owner is an address that can be used to change the values within the [`SystemConfig`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/SystemConfig.sol) contract on Ethereum.
+The System Config Owner is an address that can be used to change the values within the [`SystemConfig`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/op-contracts/contracts/L1/SystemConfig.sol) contract on Ethereum.
 
 ### Risks
 
@@ -179,7 +179,7 @@ The Guardian can also manage various aspects of the `OptimismPortal` contract to
 
 ## Mint Manager Owner
 
-The Mint Manager Owner is an address that controls the [`MintManager`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/governance/MintManager.sol) contract that can be used to mint new OP tokens on OP Stack chains.
+The Mint Manager Owner is an address that controls the [`MintManager`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/op-contracts/contracts/governance/MintManager.sol) contract that can be used to mint new OP tokens on OP Stack chains.
 
 ### Risks
 

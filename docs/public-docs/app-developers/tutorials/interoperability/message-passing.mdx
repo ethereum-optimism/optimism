@@ -55,7 +55,7 @@ message passing system that enables different chains to interact with each other
   see the [Message Passing Explainer](/app-developers/guides/interoperability/message-passing).
 </Info>
 
-In this tutorial, you will learn how to use the [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol) contract to pass messages between interoperable blockchains.
+In this tutorial, you will learn how to use the [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/L2ToL2CrossDomainMessenger.sol) contract to pass messages between interoperable blockchains.
 
 ## Setting up your development environment
 
@@ -396,7 +396,7 @@ In this section we change `Greeter.sol` to emit a separate event in it receives 
                     }
             ```
 
-            If we see that we got a message from `L2ToL2CrossDomainMessenger`, we call [`L2ToL2CrossDomainMessenger.crossDomainMessageContext`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol#L118-L126).
+            If we see that we got a message from `L2ToL2CrossDomainMessenger`, we call [`L2ToL2CrossDomainMessenger.crossDomainMessageContext`](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/L2ToL2CrossDomainMessenger.sol#L118-L126).
         </Expandable>
 
     2.  Redeploy the contracts.

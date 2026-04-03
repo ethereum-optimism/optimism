@@ -94,9 +94,9 @@ Any log event on any chain that interoperates with the destination can initiate 
 
 The transaction that receives the message on the destination chain calls a contract called [`CrossL2Inbox`](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#crossl2inbox).
 This call can be at the top level, directly from the externally owned account, or come through a smart contract.
-The call to `CrossL2Inbox`, also known as the *executing message*, needs to [identify the initiating message uniquely](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L35-L42), using the chain ID of the source chain, the block number, and the index of the log event within that block, as well as a few other fields as a sanity check.
+The call to `CrossL2Inbox`, also known as the *executing message*, needs to [identify the initiating message uniquely](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/CrossL2Inbox.sol#L35-L42), using the chain ID of the source chain, the block number, and the index of the log event within that block, as well as a few other fields as a sanity check.
 
-`CrossL2Inbox` can either [validate the message exists](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L76-L83), or [call a contract if the message exists](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L76-L83).
+`CrossL2Inbox` can either [validate the message exists](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/CrossL2Inbox.sol#L76-L83), or [call a contract if the message exists](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/CrossL2Inbox.sol#L76-L83).
 
 ## Block safety levels
 

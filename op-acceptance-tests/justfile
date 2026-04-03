@@ -14,7 +14,7 @@ build-deps:
     cd {{REPO_ROOT}}
     echo " - Installing mise..."
     mise install
-    cd packages/contracts-bedrock
+    cd op-contracts
     echo " - Installing contracts..."
     just install
     echo " - Forge build..."

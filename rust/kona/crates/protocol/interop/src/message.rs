@@ -1,7 +1,7 @@
 //! Interop message primitives.
 //!
 //! <https://specs.optimism.io/interop/messaging.html#messaging>
-//! <https://github.com/ethereum-optimism/optimism/blob/34d5f66ade24bd1f3ce4ce7c0a6cfc1a6540eca1/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol>
+//! <https://github.com/ethereum-optimism/optimism/blob/34d5f66ade24bd1f3ce4ce7c0a6cfc1a6540eca1/op-contracts/src/L2/CrossL2Inbox.sol>
 
 use alloc::{vec, vec::Vec};
 use alloy_primitives::{Bytes, ChainId, Log, keccak256};

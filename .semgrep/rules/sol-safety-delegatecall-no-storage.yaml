@@ -15,6 +15,6 @@ rules:
       ^\s+(?!.*\b(?:function|event|error|modifier|constructor)\b)\S.*\b(?:public|internal|private)\b(?:(?!\bimmutable\b|\bconstant\b).)*;\s*$
     paths:
       include:
-        - packages/contracts-bedrock/src/L2/L2ContractsManager.sol
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
-        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtilsCaller.sol
+        - op-contracts/src/L2/L2ContractsManager.sol
+        - op-contracts/src/L1/opcm/OPContractsManagerV2.sol
+        - op-contracts/src/L1/opcm/OPContractsManagerUtilsCaller.sol

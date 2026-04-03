@@ -14,7 +14,7 @@ description: Learn how to transfer ETH across the OP Stack interop cluster
 
 ## Overview
 
-Crosschain ETH transfers across OP Stack chains are facilitated through the [SuperchainETHBridge](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol) contract.
+Crosschain ETH transfers across OP Stack chains are facilitated through the [SuperchainETHBridge](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/SuperchainETHBridge.sol) contract.
 This tutorial walks through how to send ETH from one chain to another.
 You can do this on [Supersim](/> app-developers/tools/development/supersim) or production once it is released.
 
@@ -172,7 +172,7 @@ The tutorial uses these primary tools:
     <Step title="Download the SuperchainETHBridge ABI">
 
         ```sh
-        curl https://raw.githubusercontent.com/ethereum-optimism/optimism/refs/heads/develop/packages/contracts-bedrock/snapshots/abi/SuperchainETHBridge.json > src/SuperchainETHBridge.abi.json
+        curl https://raw.githubusercontent.com/ethereum-optimism/optimism/refs/heads/develop/op-contracts/snapshots/abi/SuperchainETHBridge.json > src/SuperchainETHBridge.abi.json
         ```
     </Step>
 

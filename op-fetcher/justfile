@@ -7,7 +7,7 @@ build-all: build-contracts build-go
 build-contracts:
   #!/bin/bash
   mkdir -p ./pkg/fetcher/fetch/forge-artifacts
-  cd ../packages/contracts-bedrock
+  cd ../op-contracts
   just clean
   just build-dev --deny-warnings --skip test
   cp -r forge-artifacts/FetchChainInfo.s.sol ../../op-fetcher/pkg/fetcher/fetch/forge-artifacts

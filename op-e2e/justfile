@@ -73,5 +73,5 @@ fuzz:
 
 # Generate contract bindings
 gen-binding CONTRACT:
-    cd ../packages/contracts-bedrock && just build
+    cd ../op-contracts && just build
     ./scripts/gen-binding.sh {{CONTRACT}}

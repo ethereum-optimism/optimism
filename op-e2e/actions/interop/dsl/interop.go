@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	foundryArtifactsDir = "../../../packages/contracts-bedrock/forge-artifacts"
-	sourceMapDir        = "../../../packages/contracts-bedrock"
+	foundryArtifactsDir = "../../../op-contracts/forge-artifacts"
+	sourceMapDir        = "../../../op-contracts"
 )
 
 // Chain holds the most common per-chain action-test data and actors

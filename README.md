@@ -93,7 +93,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+│   ├── <a href="./op-contracts">contracts-bedrock</a>: OP Stack smart contracts
 </pre>
 
 ## Development and Release Process
@@ -139,7 +139,7 @@ The primary development branch is [`develop`](https://github.com/ethereum-optimi
 `develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://docs.optimism.io/chain/networks).
 If you're making a backwards compatible change, please direct your pull request towards `develop`.
 
-**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**
+**Changes to contracts within `op-contracts/src` are usually NOT considered backwards compatible.**
 Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a tag has already been fully deployed.
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
 Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.

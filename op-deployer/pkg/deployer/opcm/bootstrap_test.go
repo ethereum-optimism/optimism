@@ -20,7 +20,7 @@ func createTestHost(t *testing.T) *script.Host {
 	logger, _ := testlog.CaptureLogger(t, log.LevelInfo)
 
 	// Create an artifact filesystem pointing to the bedrock contracts artifact directory
-	af := foundry.OpenArtifactsDir("../../../../packages/contracts-bedrock/forge-artifacts")
+	af := foundry.OpenArtifactsDir("../../../../op-contracts/forge-artifacts")
 
 	// Now put a host together
 	host := script.NewHost(logger, af, nil, script.DefaultContext, script.WithCreate2Deployer())

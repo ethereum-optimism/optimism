@@ -111,7 +111,7 @@ It is a [slightly modified](https://op-geth.optimism.io/) version of the standar
 
 ### State root proposals
 
-The state root proposals are posted by [`op-proposer`](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-proposer) to [`L2OutputOracle`](https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol) on L1.
+The state root proposals are posted by [`op-proposer`](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-proposer) to [`L2OutputOracle`](https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/op-contracts/contracts/L1/L2OutputOracle.sol) on L1.
 
 Output proposals are *not* immediately valid.
 They can only be considered authoritative once the fault challenge period (7 days on the production network, less on test networks) has passed.

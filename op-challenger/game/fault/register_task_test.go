@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	"github.com/ethereum-optimism/optimism/op-contracts/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"

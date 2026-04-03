@@ -116,7 +116,7 @@ pub fn parse_l1_info_tx_bedrock(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
 ///   8. _hash               L1 blockhash.
 ///   9. _batcherHash        Versioned hash to authenticate batcher by.
 ///
-/// <https://github.com/ethereum-optimism/optimism/blob/957e13dd504fb336a4be40fb5dd0d8ba0276be34/packages/contracts-bedrock/src/L2/L1Block.sol#L136>
+/// <https://github.com/ethereum-optimism/optimism/blob/957e13dd504fb336a4be40fb5dd0d8ba0276be34/op-contracts/src/L2/L1Block.sol#L136>
 pub fn parse_l1_info_tx_ecotone(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError> {
     if data.len() != 160 {
         return Err(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::UnexpectedCalldataLength));

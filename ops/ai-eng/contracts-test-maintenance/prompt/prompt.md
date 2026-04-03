@@ -122,7 +122,7 @@ reason = "<brief explanation from your structured_output.reason>"
 ```
 
 **How to get the contract hash:**
-Run this command: `git log -1 --format=%H -- packages/contracts-bedrock/{CONTRACT_PATH}`
+Run this command: `git log -1 --format=%H -- op-contracts/{CONTRACT_PATH}`
 
 **Example entry:**
 ```toml

@@ -55,7 +55,7 @@ Through this separation, the VM stays ultra-minimal: Ethereum protocol changes, 
 
 ## Dispute game protocol
 
-In the Dispute protocol, different types of dispute games can be created, managed, and upgraded through the [DisputeGameFactory](https://github.com/ethereum-optimism/optimism/blob/6a53c7a3294edf140d552962f81c0f742bf445f9/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L4).
+In the Dispute protocol, different types of dispute games can be created, managed, and upgraded through the [DisputeGameFactory](https://github.com/ethereum-optimism/optimism/blob/6a53c7a3294edf140d552962f81c0f742bf445f9/op-contracts/src/dispute/DisputeGameFactory.sol#L4).
 This opens the door to innovative features, like aggregate proof systems and the ability to expand the protocol to allow for disputing things apart from the state of L2, such as a `FaultDisputeGame` geared towards onchain binary verification.
 
 A dispute game is a core primitive to the dispute protocol. It models a simple state machine, and it is initialized with a 32 byte commitment to any piece of information of which the validity can be disputed.

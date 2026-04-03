@@ -201,10 +201,10 @@ RUN <<-EOF
     rm "${DOWNLOAD_PATH}"
 EOF
 # Compile contracts and create artifacts tarball
-RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
+RUN cd op-contracts && forge build --skip "/**/test/**"
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   go run ./op-deployer/pkg/deployer/artifacts/cmd/mktar \
-    -base ./packages/contracts-bedrock \
+    -base ./op-contracts \
     -out ./op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst \
     --exclude="*.t.sol"
 

@@ -63,7 +63,7 @@ func TestContractsSetup(t require.TestingT, version MipsVersion, stateVersion ui
 
 // loadArtifacts loads the Cannon contracts, from the contracts package.
 func loadArtifacts(version MipsVersion) (*Artifacts, error) {
-	artifactFS := foundry.OpenArtifactsDir("../../../packages/contracts-bedrock/forge-artifacts")
+	artifactFS := foundry.OpenArtifactsDir("../../../op-contracts/forge-artifacts")
 	if arch.IsMips32 || version != MipsMultithreaded {
 		return nil, fmt.Errorf("unknown MipsVersion supplied: %v", version)
 	}
@@ -190,7 +190,7 @@ func MarkdownTracer() *tracing.Hooks {
 }
 
 func SourceMapTracer(t require.TestingT, version MipsVersion, mips *foundry.Artifact, oracle *foundry.Artifact, addrs *Addresses) *tracing.Hooks {
-	srcFS := foundry.NewSourceMapFS(os.DirFS("../../../packages/contracts-bedrock"))
+	srcFS := foundry.NewSourceMapFS(os.DirFS("../../../op-contracts"))
 	if arch.IsMips32 || version != MipsMultithreaded {
 		require.Fail(t, "invalid mips version")
 	}

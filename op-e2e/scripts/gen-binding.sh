@@ -11,7 +11,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 CONTRACT="$1"
-ARTIFACT_DIR="packages/contracts-bedrock/forge-artifacts/${CONTRACT}.sol"
+ARTIFACT_DIR="op-contracts/forge-artifacts/${CONTRACT}.sol"
 ARTIFACT_PATH="${ARTIFACT_DIR}/${CONTRACT}.json"
 
 if [[ ! -f "${ARTIFACT_PATH}" ]]; then

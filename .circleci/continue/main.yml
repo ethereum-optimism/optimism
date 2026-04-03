@@ -263,7 +263,7 @@ commands:
             # Manually craft the submodule update command in order to take advantage
             # of the -j parameter, which speeds it up a lot.
             git submodule update --init --recursive --single-branch --force -j 8
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
 
   # Notifies us on Slack a build fails on develop
   notify-failures-on-develop:
@@ -313,7 +313,7 @@ commands:
 
             # Make TARGET_BRANCH available to subsequent steps
             echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
 
   setup-features:
     description: "Set up dev and system feature environment variables. Features are auto-classified based on system_features registry."
@@ -905,7 +905,7 @@ jobs:
       - attach_workspace:
           at: .
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
+          patterns: cannon,op-contracts/src/cannon,op-preimage,go.mod
       - run:
           name: prep Cannon results dir
           command: |
@@ -973,7 +973,7 @@ jobs:
           command: just forge-build <<parameters.build_args>>
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: "Copy artifacts into deployer"
           command: |
@@ -982,9 +982,9 @@ jobs:
       - persist_to_workspace:
           root: "."
           paths:
-            - "packages/contracts-bedrock/cache"
-            - "packages/contracts-bedrock/artifacts"
-            - "packages/contracts-bedrock/forge-artifacts"
+            - "op-contracts/cache"
+            - "op-contracts/artifacts"
+            - "op-contracts/forge-artifacts"
             - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
       - notify-failures-on-develop:
           mentions: "@security-oncall"
@@ -1000,17 +1000,17 @@ jobs:
           at: .
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: op-contracts
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
           name: Run Kontrol build
           command: just kontrol-summary-full
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Build Kontrol summary files
           command: just forge-build ./test/kontrol/proofs
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - notify-failures-on-develop:
           mentions: "@security-oncall"
 
@@ -1051,26 +1051,26 @@ jobs:
               echo "No test files to run. Exiting early."
               circleci-agent step halt
             fi
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - check-changed:
           patterns: <<parameters.check_changed_patterns>>
       - install-solc-compilers
       - run:
           name: Print dependencies
           command: just dep-status
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Print forge version
           command: forge --version
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - go-restore-cache:
-          namespace: packages/contracts-bedrock/scripts/go-ffi
+          namespace: op-contracts/scripts/go-ffi
       - run:
           name: Build go-ffi
           command: just build-go-ffi
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - go-save-cache:
-          namespace: packages/contracts-bedrock/scripts/go-ffi
+          namespace: op-contracts/scripts/go-ffi
       - setup-features:
           features: <<parameters.features>>
       - run:
@@ -1084,22 +1084,22 @@ jobs:
             forge test --match-path "$MATCH_PATH" --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           no_output_timeout: <<parameters.test_timeout>>
       - run:
           name: Print failed test traces
           command: just test-rerun
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           when: on_fail
       - store_test_results:
-          path: packages/contracts-bedrock/results
+          path: op-contracts/results
           when: always
       - run:
           name: Lint forge test names
           command: just lint-forge-tests-check-no-build
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - notify-failures-on-develop:
           mentions: "@security-oncall"
 
@@ -1116,15 +1116,15 @@ jobs:
       - run:
           name: Print dependencies
           command: just dep-status
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Print forge version
           command: forge --version
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Build go-ffi
           command: just build-go-ffi
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Run heavy fuzz tests
           command: |
@@ -1133,14 +1133,14 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ciheavy
             JUNIT_TEST_PATH: results/results.xml
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           no_output_timeout: 90m
       - run:
           name: Print failed test traces
           command: just test-rerun
           environment:
             FOUNDRY_PROFILE: ciheavy
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           when: on_fail
       - save_cache:
           name: Save Go build cache
@@ -1150,11 +1150,11 @@ jobs:
       # Store raw JUnit XML as artifact for debugging when store_test_results
       # shows 0 results (see ethereum-optimism/optimism#19577)
       - store_artifacts:
-          path: packages/contracts-bedrock/results
+          path: op-contracts/results
           destination: junit-results
           when: always
       - store_test_results:
-          path: packages/contracts-bedrock/results
+          path: op-contracts/results
           when: always
       - notify-failures-on-develop:
           mentions: "@security-oncall"
@@ -1217,16 +1217,16 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: op-contracts
       - install-solc-compilers
       - run:
           name: Print dependencies
           command: just dep-status
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Print forge version
           command: forge --version
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Install lcov
           command: |
@@ -1239,27 +1239,27 @@ jobs:
             cat pinnedBlockNumber.txt
           environment:
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - restore_cache:
           name: Restore forked state
-          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
+          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "op-contracts/pinnedBlockNumber.txt" }}
       - setup-features:
           features: <<parameters.features>>
       - run:
           name: Build go-ffi
           command: just build-go-ffi
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Build contract source
           command: just build-source
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Run coverage tests
           command: just coverage-lcov-all
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           no_output_timeout: <<parameters.test_timeout>>
       - run:
           name: Print failed test traces
@@ -1267,20 +1267,20 @@ jobs:
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           when: on_fail
       - codecov/upload:
           disable_search: true
-          files: ./packages/contracts-bedrock/lcov-all.info
+          files: ./op-contracts/lcov-all.info
           flags: contracts-bedrock-tests
       - save_cache:
           name: Save forked state
-          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
+          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "op-contracts/pinnedBlockNumber.txt" }}
           when: always
           paths:
             - "~/.foundry/cache"
       - store_artifacts:
-          path: packages/contracts-bedrock/failed-test-traces.log
+          path: op-contracts/failed-test-traces.log
           when: on_fail
       - notify-failures-on-develop:
           mentions: "@security-oncall"
@@ -1315,16 +1315,16 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: op-contracts
       - install-solc-compilers
       - run:
           name: Print dependencies
           command: just dep-status
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Print forge version
           command: forge --version
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Write pinned block number for cache key
           command: |
@@ -1333,10 +1333,10 @@ jobs:
           environment:
             FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
             ETH_RPC_URL: <<parameters.fork_base_rpc>>
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - restore_cache:
           name: Restore forked state
-          key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
+          key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "op-contracts/pinnedBlockNumber.txt" }}
       - setup-features:
           features: <<parameters.features>>
       - run:
@@ -1352,7 +1352,7 @@ jobs:
             ETH_RPC_URL: <<parameters.fork_base_rpc>>
             FORK_OP_CHAIN: <<parameters.fork_op_chain>>
             FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           no_output_timeout: 15m
       - run:
           name: Print failed test traces
@@ -1365,7 +1365,7 @@ jobs:
             ETH_RPC_URL: <<parameters.fork_base_rpc>>
             FORK_OP_CHAIN: <<parameters.fork_op_chain>>
             FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           when: on_fail
       - save_cache:
           name: Save Go build cache
@@ -1374,21 +1374,21 @@ jobs:
             - "~/.cache/go-build"
       - save_cache:
           name: Save forked state
-          key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
+          key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "op-contracts/pinnedBlockNumber.txt" }}
           when: always
           paths:
             - "~/.foundry/cache"
       - store_artifacts:
-          path: packages/contracts-bedrock/failed-test-traces.log
+          path: op-contracts/failed-test-traces.log
           when: on_fail
       # Store raw JUnit XML as artifact for debugging when store_test_results
       # shows 0 results (see ethereum-optimism/optimism#19577)
       - store_artifacts:
-          path: packages/contracts-bedrock/results
+          path: op-contracts/results
           destination: junit-results
           when: always
       - store_test_results:
-          path: packages/contracts-bedrock/results
+          path: op-contracts/results
           when: always
       - notify-failures-on-develop:
           mentions: "@security-oncall"
@@ -1423,16 +1423,16 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: op-contracts
       - install-solc-compilers
       - run:
           name: Print dependencies
           command: just dep-status
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Print forge version
           command: forge --version
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Resolve RPC URL
           command: |
@@ -1455,16 +1455,16 @@ jobs:
               echo "Using specified block number: <<parameters.l2_fork_block_number>>"
               echo "<<parameters.l2_fork_block_number>>" > ./l2ForkBlockNumber.txt
             fi
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - restore_cache:
           name: Restore forked L2 state
-          key: forked-state-l2-<<parameters.fork_op_chain>>-{{ checksum "packages/contracts-bedrock/l2ForkBlockNumber.txt" }}
+          key: forked-state-l2-<<parameters.fork_op_chain>>-{{ checksum "op-contracts/l2ForkBlockNumber.txt" }}
       - setup-features:
           features: <<parameters.features>>
       - run:
           name: Check NUT bundle is up-to-date
           command: just nut-bundle-check-no-build
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Run L2 fork tests
           command: |
@@ -1472,7 +1472,7 @@ jobs:
             JUNIT_TEST_PATH=results/results.xml just test-l2-fork-upgrade
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           no_output_timeout: 20m
       - run:
           name: Print failed test traces
@@ -1480,7 +1480,7 @@ jobs:
             just test-l2-fork-upgrade-rerun | tee failed-test-traces-l2-fork.log
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           when: on_fail
       - save_cache:
           name: Save Go build cache
@@ -1489,15 +1489,15 @@ jobs:
             - "~/.cache/go-build"
       - save_cache:
           name: Save forked L2 state
-          key: forked-state-l2-<<parameters.fork_op_chain>>-{{ checksum "packages/contracts-bedrock/l2ForkBlockNumber.txt" }}
+          key: forked-state-l2-<<parameters.fork_op_chain>>-{{ checksum "op-contracts/l2ForkBlockNumber.txt" }}
           when: always
           paths:
             - "~/.foundry/cache"
       - store_artifacts:
-          path: packages/contracts-bedrock/failed-test-traces-l2-fork.log
+          path: op-contracts/failed-test-traces-l2-fork.log
           when: on_fail
       - store_test_results:
-          path: packages/contracts-bedrock/results
+          path: op-contracts/results
           when: always
       - notify-failures-on-develop:
           mentions: "@security-oncall"
@@ -1511,12 +1511,12 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: op-contracts
       - get-target-branch
       - run:
           name: upload selectors
           command: just update-selectors
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
 
   required-contracts-ci:
     docker:
@@ -1540,14 +1540,14 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: op-contracts
       - run:
           name: Print forge version
           command: forge --version
       - run:
           name: Run checks
           command: just check-fast
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - notify-failures-on-develop:
           mentions: "@security-oncall"
 
@@ -2254,7 +2254,7 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
-          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/OptimismPortal2\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
+          patterns: op-contracts/test/kontrol,op-contracts/src/L1/OptimismPortal\.sol,op-contracts/src/L1/OptimismPortal2\.sol,op-contracts/src/L1/L1CrossDomainMessenger\.sol,op-contracts/src/L1/L1ERC721Bridge\.sol,op-contracts/src/L1/L1StandardBridge\.sol,op-contracts/src/L1/ResourceMetering\.sol,op-contracts/src/universal/StandardBridge\.sol,op-contracts/src/universal/ERC721Bridge\.sol,op-contracts/src/universal/CrossDomainMessenger\.sol
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
@@ -2274,7 +2274,7 @@ jobs:
                   "repository": "optimism"
                 }
               }'
-          working_directory: ./packages/contracts-bedrock
+          working_directory: ./op-contracts
       - notify-failures-on-develop:
           mentions: "@security-oncall"
 
@@ -2299,11 +2299,11 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           command: just forge-build
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Publish artifacts
           command: bash scripts/ops/publish-artifacts.sh
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
 
   go-release:
     parameters:
@@ -2353,7 +2353,7 @@ jobs:
       - run:
           name: Compare forge artifacts
           command: |
-            diff -qr "packages/contracts-bedrock/forge-artifacts/FetchChainInfo.s.sol" \
+            diff -qr "op-contracts/forge-artifacts/FetchChainInfo.s.sol" \
                     "op-fetcher/pkg/fetcher/fetch/forge-artifacts/FetchChainInfo.s.sol"
 
             if [ $? -ne 0 ]; then
@@ -2465,7 +2465,7 @@ workflows:
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
-          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
+          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|op-contracts/||'
           test_timeout: 1h
           test_profile: ciheavy
           features: <<matrix.features>>
@@ -2499,7 +2499,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-          check_changed_patterns: contracts-bedrock,op-node
+          check_changed_patterns: op-contracts,op-node
           filters:
             branches:
               ignore: develop
@@ -2515,7 +2515,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-          check_changed_patterns: contracts-bedrock,op-node
+          check_changed_patterns: op-contracts,op-node
           filters:
             branches:
               only: develop
@@ -2665,7 +2665,7 @@ workflows:
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
-          on_changes: cannon,packages/contracts-bedrock/src/cannon
+          on_changes: cannon,op-contracts/src/cannon
           uses_artifacts: true
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2674,7 +2674,7 @@ workflows:
       - fuzz-golang:
           name: op-e2e-fuzz
           package_name: op-e2e
-          on_changes: op-e2e,packages/contracts-bedrock/src
+          on_changes: op-e2e,op-contracts/src
           uses_artifacts: true
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2762,7 +2762,7 @@ workflows:
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
           dir: .
           ignore-dirs: |
-            ./packages/contracts-bedrock/lib
+            ./op-contracts/lib
             ./docs/public-docs
           context:
             - circleci-repo-readonly-authenticated-github-token

@@ -9,7 +9,7 @@ This allows smart contracts to consume local and cross-chain logs with low laten
 
 ## Overview
 
-Instead of relying solely on [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol), developers can use [`CrossL2Inbox#validateMessage`](https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L49) and treat `CrossL2Inbox` as an oracle for logs that occurred on different chains or even their local chain.
+Instead of relying solely on [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/L2ToL2CrossDomainMessenger.sol), developers can use [`CrossL2Inbox#validateMessage`](https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/op-contracts/src/L2/CrossL2Inbox.sol#L49) and treat `CrossL2Inbox` as an oracle for logs that occurred on different chains or even their local chain.
 
 This enables developers to:
 
@@ -30,7 +30,7 @@ When reading logs, you must reference logs created within the [expiry window of 
 
 ### Architecture
 
-The process works through the [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L33) contract, which serves as an oracle for logs from other chains in the OP Stack interop cluster:
+The process works through the [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/op-contracts/src/L2/CrossL2Inbox.sol#L33) contract, which serves as an oracle for logs from other chains in the OP Stack interop cluster:
 
 1.  A smart contract on `Chain A` emits a log (event)
 2.  Your contract on `Chain B` calls `CrossL2Inbox#validateMessage` with the log's identifier
@@ -40,7 +40,7 @@ The process works through the [`CrossL2Inbox`](https://github.com/ethereum-optim
 ### Key components
 
 *   **Identifier**: A struct containing information about the log, including `chainId`, `origin` (contract address), and other log metadata
-*   **[validateMessage](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L79)**: Function that verifies a log's authenticity before allowing its use
+*   **[validateMessage](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/CrossL2Inbox.sol#L79)**: Function that verifies a log's authenticity before allowing its use
 
 ## Example: cross-chain attestation verification
 
@@ -100,7 +100,7 @@ sequenceDiagram
 
 3.  The attestation verifier calls `validateMessage()` on the `CrossL2Inbox` contract, passing the attestation identifier and a hash of the event data.
 
-4.  The [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol) contract interacts with the [`OP-Supervisor`](/chain-operators/reference/components/op-supervisor) service to check if the specified log exists on the source chain.
+4.  The [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/src/L2/CrossL2Inbox.sol) contract interacts with the [`OP-Supervisor`](/chain-operators/reference/components/op-supervisor) service to check if the specified log exists on the source chain.
 
 5.  The `OP-Supervisor` confirms the validity of the log to the `CrossL2Inbox` contract.
 

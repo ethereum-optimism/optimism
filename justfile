@@ -6,7 +6,7 @@ PYTHON := env('PYTHON', 'python3')
 
 TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 
-TEST_PKGS := "./op-alt-da/... ./op-batcher/... ./op-chain-ops/... ./op-node/... ./op-proposer/... ./op-challenger/... ./op-faucet/... ./op-dispute-mon/... ./op-conductor/... ./op-program/... ./op-service/... ./op-supervisor/... ./op-test-sequencer/... ./op-fetcher/... ./op-e2e/system/... ./op-e2e/e2eutils/... ./op-e2e/opgeth/... ./op-e2e/interop/... ./op-e2e/actions/altda ./op-e2e/actions/batcher ./op-e2e/actions/derivation ./op-e2e/actions/helpers ./op-e2e/actions/interop ./op-e2e/actions/proofs ./op-e2e/actions/proposer ./op-e2e/actions/safedb ./op-e2e/actions/sequencer ./op-e2e/actions/sync ./op-e2e/actions/upgrades ./packages/contracts-bedrock/scripts/checks/... ./ops/scripts/... ./op-dripper/... ./op-devstack/... ./op-deployer/pkg/deployer/artifacts/... ./op-deployer/pkg/deployer/broadcaster/... ./op-deployer/pkg/deployer/clean/... ./op-deployer/pkg/deployer/integration_test/ ./op-deployer/pkg/deployer/integration_test/cli/... ./op-deployer/pkg/deployer/standard/... ./op-deployer/pkg/deployer/state/... ./op-deployer/pkg/deployer/verify/... ./op-sync-tester/... ./op-supernode/..."
+TEST_PKGS := "./op-alt-da/... ./op-batcher/... ./op-chain-ops/... ./op-node/... ./op-proposer/... ./op-challenger/... ./op-faucet/... ./op-dispute-mon/... ./op-conductor/... ./op-program/... ./op-service/... ./op-supervisor/... ./op-test-sequencer/... ./op-fetcher/... ./op-e2e/system/... ./op-e2e/e2eutils/... ./op-e2e/opgeth/... ./op-e2e/interop/... ./op-e2e/actions/altda ./op-e2e/actions/batcher ./op-e2e/actions/derivation ./op-e2e/actions/helpers ./op-e2e/actions/interop ./op-e2e/actions/proofs ./op-e2e/actions/proposer ./op-e2e/actions/safedb ./op-e2e/actions/sequencer ./op-e2e/actions/sync ./op-e2e/actions/upgrades ./op-contracts/scripts/checks/... ./ops/scripts/... ./op-dripper/... ./op-devstack/... ./op-deployer/pkg/deployer/artifacts/... ./op-deployer/pkg/deployer/broadcaster/... ./op-deployer/pkg/deployer/clean/... ./op-deployer/pkg/deployer/integration_test/ ./op-deployer/pkg/deployer/integration_test/cli/... ./op-deployer/pkg/deployer/standard/... ./op-deployer/pkg/deployer/state/... ./op-deployer/pkg/deployer/verify/... ./op-sync-tester/... ./op-supernode/..."
 
 FRAUD_PROOF_TEST_PKGS := "./op-e2e/faultproofs/..."
 
@@ -26,7 +26,7 @@ build-go: submodules op-node op-proposer op-batcher op-challenger op-dispute-mon
 
 # Builds contracts-bedrock.
 build-contracts:
-  cd packages/contracts-bedrock && just build
+  cd op-contracts && just build
 
 # Builds the custom linter.
 build-customlint:
@@ -193,7 +193,7 @@ mod-tidy:
 # Removes all generated files under bin/.
 clean:
   rm -rf ./bin
-  cd packages/contracts-bedrock/ && forge clean
+  cd op-contracts/ && forge clean
 
 # Completely clean the project directory.
 nuke: clean
@@ -205,7 +205,7 @@ test-unit:
   cd op-proposer && just test
   cd op-batcher && just test
   cd op-e2e && just test
-  cd packages/contracts-bedrock && just test
+  cd op-contracts && just test
 
 # Runs semgrep on the entire monorepo.
 semgrep:
@@ -371,12 +371,12 @@ semgrep-test:
 
 # Runs shellcheck.
 shellcheck:
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec shfmt --diff {} \;
+  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './op-contracts/lib/*' -not -path './op-contracts/kout*/*' -not -path './docs/public-docs/*' -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
+  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './op-contracts/lib/*' -not -path './op-contracts/kout*/*' -not -path './docs/public-docs/*' -exec shfmt --diff {} \;
 
 # Format shell scripts with shfmt.
 shfmt-fix:
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec shfmt --write {} \;
+  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './op-contracts/lib/*' -not -path './op-contracts/kout*/*' -not -path './docs/public-docs/*' -exec shfmt --write {} \;
 
 # Generates a table of contents for the README.md file.
 toc:

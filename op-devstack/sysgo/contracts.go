@@ -13,7 +13,7 @@ type ContractPaths struct {
 }
 
 func contractPaths() (ContractPaths, error) {
-	contractsBedrockPath := "packages/contracts-bedrock"
+	contractsBedrockPath := "op-contracts"
 	root, err := findMonorepoRoot(contractsBedrockPath)
 	if err != nil {
 		return ContractPaths{}, err

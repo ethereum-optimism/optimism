@@ -61,7 +61,7 @@ mise exec -- just reproducible-prestate-kona
 The `just build-deps` target (called automatically by `just test` and `just acceptance-test`) runs these steps when not in CI:
 
 1. **mise** — `mise install` (ensures gotestsum, forge, etc. are available)
-2. **Contracts** — `cd packages/contracts-bedrock && just install && just build-no-tests`
+2. **Contracts** — `cd op-contracts && just install && just build-no-tests`
 3. **Cannon prestates** — `just cannon-prestates` (builds cannon, op-program, and prestate artifacts)
 4. **Rust binaries** — `just build-rust-release` (kona-node, op-rbuilder, rollup-boost)
 
@@ -94,6 +94,6 @@ When using `just test`, output goes to stdout only.
 ## Common Issues
 
 - **Missing prestates** — Run `cd op-acceptance-tests && mise exec -- just build-deps` or `mise exec -- just cannon-prestates` from the repo root.
-- **Stale contracts** — Rebuild with `cd packages/contracts-bedrock && mise exec -- just build-no-tests`.
+- **Stale contracts** — Rebuild with `cd op-contracts && mise exec -- just build-no-tests`.
 - **Missing Rust binaries** — Run `mise exec -- just build-rust-release` from the repo root.
 - **gotestsum not found** — Run `mise install` to install all pinned tools.

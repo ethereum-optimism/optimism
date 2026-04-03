@@ -12,10 +12,10 @@ comment:
 ignore:
   - "op-e2e"
   - "**/*.t.sol"
-  - "packages/contracts-bedrock/test/**/*.sol"
-  - "packages/contracts-bedrock/scripts/**/*.sol"
-  - "packages/contracts-bedrock/src/vendor/**/*.sol"
-  - "packages/contracts-bedrock/src/interfaces/**/*.sol"
+  - "op-contracts/test/**/*.sol"
+  - "op-contracts/scripts/**/*.sol"
+  - "op-contracts/src/vendor/**/*.sol"
+  - "op-contracts/src/interfaces/**/*.sol"
   # Kona ignores
   - "kona/examples/**/*"
   - "kona/**/test_util*"
@@ -53,7 +53,7 @@ flag_management:
   individual_flags:
     - name: contracts-bedrock-tests
       paths:
-        - packages/contracts-bedrock/src
+        - op-contracts/src
     # Kona flags
     - name: kona-unit
       paths:

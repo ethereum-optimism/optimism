@@ -27,7 +27,7 @@ build-bedrock-contracts:
   #!/usr/bin/env bash
   set -euo pipefail
   echo "Building contracts-bedrock forge artifacts..."
-  cd "{{SOURCE_DIR}}/../../.." && cd packages/contracts-bedrock && just install && just build-no-tests
+  cd "{{SOURCE_DIR}}/../../.." && cd op-contracts && just install && just build-no-tests
 
 # Run E2E tests using Sysgo
 test-e2e-sysgo: build-contracts
