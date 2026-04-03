@@ -131,16 +131,10 @@ CALLDATA=$(cast calldata \
 ```
 
 <Warning>
-In production, the ProxyAdmin owner is typically a multisig (e.g., a Safe). The upgrade **must** be submitted as a delegatecall from the multisig to the OPCM address. A direct call to the OPCM will revert. Use your multisig's transaction builder to create a delegatecall with the encoded calldata above, targeting the OPCM address.
+The upgrade **must** be submitted as a **delegatecall** from the ProxyAdmin owner to the OPCM address. A direct call (e.g., `cast send $OPCM_ADDRESS ...`) will always revert with `OnlyDelegatecall`. The OPCM verifies that it is being delegatecalled rather than called directly.
+
+If your ProxyAdmin owner is a multisig (e.g., a Safe), use the multisig's transaction builder to create a **delegatecall** transaction with the encoded calldata above, targeting the OPCM address.
 </Warning>
-
-For testing on a local fork or testnet where the ProxyAdmin owner is an EOA:
-
-```bash
-cast send $OPCM_ADDRESS $CALLDATA \
-  --rpc-url $L1_RPC_URL \
-  --private-key $PRIVATE_KEY
-```
 
 If the transaction reverts with `OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade`, you need to upgrade the `SuperchainConfig` first (see the previous section).
 
