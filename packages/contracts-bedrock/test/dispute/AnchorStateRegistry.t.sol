@@ -1477,14 +1477,24 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
             address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(_l2SequenceNumber)
         );
 
+        // Capture state before the rejected call.
+        (Hash rootBefore, uint256 l2BlockNumberBefore) = anchorStateRegistry.getAnchorRoot();
+
         vm.prank(address(zkGameProxy));
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(updatedL2BlockNumber, l2BlockNumberBefore);
+        assertEq(updatedRoot.raw(), rootBefore.raw());
     }
 
     /// @notice Tests that a blacklisted ZK game cannot update the anchor state.
     function test_setAnchorState_blacklistedGame_fails() public {
         _mockZkGameAsValid();
+
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
 
         // Blacklist the ZK game.
         vm.prank(superchainConfig.guardian());
@@ -1493,11 +1503,18 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
         vm.prank(address(zkGameProxy));
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
     }
 
     /// @notice Tests that a retired ZK game cannot update the anchor state.
     function test_setAnchorState_retiredGame_fails() public {
         _mockZkGameAsValid();
+
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
 
         // Retire all games by setting retirement timestamp before game creation.
         vm.prank(superchainConfig.guardian());
@@ -1506,10 +1523,17 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
         vm.prank(address(zkGameProxy));
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
     }
 
     /// @notice Tests that a ZK game resolved as CHALLENGER_WINS cannot update the anchor state.
     function test_setAnchorState_challengerWins_fails() public {
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+
         vm.mockCall(
             address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.CHALLENGER_WINS)
         );
@@ -1525,6 +1549,11 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
         vm.prank(address(zkGameProxy));
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
     }
 
     /// @notice Tests that an unfinalized ZK game cannot update the anchor state.
@@ -1532,6 +1561,8 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
         uint256 finalityDelay = optimismPortal2.disputeGameFinalityDelaySeconds();
         // Bound to avoid overflow when adding finalityDelay.
         _resolvedAtTimestamp = bound(_resolvedAtTimestamp, block.timestamp, type(uint64).max);
+
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
 
         vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
         vm.mockCall(
@@ -1547,16 +1578,28 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
         vm.prank(address(zkGameProxy));
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
     }
 
     /// @notice Tests that a ZK game cannot update the anchor state when the superchain is paused.
     function test_setAnchorState_superchainPaused_fails() public {
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(0));
 
         vm.prank(address(zkGameProxy));
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
     }
 }
 
