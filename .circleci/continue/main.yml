@@ -2443,6 +2443,9 @@ workflows:
                 - main
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
+                - ZK_DISPUTE_GAME
+                - CANNON_KONA
+                - SUPER_ROOT_GAMES_MIGRATION
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
