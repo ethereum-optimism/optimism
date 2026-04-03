@@ -53,6 +53,9 @@ mod test_utils;
 mod ws;
 pub use ws::{FlashBlockDecoder, WsConnect, WsFlashBlockStream};
 
+mod fbals;
+pub use fbals::*;
+
 /// Receiver of the most recent [`PendingFlashBlock`] built out of [`FlashBlock`]s.
 ///
 /// [`FlashBlock`]: crate::FlashBlock
@@ -95,11 +98,6 @@ impl<N: NodePrimitives> FlashblocksListeners<N> {
         in_progress_rx: InProgressFlashBlockRx,
         received_flashblocks: tokio::sync::broadcast::Sender<Arc<FlashBlock>>,
     ) -> Self {
-        Self {
-            pending_block_rx,
-            flashblocks_sequence,
-            in_progress_rx,
-            received_flashblocks,
-        }
+        Self { pending_block_rx, flashblocks_sequence, in_progress_rx, received_flashblocks }
     }
 }

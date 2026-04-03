@@ -24,7 +24,7 @@ func TestFlashblocksStream(gt *testing.T) {
 	logger := t.Logger()
 	filterHandler, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
 	if ok {
-		filterHandler.Set(logfilter.DefaultMute(logfilter.Level(log.LevelTrace).Show()))
+		filterHandler.Set(logfilter.DefaultMute(logfilter.Level(log.LevelDebug).Show()))
 	}
 	sys := presets.NewSingleChainWithFlashblocks(t)
 
