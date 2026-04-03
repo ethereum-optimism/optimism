@@ -83,7 +83,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 
 	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-		OpcmImpl:                         dio.OpcmV2, // v1 deleted; populate with v2 for downstream compat
 		OpcmGameTypeAdderImpl:            dio.OpcmGameTypeAdder,
 		OpcmDeployerImpl:                 dio.OpcmDeployer,
 		OpcmUpgraderImpl:                 dio.OpcmUpgrader,

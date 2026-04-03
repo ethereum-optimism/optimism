@@ -129,7 +129,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			require.NotNil(t, st.ImplementationsDeployment)
 			require.NotNil(t, st.SuperchainRoles)
 			require.Equal(t, *expDeployment, *st.SuperchainDeployment)
-			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmImpl)
+			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
 			// OPCMv1 removed — ProtocolVersionsOwner is no longer returned by the script.
 			// Check the fields that are still populated.
 			require.Equal(t, stdSuperchainRoles.SuperchainProxyAdminOwner, st.SuperchainRoles.SuperchainProxyAdminOwner)
@@ -747,7 +747,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 
 	// Verify ImplementationsDeployment was set
 	require.NotNil(t, st.ImplementationsDeployment)
-	require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmImpl)
+	require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
 }
 
 // Validates that the correct flow is chosen when

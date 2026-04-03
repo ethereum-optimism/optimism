@@ -230,20 +230,6 @@ func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, system
 func buildOPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address, version opcmregistry.Semver) *embedded.UpgradeOPChainInput {
 	t.Helper()
 
-	if version.IsV1OPCM() {
-		// V1 OPCM (6.x.x) - uses ChainConfigs with prestates
-		return &embedded.UpgradeOPChainInput{
-			Prank: prank,
-			Opcm:  opcmAddr,
-			ChainConfigs: []embedded.OPChainConfig{{
-				SystemConfigProxy:  systemConfigProxy,
-				CannonPrestate:     opcmregistry.DummyCannonPrestate,
-				CannonKonaPrestate: opcmregistry.DummyCannonKonaPrestate,
-			}},
-		}
-	}
-
-	// V2 OPCM (7.x.x+) - uses UpgradeInputV2 with dispute game configs
 	cfg := buildV2OPCMUpgradeConfig(t, prank, opcmAddr, systemConfigProxy)
 	return &cfg
 }

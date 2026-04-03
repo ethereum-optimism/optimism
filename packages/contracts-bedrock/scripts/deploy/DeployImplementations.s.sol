@@ -63,9 +63,6 @@ contract DeployImplementations is Script {
     }
 
     struct Output {
-        // Deprecated v1 OPCM fields — kept for Go ABI compatibility, always zero.
-        // Remove these when Go op-deployer drops v1 struct fields.
-        address opcm;
         address opcmContractsContainer;
         address opcmGameTypeAdder;
         address opcmDeployer;

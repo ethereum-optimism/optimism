@@ -29,7 +29,6 @@ type DeployImplementationsInput struct {
 }
 
 type DeployImplementationsOutput struct {
-	Opcm                             common.Address `json:"opcmAddress"`
 	OpcmContractsContainer           common.Address `json:"opcmContractsContainerAddress"`
 	OpcmGameTypeAdder                common.Address `json:"opcmGameTypeAdderAddress"`
 	OpcmDeployer                     common.Address `json:"opcmDeployerAddress"`
