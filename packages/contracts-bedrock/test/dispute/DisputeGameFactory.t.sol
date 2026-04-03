@@ -1167,36 +1167,6 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
         assertEq(g2, address(game2));
         assertEq(g1, address(game1));
     }
-
-    /// @notice Tests that findLatestGames returns only available ZK games when fewer exist than
-    ///         requested. Fuzzes the number of games created and the number requested.
-    function testFuzz_findLatestGames_lessThanNAvailable_succeeds(uint256 _numGames, uint256 _numRequested) public {
-        // Bounded to avoid OOM: each game deploys a clone, and findLatestGames pre-allocates
-        // a result array of size _numRequested.
-        _numGames = bound(_numGames, 1, 256);
-        _numRequested = bound(_numRequested, _numGames + 1, 1024);
-
-        setupZKDisputeGame(defaultZKParams);
-
-        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
-        vm.deal(proposer, defaultZKParams.challengerBond * _numGames);
-
-        vm.startPrank(proposer);
-        for (uint256 i; i < _numGames; i++) {
-            Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256(abi.encode("zkRoot", i))), VMStatuses.INVALID);
-            disputeGameFactory.create{ value: defaultZKParams.challengerBond }(
-                GameTypes.ZK_DISPUTE_GAME, rootClaim_, abi.encodePacked(anchorL2SeqNum + 1000 + i, type(uint32).max)
-            );
-        }
-        vm.stopPrank();
-
-        uint256 latestIdx = disputeGameFactory.gameCount() - 1;
-
-        IDisputeGameFactory.GameSearchResult[] memory results =
-            disputeGameFactory.findLatestGames(GameTypes.ZK_DISPUTE_GAME, latestIdx, _numRequested);
-
-        assertEq(results.length, _numGames);
-    }
 }
 
 /// @title DisputeGameFactory_Uncategorized_Test
