@@ -28,6 +28,7 @@ import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -769,7 +770,14 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 
         assertEq(address(optimismPortal2.ethLockbox()), _newLockbox);
         assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
-        assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
+        /// If OPCM_V2 we can do this check, if not we don't
+        /// We only couple the Dev Feature with the System config feature flag in OPCM_V2
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
+        } else {
+            assertTrue(IOptimismPortalInterop(payable(address(optimismPortal2))).superRootsActive());
+            assertTrue(IOptimismPortalInterop(payable(address(optimismPortal2))).superRootsActive());
+        }
     }
 
     /// @notice Tests that `migrateToSharedDisputeGame` reverts when the system is paused.
