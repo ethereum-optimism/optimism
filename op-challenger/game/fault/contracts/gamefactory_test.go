@@ -7,17 +7,18 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
-	"github.com/ethereum-optimism/optimism/op-contracts/snapshots"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-contracts/snapshots"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 )
 
 const (

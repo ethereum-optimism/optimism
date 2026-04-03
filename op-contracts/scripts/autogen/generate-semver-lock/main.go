@@ -8,9 +8,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum-optimism/optimism/op-contracts/scripts/checks/common"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const semverLockFile = "snapshots/semver-lock.json"

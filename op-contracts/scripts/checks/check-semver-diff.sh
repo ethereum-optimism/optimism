@@ -46,9 +46,12 @@ if ! {
 fi
 
 # Get the upstream semver-lock.json.
+# Try current path first, then fall back to pre-rename path.
 if ! git show "$UPSTREAM_REF":op-contracts/snapshots/semver-lock.json > "$temp_dir/upstream_semver_lock.json" 2> /dev/null; then
-  echo "❌ Error: Could not find semver-lock.json in the snapshots/ directory of $TARGET_BRANCH branch"
-  exit 1
+  if ! git show "$UPSTREAM_REF":packages/contracts-bedrock/snapshots/semver-lock.json > "$temp_dir/upstream_semver_lock.json" 2> /dev/null; then
+    echo "❌ Error: Could not find semver-lock.json in the snapshots/ directory of $TARGET_BRANCH branch"
+    exit 1
+  fi
 fi
 
 # Copy the local semver-lock.json.
@@ -88,7 +91,9 @@ for contract in $changed_contracts; do
   # Extract the old and new source files.
   old_source_file="$temp_dir/old_${contract##*/}"
   new_source_file="$temp_dir/new_${contract##*/}"
-  git show "$UPSTREAM_REF":op-contracts/"$contract" > "$old_source_file" 2> /dev/null || true
+  git show "$UPSTREAM_REF":op-contracts/"$contract" > "$old_source_file" 2> /dev/null \
+    || git show "$UPSTREAM_REF":packages/contracts-bedrock/"$contract" > "$old_source_file" 2> /dev/null \
+    || true
   cp "$contract" "$new_source_file"
 
   # Extract the old and new versions.
