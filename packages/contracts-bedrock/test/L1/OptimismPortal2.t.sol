@@ -316,7 +316,9 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function with the sender
         vm.prank(_sender);
-        IOptimismPortalInterop(payable(optimismPortal2)).initialize(systemConfig, anchorStateRegistry, ethLockbox);
+        IOptimismPortalInterop(payable(optimismPortal2)).initialize(
+            systemConfig, anchorStateRegistry, ethLockbox, address(0)
+        );
     }
 
     /// @notice Tests that the initialize function reverts when lockbox state is invalid.

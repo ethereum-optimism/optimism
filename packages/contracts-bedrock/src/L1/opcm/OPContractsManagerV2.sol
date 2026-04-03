@@ -789,7 +789,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 address(_cts.optimismPortal),
                 impls.optimismPortalInteropImpl,
                 abi.encodeCall(
-                    IOptimismPortalInterop.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
+                    IOptimismPortalInterop.initialize,
+                    (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox, address(0))
                 )
             );
         } else {

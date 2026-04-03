@@ -30,6 +30,49 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_from",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_mint",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_gasLimit",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isCreation",
+        "type": "bool"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_data",
+        "type": "bytes"
+      }
+    ],
+    "name": "approved",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "_withdrawalHash",
         "type": "bytes32"
@@ -42,6 +85,19 @@
     ],
     "name": "checkWithdrawal",
     "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "compliance",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
     "stateMutability": "view",
     "type": "function"
   },
@@ -298,6 +354,11 @@
       {
         "internalType": "contract IETHLockbox",
         "name": "_ethLockbox",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_compliance",
         "type": "address"
       }
     ],
@@ -933,6 +994,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_NoReentrancy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_OnlyCompliance",
     "type": "error"
   },
   {

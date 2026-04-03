@@ -19,6 +19,7 @@ import { GameStatus, GameType, Claim } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ICompliance } from "interfaces/universal/ICompliance.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -125,6 +126,9 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     /// @notice Whether the OptimismPortal is using Super Roots or Output Roots.
     bool public superRootsActive;
 
+    /// @notice Address of the compliance module (address(0) if disabled).
+    address public compliance;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
     ///         are read by the rollup node and used to derive deposit transactions on L2.
     /// @param from       Address that triggered the deposit transaction.
@@ -216,10 +220,13 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     /// @notice Thrown when trying to migrate to the same AnchorStateRegistry.
     error OptimismPortal_MigratingToSameRegistry();
 
+    /// @notice Thrown when the caller is not the compliance contract.
+    error OptimismPortal_OnlyCompliance();
+
     /// @notice Semantic version.
-    /// @custom:semver 5.3.1+interop
+    /// @custom:semver 5.3.2+interop
     function version() public pure virtual returns (string memory) {
-        return "5.3.1+interop";
+        return "5.3.2+interop";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -232,10 +239,12 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Contract of the ETHLockbox.
+    /// @param _compliance Address of the compliance module (address(0) to disable).
     function initialize(
         ISystemConfig _systemConfig,
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox
+        IETHLockbox _ethLockbox,
+        address _compliance
     )
         external
         reinitializer(initVersion())
@@ -247,6 +256,7 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
         systemConfig = _systemConfig;
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
+        compliance = _compliance;
 
         // Set the l2Sender slot, only if it is currently empty. This signals the first
         // initialization of the contract.
@@ -673,6 +683,16 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
         payable
         metered(_gasLimit)
     {
+        // If compliance is enabled, check the transaction against the compliance rules.
+        // This must happen BEFORE the lockbox lock so that flagged ETH is held by compliance.
+        if (compliance != address(0)) {
+            bool allowed = ICompliance(compliance).check{ value: msg.value }(
+                msg.sender, _to, _value, _gasLimit, _isCreation, _data, 0
+            );
+            if (!allowed) return; // ETH held by compliance
+                // If allowed, ETH was returned via donateETH()
+        }
+
         // Lock the ETH in the ETHLockbox.
         if (msg.value > 0) ethLockbox.lockETH{ value: msg.value }();
 
@@ -709,6 +729,42 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
 
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
+        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+    }
+
+    /// @notice Called by the compliance module to finalize an approved deposit transaction.
+    /// @param _from       The original sender of the deposit.
+    /// @param _to         Target address on L2.
+    /// @param _value      ETH value to send to the recipient.
+    /// @param _mint       ETH value to mint on L2 (the original msg.value).
+    /// @param _gasLimit   Amount of L2 gas.
+    /// @param _isCreation Whether the transaction is a contract creation.
+    /// @param _data       Data to trigger the recipient with.
+    function approved(
+        address _from,
+        address _to,
+        uint256 _value,
+        uint256 _mint,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes calldata _data
+    )
+        external
+        payable
+    {
+        if (msg.sender != compliance) revert OptimismPortal_OnlyCompliance();
+
+        // If using ETHLockbox, lock the ETH in the ETHLockbox.
+        if (msg.value > 0) ethLockbox.lockETH{ value: msg.value }();
+
+        // Alias the from address if it is a contract (same logic as depositTransaction).
+        address from = _from;
+        if (_from.code.length > 0) {
+            from = AddressAliasHelper.applyL1ToL2Alias(_from);
+        }
+
+        bytes memory opaqueData = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
+
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
