@@ -1,3 +1,8 @@
+# Use the `git` CLI for git dependencies so auth matches `git clone` (credential
+# helper, etc.). Does not override a global url.insteadOf that forces SSH.
+[net]
+git-fetch-with-cli = true
+
 [alias]
 docs = "doc --workspace --all-features --no-deps"
 

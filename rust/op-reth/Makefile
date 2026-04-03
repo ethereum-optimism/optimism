@@ -3,9 +3,14 @@
 
 GIT_SHA ?= $(shell git rev-parse HEAD)
 GIT_TAG ?= $(shell git describe --tags --abbrev=0)
+# Docker/OCI image tags cannot contain '/' (e.g. monorepo tags like op-reth/v1.2.3).
+DOCKER_TAG_SAFE ?= $(subst /,-,$(GIT_TAG))
 BIN_DIR = "dist/bin"
 
-CARGO_TARGET_DIR ?= target
+# This Makefile lives at rust/op-reth/Makefile; the workspace emits binaries to rust/target/.
+# Without this, `cp` looks under rust/op-reth/target/ and fails after a successful `cross build`.
+CARGO_TARGET_DIR ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../target)
+export CARGO_TARGET_DIR
 
 # List of features to use when building. Can be overridden via the environment.
 # No jemalloc on Windows
@@ -21,8 +26,20 @@ PROFILE ?= release
 # Extra flags for Cargo
 CARGO_INSTALL_EXTRA_FLAGS ?=
 
-# The docker image name
+# The docker image name (Artifact Registry). Override for a local registry, e.g.:
+#   make docker-build-push DOCKER_IMAGE_NAME=localhost:5000/op-reth
+# or use docker-build-push-local (see below).
 DOCKER_IMAGE_NAME ?= us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth
+
+# Default repository for docker-build-push-local. Requires a registry listening on
+# that host:port — run `make docker-local-registry-up` first.
+#
+# If buildx uses the `docker-container` driver, `localhost` is the builder
+# container, not your machine; use the host gateway instead, e.g.:
+#   make docker-build-push-local LOCAL_DOCKER_IMAGE_NAME=host.docker.internal:5000/op-reth
+# and create the builder with `--add-host=host.docker.internal:host-gateway`, or
+# use `--driver-opt network=host` so localhost reaches the host.
+LOCAL_DOCKER_IMAGE_NAME ?= localhost:5000/op-reth
 
 ##@ Help
 
@@ -58,6 +75,8 @@ build-native-%:
 # - `cross` is installed (`cargo install cross`).
 # - Docker is running.
 # - The current user is in the `docker` group.
+#
+# Cross reads `Cross.toml` only from the Cargo workspace root (`rust/Cross.toml`).
 #
 # The resulting binaries will be created in the `target/` directory.
 
@@ -132,13 +151,21 @@ cov-report-html: cov-unit ## Generate a HTML coverage report and open it in the 
 
 ##@ Docker
 
+.PHONY: docker-local-registry-up
+docker-local-registry-up: ## Start registry:2 on :5000 (container name `registry`; `docker start` if it already exists).
+	@docker start registry 2>/dev/null || docker run -d -p 5000:5000 --restart=always --name registry registry:2
+
 # Note: This requires a buildx builder with emulation support. For example:
 #
 # `docker run --privileged --rm tonistiigi/binfmt --install amd64,arm64`
 # `docker buildx create --use --driver docker-container --name cross-builder`
 .PHONY: docker-build-push
 docker-build-push: ## Build and push a cross-arch Docker image tagged with the latest git tag.
-	$(call docker_build_push,$(GIT_TAG),$(GIT_TAG))
+	$(call docker_build_push,$(DOCKER_TAG_SAFE),$(DOCKER_TAG_SAFE))
+
+.PHONY: docker-build-push-local
+docker-build-push-local: ## Like docker-build-push, but push to LOCAL_DOCKER_IMAGE_NAME (default localhost:5000/op-reth).
+	$(MAKE) docker-build-push DOCKER_IMAGE_NAME="$(LOCAL_DOCKER_IMAGE_NAME)"
 
 # Note: This requires a buildx builder with emulation support. For example:
 #
@@ -154,7 +181,11 @@ docker-build-push-git-sha: ## Build and push a cross-arch Docker image tagged wi
 # `docker buildx create --use --driver docker-container --name cross-builder`
 .PHONY: docker-build-push-latest
 docker-build-push-latest: ## Build and push a cross-arch Docker image tagged with the latest git tag and `latest`.
-	$(call docker_build_push,$(GIT_TAG),latest)
+	$(call docker_build_push,$(DOCKER_TAG_SAFE),latest)
+
+.PHONY: docker-build-push-local-latest
+docker-build-push-local-latest: ## Like docker-build-push-latest, but push to LOCAL_DOCKER_IMAGE_NAME.
+	$(MAKE) docker-build-push-latest DOCKER_IMAGE_NAME="$(LOCAL_DOCKER_IMAGE_NAME)"
 
 # Note: This requires a buildx builder with emulation support. For example:
 #

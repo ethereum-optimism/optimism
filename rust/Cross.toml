@@ -1,0 +1,43 @@
+# cross reads Cross.toml only from the workspace root (rust/), not from member dirs.
+# See: cross-rs/cross v0.2.5 `toml()` uses `metadata.workspace_root.join("Cross.toml")`.
+
+[build]
+pre-build = [
+    # Use HTTPS for package sources
+    "apt-get update && apt-get install --assume-yes --no-install-recommends ca-certificates",
+    "find /etc/apt/ -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|http://|https://|g' {} +",
+
+    # Configure APT retries and timeouts to handle network issues
+    "echo 'Acquire::Retries \"3\";' > /etc/apt/apt.conf.d/80-retries",
+    "echo 'Acquire::http::Timeout \"60\";' >> /etc/apt/apt.conf.d/80-retries",
+    "echo 'Acquire::ftp::Timeout \"60\";' >> /etc/apt/apt.conf.d/80-retries",
+
+    # reth-mdbx-sys / bindgen: libclang >= 10 + C standard headers (stdarg.h).
+    # Default cross images can expose ancient libclang (e.g. 3.8) without this layer.
+    # See: https://github.com/cross-rs/cross/wiki/FAQ#using-clang--bindgen
+    "apt-get update && apt-get install --assume-yes --no-install-recommends build-essential llvm-dev libclang-dev clang",
+]
+
+# Newer base images (Ubuntu/glibc) so apt-installed clang is used, not a stale bundled libclang.
+[target.x86_64-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:main"
+
+[target.aarch64-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:main"
+
+[target.x86_64-pc-windows-gnu]
+# Path is relative to workspace root (rust/).
+dockerfile = "op-reth/Dockerfile.x86_64-pc-windows-gnu"
+
+[target.riscv64gc-unknown-linux-gnu]
+image = "ubuntu:24.04"
+pre-build = [
+    "apt update",
+    "apt install --yes gcc gcc-riscv64-linux-gnu libclang-dev make",
+]
+env.passthrough = [
+    "CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc",
+]
+
+[build.env]
+passthrough = ["JEMALLOC_SYS_WITH_LG_PAGE"]
