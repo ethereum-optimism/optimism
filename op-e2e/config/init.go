@@ -189,7 +189,7 @@ func init() {
 }
 
 func initAllocType(root string, allocType AllocType) {
-	artifactsPath := path.Join(root, "packages", "contracts-bedrock", "forge-artifacts")
+	artifactsPath := path.Join(root, "op-contracts", "forge-artifacts")
 	if err := ensureDir(artifactsPath); err != nil {
 		panic(fmt.Errorf("invalid artifacts path: %w", err))
 	}

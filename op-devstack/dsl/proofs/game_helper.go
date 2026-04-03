@@ -130,7 +130,7 @@ func getGameHelperArtifactPath(t devtest.T) string {
 	monorepoRoot, err := opservice.FindMonorepoRoot(wd)
 	req.NoError(err, "Failed to find monorepo root")
 
-	contractsBedrock := filepath.Join(monorepoRoot, "packages", "contracts-bedrock")
+	contractsBedrock := filepath.Join(monorepoRoot, "op-contracts")
 	return filepath.Join(contractsBedrock, "forge-artifacts", "GameHelper.sol", "GameHelper.json")
 }
 

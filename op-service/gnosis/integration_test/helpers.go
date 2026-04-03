@@ -41,7 +41,7 @@ func deploySafeContracts(t *testing.T, rpcUrl string, privateKey string) (common
 
 	// Navigate to the correct paths from test file location
 	contractsDir := filepath.Join(testDir, "..", "contracts")
-	sharedLibDir := filepath.Join(testDir, "..", "..", "..", "packages", "contracts-bedrock", "lib")
+	sharedLibDir := filepath.Join(testDir, "..", "..", "..", "op-contracts", "lib")
 
 	// Verify paths exist
 	contractsDirAbs, err := filepath.Abs(contractsDir)

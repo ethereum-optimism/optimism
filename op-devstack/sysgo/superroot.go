@@ -359,7 +359,7 @@ func OPContractsManagerMigratorABI() (*abi.ABI, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to find monorepo root: %w", err)
 	}
-	artifactPath := path.Join(root, "packages", "contracts-bedrock", "forge-artifacts",
+	artifactPath := path.Join(root, "op-contracts", "forge-artifacts",
 		"OPContractsManagerMigrator.sol", "OPContractsManagerMigrator.json")
 	data, err := os.ReadFile(artifactPath)
 	if err != nil {

@@ -41,7 +41,7 @@ func TestLocalContractSourcesLocator(t *testing.T) {
 func TestLocalContractSourcesLocatorAcceptsContractsBedrockRoot(t *testing.T) {
 	t.Parallel()
 
-	contractsDir := filepath.Join(t.TempDir(), "packages", "contracts-bedrock")
+	contractsDir := filepath.Join(t.TempDir(), "op-contracts")
 	require.NoError(t, os.MkdirAll(filepath.Join(contractsDir, "forge-artifacts"), 0o755))
 
 	loc, err := localContractSourcesLocator(contractsDir)

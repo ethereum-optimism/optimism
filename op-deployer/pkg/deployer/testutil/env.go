@@ -22,7 +22,7 @@ func LocalArtifacts(t *testing.T) (*artifacts.Locator, foundry.StatDirFs) {
 	require.Truef(t, ok, "failed to get test filename")
 	monorepoDir, err := op_service.FindMonorepoRoot(testFilename)
 	require.NoError(t, err)
-	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
+	artifactsDir := path.Join(monorepoDir, "op-contracts", "forge-artifacts")
 	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
 	require.NoError(t, err)
 	loc := &artifacts.Locator{
