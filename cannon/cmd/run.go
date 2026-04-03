@@ -523,14 +523,21 @@ func Run(ctx *cli.Context) error {
 				l.Info("Stopping at preimage read")
 				break
 			}
-			if len(stopAtPreimageKeyPrefix) > 0 &&
-				slices.Equal(lastPreimageKey[:len(stopAtPreimageKeyPrefix)], stopAtPreimageKeyPrefix) {
+			matchesKeyPrefix := len(stopAtPreimageKeyPrefix) > 0 &&
+				slices.Equal(lastPreimageKey[:len(stopAtPreimageKeyPrefix)], stopAtPreimageKeyPrefix)
+			matchesSize := stopAtPreimageLargerThan != 0 && len(lastPreimageValue) > stopAtPreimageLargerThan
+			if matchesKeyPrefix && matchesSize {
+				// Both type and size conditions specified - require both to match
+				l.Info("Stopping at preimage read", "keyPrefix", common.Bytes2Hex(stopAtPreimageKeyPrefix), "size", len(lastPreimageValue), "min", stopAtPreimageLargerThan)
+				break
+			}
+			if matchesKeyPrefix && stopAtPreimageLargerThan == 0 {
 				if stopAtPreimageOffset == lastPreimageOffset && step >= stopAtPreimageStep {
 					l.Info("Stopping at preimage read", "keyPrefix", common.Bytes2Hex(stopAtPreimageKeyPrefix), "offset", lastPreimageOffset, "step", step)
 					break
 				}
 			}
-			if stopAtPreimageLargerThan != 0 && len(lastPreimageValue) > stopAtPreimageLargerThan {
+			if matchesSize && len(stopAtPreimageKeyPrefix) == 0 {
 				l.Info("Stopping at preimage read", "size", len(lastPreimageValue), "min", stopAtPreimageLargerThan)
 				break
 			}

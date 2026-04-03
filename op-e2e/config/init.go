@@ -442,6 +442,18 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 						},
 						VMType: cannonVMType(allocType),
 					},
+					{
+						ChainProofParams: state.ChainProofParams{
+							// CANNON_KONA game
+							DisputeGameType:         8,
+							DisputeAbsolutePrestate: konaPrestate(root),
+							DisputeMaxGameDepth:     50,
+							DisputeSplitDepth:       14,
+							DisputeClockExtension:   0,
+							DisputeMaxClockDuration: 1200,
+						},
+						VMType: cannonVMType(allocType),
+					},
 				},
 			},
 		},
@@ -478,6 +490,9 @@ var cannonPrestateMT common.Hash
 var cannonPrestateMTNext common.Hash
 var cannonPrestateMTOnce sync.Once
 var cannonPrestateMTNextOnce sync.Once
+
+var konaPrestateHash common.Hash
+var konaPrestateOnce sync.Once
 
 func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var filename string
@@ -524,4 +539,29 @@ func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 		*cacheVar = common.HexToHash("0xc02b59f772cb23a75b6ffb9f7602ba25fdd5d8e75ad88efcc013fec2c63b0895") // keccak("dummy")
 	}
 	return *cacheVar
+}
+
+func konaPrestate(monorepoRoot string) common.Hash {
+	konaPrestateOnce.Do(func() {
+		f, err := os.Open(path.Join(monorepoRoot, "rust", "kona", "prestate-artifacts-cannon", "prestate-proof.json"))
+		if err != nil {
+			log.Warn("error opening kona prestate file. If you're running a test that requires kona prestates, make sure you've run `just reproducible-prestate-kona`", "err", err)
+			return
+		}
+		defer f.Close()
+
+		var prestate prestateFile
+		dec := json.NewDecoder(f)
+		if err := dec.Decode(&prestate); err != nil {
+			log.Error("error decoding kona prestate file", "err", err)
+			return
+		}
+
+		konaPrestateHash = common.HexToHash(prestate.Pre)
+	})
+
+	if konaPrestateHash == (common.Hash{}) {
+		konaPrestateHash = common.HexToHash("0xc02b59f772cb23a75b6ffb9f7602ba25fdd5d8e75ad88efcc013fec2c63b0895") // keccak("dummy")
+	}
+	return konaPrestateHash
 }

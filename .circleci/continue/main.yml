@@ -1777,7 +1777,8 @@ jobs:
         description: Environment overrides
         type: string
         default: ""
-    machine: true
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: <<parameters.resource_class>>
     steps:
       - utils/checkout-with-mise:
@@ -3002,19 +3003,29 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+      - rust-build-binary:
+          name: rust-workspace-binaries
+          directory: rust
+          profile: "release"
+          save_cache: true
+          persist_to_workspace: true
+          rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: xlarge
+          resource_class: 2xlarge
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
             - cannon-prestate
+            - rust-workspace-binaries
       - publish-cannon-prestates:
           context:
             - slack

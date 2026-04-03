@@ -127,11 +127,15 @@ where
                 .interop_provider
                 .local_safe_heads()
                 .get(chain_id)
-                .ok_or(MessageGraphError::EmptyDependencySet)?;
+                .ok_or(MessageGraphError::EmptyDependencySet)?
+                .clone();
 
             // Look up the parent header for the block.
             let parent_header =
                 self.interop_provider.header_by_hash(*chain_id, header.parent_hash).await?;
+
+            // Send a hint for the block's transactions so the host pre-fetches the trie nodes.
+            self.interop_provider.hint_transactions(*chain_id, header.hash()).await?;
 
             // Traverse the transactions trie of the block to re-execute.
             let trie_walker = OrderedListWalker::try_new_hydrated(
@@ -177,7 +181,7 @@ where
 
             // Add the deposit replacement system transaction at the end of the list.
             transactions.push(Self::craft_replacement_transaction(
-                header,
+                &header,
                 original_optimistic_block.output_root,
             ));
 

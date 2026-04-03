@@ -24,6 +24,12 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys)
 }
 
+func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sfp.RunDepositMessageTest(t, sys)
+}
+
 func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// TODO(#19828): endTimestamp may align with a no-op transition for the slower chain,
