@@ -890,10 +890,6 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         vm.warp(block.timestamp + 1000);
     }
 
-    function _createZKGame() internal returns (ZKDisputeGame proxy_) {
-        return _createZKGameWithParams(defaultZKParams);
-    }
-
     function _createZKGameWithParams(ZKDisputeGameParams memory _params) internal returns (ZKDisputeGame proxy_) {
         // Setup ZK game implementation: deploys impl, encodes gameArgs, registers with factory.
         (, zkVerifier) = setupZKDisputeGame(_params);
@@ -1032,7 +1028,7 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
 
     /// @notice Tests that creating a duplicate ZKDisputeGame (same UUID) reverts.
     function test_create_duplicateUUID_reverts() public {
-        ZKDisputeGame proxy = _createZKGame();
+        ZKDisputeGame proxy = _createZKGameWithParams(defaultZKParams);
 
         vm.deal(proposer, 1 ether);
 
