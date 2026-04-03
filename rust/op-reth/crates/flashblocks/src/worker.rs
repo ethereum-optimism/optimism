@@ -460,19 +460,12 @@ where
                         let min_tx_index = 0;
                         let computed_access_list =
                             FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
-                        warn!(
-                            "fBALs access-list was computed on verifier side: {:#?}",
-                            computed_access_list
-                        );
-                        warn!(
-                            "fBALs access-list was received on verifier side: {:#?}",
-                            received_access_lists[received_fb_index]
-                        );
+                        debug!(target: "fBALs", "fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
+                        debug!(target: "fBALs", "fBALs access-list was received on verifier side: {:#?}", received_access_lists[received_fb_index]);
 
                         // verify
                         if received_access_lists[received_fb_index] == computed_access_list {
-                            warn!("Received fBAL and computed fBAL match.");
-                            panic!("GOAT");
+                            debug!(target: "fBALs", "Received fBAL and computed fBAL match.");
                         } else {
                             debug!(target: "fBALs", "Received fBAL and computed fBAL do not match.");
                             panic!("GIRAF");
@@ -486,7 +479,7 @@ where
                 debug_assert!(index <= received_access_lists[received_fb_index].max_tx_index);
 
                 builder.evm_mut().db_mut().set_bal_index(index);
-                warn!("fBALs index set to {:#?}", index);
+                debug!(target: "fBALs", "fBALs index set to {:#?}", index);
                 let _gas_used = builder.execute_transaction(tx)?;
             }
             // verify last fb
