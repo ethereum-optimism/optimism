@@ -476,6 +476,7 @@ where
                         } else {
                             warn!("Received fBAL and computed fBAL do not match.");
                             panic!("GIRAF");
+
                             return Ok(None);
                         }
                     }
@@ -548,23 +549,6 @@ where
         )
         .with_sealed_header(sealed_header);
 
-        // let fbal = state.take_built_alloy_bal().expect("account changes was `None`");
-        // let min_tx_index = 0;
-        // let computed_access_list = FlashblockAccessList::build(fbal, min_tx_index, max_tx_index);
-
-        // warn!("fBALs access-list was computed on verifier side: {:#?}", computed_access_list);
-        // // panic!("FBALS PANIC");
-
-        // if received_access_lists[0] != computed_access_list {
-        //     warn!(
-        //         "Received fBAL and computed fBAL do not match.  Discarding
-        // flashblock. {:#?} {:#?}",
-        //         received_access_lists[0], computed_access_list
-        //     );
-        //     unreachable!();
-        //     return Ok(None);
-        // }
-
         let pending_block = PendingBlock::with_executed_block(
             Instant::now() + Duration::from_secs(1),
             ExecutedBlock::new(
@@ -585,7 +569,6 @@ where
             args.compute_state_root,
             None,
         );
-        // panic!("FBALS PANIC");
 
         Ok(Some(BuildResult { pending_flashblock, cached_reads: request_cache, pending_state }))
     }

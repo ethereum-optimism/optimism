@@ -3,7 +3,6 @@ package flashblocks
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"os"
 	"strconv"
 	"testing"
@@ -23,14 +22,12 @@ const maxExpectedFlashblocks = 20
 func TestFlashblocksStream(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	logger := t.Logger()
-	sys := presets.NewSingleChainWithFlashblocks(t)
 	filterHandler, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
 	if ok {
-		filterHandler.Set(logfilter.DefaultMute(
-			logfilter.Level(slog.LevelDebug).Show(),
-			logfilter.Select("kind", "L2CLNode").Show(),
-		))
+		filterHandler.Set(logfilter.DefaultMute(logfilter.Level(log.LevelTrace).Show()))
 	}
+	sys := presets.NewSingleChainWithFlashblocks(t)
+
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 

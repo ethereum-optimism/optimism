@@ -26,7 +26,7 @@ pub struct PendingFlashBlock<N: NodePrimitives> {
     pub last_flashblock_hash: B256,
     /// Whether the [`PendingBlock`] has a properly computed stateroot.
     pub has_computed_state_root: bool,
-    /// Block access lists for all transactions so far.
+    /// Block access lists for all transactions so far. Should probably be a vector
     pub fbal_access_lists: Option<FlashblockAccessList>,
 }
 

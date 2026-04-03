@@ -390,7 +390,7 @@ func SerialT(t *testing.T) T {
 	h, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
 	if ok {
 		// Apply default log level. This may be overridden later.
-		h.Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
+		h.Set(logfilter.DefaultMute(logfilter.Level(log.LevelTrace).Show()))
 	}
 	logger.SetContext(ctx) // Set the default context; any log call without context will use this
 
