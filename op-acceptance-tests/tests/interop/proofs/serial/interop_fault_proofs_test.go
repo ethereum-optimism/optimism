@@ -70,8 +70,6 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 
 func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19411): Re-enable once #19880 is merged.
-	t.Skip("Requires #19880 (supernode denylist output as optimistic)")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
 }
