@@ -207,17 +207,17 @@ contract DeployConfig is Script {
         useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
         useInterop = _readOr(_json, "$.useInterop", false);
         chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
-        faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", 73);
-        faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
-        faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", 10800);
-        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", 302400);
+        faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", uint256(73));
+        faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", uint256(30));
+        faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", uint256(10800));
+        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", uint256(302400));
 
-        zkDisputeGameInitBond = _readOr(_json, "$.zkDisputeGameInitBond", 0);
-        zkDisputeGameAbsolutePrestate = bytes32(_readOr(_json, "$.zkDisputeGameAbsolutePrestate", 0));
+        zkDisputeGameInitBond = _readOr(_json, "$.zkDisputeGameInitBond", uint256(0));
+        zkDisputeGameAbsolutePrestate = bytes32(_readOr(_json, "$.zkDisputeGameAbsolutePrestate", uint256(0)));
         zkDisputeGameVerifier = _readOr(_json, "$.zkDisputeGameVerifier", address(0));
-        zkDisputeGameMaxChallengeDuration = _readOr(_json, "$.zkDisputeGameMaxChallengeDuration", 0);
-        zkDisputeGameMaxProveDuration = _readOr(_json, "$.zkDisputeGameMaxProveDuration", 0);
-        zkDisputeGameChallengerBond = _readOr(_json, "$.zkDisputeGameChallengerBond", 0);
+        zkDisputeGameMaxChallengeDuration = _readOr(_json, "$.zkDisputeGameMaxChallengeDuration", uint256(0));
+        zkDisputeGameMaxProveDuration = _readOr(_json, "$.zkDisputeGameMaxProveDuration", uint256(0));
+        zkDisputeGameChallengerBond = _readOr(_json, "$.zkDisputeGameChallengerBond", uint256(0));
     }
 
     function fork() public view returns (Fork fork_) {
