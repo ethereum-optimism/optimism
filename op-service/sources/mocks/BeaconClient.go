@@ -195,62 +195,6 @@ func (_c *BeaconClient_ConfigSpec_Call) RunAndReturn(run func(context.Context) (
 	return _c
 }
 
-// NodeVersion provides a mock function with given fields: ctx
-func (_m *BeaconClient) NodeVersion(ctx context.Context) (string, error) {
-	ret := _m.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for NodeVersion")
-	}
-
-	var r0 string
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (string, error)); ok {
-		return rf(ctx)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context) string); ok {
-		r0 = rf(ctx)
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// BeaconClient_NodeVersion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'NodeVersion'
-type BeaconClient_NodeVersion_Call struct {
-	*mock.Call
-}
-
-// NodeVersion is a helper method to define mock.On call
-//   - ctx context.Context
-func (_e *BeaconClient_Expecter) NodeVersion(ctx interface{}) *BeaconClient_NodeVersion_Call {
-	return &BeaconClient_NodeVersion_Call{Call: _e.mock.On("NodeVersion", ctx)}
-}
-
-func (_c *BeaconClient_NodeVersion_Call) Run(run func(ctx context.Context)) *BeaconClient_NodeVersion_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
-	})
-	return _c
-}
-
-func (_c *BeaconClient_NodeVersion_Call) Return(_a0 string, _a1 error) *BeaconClient_NodeVersion_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *BeaconClient_NodeVersion_Call) RunAndReturn(run func(context.Context) (string, error)) *BeaconClient_NodeVersion_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // NewBeaconClient creates a new instance of BeaconClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewBeaconClient(t interface {
