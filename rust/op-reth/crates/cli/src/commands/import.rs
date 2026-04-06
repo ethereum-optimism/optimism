@@ -43,6 +43,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportOpCommand<C> {
     /// Execute `import` command
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
+        runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
 
@@ -55,7 +56,8 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportOpCommand<C> {
             "Chunking chain import"
         );
 
-        let Environment { provider_factory, config, .. } = self.env.init::<N>(AccessRights::RW)?;
+        let Environment { provider_factory, config, .. } =
+            self.env.init::<N>(AccessRights::RW, runtime.clone())?;
 
         // we use noop here because we expect the inputs to be valid
         let consensus = Arc::new(NoopConsensus::default());
@@ -106,6 +108,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportOpCommand<C> {
                 static_file_producer.clone(),
                 true,
                 OpExecutorProvider::optimism(provider_factory.chain_spec()),
+                runtime.clone(),
             )?;
 
             // override the tip

@@ -446,7 +446,7 @@ func TestProposals(t *testing.T) {
 		require.NoError(t, err)
 		game, err := factory.GetGame(context.Background(), 0, rpcblock.ByHash(head.Hash()))
 		require.NoError(t, err)
-		require.Equal(t, uint32(4) /* super permissionless */, game.GameType)
+		require.Equal(t, uint32(9) /* super cannon kona */, game.GameType)
 	}
 	setupAndRun(t, SuperSystemConfig{}, test)
 }

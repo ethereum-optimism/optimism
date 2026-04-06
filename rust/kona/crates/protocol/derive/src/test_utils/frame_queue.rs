@@ -1,12 +1,13 @@
 //! Mock types for the frame queue stage.
 
 use crate::{
-    FrameQueueProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Signal,
-    SignalReceiver,
+    FrameQueueProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, vec::Vec};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Bytes;
 use async_trait::async_trait;
+use kona_genesis::SystemConfig;
 use kona_protocol::BlockInfo;
 
 /// A mock [`FrameQueueProvider`] for testing the frame queue stage.
@@ -57,9 +58,22 @@ impl FrameQueueProvider for TestFrameQueueProvider {
 }
 
 #[async_trait]
-impl SignalReceiver for TestFrameQueueProvider {
-    async fn signal(&mut self, _: Signal) -> PipelineResult<()> {
+impl Stage for TestFrameQueueProvider {
+    async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
         self.reset = true;
         Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.reset = true;
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.reset(BlockNumHash::default(), SystemConfig::default()).await
+    }
+
+    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
+        self.reset(BlockNumHash::default(), SystemConfig::default()).await
     }
 }

@@ -24,6 +24,11 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 
 		chainA := eth.ChainIDFromUInt64(1)
 		chainB := eth.ChainIDFromUInt64(4)
+		chainAOutput := &eth.OutputV0{
+			StateRoot:                eth.Bytes32{0xaa},
+			MessagePasserStorageRoot: eth.Bytes32{0xff},
+			BlockHash:                common.Hash{0x22},
+		}
 		expected := eth.SuperRootAtTimestampResponse{
 			CurrentL1: eth.BlockID{
 				Number: 305,
@@ -32,23 +37,8 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 			ChainIDs: []eth.ChainID{chainA, chainB},
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 				chainA: {
-					Output: &eth.OutputResponse{
-						Version:    eth.Bytes32{0x01},
-						OutputRoot: eth.Bytes32{0x11, 0x12},
-						BlockRef: eth.L2BlockRef{
-							Hash:       common.Hash{0x22},
-							Number:     472,
-							ParentHash: common.Hash{0xdd},
-							Time:       9895839,
-							L1Origin: eth.BlockID{
-								Hash:   common.Hash{0xee},
-								Number: 9802,
-							},
-							SequenceNumber: 4982,
-						},
-						WithdrawalStorageRoot: common.Hash{0xff},
-						StateRoot:             common.Hash{0xaa},
-					},
+					Output:     chainAOutput,
+					OutputRoot: eth.OutputRoot(chainAOutput),
 					RequiredL1: eth.BlockID{
 						Hash:   common.Hash{0xbb},
 						Number: 7842,
@@ -89,6 +79,11 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 
 		chainA := eth.ChainIDFromUInt64(1)
 		chainB := eth.ChainIDFromUInt64(4)
+		chainAOutput := &eth.OutputV0{
+			StateRoot:                eth.Bytes32{0xaa},
+			MessagePasserStorageRoot: eth.Bytes32{0xff},
+			BlockHash:                common.Hash{0x22},
+		}
 		expected := eth.SuperRootAtTimestampResponse{
 			CurrentL1: eth.BlockID{
 				Number: 305,
@@ -97,23 +92,8 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 			ChainIDs: []eth.ChainID{chainA, chainB},
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 				chainA: {
-					Output: &eth.OutputResponse{
-						Version:    eth.Bytes32{0x01},
-						OutputRoot: eth.Bytes32{0x11, 0x12},
-						BlockRef: eth.L2BlockRef{
-							Hash:       common.Hash{0x22},
-							Number:     472,
-							ParentHash: common.Hash{0xdd},
-							Time:       9895839,
-							L1Origin: eth.BlockID{
-								Hash:   common.Hash{0xee},
-								Number: 9802,
-							},
-							SequenceNumber: 4982,
-						},
-						WithdrawalStorageRoot: common.Hash{0xff},
-						StateRoot:             common.Hash{0xaa},
-					},
+					Output:     chainAOutput,
+					OutputRoot: eth.OutputRoot(chainAOutput),
 					RequiredL1: eth.BlockID{
 						Hash:   common.Hash{0xbb},
 						Number: 7842,

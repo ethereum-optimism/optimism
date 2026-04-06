@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 // Testing
 import { console } from "forge-std/console.sol";
 import { Script } from "forge-std/Script.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 // Scripts
 import { Artifacts } from "scripts/Artifacts.s.sol";
@@ -30,7 +31,14 @@ abstract contract Deployer is Script {
         console.log("Commit hash: %s", gitCommitHash());
 
         DeployUtils.etchLabelAndAllowCheatcodes({ _etchTo: address(cfg), _cname: "DeployConfig" });
-        cfg.read(Config.deployConfigPath());
+
+        // In test context or kontrol context, use hardcoded defaults by calling read() with empty path.
+        // In non-test context, read from the config file.
+        if (vm.isContext(VmSafe.ForgeContext.TestGroup) || Config.isKontrolContext()) {
+            cfg.read("");
+        } else {
+            cfg.read(Config.deployConfigPath());
+        }
     }
 
     /// @notice Returns the commit hash of HEAD. If no git repository is

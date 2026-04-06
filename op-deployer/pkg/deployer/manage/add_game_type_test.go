@@ -25,6 +25,7 @@ import (
 )
 
 func TestAddGameType(t *testing.T) {
+	t.Skip("OPCMv1 contract deleted — AddGameType.s.sol no longer exists. Use TestManageAddGameTypeV2_CLI instead.")
 	// Since the opcm version is not yet on sepolia, we create a fork of sepolia then deploy the opcm via deploy implementations.
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)

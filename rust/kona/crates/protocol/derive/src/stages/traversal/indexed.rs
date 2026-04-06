@@ -1,10 +1,11 @@
 //! Contains the [`IndexedTraversal`] stage of the derivation pipeline.
 
 use crate::{
-    ActivationSignal, ChainProvider, L1RetrievalProvider, OriginAdvancer, OriginProvider,
-    PipelineError, PipelineResult, ResetError, ResetSignal, Signal, SignalReceiver,
+    ChainProvider, L1RetrievalProvider, OriginAdvancer, OriginProvider, PipelineError,
+    PipelineResult, ResetError, Stage,
 };
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_genesis::{RollupConfig, SystemConfig};
@@ -123,19 +124,29 @@ impl<F: ChainProvider> OriginProvider for IndexedTraversal<F> {
 }
 
 #[async_trait]
-impl<F: ChainProvider + Send> SignalReceiver for IndexedTraversal<F> {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        match signal {
-            Signal::Reset(ResetSignal { l1_origin, system_config, .. }) |
-            Signal::Activation(ActivationSignal { l1_origin, system_config, .. }) => {
-                self.update_origin(l1_origin);
-                self.system_config = system_config.expect("System config must be provided.");
-            }
-            Signal::ProvideBlock(block_info) => self.provide_next_block(block_info).await?,
-            _ => {}
-        }
-
+impl<F: ChainProvider + Send> Stage for IndexedTraversal<F> {
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        let block_info =
+            self.data_source.block_info_by_number(l1_origin.number).await.map_err(Into::into)?;
+        self.update_origin(block_info);
+        self.system_config = system_config;
         Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.provide_next_block(block).await
     }
 }
 
@@ -214,20 +225,10 @@ mod tests {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = new_receipts();
         let mut traversal = new_test_managed(blocks, receipts);
-        let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(
-            traversal
-                .signal(Signal::Activation(ActivationSignal {
-                    system_config: Some(cfg),
-                    ..Default::default()
-                }))
-                .await
-                .is_ok()
-        );
+        assert!(traversal.activate().await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
-        assert_eq!(traversal.system_config, cfg);
-        assert!(!traversal.done);
+        assert!(traversal.done);
     }
 
     #[tokio::test]
@@ -237,15 +238,7 @@ mod tests {
         let mut traversal = new_test_managed(blocks, receipts);
         let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(
-            traversal
-                .signal(Signal::Reset(ResetSignal {
-                    system_config: Some(cfg),
-                    ..Default::default()
-                }))
-                .await
-                .is_ok()
-        );
+        assert!(traversal.reset(BlockNumHash::default(), cfg).await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
         assert_eq!(traversal.system_config, cfg);
         assert!(!traversal.done);

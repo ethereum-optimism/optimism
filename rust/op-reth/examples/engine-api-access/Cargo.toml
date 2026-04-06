@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 # reth
-reth-db = { workspace = true, features = ["op", "test-utils"] }
+reth-db = { workspace = true, features = ["test-utils"] }
 reth-node-builder.workspace = true
 reth-optimism-node.workspace = true
 reth-optimism-chainspec.workspace = true

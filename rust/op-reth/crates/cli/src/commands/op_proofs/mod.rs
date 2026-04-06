@@ -22,11 +22,12 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> Command<C> {
     /// Execute `op-proofs` command
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
+        runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         match self.command {
-            Subcommands::Init(cmd) => cmd.execute::<N>().await,
-            Subcommands::Prune(cmd) => cmd.execute::<N>().await,
-            Subcommands::Unwind(cmd) => cmd.execute::<N>().await,
+            Subcommands::Init(cmd) => cmd.execute::<N>(runtime).await,
+            Subcommands::Prune(cmd) => cmd.execute::<N>(runtime).await,
+            Subcommands::Unwind(cmd) => cmd.execute::<N>(runtime).await,
         }
     }
 }

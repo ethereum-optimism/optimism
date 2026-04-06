@@ -24,10 +24,15 @@ import (
 // =============================================================================
 
 // newMockChainWithL1 creates a mock chain with the specified L1 block for OptimisticAt
-func newMockChainWithL1(chainID eth.ChainID, l1Block eth.BlockID) *algoMockChain {
+func newMockChainWithL1(chainID eth.ChainID, l1Block eth.BlockID, blocks ...eth.BlockID) *algoMockChain {
+	hashes := make(map[uint64]common.Hash, len(blocks))
+	for _, b := range blocks {
+		hashes[b.Number] = b.Hash
+	}
 	return &algoMockChain{
 		id:           chainID,
 		optimisticL1: l1Block,
+		blockHashes:  hashes,
 	}
 }
 
@@ -485,7 +490,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 				interop := &Interop{
 					log:     gethlog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
-					chains:  map[eth.ChainID]cc.ChainContainer{chainID: newMockChainWithL1(chainID, l1Block)},
+					chains:  map[eth.ChainID]cc.ChainContainer{chainID: newMockChainWithL1(chainID, l1Block, expectedBlock)},
 				}
 
 				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
@@ -495,7 +500,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 				expectedBlock := eth.BlockID{Number: 100, Hash: common.HexToHash("0xExpected")}
 				require.False(t, result.IsValid())
 				require.Contains(t, result.InvalidHeads, chainID)
-				require.Equal(t, expectedBlock, result.InvalidHeads[chainID])
+				require.Equal(t, expectedBlock, result.InvalidHeads[chainID].BlockID)
 			},
 		},
 		{
@@ -534,7 +539,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						sourceChainID: newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
 					},
 				}
 
@@ -585,7 +590,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						sourceChainID: newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
 					},
 				}
 
@@ -629,7 +634,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						unknownSourceChain: newMockChainWithL1(unknownSourceChain, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:        newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						destChainID:        newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
 					},
 				}
 
@@ -682,7 +687,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						sourceChainID: newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
 					},
 				}
 
@@ -739,7 +744,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 						invalidChainID: invalidDB,
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
-						invalidChainID: newMockChainWithL1(invalidChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						invalidChainID: newMockChainWithL1(invalidChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, invalidBlock),
 						sourceChainID:  newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
 						validChainID:   newMockChainWithL1(validChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
 					},
@@ -889,6 +894,7 @@ type algoMockChain struct {
 	optimisticL2    eth.BlockID
 	optimisticL1    eth.BlockID
 	optimisticAtErr error
+	blockHashes     map[uint64]common.Hash
 }
 
 func (m *algoMockChain) ID() eth.ChainID                                  { return m.id }
@@ -917,7 +923,7 @@ func (m *algoMockChain) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockI
 func (m *algoMockChain) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }
-func (m *algoMockChain) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+func (m *algoMockChain) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	return nil, nil
 }
 func (m *algoMockChain) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
@@ -930,8 +936,18 @@ func (m *algoMockChain) RewindEngine(ctx context.Context, timestamp uint64, inva
 	return nil
 }
 func (m *algoMockChain) BlockTime() uint64 { return 1 }
-func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64) (bool, error) {
+func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	return false, nil
+}
+func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	out := &eth.OutputV0{}
+	if m.blockHashes != nil {
+		out.BlockHash = m.blockHashes[l2BlockNum]
+	}
+	return out, nil
+}
+func (m *algoMockChain) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
 }
 func (m *algoMockChain) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
 	return nil, nil

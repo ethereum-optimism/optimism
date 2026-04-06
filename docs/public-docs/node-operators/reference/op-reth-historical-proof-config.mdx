@@ -100,3 +100,58 @@ Unwind the proofs storage to a specific block
 ```bash
 op-reth proofs unwind --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> --target <TARGET_BLOCK>
 ```
+
+## RPC Endpoints
+
+### debug\_proofsSyncStatus
+
+Returns the current sync status of the proofs store.
+
+```
+debug_proofsSyncStatus → { "earliest": <block>, "latest": <block> }
+```
+
+Once `latest` tracks the chain tip, `eth_getProof` calls for blocks within `[earliest, latest]` will be served from the versioned store.
+
+## Metrics
+
+When the `metrics` feature is enabled, the proofs-history system exposes Prometheus metrics to monitor health and performance.
+
+### Block processing (`optimism_trie.block.*`)
+
+| Metric | Type | Description |
+| --- | --- | --- |
+| `total_duration_seconds` | Histogram | End-to-end time to process a block |
+| `execution_duration_seconds` | Histogram | Time spent in EVM execution |
+| `state_root_duration_seconds` | Histogram | Time spent calculating state root |
+| `write_duration_seconds` | Histogram | Time spent writing trie updates to storage |
+| `account_trie_updates_written_total` | Counter | Number of account trie branch nodes written |
+| `storage_trie_updates_written_total` | Counter | Number of storage trie branch nodes written |
+| `hashed_accounts_written_total` | Counter | Number of hashed account entries written |
+| `hashed_storages_written_total` | Counter | Number of hashed storage entries written |
+| `earliest_number` | Gauge | Earliest block number in the proofs store |
+| `latest_number` | Gauge | Latest block number in the proofs store |
+
+### Pruner (`optimism_trie.pruner.*`)
+
+| Metric | Type | Description |
+| --- | --- | --- |
+| `total_duration_seconds` | Histogram | Duration of each prune run |
+| `pruned_blocks` | Gauge | Number of blocks pruned in the last run |
+| `account_trie_updates_written` | Gauge | Account trie entries deleted in the last prune |
+| `storage_trie_updates_written` | Gauge | Storage trie entries deleted in the last prune |
+| `hashed_accounts_written` | Gauge | Hashed account entries deleted in the last prune |
+| `hashed_storages_written` | Gauge | Hashed storage entries deleted in the last prune |
+
+### RPC (`op_reth_rpc.*`)
+
+| Metric | Type | Description |
+| --- | --- | --- |
+| `get_proof_latency` | Histogram | Latency of successful `eth_getProof` requests |
+| `get_proof_requests` | Counter | Total `eth_getProof` requests received |
+| `get_proof_successful_responses` | Counter | Total successful `eth_getProof` responses |
+| `get_proof_failures` | Counter | Total failed `eth_getProof` requests |
+
+### Storage operations (`optimism_trie.storage.operation.*`)
+
+Per-operation `duration_seconds` histograms are recorded for: `store_account_branch`, `store_storage_branch`, `store_hashed_account`, `store_hashed_storage`, `trie_cursor_seek_exact`, `trie_cursor_seek`, `trie_cursor_next`, `trie_cursor_current`, `hashed_cursor_seek`, `hashed_cursor_next`.

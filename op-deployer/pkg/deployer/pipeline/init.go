@@ -44,10 +44,15 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			superchainConfigAddr = *intent.SuperchainConfigProxy
 		}
 
-		// The ReadSuperchainDeployment script (packages/contracts-bedrock/scripts/deploy/ReadSuperchainDeployment.s.sol)
-		// uses the OPCM's semver version (>= 7.0.0 indicates v2) to determine how to populate the superchain state:
-		// - OPCMv1 (< 7.0.0): Queries the OPCM contract to get SuperchainConfig and ProtocolVersions
-		// - OPCMv2 (>= 7.0.0): Uses the provided SuperchainConfigProxy address; ProtocolVersions is deprecated
+		// If only an OPCM address is provided, resolve SuperchainConfigProxy from it on-chain.
+		if superchainConfigAddr == (common.Address{}) && opcmAddr != (common.Address{}) {
+			opcmContract := opcm.NewContract(opcmAddr, env.L1Client)
+			resolved, err := opcmContract.SuperchainConfig(ctx)
+			if err != nil {
+				return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
+			}
+			superchainConfigAddr = resolved
+		}
 		superDeployment, superRoles, err := PopulateSuperchainState(env, opcmAddr, superchainConfigAddr)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
@@ -57,7 +62,8 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 		if hasPredeployedOPCM && st.ImplementationsDeployment == nil {
 			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-				OpcmImpl: opcmAddr,
+				OpcmImpl:   opcmAddr,
+				OpcmV2Impl: opcmAddr,
 			}
 		}
 	}

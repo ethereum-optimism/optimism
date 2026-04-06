@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,23 @@ type timedMessage struct {
 // - That Flashblock's time in nanoseconds must be before the approximated transaction confirmation time recorded previously.
 func TestFlashblocksTransfer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-30|22:44:52.250]
+	// assertions.go:387:             	Error Trace:	/op-devstack/sysgo/l2_cl_kona.go:99
+	// assertions.go:387:             	            				/op-devstack/sysgo/mixed_runtime.go:456
+	// assertions.go:387:             	            				/op-devstack/sysgo/singlechain_build.go:182
+	// assertions.go:387:             	            				/op-devstack/sysgo/singlechain_build.go:276
+	// assertions.go:387:             	            				/op-devstack/sysgo/singlechain_flashblocks.go:36
+	// assertions.go:387:             	            				/op-devstack/sysgo/singlechain_runtime.go:105
+	// assertions.go:387:             	            				/op-devstack/sysgo/singlechain_flashblocks.go:53
+	// assertions.go:387:             	            				/op-devstack/presets/flashblocks.go:43
+	// assertions.go:387:             	            				/op-acceptance-tests/tests/flashblocks/flashblocks_transfer_test.go:38
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	context deadline exceeded
+	// assertions.go:387:             	Test:       	TestFlashblocksTransfer
+	// assertions.go:387:             	Messages:   	need user RPC
+	sysgo.SkipOnKonaNode(t, "not supported (fail to get user rpc)")
 	logger := t.Logger()
 	tracer := t.Tracer()
 	ctx := t.Ctx()
