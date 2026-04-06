@@ -130,7 +130,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:spacer superRootsActive
     bool private spacer_63_20_1;
 
-    /// @notice Emitted when the Portal is migrated to be shared by
+    /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
     /// @param newLockbox The shared lockbox
     /// @param oldAnchorStateRegistry The anchorStateRegistry used before the migration
@@ -180,8 +180,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when the portal is paused.
     error OptimismPortal_CallPaused();
 
-    event ETHMigrated(address indexed lockbox, uint256 balance);
     /// @notice Migrates the total ETH balance to the ETHLockbox.
+    event ETHMigrated(address indexed lockbox, uint256 balance);
 
     /// @notice Thrown when a CGT withdrawal is not allowed.
     error OptimismPortal_NotAllowedOnCGTMode();
