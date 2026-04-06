@@ -15,6 +15,7 @@ import (
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opnodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
+	opsync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -132,9 +133,20 @@ func createVirtualNodeConfigs(cliCtx *cli.Context, cfg *config.CLIConfig, l log.
 		if err != nil {
 			return nil, fmt.Errorf("failed to create virtual node config: %w", err)
 		}
+		normalizeVirtualNodeSyncConfig(chainID, cfg, l)
 		vnCfgs[eth.ChainIDFromUInt64(chainID)] = cfg
 	}
 	return vnCfgs, nil
+}
+
+func normalizeVirtualNodeSyncConfig(chainID uint64, cfg *opnodecfg.Config, l log.Logger) {
+	if cfg.Sync.SyncMode == opsync.CLSync {
+		return
+	}
+
+	l.Warn("execution-layer sync is unsupported for supernode virtual nodes, forcing consensus-layer sync", "chain", chainID, "configured_syncmode", cfg.Sync.SyncMode.String())
+	cfg.Sync.SyncMode = opsync.CLSync
+	cfg.Sync.SkipSyncStartCheck = false
 }
 
 func withNoP2P(vcli *flags.VirtualCLI) error {
