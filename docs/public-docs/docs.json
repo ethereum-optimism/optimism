@@ -736,7 +736,7 @@
     },
     {
       "source": "/connect/contribute/docs-contribute",
-      "destination": "https://github.com/ethereum-optimism/docs/blob/main/CONTRIBUTING.md"
+      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/DOCS_CONTRIBUTING.md"
     },
     {
       "source": "/connect/contribute/stack-contribute",
@@ -744,11 +744,11 @@
     },
     {
       "source": "/connect/contribute/style-guide",
-      "destination": "https://github.com/ethereum-optimism/docs/blob/main/STYLE_GUIDE.md"
+      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md"
     },
     {
       "source": "/reference/contribute/style-guide",
-      "destination": "https://github.com/ethereum-optimism/docs/blob/main/STYLE_GUIDE.md"
+      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md"
     },
     {
       "source": "/connect/resources",
@@ -1792,7 +1792,7 @@
     },
     {
       "source": "/reference/contribute/docs-contribute",
-      "destination": "https://github.com/ethereum-optimism/docs/blob/main/CONTRIBUTING.md"
+      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/DOCS_CONTRIBUTING.md"
     },
     {
       "source": "/reference/glossary",
@@ -2755,7 +2755,7 @@
       },
       {
         "label": "GitHub",
-        "href": "https://github.com/ethereum-optimism/docs"
+        "href": "https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs"
       }
     ]
   }

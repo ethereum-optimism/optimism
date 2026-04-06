@@ -70,7 +70,7 @@ Follow these [docs](https://www.mintlify.com/docs/installation) for local change
 - Target the `mintlify` branch (`main` needs to be cleaned up)
 
 ### Submission Guidelines
-1. Create a [new pull request](https://github.com/ethereum-optimism/docs/issues/new/choose)
+1. Create a [new pull request](https://github.com/ethereum-optimism/optimism/issues/new/choose)
 2. Choose appropriate PR type or use blank template
 3. Provide clear title and accurate description
 4. Add labels
