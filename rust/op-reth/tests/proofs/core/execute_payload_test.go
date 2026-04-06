@@ -11,7 +11,7 @@ import (
 )
 
 func TestExecutePayloadSuccess(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
@@ -75,7 +75,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 }
 
 func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)

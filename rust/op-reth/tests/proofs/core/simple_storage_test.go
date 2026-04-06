@@ -12,7 +12,7 @@ import (
 )
 
 func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
@@ -61,7 +61,7 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 }
 
 func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := utils.NewMixedOpProofPreset(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
@@ -120,7 +120,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 }
 
 func TestTokenVaultStorageProofs(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := utils.NewMixedOpProofPreset(t)
 	// funder EOA that will deploy / interact

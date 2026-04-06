@@ -47,7 +47,7 @@ func newPostGenesisSupernodeInterop(t devtest.T) *presets.TwoL2SupernodeInterop 
 }
 
 func TestSupernodeInteropETHBridgeActivation(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newPostGenesisSupernodeInterop(t)
 
 	activationA := sys.L2A.AwaitActivation(t, forks.Interop)
@@ -60,7 +60,7 @@ func TestSupernodeInteropETHBridgeActivation(gt *testing.T) {
 }
 
 func TestSupernodeInteropETHBridgeRoundTrip(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := newPostGenesisSupernodeInterop(t)
 
 	sys.L2A.AwaitActivation(t, forks.Interop)

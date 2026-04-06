@@ -71,7 +71,7 @@ func SyncModeReqRespSyncOpts(syncMode sync.Mode) []presets.Option {
 }
 
 func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, advanceBlocks uint64, opts ...presets.Option) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
@@ -124,7 +124,7 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, advanc
 }
 
 func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, advanceBlocks uint64, opts ...presets.Option) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t, opts...)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)

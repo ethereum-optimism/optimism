@@ -17,7 +17,7 @@ import (
 func TestL2Reorg(gt *testing.T) {
 	gt.Skip("Skipping l2 reorg test because the L2 test sequencer is flaky")
 	const NUM_BLOCKS_TO_REORG = 5
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	out := node_utils.NewMixedOpKonaWithTestSequencer(t)
 	sequencerCL := out.L2CLSequencerNodes()[0]

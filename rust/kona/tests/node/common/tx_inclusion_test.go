@@ -9,7 +9,7 @@ import (
 )
 
 func TestL2TransactionInclusion(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	out := newCommonPreset(t)
 
 	originNode := out.L2ELSequencerNodes()[0]

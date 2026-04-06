@@ -17,7 +17,7 @@ import (
 // Check if the proof retrieved from geth and reth match for each account at each block height,
 // and verify the proofs against the respective block state roots.
 func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 	sys := utils.NewMixedOpProofPreset(t)
 
@@ -67,7 +67,7 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 // It verifies that the account proofs for both accounts can be retrieved and verified
 // against the same block's state root, and that the proofs from geth and reth match.
 func TestL2MultipleTransactionsInSingleBlock(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 	sys := utils.NewMixedOpProofPreset(t)
 

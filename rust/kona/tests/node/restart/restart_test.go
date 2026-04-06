@@ -16,7 +16,7 @@ import (
 
 // Ensure that kona-nodes reconnect to the sequencer and sync properly when the connection is dropped.
 func TestRestartSync(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	out := newRestartPreset(t)
 

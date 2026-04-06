@@ -18,7 +18,7 @@ import (
 )
 
 func TestReorgUsingAccountProof(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
 	sys := utils.NewMixedOpProofPreset(t)

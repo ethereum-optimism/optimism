@@ -58,7 +58,7 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 // for cross-safe reorgs - n must be at least >= safe distance, which is 10 in our test deployments
 // pre- and post-checks are sanity checks to ensure that the blocks we expected to be reorged were indeed reorged or not
 func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksFunc) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
 	sys := node_utils.NewMixedOpKonaWithTestSequencer(t)

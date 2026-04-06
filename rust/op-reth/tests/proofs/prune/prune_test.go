@@ -23,7 +23,7 @@ import (
 //
 // 3) Call validate checks for getProof and check everything is consistent for the new earliest block.
 func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
 	sys := utils.NewMixedOpProofPreset(t)

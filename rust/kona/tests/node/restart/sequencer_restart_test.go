@@ -12,7 +12,7 @@ import (
 )
 
 func TestSequencerRestart(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	out := newRestartPreset(t)
 

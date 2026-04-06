@@ -26,7 +26,7 @@ type ExecutionWitness struct {
 // This verifies that the execution witness can be retrieved for a block containing transactions
 // and that the response contains valid state, codes, keys, and headers data.
 func TestDebugExecutionWitness(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := utils.NewMixedOpProofPreset(t)
 	opRethELNode := sys.RethWithProofL2ELNode()
 

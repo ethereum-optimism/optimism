@@ -24,7 +24,7 @@ import (
 
 // Acceptance Test: https://github.com/ethereum-optimism/optimism/blob/develop/op-acceptance-tests/tests/interop/reorgs/init_exec_msg_test.go#L25
 func TestReorgInitExecMsg(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewSimpleInterop(t)

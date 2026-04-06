@@ -19,7 +19,7 @@ func TestInteropFaultProofs(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled(), presets.WithSuggestedInteropActivationOffset(365*24*60*60))
 	sfp.RunPreForkActivationTest(t, sys)
 }
@@ -31,13 +31,13 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunDepositMessageTest(t, sys)
 }
 
 func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	// TODO(#19828): endTimestamp may align with a no-op transition for the slower chain,
 	// causing kona to skip the L1 data sufficiency check.
 	t.MarkFlaky("ethereum-optimism/optimism#19828")
@@ -53,7 +53,7 @@ func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	// TODO(#19828): endTimestamp may align with a no-op transition for the slower chain,
 	// causing kona to skip the L1 data sufficiency check.
 	t.MarkFlaky("ethereum-optimism/optimism#19828")
@@ -69,7 +69,7 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
 }

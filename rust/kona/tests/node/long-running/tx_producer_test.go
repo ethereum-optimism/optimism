@@ -161,7 +161,7 @@ func (tr *TxReceiver) Start(wg *sync.WaitGroup) {
 // - transactions get included
 // - transactions get gossiped
 func TestTxProducer(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	out := newLongRunningPreset(t)
 

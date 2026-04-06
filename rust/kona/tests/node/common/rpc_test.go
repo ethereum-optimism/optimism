@@ -15,7 +15,7 @@ import (
 
 // Check that the node p2p RPC endpoints are working.
 func TestP2PPeers(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	out := newCommonPreset(t)
 
