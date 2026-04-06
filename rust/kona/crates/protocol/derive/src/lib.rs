@@ -43,7 +43,7 @@ mod traits;
 pub use traits::{
     AttributesBuilder, AttributesProvider, BatchValidationProviderDerive, BlobProvider,
     ChainProvider, DataAvailabilityProvider, L2ChainProvider, NextAttributes, OriginAdvancer,
-    OriginProvider, Pipeline, ResetProvider, SignalReceiver,
+    OriginProvider, Pipeline, ResetProvider, SignalReceiver, Stage,
 };
 
 mod types;

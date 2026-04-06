@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum/go-ethereum/log"
@@ -22,6 +23,23 @@ const maxExpectedFlashblocks = 20
 // TestFlashblocksStream checks we can connect to the flashblocks stream across multiple CL backends.
 func TestFlashblocksStream(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-30|22:44:52.250]
+	// assertions.go:387:             	Error Trace:	/home/circleci/project/op-devstack/sysgo/l2_cl_kona.go:99
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/mixed_runtime.go:456
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_build.go:182
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_build.go:276
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_flashblocks.go:36
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_runtime.go:105
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_flashblocks.go:53
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/presets/flashblocks.go:43
+	// assertions.go:387:             	            				/home/circleci/project/op-acceptance-tests/tests/flashblocks/flashblocks_stream_test.go:26
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	context deadline exceeded
+	// assertions.go:387:             	Test:       	TestFlashblocksStream
+	// assertions.go:387:             	Messages:   	need user RPC
+	sysgo.SkipOnKonaNode(t, "not supported (fail to get user rpc)")
 	logger := t.Logger()
 	sys := presets.NewSingleChainWithFlashblocks(t)
 	filterHandler, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())

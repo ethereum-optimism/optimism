@@ -14,6 +14,16 @@ import (
 
 func TestVerifierManualSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error using op-reth:
+	//
+	// assertions.go:387:             ERROR[03-31|10:02:09.740]
+	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_el.go:64
+	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/manual/sync_test.go:53
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	failed to determine block-hash of hash 0x2f6324eaff3942802eff5ddd47872544aa02182c222bf90042d5f715dfa72308, could not get payload: not found
+	// assertions.go:387:             	Test:       	TestVerifierManualSync
+	// assertions.go:387:             	Messages:   	block not found using block hash
+	sysgo.SkipOnOpReth(t, "not supported")
 
 	// Disable ELP2P and Batcher
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t,

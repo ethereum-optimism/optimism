@@ -46,6 +46,19 @@ where
         }
     }
 
+    /// Sends an [`HintType::L2Transactions`] hint for the given block, instructing the host to
+    /// pre-fetch the transaction trie nodes into the preimage oracle's key-value store.
+    pub async fn hint_transactions(
+        &self,
+        chain_id: u64,
+        block_hash: B256,
+    ) -> Result<(), <Self as InteropProvider>::Error> {
+        HintType::L2Transactions
+            .with_data(&[block_hash.as_slice(), chain_id.to_be_bytes().as_ref()])
+            .send(self.oracle.as_ref())
+            .await
+    }
+
     /// Returns a reference to the local safe heads map.
     pub const fn local_safe_heads(&self) -> &HashMap<u64, Sealed<Header>> {
         &self.local_safe_heads

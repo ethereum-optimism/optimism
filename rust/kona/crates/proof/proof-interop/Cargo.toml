@@ -70,4 +70,5 @@ arbitrary = [
 	"op-alloy-consensus/arbitrary",
 	"op-alloy-rpc-types-engine/arbitrary",
 	"revm/arbitrary",
+	"alloy-op-evm/arbitrary",
 ]

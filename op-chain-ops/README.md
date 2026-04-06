@@ -30,7 +30,6 @@ Utils:
 cmd/
 ├── check-canyon                  - Checks for Canyon network upgrade
 ├── check-delta                   - Checks for Delta network upgrade
-├── check-deploy-config           - Checks of the (legacy) Deploy Config
 ├── check-derivation              - Check that transactions can be confirmed and safety can be consolidated
 ├── check-ecotone                 - Checks for Ecotone network upgrade
 ├── check-fjord                   - Checks for Fjord network upgrade

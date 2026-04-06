@@ -20,3 +20,6 @@ pub use transaction::{OpTransactionFields, OpTransactionRequest, Transaction};
 
 pub mod error;
 pub use error::SuperchainDAError;
+
+#[cfg(feature = "reth")]
+mod reth_compat;

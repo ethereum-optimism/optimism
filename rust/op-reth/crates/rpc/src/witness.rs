@@ -16,7 +16,7 @@ use reth_storage_api::{
     BlockReaderIdExt, NodePrimitivesProvider, StateProviderFactory,
     errors::{ProviderError, ProviderResult},
 };
-use reth_tasks::TaskSpawner;
+use reth_tasks::Runtime;
 use reth_transaction_pool::TransactionPool;
 use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{Semaphore, oneshot};
@@ -30,7 +30,7 @@ impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConf
     /// Creates a new instance of the `OpDebugWitnessApi`.
     pub fn new(
         provider: Provider,
-        task_spawner: Box<dyn TaskSpawner>,
+        task_spawner: Runtime,
         builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
     ) -> Self {
         let semaphore = Arc::new(Semaphore::new(3));
@@ -74,7 +74,7 @@ where
             Primitives = Provider::Primitives,
             NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
         > + 'static,
-    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>>,
+    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
 {
     async fn execute_payload(
         &self,
@@ -87,10 +87,10 @@ where
 
         let (tx, rx) = oneshot::channel();
         let this = self.clone();
-        self.inner.task_spawner.spawn_blocking_task(Box::pin(async move {
+        self.inner.task_spawner.spawn_blocking_task(async move {
             let res = this.inner.builder.payload_witness(parent_header, attributes);
             let _ = tx.send(res);
-        }));
+        });
 
         rx.await
             .map_err(|err| internal_rpc_err(err.to_string()))?
@@ -116,6 +116,6 @@ impl<Pool, Provider, EvmConfig, Attrs> Debug
 struct OpDebugWitnessApiInner<Pool, Provider, EvmConfig, Attrs> {
     provider: Provider,
     builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
-    task_spawner: Box<dyn TaskSpawner>,
+    task_spawner: Runtime,
     semaphore: Arc<Semaphore>,
 }

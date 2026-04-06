@@ -288,15 +288,48 @@ func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Ad
 	return u.SendInitMessage(trigger)
 }
 
-func (u *EOA) SendExecMessage(initMsg *InitMessage) *ExecMessage {
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
+// ExecMessageOpt configures the behavior of SendExecMessage.
+type ExecMessageOpt func(*execMessageConfig)
+
+type execMessageConfig struct {
+	txOpts       []txplan.Option
+	expectRevert bool
+}
+
+// WithFixedGasLimit sets a fixed gas limit, bypassing eth_estimateGas.
+// Use when the transaction is expected to revert (estimation would fail).
+func WithFixedGasLimit(limit uint64) ExecMessageOpt {
+	return func(c *execMessageConfig) {
+		c.txOpts = append(c.txOpts, txplan.WithGasLimit(limit))
+	}
+}
+
+// WithExpectRevert indicates the transaction should be included but revert.
+// The receipt status is asserted to be failed, and the log-count check is skipped.
+func WithExpectRevert() ExecMessageOpt {
+	return func(c *execMessageConfig) {
+		c.expectRevert = true
+	}
+}
+
+func (u *EOA) SendExecMessage(initMsg *InitMessage, opts ...ExecMessageOpt) *ExecMessage {
+	var cfg execMessageConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	planOpts := append([]txplan.Option{u.Plan()}, cfg.txOpts...)
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](txplan.Combine(planOpts...))
 	tx.Content.DependOn(&initMsg.Tx.Result)
 	tx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "exec msg receipt not found")
-	u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
-	// Check single ExecutingMessage triggered
-	u.t.Require().Equal(1, len(receipt.Logs))
+	if cfg.expectRevert {
+		u.t.Require().Equal(types.ReceiptStatusFailed, receipt.Status, "exec tx should revert")
+	} else {
+		u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
+		// Check single ExecutingMessage triggered
+		u.t.Require().Equal(1, len(receipt.Logs))
+	}
 	return &ExecMessage{
 		Init:    initMsg,
 		Tx:      tx,

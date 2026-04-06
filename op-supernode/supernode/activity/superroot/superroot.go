@@ -103,6 +103,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 		optimistic[chainID] = eth.OutputWithRequiredL1{
 			Output:     optimisticOut,
+			OutputRoot: eth.OutputRoot(optimisticOut),
 			RequiredL1: optimisticL1,
 		}
 	}

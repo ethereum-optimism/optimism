@@ -46,7 +46,7 @@ use reth_rpc_eth_types::{
 };
 use reth_storage_api::ProviderHeader;
 use reth_tasks::{
-    TaskSpawner,
+    Runtime,
     pool::{BlockingTaskGuard, BlockingTaskPool},
 };
 use std::{
@@ -304,7 +304,7 @@ where
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
     #[inline]
-    fn io_task_spawner(&self) -> impl TaskSpawner {
+    fn io_task_spawner(&self) -> &Runtime {
         self.inner.eth_api.task_spawner()
     }
 
@@ -434,6 +434,9 @@ pub type OpRpcConvert<N, NetworkT> = RpcConverter<
     OpReceiptConverter<<N as FullNodeTypes>::Provider>,
     (),
     OpTxInfoMapper<<N as FullNodeTypes>::Provider>,
+    (),
+    (),
+    reth_optimism_evm::tx::OpTxEnvConverter,
 >;
 
 /// Builds [`OpEthApi`] for Optimism.
@@ -554,7 +557,8 @@ where
         } = self;
         let rpc_converter =
             RpcConverter::new(OpReceiptConverter::new(ctx.components.provider().clone()))
-                .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()));
+                .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()))
+                .with_tx_env_converter(reth_optimism_evm::tx::OpTxEnvConverter);
 
         let sequencer_client = if let Some(url) = sequencer_url {
             Some(

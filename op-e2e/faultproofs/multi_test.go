@@ -25,9 +25,9 @@ func TestMultipleGameTypes(t *testing.T) {
 	latestClaim1 := game1.DisputeLastBlock(ctx)
 	latestClaim2 := game2.DisputeLastBlock(ctx)
 
-	// Start a challenger with both cannon and alphabet support
+	// Start a challenger with both cannon-kona and alphabet support
 	gameFactory.StartChallenger(ctx, "TowerDefense",
-		challenger.WithCannon(t, sys),
+		challenger.WithCannonKona(t, sys),
 		challenger.WithAlphabet(),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 	)

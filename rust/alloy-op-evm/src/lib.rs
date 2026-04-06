@@ -39,6 +39,9 @@ use revm::{
     interpreter::{InterpreterResult, interpreter::EthInterpreter},
 };
 
+pub mod tx;
+pub use tx::OpTx;
+
 pub mod block;
 pub use block::{OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory};
 
@@ -49,11 +52,9 @@ pub use block::{OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory};
 /// [`OpEvm`](op_revm::OpEvm) type.
 ///
 /// The `Tx` type parameter controls the transaction environment type. By default it uses
-/// [`OpTransaction<TxEnv>`] directly, but consumers can provide a newtype wrapper to
-/// satisfy additional trait bounds (e.g. `FromRecoveredTx`,
-/// `TransactionEnv`).
+/// [`OpTx`] which wraps [`OpTransaction<TxEnv>`] and implements the necessary foreign traits.
 #[allow(missing_debug_implementations)] // missing revm::OpContext Debug impl
-pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTransaction<TxEnv>> {
+pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx> {
     inner: op_revm::OpEvm<OpContext<DB>, I, EthInstructions<EthInterpreter, OpContext<DB>>, P>,
     inspect: bool,
     _tx: PhantomData<Tx>,
@@ -183,10 +184,10 @@ where
 /// Factory producing [`OpEvm`]s.
 ///
 /// The `Tx` type parameter controls the transaction type used by the created EVMs.
-/// By default it uses [`OpTransaction<TxEnv>`] directly, but consumers can specify a newtype
-/// wrapper to satisfy additional trait bounds.
+/// By default it uses [`OpTx`] which wraps [`OpTransaction<TxEnv>`] and implements
+/// the necessary foreign traits.
 #[derive(Debug)]
-pub struct OpEvmFactory<Tx = OpTransaction<TxEnv>>(PhantomData<Tx>);
+pub struct OpEvmFactory<Tx = OpTx>(PhantomData<Tx>);
 
 impl<Tx> Clone for OpEvmFactory<Tx> {
     fn clone(&self) -> Self {
@@ -272,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_precompiles_jovian_fail() {
-        let mut evm = OpEvmFactory::<OpTransaction<TxEnv>>::default().create_evm(
+        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
             EmptyDB::default(),
             EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::JOVIAN), BlockEnv::default()),
         );
@@ -342,7 +343,7 @@ mod tests {
 
     #[test]
     fn test_precompiles_jovian() {
-        let mut evm = OpEvmFactory::<OpTransaction<TxEnv>>::default().create_evm(
+        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
             EmptyDB::default(),
             EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::JOVIAN), BlockEnv::default()),
         );

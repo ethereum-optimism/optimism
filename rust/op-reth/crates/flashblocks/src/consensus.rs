@@ -4,7 +4,7 @@ use alloy_rpc_types_engine::PayloadStatusEnum;
 use op_alloy_rpc_types_engine::OpExecutionData;
 use reth_engine_primitives::ConsensusEngineHandle;
 use reth_optimism_payload_builder::OpPayloadTypes;
-use reth_payload_primitives::{EngineApiMessageVersion, ExecutionPayload, PayloadTypes};
+use reth_payload_primitives::{ExecutionPayload, PayloadTypes};
 use tracing::*;
 
 /// Consensus client that sends FCUs and new payloads using blocks from a [`FlashBlockService`].
@@ -104,11 +104,7 @@ where
             finalized_block_hash: finalized_hash,
         };
 
-        match self
-            .engine_handle
-            .fork_choice_updated(fcu_state, None, EngineApiMessageVersion::V5)
-            .await
-        {
+        match self.engine_handle.fork_choice_updated(fcu_state, None).await {
             Ok(result) => {
                 debug!(
                     target: "flashblocks",
@@ -177,6 +173,14 @@ impl TryFrom<&FlashBlockCompleteSequence> for OpExecutionData {
         }
 
         Ok(data)
+    }
+}
+
+impl TryFrom<&FlashBlockCompleteSequence> for reth_optimism_payload_builder::OpExecData {
+    type Error = &'static str;
+
+    fn try_from(sequence: &FlashBlockCompleteSequence) -> Result<Self, Self::Error> {
+        OpExecutionData::try_from(sequence).map(Into::into)
     }
 }
 

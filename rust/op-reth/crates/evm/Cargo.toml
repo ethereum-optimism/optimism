@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 # Reth
 reth-chainspec.workspace = true
-reth-evm = { workspace = true, features = ["op"] }
+reth-evm.workspace = true
 reth-primitives-traits.workspace = true
 reth-execution-errors.workspace = true
 reth-execution-types.workspace = true

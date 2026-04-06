@@ -6,7 +6,7 @@ use alloy_consensus::{
 use alloy_eips::{Typed2718, eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{Address, B256, Bytes, ChainId, Signature, TxKind, U256};
 use alloy_rlp::{BufMut, Decodable, Encodable};
-use reth_ethereum::primitives::{InMemorySize, serde_bincode_compat::RlpBincode};
+use reth_primitives_traits::InMemorySize;
 
 /// A transaction with a priority fee ([EIP-1559](https://eips.ethereum.org/EIPS/eip-1559)).
 #[derive(
@@ -276,5 +276,3 @@ impl InMemorySize for TxPayment {
         TxPayment::size(self)
     }
 }
-
-impl RlpBincode for TxPayment {}

@@ -17,7 +17,8 @@ use reth_db::{
 };
 use reth_primitives_traits::{Account, StorageEntry};
 use reth_trie_common::{
-    BranchNodeCompact, Nibbles, StorageTrieEntry, StoredNibbles, StoredNibblesSubKey,
+    BranchNodeCompact, Nibbles, PackedStoredNibbles, StorageTrieEntry, StoredNibbles,
+    StoredNibblesSubKey,
 };
 use std::time::Instant;
 use tracing::{debug, info};
@@ -96,8 +97,8 @@ define_simple_cursor_iter!(HashedAccountsInit, tables::HashedAccounts, B256, Acc
 define_dup_cursor_iter!(HashedStoragesInit, tables::HashedStorages, B256, StorageEntry);
 define_simple_cursor_iter!(
     AccountsTrieInit,
-    tables::AccountsTrie,
-    StoredNibbles,
+    tables::PackedAccountsTrie,
+    PackedStoredNibbles,
     BranchNodeCompact
 );
 define_dup_cursor_iter!(StoragesTrieInit, tables::StoragesTrie, B256, StorageTrieEntry);
@@ -120,7 +121,7 @@ impl CompletionEstimatable for B256 {
     }
 }
 
-impl CompletionEstimatable for StoredNibbles {
+impl CompletionEstimatable for PackedStoredNibbles {
     fn estimate_progress(&self) -> f64 {
         // use the first 6 nibbles as a progress estimate
         let progress_nibbles =
@@ -266,12 +267,13 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
         &self,
         start_key: Option<StoredNibbles>,
     ) -> Result<(), OpProofsStorageError> {
-        let mut start_cursor = self.tx.cursor_read::<tables::AccountsTrie>()?;
+        let mut start_cursor = self.tx.cursor_read::<tables::PackedAccountsTrie>()?;
 
         if let Some(latest_key) = start_key {
+            let packed_key = PackedStoredNibbles::from(latest_key);
             start_cursor
-                .seek(latest_key.clone())?
-                .filter(|(k, _)| *k == latest_key)
+                .seek(packed_key.clone())?
+                .filter(|(k, _)| *k == packed_key)
                 .ok_or(OpProofsStorageError::InitializeStorageInconsistentState)?;
         }
 
@@ -440,7 +442,7 @@ impl<C> InitTable for HashedStoragesInit<C> {
 }
 
 impl<C> InitTable for AccountsTrieInit<C> {
-    type Key = StoredNibbles;
+    type Key = PackedStoredNibbles;
     type Value = BranchNodeCompact;
 
     /// Save mapping of account trie paths to branch nodes to storage.
@@ -650,13 +652,13 @@ mod tests {
 
         // Insert test trie nodes into database
         let tx = db.tx_mut().unwrap();
-        let mut cursor = tx.cursor_write::<tables::AccountsTrie>().unwrap();
+        let mut cursor = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
 
         let branch = create_test_branch_node();
         let nodes = vec![
-            (StoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])), branch.clone()),
-            (StoredNibbles(Nibbles::from_nibbles_unchecked(vec![2])), branch.clone()),
-            (StoredNibbles(Nibbles::from_nibbles_unchecked(vec![3])), branch),
+            (PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])), branch.clone()),
+            (PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![2])), branch.clone()),
+            (PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![3])), branch),
         ];
 
         for (path, node) in &nodes {
@@ -777,10 +779,10 @@ mod tests {
         drop(cursor);
 
         // Add account trie
-        let mut cursor = tx.cursor_write::<tables::AccountsTrie>().unwrap();
+        let mut cursor = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
         cursor
             .append(
-                StoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])),
+                PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])),
                 &create_test_branch_node(),
             )
             .unwrap();
@@ -1042,15 +1044,15 @@ mod tests {
 
         store.set_initial_state_anchor(BlockNumHash::new(0, B256::default())).expect("set anchor");
 
-        let p1 = StoredNibbles(Nibbles::from_nibbles_unchecked(vec![1]));
-        let p2 = StoredNibbles(Nibbles::from_nibbles_unchecked(vec![2]));
-        let p3 = StoredNibbles(Nibbles::from_nibbles_unchecked(vec![3]));
-        let p4 = StoredNibbles(Nibbles::from_nibbles_unchecked(vec![4]));
+        let p1 = PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![1]));
+        let p2 = PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![2]));
+        let p3 = PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![3]));
+        let p4 = PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![4]));
 
         // Phase 1 source: p1,p2
         {
             let tx = db.tx_mut().unwrap();
-            let mut cur = tx.cursor_write::<tables::AccountsTrie>().unwrap();
+            let mut cur = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
             cur.append(p1.clone(), &create_test_branch_node()).unwrap();
             cur.append(p2.clone(), &create_test_branch_node()).unwrap();
             tx.commit().unwrap();
@@ -1065,13 +1067,13 @@ mod tests {
 
         assert_eq!(
             store.initial_state_anchor().expect("get anchor").latest_account_trie_key,
-            Some(p2.clone())
+            Some(StoredNibbles::from(p2.clone()))
         );
 
         // Phase 2 source: p3,p4
         {
             let tx = db.tx_mut().unwrap();
-            let mut cur = tx.cursor_write::<tables::AccountsTrie>().unwrap();
+            let mut cur = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
             cur.append(p3.clone(), &create_test_branch_node()).unwrap();
             cur.append(p4.clone(), &create_test_branch_node()).unwrap();
             tx.commit().unwrap();
@@ -1081,12 +1083,12 @@ mod tests {
         {
             let tx = db.tx().unwrap();
             let job = InitializationJob::new(store.clone(), tx);
-            job.initialize_accounts_trie(Some(p2.clone())).unwrap();
+            job.initialize_accounts_trie(Some(StoredNibbles::from(p2.clone()))).unwrap();
         }
 
         assert_eq!(
             store.initial_state_anchor().expect("get anchor").latest_account_trie_key,
-            Some(p4.clone())
+            Some(StoredNibbles::from(p4.clone()))
         );
 
         // Verify 4 ordered, no dupes

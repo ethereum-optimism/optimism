@@ -43,7 +43,8 @@ pub(crate) fn execute_native_precompile<T: Into<Bytes>>(
     input: T,
     gas: u64,
 ) -> PrecompileResult {
-    let precompiles = revm::handler::EthPrecompiles::default();
+    let precompiles =
+        revm::handler::EthPrecompiles::new(revm::primitives::hardfork::SpecId::PRAGUE);
     let Some(precompile) = precompiles.precompiles.get(&address) else {
         panic!("Precompile not found");
     };

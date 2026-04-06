@@ -139,6 +139,9 @@ fn evm_env_for_op(
         basefee: input.base_fee_per_gas,
         // EIP-4844 excess blob gas of this block, introduced in Cancun
         blob_excess_gas_and_price,
+        // EIP-7843 slot number. Not yet used in the OP Stack.
+        // TODO(optimism#19853): populate from block header once EIP-7843 is enabled.
+        slot_num: 0,
     };
 
     EvmEnv::new(cfg_env, block_env)
