@@ -475,6 +475,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
     }
 
+    /// @notice Migrates the total ETH balance of this contract to the ETHLockbox.
     function migrateLiquidity() public {
         if (!_isUsingInterop()) revert OptimismPortal_NotUsingInterop();
         // Liquidity migration can only be triggered by the ProxyAdmin owner.
@@ -737,9 +738,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function _isUsingInterop() internal view returns (bool) {
         return systemConfig.isFeatureEnabled(Features.INTEROP);
     }
+
     /// @notice Checks if the Custom Gas Token feature is enabled.
     /// @return bool True if the Custom Gas Token feature is enabled.
-
     function _isUsingCustomGasToken() internal view returns (bool) {
         // NOTE: Chains are not supposed to enable Custom Gas Token (CGT) mode after initial deployment.
         //       Enabling CGT post-deployment is strongly discouraged and may lead to unexpected behavior.

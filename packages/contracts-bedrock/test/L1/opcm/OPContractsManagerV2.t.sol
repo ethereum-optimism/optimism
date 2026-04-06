@@ -2040,14 +2040,14 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertTrue(newLockbox.authorizedPortals(portal1), "ETHLockbox does not have portal 1 authorized");
         assertTrue(newLockbox.authorizedPortals(portal2), "ETHLockbox does not have portal 2 authorized");
 
-        // Check that the ETH_LOCKBOX feature is enabled on both SystemConfigs.
+        // Check that the INTEROP feature is enabled on both SystemConfigs.
         assertTrue(
             chainContracts1.systemConfig.isFeatureEnabled(Features.INTEROP),
-            "Chain 1 ETH_LOCKBOX feature should be enabled"
+            "Chain 1 INTEROP feature should be enabled"
         );
         assertTrue(
             chainContracts2.systemConfig.isFeatureEnabled(Features.INTEROP),
-            "Chain 2 ETH_LOCKBOX feature should be enabled"
+            "Chain 2 INTEROP feature should be enabled"
         );
         // Check that the ETH_LOCKBOX feature is enabled on both SystemConfigs.
         assertTrue(

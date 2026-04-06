@@ -370,7 +370,6 @@ contract DeployImplementations is Script {
         _output.optimismPortalImpl = impl;
     }
 
-
     /// TODO(#19709) remove this file and migrate fully to the OptimismPortal2
     function deployOptimismPortalInteropImpl(Input memory _input, Output memory _output) private {
         uint256 proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
