@@ -20,7 +20,9 @@ use core::{
     mem,
     ops::Deref,
 };
-use op_alloy_consensus::{OpPooledTransaction, OpTxEnvelope, OpTypedTransaction, TxDeposit};
+use op_alloy_consensus::{
+    OpPooledTransaction, OpTxEnvelope, OpTypedTransaction, TxDeposit, TxPostExec,
+};
 #[cfg(any(test, feature = "reth-codec"))]
 use reth_primitives_traits::{
     InMemorySize, SignedTransaction,
@@ -64,6 +66,7 @@ impl OpTransactionSigned {
             OpTypedTransaction::Eip1559(tx) => &mut tx.input,
             OpTypedTransaction::Eip7702(tx) => &mut tx.input,
             OpTypedTransaction::Deposit(tx) => &mut tx.input,
+            OpTypedTransaction::PostExec(tx) => &mut tx.input,
         }
     }
 
@@ -107,8 +110,10 @@ impl SignerRecoverable for OpTransactionSigned {
     fn recover_signer(&self) -> Result<Address, RecoveryError> {
         // Optimism's Deposit transaction does not have a signature. Directly return the
         // `from` address.
-        if let OpTypedTransaction::Deposit(TxDeposit { from, .. }) = self.transaction {
-            return Ok(from);
+        match self.transaction {
+            OpTypedTransaction::Deposit(TxDeposit { from, .. }) => return Ok(from),
+            OpTypedTransaction::PostExec(_) => return Ok(Address::ZERO),
+            _ => {}
         }
 
         let Self { transaction, signature, .. } = self;
@@ -119,8 +124,10 @@ impl SignerRecoverable for OpTransactionSigned {
     fn recover_signer_unchecked(&self) -> Result<Address, RecoveryError> {
         // Optimism's Deposit transaction does not have a signature. Directly return the
         // `from` address.
-        if let OpTypedTransaction::Deposit(TxDeposit { from, .. }) = &self.transaction {
-            return Ok(*from);
+        match &self.transaction {
+            OpTypedTransaction::Deposit(TxDeposit { from, .. }) => return Ok(*from),
+            OpTypedTransaction::PostExec(_) => return Ok(Address::ZERO),
+            _ => {}
         }
 
         let Self { transaction, signature, .. } = self;
@@ -133,6 +140,7 @@ impl SignerRecoverable for OpTransactionSigned {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             OpTypedTransaction::Deposit(tx) => return Ok(tx.from),
+            OpTypedTransaction::PostExec(_) => return Ok(Address::ZERO),
             OpTypedTransaction::Legacy(tx) => tx.encode_for_signing(buf),
             OpTypedTransaction::Eip2930(tx) => tx.encode_for_signing(buf),
             OpTypedTransaction::Eip1559(tx) => tx.encode_for_signing(buf),
@@ -177,6 +185,7 @@ impl From<OpTxEnvelope> for OpTransactionSigned {
             OpTxEnvelope::Eip1559(tx) => tx.into(),
             OpTxEnvelope::Eip7702(tx) => tx.into(),
             OpTxEnvelope::Deposit(tx) => tx.into(),
+            OpTxEnvelope::PostExec(tx) => tx.into(),
         }
     }
 }
@@ -185,6 +194,17 @@ impl From<Sealed<TxDeposit>> for OpTransactionSigned {
     fn from(value: Sealed<TxDeposit>) -> Self {
         let (tx, hash) = value.into_parts();
         Self::new(OpTypedTransaction::Deposit(tx), TxDeposit::signature(), hash)
+    }
+}
+
+impl From<Sealed<TxPostExec>> for OpTransactionSigned {
+    fn from(value: Sealed<TxPostExec>) -> Self {
+        let (tx, hash) = value.into_parts();
+        Self::new(
+            OpTypedTransaction::PostExec(tx),
+            Signature::new(Default::default(), Default::default(), false),
+            hash,
+        )
     }
 }
 
@@ -197,6 +217,7 @@ impl From<OpTransactionSigned> for OpTxEnvelope {
             OpTypedTransaction::Eip1559(tx) => Signed::new_unchecked(tx, signature, hash).into(),
             OpTypedTransaction::Deposit(tx) => Sealed::new_unchecked(tx, hash).into(),
             OpTypedTransaction::Eip7702(tx) => Signed::new_unchecked(tx, signature, hash).into(),
+            OpTypedTransaction::PostExec(tx) => Sealed::new_unchecked(tx, hash).into(),
         }
     }
 }
@@ -249,6 +270,7 @@ impl Encodable2718 for OpTransactionSigned {
                 set_code_tx.eip2718_encoded_length(&self.signature)
             }
             OpTypedTransaction::Deposit(deposit_tx) => deposit_tx.eip2718_encoded_length(),
+            OpTypedTransaction::PostExec(post_exec_tx) => post_exec_tx.eip2718_encoded_length(),
         }
     }
 
@@ -268,6 +290,7 @@ impl Encodable2718 for OpTransactionSigned {
             }
             OpTypedTransaction::Eip7702(set_code_tx) => set_code_tx.eip2718_encode(signature, out),
             OpTypedTransaction::Deposit(deposit_tx) => deposit_tx.encode_2718(out),
+            OpTypedTransaction::PostExec(post_exec_tx) => post_exec_tx.encode_2718(out),
         }
     }
 }
@@ -297,6 +320,10 @@ impl Decodable2718 for OpTransactionSigned {
             op_alloy_consensus::OpTxType::Deposit => Ok(Self::new_unhashed(
                 OpTypedTransaction::Deposit(TxDeposit::rlp_decode(buf)?),
                 TxDeposit::signature(),
+            )),
+            op_alloy_consensus::OpTxType::PostExec => Ok(Self::new_unhashed(
+                OpTypedTransaction::PostExec(TxPostExec::decode_2718(buf)?),
+                Signature::new(Default::default(), Default::default(), false),
             )),
         }
     }
@@ -391,7 +418,18 @@ impl Typed2718 for OpTransactionSigned {
 
 impl PartialEq for OpTransactionSigned {
     fn eq(&self, other: &Self) -> bool {
-        self.signature == other.signature &&
+        let self_signature = match &self.transaction {
+            OpTypedTransaction::Deposit(_) => TxDeposit::signature(),
+            OpTypedTransaction::PostExec(_) => TxPostExec::signature(),
+            _ => self.signature,
+        };
+        let other_signature = match &other.transaction {
+            OpTypedTransaction::Deposit(_) => TxDeposit::signature(),
+            OpTypedTransaction::PostExec(_) => TxPostExec::signature(),
+            _ => other.signature,
+        };
+
+        self_signature == other_signature &&
             self.transaction == other.transaction &&
             self.tx_hash() == other.tx_hash()
     }
@@ -399,7 +437,11 @@ impl PartialEq for OpTransactionSigned {
 
 impl Hash for OpTransactionSigned {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.signature.hash(state);
+        match &self.transaction {
+            OpTypedTransaction::Deposit(_) => TxDeposit::signature().hash(state),
+            OpTypedTransaction::PostExec(_) => TxPostExec::signature().hash(state),
+            _ => self.signature.hash(state),
+        }
         self.transaction.hash(state);
     }
 }
@@ -416,7 +458,11 @@ impl reth_codecs::Compact for OpTransactionSigned {
         // The first byte uses 4 bits as flags: IsCompressed[1bit], TxType[2bits], Signature[1bit]
         buf.put_u8(0);
 
-        let sig_bit = self.signature.to_compact(buf) as u8;
+        let sig_bit = match &self.transaction {
+            OpTypedTransaction::Deposit(_) => TxDeposit::signature().to_compact(buf) as u8,
+            OpTypedTransaction::PostExec(_) => TxPostExec::signature().to_compact(buf) as u8,
+            _ => self.signature.to_compact(buf) as u8,
+        };
         let zstd_bit = self.transaction.input().len() >= 32;
 
         let tx_bits = if zstd_bit {
@@ -478,7 +524,11 @@ impl<'a> arbitrary::Arbitrary<'a> for OpTransactionSigned {
         )
         .unwrap();
 
-        let signature = if transaction.is_deposit() { TxDeposit::signature() } else { signature };
+        let signature = match &transaction {
+            OpTypedTransaction::Deposit(_) => TxDeposit::signature(),
+            OpTypedTransaction::PostExec(_) => TxPostExec::signature(),
+            _ => signature,
+        };
 
         Ok(Self::new_unhashed(transaction, signature))
     }
@@ -491,7 +541,7 @@ fn signature_hash(tx: &OpTypedTransaction) -> B256 {
         OpTypedTransaction::Eip2930(tx) => tx.signature_hash(),
         OpTypedTransaction::Eip1559(tx) => tx.signature_hash(),
         OpTypedTransaction::Eip7702(tx) => tx.signature_hash(),
-        OpTypedTransaction::Deposit(_) => B256::ZERO,
+        OpTypedTransaction::Deposit(_) | OpTypedTransaction::PostExec(_) => B256::ZERO,
     }
 }
 
@@ -501,6 +551,22 @@ mod tests {
     use proptest::proptest;
     use proptest_arbitrary_interop::arb;
     use reth_codecs::Compact;
+
+    fn make_input_large_enough_for_zstd(tx: &mut OpTransactionSigned) {
+        match &mut tx.transaction {
+            OpTypedTransaction::PostExec(post_exec) => {
+                *post_exec = TxPostExec::new(op_alloy_consensus::PostExecPayload {
+                    version: 1,
+                    block_number: 1,
+                    gas_refund_entries: (0..16)
+                        .map(|index| op_alloy_consensus::SDMGasEntry { index, gas_refund: 1 })
+                        .collect(),
+                });
+                assert!(post_exec.input.len() >= 33);
+            }
+            _ => *tx.input_mut() = vec![0; 33].into(),
+        }
+    }
 
     proptest! {
         #[test]
@@ -519,7 +585,7 @@ mod tests {
         #[test]
         fn test_roundtrip_compact_decode_envelope_zstd(mut reth_tx in arb::<OpTransactionSigned>()) {
                  // zstd only kicks in if the input is large enough
-            *reth_tx.input_mut() = vec![0;33].into();
+            make_input_large_enough_for_zstd(&mut reth_tx);
             let mut buf = Vec::<u8>::new();
             let len = reth_tx.to_compact(&mut buf);
 
@@ -532,7 +598,7 @@ mod tests {
         #[test]
         fn test_roundtrip_compact_encode_envelope_zstd(mut reth_tx in arb::<OpTransactionSigned>()) {
                  // zstd only kicks in if the input is large enough
-            *reth_tx.input_mut() = vec![0;33].into();
+            make_input_large_enough_for_zstd(&mut reth_tx);
             let mut expected_buf = Vec::<u8>::new();
             let expected_len = reth_tx.to_compact(&mut expected_buf);
 
