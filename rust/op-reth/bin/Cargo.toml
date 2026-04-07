@@ -26,6 +26,7 @@ clap = { workspace = true, features = ["derive", "env"] }
 tracing.workspace = true
 tracing-test = "0.2.6"
 eyre.workspace = true
+rayon.workspace = true
 
 [lints]
 workspace = true

@@ -7853,6 +7853,7 @@ version = "1.11.3"
 dependencies = [
  "clap",
  "eyre",
+ "rayon",
  "reth-cli-util",
  "reth-db",
  "reth-node-builder",
@@ -11298,6 +11299,7 @@ dependencies = [
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "op-revm",
+ "rayon",
  "reth-chain-state",
  "reth-engine-primitives",
  "reth-errors",
