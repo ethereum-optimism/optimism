@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -182,4 +183,27 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 
 	b.metrics.RecordCheckAccessList(true)
 	return nil
+}
+
+// GetBlockHashByNumber returns the latest block hash or the block hash at a specific height for the given chain.
+func (b *Backend) GetBlockHashByNumber(chainID eth.ChainID, selector BlockSelector) (common.Hash, error) {
+	ingester, ok := b.chains[chainID]
+	if !ok {
+		return common.Hash{}, fmt.Errorf("chain %s: %w", chainID, types.ErrUnknownChain)
+	}
+
+	if selector.Latest() {
+		block, ok := ingester.LatestBlock()
+		if !ok {
+			return common.Hash{}, fmt.Errorf("latest block for chain %s: %w", chainID, ethereum.NotFound)
+		}
+		return block.Hash, nil
+	}
+
+	blockNum := selector.Number()
+	blockHash, ok := ingester.BlockHashByNumber(blockNum)
+	if !ok {
+		return common.Hash{}, fmt.Errorf("block %d for chain %s: %w", blockNum, chainID, ethereum.NotFound)
+	}
+	return blockHash, nil
 }

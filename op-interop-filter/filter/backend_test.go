@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -223,4 +225,34 @@ func TestBackend_CheckAccessList(t *testing.T) {
 	// LocalUnsafe with empty access list passes
 	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 150, 0))
 	require.NoError(t, err)
+}
+
+func TestBackend_GetBlockHashByNumber(t *testing.T) {
+	backend, mock := newTestBackendWithMockChain(testChainA)
+	latest := eth.BlockID{Hash: common.HexToHash("0xaa"), Number: 200}
+	at100 := eth.BlockID{Hash: common.HexToHash("0xbb"), Number: 100}
+	mock.AddBlock(at100)
+	mock.AddBlock(latest)
+
+	t.Run("latest", func(t *testing.T) {
+		hash, err := backend.GetBlockHashByNumber(eth.ChainIDFromUInt64(testChainA), LatestBlockSelector())
+		require.NoError(t, err)
+		require.Equal(t, latest.Hash, hash)
+	})
+
+	t.Run("specific height", func(t *testing.T) {
+		hash, err := backend.GetBlockHashByNumber(eth.ChainIDFromUInt64(testChainA), BlockSelectorFromNumber(100))
+		require.NoError(t, err)
+		require.Equal(t, at100.Hash, hash)
+	})
+
+	t.Run("unknown chain", func(t *testing.T) {
+		_, err := backend.GetBlockHashByNumber(eth.ChainIDFromUInt64(999), BlockSelectorFromNumber(100))
+		require.ErrorIs(t, err, types.ErrUnknownChain)
+	})
+
+	t.Run("missing block", func(t *testing.T) {
+		_, err := backend.GetBlockHashByNumber(eth.ChainIDFromUInt64(testChainA), BlockSelectorFromNumber(999))
+		require.ErrorIs(t, err, ethereum.NotFound)
+	})
 }

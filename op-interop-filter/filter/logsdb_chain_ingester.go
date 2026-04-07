@@ -247,6 +247,11 @@ func (c *LogsDBChainIngester) BlockHashAt(blockNum uint64) (common.Hash, bool) {
 	return seal.Hash, true
 }
 
+// BlockHashByNumber returns the sealed block hash at the given height.
+func (c *LogsDBChainIngester) BlockHashByNumber(blockNum uint64) (common.Hash, bool) {
+	return c.BlockHashAt(blockNum)
+}
+
 // LatestTimestamp returns the timestamp of the latest sealed block
 func (c *LogsDBChainIngester) LatestTimestamp() (uint64, bool) {
 	c.mu.RLock()
