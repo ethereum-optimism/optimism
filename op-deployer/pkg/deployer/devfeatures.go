@@ -1,54 +1,29 @@
 package deployer
 
 import (
-	"math/big"
-
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// Development feature flag constants that mirror the solidity DevFeatures library.
-// These use a 32 byte bitmap for easy integration between op-deployer and contracts.
+// Development feature flag constants. These delegate to op-core/devfeatures,
+// which is the canonical source of truth. The longer names with "DevFlag" suffix
+// are preserved for backward compatibility.
 var (
-	// OptimismPortalInteropDevFlag enables the OptimismPortalInterop contract.
-	OptimismPortalInteropDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-
-	// CannonKonaDevFlag enables Kona as the default cannon prover.
-	CannonKonaDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000010")
-
-	// DeployV2DisputeGamesDevFlag enables deployment of V2 dispute game contracts.
-	DeployV2DisputeGamesDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
-
-	// OPCMV2DevFlag enables the OPContractsManagerV2 contract.
-	OPCMV2DevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
-
-	// L2CMDevFlag enables L2CM.
-	L2CMDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
-
-	// ZKDisputeGameDevFlag enables the ZK dispute game system (ZKDisputeGame).
-	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
-	ZKDisputeGameDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
-
-	// SuperRootGamesMigrationDevFlag enables the super root games migration path in OPCM upgrade.
-	SuperRootGamesMigrationDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000010000000")
+	OptimismPortalInteropDevFlag   = devfeatures.OptimismPortalInterop
+	CannonKonaDevFlag              = devfeatures.CannonKona
+	DeployV2DisputeGamesDevFlag    = devfeatures.DeployV2DisputeGames
+	OPCMV2DevFlag                  = devfeatures.OPCMV2
+	L2CMDevFlag                    = devfeatures.L2CM
+	ZKDisputeGameDevFlag           = devfeatures.ZKDisputeGame
+	SuperRootGamesMigrationDevFlag = devfeatures.SuperRootGamesMigration
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
-// It performs a bitwise AND operation between the bitmap and the feature flag to determine
-// if the feature is enabled. This follows the same pattern as the solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	b := new(big.Int).SetBytes(bitmap[:])
-	f := new(big.Int).SetBytes(flag[:])
-
-	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
-	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
-	return featuresIsNonZero && bitmapContainsFeatures
+	return devfeatures.IsEnabled(bitmap, flag)
 }
 
-// EnableDevFeature enables a specific development feature in a feature bitmap
+// EnableDevFeature enables a specific development feature in a feature bitmap.
 func EnableDevFeature(bitmap, flag common.Hash) common.Hash {
-	var result common.Hash
-	for i := 0; i < 32; i++ {
-		result[i] = bitmap[i] | flag[i]
-	}
-	return result
+	return devfeatures.Enable(bitmap, flag)
 }
