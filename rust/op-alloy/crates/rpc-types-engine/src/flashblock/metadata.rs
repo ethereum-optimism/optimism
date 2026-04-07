@@ -10,7 +10,7 @@ use op_alloy_consensus::OpReceipt;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OpFlashblockPayloadMetadata {
-    /// The number of the block in the L2 chain.
+    /// The number of the flashblock in the L2 chain.
     pub block_number: u64,
     /// A map of addresses to their updated balances after the block execution.
     /// This represents balance changes due to transactions, rewards, or system transfers.

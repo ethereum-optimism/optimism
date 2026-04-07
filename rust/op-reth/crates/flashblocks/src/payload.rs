@@ -27,7 +27,7 @@ pub struct PendingFlashBlock<N: NodePrimitives> {
     /// Whether the [`PendingBlock`] has a properly computed stateroot.
     pub has_computed_state_root: bool,
     /// Block access lists for all transactions so far. Should probably be a vector
-    pub fbal_access_lists: Option<FlashblockAccessList>,
+    pub access_lists: Option<FlashblockAccessList>,
 }
 
 impl<N: NodePrimitives> PendingFlashBlock<N> {
@@ -38,7 +38,7 @@ impl<N: NodePrimitives> PendingFlashBlock<N> {
         last_flashblock_index: u64,
         last_flashblock_hash: B256,
         has_computed_state_root: bool,
-        fbal_access_lists: Option<FlashblockAccessList>,
+        access_lists: Option<FlashblockAccessList>,
     ) -> Self {
         Self {
             pending,
@@ -46,7 +46,7 @@ impl<N: NodePrimitives> PendingFlashBlock<N> {
             last_flashblock_index,
             last_flashblock_hash,
             has_computed_state_root,
-            fbal_access_lists,
+            access_lists,
         }
     }
 

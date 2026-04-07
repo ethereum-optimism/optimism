@@ -1,11 +1,12 @@
 use crate::{
-    PendingFlashBlock,
+    PendingFlashBlock, fbals,
     pending_state::PendingBlockState,
     tx_cache::{CachedExecutionMeta, TransactionCache},
 };
 use alloy_eips::{BlockNumberOrTag, eip2718::WithEncoded};
 use alloy_primitives::B256;
-use base_access_lists::FlashblockAccessList;
+use alloy_rpc_types::AccessList;
+use base_access_lists::{FBALBuilderDb, FlashblockAccessList};
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_chain_state::{ComputedTrieData, ExecutedBlock};
 use reth_errors::RethError;
@@ -57,8 +58,8 @@ impl<EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider> {
 pub(crate) struct BuildArgs<I, N: NodePrimitives> {
     pub(crate) base: OpFlashblockPayloadBase,
     pub(crate) transactions: I,
-    /// received access list (fBAL).
-    pub(crate) access_lists: Vec<FlashblockAccessList>,
+    /// received access list (fBAL). one-to-one with transactions
+    pub(crate) received_access_lists: Vec<FlashblockAccessList>,
     pub(crate) cached_state: Option<(B256, CachedReads)>,
     pub(crate) last_flashblock_index: u64,
     pub(crate) last_flashblock_hash: B256,
@@ -67,6 +68,12 @@ pub(crate) struct BuildArgs<I, N: NodePrimitives> {
     /// When set, allows building on top of a pending block that hasn't been
     /// canonicalized yet.
     pub(crate) pending_parent: Option<PendingBlockState<N>>,
+}
+
+#[derive(Debug)]
+pub enum FBalsValidationResult {
+    AllValidated,
+    OneOrMoreFailed,
 }
 
 /// Result of a flashblock build operation.
@@ -78,6 +85,8 @@ pub(crate) struct BuildResult<N: NodePrimitives> {
     pub(crate) cached_reads: CachedReads,
     /// Pending state that can be used for building subsequent blocks.
     pub(crate) pending_state: PendingBlockState<N>,
+    /// validation result
+    pub(crate) fbals_validation: FBalsValidationResult,
 }
 
 /// Cached prefix execution data used to resume canonical builds.
@@ -93,6 +102,8 @@ struct CachedPrefixExecutionResult<R> {
     gas_used: u64,
     /// Total blob/DA gas used by the cached prefix.
     blob_gas_used: u64,
+    /// access list writes prefix.
+    access_lists_writes: Vec<usize>,
 }
 
 /// Receipt requirements for cache-resume flow.
@@ -138,10 +149,12 @@ where
     /// attempt to resume from cached state if the transaction list is a continuation
     /// of what was previously executed.
     ///
+    /// FBals will be computed and validated pr. txns during execution, but
+    /// validation outcome will be returned to caller.
+    ///
     /// Returns `None` if:
     /// - In canonical mode: flashblock doesn't attach to the latest header
     /// - In speculative mode: no pending parent state provided
-    /// - Received FlashblockAccessList did not match computed FlashblockAccessList
     pub(crate) fn execute<I: IntoIterator<Item = WithEncoded<Recovered<N::SignedTx>>>>(
         &self,
         mut args: BuildArgs<I, N>,
@@ -172,7 +185,8 @@ where
         // Collect transactions and extract hashes for cache lookup
         let transactions: Vec<_> = args.transactions.into_iter().collect();
         let tx_hashes: Vec<B256> = transactions.iter().map(|tx| *tx.tx_hash()).collect();
-        let received_access_lists: Vec<FlashblockAccessList> = args.access_lists;
+        let received_access_lists: Vec<FlashblockAccessList> = args.received_access_lists.collect();
+        let cumulative_account_changes = fbals::prefix_sum(&received_access_lists);
         // this seems off
         let max_tx_index: u64 = transactions.len().try_into().unwrap();
 
@@ -236,6 +250,7 @@ where
             });
 
         let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
+        let cached_db2 = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
         // Check for resumable canonical execution state.
         let canonical_parent_hash = args.base.parent_hash;
@@ -268,6 +283,7 @@ where
                                 receipts: receipts.to_vec(),
                                 gas_used,
                                 blob_gas_used,
+                                access_lists_writes: Default::default(),
                             }
                         },
                     )
@@ -275,6 +291,8 @@ where
         } else {
             None
         };
+
+        let transaction = transactions.iter().map(|txn| txn).collect();
 
         // Build state with appropriate prestate
         // - Speculative builds use pending parent prestate
@@ -330,18 +348,23 @@ where
             let evm = self.evm_config.evm_with_env(&mut state, evm_env);
             let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
 
+            let evm2 = self.evm_config.evm_with_env(&mut state, evm_env);
+            let mut executor2 = self.evm_config.create_executor(evm, execution_ctx.clone());
+
             // this is the index of the fb in the pending sequence. I think this should always be
             // zero
             let mut received_fb_index = 0;
             // this should not start from zero but from min_tx for first fb in sequence (can we
             // trust received fbals?)
-            for (index, tx) in transactions.iter().skip(cached_prefix.cached_tx_count).enumerate() {
+            for (txn_index, tx) in
+                transactions.iter().skip(cached_prefix.cached_tx_count).enumerate()
+            {
                 // index refers to the txn index.
-                let index = index.try_into().unwrap();
+                let txn_index = txn_index.try_into().unwrap();
 
                 // advance the target fb past the index so index is contained in the current fb
                 while received_fb_index < received_access_lists.len() &&
-                    received_access_lists[received_fb_index].max_tx_index < index
+                    received_access_lists[received_fb_index].max_tx_index < txn_index
                 {
                     // we expect this loop to run at most 1 iteration each time it is reached.
                     {
@@ -372,11 +395,11 @@ where
                     received_fb_index += 1;
                 }
                 // verify that we are in the window
-                debug_assert!(received_access_lists[received_fb_index].min_tx_index <= index);
-                debug_assert!(index <= received_access_lists[received_fb_index].max_tx_index);
+                debug_assert!(received_access_lists[received_fb_index].min_tx_index <= txn_index);
+                debug_assert!(txn_index <= received_access_lists[received_fb_index].max_tx_index);
 
-                executor.evm_mut().db_mut().set_bal_index(index);
-                debug!(target: "fBALs", "fBALs index set to {:#?}", index);
+                executor.evm_mut().db_mut().set_bal_index(txn_index);
+                debug!(target: "fBALs", "fBALs index set to {:#?}", txn_index);
                 let _gas_used = executor.execute_transaction(tx)?;
             }
             // verify last fb
@@ -437,6 +460,9 @@ where
             let mut received_fb_index = 0;
             // this should not start from zero but from min_tx for first fb in sequence (can we
             // trust received fbals?)
+
+            // for txn in transactions.par_iter().map() {}
+
             for (index, tx) in transactions.into_iter().enumerate() {
                 // index refers to the txn index.
                 let index = index.try_into().unwrap();
@@ -562,7 +588,12 @@ where
             None,
         );
 
-        Ok(Some(BuildResult { pending_flashblock, cached_reads: request_cache, pending_state }))
+        Ok(Some(BuildResult {
+            pending_flashblock,
+            cached_reads: request_cache,
+            pending_state,
+            fbals_validation: todo!(),
+        }))
     }
 
     fn merge_cached_and_suffix_results(
@@ -734,7 +765,7 @@ mod tests {
                 BuildArgs {
                     base: base.clone(),
                     transactions: vec![tx_a.clone(), tx_b.clone()],
-                    access_lists: Default::default(),
+                    received_access_lists: Default::default(),
                     cached_state: None,
                     last_flashblock_index: 0,
                     last_flashblock_hash: B256::repeat_byte(0xA0),
@@ -787,7 +818,7 @@ mod tests {
                 BuildArgs {
                     base,
                     transactions: vec![tx_a, tx_b, tx_c],
-                    access_lists: Default::default(),
+                    received_access_lists: Default::default(),
                     cached_state: None,
                     last_flashblock_index: 1,
                     last_flashblock_hash: B256::repeat_byte(0xA1),

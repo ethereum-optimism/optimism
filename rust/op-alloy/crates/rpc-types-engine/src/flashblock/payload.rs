@@ -56,6 +56,16 @@ impl OpFlashblockPayload {
         self.raw_transactions().iter().map(|tx| T::decode_2718_exact(tx))
     }
 
+    /// Count the transactions in this flashblock.
+    pub fn transaction_count<T>(&self) -> usize
+    where
+        T: Decodable2718,
+    {
+        let mut total = 0;
+        let _ = self.decoded_transaction::<T>().inspect(|_| total += 1);
+        total
+    }
+
     /// Recovers transactions from flashblocks lazily.
     ///
     /// This is done only when we actually need to build a sequence, avoiding wasted computation.

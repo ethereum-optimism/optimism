@@ -8,6 +8,7 @@ use crate::{
     worker::{BuildResult, FlashBlockBuilder, FlashblockCachedReceipt},
 };
 use alloy_primitives::B256;
+use alloy_rpc_types::AccessList;
 use futures_util::{FutureExt, Stream, StreamExt};
 use metrics::{Counter, Gauge, Histogram};
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
@@ -405,7 +406,7 @@ where
         }
 
         if self.has_access_list(&flashblock).not() {
-            debug!(target: "fBALs", "Received flashblock without fBAL, discarding...");
+            debug!(target: "fBALs", "Received flashblock without access list");
         };
 
         if let Err(err) = self.sequences.insert_flashblock(flashblock) {
@@ -443,9 +444,11 @@ where
             .and_then(|base| self.pending_states.get_state_for_parent(base.parent_hash).cloned())
             .or_else(|| self.pending_states.current().cloned());
 
-        let Some(candidate) =
-            self.sequences.next_buildable_args(latest.hash(), latest.timestamp(), pending_parent)
-        else {
+        let Some(candidate) = self.sequences.next_buildable_args::<N>(
+            latest.hash(),
+            latest.timestamp(),
+            pending_parent,
+        ) else {
             return false; // Nothing buildable
         };
         let ticket = candidate.ticket;

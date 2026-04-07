@@ -15,6 +15,7 @@ use crate::{
 };
 use alloy_eips::eip2718::WithEncoded;
 use alloy_primitives::B256;
+use alloy_rpc_types::AccessList;
 use alloy_rpc_types_engine::PayloadId;
 use base_access_lists::FlashblockAccessList;
 use reth_primitives_traits::{
@@ -22,7 +23,10 @@ use reth_primitives_traits::{
 };
 use reth_revm::cached::CachedReads;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    slice::Iter,
+};
 use tokio::sync::broadcast;
 use tracing::*;
 
@@ -123,7 +127,7 @@ impl<I, N: NodePrimitives> std::ops::Deref for BuildCandidate<I, N> {
 
 /// In-progress pending sequence state.
 ///
-/// Keeps accepted flashblocks and recovered transactions in lockstep by index.
+/// Keeps accepted flashblocks and recovered transactions in lockstep by index. NB
 #[derive(Debug)]
 struct PendingSequence<T: SignedTransaction> {
     sequence: FlashBlockPendingSequence,
@@ -188,6 +192,7 @@ impl<T: SignedTransaction> PendingSequence<T> {
         }
 
         self.sequence.insert(flashblock);
+        // fb_idx -> vec<txn>
         self.recovered_transactions_by_index.insert(flashblock_index, recovered_txs);
         self.bump_revision();
         Ok(())
@@ -200,6 +205,7 @@ impl<T: SignedTransaction> PendingSequence<T> {
         let recovered_by_index = std::mem::take(&mut self.recovered_transactions_by_index);
 
         match finalized {
+            // here we lose the mapping fb_idx -> txn_idx
             Ok(completed) => Ok((completed, recovered_by_index.into_values().flatten().collect())),
             Err(err) => Err(err),
         }
@@ -397,7 +403,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
     ) -> Option<BuildCandidate<Vec<WithEncoded<Recovered<T>>>, N>> {
         // Try to find a buildable sequence: (ticket, base, last_fb, transactions,
         // cached_state, source_name, pending_parent)
-        let (ticket, base, last_flashblock, transactions, access_lists, cached_state, source_name, pending_parent) =
+        let (ticket, base, last_flashblock, transactions, received_access_lists, cached_state, source_name, pending_parent) =
             // Priority 1: Try current pending sequence (canonical mode)
             if let Some(base) = self.pending.sequence.payload_base().filter(|b| b.parent_hash == local_tip_hash) {
                 let revision = self.pending.revision();
@@ -419,7 +425,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 // let tx_per_fb : Vec<usize> = self.pending.sequence.flashblocks().
                 // warn!("FBALs PANIC");
                 // panic!("FBALs PANIC");
-                let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| { let fbal = fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected."); warn!("OP_RETH::fBAL: {:#?}", fbal); fbal}).collect();
+                let access_lists = self.pending().flashblocks().map(|fb| { let fbal = fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected."); warn!("OP_RETH::fBAL: {:#?}", fbal); fbal}).collect();
 
                 (ticket, base, last_fb, transactions, access_lists, cached_state, "pending", None)
             }
@@ -433,7 +439,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 //let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
                 warn!("FBALs PANIC");
                 panic!("FBALs PANIC");
-                let access_lists: Vec<FlashblockAccessList> = todo!("FBALs PANIC");
+                let access_lists = todo!("FBALs PANIC");
                 let cached_state = None;
                 (ticket, base, last_fb, transactions, access_lists, cached_state, "cached", None)
             }
@@ -457,10 +463,10 @@ impl<T: SignedTransaction> SequenceManager<T> {
                     let cached_state = self.pending.sequence.take_cached_reads().map(|r| (base.parent_hash, r));
                     let last_fb = self.pending.sequence.last_flashblock()?;
                     let transactions = self.pending.transactions();
-                    warn!("FBALs PANIC");
-                    panic!("FBALs PANIC");
-                    let access_lists: Vec<FlashblockAccessList> = todo!("FBALs PANIC");
-                    let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
+                    // warn!("FBALs PANIC");
+                    // panic!("FBALs PANIC");
+                    // let access_lists: Vec<FlashblockAccessList> = todo!("FBALs PANIC");
+                    let access_lists = self.pending().flashblocks().map(|fb| fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected.") ).collect();
                     (
                         ticket,
                         base,
@@ -481,7 +487,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
                     let transactions = txs.clone();
                     warn!("FBALs PANIC");
                     panic!("FBALs PANIC");
-                    let access_lists: Vec<FlashblockAccessList> = self.pending().flashblocks().map(|fb| { let fbal = fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected."); warn!("OP_RETH::fBAL: {:#?}", fbal); fbal}).collect();
+                    let access_lists = self.pending().flashblocks().map(|fb| { let fbal = fb.metadata.access_lists.clone().expect("Flashblock with `None` AccessLists should be rejected."); warn!("OP_RETH::fBAL: {:#?}", fbal); fbal}).collect::<Vec<_>>();
                     let cached_state = None;
                     (
                         ticket,
@@ -553,7 +559,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
             args: BuildArgs {
                 base,
                 transactions,
-                access_lists,
+                received_access_lists,
                 cached_state,
                 last_flashblock_index: last_flashblock.index,
                 last_flashblock_hash: last_flashblock.diff.block_hash,

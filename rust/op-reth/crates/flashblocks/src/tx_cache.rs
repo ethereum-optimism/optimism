@@ -54,6 +54,7 @@ pub(crate) struct CachedExecutionMeta {
     pub gas_used: u64,
     /// Total blob/DA gas used by the cached prefix.
     pub blob_gas_used: u64,
+    //// pub cumumlative_access_lists: Vec<FlashBlocksAccessList>,
 }
 
 /// Resumable cached state: bundle + receipts + cached prefix length.

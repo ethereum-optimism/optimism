@@ -54,6 +54,7 @@ pub struct FlashBlockPendingSequence {
     /// when fb received on top of the same block. Avoid redundant I/O across multiple
     /// executions within the same block.
     cached_reads: Option<CachedReads>,
+    // accesslist cumulative_accesslist_writes matching `inner`
 }
 
 impl FlashBlockPendingSequence {
@@ -67,7 +68,6 @@ impl FlashBlockPendingSequence {
             block_broadcaster: tx,
             execution_outcome: None,
             cached_reads: None,
-            // access_list_builder: None,
         }
     }
 
@@ -139,6 +139,7 @@ impl FlashBlockPendingSequence {
                 "Ignoring untracked flashblock following"
             );
         }
+        // update writes
     }
 
     /// Set execution outcome from building the flashblock sequence
