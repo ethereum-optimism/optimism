@@ -477,12 +477,14 @@ where
         self.spawner.spawn_blocking(move || {
             let results = transactions
                 .into_par_iter()
-                .map(|_| {
+                .map(|i| {
                     // let tx_cache = Some(&mut tx_cache);
                     let tx_cache = None;
+                    let mut args = (*args).clone();
                     // we could modify BuildArgs to contain only information needed for this
                     // transaction.
-                    let args = (*args).clone();
+                    args.transactions = vec![args.transactions[i].clone()];
+
                     builder.execute(args, tx_cache)
                 })
                 .collect::<Vec<_>>();
