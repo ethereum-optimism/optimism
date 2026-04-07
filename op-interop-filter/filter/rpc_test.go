@@ -67,4 +67,16 @@ func TestQueryFrontendGetBlockHashByNumberRPC(t *testing.T) {
 		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(999))
 		require.ErrorContains(t, err, "not found")
 	})
+
+	t.Run("unknown chain", func(t *testing.T) {
+		var result common.Hash
+		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(999), rpc.BlockNumber(100))
+		require.ErrorContains(t, err, "unknown chain")
+	})
+
+	t.Run("unsupported tag", func(t *testing.T) {
+		var result common.Hash
+		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "safe")
+		require.ErrorContains(t, err, "unsupported block tag")
+	})
 }
