@@ -192,6 +192,8 @@ Run the deployment process with the following command:
     kfoplabs/upgrade-v1.3.0-v1.8.0-permissioned /deploy_config.json /deployments.json
 ```
 
+The source code for the `kfoplabs/upgrade-v1.3.0-v1.8.0-permissioned` image is available in the [`perm/op-contracts/v1.8.0` branch of the Optimism monorepo](https://github.com/ethereum-optimism/optimism/tree/perm/op-contracts/v1.8.0). If you need to fork or customize the upgrade script (e.g. to support L3s), start from that branch.
+
 ### 5. Verify outputs
 
 The deployment should output four files:
@@ -211,3 +213,4 @@ Now you have the calldata that can be executed onchain to perform the L1 contrac
 
 *   [superchain-ops Repository](https://github.com/ethereum-optimism/superchain-ops)
 *   [Optimism Monorepo](https://github.com/ethereum-optimism/optimism)
+*   [Upgrade script source code (`perm/op-contracts/v1.8.0` branch)](https://github.com/ethereum-optimism/optimism/tree/perm/op-contracts/v1.8.0)

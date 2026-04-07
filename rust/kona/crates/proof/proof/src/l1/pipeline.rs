@@ -55,7 +55,7 @@ where
         caching_oracle: Arc<O>,
         da_provider: DA,
         chain_provider: L1,
-        mut l2_chain_provider: L2,
+        l2_chain_provider: L2,
     ) -> PipelineResult<Self> {
         let attributes = StatefulAttributesBuilder::new(
             cfg.clone(),
@@ -63,8 +63,6 @@ where
             l2_chain_provider.clone(),
             chain_provider.clone(),
         );
-
-        let cfg_for_reset = cfg.clone();
 
         let mut pipeline = PipelineBuilder::new()
             .rollup_config(cfg)
@@ -77,19 +75,7 @@ where
 
         // Reset the pipeline to populate the initial system configuration in L1 Traversal.
         let l2_safe_head = *sync_start.read().l2_safe_head();
-        pipeline
-            .signal(
-                ResetSignal {
-                    l2_safe_head,
-                    l1_origin: sync_start.read().origin(),
-                    system_config: l2_chain_provider
-                        .system_config_by_number(l2_safe_head.block_info.number, cfg_for_reset)
-                        .await
-                        .ok(),
-                }
-                .signal(),
-            )
-            .await?;
+        pipeline.signal(Signal::Reset(ResetSignal { l2_safe_head })).await?;
 
         Ok(Self { pipeline, caching_oracle })
     }

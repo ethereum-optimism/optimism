@@ -1,14 +1,47 @@
 ---
 title: Running op-reth with Historical Proofs
-description: Learn how to initialize and run op-reth with the historical proofs ExEx.
+description: Learn how to initialize and run op-reth with the historical proofs ExEx for efficient historical state proofs.
 ---
 
-This guide covers the specific steps required to run `op-reth` with the historical proofs ExEx (Execution Extension), which allows for saving and serving trie nodes to provide proofs faster.
+As part of the op-geth deprecation, all existing op-geth services are migrating to op-reth. This guide covers how to set up an op-reth node with the **proofs-history** Execution Extension (ExEx) to efficiently compute historical proofs within a configurable retention window.
+
+## Problem
+
+Reth's default `eth_getProof` implementation works by reverting in-memory state diffs backward from the current tip. For blocks older than ~7 days, this causes unbounded memory growth and out-of-memory (OOM) crashes — a critical issue for infrastructure serving rollup fault proofs and indexers that query historical state.
+
+## Solution
+
+The **proofs-history** ExEx implements a **Versioned State Store** that tracks intermediate Merkle Patricia Trie nodes tagged by block number. This enables direct O(1) lookups of proofs at any historical block within a configurable retention window, without reverting state.
+
+The ExEx processes blocks asynchronously, so it adds zero overhead to sync speed and negligible tip latency.
+
+## Architecture
+
+```
+op-reth node
+├── Standard reth pipeline (sync, EVM, state)
+├── proofs-history ExEx (ingests committed blocks → versioned trie store)
+├── Pruner task (background, removes data outside retention window)
+└── RPC overrides (eth_getProof, debug_executePayload, debug_executionWitness)
+```
+
+The versioned store lives in a **separate MDBX database** and maintains four tables:
+
+| Table | Contents |
+| --- | --- |
+| `AccountTrieHistory` | Branch nodes of the account trie, versioned by block |
+| `StorageTrieHistory` | Branch nodes of per-account storage tries, versioned by block |
+| `HashedAccountHistory` | Account leaf data (balance, nonce, etc.), versioned by block |
+| `HashedStorageHistory` | Storage slot values, versioned by block |
+
+A `BlockChangeSet` reverse index enables efficient pruning: given a block number, the pruner knows exactly which keys were modified and can delete only those entries.
 
 ## Prerequisites
 
-*   [Rust toolchain](https://www.rust-lang.org/tools/install) installed.
+*   op-reth v1.11.4-rc.2 or above, fully synced to chain tip.
 *   Basic understanding of [execution client configuration](/node-operators/guides/configuration/execution-clients).
+*   Sufficient disk: estimate `chain_size + 20% buffer` for the proofs database (e.g., ~1 TB for 4 weeks on Base at 2s block time).
+*   NVMe SSD recommended.
 
 ## Installation
 
@@ -136,10 +169,53 @@ Start the consensus client to drive the execution client. You can use either `op
 
 ## Verification
 
-After starting both clients, verify that the historical proofs ExEx is active by checking the logs.
+After starting both clients, query the sync status of the proofs store:
 
-1.  **Check op-reth logs**: Look for valid initialization messages indicating the ExEx is running.
-    ```text
-    INFO [..] ExEx initialized ...
-    ```
-2.  **Check syncing status**: Ensure `op-node` and `op-reth` are connected and syncing. `op-reth` should start importing blocks and the `proofs` storage should begin populating.
+```
+debug_proofsSyncStatus → { "earliest": <block>, "latest": <block> }
+```
+
+Once `latest` tracks the chain tip, `eth_getProof` calls for every block within `[earliest, latest]` will be served from the versioned store.
+
+You can also check the op-reth logs for initialization messages:
+
+```text
+INFO [..] ExEx initialized ...
+```
+
+Ensure `op-node`/`kona-node` and `op-reth` are connected and syncing. `op-reth` should start importing blocks and the proofs storage should begin populating.
+
+## Operational Commands
+
+**Manual prune** (if the node fails startup due to a gap > 1000 blocks):
+
+```bash
+op-reth proofs prune \
+  --datadir /path/to/reth-datadir \
+  --proofs-history.storage-path /path/to/proofs-db \
+  --proofs-history.window 1296000
+```
+
+**Unwind** (recover from corruption by reverting to a specific block):
+
+```bash
+op-reth proofs unwind \
+  --datadir /path/to/reth-datadir \
+  --proofs-history.storage-path /path/to/proofs-db \
+  --target <BLOCK_NUMBER>
+```
+
+<Note>
+You can only unwind to a block after the earliest block number in the database. Unwinding to a block before the earliest will fail.
+</Note>
+
+## Performance
+
+Benchmarked on Base Sepolia (~700k block window, WETH contract):
+
+| Metric | Value |
+| --- | --- |
+| Avg latency | ~15 ms per `eth_getProof` |
+| Throughput | ~5,000 req/s (10 concurrent workers) |
+| Sync overhead | Zero (ExEx processes asynchronously) |
+| Memory | Bounded by window size — no OOM risk |

@@ -12,8 +12,8 @@ use reth_codecs::{
     Compact,
     alloy::transaction::{CompactEnvelope, FromTxCompact, ToTxCompact},
 };
-use reth_ethereum::primitives::{InMemorySize, serde_bincode_compat::RlpBincode};
-use reth_op::{OpTransaction, primitives::SignedTransaction};
+use reth_op::OpTransaction;
+use reth_primitives_traits::InMemorySize;
 use revm_primitives::Address;
 
 /// Either [`OpTxEnvelope`] or [`TxPayment`].
@@ -27,8 +27,6 @@ pub enum CustomTransaction {
     #[envelope(ty = 42)]
     Payment(Signed<TxPayment>),
 }
-
-impl RlpBincode for CustomTransaction {}
 
 impl reth_codecs::alloy::transaction::Envelope for CustomTransaction {
     fn signature(&self) -> &Signature {
@@ -131,8 +129,6 @@ impl TxHashRef for CustomTransaction {
         }
     }
 }
-
-impl SignedTransaction for CustomTransaction {}
 
 impl InMemorySize for CustomTransaction {
     fn size(&self) -> usize {

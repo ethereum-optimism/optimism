@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/depreqres/common"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -19,6 +20,15 @@ import (
 // the corresponding block, and therefore does not serve it.
 func TestCLELDivergence(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-31|10:19:50.846]
+	// assertions.go:387:             	Error Trace:	/Users/josh/repos/optimism/op-acceptance-tests/tests/depreqres/reqressyncdisabled/divergence/divergence_test.go:34
+	// assertions.go:387:             	Error:      	Not equal:
+	// assertions.go:387:             	            	expected: 0x1
+	// assertions.go:387:             	            	actual  : 0x0
+	// assertions.go:387:             	Test:       	TestCLELDivergence
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := presets.NewSingleChainMultiNodeWithoutP2PWithoutCheck(t, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 	require := t.Require()
 	l := t.Logger()

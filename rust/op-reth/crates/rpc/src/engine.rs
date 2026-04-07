@@ -10,11 +10,11 @@ use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, server::RpcModule};
 use op_alloy_rpc_types_engine::{
-    OpExecutionData, OpExecutionPayloadV4, ProtocolVersion, ProtocolVersionFormatV0,
-    SuperchainSignal,
+    OpExecutionPayloadV4, ProtocolVersion, ProtocolVersionFormatV0, SuperchainSignal,
 };
 use reth_chainspec::EthereumHardforks;
 use reth_node_api::{EngineApiValidator, EngineTypes};
+use reth_optimism_payload_builder::OpExecData;
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
 use reth_storage_api::{BlockReader, HeaderProvider, StateProviderFactory};
@@ -267,14 +267,14 @@ impl<Provider, EngineT, Pool, Validator, ChainSpec> OpEngineApiServer<EngineT>
     for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
 where
     Provider: HeaderProvider + BlockReader + StateProviderFactory + 'static,
-    EngineT: EngineTypes<ExecutionData = OpExecutionData>,
+    EngineT: EngineTypes<ExecutionData = OpExecData>,
     Pool: TransactionPool + 'static,
     Validator: EngineApiValidator<EngineT>,
     ChainSpec: EthereumHardforks + Send + Sync + 'static,
 {
     async fn new_payload_v2(&self, payload: ExecutionPayloadInputV2) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV2");
-        let payload = OpExecutionData::v2(payload);
+        let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v2(payload));
         Ok(self.inner.new_payload_v2_metered(payload).await?)
     }
 
@@ -285,7 +285,11 @@ where
         parent_beacon_block_root: B256,
     ) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV3");
-        let payload = OpExecutionData::v3(payload, versioned_hashes, parent_beacon_block_root);
+        let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v3(
+            payload,
+            versioned_hashes,
+            parent_beacon_block_root,
+        ));
 
         Ok(self.inner.new_payload_v3_metered(payload).await?)
     }
@@ -298,12 +302,12 @@ where
         execution_requests: Requests,
     ) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV4");
-        let payload = OpExecutionData::v4(
+        let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v4(
             payload,
             versioned_hashes,
             parent_beacon_block_root,
             execution_requests,
-        );
+        ));
 
         Ok(self.inner.new_payload_v4_metered(payload).await?)
     }

@@ -2,9 +2,9 @@
 name = "alloy-op-evm"
 description = "OP EVM implementation"
 
-version = "0.26.3"
+version = "0.30.0"
 edition = "2021"
-rust-version = "1.92"
+rust-version = "1.94"
 authors = ["Alloy Contributors", "OpLabsPBC"]
 license.workspace = true
 homepage = "https://github.com/ethereum-optimism/optimism"
@@ -14,7 +14,7 @@ repository = "https://github.com/ethereum-optimism/optimism"
 workspace = true
 
 [dependencies]
-alloy-evm = { workspace = true, features = ["op"] }
+alloy-evm = { workspace = true }
 
 alloy-eips = { workspace = true }
 alloy-consensus = { workspace = true }
@@ -50,3 +50,10 @@ gmp = ["alloy-evm/gmp"]
 engine = ["op-alloy/rpc-types-engine"]
 rpc = ["alloy-evm/rpc", "op-alloy/rpc-types"]
 asm-keccak = ["alloy-evm/asm-keccak", "alloy-primitives/asm-keccak", "revm/asm-keccak"]
+arbitrary = [
+	"alloy-consensus/arbitrary",
+	"alloy-eips/arbitrary",
+	"alloy-primitives/arbitrary",
+	"op-alloy/arbitrary",
+	"revm/arbitrary",
+]

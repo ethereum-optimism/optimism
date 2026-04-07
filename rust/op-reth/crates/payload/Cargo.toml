@@ -20,21 +20,21 @@ reth-transaction-pool.workspace = true
 reth-storage-api.workspace = true
 reth-evm.workspace = true
 reth-execution-types.workspace = true
-reth-payload-builder.workspace = true
 reth-payload-builder-primitives.workspace = true
 reth-payload-util.workspace = true
-reth-payload-primitives = { workspace = true, features = ["op"] }
+reth-payload-primitives.workspace = true
 reth-basic-payload-builder.workspace = true
 reth-payload-validator.workspace = true
 
 # op-reth
 reth-optimism-evm.workspace = true
 reth-optimism-forks.workspace = true
-reth-optimism-primitives.workspace = true
+reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
 reth-optimism-txpool.workspace = true
 
 # ethereum
 revm.workspace = true
+op-revm.workspace = true
 alloy-eips.workspace = true
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true

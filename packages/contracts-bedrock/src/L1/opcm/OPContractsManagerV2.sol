@@ -153,9 +153,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.12
+    /// @custom:semver 7.0.14
     function version() public pure returns (string memory) {
-        return "7.0.12";
+        return "7.0.14";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -339,6 +339,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
                 return true;
+            }
+
+            // Super root games migration requires overriding anchor root.
+            if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+                if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
             }
         }
 
@@ -680,24 +685,26 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
+    /// @param _isInitialDeployment Whether or not this is an initial deployment.
     function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
-        // Start validating the dispute game configs. Put allowed game types here. Note that
-        // these game types are intentionally hardcoded rather than sourced from a shared utility.
-        // When new game types are added, this list and the corresponding list in the Migrator's
-        // _migratePortal function must both be updated.
-        GameType[] memory validGameTypes = new GameType[](3);
+        // All valid game types. StandardValidator is responsible for rejecting game types that
+        // should not be used in a given mode (e.g., legacy types in super root mode).
+        GameType[] memory validGameTypes = new GameType[](6);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
+        validGameTypes[3] = GameTypes.SUPER_CANNON;
+        validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        validGameTypes[5] = GameTypes.SUPER_CANNON_KONA;
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        // Simplest possible check, iterate over each provided config and confirm that it matches
-        // the game type array. This places a requirement on the user to order the configs properly
-        // but that's probably a good thing, keeps the config consistent.
+        // Iterate over each provided config and confirm that it matches the game type array.
+        // This places a requirement on the user to order the configs properly but that's
+        // probably a good thing, keeps the config consistent.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
@@ -708,21 +715,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // During initial deployment, only PERMISSIONED_CANNON can be enabled, because no prestate exists for
-            // permissionless games.
-            if (
-                _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.PERMISSIONED_CANNON.raw())
-                    && _cfg.disputeGameConfigs[i].enabled
-            ) {
+            // Check if this is a permissioned type.
+            bool isPermissioned = validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
+
+            // During initial deployment, only permissioned types can be enabled, because no
+            // prestate exists for permissionless games.
+            if (_isInitialDeployment && !isPermissioned && _cfg.disputeGameConfigs[i].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
-        }
-
-        // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
-        // remove this check at some point in the future if we stop making this assumption, but for
-        // now we explicitly assert that it is enabled.
-        if (!_cfg.disputeGameConfigs[1].enabled) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
         // Validate that the starting respected game type corresponds to an enabled game config.

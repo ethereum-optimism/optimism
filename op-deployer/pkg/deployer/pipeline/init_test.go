@@ -117,10 +117,11 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 
 			expDeployment := &addresses.SuperchainContracts{
 				SuperchainProxyAdminImpl: proxyAdmin,
-				ProtocolVersionsProxy:    superCfg.ProtocolVersionsAddr,
-				ProtocolVersionsImpl:     common.HexToAddress("0x37E15e4d6DFFa9e5E320Ee1eC036922E563CB76C"),
-				SuperchainConfigProxy:    superCfg.SuperchainConfigAddr,
-				SuperchainConfigImpl:     common.HexToAddress("0xb08Cc720F511062537ca78BdB0AE691F04F5a957"),
+				// OPCMv1 removed — ProtocolVersions fields are no longer populated.
+				ProtocolVersionsProxy: common.Address{},
+				ProtocolVersionsImpl:  common.Address{},
+				SuperchainConfigProxy: superCfg.SuperchainConfigAddr,
+				SuperchainConfigImpl:  common.HexToAddress("0xb08Cc720F511062537ca78BdB0AE691F04F5a957"),
 			}
 
 			// Tagged locator will reuse the existing superchain and OPCM
@@ -129,7 +130,11 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			require.NotNil(t, st.SuperchainRoles)
 			require.Equal(t, *expDeployment, *st.SuperchainDeployment)
 			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmImpl)
-			require.Equal(t, *stdSuperchainRoles, *st.SuperchainRoles)
+			// OPCMv1 removed — ProtocolVersionsOwner is no longer returned by the script.
+			// Check the fields that are still populated.
+			require.Equal(t, stdSuperchainRoles.SuperchainProxyAdminOwner, st.SuperchainRoles.SuperchainProxyAdminOwner)
+			require.Equal(t, stdSuperchainRoles.SuperchainGuardian, st.SuperchainRoles.SuperchainGuardian)
+			require.Equal(t, common.Address{}, st.SuperchainRoles.ProtocolVersionsOwner)
 		}
 
 		runTest(state.IntentTypeStandard)
@@ -243,39 +248,21 @@ func TestPopulateSuperchainState(t *testing.T) {
 	require.NoError(t, err)
 	opcmAddr := l1Versions["op-contracts/v2.0.0-rc.1"].OPContractsManager.Address
 
-	t.Run("valid OPCM address only", func(t *testing.T) {
-		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), common.Address{})
+	t.Run("OPCM address with SuperchainConfigProxy", func(t *testing.T) {
+		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
 		require.NoError(t, err)
 		require.Equal(t, addresses.SuperchainContracts{
 			SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
 			SuperchainConfigProxy:    superchain.SuperchainConfigAddr,
 			SuperchainConfigImpl:     common.HexToAddress("0x4da82a327773965b8d4D85Fa3dB8249b387458E7"),
-			ProtocolVersionsProxy:    superchain.ProtocolVersionsAddr,
-			ProtocolVersionsImpl:     common.HexToAddress("0x37E15e4d6DFFa9e5E320Ee1eC036922E563CB76C"),
+			ProtocolVersionsProxy:    common.Address{},
+			ProtocolVersionsImpl:     common.Address{},
 		}, *dep)
 		require.Equal(t, addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
-			ProtocolVersionsOwner:     common.HexToAddress("0xfd1D2e729aE8eEe2E146c033bf4400fE75284301"),
+			ProtocolVersionsOwner:     common.Address{},
 			SuperchainGuardian:        common.HexToAddress("0x7a50f00e8D05b95F98fE38d8BeE366a7324dCf7E"),
 		}, *roles)
-	})
-
-	t.Run("OPCM address with SuperchainConfigProxy", func(t *testing.T) {
-		// When both are provided and OPCM version < 7.0.0, the script uses v1 flow
-		// The SuperchainConfigProxy parameter is ignored in v1 flow
-		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
-		require.NoError(t, err)
-		require.NotNil(t, dep)
-		require.NotNil(t, roles)
-
-		// For OPCMv1, ProtocolVersions should be populated (read from OPCM)
-		require.NotEqual(t, common.Address{}, dep.ProtocolVersionsProxy, "ProtocolVersionsProxy should be populated for v1")
-		require.NotEqual(t, common.Address{}, dep.ProtocolVersionsImpl, "ProtocolVersionsImpl should be populated for v1")
-		require.NotEqual(t, common.Address{}, roles.ProtocolVersionsOwner, "ProtocolVersionsOwner should be populated for v1")
-
-		// Verify that values match what OPCM returns (not the SuperchainConfigProxy parameter)
-		require.Equal(t, superchain.SuperchainConfigAddr, dep.SuperchainConfigProxy)
-		require.Equal(t, superchain.ProtocolVersionsAddr, dep.ProtocolVersionsProxy)
 	})
 
 	t.Run("invalid OPCM address", func(t *testing.T) {
@@ -289,30 +276,28 @@ func TestPopulateSuperchainState(t *testing.T) {
 	})
 
 	t.Run("output mapping validation", func(t *testing.T) {
-		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), common.Address{})
+		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
 		require.NoError(t, err)
 		require.NotNil(t, dep)
 		require.NotNil(t, roles)
 
-		// Verify all SuperchainContracts fields are populated correctly
+		// Verify SuperchainConfig fields are populated correctly
 		require.NotEqual(t, common.Address{}, dep.SuperchainProxyAdminImpl, "SuperchainProxyAdminImpl should be populated")
 		require.NotEqual(t, common.Address{}, dep.SuperchainConfigProxy, "SuperchainConfigProxy should be populated")
 		require.NotEqual(t, common.Address{}, dep.SuperchainConfigImpl, "SuperchainConfigImpl should be populated")
-		require.NotEqual(t, common.Address{}, dep.ProtocolVersionsProxy, "ProtocolVersionsProxy should be populated for v1")
-		require.NotEqual(t, common.Address{}, dep.ProtocolVersionsImpl, "ProtocolVersionsImpl should be populated for v1")
-
-		// Verify implementations are different from proxies
 		require.NotEqual(t, dep.SuperchainConfigImpl, dep.SuperchainConfigProxy, "SuperchainConfigImpl should differ from proxy")
-		require.NotEqual(t, dep.ProtocolVersionsImpl, dep.ProtocolVersionsProxy, "ProtocolVersionsImpl should differ from proxy")
 
-		// Verify all SuperchainRoles fields are populated correctly
+		// ProtocolVersions fields are zero now that OPCMv1 is removed
+		require.Equal(t, common.Address{}, dep.ProtocolVersionsProxy, "ProtocolVersionsProxy should be zero")
+		require.Equal(t, common.Address{}, dep.ProtocolVersionsImpl, "ProtocolVersionsImpl should be zero")
+
+		// Verify SuperchainRoles fields are populated correctly
 		require.NotEqual(t, common.Address{}, roles.SuperchainProxyAdminOwner, "SuperchainProxyAdminOwner should be populated")
-		require.NotEqual(t, common.Address{}, roles.ProtocolVersionsOwner, "ProtocolVersionsOwner should be populated for v1")
 		require.NotEqual(t, common.Address{}, roles.SuperchainGuardian, "SuperchainGuardian should be populated")
+		require.Equal(t, common.Address{}, roles.ProtocolVersionsOwner, "ProtocolVersionsOwner should be zero")
 
 		// Verify expected values match
 		require.Equal(t, superchain.SuperchainConfigAddr, dep.SuperchainConfigProxy)
-		require.Equal(t, superchain.ProtocolVersionsAddr, dep.ProtocolVersionsProxy)
 	})
 }
 
@@ -380,13 +365,12 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 	})
 
 	t.Run("both addresses zero", func(t *testing.T) {
-		// When both are zero, the script detects OPCMv2 flow (because opcmAddr == 0)
-		// but then requires SuperchainConfigProxy to be set, so it should error
+		// When both are zero, the script requires SuperchainConfigProxy to have code, so it should error
 		dep, roles, err := PopulateSuperchainState(env, common.Address{}, common.Address{})
 		require.Error(t, err)
 		require.Nil(t, dep)
 		require.Nil(t, roles)
-		require.Contains(t, err.Error(), "superchainConfigProxy has no code for OPCM v2")
+		require.Contains(t, err.Error(), "superchainConfigProxy has no code")
 	})
 
 	t.Run("invalid SuperchainConfigProxy", func(t *testing.T) {
@@ -567,8 +551,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	require.Contains(t, err.Error(), "cannot set superchain roles when using predeployed OPCM or SuperchainConfig")
 }
 
-// Validates that providing both OPCMAddress and SuperchainConfigProxy works correctly
-// The script will use the OPCM's semver to determine the version
+// Validates that providing both OPCMAddress and SuperchainConfigProxy works correctly.
 func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	t.Parallel()
 
@@ -635,10 +618,9 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	// Should succeed - the script handles version detection
 	require.NoError(t, err)
 
-	// For OPCMv1, ProtocolVersions should be populated
 	require.NotNil(t, st.SuperchainDeployment)
-	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy)
-	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl)
+	require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy)
+	require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl)
 }
 
 // Validates that providing both
@@ -758,11 +740,10 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Verify OPCM v1 flow was used - ProtocolVersions should be populated
 	require.NotNil(t, st.SuperchainDeployment)
-	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy, "ProtocolVersionsProxy should be populated for v1")
-	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl, "ProtocolVersionsImpl should be populated for v1")
-	require.NotEqual(t, common.Address{}, st.SuperchainRoles.ProtocolVersionsOwner, "ProtocolVersionsOwner should be populated for v1")
+	require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsProxy, "ProtocolVersionsProxy should be zero")
+	require.Equal(t, common.Address{}, st.SuperchainDeployment.ProtocolVersionsImpl, "ProtocolVersionsImpl should be zero")
+	require.Equal(t, common.Address{}, st.SuperchainRoles.ProtocolVersionsOwner, "ProtocolVersionsOwner should be zero")
 
 	// Verify ImplementationsDeployment was set
 	require.NotNil(t, st.ImplementationsDeployment)

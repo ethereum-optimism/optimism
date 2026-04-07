@@ -29,7 +29,7 @@ func NewOutputCannonGameHelper(t *testing.T, client *ethclient.Client, opts *bin
 	outputGameHelper := NewOutputGameHelper(t, require.New(t), client, opts, key, game, factoryAddr, gameAddr, provider, system)
 	defaultChallengerOptions := func() []challenger.Option {
 		return []challenger.Option{
-			challenger.WithCannon(t, system),
+			challenger.WithCannonKona(t, system),
 			challenger.WithFactoryAddress(factoryAddr),
 			challenger.WithGameAddress(gameAddr),
 		}
@@ -82,7 +82,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, actorCfg.PrestateSequenceNumber)
 	l1Head := g.GetL1Head(ctx)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		logger, metrics.NoopMetrics, cfg.Cannon, vm.NewOpProgramServerExecutor(logger), l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, actorCfg.PrestateSequenceNumber, actorCfg.PoststateSequenceNumber)
+		logger, metrics.NoopMetrics, cfg.CannonKona, vm.NewKonaExecutor(), l2Client, prestateProvider, cfg.CannonKonaAbsolutePreState, rollupClient, dir, l1Head, splitDepth, actorCfg.PrestateSequenceNumber, actorCfg.PoststateSequenceNumber)
 	g.Require.NoError(err, "Failed to create output cannon trace accessor")
 	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper.SplitGameHelper, g.Game, accessor)
 }

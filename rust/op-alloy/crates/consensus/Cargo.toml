@@ -2,7 +2,7 @@
 name = "op-alloy-consensus"
 description = "Optimism alloy consensus types"
 
-version = "0.23.1"
+version = "0.24.0"
 edition.workspace = true
 rust-version.workspace = true
 authors = ["Alloy Contributors"]
@@ -37,6 +37,13 @@ serde_with = { workspace = true, optional = true }
 alloy-serde = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 
+# reth-core / reth-codec
+reth-codecs = { workspace = true, optional = true }
+reth-codecs-derive = { workspace = true, optional = true }
+reth-zstd-compressors = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+modular-bitfield = { workspace = true, optional = true }
+
 [dev-dependencies]
 rand.workspace = true
 bincode = { workspace = true }
@@ -57,9 +64,20 @@ std = [
 	"alloy-serde?/std",
 	"serde?/std",
 	"serde_with?/std",
-	"thiserror/std"
+	"thiserror/std",
+	"bytes?/std",
+	"reth-codecs?/std",
+	"reth-zstd-compressors?/std"
 ]
 alloy-compat = ["serde", "dep:alloy-network", "dep:alloy-rpc-types-eth"]
+reth-core = []
+reth-codec = [
+	"dep:reth-codecs",
+	"dep:reth-codecs-derive",
+	"dep:reth-zstd-compressors",
+	"dep:bytes",
+	"dep:modular-bitfield",
+]
 k256 = ["alloy-primitives/k256", "alloy-consensus/k256"]
 kzg = ["alloy-eips/kzg", "alloy-consensus/kzg", "std"]
 arbitrary = [
@@ -70,7 +88,8 @@ arbitrary = [
 	"alloy-primitives/rand",
 	"alloy-primitives/arbitrary",
 	"alloy-rpc-types-eth?/arbitrary",
-	"alloy-serde?/arbitrary"
+	"alloy-serde?/arbitrary",
+	"reth-codecs?/arbitrary",
 ]
 serde = [
 	"dep:serde",
@@ -78,7 +97,9 @@ serde = [
 	"alloy-primitives/serde",
 	"alloy-consensus/serde",
 	"alloy-eips/serde",
-	"alloy-rpc-types-eth?/serde"
+	"alloy-rpc-types-eth?/serde",
+	"bytes?/serde",
+	"reth-codecs?/serde",
 ]
 serde-bincode-compat = [
 	"serde_with",

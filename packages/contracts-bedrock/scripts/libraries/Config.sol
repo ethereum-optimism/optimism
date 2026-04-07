@@ -88,12 +88,8 @@ library Config {
 
     /// @notice Returns the path on the local filesystem where the deploy config is
     function deployConfigPath() internal view returns (string memory env_) {
-        if (vm.isContext(VmSafe.ForgeContext.TestGroup)) {
-            env_ = string.concat(vm.projectRoot(), "/deploy-config/hardhat.json");
-        } else {
-            env_ = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
-            require(bytes(env_).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
-        }
+        env_ = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
+        require(bytes(env_).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
     }
 
     /// @notice Returns the chainid from the EVM context or the value of the CHAIN_ID env var as
@@ -313,11 +309,6 @@ library Config {
         return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
     }
 
-    /// @notice Returns true if the development feature opcm_v2 is enabled.
-    function devFeatureOpcmV2() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__OPCM_V2", false);
-    }
-
     /// @notice Returns true if the development feature l2cm is enabled.
     function devFeatureL2CM() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__L2CM", false);
@@ -333,8 +324,18 @@ library Config {
         return vm.envOr("DEV_FEATURE__CANNON_KONA", false);
     }
 
+    /// @notice Returns true if the development feature super root games migration is enabled.
+    function devFeatureSuperRootGamesMigration() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION", false);
+    }
+
     /// @notice Returns true if the system feature custom_gas_token is enabled.
     function sysFeatureCustomGasToken() internal view returns (bool) {
         return vm.envOr("SYS_FEATURE__CUSTOM_GAS_TOKEN", false);
+    }
+
+    /// @notice Returns true if running in kontrol context.
+    function isKontrolContext() internal view returns (bool) {
+        return vm.envOr("KONTROL_CONTEXT", false);
     }
 }

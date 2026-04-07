@@ -4,11 +4,12 @@ use crate::{
     primitives::{Block, CustomHeader, CustomTransaction},
 };
 use alloy_evm::block::{BlockExecutionError, BlockExecutorFactory};
-use reth_ethereum::{
+use reth_op::{
+    DepositReceipt,
     evm::primitives::execute::{BlockAssembler, BlockAssemblerInput},
-    primitives::Receipt,
+    node::OpBlockAssembler,
 };
-use reth_op::{DepositReceipt, node::OpBlockAssembler};
+use reth_primitives_traits::Receipt;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]

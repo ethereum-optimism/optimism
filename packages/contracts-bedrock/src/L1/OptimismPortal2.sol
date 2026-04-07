@@ -15,7 +15,7 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { GameStatus, GameType } from "src/dispute/lib/Types.sol";
+import { Claim, GameStatus, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
@@ -208,9 +208,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.2.1
+    /// @custom:semver 5.3.0
     function version() public pure virtual returns (string memory) {
-        return "5.2.1";
+        return "5.3.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -381,8 +381,18 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             revert OptimismPortal_InvalidProofTimestamp();
         }
 
+        // Extract the output root claim. Super game types use rootClaimByChainId to extract
+        // the per-chain output root from the super root. Legacy game types use rootClaim directly.
+        // TODO(#19816): Post interop clean up the legacy rootClaim() usage in OptimismPortal2.
+        Claim outputRootClaim;
+        if (GameTypes.isSuperGame(disputeGameProxy.gameType())) {
+            outputRootClaim = disputeGameProxy.rootClaimByChainId(systemConfig.l2ChainId());
+        } else {
+            outputRootClaim = disputeGameProxy.rootClaim();
+        }
+
         // Verify that the output root can be generated with the elements in the proof.
-        if (disputeGameProxy.rootClaim().raw() != Hashing.hashOutputRootProof(_outputRootProof)) {
+        if (outputRootClaim.raw() != Hashing.hashOutputRootProof(_outputRootProof)) {
             revert OptimismPortal_InvalidOutputRootProof();
         }
 

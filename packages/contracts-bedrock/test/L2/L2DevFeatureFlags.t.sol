@@ -102,6 +102,5 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
 
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP));
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.CANNON_KONA));
-        assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPCM_V2));
     }
 }
