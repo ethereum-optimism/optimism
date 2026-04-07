@@ -1920,6 +1920,7 @@
                   "chain-operators/guides/management/key-management",
                   "chain-operators/guides/management/operations",
                   "chain-operators/guides/management/transaction-fees-101",
+                  "chain-operators/guides/management/fee-vaults",
                   "chain-operators/guides/management/troubleshooting"
                 ]
               }
@@ -2285,6 +2286,7 @@
             "group": "Transactions",
             "pages": [
               "/op-stack/transactions/fees",
+              "/op-stack/transactions/fee-vaults",
               "/op-stack/transactions/flashblocks",
               "/op-stack/transactions/forced-transaction",
               "/op-stack/transactions/transaction-finality",
