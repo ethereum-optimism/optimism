@@ -470,22 +470,25 @@ where
 
         let (result_tx, result_rx) = oneshot::channel();
         let builder = self.builder.clone();
-        self.spawner.spawn_blocking(move || {
-            let txns: Vec<_> = args.transactions.clone().into_iter().collect();
 
-            let results = txns
+        let transactions = 0..args.transactions.len();
+        let args = Arc::new(args);
+
+        self.spawner.spawn_blocking(move || {
+            let results = transactions
                 .into_par_iter()
-                .map(|_txn| {
+                .map(|_| {
                     // let tx_cache = Some(&mut tx_cache);
                     let tx_cache = None;
-                    let args = args.clone();
-                    /// modify BuildArgs
-                    let result = builder.execute(args, tx_cache);
-                    result
+                    // we could modify BuildArgs to contain only information needed for this
+                    // transaction.
+                    let args = (*args).clone();
+                    builder.execute(args, tx_cache)
                 })
                 .collect::<Vec<_>>();
-            // last txns execution return the final state
+            // last txn's execution returns the final state
             let result = results.into_iter().last().expect("at least one result");
+            // this only makes sense if we merge the tx_caches from each thread.
             let _ = result_tx.send((result, tx_cache));
         });
         self.job = Some(BuildJob {
