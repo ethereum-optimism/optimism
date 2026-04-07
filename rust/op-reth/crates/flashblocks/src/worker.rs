@@ -56,6 +56,7 @@ impl<EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider> {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct BuildArgs<I, N: NodePrimitives> {
     pub(crate) base: OpFlashblockPayloadBase,
     pub(crate) transactions: I,
@@ -584,7 +585,7 @@ where
         );
 
         let pending_flashblock = PendingFlashBlock::new(
-            pending_block,
+            pending_block.clone(),
             canonical_anchor,
             args.last_flashblock_index,
             args.last_flashblock_hash,
@@ -596,7 +597,7 @@ where
             pending_flashblock,
             cached_reads: request_cache,
             pending_state,
-            fbals_validation: todo!(),
+            fbals_validation: FBalsValidationResult::OneOrMoreFailed,
         }))
     }
 

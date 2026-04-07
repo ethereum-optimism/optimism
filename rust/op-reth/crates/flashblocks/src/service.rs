@@ -12,6 +12,7 @@ use alloy_rpc_types::AccessList;
 use futures_util::{FutureExt, Stream, StreamExt};
 use metrics::{Counter, Gauge, Histogram};
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use reth_evm::ConfigureEvm;
 use reth_metrics::Metrics;
 use reth_primitives_traits::{AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy};
@@ -470,7 +471,21 @@ where
         let (result_tx, result_rx) = oneshot::channel();
         let builder = self.builder.clone();
         self.spawner.spawn_blocking(move || {
-            let result = builder.execute(args, Some(&mut tx_cache));
+            let txns: Vec<_> = args.transactions.clone().into_iter().collect();
+
+            let results = txns
+                .into_par_iter()
+                .map(|_txn| {
+                    // let tx_cache = Some(&mut tx_cache);
+                    let tx_cache = None;
+                    let args = args.clone();
+                    /// modify BuildArgs
+                    let result = builder.execute(args, tx_cache);
+                    result
+                })
+                .collect::<Vec<_>>();
+            // last txns execution return the final state
+            let result = results.last().clone().expect("at least one result");
             let _ = result_tx.send((result, tx_cache));
         });
         self.job = Some(BuildJob {
