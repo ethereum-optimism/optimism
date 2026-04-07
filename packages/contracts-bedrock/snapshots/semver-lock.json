@@ -80,13 +80,8 @@
     "sourceCodeHash": "0xea9fed192db1a7a1f39dd56ede98293e1bacc2275f58696e8b22f25f265be770"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-<<<<<<< HEAD
-    "initCodeHash": "0x48c9288af37a707fe31091577a382ad5526011a670810d166d16bde5606d864e",
-    "sourceCodeHash": "0xb36d1c2df5ff4dae418f35023ebc9e17940e30af31949b55006efc501c864e5b"
-=======
-    "initCodeHash": "0xc10e87311ed3cc3ffa1bfe65d9612a668b6fb3c1236d2cc6d792b8b628c61d6b",
-    "sourceCodeHash": "0xcfb64a58770d22187781a271f078fe1080ad43d4229ff4dd132f0db3fe9b86b3"
->>>>>>> 80b646e79493cc778a64dd8337a3d439c3c060a3
+    "initCodeHash": "0x2b50eb689681d330fbb3bc997b37fd2ad1d261432e6c507ba0fa10a82591d168",
+    "sourceCodeHash": "0x516e4c4fedffcff288fed25602651ee2bd2c6d037d6a0d750dfe75b524b96d3e"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",

@@ -189,24 +189,12 @@ contract DeployConfig is Script {
         daBondSize = _readOr(_json, "$.daBondSize", uint256(1000000000));
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", uint256(0));
 
-<<<<<<< HEAD
-        devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
-        useUpgradedFork;
-        useInterop = _readOr(_json, "$.useInterop", false);
-        faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", 73);
-        faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
-        faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", 10800);
-        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", 302400);
-=======
         devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", uint256(0)));
-        useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
         useInterop = _readOr(_json, "$.useInterop", false);
-        chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
         faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", uint256(73));
         faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", uint256(30));
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", uint256(10800));
         faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", uint256(302400));
->>>>>>> 80b646e79493cc778a64dd8337a3d439c3c060a3
     }
 
     function fork() public view returns (Fork fork_) {
@@ -393,8 +381,6 @@ contract DeployConfig is Script {
         useInterop = false;
         useUpgradedFork = false;
         devFeatureBitmap = bytes32(0);
-        useRevenueShare = false;
-        chainFeesRecipient = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
     }
 
     function latestGenesisFork() internal view returns (Fork) {
