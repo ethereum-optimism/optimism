@@ -186,7 +186,8 @@ where
         // Collect transactions and extract hashes for cache lookup
         let transactions: Vec<_> = args.transactions.into_iter().collect();
         let tx_hashes: Vec<B256> = transactions.iter().map(|tx| *tx.tx_hash()).collect();
-        let received_access_lists: Vec<FlashblockAccessList> = args.received_access_lists.collect();
+        let received_access_lists: Vec<FlashblockAccessList> =
+            args.received_access_lists.iter().cloned().collect();
         let cumulative_account_changes = fbals::prefix_sum(&received_access_lists);
         // this seems off
         let max_tx_index: u64 = transactions.len().try_into().unwrap();
@@ -250,8 +251,10 @@ where
                 args.pending_parent.as_ref().map(|p| p.cached_reads.clone()).unwrap_or_default()
             });
 
+        let rq = request_cache.clone();
+
         let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
-        let cached_db2 = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
+        // let cached_db2 = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
         // Check for resumable canonical execution state.
         let canonical_parent_hash = args.base.parent_hash;
@@ -293,7 +296,7 @@ where
             None
         };
 
-        let transaction = transactions.iter().map(|txn| txn).collect();
+        let transaction: Vec<_> = transactions.par_iter().map(|txn| txn).collect();
 
         // Build state with appropriate prestate
         // - Speculative builds use pending parent prestate
@@ -349,8 +352,8 @@ where
             let evm = self.evm_config.evm_with_env(&mut state, evm_env);
             let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
 
-            let evm2 = self.evm_config.evm_with_env(&mut state, evm_env);
-            let mut executor2 = self.evm_config.create_executor(evm, execution_ctx.clone());
+            // let evm2 = self.evm_config.evm_with_env(&mut state, evm_env);
+            // let mut executor2 = self.evm_config.create_executor(evm, execution_ctx.clone());
 
             // this is the index of the fb in the pending sequence. I think this should always be
             // zero
