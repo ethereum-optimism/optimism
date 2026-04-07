@@ -538,6 +538,11 @@
             "internalType": "address",
             "name": "proposer",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerMigrationValidator.MigrationValidationInput",
@@ -588,6 +593,11 @@
           {
             "internalType": "address",
             "name": "proposer",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
             "type": "address"
           }
         ],

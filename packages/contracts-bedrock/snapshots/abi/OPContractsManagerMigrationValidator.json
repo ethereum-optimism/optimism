@@ -32,6 +32,11 @@
             "internalType": "address",
             "name": "proposer",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerMigrationValidator.MigrationValidationInput",
@@ -82,6 +87,11 @@
           {
             "internalType": "address",
             "name": "proposer",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
             "type": "address"
           }
         ],
@@ -135,5 +145,10 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameArgsLength",
+    "type": "error"
   }
 ]

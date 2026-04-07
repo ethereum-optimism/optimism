@@ -5,13 +5,6 @@
     "type": "constructor"
   },
   {
-    "inputs": [],
-    "name": "__constructor__",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "string",

@@ -7,12 +7,15 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 interface IOPContractsManagerMigrationValidator {
+    error InvalidGameArgsLength();
+
     struct MigrationValidationInput {
         IDisputeGameFactory dgf;
         ISystemConfig[] chainSystemConfigs;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         address proposer;
+        address challenger;
     }
 
     function version() external view returns (string memory);
