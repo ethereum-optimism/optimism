@@ -203,4 +203,3 @@ func shouldDeployOPChain(st *state.State, chainID common.Hash) bool {
 
 	return true
 }
-
