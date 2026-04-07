@@ -2,7 +2,6 @@ package filter
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,38 +14,6 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
-
-func TestBlockSelectorUnmarshalJSON(t *testing.T) {
-	t.Run("latest", func(t *testing.T) {
-		var selector BlockSelector
-		require.NoError(t, json.Unmarshal([]byte(`"latest"`), &selector))
-		require.True(t, selector.Latest())
-	})
-
-	t.Run("json number", func(t *testing.T) {
-		var selector BlockSelector
-		require.NoError(t, json.Unmarshal([]byte(`123`), &selector))
-		require.False(t, selector.Latest())
-		require.Equal(t, uint64(123), selector.Number())
-	})
-
-	t.Run("quoted decimal", func(t *testing.T) {
-		var selector BlockSelector
-		require.NoError(t, json.Unmarshal([]byte(`"123"`), &selector))
-		require.Equal(t, uint64(123), selector.Number())
-	})
-
-	t.Run("quoted hex", func(t *testing.T) {
-		var selector BlockSelector
-		require.NoError(t, json.Unmarshal([]byte(`"0x7b"`), &selector))
-		require.Equal(t, uint64(123), selector.Number())
-	})
-
-	t.Run("invalid", func(t *testing.T) {
-		var selector BlockSelector
-		require.Error(t, json.Unmarshal([]byte(`"safe"`), &selector))
-	})
-}
 
 func TestQueryFrontendGetBlockHashByNumberRPC(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
@@ -90,14 +57,14 @@ func TestQueryFrontendGetBlockHashByNumberRPC(t *testing.T) {
 
 	t.Run("numeric selector", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), uint64(100))
+		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(100))
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x01"), result)
 	})
 
 	t.Run("missing block", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), uint64(999))
+		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(999))
 		require.ErrorContains(t, err, "not found")
 	})
 }

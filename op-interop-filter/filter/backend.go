@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -186,22 +187,25 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 }
 
 // GetBlockHashByNumber returns the latest block hash or the block hash at a specific height for the given chain.
-func (b *Backend) GetBlockHashByNumber(chainID eth.ChainID, selector BlockSelector) (common.Hash, error) {
+// Accepts rpc.BlockNumber: "latest" or a numeric block number. Other named tags are not supported.
+func (b *Backend) GetBlockHashByNumber(chainID eth.ChainID, blockNum rpc.BlockNumber) (common.Hash, error) {
 	ingester, ok := b.chains[chainID]
 	if !ok {
 		return common.Hash{}, fmt.Errorf("chain %s: %w", chainID, types.ErrUnknownChain)
 	}
 
-	if selector.Latest() {
+	if blockNum == rpc.LatestBlockNumber {
 		block, ok := ingester.LatestBlock()
 		if !ok {
 			return common.Hash{}, fmt.Errorf("latest block for chain %s: %w", chainID, ethereum.NotFound)
 		}
 		return block.Hash, nil
 	}
+	if blockNum < 0 {
+		return common.Hash{}, fmt.Errorf("unsupported block tag %q: only \"latest\" and block numbers are supported", blockNum)
+	}
 
-	blockNum := selector.Number()
-	blockHash, ok := ingester.BlockHashByNumber(blockNum)
+	blockHash, ok := ingester.BlockHashByNumber(uint64(blockNum))
 	if !ok {
 		return common.Hash{}, fmt.Errorf("block %d for chain %s: %w", blockNum, chainID, ethereum.NotFound)
 	}
