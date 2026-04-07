@@ -210,6 +210,7 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
+	h.setInitBond(gameType)
 	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.Factory.Create(opts, gameType, rootClaim, extraData)
 	})
@@ -272,6 +273,7 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
+	h.setInitBond(gameType)
 	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.Factory.Create(opts, gameType, rootClaim, extraData)
 	})
@@ -326,6 +328,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
+	h.setInitBond(alphabetGameType)
 	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.Factory.Create(opts, alphabetGameType, rootClaim, extraData)
 	})
@@ -350,6 +353,12 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	return &OutputAlphabetGameHelper{
 		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
 	}
+}
+
+func (h *FactoryHelper) setInitBond(gameType uint32) {
+	bond, err := h.Factory.InitBonds(&bind.CallOpts{}, gameType)
+	h.Require.NoError(err, "Failed to get init bond")
+	h.Opts.Value = bond
 }
 
 func (h *FactoryHelper) CreateBisectionGameExtraData(l2Node string, l2BlockNumber uint64, cfg *GameCfg) []byte {
