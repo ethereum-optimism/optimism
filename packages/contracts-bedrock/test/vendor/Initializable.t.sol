@@ -123,7 +123,6 @@ contract Initializer_Test is CommonTest {
         );
 
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            // TODO(#19709): Remove this branching logic when we remove the OptimismPortalInterop from src
             contracts.push(
                 InitializeableContract({
                     name: "OptimismPortal2Impl",
@@ -384,7 +383,7 @@ contract Initializer_Test is CommonTest {
     function test_cannotReinitialize_succeeds() public {
         // Collect exclusions.
         uint256 j;
-        string[] memory excludes = new string[](10);
+        string[] memory excludes = new string[](9);
         // Contract is currently not being deployed as part of the standard deployment script.
         excludes[j++] = "src/L2/OptimismSuperchainERC20.sol";
         // Periphery contracts don't get deployed as part of the standard deployment script.
@@ -399,9 +398,6 @@ contract Initializer_Test is CommonTest {
         excludes[j++] = "src/dispute/SuperFaultDisputeGame.sol";
         excludes[j++] = "src/dispute/SuperPermissionedDisputeGame.sol";
         excludes[j++] = "src/dispute/zk/ZKDisputeGame.sol";
-        // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
-        // TODO(#19709): Remove this exclusion as part of the OptimismPortalInterop removal
-        excludes[j++] = "src/L1/OptimismPortalInterop.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
         excludes[j++] = "src/L1/FeesDepositor.sol";
