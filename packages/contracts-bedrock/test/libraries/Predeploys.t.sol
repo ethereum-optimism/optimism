@@ -71,10 +71,10 @@ abstract contract Predeploys_TestInit is CommonTest {
         if (_r.devFeatureGate != bytes32(0) && !DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _r.devFeatureGate)) {
             return false;
         }
-        if (_r.sysFeatureGate == Features.INTEROP) {
+        if (_r.isInterop) {
             return _isInterop && uint256(_fork) >= uint256(Fork.INTEROP);
         }
-        if (_r.sysFeatureGate == Features.CUSTOM_GAS_TOKEN) return _isCustomGasToken;
+        if (_r.isCustomGasToken) return _isCustomGasToken;
         return true;
     }
 

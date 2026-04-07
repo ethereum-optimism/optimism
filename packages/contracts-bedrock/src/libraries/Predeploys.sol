@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 // Libraries
 import { Fork } from "scripts/libraries/Config.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Features } from "src/libraries/Features.sol";
 
 /// @title Predeploys
 /// @notice Contains constant addresses for protocol contracts that are pre-deployed to the L2 system.
@@ -139,7 +138,8 @@ library Predeploys {
     /// @param deployGasLimit    Gas limit for deployments in NUT bundles.
     ///                          Based on gas profiling with a safety margin.
     /// @param devFeatureGate    DevFeatures constant that gates this predeploy on L2 genesis.
-    /// @param sysFeatureGate    Features constant that gates this predeploy on L2 genesis.
+    /// @param isCustomGasToken  True if this predeploy is only deployed on custom gas token chains.
+    /// @param isInterop         True if this predeploy is only deployed on interop-enabled chains.
     /// @param isProxied         True if the predeploy uses a Proxy. Non-proxied predeploys
     ///                          (WETH, GovernanceToken) are etched directly without proxy or
     ///                          implementation slot setup, and are excluded from NUT bundles.
@@ -153,7 +153,8 @@ library Predeploys {
         string artifactPath;
         uint64 deployGasLimit;
         bytes32 devFeatureGate;
-        bytes32 sysFeatureGate;
+        bool isCustomGasToken;
+        bool isInterop;
         bool isProxied;
         bool isDeprecated;
         bool isVariant;
@@ -226,7 +227,8 @@ library Predeploys {
             artifactPath: "L2CrossDomainMessenger.sol:L2CrossDomainMessenger",
             deployGasLimit: 2_600_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -238,7 +240,8 @@ library Predeploys {
             artifactPath: "GasPriceOracle.sol:GasPriceOracle",
             deployGasLimit: 2_600_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -250,7 +253,8 @@ library Predeploys {
             artifactPath: "L2StandardBridge.sol:L2StandardBridge",
             deployGasLimit: 3_600_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -262,7 +266,8 @@ library Predeploys {
             artifactPath: "SequencerFeeVault.sol:SequencerFeeVault",
             deployGasLimit: 1_300_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -274,7 +279,8 @@ library Predeploys {
             artifactPath: "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
             deployGasLimit: 3_600_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -286,7 +292,8 @@ library Predeploys {
             artifactPath: "L2ERC721Bridge.sol:L2ERC721Bridge",
             deployGasLimit: 1_900_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -299,7 +306,8 @@ library Predeploys {
             artifactPath: "L1Block.sol:L1Block",
             deployGasLimit: 1_100_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -312,7 +320,8 @@ library Predeploys {
             artifactPath: "L1BlockCGT.sol:L1BlockCGT",
             deployGasLimit: 1_100_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: Features.CUSTOM_GAS_TOKEN,
+            isCustomGasToken: true,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: true
@@ -325,7 +334,8 @@ library Predeploys {
             artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
             deployGasLimit: 650_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -338,7 +348,8 @@ library Predeploys {
             artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
             deployGasLimit: 750_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: Features.CUSTOM_GAS_TOKEN,
+            isCustomGasToken: true,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: true
@@ -350,7 +361,8 @@ library Predeploys {
             artifactPath: "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
             deployGasLimit: 4_900_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -362,7 +374,8 @@ library Predeploys {
             artifactPath: "L2ProxyAdmin.sol:L2ProxyAdmin",
             deployGasLimit: 2_400_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -374,7 +387,8 @@ library Predeploys {
             artifactPath: "BaseFeeVault.sol:BaseFeeVault",
             deployGasLimit: 1_300_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -386,7 +400,8 @@ library Predeploys {
             artifactPath: "L1FeeVault.sol:L1FeeVault",
             deployGasLimit: 50_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -398,7 +413,8 @@ library Predeploys {
             artifactPath: "OperatorFeeVault.sol:OperatorFeeVault",
             deployGasLimit: 1_300_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -410,7 +426,8 @@ library Predeploys {
             artifactPath: "SchemaRegistry.sol:SchemaRegistry",
             deployGasLimit: 700_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -422,7 +439,8 @@ library Predeploys {
             artifactPath: "EAS.sol:EAS",
             deployGasLimit: 5_800_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -434,7 +452,8 @@ library Predeploys {
             artifactPath: "FeeSplitter.sol:FeeSplitter",
             deployGasLimit: 1_700_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -450,7 +469,8 @@ library Predeploys {
             artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
             deployGasLimit: 600_000,
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
-            sysFeatureGate: Features.INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -462,7 +482,8 @@ library Predeploys {
             artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
             deployGasLimit: 1_500_000,
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
-            sysFeatureGate: Features.INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -474,7 +495,8 @@ library Predeploys {
             artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
             deployGasLimit: 700_000,
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
-            sysFeatureGate: Features.INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -486,7 +508,8 @@ library Predeploys {
             artifactPath: "ETHLiquidity.sol:ETHLiquidity",
             deployGasLimit: 400_000,
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
-            sysFeatureGate: Features.INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -500,7 +523,8 @@ library Predeploys {
             artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
             deployGasLimit: 400_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: Features.CUSTOM_GAS_TOKEN,
+            isCustomGasToken: true,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -512,7 +536,8 @@ library Predeploys {
             artifactPath: "LiquidityController.sol:LiquidityController",
             deployGasLimit: 1_400_000,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: Features.CUSTOM_GAS_TOKEN,
+            isCustomGasToken: true,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -526,7 +551,8 @@ library Predeploys {
             artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
             deployGasLimit: 600_000,
             devFeatureGate: DevFeatures.L2CM,
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -538,7 +564,8 @@ library Predeploys {
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
             deployGasLimit: 260_000,
             devFeatureGate: DevFeatures.L2CM,
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: false,
             isVariant: false
@@ -553,7 +580,8 @@ library Predeploys {
             artifactPath: "WETH.sol:WETH",
             deployGasLimit: 0,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: false,
             isDeprecated: false,
             isVariant: false
@@ -564,7 +592,8 @@ library Predeploys {
             artifactPath: "GovernanceToken.sol:GovernanceToken",
             deployGasLimit: 0,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: false,
             isDeprecated: false,
             isVariant: false
@@ -579,7 +608,8 @@ library Predeploys {
             artifactPath: "LegacyMessagePasser.sol:LegacyMessagePasser",
             deployGasLimit: 0,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: true,
             isVariant: false
@@ -590,7 +620,8 @@ library Predeploys {
             artifactPath: "DeployerWhitelist.sol:DeployerWhitelist",
             deployGasLimit: 0,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: true,
             isVariant: false
@@ -601,7 +632,8 @@ library Predeploys {
             artifactPath: "L1BlockNumber.sol:L1BlockNumber",
             deployGasLimit: 0,
             devFeatureGate: bytes32(0),
-            sysFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
             isProxied: true,
             isDeprecated: true,
             isVariant: false
@@ -631,12 +663,13 @@ library Predeploys {
     ///         Reverts if no matching record is found or if the gates differ.
     ///         Called by L2Genesis setters to self-verify their own registry configuration,
     ///         catching any drift between a setter's assumed gates and the registry.
-    function assertGates(address _proxy, bytes32 _devGate, bytes32 _sysGate) internal pure {
+    function assertGates(address _proxy, bytes32 _devGate, bool _isCustomGasToken, bool _isInterop) internal pure {
         PredeployRecord[] memory records = getAllRecords();
         for (uint256 i = 0; i < records.length; i++) {
             if (records[i].proxy == _proxy) {
                 require(
-                    records[i].devFeatureGate == _devGate && records[i].sysFeatureGate == _sysGate,
+                    records[i].devFeatureGate == _devGate && records[i].isCustomGasToken == _isCustomGasToken
+                        && records[i].isInterop == _isInterop,
                     "Predeploys: gate mismatch"
                 );
                 return;
@@ -674,19 +707,11 @@ library Predeploys {
                     }
                 }
 
-                if (records[i].sysFeatureGate != 0) {
-                    // If the feature on the gate is not present on the bitmap, the predeploy is not supported.
-                    if (
-                        DevFeatures.isDevFeatureEnabled(records[i].sysFeatureGate, Features.CUSTOM_GAS_TOKEN)
-                            && !_isCustomGasToken
-                    ) {
-                        return false;
-                    }
-
-                    if (DevFeatures.isDevFeatureEnabled(records[i].sysFeatureGate, Features.INTEROP) && !_useInterop) {
-                        return false;
-                    }
+                // If the predeploy has a system feature gate, check if it is supported based on the arguments.
+                if ((records[i].isCustomGasToken && !_isCustomGasToken) || (records[i].isInterop && !_useInterop)) {
+                    return false;
                 }
+
                 return true;
             }
         }

@@ -15,6 +15,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Types } from "src/libraries/Types.sol";
+import { console } from "forge-std/console.sol";
 
 // Interfaces
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
@@ -533,7 +534,7 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setCrossL2Inbox() internal {
-        Predeploys.assertGates(Predeploys.CROSS_L2_INBOX, DevFeatures.OPTIMISM_PORTAL_INTEROP, Features.INTEROP);
+        Predeploys.assertGates(Predeploys.CROSS_L2_INBOX, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.CROSS_L2_INBOX);
     }
 
@@ -541,7 +542,7 @@ contract L2Genesis is Script {
     ///         This contract has no initializer.
     function setL2ToL2CrossDomainMessenger() internal {
         Predeploys.assertGates(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, Features.INTEROP
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
         );
         _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
@@ -549,7 +550,7 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setETHLiquidity() internal {
-        Predeploys.assertGates(Predeploys.ETH_LIQUIDITY, DevFeatures.OPTIMISM_PORTAL_INTEROP, Features.INTEROP);
+        Predeploys.assertGates(Predeploys.ETH_LIQUIDITY, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.ETH_LIQUIDITY);
         vm.deal(Predeploys.ETH_LIQUIDITY, type(uint128).max);
     }
@@ -557,7 +558,7 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setSuperchainETHBridge() internal {
-        Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, Features.INTEROP);
+        Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
     }
 
@@ -584,7 +585,7 @@ contract L2Genesis is Script {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setLiquidityController(Input memory _input) internal {
-        Predeploys.assertGates(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), Features.CUSTOM_GAS_TOKEN);
+        Predeploys.assertGates(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), true, false);
         address impl = _setImplementationCode(Predeploys.LIQUIDITY_CONTROLLER);
 
         ILiquidityController(impl).initialize({
@@ -603,7 +604,7 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setNativeAssetLiquidity(Input memory _input) internal {
-        Predeploys.assertGates(Predeploys.NATIVE_ASSET_LIQUIDITY, bytes32(0), Features.CUSTOM_GAS_TOKEN);
+        Predeploys.assertGates(Predeploys.NATIVE_ASSET_LIQUIDITY, bytes32(0), true, false);
         _setImplementationCode(Predeploys.NATIVE_ASSET_LIQUIDITY);
 
         require(
@@ -617,13 +618,13 @@ contract L2Genesis is Script {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setConditionalDeployer() internal {
-        Predeploys.assertGates(Predeploys.CONDITIONAL_DEPLOYER, DevFeatures.L2CM, bytes32(0));
+        Predeploys.assertGates(Predeploys.CONDITIONAL_DEPLOYER, DevFeatures.L2CM, false, false);
         _setImplementationCode(Predeploys.CONDITIONAL_DEPLOYER);
     }
 
     /// @notice Sets up the L2DevFeatureFlags predeploy with the development feature bitmap.
     function setL2DevFeatureFlags(Input memory _input) internal {
-        Predeploys.assertGates(Predeploys.L2_DEV_FEATURE_FLAGS, DevFeatures.L2CM, bytes32(0));
+        Predeploys.assertGates(Predeploys.L2_DEV_FEATURE_FLAGS, DevFeatures.L2CM, false, false);
         _setImplementationCode(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);
