@@ -39,6 +39,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
+import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -606,6 +607,14 @@ contract DeployImplementations is Script {
         opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
         opcmImplementations.zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
 
+        IStandardValidatorUtils standardValidatorUtils = IStandardValidatorUtils(
+            DeployUtils.createDeterministic({
+                _name: "StandardValidatorUtils.sol:StandardValidatorUtils",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IStandardValidatorUtils.__constructor__, ())),
+                _salt: _salt
+            })
+        );
+
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator",
@@ -613,6 +622,7 @@ contract DeployImplementations is Script {
                     abi.encodeCall(
                         IOPContractsManagerStandardValidator.__constructor__,
                         (
+                            standardValidatorUtils,
                             opcmImplementations,
                             _input.superchainConfigProxy,
                             _input.l1ProxyAdminOwner,

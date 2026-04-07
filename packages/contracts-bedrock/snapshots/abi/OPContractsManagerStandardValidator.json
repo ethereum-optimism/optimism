@@ -2,6 +2,11 @@
   {
     "inputs": [
       {
+        "internalType": "contract IStandardValidatorUtils",
+        "name": "_standardValidatorUtils",
+        "type": "address"
+      },
+      {
         "components": [
           {
             "internalType": "address",
@@ -323,6 +328,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "standardValidatorUtils",
+    "outputs": [
+      {
+        "internalType": "contract IStandardValidatorUtils",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

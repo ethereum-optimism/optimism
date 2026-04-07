@@ -6,11 +6,11 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { GameType, Claim, GameTypes } from "src/dispute/lib/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 // Interfaces
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -18,7 +18,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -108,6 +107,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Bitmap of development features, verification may depend on these features.
     bytes32 public devFeatureBitmap;
 
+    IStandardValidatorUtils public standardValidatorUtils;
+
     /// @notice Struct containing the implementation addresses of the L1 contracts.
     struct Implementations {
         address l1ERC721BridgeImpl;
@@ -173,6 +174,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Constructor for the OPContractsManagerStandardValidator contract.
     constructor(
+        IStandardValidatorUtils _standardValidatorUtils,
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
@@ -185,6 +187,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         challenger = _challenger;
         withdrawalDelaySeconds = _withdrawalDelaySeconds;
         devFeatureBitmap = _devFeatureBitmap;
+        standardValidatorUtils = _standardValidatorUtils;
 
         // Set implementation addresses from struct
         l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
@@ -259,8 +262,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Asserts that the SuperchainConfig contract is valid.
     function assertValidSuperchainConfig(string memory _errors) internal view returns (string memory) {
-        _errors = internalRequire(!superchainConfig.paused(address(0)), "SPRCFG-10", _errors);
-        return _errors;
+        return standardValidatorUtils.assertValidSuperchainConfig(_errors, superchainConfig);
     }
 
     /// @notice Asserts that the ProxyAdmin contract is valid.
@@ -273,9 +275,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
-        _errors = internalRequire(_admin.owner() == _l1PAOMultisig, "PROXYA-10", _errors);
-        return _errors;
+        return standardValidatorUtils.assertValidProxyAdmin(_errors, _admin, expectedL1PAOMultisig(_overrides));
     }
 
     /// @notice Asserts that the SystemConfig contract is valid.
@@ -382,20 +382,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        IOptimismMintableERC20Factory _factory = IOptimismMintableERC20Factory(_sysCfg.optimismMintableERC20Factory());
-        _errors = internalRequire(
-            LibString.eq(getVersion(address(_factory)), getVersion(optimismMintableERC20FactoryImpl)),
-            "MERC20F-10",
-            _errors
+        return standardValidatorUtils.assertValidOptimismMintableERC20Factory(
+            _errors, _sysCfg, _admin, optimismMintableERC20FactoryImpl
         );
-        _errors = internalRequire(
-            getProxyImplementation(_admin, address(_factory)) == optimismMintableERC20FactoryImpl, "MERC20F-20", _errors
-        );
-
-        IL1StandardBridge _bridge = IL1StandardBridge(payable(_sysCfg.l1StandardBridge()));
-        _errors = internalRequire(_factory.BRIDGE() == address(_bridge), "MERC20F-30", _errors);
-        _errors = internalRequire(_factory.bridge() == address(_bridge), "MERC20F-40", _errors);
-        return _errors;
     }
 
     /// @notice Asserts that the L1ERC721Bridge contract is valid.
@@ -435,21 +424,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
-
-        _errors = internalRequire(
-            LibString.eq(getVersion(address(_portal)), getVersion(optimismPortalImpl)), "PORTAL-10", _errors
-        );
-        _errors = internalRequire(
-            getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
-        );
-
-        IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
-        _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
-        _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
-        _errors = internalRequire(getProxyAdmin(address(_portal)) == _admin, "PORTAL-90", _errors);
-        return _errors;
+        return standardValidatorUtils.assertValidOptimismPortal(_errors, _sysCfg, _admin, optimismPortalImpl);
     }
 
     /// @notice Asserts that the ETHLockbox contract is valid.
@@ -492,25 +467,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
-        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        _errors = internalRequire(
-            LibString.eq(getVersion(address(_factory)), getVersion(disputeGameFactoryImpl)), "DF-10", _errors
+        return standardValidatorUtils.assertValidDisputeGameFactory(
+            _errors, _sysCfg, _admin, disputeGameFactoryImpl, expectedL1PAOMultisig(_overrides)
         );
-        _errors = internalRequire(
-            getProxyImplementation(_admin, address(_factory)) == disputeGameFactoryImpl, "DF-20", _errors
-        );
-        _errors = internalRequire(_factory.owner() == _l1PAOMultisig, "DF-30", _errors);
-        _errors = internalRequire(getProxyAdmin(address(_factory)) == _admin, "DF-40", _errors);
-        // At least one permissioned game must be registered — either the legacy
-        // PERMISSIONED_CANNON or the super-root SUPER_PERMISSIONED_CANNON.
-        _errors = internalRequire(
-            address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0)
-                || address(_factory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0),
-            "DF-50",
-            _errors
-        );
-        return _errors;
     }
 
     /// @notice Asserts that dispute games are correctly configured for super root mode.
@@ -525,21 +484,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        IDisputeGameFactory dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-
-        // Legacy game types must have no implementation.
-        _errors = internalRequire(address(dgf.gameImpls(GameTypes.CANNON)) == address(0), "PLDG-SHAPE", _errors);
-        _errors =
-            internalRequire(address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "PDDG-SHAPE", _errors);
-        _errors = internalRequire(address(dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0), "CKDG-SHAPE", _errors);
-        _errors = internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-SHAPE", _errors);
-
-        // SUPER_PERMISSIONED_CANNON must always be registered (fallback game).
-        _errors = internalRequire(
-            address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0), "SPDG-SHAPE", _errors
-        );
-
-        return _errors;
+        return standardValidatorUtils.assertValidSuperRootDisputeGames(_errors, _sysCfg);
     }
 
     /// @notice Asserts that super game types are NOT registered in non-super-root mode.
@@ -552,17 +497,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        IDisputeGameFactory dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-
-        // Super game types must have no implementation in non-super mode.
-        _errors = internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-NOSHAPE", _errors);
-        _errors = internalRequire(
-            address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) == address(0), "SPDG-NOSHAPE", _errors
-        );
-        _errors =
-            internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0), "SCKDG-NOSHAPE", _errors);
-
-        return _errors;
+        return standardValidatorUtils.assertValidNonSuperRootDisputeGames(_errors, _sysCfg);
     }
 
     /// @notice Asserts that a permissioned dispute game contract is valid.
@@ -850,13 +785,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        _errorPrefix = string.concat(_errorPrefix, "-VM");
-        _errors = internalRequire(address(_mips) == mipsImpl, string.concat(_errorPrefix, "-10"), _errors);
-        _errors = internalRequire(
-            LibString.eq(getVersion(address(_mips)), getVersion(mipsImpl)), string.concat(_errorPrefix, "-20"), _errors
-        );
-        _errors = internalRequire(_mips.stateVersion() == 8, string.concat(_errorPrefix, "-30"), _errors);
-        return _errors;
+        return standardValidatorUtils.assertValidMipsVm(_errors, _mips, mipsImpl, _errorPrefix);
     }
 
     /// @notice Asserts that the PreimageOracle contract is valid.
@@ -869,16 +798,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        _errorPrefix = string.concat(_errorPrefix, "-PIMGO");
-        // The preimage oracle's address is correct if the MIPS address is correct.
-        _errors = internalRequire(
-            LibString.eq(getVersion(address(_oracle)), preimageOracleVersion()),
-            string.concat(_errorPrefix, "-10"),
-            _errors
-        );
-        _errors = internalRequire(_oracle.challengePeriod() == 86400, string.concat(_errorPrefix, "-20"), _errors);
-        _errors = internalRequire(_oracle.minProposalSize() == 126000, string.concat(_errorPrefix, "-30"), _errors);
-        return _errors;
+        return standardValidatorUtils.assertValidPreimageOracle(_errors, _oracle, _errorPrefix);
     }
 
     /// @notice Internal function to require a condition to be true, otherwise append an error message.

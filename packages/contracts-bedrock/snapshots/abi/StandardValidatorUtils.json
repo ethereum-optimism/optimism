@@ -1,0 +1,285 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "__constructor__",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_impl",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_l1PAOMultisig",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidDisputeGameFactory",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract IMIPS64",
+        "name": "_mips",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_mipsImpl",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_errorPrefix",
+        "type": "string"
+      }
+    ],
+    "name": "assertValidMipsVm",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidNonSuperRootDisputeGames",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_impl",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidOptimismMintableERC20Factory",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_impl",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidOptimismPortal",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract IPreimageOracle",
+        "name": "_oracle",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_errorPrefix",
+        "type": "string"
+      }
+    ],
+    "name": "assertValidPreimageOracle",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_l1PAOMultisig",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidProxyAdmin",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidSuperRootDisputeGames",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidSuperchainConfig",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

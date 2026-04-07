@@ -43,6 +43,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -52,6 +53,9 @@ contract BadDisputeGameFactoryReturner {
     /// @notice Address of the OPContractsManagerStandardValidator instance.
     IOPContractsManagerStandardValidator public immutable validator;
 
+    /// @notice Address of the IStandardValidatorUtils instance.
+    IStandardValidatorUtils public immutable validatorUtils;
+
     /// @notice Address of the real DisputeGameFactory instance.
     IDisputeGameFactory public immutable realDisputeGameFactory;
 
@@ -59,21 +63,24 @@ contract BadDisputeGameFactoryReturner {
     IDisputeGameFactory public immutable fakeDisputeGameFactory;
 
     /// @param _validator The OPContractsManagerStandardValidator instance.
+    /// @param _validatorUtils The IStandardValidatorUtils instance.
     /// @param _realDisputeGameFactory The real DisputeGameFactory instance.
     /// @param _fakeDisputeGameFactory The fake DisputeGameFactory instance.
     constructor(
         IOPContractsManagerStandardValidator _validator,
+        IStandardValidatorUtils _validatorUtils,
         IDisputeGameFactory _realDisputeGameFactory,
         IDisputeGameFactory _fakeDisputeGameFactory
     ) {
         validator = _validator;
+        validatorUtils = _validatorUtils;
         realDisputeGameFactory = _realDisputeGameFactory;
         fakeDisputeGameFactory = _fakeDisputeGameFactory;
     }
 
     /// @notice Returns the real or fake DisputeGameFactory address.
     function disputeGameFactory() external view returns (IDisputeGameFactory) {
-        if (msg.sender == address(validator)) {
+        if (msg.sender == address(validator) || msg.sender == address(validatorUtils)) {
             return fakeDisputeGameFactory;
         } else {
             return realDisputeGameFactory;
@@ -224,7 +231,10 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
         // Deploy the BadDisputeGameFactoryReturner once.
         badDisputeGameFactoryReturner = new BadDisputeGameFactoryReturner(
-            standardValidator, disputeGameFactory, IDisputeGameFactory(address(0xbad))
+            standardValidator,
+            standardValidator.standardValidatorUtils(),
+            disputeGameFactory,
+            IDisputeGameFactory(address(0xbad))
         );
 
         if (isL1ForkTest()) {

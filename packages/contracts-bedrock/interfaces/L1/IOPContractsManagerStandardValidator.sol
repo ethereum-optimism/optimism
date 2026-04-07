@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 interface IOPContractsManagerStandardValidator {
     struct Implementations {
@@ -70,6 +71,7 @@ interface IOPContractsManagerStandardValidator {
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfigImpl() external view returns (address);
     function withdrawalDelaySeconds() external view returns (uint256);
+    function standardValidatorUtils() external view returns (IStandardValidatorUtils);
 
     function validateWithOverrides(
         ValidationInput memory _input,
@@ -94,6 +96,7 @@ interface IOPContractsManagerStandardValidator {
     function validate(ValidationInputDev memory _input, bool _allowFailure) external view returns (string memory);
 
     function __constructor__(
+        IStandardValidatorUtils _standardValidatorUtils,
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
