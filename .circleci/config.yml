@@ -107,6 +107,8 @@ workflows:
             .* c-github-event-base64 << pipeline.parameters.github-event-base64 >> .circleci/continue/main.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
             rust/.* c-rust_files_changed true .circleci/continue/main.yml
+            (packages/contracts-bedrock|\.circleci|\.github|ops/check-changed)/.* c-contracts_changed true .circleci/continue/main.yml
+            ^(package\.json|mise\.toml)$ c-contracts_changed true .circleci/continue/main.yml
             ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/main.yml
 
             # Docs CI — trigger on docs/public-docs/ changes
