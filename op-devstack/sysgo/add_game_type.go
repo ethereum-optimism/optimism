@@ -125,7 +125,10 @@ func addGameTypesForRuntime(
 	// OPCMv2 requires all 6 game configs in order:
 	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA.
 	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
-	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
+	var cannonKonaPrestate common.Hash
+	if enabled[gameTypes.CannonKonaGameType] {
+		cannonKonaPrestate = PrestateForGameType(t, gameTypes.CannonKonaGameType)
+	}
 
 	configs := []embedded.DisputeGameConfig{
 		{
