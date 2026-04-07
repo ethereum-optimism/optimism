@@ -1,8 +1,10 @@
 package sync
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Mode int
@@ -77,6 +79,20 @@ type Config struct {
 
 	L2FollowSourceEndpoint string `json:"l2_follow_source_endpoint"`
 	NeedInitialResetEngine bool   `json:"need_initial_reset_engine"`
+
+	// OffsetDerived retracts safe and finalized from the EL-sync tip by floor(OffsetDerived / L2BlockTime) blocks.
+	// Zero disables (safe and finalized stay at the synced tip when EL sync completes).
+	OffsetDerived time.Duration `json:"offset_derived,omitempty"`
+}
+
+func (c *Config) Check() error {
+	if c == nil {
+		return nil
+	}
+	if c.OffsetDerived < 0 {
+		return errors.New("sync.offset-derived must be >= 0")
+	}
+	return nil
 }
 
 func (c *Config) FollowSourceEnabled() bool {

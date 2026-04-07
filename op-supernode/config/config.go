@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -24,6 +25,9 @@ type CLIConfig struct {
 	PprofConfig                oppprof.CLIConfig
 	RawCtx                     *cli.Context
 	InteropActivationTimestamp *uint64
+	// InteropLogBackfillDepth is the duration (e.g. 168h) to extend initiating-message log ingestion
+	// backward from the tip before interop message validation runs. Zero disables.
+	InteropLogBackfillDepth time.Duration
 }
 
 func (c *CLIConfig) Check() error {
@@ -39,11 +43,17 @@ func (c *CLIConfig) Check() error {
 	if c.L1NodeAddr == "" {
 		return errors.New("l1 node address is required")
 	}
+	if c.InteropLogBackfillDepth < 0 {
+		return errors.New("interop.log-backfill-depth must be >= 0")
+	}
+	if c.InteropLogBackfillDepth > 0 && c.InteropActivationTimestamp == nil {
+		return errors.New("interop.log-backfill-depth requires interop.activation-timestamp")
+	}
 	return nil
 }
 
 func NewConfig(ctx *cli.Context) *CLIConfig {
-	return &CLIConfig{
+	cfg := &CLIConfig{
 		Chains:                ctx.Uint64Slice(flags.ChainsFlag.Name),
 		DataDir:               ctx.String(flags.DataDirFlag.Name),
 		L1NodeAddr:            ctx.String(flags.L1NodeAddr.Name),
@@ -54,5 +64,11 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MetricsConfig:         opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:           oppprof.ReadCLIConfig(ctx),
 		RawCtx:                ctx,
+		InteropLogBackfillDepth: ctx.Duration("interop.log-backfill-depth"),
 	}
+	if ctx.IsSet("interop.activation-timestamp") {
+		ts := ctx.Uint64("interop.activation-timestamp")
+		cfg.InteropActivationTimestamp = &ts
+	}
+	return cfg
 }

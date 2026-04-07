@@ -33,8 +33,15 @@ var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Value: 0,
 }
 
+// InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the L2 tip by this duration (clamped to activation). Validation still starts only beyond the local safe head.
+var InteropLogBackfillDepthFlag = &cli.DurationFlag{
+	Name:  "interop.log-backfill-depth",
+	Usage: "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
+	Value: 0,
+}
+
 func init() {
-	flags.RegisterActivityFlags(InteropActivationTimestampFlag)
+	flags.RegisterActivityFlags(InteropActivationTimestampFlag, InteropLogBackfillDepthFlag)
 }
 
 // chainsReadyResult holds the parallel query results from checkChainsReady.
@@ -103,6 +110,17 @@ type Interop struct {
 
 	l1Checker    *byNumberConsistencyChecker
 	frontierView *frontierVerificationView
+
+	// logBackfillDepth enables pre-validation log ingestion (InteropELSyncBootstrap_Feature.md §3).
+	logBackfillDepth time.Duration
+
+	backfillMu          sync.Mutex
+	logBackfillComplete bool
+	backfillProgress    map[eth.ChainID]*chainBackfillProgress
+	// postBackfillLocalSafeCeiling is set when log backfill finishes: per-chain LocalSafeL2.Number
+	// at that moment. Rounds with frontier block number <= this ceiling skip full verify (logs already ingested).
+	postBackfillLocalSafeCeiling map[eth.ChainID]uint64
+	inLogBackfill                atomic.Bool
 }
 
 func (i *Interop) Name() string {
@@ -116,6 +134,7 @@ func New(
 	chains map[eth.ChainID]cc.ChainContainer,
 	dataDir string,
 	l1Source l1ByNumberSource,
+	logBackfillDepth time.Duration,
 ) *Interop {
 	verifiedDB, err := OpenVerifiedDB(dataDir)
 	if err != nil {
@@ -146,6 +165,7 @@ func New(
 		logsDBs:             logsDBs,
 		dataDir:             dataDir,
 		activationTimestamp: activationTimestamp,
+		logBackfillDepth:    logBackfillDepth,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -166,6 +186,10 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.ctx, i.cancel = context.WithCancel(ctx)
 	i.started = true
 	i.mu.Unlock()
+
+	if i.logBackfillDepth > 0 {
+		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
+	}
 
 	for {
 		select {
@@ -266,6 +290,16 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		return i.applyPendingTransition(*pending)
 	}
 
+	if i.logBackfillDepth > 0 && !i.logBackfillComplete {
+		sealed, err := i.runLogBackfillStep()
+		if err != nil {
+			return false, err
+		}
+		if sealed {
+			return false, nil
+		}
+	}
+
 	output, obs, err := i.progressInterop()
 	if err != nil {
 		return false, err
@@ -311,6 +345,16 @@ func (i *Interop) progressInterop() (StepOutput, RoundObservation, error) {
 
 	if early := checkPreconditions(obs); early != nil {
 		return *early, obs, nil
+	}
+
+	if i.shouldSkipValidationUsingBackfillCeiling(obs.BlocksAtTS) {
+		skipResult := Result{
+			Timestamp:               obs.NextTimestamp,
+			L2Heads:                 cloneBlockIDMap(obs.BlocksAtTS),
+			L1Inclusion:             maxL1Inclusion(obs.L1Heads),
+			SkipPersistFrontierLogs: true,
+		}
+		return decideVerifiedResult(obs, skipResult), obs, nil
 	}
 
 	result, err := i.verify(obs.NextTimestamp, obs.BlocksAtTS)
@@ -536,8 +580,10 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			}
 			return false, nil
 		}
-		if err := i.persistFrontierLogs(pending.Result.Timestamp, pending.Result.L2Heads); err != nil {
-			return false, fmt.Errorf("persist frontier logs: %w", err)
+		if !pending.Result.SkipPersistFrontierLogs {
+			if err := i.persistFrontierLogs(pending.Result.Timestamp, pending.Result.L2Heads); err != nil {
+				return false, fmt.Errorf("persist frontier logs: %w", err)
+			}
 		}
 
 		if err := i.commitVerifiedResult(pending.Result.Timestamp, pending.Result.ToVerifiedResult()); err != nil {

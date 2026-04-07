@@ -100,6 +100,17 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 	}, nil
 }
 
+// elSyncRecoveryHeads applies the same safe/finalized choice as EL-sync completion:
+// unsafe stays at tip; safe and finalized retract by syncCfg.OffsetDerived (see DerivedBlockSteps).
+func elSyncRecoveryHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain, syncCfg *Config, tip eth.L2BlockRef) (*FindHeadsResult, error) {
+	n := DerivedBlockSteps(syncCfg.OffsetDerived, cfg.BlockTime)
+	derived, err := L2AncestorByN(ctx, l2, cfg.Genesis.L2, tip, n)
+	if err != nil {
+		return nil, fmt.Errorf("EL sync recovery derived head: %w", err)
+	}
+	return &FindHeadsResult{Unsafe: tip, Safe: derived, Finalized: derived}, nil
+}
+
 // FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds
 // the finalized, unsafe and safe L2 blocks.
 //
@@ -130,7 +141,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		result.Unsafe.Number > cfg.Genesis.L2.Number &&
 		result.Unsafe.L1Origin.Number > cfg.Genesis.L1.Number+(RecoverMinSeqWindows*cfg.SeqWindowSize) {
 		lgr.Warn("Attempting recovery from sync state without finality.", "head", result.Unsafe)
-		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
+		return elSyncRecoveryHeads(ctx, cfg, l2, syncCfg, result.Unsafe)
 	}
 
 	// Check if the execution engine corrupted, and forkchoice is ahead of the remaining chain:
@@ -138,7 +149,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	if result.Unsafe.Number < result.Finalized.Number || result.Unsafe.Number < result.Safe.Number {
 		lgr.Error("Unsafe head is behind known finalized/safe blocks, execution-engine chain must have been rewound without forkchoice update. Attempting recovery now.",
 			"unsafe_head", result.Unsafe, "safe_head", result.Safe, "finalized_head", result.Finalized)
-		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
+		return elSyncRecoveryHeads(ctx, cfg, l2, syncCfg, result.Unsafe)
 	}
 
 	// Remember original unsafe block to determine reorg depth

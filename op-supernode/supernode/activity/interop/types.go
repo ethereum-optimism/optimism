@@ -29,6 +29,8 @@ type Result struct {
 	L1Inclusion  eth.BlockID                 `json:"l1Inclusion"`
 	L2Heads      map[eth.ChainID]eth.BlockID `json:"l2Heads"`
 	InvalidHeads map[eth.ChainID]InvalidHead `json:"invalidHeads"`
+	// SkipPersistFrontierLogs skips sealing frontier logs on advance (already ingested, e.g. log backfill).
+	SkipPersistFrontierLogs bool `json:"-"`
 }
 
 // PendingTransition is the generic write-ahead-log entry for an effectful

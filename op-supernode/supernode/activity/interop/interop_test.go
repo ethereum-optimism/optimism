@@ -30,12 +30,13 @@ import (
 // It reduces boilerplate by handling common setup: temp directories, mock chains,
 // interop creation, context assignment, and cleanup.
 type interopTestHarness struct {
-	t              *testing.T
-	interop        *Interop
-	mocks          map[eth.ChainID]*mockChainContainer
-	activationTime uint64
-	dataDir        string
-	skipBuild      bool // for tests that need custom construction
+	t                *testing.T
+	interop          *Interop
+	mocks            map[eth.ChainID]*mockChainContainer
+	activationTime   uint64
+	logBackfillDepth time.Duration
+	dataDir          string
+	skipBuild        bool // for tests that need custom construction
 }
 
 // newInteropTestHarness creates a new test harness with sensible defaults.
@@ -53,6 +54,12 @@ func newInteropTestHarness(t *testing.T) *interopTestHarness {
 // WithActivation sets the interop activation timestamp.
 func (h *interopTestHarness) WithActivation(ts uint64) *interopTestHarness {
 	h.activationTime = ts
+	return h
+}
+
+// WithLogBackfillDepth sets op-supernode's --interop.log-backfill-depth for the built Interop.
+func (h *interopTestHarness) WithLogBackfillDepth(d time.Duration) *interopTestHarness {
+	h.logBackfillDepth = d
 	return h
 }
 
@@ -89,7 +96,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 	for id, mock := range h.mocks {
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, chains, h.dataDir, nil)
+	h.interop = New(testLogger(), h.activationTime, chains, h.dataDir, nil, h.logBackfillDepth)
 	if h.interop != nil {
 		h.interop.ctx = context.Background()
 		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
@@ -129,7 +136,7 @@ func TestNew(t *testing.T) {
 				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir, nil)
+				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir, nil, 0)
 				require.NotNil(t, interop)
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
@@ -152,7 +159,7 @@ func TestNew(t *testing.T) {
 				return h.WithDataDir("/nonexistent/path").SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir, nil)
+				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir, nil, 0)
 				require.Nil(t, interop)
 			},
 		},
@@ -1127,6 +1134,68 @@ func TestProgressAndRecord(t *testing.T) {
 }
 
 // =============================================================================
+// TestLogBackfill_SealsAndSkipsVerifyUntilBeyondCeiling
+// =============================================================================
+
+func TestLogBackfill_SealsAndSkipsVerifyUntilBeyondCeiling(t *testing.T) {
+	const act = uint64(108)
+	depth := time.Second // tip time 110 -> T_lo 109; seals blocks 109..110; ceiling LocalSafe = 110
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(depth).
+		WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1, Hash: common.HexToHash("0xL1")}
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: 110, Time: 110},
+				LocalSafeL2: eth.L2BlockRef{Number: 110, Time: 110},
+			}
+		}).
+		Build()
+
+	var verifyCalls atomic.Int32
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+		verifyCalls.Add(1)
+		return Result{
+			Timestamp:   ts,
+			L1Inclusion: eth.BlockID{Number: 1, Hash: common.HexToHash("0xL1")},
+			L2Heads:     blocks,
+		}, nil
+	}
+	h.interop.ctx = context.Background()
+
+	for range 30 {
+		if h.interop.logBackfillComplete {
+			break
+		}
+		_, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+	}
+	require.True(t, h.interop.logBackfillComplete, "backfill should finish sealing through local safe")
+
+	chain10 := h.Mock(10)
+	latest, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
+	require.True(t, has)
+	require.Equal(t, uint64(110), latest.Number)
+
+	require.Zero(t, verifyCalls.Load())
+
+	for range 40 {
+		lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+		if ok && lastTS >= 111 {
+			break
+		}
+		_, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+	}
+	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.GreaterOrEqual(t, lastTS, uint64(111))
+	require.Equal(t, int32(1), verifyCalls.Load())
+}
+
+// =============================================================================
 // TestInterop_FullCycle
 // =============================================================================
 
@@ -1139,7 +1208,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 100, chains, dataDir, nil)
+	interop := New(testLogger(), 100, chains, dataDir, nil, 0)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -1301,6 +1370,9 @@ type mockChainContainer struct {
 	optimisticL1    eth.BlockID
 	optimisticAtErr error
 
+	// If set, SyncStatus returns this instead of synthesizing from currentL1 only.
+	syncStatusFull *eth.SyncStatus
+
 	// PauseAndStopVN / Resume tracking
 	pauseAndStopVNCalls int
 	pauseAndStopVNErr   error
@@ -1409,7 +1481,10 @@ func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts
 func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	ts := m.lastRequestedTimestamp
+	ts := blockID.Number
+	if ts == 0 {
+		ts = m.lastRequestedTimestamp
+	}
 	var parentHash common.Hash
 	if ts > 0 {
 		parentHash = common.BigToHash(big.NewInt(int64(ts - 1)))
@@ -1428,7 +1503,13 @@ func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, e
 	if m.currentL1Err != nil {
 		return nil, m.currentL1Err
 	}
+	if m.syncStatusFull != nil {
+		return m.syncStatusFull, nil
+	}
 	return &eth.SyncStatus{CurrentL1: m.currentL1}, nil
+}
+func (m *mockChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	return ts, nil
 }
 func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	m.mu.Lock()

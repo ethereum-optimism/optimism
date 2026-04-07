@@ -37,6 +37,8 @@ type ChainContainer interface {
 
 	ID() eth.ChainID
 	LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	// TimestampToBlockNumber maps an L2 unix timestamp to the L2 block number (rollup derivation).
+	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
