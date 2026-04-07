@@ -1,27 +1,8 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "contract IOPContractsManagerStandardValidator",
-        "name": "_standardValidator",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
-  },
-  {
-    "inputs": [],
-    "name": "standardValidator",
-    "outputs": [
-      {
-        "internalType": "contract IOPContractsManagerStandardValidator",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
   },
   {
     "inputs": [

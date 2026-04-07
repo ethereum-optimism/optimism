@@ -13,6 +13,8 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 // Interfaces
+import { IOPContractsManagerMigrationValidator } from "interfaces/L1/IOPContractsManagerMigrationValidator.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -109,6 +111,9 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     IStandardValidatorUtils public standardValidatorUtils;
 
+    /// @notice The migration validator contract for post-interop-migration validation.
+    IOPContractsManagerMigrationValidator public migrationValidator;
+
     /// @notice Struct containing the implementation addresses of the L1 contracts.
     struct Implementations {
         address l1ERC721BridgeImpl;
@@ -175,6 +180,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Constructor for the OPContractsManagerStandardValidator contract.
     constructor(
         IStandardValidatorUtils _standardValidatorUtils,
+        IOPContractsManagerMigrationValidator _migrationValidator,
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
@@ -188,6 +194,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         withdrawalDelaySeconds = _withdrawalDelaySeconds;
         devFeatureBitmap = _devFeatureBitmap;
         standardValidatorUtils = _standardValidatorUtils;
+        migrationValidator = _migrationValidator;
 
         // Set implementation addresses from struct
         l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
@@ -820,6 +827,39 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errors = string.concat(_errors, ",", _message);
         }
         return _errors;
+    }
+
+    /// @notice Validates the configuration of all L1 contracts after an interop migration.
+    function validateMigratedChain(
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        bool _allowFailure
+    )
+        external
+        view
+        returns (string memory)
+    {
+        return migrationValidator.validateMigration(_input, _allowFailure);
+    }
+
+    /// @notice Validates the configuration of all L1 contracts after an interop migration.
+    ///         Supports overrides of certain storage values denoted in the ValidationOverrides struct.
+    function validateMigratedChainWithOverrides(
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        bool _allowFailure,
+        ValidationOverrides memory _overrides
+    )
+        external
+        view
+        returns (string memory)
+    {
+        return migrationValidator.validateMigrationWithOverrides(
+            _input,
+            _allowFailure,
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: _overrides.l1PAOMultisig,
+                challenger: _overrides.challenger
+            })
+        );
     }
 
     /// @notice Validates the configuration of the L1 contracts.

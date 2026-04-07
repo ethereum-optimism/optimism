@@ -1,9 +1,1 @@
-[
-  {
-    "bytes": "20",
-    "label": "standardValidator",
-    "offset": 0,
-    "slot": "0",
-    "type": "contract IOPContractsManagerStandardValidator"
-  }
-]
+[]

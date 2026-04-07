@@ -17,8 +17,6 @@ interface IOPContractsManagerMigrationValidator {
 
     function version() external view returns (string memory);
 
-    function standardValidator() external view returns (IOPContractsManagerStandardValidator);
-
     function validateMigration(
         MigrationValidationInput memory _input,
         bool _allowFailure
@@ -36,5 +34,5 @@ interface IOPContractsManagerMigrationValidator {
         view
         returns (string memory);
 
-    function __constructor__(IOPContractsManagerStandardValidator _standardValidator) external;
+    function __constructor__() external;
 }

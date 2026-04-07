@@ -24,21 +24,14 @@ contract OPContractsManagerMigrationValidator is ISemver {
         address proposer;
     }
 
-    /// @notice Reference to the standard validator for shared state (impl addresses, etc.).
-    IOPContractsManagerStandardValidator public standardValidator;
-
-    /// @notice Constructor for the OPContractsManagerMigrationValidator contract.
-    /// @param _standardValidator The standard validator to read shared configuration from.
-    constructor(IOPContractsManagerStandardValidator _standardValidator) {
-        standardValidator = _standardValidator;
-    }
+    constructor() { }
 
     /// @notice Validates the configuration of all L1 contracts after an interop migration.
     function validateMigration(
         MigrationValidationInput memory _input,
         bool _allowFailure
     )
-        public
+        external
         view
         returns (string memory)
     {
