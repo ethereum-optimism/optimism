@@ -485,7 +485,7 @@ where
                 })
                 .collect::<Vec<_>>();
             // last txns execution return the final state
-            let result = results.last().clone().expect("at least one result");
+            let result = results.into_iter().last().expect("at least one result");
             let _ = result_tx.send((result, tx_cache));
         });
         self.job = Some(BuildJob {
