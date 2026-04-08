@@ -59,7 +59,8 @@ func EnsureRustBinary(p devtest.CommonT, spec RustBinarySpec) (string, error) {
 
 	binaryPath, err := resolveBuiltRustBinaryPath(srcRoot, spec.Binary)
 	if err != nil {
-		return "", fmt.Errorf("%s binary not found; run 'just build-rust-debug' before the test or set RUST_JIT_BUILD=1: %w", spec.Binary, err)
+		return "", fmt.Errorf("%s binary not found; run 'cd %s && just build-%s-debug' (or just build-%s for release) or set RUST_JIT_BUILD=1: %w",
+			spec.Binary, spec.SrcDir, spec.Binary, spec.Binary, err)
 	}
 	return binaryPath, nil
 }
@@ -107,6 +108,7 @@ func resolveBuiltRustBinaryPath(srcRoot, binary string) (string, error) {
 
 	candidates := []string{
 		filepath.Join(targetDir, "release", binary),
+		filepath.Join(targetDir, "debug", binary),
 	}
 	globMatches, err := filepath.Glob(filepath.Join(targetDir, "*", "release", binary))
 	if err == nil {
