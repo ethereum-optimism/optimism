@@ -13,8 +13,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Libraries
-import { Claim, Duration, GameTypes } from "src/dispute/lib/Types.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
+import { Claim, GameTypes } from "src/dispute/lib/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
@@ -254,17 +253,9 @@ library PastUpgrades {
         // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
         disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
-            initBond: _disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
+            initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.ZKDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(DUMMY_ZK_PRESTATE),
-                    verifier: IZKVerifier(address(0)),
-                    maxChallengeDuration: Duration.wrap(0),
-                    maxProveDuration: Duration.wrap(0),
-                    challengerBond: 0
-                })
-            )
+            gameArgs: hex""
         });
 
         _sortDisputeGameConfigs(disputeGameConfigs);

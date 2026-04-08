@@ -133,7 +133,6 @@ impl RollupNodeBuilder {
     /// - The L2 engine URL is not set.
     /// - The jwt secret is not set.
     /// - The P2P config is not set.
-    /// - The rollup boost args are not set.
     pub fn build(self) -> RollupNode {
         let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_config_builder.beacon.to_string());
         if let Some(l1_slot_duration) = self.l1_config_builder.slot_duration_override {

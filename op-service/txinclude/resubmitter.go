@@ -59,7 +59,6 @@ var fatalErrs = []error{
 
 	// Transaction limits.
 	txpool.ErrOversizedData,
-	core.ErrMaxInitCodeSizeExceeded,
 	legacypool.ErrAuthorityReserved,
 	legacypool.ErrFutureReplacePending,
 

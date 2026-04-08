@@ -117,7 +117,6 @@ abstract contract Setup is FeatureFlags {
     IFaultDisputeGame faultDisputeGame;
     IDelayedWETH delayedWeth;
     IPermissionedDisputeGame permissionedDisputeGame;
-    IDelayedWETH delayedWETHPermissionedGameProxy;
 
     // L1 contracts - core
     address proxyAdminOwner;

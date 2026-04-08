@@ -1,6 +1,6 @@
 use crate::MESSAGE_EXPIRY_WINDOW;
+use alloc::collections::BTreeMap;
 use alloy_primitives::ChainId;
-use kona_registry::HashMap;
 
 /// Configuration for a dependency of a chain
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +15,7 @@ pub struct ChainDependency {}
 #[allow(clippy::zero_sized_map_values)]
 pub struct DependencySet {
     /// Dependencies information per chain.
-    pub dependencies: HashMap<ChainId, ChainDependency>,
+    pub dependencies: BTreeMap<ChainId, ChainDependency>,
 
     /// Override message expiry window to use for this dependency set.
     pub override_message_expiry_window: Option<u64>,
@@ -35,11 +35,11 @@ impl DependencySet {
 #[allow(clippy::zero_sized_map_values)]
 mod tests {
     use super::*;
+    use alloc::collections::BTreeMap;
     use alloy_primitives::ChainId;
-    use kona_registry::HashMap;
 
     const fn create_dependency_set(
-        dependencies: HashMap<ChainId, ChainDependency>,
+        dependencies: BTreeMap<ChainId, ChainDependency>,
         override_expiry: u64,
     ) -> DependencySet {
         DependencySet { dependencies, override_message_expiry_window: Some(override_expiry) }
@@ -47,7 +47,7 @@ mod tests {
 
     #[test]
     fn test_get_message_expiry_window_default() {
-        let deps = HashMap::default();
+        let deps = BTreeMap::default();
         // override_message_expiry_window is 0, so default should be used
         let ds = create_dependency_set(deps, 0);
         assert_eq!(
@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn test_get_message_expiry_window_override() {
-        let deps = HashMap::default();
+        let deps = BTreeMap::default();
         let override_value = 12345;
         let ds = create_dependency_set(deps, override_value);
         assert_eq!(

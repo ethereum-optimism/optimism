@@ -16,8 +16,7 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
-import { GameType, GameTypes, Claim, Duration, Proposal, Hash } from "src/dispute/lib/Types.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
+import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
@@ -325,15 +324,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 enabled: false,
                 initBond: 0,
                 gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                        verifier: IZKVerifier(address(0)),
-                        maxChallengeDuration: Duration.wrap(0),
-                        maxProveDuration: Duration.wrap(0),
-                        challengerBond: 0
-                    })
-                )
+                gameArgs: hex""
             });
 
             // Migration needs 3 extra instructions: DelayedWETH proxy + anchor root + game type overrides.
@@ -410,15 +401,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 enabled: false,
                 initBond: 0,
                 gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                        verifier: IZKVerifier(address(0)),
-                        maxChallengeDuration: Duration.wrap(0),
-                        maxProveDuration: Duration.wrap(0),
-                        challengerBond: 0
-                    })
-                )
+                gameArgs: hex""
             });
 
             // Standard path only needs DelayedWETH proxy deployment permission.

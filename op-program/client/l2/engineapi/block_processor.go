@@ -1,6 +1,7 @@
 package engineapi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
@@ -87,7 +88,7 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 	header.Number = new(big.Int).Add(parentHeader.Number, common.Big1)
 	header.BaseFee = eip1559.CalcBaseFee(provider.Config(), parentHeader, header.Time)
 	header.GasUsed = 0
-	gasPool := new(core.GasPool).AddGas(header.GasLimit)
+	gasPool := core.NewGasPool(header.GasLimit)
 	mkEVM := func() *vm.EVM {
 		// Unfortunately this is not part of any Geth environment setup,
 		// we just have to apply it, like how the Geth block-builder worker does.
@@ -148,10 +149,11 @@ func (b *BlockProcessor) CheckTxWithinGasLimit(tx *types.Transaction) error {
 func (b *BlockProcessor) AddTx(tx *types.Transaction) (*types.Receipt, error) {
 	txIndex := len(b.transactions)
 	b.state.SetTxContext(tx.Hash(), txIndex)
-	receipt, err := core.ApplyTransaction(b.evm, b.gasPool, b.state, b.header, tx, &b.header.GasUsed)
+	receipt, err := core.ApplyTransaction(b.evm, b.gasPool, b.state, b.header, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply transaction to L2 block (tx %d): %w", txIndex, err)
 	}
+	b.header.GasUsed = b.gasPool.Used()
 	b.receipts = append(b.receipts, receipt)
 	b.transactions = append(b.transactions, tx)
 	return receipt, nil
@@ -178,7 +180,7 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 		}
 	}
 
-	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)
+	block, err := b.dataProvider.Engine().FinalizeAndAssemble(context.Background(), b.dataProvider, b.header, b.state, &body, b.receipts)
 	if err != nil {
 		return nil, nil, err
 	}

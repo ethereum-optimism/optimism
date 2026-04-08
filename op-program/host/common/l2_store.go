@@ -127,3 +127,6 @@ func (b *batch) Replay(w ethdb.KeyValueWriter) error {
 	}
 	return nil
 }
+
+func (b *batch) Close() {
+}

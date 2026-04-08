@@ -54,3 +54,6 @@ crytic-export
 
 # ignore local asdf config
 .tool-versions
+
+# Rust files
+**/target

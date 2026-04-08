@@ -1,6 +1,6 @@
 # Optimism Docs
 
-This repo houses the Optimism Docs located at [docs.optimism.io](https://docs.optimism.io/). All documentation-related updates and new content will be tracked and maintained in this repo.
+This directory houses the Optimism Docs located at [docs.optimism.io](https://docs.optimism.io/). All documentation-related updates and new content will be tracked and maintained here, within the [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) monorepo.
 
 ## Local Development
 

@@ -16,7 +16,6 @@ import { Config } from "scripts/libraries/Config.sol";
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -276,6 +275,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             });
             disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
+<<<<<<< HEAD
                 initBond: disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
                 gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: abi.encode(
@@ -287,6 +287,11 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                         challengerBond: 0
                     })
                 )
+=======
+                initBond: 0,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
+                gameArgs: hex""
+>>>>>>> 8b5e741d696e5e600b9b82665d74c6573886834b
             });
 
             // Call upgrade to all games to be enabled.

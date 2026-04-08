@@ -1673,6 +1673,20 @@ jobs:
           command: |
             go run ./ops/scripts/check-nut-locks
 
+  nut-provenance-verify:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: 2xlarge
+    steps:
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
+      - install-contracts-dependencies
+      - check-changed:
+          patterns: op-core/nuts
+      - run:
+          name: verify NUT bundle provenance
+          command: ./ops/scripts/nut-provenance-verify-changed.sh
+
   go-tests:
     parameters:
       notify:
@@ -2610,6 +2624,9 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-nut-locks:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - nut-provenance-verify:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:
