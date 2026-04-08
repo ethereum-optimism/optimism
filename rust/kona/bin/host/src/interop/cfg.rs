@@ -22,7 +22,12 @@ use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
 use serde::Serialize;
-use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 use tokio::task::{self, JoinHandle};
 
 /// The interop host application.
@@ -228,13 +233,14 @@ impl InteropHost {
     }
 
     /// Reads the [`RollupConfig`]s from the file system and returns a map of L2 chain ID ->
-    /// [`RollupConfig`]s.
+    /// [`RollupConfig`]s. Uses `BTreeMap` to ensure deterministic JSON serialization order when
+    /// these configs are served as preimages to the cannon VM.
     pub fn read_rollup_configs(
         &self,
-    ) -> Option<Result<HashMap<u64, RollupConfig>, InteropHostError>> {
+    ) -> Option<Result<BTreeMap<u64, RollupConfig>, InteropHostError>> {
         let rollup_config_paths = self.rollup_config_paths.as_ref()?;
 
-        Some(rollup_config_paths.iter().try_fold(HashMap::default(), |mut acc, path| {
+        Some(rollup_config_paths.iter().try_fold(BTreeMap::default(), |mut acc, path| {
             // Read the serialized config from the file system.
             let ser_config = std::fs::read_to_string(path)?;
 

@@ -33,7 +33,7 @@ use reth_revm::{State, database::StateProviderDatabase, witness::ExecutionWitnes
 use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
 use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
-use reth_tasks::TaskSpawner;
+use reth_tasks::Runtime;
 use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::{Semaphore, oneshot};
@@ -86,7 +86,7 @@ where
         provider: Provider,
         eth_api: Eth,
         preimage_store: OpProofsStorage<Storage>,
-        task_spawner: Box<dyn TaskSpawner>,
+        task_spawner: Runtime,
         evm_config: EvmConfig,
     ) -> Self {
         Self {
@@ -109,7 +109,7 @@ pub struct DebugApiExtInner<Eth: FullEthApi, Storage, Provider, EvmConfig, Attrs
     storage: OpProofsStorage<Storage>,
     state_provider_factory: OpStateProviderFactory<Eth, Storage>,
     evm_config: EvmConfig,
-    task_spawner: Box<dyn TaskSpawner>,
+    task_spawner: Runtime,
     semaphore: Semaphore,
     _attrs: PhantomData<Attrs>,
     metrics: DebugApiExtMetrics,
@@ -126,7 +126,7 @@ where
         provider: Provider,
         eth_api: Eth,
         storage: OpProofsStorage<P>,
-        task_spawner: Box<dyn TaskSpawner>,
+        task_spawner: Runtime,
         evm_config: EvmConfig,
     ) -> Self {
         Self {
@@ -170,7 +170,7 @@ where
     Eth: FullEthApi + Send + Sync + 'static,
     ErrorObject<'static>: From<Eth::Error>,
     P: OpProofsStore + Clone + 'static,
-    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>>,
+    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
     N: OpPayloadPrimitives,
     EvmConfig: ConfigureEvm<
             Primitives = N,
@@ -201,14 +201,18 @@ where
 
                 let (tx, rx) = oneshot::channel();
                 let this = self.inner.clone();
-                self.inner.task_spawner.spawn_blocking_task(Box::pin(async move {
+                self.inner.task_spawner.spawn_blocking_task(async move {
                     let result = async {
                         let parent_hash = parent_header.hash();
                         let attributes = Attrs::try_new(parent_hash, attributes, 3)
                             .map_err(PayloadBuilderError::other)?;
 
-                        let config =
-                            PayloadConfig { parent_header: Arc::new(parent_header), attributes };
+                        let payload_id = attributes.payload_id();
+                        let config = PayloadConfig {
+                            parent_header: Arc::new(parent_header),
+                            attributes,
+                            payload_id,
+                        };
                         let ctx = OpPayloadBuilderCtx {
                             evm_config: this.evm_config.clone(),
                             chain_spec: this.provider.chain_spec(),
@@ -237,7 +241,7 @@ where
                     };
 
                     let _ = tx.send(result.await);
-                }));
+                });
 
                 rx.await
                     .map_err(|err| internal_rpc_err(err.to_string()))?

@@ -46,21 +46,17 @@ pub(super) mod serde_bincode_compat {
     ///
     /// Intended to use with the [`serde_with::serde_as`] macro in the following way:
     /// ```rust
-    /// use reth_optimism_primitives::OpReceipt;
-    /// use reth_primitives_traits::serde_bincode_compat::SerdeBincodeCompat;
-    /// use serde::{Deserialize, Serialize, de::DeserializeOwned};
+    /// use reth_optimism_primitives::{OpReceipt, serde_bincode_compat};
+    /// use serde::{Deserialize, Serialize};
     /// use serde_with::serde_as;
     ///
     /// #[serde_as]
     /// #[derive(Serialize, Deserialize)]
     /// struct Data {
-    ///     #[serde_as(
-    ///         as = "reth_primitives_traits::serde_bincode_compat::BincodeReprFor<'_, OpReceipt>"
-    ///     )]
+    ///     #[serde_as(as = "serde_bincode_compat::OpReceipt<'_>")]
     ///     receipt: OpReceipt,
     /// }
     /// ```
-    #[allow(rustdoc::private_doc_tests)]
     #[derive(Debug, Serialize, Deserialize)]
     pub enum OpReceipt<'a> {
         /// Legacy receipt

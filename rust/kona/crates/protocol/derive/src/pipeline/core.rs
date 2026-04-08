@@ -2,10 +2,11 @@
 
 use crate::{
     ActivationSignal, L2ChainProvider, NextAttributes, OriginAdvancer, OriginProvider, Pipeline,
-    PipelineError, PipelineErrorKind, PipelineResult, ResetSignal, Signal, SignalReceiver,
+    PipelineError, PipelineErrorKind, PipelineResult, ResetSignal, Signal, SignalReceiver, Stage,
     StepResult,
 };
 use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{RollupConfig, SystemConfig};
@@ -15,7 +16,7 @@ use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 #[derive(Debug)]
 pub struct DerivationPipeline<S, P>
 where
-    S: NextAttributes + SignalReceiver + OriginProvider + OriginAdvancer + Debug + Send,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     /// A handle to the next attributes.
@@ -32,7 +33,7 @@ where
 
 impl<S, P> DerivationPipeline<S, P>
 where
-    S: NextAttributes + SignalReceiver + OriginProvider + OriginAdvancer + Debug + Send,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     /// Creates a new instance of the [`DerivationPipeline`].
@@ -43,11 +44,50 @@ where
     ) -> Self {
         Self { attributes, prepared: VecDeque::new(), rollup_config, l2_chain_provider }
     }
+
+    /// Walks back the L2 chain to find the correct L1 origin for a pipeline reset.
+    /// This mirrors op-node's `initialReset` algorithm.
+    pub(crate) async fn initial_reset(
+        &mut self,
+        l2_safe_head: L2BlockInfo,
+    ) -> Result<(BlockNumHash, SystemConfig), PipelineErrorKind> {
+        let l1_origin_number = l2_safe_head.l1_origin.number;
+        let channel_timeout = self.rollup_config.channel_timeout(l2_safe_head.block_info.timestamp);
+
+        let mut current = l2_safe_head;
+        loop {
+            let before_l2_genesis =
+                current.block_info.number <= self.rollup_config.genesis.l2.number;
+            let before_l1_genesis =
+                current.l1_origin.number <= self.rollup_config.genesis.l1.number;
+            let before_channel_timeout =
+                current.l1_origin.number + channel_timeout <= l1_origin_number;
+            if before_l2_genesis || before_l1_genesis || before_channel_timeout {
+                break;
+            }
+
+            current = self
+                .l2_chain_provider
+                .l2_block_info_by_number(current.block_info.number - 1)
+                .await
+                .map_err(|e| {
+                    PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp()
+                })?;
+        }
+
+        let system_config = self
+            .l2_chain_provider
+            .system_config_by_number(current.block_info.number, Arc::clone(&self.rollup_config))
+            .await
+            .map_err(|e| PipelineError::Provider(alloc::string::ToString::to_string(&e)).temp())?;
+
+        Ok((current.l1_origin, system_config))
+    }
 }
 
 impl<S, P> OriginProvider for DerivationPipeline<S, P>
 where
-    S: NextAttributes + SignalReceiver + OriginProvider + OriginAdvancer + Debug + Send,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -57,7 +97,7 @@ where
 
 impl<S, P> Iterator for DerivationPipeline<S, P>
 where
-    S: NextAttributes + SignalReceiver + OriginProvider + OriginAdvancer + Debug + Send + Sync,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send + Sync,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     type Item = OpAttributesWithParent;
@@ -75,36 +115,14 @@ where
 #[async_trait]
 impl<S, P> SignalReceiver for DerivationPipeline<S, P>
 where
-    S: NextAttributes + SignalReceiver + OriginProvider + OriginAdvancer + Debug + Send + Sync,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send + Sync,
     P: L2ChainProvider + Send + Sync + Debug,
 {
-    /// Signals the pipeline by calling the [`SignalReceiver::signal`] method.
-    ///
-    /// During a [`Signal::Reset`], each stage is recursively called from the top-level
-    /// [`crate::stages::AttributesQueue`] to the bottom [`crate::PollingTraversal`]
-    /// with a head-recursion pattern. This effectively clears the internal state
-    /// of each stage in the pipeline from bottom on up.
-    ///
-    /// [`Signal::Activation`] does a similar thing to the reset, with different
-    /// holocene-specific reset rules.
-    ///
-    /// ### Parameters
-    ///
-    /// The `signal` is contains the signal variant with any necessary parameters.
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
         match signal {
-            mut s @ (Signal::Reset(ResetSignal { l2_safe_head, .. }) |
-            Signal::Activation(ActivationSignal { l2_safe_head, .. })) => {
-                let system_config = self
-                    .l2_chain_provider
-                    .system_config_by_number(
-                        l2_safe_head.block_info.number,
-                        Arc::clone(&self.rollup_config),
-                    )
-                    .await
-                    .map_err(Into::into)?;
-                s = s.with_system_config(system_config);
-                match self.attributes.signal(s).await {
+            Signal::Reset(ResetSignal { l2_safe_head }) => {
+                let (l1_origin, system_config) = self.initial_reset(l2_safe_head).await?;
+                match self.attributes.reset(l1_origin, system_config).await {
                     Ok(()) => trace!(target: "pipeline", "Stages reset"),
                     Err(err) => {
                         if err == PipelineErrorKind::Temporary(PipelineError::Eof) {
@@ -116,8 +134,26 @@ where
                     }
                 }
             }
-            Signal::FlushChannel | Signal::ProvideBlock(_) => {
-                self.attributes.signal(signal).await?;
+            Signal::Activation(ActivationSignal { .. }) => {
+                // Activation is a soft reset for hardfork boundaries. It clears
+                // buffered data but preserves derivation state. No walkback needed.
+                match self.attributes.activate().await {
+                    Ok(()) => trace!(target: "pipeline", "Stages activated"),
+                    Err(err) => {
+                        if err == PipelineErrorKind::Temporary(PipelineError::Eof) {
+                            trace!(target: "pipeline", "Stages activated with EOF");
+                        } else {
+                            error!(target: "pipeline", "Stage activation errored: {:?}", err);
+                            return Err(err);
+                        }
+                    }
+                }
+            }
+            Signal::FlushChannel => {
+                self.attributes.flush_channel().await?;
+            }
+            Signal::ProvideBlock(block) => {
+                self.attributes.provide_block(block).await?;
             }
         }
         kona_macros::inc!(
@@ -132,7 +168,7 @@ where
 #[async_trait]
 impl<S, P> Pipeline for DerivationPipeline<S, P>
 where
-    S: NextAttributes + SignalReceiver + OriginProvider + OriginAdvancer + Debug + Send + Sync,
+    S: NextAttributes + Stage + OriginProvider + OriginAdvancer + Debug + Send + Sync,
     P: L2ChainProvider + Send + Sync + Debug,
 {
     /// Peeks at the next prepared [`OpAttributesWithParent`] from the pipeline.
@@ -321,8 +357,7 @@ mod tests {
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
-        // Signal the pipeline to reset.
-        let result = pipeline.signal(ActivationSignal::default().signal()).await;
+        let result = pipeline.signal(Signal::Activation(ActivationSignal::default())).await;
         assert!(result.is_ok());
     }
 
@@ -333,7 +368,6 @@ mod tests {
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
-        // Signal the pipeline to reset.
         let result = pipeline.signal(Signal::FlushChannel).await;
         assert!(result.is_ok());
     }
@@ -345,8 +379,7 @@ mod tests {
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
-        // Signal the pipeline to reset.
-        let result = pipeline.signal(ResetSignal::default().signal()).await.unwrap_err();
+        let result = pipeline.signal(Signal::Reset(ResetSignal::default())).await.unwrap_err();
         assert_eq!(result, PipelineError::Provider("System config not found".to_string()).temp());
     }
 
@@ -358,8 +391,114 @@ mod tests {
         let attributes = TestNextAttributes::default();
         let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
 
-        // Signal the pipeline to reset.
-        let result = pipeline.signal(ResetSignal::default().signal()).await;
+        let result = pipeline.signal(Signal::Reset(ResetSignal::default())).await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_initial_reset_walks_back_system_config() {
+        use alloy_primitives::address;
+
+        let rollup_config = RollupConfig { channel_timeout: 10, ..Default::default() };
+
+        let mut l2_chain_provider = TestL2ChainProvider::default();
+        // L2 blocks 89..=100: block N has L1 origin (N - 50).
+        // Safe head at block 100, L1 origin 50.
+        // Walkback: block 90 has L1 origin 40. 40 + 10 = 50, NOT > 50, so walkback stops.
+        for n in 89u64..=100 {
+            l2_chain_provider.blocks.push(L2BlockInfo {
+                block_info: BlockInfo { number: n, ..Default::default() },
+                l1_origin: BlockNumHash { number: n - 50, ..Default::default() },
+                seq_num: 0,
+            });
+        }
+
+        // Old batcher at walked-back block 90.
+        l2_chain_provider.system_configs.insert(
+            90,
+            SystemConfig {
+                batcher_address: address!("000000000000000000000000000000000000aaaa"),
+                ..Default::default()
+            },
+        );
+        // New batcher at safe head block 100.
+        l2_chain_provider.system_configs.insert(
+            100,
+            SystemConfig {
+                batcher_address: address!("000000000000000000000000000000000000bbbb"),
+                ..Default::default()
+            },
+        );
+
+        let rollup_config = Arc::new(rollup_config);
+        let attributes = TestNextAttributes::default();
+        let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
+
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo { number: 100, ..Default::default() },
+            l1_origin: BlockNumHash { number: 50, ..Default::default() },
+            seq_num: 0,
+        };
+
+        let (l1_origin, sys_cfg) = pipeline.initial_reset(l2_safe_head).await.unwrap();
+        assert_eq!(l1_origin.number, 40);
+        assert_eq!(
+            sys_cfg.batcher_address,
+            address!("000000000000000000000000000000000000aaaa"),
+            "Expected old batcher from walked-back block 90"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_initial_reset_respects_genesis() {
+        let rollup_config = RollupConfig {
+            channel_timeout: 100,
+            genesis: kona_genesis::ChainGenesis {
+                l2: alloy_eips::BlockNumHash { number: 5, ..Default::default() },
+                l1: alloy_eips::BlockNumHash { number: 3, ..Default::default() },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let mut l2_chain_provider = TestL2ChainProvider::default();
+        l2_chain_provider.blocks.push(L2BlockInfo {
+            block_info: BlockInfo { number: 5, ..Default::default() },
+            l1_origin: BlockNumHash { number: 3, ..Default::default() },
+            seq_num: 0,
+        });
+        l2_chain_provider.blocks.push(L2BlockInfo {
+            block_info: BlockInfo { number: 6, ..Default::default() },
+            l1_origin: BlockNumHash { number: 4, ..Default::default() },
+            seq_num: 0,
+        });
+        l2_chain_provider.system_configs.insert(5, SystemConfig::default());
+
+        let rollup_config = Arc::new(rollup_config);
+        let attributes = TestNextAttributes::default();
+        let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
+
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo { number: 6, ..Default::default() },
+            l1_origin: BlockNumHash { number: 4, ..Default::default() },
+            seq_num: 0,
+        };
+
+        let (l1_origin, _) = pipeline.initial_reset(l2_safe_head).await.unwrap();
+        assert_eq!(l1_origin.number, 3, "Should stop at genesis L1 origin");
+    }
+
+    #[tokio::test]
+    async fn test_initial_reset_no_walkback_zero_timeout() {
+        let rollup_config = Arc::new(RollupConfig::default());
+        let mut l2_chain_provider = TestL2ChainProvider::default();
+        l2_chain_provider.system_configs.insert(0, SystemConfig::default());
+
+        let attributes = TestNextAttributes::default();
+        let mut pipeline = DerivationPipeline::new(attributes, rollup_config, l2_chain_provider);
+
+        let (l1_origin, sys_cfg) = pipeline.initial_reset(L2BlockInfo::default()).await.unwrap();
+        assert_eq!(l1_origin.number, 0);
+        assert_eq!(sys_cfg, SystemConfig::default());
     }
 }

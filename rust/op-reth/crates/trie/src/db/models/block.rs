@@ -2,6 +2,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use bytes::BufMut;
 use derive_more::{From, Into};
+use reth_codecs::DecompressError;
 use reth_db::{
     DatabaseError,
     table::{Compress, Decompress},
@@ -25,12 +26,14 @@ impl Compress for BlockNumberHash {
 }
 
 impl Decompress for BlockNumberHash {
-    fn decompress(value: &[u8]) -> Result<Self, DatabaseError> {
+    fn decompress(value: &[u8]) -> Result<Self, DecompressError> {
         if value.len() != 40 {
-            return Err(DatabaseError::Decode);
+            return Err(DecompressError::new(DatabaseError::Decode));
         }
 
-        let number = u64::from_be_bytes(value[..8].try_into().map_err(|_| DatabaseError::Decode)?);
+        let number = u64::from_be_bytes(
+            value[..8].try_into().map_err(|_| DecompressError::new(DatabaseError::Decode))?,
+        );
         let hash = B256::from_slice(&value[8..40]);
 
         Ok(Self(BlockNumHash { number, hash }))

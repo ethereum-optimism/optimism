@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
@@ -55,6 +56,17 @@ import (
 //   - With ELP2P enabled, repeated FCU attempts eventually validate and advance the canonical chain.
 func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with op-reth:
+	//
+	// assertions.go:387:             ERROR[03-31|09:58:15.522]
+	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_el.go:64
+	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/elsync/gap_elp2p/sync_test.go:111
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	failed to determine block-hash of hash 0x8b94830f261ef4568bc2ba248f52b27f9a7c366e8157794c93bdd05ca4735564, could not get payload: not found
+	// assertions.go:387:             	Test:       	TestL2ELP2PCanonicalChainAdvancedByFCU
+	// assertions.go:387:             	Messages:   	block not found using block hash
+	// assertions.go:387:
+	sysgo.SkipOnOpReth(t, "not supported")
 	sys := newGapELP2PSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -393,6 +405,14 @@ func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 // invalid payloads—whether rejected at the CL or EL—do not advance the chain.
 func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-31|10:42:03.034]
+	// assertions.go:387:             	Error Trace:	/Users/josh/repos/optimism/op-acceptance-tests/tests/sync/elsync/gap_elp2p/sync_test.go:436
+	// assertions.go:387:             	Error:      	An error is expected but got nil.
+	// assertions.go:387:             	Test:       	TestInvalidPayloadThroughCLP2P
+	// assertions.go:387:
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 	require := t.Require()

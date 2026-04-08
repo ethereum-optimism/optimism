@@ -210,6 +210,11 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
+	bond, err := h.Factory.InitBonds(nil, gameType)
+	h.Require.NoError(err, "get init bond for game type")
+	h.Opts.Value = bond
+	defer func() { h.Opts.Value = nil }()
+
 	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.Factory.Create(opts, gameType, rootClaim, extraData)
 	})
@@ -271,6 +276,11 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
+
+	bond, err := h.Factory.InitBonds(nil, gameType)
+	h.Require.NoError(err, "get init bond for game type")
+	h.Opts.Value = bond
+	defer func() { h.Opts.Value = nil }()
 
 	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.Factory.Create(opts, gameType, rootClaim, extraData)

@@ -15,9 +15,9 @@ workspace = true
 # reth
 reth-basic-payload-builder.workspace = true
 reth-evm.workspace = true
-reth-primitives-traits = { workspace = true, features = ["op"] }
+reth-primitives-traits.workspace = true
 reth-storage-api.workspace = true
-reth-rpc-eth-api = { workspace = true, features = ["op"] }
+reth-rpc-eth-api.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-rpc-server-types.workspace = true
 reth-tasks = { workspace = true, features = ["rayon"] }
@@ -57,7 +57,7 @@ alloy-transport-http.workspace = true
 alloy-consensus.workspace = true
 alloy-rpc-types-engine.workspace = true
 op-alloy-network.workspace = true
-op-alloy-rpc-types.workspace = true
+op-alloy-rpc-types = { workspace = true, features = ["reth"] }
 op-alloy-rpc-types-engine.workspace = true
 op-alloy-rpc-jsonrpsee.workspace = true
 op-alloy-consensus.workspace = true

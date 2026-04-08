@@ -27,7 +27,7 @@ use receipt_builder::OpReceiptBuilder;
 use revm::{
     Database as _, DatabaseCommit, Inspector,
     context::{Block, result::ResultAndState},
-    database::{DatabaseCommitExt, State},
+    database::DatabaseCommitExt,
 };
 
 mod canyon;
@@ -73,6 +73,10 @@ impl<H, T> TxResult for OpTxResult<H, T> {
 
     fn result(&self) -> &ResultAndState<Self::HaltReason> {
         &self.inner.result
+    }
+
+    fn into_result(self) -> ResultAndState<Self::HaltReason> {
+        self.inner.result
     }
 }
 
@@ -198,11 +202,6 @@ where
     type Result = OpTxResult<E::HaltReason, <R::Transaction as TransactionEnvelope>::TxType>;
 
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
-        // Set state clear flag if the block is after the Spurious Dragon hardfork.
-        let state_clear_flag =
-            self.spec.is_spurious_dragon_active_at_block(self.evm.block().number().saturating_to());
-        self.evm.db_mut().set_state_clear_flag(state_clear_flag);
-
         self.system_caller.apply_blockhashes_contract_call(self.ctx.parent_hash, &mut self.evm)?;
         self.system_caller
             .apply_beacon_root_contract_call(self.ctx.parent_beacon_block_root, &mut self.evm)?;
@@ -460,12 +459,12 @@ where
 
     fn create_executor<'a, DB, I>(
         &'a self,
-        evm: EvmF::Evm<&'a mut State<DB>, I>,
+        evm: EvmF::Evm<DB, I>,
         ctx: Self::ExecutionCtx<'a>,
     ) -> impl BlockExecutorFor<'a, Self, DB, I>
     where
-        DB: Database + 'a,
-        I: Inspector<EvmF::Context<&'a mut State<DB>>> + 'a,
+        DB: StateDB + 'a,
+        I: Inspector<EvmF::Context<DB>> + 'a,
     {
         OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
     }
@@ -491,7 +490,7 @@ mod tests {
     use revm::{
         Context,
         context::BlockEnv,
-        database::{CacheDB, EmptyDB, InMemoryDB},
+        database::{CacheDB, EmptyDB, InMemoryDB, State},
         inspector::NoOpInspector,
         primitives::HashMap,
         state::AccountInfo,
@@ -506,7 +505,7 @@ mod tests {
         let executor_factory = OpBlockExecutorFactory::new(
             OpAlloyReceiptBuilder::default(),
             OpChainHardforks::op_mainnet(),
-            OpEvmFactory::<OpTransaction<revm::context::TxEnv>>::default(),
+            OpEvmFactory::<crate::OpTx>::default(),
         );
         let mut db = State::builder().with_database(CacheDB::<EmptyDB>::default()).build();
         let evm = executor_factory.evm_factory.create_evm(&mut db, EvmEnv::default());
@@ -575,7 +574,12 @@ mod tests {
         gas_limit: u64,
         jovian_timestamp: u64,
     ) -> OpBlockExecutor<
-        OpEvm<&'a mut State<InMemoryDB>, NoOpInspector>,
+        OpEvm<
+            &'a mut State<InMemoryDB>,
+            NoOpInspector,
+            op_revm::precompiles::OpPrecompiles,
+            crate::OpTx,
+        >,
         &'a OpAlloyReceiptBuilder,
         &'a OpChainHardforks,
     > {

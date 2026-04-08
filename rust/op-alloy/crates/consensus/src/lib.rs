@@ -9,6 +9,12 @@
 
 extern crate alloc;
 
+#[cfg(feature = "reth-core")]
+mod reth_core;
+
+#[cfg(feature = "reth-codec")]
+mod reth_codec;
+
 #[cfg(feature = "alloy-compat")]
 mod alloy_compat;
 

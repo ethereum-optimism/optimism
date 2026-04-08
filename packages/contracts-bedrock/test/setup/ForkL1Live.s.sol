@@ -18,7 +18,6 @@ import { Config } from "scripts/libraries/Config.sol";
 // Libraries
 import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
@@ -30,11 +29,9 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
@@ -135,10 +132,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         // Superchain shared contracts
         saveProxyAndImpl("SuperchainConfig", superchainToml, ".superchain_config_addr");
         saveProxyAndImpl("ProtocolVersions", superchainToml, ".protocol_versions_addr");
-        artifacts.save(
-            "OPContractsManager", vm.parseTomlAddress(standardVersionsToml, "$.RELEASE.op_contracts_manager.address")
-        );
-
         // Core contracts
         artifacts.save("ProxyAdmin", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".ProxyAdmin")));
         saveProxyAndImpl("SystemConfig", opToml, ".addresses.SystemConfigProxy");
@@ -210,41 +203,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
     function _deployNewImplementations() internal {
         Deploy deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
         deploy.deployImplementations();
-    }
-
-    /// @notice Performs a single OPCM upgrade.
-    /// @param _opcm The OPCM contract to upgrade.
-    /// @param _delegateCaller The address of the upgrader to use for the upgrade.
-    function _doUpgrade(IOPContractsManager _opcm, address _delegateCaller) internal {
-        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
-        IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
-        opChains[0] = IOPContractsManager.OpChainConfig({
-            systemConfigProxy: systemConfig,
-            cannonPrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
-            cannonKonaPrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
-        });
-
-        // Execute the SuperchainConfig upgrade.
-        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
-        // every time rather than adding or removing this code for each upgrade.
-        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
-        address superchainPAO = superchainProxyAdmin.owner();
-        vm.prank(superchainPAO, true);
-        (bool success, bytes memory reason) =
-            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
-        if (success == false) {
-            assertTrue(
-                bytes4(reason)
-                    == IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector,
-                "Revert reason other than SuperchainConfigAlreadyUpToDate"
-            );
-        }
-
-        // Upgrade the chain.
-        vm.prank(_delegateCaller, true);
-        (bool upgradeSuccess,) = address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
-        assertTrue(upgradeSuccess, "upgrade failed");
     }
 
     /// @notice Performs a single OPCM V2 upgrade.
@@ -473,13 +431,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         PastUpgrades.runPastUpgrades(upgrader, systemConfig, superchainConfig, disputeGameFactoryForPastUpgrades);
 
         // Current upgrade.
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
-            _doUpgradeV2(opcmV2, upgrader);
-        } else {
-            IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
-            _doUpgrade(opcm, upgrader);
-        }
+        IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
+        _doUpgradeV2(opcmV2, upgrader);
 
         console.log("ForkL1Live: Saving newly deployed contracts");
 

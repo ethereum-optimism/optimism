@@ -154,16 +154,6 @@ impl IsTyped2718 for OpTransactionSigned {
     }
 }
 
-impl SignedTransaction for OpTransactionSigned {
-    fn is_system_tx(&self) -> bool {
-        self.is_deposit()
-    }
-
-    fn recalculate_hash(&self) -> B256 {
-        keccak256(self.encoded_2718())
-    }
-}
-
 macro_rules! impl_from_signed {
     ($($tx:ident),*) => {
         $(
@@ -414,7 +404,7 @@ impl Hash for OpTransactionSigned {
     }
 }
 
-#[cfg(feature = "reth-codec")]
+#[cfg(any(test, feature = "reth-codec"))]
 impl reth_codecs::Compact for OpTransactionSigned {
     fn to_compact<B>(&self, buf: &mut B) -> usize
     where

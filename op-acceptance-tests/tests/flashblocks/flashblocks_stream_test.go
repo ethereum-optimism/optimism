@@ -1,167 +1,87 @@
 package flashblocks
 
 import (
-	"context"
-	"encoding/json"
-	"log/slog"
-	"os"
-	"strconv"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
-	"github.com/ethereum-optimism/optimism/op-service/logmods"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
-const maxExpectedFlashblocks = 20
-
-// TestFlashblocksStream checks we can connect to the flashblocks stream across multiple CL backends.
+// TestFlashblocksStream checks that block numbers and indices always increase across both the
+// rollup-boost and op-rbuilder streams.
 func TestFlashblocksStream(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	logger := t.Logger()
+	// Example error with kona-node:
+	//
+	// assertions.go:387:             ERROR[03-30|22:44:52.250]
+	// assertions.go:387:             	Error Trace:	/home/circleci/project/op-devstack/sysgo/l2_cl_kona.go:99
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/mixed_runtime.go:456
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_build.go:182
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_build.go:276
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_flashblocks.go:36
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_runtime.go:105
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/sysgo/singlechain_flashblocks.go:53
+	// assertions.go:387:             	            				/home/circleci/project/op-devstack/presets/flashblocks.go:43
+	// assertions.go:387:             	            				/home/circleci/project/op-acceptance-tests/tests/flashblocks/flashblocks_stream_test.go:26
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	context deadline exceeded
+	// assertions.go:387:             	Test:       	TestFlashblocksStream
+	// assertions.go:387:             	Messages:   	need user RPC
+	sysgo.SkipOnKonaNode(t, "not supported (fail to get user rpc)")
 	sys := presets.NewSingleChainWithFlashblocks(t)
-	filterHandler, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
-	if ok {
-		filterHandler.Set(logfilter.DefaultMute(
-			logfilter.Level(slog.LevelError).Show(),
-			logfilter.Select("kind", "L2CLNode").Show(),
-		))
-	}
-	tracer := t.Tracer()
-	ctx := t.Ctx()
 
-	ctx, span := tracer.Start(ctx, "test chains")
-	defer span.End()
+	driveViaTestSequencer(t, sys, 3)
 
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	flashblocksStreamRate := os.Getenv("FLASHBLOCKS_STREAM_RATE_MS")
-	if flashblocksStreamRate == "" {
-		logger.Warn("FLASHBLOCKS_STREAM_RATE_MS is not set, using default of 250ms")
-		flashblocksStreamRate = "250"
-	}
-
-	flashblocksStreamRateMs, err := strconv.Atoi(flashblocksStreamRate)
-	require.NoError(t, err, "failed to parse FLASHBLOCKS_STREAM_RATE_MS: %s", err)
-
-	logger.Info("Flashblocks stream rate", "rate", flashblocksStreamRateMs)
-
-	oprbuilderNode := sys.L2OPRBuilder
-	rollupBoostNode := sys.L2RollupBoost
-	_, span = tracer.Start(ctx, "test chain")
-	defer span.End()
-
-	expectedChainID := sys.L2Chain.ChainID().ToBig()
-	require.Equal(t, oprbuilderNode.Escape().ChainID().ToBig(), expectedChainID, "flashblocks builder node chain id should match expected chain id")
-
-	DriveViaTestSequencer(t, sys, 3)
-
-	testDuration := time.Duration(int64(flashblocksStreamRateMs*maxExpectedFlashblocks*2)) * time.Millisecond
-	failureTolerance := int(0.15 * float64(maxExpectedFlashblocks))
-
-	logger.Debug("Test duration", "duration", testDuration, "failure tolerance (of flashblocks)", failureTolerance)
-
-	builderOutput := make(chan []byte, maxExpectedFlashblocks)
-	defer close(builderOutput)
-	builderDone := make(chan struct{})
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	wg.Add(1)
 	go func() {
-		err := oprbuilderNode.FlashblocksClient().ReadAll(ctx, logger.With("stream_source", "op-rbuilder"), testDuration, builderOutput, builderDone)
-		require.NoError(t, err)
+		defer wg.Done()
+		ensureFlashblocksIncrease(t, sys.L2OPRBuilder.FlashblocksClient(), t.Logger().With("stream_source", "op-rbuilder"))
 	}()
-	builderMessages := make([]string, 0)
-
-	output := make(chan []byte, maxExpectedFlashblocks)
-	defer close(output)
-	doneListening := make(chan struct{})
-	streamedMessages := make([]string, 0)
+	wg.Add(1)
 	go func() {
-		err := rollupBoostNode.FlashblocksClient().ReadAll(ctx, logger.With("stream_source", "rollup-boost"), testDuration, output, doneListening)
-		require.NoError(t, err)
+		defer wg.Done()
+		ensureFlashblocksIncrease(t, sys.L2RollupBoost.FlashblocksClient(), t.Logger().With("stream_source", "rollup-boost"))
 	}()
 
-	listening := true
-	for listening {
-		select {
-		case <-doneListening:
-			doneListening = nil
-		case <-builderDone:
-			builderDone = nil
-		case msg := <-output:
-			streamedMessages = append(streamedMessages, string(msg))
-		case msg := <-builderOutput:
-			builderMessages = append(builderMessages, string(msg))
-		}
-
-		if doneListening == nil && builderDone == nil {
-			listening = false
-		}
-	}
-
-	logger.Info("Completed WebSocket stream reading", "msg_count", len(streamedMessages), "builder_msg_count", len(builderMessages))
-
-	if len(builderMessages) > 0 {
-		logger.Info("Sample builder message", "payload", builderMessages[0])
-	}
-
-	totalFlashblocksProduced := evaluateFlashblocksStream(t, logger, streamedMessages, failureTolerance)
-	require.Greater(t, totalFlashblocksProduced, 0, "expected to receive flashblocks from rollup-boost stream")
-	logger.Info("Flashblocks stream validation completed", "total_flashblocks_produced", totalFlashblocksProduced)
+	// Note that rollup boost may deliberately drop flashblocks from rbuilder to mitigate
+	// flashblock reorgs. See https://blog.base.dev/flashblocks-deep-dive.
+	// Otherwise, we could assert that the streams match (after aligning on the same start and end
+	// flashblocks).
 }
 
-func evaluateFlashblocksStream(t devtest.T, logger log.Logger, streamedMessages []string, failureTolerance int) int {
-	require.Greater(t, len(streamedMessages), 0, "should have received at least one message from WebSocket")
-	flashblocks := make([]Flashblock, len(streamedMessages))
+func ensureFlashblocksIncrease(t devtest.T, wsClient *client.WSClient, logger log.Logger) {
+	const numFlashblocks = 20
+	client := sources.NewFlashblockClient(wsClient, logger, numFlashblocks)
+	startClient(t, client)
 
-	failures := 0
-	for i, msg := range streamedMessages {
-		var flashblock Flashblock
-		if err := json.Unmarshal([]byte(msg), &flashblock); err != nil {
-			logger.Warn("Failed to unmarshal WebSocket message", "error", err)
-			failures++
-			if failures > failureTolerance {
-				logger.Error("failed to unmarshal streamed messages into flashblocks beyond the failure tolerance of %d", failureTolerance)
-				t.FailNow()
-			}
-			continue
-		}
-
-		flashblocks[i] = flashblock
-	}
-
-	totalFlashblocksProduced := 0
-
-	lastIndex := -1
 	lastBlockNumber := -1
+	lastIndex := -1
+	for range numFlashblocks {
+		select {
+		case <-t.Ctx().Done():
+			t.Require().NoError(t.Ctx().Err(), "before %d flashblocks were seen", numFlashblocks)
+		case flashblock, ok := <-client.Next():
+			t.Require().True(ok, "client channel closed before we saw %d flashblocks", numFlashblocks)
+			t.Require().NotNil(flashblock)
+			currentBlockNumber := flashblock.Metadata.BlockNumber
+			currentIndex := flashblock.Index
 
-	for _, flashblock := range flashblocks {
-		currentIndex, currentBlockNumber := flashblock.Index, flashblock.Metadata.BlockNumber
+			if currentBlockNumber == lastBlockNumber {
+				t.Require().Greater(currentIndex, lastIndex)
+			} else {
+				t.Require().Greater(currentBlockNumber, lastBlockNumber)
+				t.Require().Zero(currentIndex)
+			}
 
-		if lastBlockNumber == -1 {
-			totalFlashblocksProduced += 1
-			lastIndex = currentIndex
 			lastBlockNumber = currentBlockNumber
-			continue
+			lastIndex = currentIndex
 		}
-
-		require.Greater(t, lastIndex, -1, "some bug: last index should be greater than -1 by now")
-		require.Greater(t, currentIndex, -1, "some bug: current index should be greater than -1 by now")
-
-		if currentBlockNumber == lastBlockNumber {
-			require.Greater(t, currentIndex, lastIndex, "some bug: current index should be greater than last index from the stream")
-
-			totalFlashblocksProduced += (currentIndex - lastIndex)
-		} else if currentBlockNumber > lastBlockNumber {
-			totalFlashblocksProduced += (currentIndex + 1)
-		}
-
-		lastIndex = currentIndex
-		lastBlockNumber = currentBlockNumber
 	}
-
-	return totalFlashblocksProduced
 }

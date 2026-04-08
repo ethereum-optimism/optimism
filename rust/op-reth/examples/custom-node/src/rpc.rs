@@ -3,15 +3,11 @@ use crate::{
     primitives::{CustomHeader, CustomTransaction},
 };
 use alloy_consensus::error::ValueError;
-use alloy_evm::EvmEnv;
 use alloy_network::TxSigner;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_rpc_types::{OpTransactionReceipt, OpTransactionRequest};
 use reth_op::rpc::RpcTypes;
-use reth_rpc_api::eth::{
-    EthTxEnvError, SignTxRequestError, SignableTxRequest, TryIntoSimTx, TryIntoTxEnv,
-};
-use revm::context::BlockEnv;
+use reth_rpc_api::eth::{SignTxRequestError, SignableTxRequest, TryIntoSimTx};
 
 #[derive(Debug, Clone, Copy, Default)]
 #[non_exhaustive]
@@ -30,14 +26,31 @@ impl TryIntoSimTx<CustomTransaction> for OpTransactionRequest {
     }
 }
 
-impl TryIntoTxEnv<CustomTxEnv> for OpTransactionRequest {
-    type Err = EthTxEnvError;
+/// Custom `TxEnvConverter` that converts [`OpTransactionRequest`] into [`CustomTxEnv`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CustomTxEnvConverter;
 
-    fn try_into_tx_env<Spec>(
-        self,
-        evm_env: &EvmEnv<Spec, BlockEnv>,
-    ) -> Result<CustomTxEnv, Self::Err> {
-        Ok(CustomTxEnv::Op(reth_optimism_evm::OpTx(self.try_into_tx_env(evm_env)?)))
+impl<Evm> reth_rpc_api::eth::transaction::TxEnvConverter<OpTransactionRequest, Evm>
+    for CustomTxEnvConverter
+where
+    Evm: reth_evm::ConfigureEvm,
+    reth_evm::TxEnvFor<Evm>: From<CustomTxEnv>,
+{
+    type Error = alloy_evm::rpc::EthTxEnvError;
+
+    fn convert_tx_env(
+        &self,
+        req: OpTransactionRequest,
+        evm_env: &reth_evm::EvmEnvFor<Evm>,
+    ) -> Result<reth_evm::TxEnvFor<Evm>, Self::Error> {
+        use alloy_evm::rpc::TryIntoTxEnv;
+        let base: revm::context::TxEnv = req.as_ref().clone().try_into_tx_env(evm_env)?;
+        let op_tx = reth_optimism_evm::OpTx(op_revm::OpTransaction {
+            base,
+            enveloped_tx: Some(alloy_primitives::Bytes::new()),
+            deposit: Default::default(),
+        });
+        Ok(CustomTxEnv::Op(op_tx).into())
     }
 }
 
