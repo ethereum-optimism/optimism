@@ -3,30 +3,45 @@ package catalog
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Check represents a single runnable check.
-type Check struct {
-	ID            string   `yaml:"id"`
-	Name          string   `yaml:"name"`
-	Kind          string   `yaml:"kind"`
-	Language      string   `yaml:"language"`
-	Command       string   `yaml:"command"`
-	AvgDuration   int      `yaml:"avg_duration"`
-	Packages      []string `yaml:"packages,omitempty"`
-	Directories   []string `yaml:"directories,omitempty"`
-	FilePatterns  []string `yaml:"file_patterns,omitempty"`
-	Prerequisites []string `yaml:"prerequisites,omitempty"`
-	Tags          []string `yaml:"tags,omitempty"`
+// CheckType describes a runnable check and its available configuration knobs.
+type CheckType struct {
+	ID              string   `yaml:"id"`
+	Name            string   `yaml:"name"`
+	Kind            string   `yaml:"kind"`              // "test", "lint", "build", "check"
+	Language        string   `yaml:"language"`           // "go", "solidity", "rust", "*"
+	Command         string   `yaml:"command"`            // base command
+	Scopeable       bool     `yaml:"scopeable"`          // can this check be scoped to a subset?
+	ScopeFlag       string   `yaml:"scope_flag"`         // CLI flag for scope ("--match-path", "" for positional)
+	ScopeType       string   `yaml:"scope_type"`         // "packages", "paths", "tests"
+	Triggers        []string `yaml:"triggers,omitempty"` // file patterns that trigger this (for non-scopeable checks)
+	Knobs           []Knob   `yaml:"knobs,omitempty"`
+	Prerequisites   []string `yaml:"prerequisites,omitempty"`
+	AvgDuration     int      `yaml:"avg_duration"`
+	PerUnitDuration int      `yaml:"per_unit_duration,omitempty"`
 }
 
-// Catalog is the top-level checks manifest.
-type Catalog struct {
-	Checks []Check `yaml:"checks"`
+// Knob is a configurable parameter for a check type.
+type Knob struct {
+	Name    string   `yaml:"name"`
+	Type    string   `yaml:"type"`              // "int", "bool", "string", "enum"
+	Flag    string   `yaml:"flag,omitempty"`    // CLI flag ("--fuzz-runs", "-short")
+	EnvVar  string   `yaml:"env_var,omitempty"` // env var alternative
+	Default any      `yaml:"default"`
+	Min     int      `yaml:"min,omitempty"`
+	Max     int      `yaml:"max,omitempty"`
+	Choices []string `yaml:"choices,omitempty"`
+}
 
-	byID map[string]*Check
+// Catalog is the top-level manifest of available check types.
+type Catalog struct {
+	CheckTypes []CheckType `yaml:"check_types"`
+	byID       map[string]*CheckType
 }
 
 // Load reads a catalog from a YAML file.
@@ -48,51 +63,69 @@ func Parse(data []byte) (*Catalog, error) {
 	return &c, nil
 }
 
-// Validate checks for: unique IDs, valid prerequisite references, non-empty commands.
+// Validate checks for unique IDs, valid prerequisites, non-empty commands, and knob bounds.
 func (c *Catalog) Validate() error {
 	seen := make(map[string]bool)
-	for _, ch := range c.Checks {
-		if ch.ID == "" {
-			return fmt.Errorf("check has empty ID")
+	for _, ct := range c.CheckTypes {
+		if ct.ID == "" {
+			return fmt.Errorf("check type has empty ID")
 		}
-		if seen[ch.ID] {
-			return fmt.Errorf("duplicate check ID: %q", ch.ID)
+		if seen[ct.ID] {
+			return fmt.Errorf("duplicate check type ID: %q", ct.ID)
 		}
-		seen[ch.ID] = true
-		if ch.Command == "" {
-			return fmt.Errorf("check %q has empty command", ch.ID)
+		seen[ct.ID] = true
+		if ct.Command == "" {
+			return fmt.Errorf("check type %q has empty command", ct.ID)
+		}
+		for _, k := range ct.Knobs {
+			if k.Type == "int" && k.Min > k.Max && k.Max != 0 {
+				return fmt.Errorf("check type %q knob %q: min (%d) > max (%d)", ct.ID, k.Name, k.Min, k.Max)
+			}
+			if k.Type == "enum" && len(k.Choices) == 0 {
+				return fmt.Errorf("check type %q knob %q: enum type requires choices", ct.ID, k.Name)
+			}
 		}
 	}
-	// Validate prerequisites reference existing IDs
-	for _, ch := range c.Checks {
-		for _, prereq := range ch.Prerequisites {
+	for _, ct := range c.CheckTypes {
+		for _, prereq := range ct.Prerequisites {
 			if !seen[prereq] {
-				return fmt.Errorf("check %q has prerequisite %q which does not exist", ch.ID, prereq)
+				return fmt.Errorf("check type %q has prerequisite %q which does not exist", ct.ID, prereq)
 			}
 		}
 	}
 	return nil
 }
 
-// ByID returns a check by ID, or nil if not found.
-func (c *Catalog) ByID(id string) *Check {
+// ByID returns a check type by ID, or nil if not found.
+func (c *Catalog) ByID(id string) *CheckType {
 	return c.byID[id]
 }
 
-// ByLanguage returns checks matching the given language.
-func (c *Catalog) ByLanguage(lang string) []Check {
-	var result []Check
-	for _, ch := range c.Checks {
-		if ch.Language == lang {
-			result = append(result, ch)
+// MatchesTriggers returns true if any of the given file paths match this check type's triggers.
+func (ct *CheckType) MatchesTriggers(filePaths []string) bool {
+	if len(ct.Triggers) == 0 {
+		return false
+	}
+	for _, f := range filePaths {
+		for _, pattern := range ct.Triggers {
+			if matched, _ := filepath.Match(pattern, f); matched {
+				return true
+			}
+			// Also try matching with ** prefix stripped for directory globs
+			if strings.HasSuffix(pattern, "/**") {
+				prefix := strings.TrimSuffix(pattern, "/**")
+				if strings.HasPrefix(f, prefix) {
+					return true
+				}
+			}
 		}
 	}
-	return result
+	return false
 }
 
 func (c *Catalog) buildIndex() {
-	c.byID = make(map[string]*Check, len(c.Checks))
-	for i := range c.Checks {
-		c.byID[c.Checks[i].ID] = &c.Checks[i]
+	c.byID = make(map[string]*CheckType, len(c.CheckTypes))
+	for i := range c.CheckTypes {
+		c.byID[c.CheckTypes[i].ID] = &c.CheckTypes[i]
 	}
 }

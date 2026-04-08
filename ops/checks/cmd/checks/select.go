@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
-	"github.com/ethereum-optimism/optimism/ops/checks/scorer"
 	"github.com/ethereum-optimism/optimism/ops/checks/selector"
 )
 
@@ -17,6 +17,7 @@ func cmdSelect(args []string) error {
 	fs := flag.NewFlagSet("select", flag.ExitOnError)
 	stageName := fs.String("stage", "commit", "development stage (save, commit, pr, merge_queue, develop)")
 	graphPath := fs.String("graph", "ops/checks/graph.json", "path to graph file")
+	catalogPath := fs.String("catalog", "ops/checks/checks.yaml", "path to checks catalog")
 	diffFile := fs.String("diff", "", "path to diff file (default: stdin)")
 	format := fs.String("format", "text", "output format (text, json)")
 	fs.Parse(args)
@@ -31,7 +32,11 @@ func cmdSelect(args []string) error {
 		return fmt.Errorf("loading graph: %w", err)
 	}
 
-	// Read diff
+	cat, err := catalog.Load(*catalogPath)
+	if err != nil {
+		return fmt.Errorf("loading catalog: %w", err)
+	}
+
 	var diffInput io.Reader
 	if *diffFile != "" {
 		f, err := os.Open(*diffFile)
@@ -49,113 +54,96 @@ func cmdSelect(args []string) error {
 		return fmt.Errorf("reading diff: %w", err)
 	}
 
-	files := diff.ChangedFiles(string(data))
-	if len(files) == 0 {
+	diffs := diff.ParseUnifiedDiff(string(data))
+	if len(diffs) == 0 {
 		fmt.Println("No changed files.")
 		return nil
 	}
 
-	// Check blast radius
-	if blast, matches := diff.BlastRadiusFiles(files); blast {
-		fmt.Printf("⚠ Blast radius files changed: %s\n", strings.Join(matches, ", "))
-		fmt.Println("All checks recommended.")
-	}
-
-	// Map files to node IDs
-	nodeIDs, unknown := diff.FilesToNodeIDs(g, files)
-	if len(unknown) > 0 {
-		fmt.Fprintf(os.Stderr, "Unmapped files: %s\n", strings.Join(unknown, ", "))
-	}
-
-	if len(nodeIDs) == 0 {
-		fmt.Println("No graph nodes matched the changed files.")
-		return nil
-	}
-
-	// Walk graph to find reachable checks
-	reachable := graph.ReachableChecks(g, nodeIDs, 0.01)
-
-	// Score
-	s := scorer.NewSimple()
-	scores, err := s.Score(g, files, reachable)
+	strategy := selector.NewSimpleStrategy()
+	result, err := strategy.Plan(g, diffs, stage, cat)
 	if err != nil {
-		return fmt.Errorf("scoring: %w", err)
+		return fmt.Errorf("planning: %w", err)
 	}
 
-	// Select
-	result := selector.Select(scores, stage, g)
-
-	// Output
 	if *format == "json" {
-		return printResultJSON(result)
+		return printResultJSON(result, cat)
 	}
-	return printResultText(result)
+	return printResultText(result, cat)
 }
 
-func printResultText(result *selector.Result) error {
+func printResultText(result *selector.Result, cat *catalog.Catalog) error {
 	fmt.Printf("Stage: %s\n\n", result.Stage)
 
-	if len(result.Selections) == 0 {
+	if len(result.Items) == 0 {
 		fmt.Println("No checks selected.")
 		return nil
 	}
 
-	fmt.Printf("Selected checks (%d):\n", len(result.Selections))
-	for i, sel := range result.Selections {
-		fmt.Printf("  %d. %s  P(fail)=%.3f  cost=%.0fs  skip_cost=%.2f\n",
-			i+1, sel.CheckID, sel.PFail, sel.RunCost, sel.SkipCost)
+	fmt.Printf("Execution plan (%d items):\n", len(result.Items))
+	for i, layer := range result.Schedule.Layers {
+		fmt.Printf("  Layer %d (%.0fs):\n", i+1, layer.Duration)
+		for _, itemID := range layer.ItemIDs {
+			for _, item := range result.Items {
+				if item.ID == itemID {
+					ct := cat.ByID(item.CheckTypeID)
+					cmd := item.ResolvedCommand(ct)
+					fmt.Printf("    %s  (signal=%.2f)\n", cmd, item.Signal)
+				}
+			}
+		}
 	}
 
-	// Show execution schedule
-	fmt.Printf("\nExecution schedule (%d layers):\n", len(result.Schedule.Layers))
-	for i, layer := range result.Schedule.Layers {
-		checks := strings.Join(layer.Checks, ", ")
-		fmt.Printf("  Layer %d (%.0fs): %s\n", i+1, layer.Duration, checks)
+	fmt.Printf("\nEstimated: %.0fs wall-clock, %.0fs CPU",
+		result.WallClock, result.TotalCPU)
+	if result.TotalCPU > 0 && result.WallClock > 0 {
+		fmt.Printf(" (%.1fx speedup)", result.TotalCPU/result.WallClock)
 	}
-	fmt.Printf("\nEstimated time: %.0fs wall-clock, %.0fs CPU (%.1fx speedup from parallelism)\n",
-		result.WallClock, result.TotalCPU, result.TotalCPU/max(result.WallClock, 1))
+	fmt.Println()
 
 	if len(result.Skipped) > 0 {
-		fmt.Printf("\nSkipped checks (%d):\n", len(result.Skipped))
-		for _, sel := range result.Skipped {
-			fmt.Printf("  - %s  P(fail)=%.3f  cost=%.0fs\n",
-				sel.CheckID, sel.PFail, sel.RunCost)
+		fmt.Printf("\nSkipped (%d):\n", len(result.Skipped))
+		for _, item := range result.Skipped {
+			ct := cat.ByID(item.CheckTypeID)
+			cmd := item.ResolvedCommand(ct)
+			fmt.Printf("  - %s  (signal=%.2f, cost=%.0fs)\n", cmd, item.Signal, item.RunCost)
 		}
 	}
 
 	return nil
 }
 
-func max(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func printResultJSON(result *selector.Result) error {
+func printResultJSON(result *selector.Result, cat *catalog.Catalog) error {
 	fmt.Println("{")
 	fmt.Printf("  \"stage\": %q,\n", result.Stage)
 	fmt.Printf("  \"wall_clock\": %.0f,\n", result.WallClock)
 	fmt.Printf("  \"total_cpu\": %.0f,\n", result.TotalCPU)
-	fmt.Println("  \"selected\": [")
-	for i, sel := range result.Selections {
+	fmt.Println("  \"items\": [")
+	for i, item := range result.Items {
+		ct := cat.ByID(item.CheckTypeID)
+		cmd := item.ResolvedCommand(ct)
 		comma := ","
-		if i == len(result.Selections)-1 {
+		if i == len(result.Items)-1 {
 			comma = ""
 		}
-		fmt.Printf("    {\"check\": %q, \"p_fail\": %.3f, \"run_cost\": %.0f, \"skip_cost\": %.2f}%s\n",
-			sel.CheckID, sel.PFail, sel.RunCost, sel.SkipCost, comma)
+		scope := "null"
+		if len(item.Scope) > 0 {
+			scope = fmt.Sprintf("[%q]", strings.Join(item.Scope, "\", \""))
+		}
+		fmt.Printf("    {\"id\": %q, \"command\": %q, \"scope\": %s, \"signal\": %.3f, \"run_cost\": %.0f}%s\n",
+			item.ID, cmd, scope, item.Signal, item.RunCost, comma)
 	}
 	fmt.Println("  ],")
 	fmt.Println("  \"skipped\": [")
-	for i, sel := range result.Skipped {
+	for i, item := range result.Skipped {
+		ct := cat.ByID(item.CheckTypeID)
+		cmd := item.ResolvedCommand(ct)
 		comma := ","
 		if i == len(result.Skipped)-1 {
 			comma = ""
 		}
-		fmt.Printf("    {\"check\": %q, \"p_fail\": %.3f, \"run_cost\": %.0f}%s\n",
-			sel.CheckID, sel.PFail, sel.RunCost, comma)
+		fmt.Printf("    {\"id\": %q, \"command\": %q, \"signal\": %.3f, \"run_cost\": %.0f}%s\n",
+			item.ID, cmd, item.Signal, item.RunCost, comma)
 	}
 	fmt.Println("  ]")
 	fmt.Println("}")

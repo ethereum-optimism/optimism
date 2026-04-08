@@ -3,7 +3,6 @@ package executor
 import (
 	"fmt"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,9 +20,10 @@ const (
 	StatusError   Status = "error"
 )
 
-// CheckResult records the outcome of a single check.
+// CheckResult records the outcome of a single execution item.
 type CheckResult struct {
-	CheckID  string
+	ItemID   string
+	Command  string
 	Status   Status
 	Duration time.Duration
 	Output   string
@@ -38,7 +38,7 @@ type RunResult struct {
 	Skipped   int
 }
 
-// Executor runs checks.
+// Executor runs execution items.
 type Executor struct {
 	rootDir string
 	dryRun  bool
@@ -49,12 +49,10 @@ func New(rootDir string, dryRun bool) *Executor {
 	return &Executor{rootDir: rootDir, dryRun: dryRun}
 }
 
-// Run executes selected checks using the parallel schedule.
-// Each layer runs its checks in parallel; layers run sequentially.
-// If any check in a layer fails, dependents in later layers are skipped.
-func (e *Executor) Run(selections []selector.Selection, cat *catalog.Catalog) *RunResult {
+// Run executes items using the parallel schedule.
+func (e *Executor) Run(items []selector.ExecutionItem, cat *catalog.Catalog) *RunResult {
 	result := &RunResult{}
-	schedule := selector.ComputeSchedule(selections, 0)
+	schedule := selector.ComputeSchedule(items, 0)
 
 	failed := make(map[string]bool)
 	var mu sync.Mutex
@@ -62,19 +60,30 @@ func (e *Executor) Run(selections []selector.Selection, cat *catalog.Catalog) *R
 
 	// Build prerequisite lookup
 	prereqsOf := make(map[string][]string)
-	for _, sel := range selections {
-		prereqsOf[sel.CheckID] = sel.Prerequisites
+	for _, item := range items {
+		prereqsOf[item.ID] = item.Prerequisites
+	}
+
+	// Build item lookup
+	itemByID := make(map[string]*selector.ExecutionItem)
+	for i := range items {
+		itemByID[items[i].ID] = &items[i]
 	}
 
 	for _, layer := range schedule.Layers {
 		var wg sync.WaitGroup
-		layerResults := make([]CheckResult, len(layer.Checks))
+		layerResults := make([]CheckResult, len(layer.ItemIDs))
 
-		for i, checkID := range layer.Checks {
+		for i, itemID := range layer.ItemIDs {
+			item := itemByID[itemID]
+			if item == nil {
+				continue
+			}
+
 			// Check if any prerequisite failed
 			mu.Lock()
 			skip := false
-			for _, prereq := range prereqsOf[checkID] {
+			for _, prereq := range prereqsOf[itemID] {
 				if failed[prereq] {
 					skip = true
 					break
@@ -83,55 +92,55 @@ func (e *Executor) Run(selections []selector.Selection, cat *catalog.Catalog) *R
 			mu.Unlock()
 
 			if skip {
-				layerResults[i] = CheckResult{
-					CheckID: checkID,
-					Status:  StatusSkipped,
-				}
+				layerResults[i] = CheckResult{ItemID: itemID, Status: StatusSkipped}
 				continue
 			}
 
-			// Look up the command
-			rawID := strings.TrimPrefix(checkID, "check:")
-			ch := cat.ByID(rawID)
-			if ch == nil {
+			// Resolve command
+			ct := cat.ByID(item.CheckTypeID)
+			if ct == nil {
 				layerResults[i] = CheckResult{
-					CheckID: checkID,
-					Status:  StatusError,
-					Output:  fmt.Sprintf("check %q not found in catalog", rawID),
+					ItemID: itemID,
+					Status: StatusError,
+					Output: fmt.Sprintf("check type %q not found in catalog", item.CheckTypeID),
 				}
 				mu.Lock()
-				failed[checkID] = true
+				failed[itemID] = true
 				mu.Unlock()
 				continue
 			}
 
+			command := item.ResolvedCommand(ct)
+
 			if e.dryRun {
 				layerResults[i] = CheckResult{
-					CheckID: checkID,
+					ItemID:  itemID,
+					Command: command,
 					Status:  StatusPassed,
-					Output:  fmt.Sprintf("[dry-run] would execute: %s", ch.Command),
+					Output:  fmt.Sprintf("[dry-run] %s", command),
 				}
 				continue
 			}
 
-			// Execute in parallel
 			wg.Add(1)
-			go func(idx int, cID, command string) {
+			go func(idx int, id, cmd string) {
 				defer wg.Done()
-				cr := e.execute(cID, command)
+				cr := e.execute(id, cmd)
 				layerResults[idx] = cr
 				if cr.Status == StatusFailed || cr.Status == StatusError {
 					mu.Lock()
-					failed[cID] = true
+					failed[id] = true
 					mu.Unlock()
 				}
-			}(i, checkID, ch.Command)
+			}(i, itemID, command)
 		}
 
 		wg.Wait()
 
-		// Collect results
 		for _, cr := range layerResults {
+			if cr.ItemID == "" {
+				continue
+			}
 			result.Results = append(result.Results, cr)
 			switch cr.Status {
 			case StatusPassed:
@@ -148,7 +157,7 @@ func (e *Executor) Run(selections []selector.Selection, cat *catalog.Catalog) *R
 	return result
 }
 
-func (e *Executor) execute(checkID, command string) CheckResult {
+func (e *Executor) execute(itemID, command string) CheckResult {
 	start := time.Now()
 
 	cmd := exec.Command("sh", "-c", command)
@@ -169,7 +178,8 @@ func (e *Executor) execute(checkID, command string) CheckResult {
 	}
 
 	return CheckResult{
-		CheckID:  checkID,
+		ItemID:   itemID,
+		Command:  command,
 		Status:   status,
 		Duration: duration,
 		Output:   output,

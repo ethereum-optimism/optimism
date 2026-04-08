@@ -1,45 +1,39 @@
 package selector
 
-// Schedule computes a parallel execution schedule for selected checks,
-// respecting prerequisite ordering. Returns the estimated wall-clock time
-// and the execution layers (each layer runs in parallel).
+// Schedule computes a parallel execution schedule for execution items,
+// respecting prerequisite ordering.
 type Schedule struct {
-	Layers       []Layer // execution layers in order
-	WallClock    float64 // estimated wall-clock time in seconds
-	TotalCPU     float64 // sum of all check durations
-	Parallelism  int     // max checks per layer
+	Layers      []Layer
+	WallClock   float64 // estimated wall-clock time in seconds
+	TotalCPU    float64 // sum of all item durations
+	Parallelism int
 }
 
-// Layer is a set of checks that can run in parallel.
+// Layer is a set of items that can run in parallel.
 type Layer struct {
-	Checks   []string
+	ItemIDs  []string
 	Duration float64 // wall time = max duration in this layer
 }
 
-// ComputeSchedule builds a parallel execution schedule.
-// Checks are grouped into layers: a check goes into the earliest layer
-// where all its prerequisites have completed. Within a layer, checks
-// run in parallel, so the layer's wall time is the max duration.
-func ComputeSchedule(selections []Selection, maxParallelism int) Schedule {
+// ComputeSchedule builds a parallel execution schedule from execution items.
+// Items are grouped into layers based on prerequisites. Within a layer,
+// items run in parallel, so the layer's wall time is the max duration.
+func ComputeSchedule(items []ExecutionItem, maxParallelism int) Schedule {
 	if maxParallelism <= 0 {
-		maxParallelism = 8 // default
+		maxParallelism = 8
 	}
 
-	// Build lookup maps
 	duration := make(map[string]float64)
 	prereqs := make(map[string][]string)
-	for _, sel := range selections {
-		duration[sel.CheckID] = sel.RunCost
-		prereqs[sel.CheckID] = sel.Prerequisites
+	for _, item := range items {
+		duration[item.ID] = item.RunCost
+		prereqs[item.ID] = item.Prerequisites
 	}
 
-	// Compute the layer for each check using topological ordering.
-	// A check's layer = max(layer of prerequisites) + 1.
-	// Checks with no prerequisites go in layer 0.
 	layerOf := make(map[string]int)
-	selected := make(map[string]bool)
-	for _, sel := range selections {
-		selected[sel.CheckID] = true
+	itemSet := make(map[string]bool)
+	for _, item := range items {
+		itemSet[item.ID] = true
 	}
 
 	var computeLayer func(id string) int
@@ -49,8 +43,8 @@ func ComputeSchedule(selections []Selection, maxParallelism int) Schedule {
 		}
 		maxPrereqLayer := -1
 		for _, pid := range prereqs[id] {
-			if !selected[pid] {
-				continue // prerequisite not in selection set
+			if !itemSet[pid] {
+				continue
 			}
 			pl := computeLayer(pid)
 			if pl > maxPrereqLayer {
@@ -62,11 +56,10 @@ func ComputeSchedule(selections []Selection, maxParallelism int) Schedule {
 		return l
 	}
 
-	for _, sel := range selections {
-		computeLayer(sel.CheckID)
+	for _, item := range items {
+		computeLayer(item.ID)
 	}
 
-	// Group checks by layer
 	maxLayer := 0
 	for _, l := range layerOf {
 		if l > maxLayer {
@@ -74,22 +67,20 @@ func ComputeSchedule(selections []Selection, maxParallelism int) Schedule {
 		}
 	}
 
-	layerChecks := make([][]string, maxLayer+1)
+	layerItems := make([][]string, maxLayer+1)
 	for id, l := range layerOf {
-		layerChecks[l] = append(layerChecks[l], id)
+		layerItems[l] = append(layerItems[l], id)
 	}
 
-	// If a layer has more checks than maxParallelism, split into sub-layers
 	var layers []Layer
-	for _, checks := range layerChecks {
-		for i := 0; i < len(checks); i += maxParallelism {
+	for _, ids := range layerItems {
+		for i := 0; i < len(ids); i += maxParallelism {
 			end := i + maxParallelism
-			if end > len(checks) {
-				end = len(checks)
+			if end > len(ids) {
+				end = len(ids)
 			}
-			batch := checks[i:end]
+			batch := ids[i:end]
 
-			// Layer wall time = max duration in the batch
 			var maxDur float64
 			for _, id := range batch {
 				if duration[id] > maxDur {
@@ -98,17 +89,16 @@ func ComputeSchedule(selections []Selection, maxParallelism int) Schedule {
 			}
 
 			layers = append(layers, Layer{
-				Checks:   batch,
+				ItemIDs:  batch,
 				Duration: maxDur,
 			})
 		}
 	}
 
-	// Compute totals
 	var wallClock, totalCPU float64
 	for _, layer := range layers {
 		wallClock += layer.Duration
-		for _, id := range layer.Checks {
+		for _, id := range layer.ItemIDs {
 			totalCPU += duration[id]
 		}
 	}

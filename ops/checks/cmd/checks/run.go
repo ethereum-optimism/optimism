@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
 	"github.com/ethereum-optimism/optimism/ops/checks/executor"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
-	"github.com/ethereum-optimism/optimism/ops/checks/scorer"
 	"github.com/ethereum-optimism/optimism/ops/checks/selector"
 )
 
@@ -40,7 +39,6 @@ func cmdRun(args []string) error {
 		return fmt.Errorf("loading catalog: %w", err)
 	}
 
-	// Read diff
 	var diffInput io.Reader
 	if *diffFile != "" {
 		f, err := os.Open(*diffFile)
@@ -58,31 +56,25 @@ func cmdRun(args []string) error {
 		return fmt.Errorf("reading diff: %w", err)
 	}
 
-	files := diff.ChangedFiles(string(data))
-	nodeIDs, _ := diff.FilesToNodeIDs(g, files)
+	diffs := diff.ParseUnifiedDiff(string(data))
 
-	// Walk, score, select
-	reachable := graph.ReachableChecks(g, nodeIDs, 0.01)
-	s := scorer.NewSimple()
-	scores, err := s.Score(g, files, reachable)
+	strategy := selector.NewSimpleStrategy()
+	result, err := strategy.Plan(g, diffs, stage, cat)
 	if err != nil {
-		return fmt.Errorf("scoring: %w", err)
+		return fmt.Errorf("planning: %w", err)
 	}
-	result := selector.Select(scores, stage, g)
 
-	if len(result.Selections) == 0 {
+	if len(result.Items) == 0 {
 		fmt.Println("No checks to run.")
 		return nil
 	}
 
-	fmt.Printf("Running %d checks (stage: %s, est. %.0fs wall-clock, %d layers)...\n\n",
-		len(result.Selections), stage.Name, result.WallClock, len(result.Schedule.Layers))
+	fmt.Printf("Running %d items (stage: %s, est. %.0fs wall-clock, %d layers)...\n\n",
+		len(result.Items), stage.Name, result.WallClock, len(result.Schedule.Layers))
 
-	// Execute
 	exec := executor.New(*root, *dryRun)
-	runResult := exec.Run(result.Selections, cat)
+	runResult := exec.Run(result.Items, cat)
 
-	// Print results
 	for _, r := range runResult.Results {
 		icon := "✓"
 		switch r.Status {
@@ -93,15 +85,18 @@ func cmdRun(args []string) error {
 		case executor.StatusError:
 			icon = "!"
 		}
-		fmt.Printf("  %s %s (%s)\n", icon, r.CheckID, r.Duration.Round(100*1e6))
+		cmd := r.Command
+		if cmd == "" {
+			cmd = r.ItemID
+		}
+		fmt.Printf("  %s %s (%s)\n", icon, cmd, r.Duration.Round(100*1e6))
 		if r.Status == executor.StatusFailed || r.Status == executor.StatusError {
-			// Print first few lines of output
 			lines := strings.Split(r.Output, "\n")
-			max := 5
-			if len(lines) < max {
-				max = len(lines)
+			maxLines := 5
+			if len(lines) < maxLines {
+				maxLines = len(lines)
 			}
-			for _, line := range lines[:max] {
+			for _, line := range lines[:maxLines] {
 				fmt.Printf("    %s\n", line)
 			}
 		}
