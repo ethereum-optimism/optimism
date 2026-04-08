@@ -429,20 +429,20 @@ contract GenerateNUTBundle is Script {
             deploymentGasLimit: 1_100_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1BlockCGT.sol:L1BlockCGT"), SALT)
         });
-        // Gas profiling: 400,911 gas used → 601,366 recommended → 650K with safety margin
+        // Gas profiling: needs update after compliance feature addition
         implementationConfigs["L2ToL1MessagePasser"] = ImplementationConfig({
             name: "L2ToL1MessagePasser",
             artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
-            deploymentGasLimit: 650_000,
+            deploymentGasLimit: 1_400_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ToL1MessagePasser.sol:L2ToL1MessagePasser"), SALT
             )
         });
-        // Gas profiling: 484,560 gas used → 726,840 recommended → 750K with safety margin
+        // Gas profiling: needs update after compliance feature addition
         implementationConfigs["L2ToL1MessagePasserCGT"] = ImplementationConfig({
             name: "L2ToL1MessagePasserCGT",
             artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
-            deploymentGasLimit: 750_000,
+            deploymentGasLimit: 1_500_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT"), SALT
             )
