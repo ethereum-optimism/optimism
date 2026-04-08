@@ -157,18 +157,19 @@ contract OPContractsManagerMigrationValidator is ISemver {
             _errors = internalRequire(
                 Duration.unwrap(game.maxClockDuration()) == 302400, string.concat(_prefix, "-60"), _errors
             );
+            _errors = internalRequire(game.l2SequenceNumber() == 0, string.concat(_prefix, "-70"), _errors);
         }
 
         // Validate anchor root is non-zero (from ASR in game args).
         {
             (Hash anchorRoot,) = IAnchorStateRegistry(gameArgs.anchorStateRegistry).getAnchorRoot();
-            _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_prefix, "-70"), _errors);
+            _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_prefix, "-80"), _errors);
         }
 
         // Validate proposer and challenger for permissioned games.
         if (_isPermissioned) {
-            _errors = internalRequire(gameArgs.proposer == _proposer, string.concat(_prefix, "-80"), _errors);
-            _errors = internalRequire(gameArgs.challenger == _challenger, string.concat(_prefix, "-90"), _errors);
+            _errors = internalRequire(gameArgs.proposer == _proposer, string.concat(_prefix, "-90"), _errors);
+            _errors = internalRequire(gameArgs.challenger == _challenger, string.concat(_prefix, "-100"), _errors);
         }
 
         return _errors;
