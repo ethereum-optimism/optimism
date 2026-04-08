@@ -34,6 +34,9 @@ type Backend struct {
 	// Passthrough mode: all transactions pass without filtering
 	passthrough bool
 
+	// startTimestamp is the target timestamp chains must reach to be considered ready
+	startTimestamp uint64
+
 	cancel context.CancelFunc
 }
 
@@ -44,6 +47,7 @@ type BackendParams struct {
 	Chains         map[eth.ChainID]ChainIngester
 	CrossValidator CrossValidator
 	Passthrough    bool
+	StartTimestamp uint64
 }
 
 // NewBackend creates a new Backend instance with the provided components.
@@ -56,6 +60,7 @@ func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 		chains:         params.Chains,
 		crossValidator: params.CrossValidator,
 		passthrough:    params.Passthrough,
+		startTimestamp: params.StartTimestamp,
 		cancel:         cancel,
 	}
 }
@@ -152,6 +157,27 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 
 	if !b.Ready() {
 		b.metrics.RecordCheckAccessList(false)
+		for chainID, ingester := range b.chains {
+			if !ingester.Ready() {
+				ts, hasTs := ingester.LatestTimestamp()
+				ingesterErr := ingester.Error()
+				if hasTs {
+					b.log.Info("Chain not yet ready",
+						"chain", chainID,
+						"latest_timestamp", ts,
+						"start_timestamp", b.startTimestamp,
+						"behind_by", b.startTimestamp-ts,
+						"ingester_error", ingesterErr,
+					)
+				} else {
+					b.log.Info("Chain not yet ready (no blocks ingested)",
+						"chain", chainID,
+						"start_timestamp", b.startTimestamp,
+						"ingester_error", ingesterErr,
+					)
+				}
+			}
+		}
 		return types.ErrUninitialized
 	}
 

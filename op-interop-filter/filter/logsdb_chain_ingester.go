@@ -28,12 +28,14 @@ import (
 // progressLogInterval is how often to log ingestion progress.
 const progressLogInterval = 10 * time.Second
 
+
 // EthClient defines the interface for fetching block and receipt data.
 // This allows for dependency injection in tests.
 type EthClient interface {
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethTypes.Receipts, error)
+	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, gethTypes.Receipts, error)
 	Close()
 }
 
@@ -52,6 +54,9 @@ type LogsDBChainIngester struct {
 	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
 	pollInterval     time.Duration
 	rollupCfg        *rollup.Config // Rollup config for block number calculation
+
+	linearScan       bool // if true, use linear backward scan to find earliest block; default is binary search
+	fetchConcurrency int  // number of blocks to prefetch concurrently
 
 	stopped atomic.Bool
 
@@ -80,6 +85,9 @@ func NewLogsDBChainIngester(
 	backfillDuration time.Duration,
 	pollInterval time.Duration,
 	rollupCfg *rollup.Config,
+	linearScan bool,
+	rpcConcurrency int,
+	fetchConcurrency int,
 ) (*LogsDBChainIngester, error) {
 	ctx, cancel := context.WithCancel(parentCtx)
 
@@ -101,7 +109,7 @@ func NewLogsDBChainIngester(
 			HeadersCacheSize:      1000,
 			PayloadsCacheSize:     100,
 			MaxRequestsPerBatch:   20,
-			MaxConcurrentRequests: 10,
+			MaxConcurrentRequests: rpcConcurrency,
 			TrustRPC:              false,
 			MustBePostMerge:       true,
 			RPCProviderKind:       sources.RPCKindStandard,
@@ -124,6 +132,8 @@ func NewLogsDBChainIngester(
 		backfillDuration: backfillDuration,
 		pollInterval:     pollInterval,
 		rollupCfg:        rollupCfg,
+		linearScan:       linearScan,
+		fetchConcurrency: fetchConcurrency,
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -212,6 +222,7 @@ func (c *LogsDBChainIngester) Contains(query types.ContainsQuery) (types.BlockSe
 	defer c.mu.RUnlock()
 
 	if c.logsDB == nil {
+		c.log.Warn("Contains called but logs DB not initialized")
 		return types.BlockSeal{}, types.ErrUninitialized
 	}
 
@@ -280,6 +291,7 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 	defer c.mu.RUnlock()
 
 	if c.logsDB == nil {
+		c.log.Warn("GetExecMsgsAtTimestamp called but logs DB not initialized")
 		return nil, types.ErrUninitialized
 	}
 
@@ -322,24 +334,77 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock(latestBlock uint64) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// Walk backward from latest to find the first block that can be opened.
-	// The anchor block (sealed but not fully ingested) will fail OpenBlock
-	// because it has no predecessor checkpoint data, so we'll identify
-	// the first block with actual log data.
-	earliest := latestBlock
-	for blockNum := latestBlock; blockNum > 0; blockNum-- {
-		_, _, _, err := c.logsDB.OpenBlock(blockNum)
-		if err != nil {
-			// This block can't be opened, the one after it is earliest queryable
-			earliest = blockNum + 1
-			break
-		}
-		earliest = blockNum
+	var earliest uint64
+	if c.linearScan {
+		earliest = c.findEarliestLinear(latestBlock)
+	} else {
+		earliest = c.findEarliestBinary(latestBlock)
 	}
 
 	c.earliestIngestedBlock.Store(earliest)
 	c.earliestIngestedBlockSet.Store(true)
-	c.log.Info("Found earliest block in DB", "block", earliest)
+	c.log.Info("Found earliest block in DB", "block", earliest, "strategy", c.scanStrategyName())
+}
+
+func (c *LogsDBChainIngester) scanStrategyName() string {
+	if c.linearScan {
+		return "linear"
+	}
+	return "binary"
+}
+
+// findEarliestLinear walks backward from latestBlock one block at a time to find
+// the first openable block. O(n) in the number of sealed blocks — use on small DBs
+// or when binary search produces unexpected results.
+func (c *LogsDBChainIngester) findEarliestLinear(latestBlock uint64) uint64 {
+	c.log.Info("Starting linear scan for earliest block", "from", latestBlock)
+
+	const logEvery = 10_000
+	earliest := latestBlock
+	for blockNum := latestBlock; blockNum > 0; blockNum-- {
+		_, _, _, err := c.logsDB.OpenBlock(blockNum)
+		if err != nil {
+			earliest = blockNum + 1
+			c.log.Debug("Linear scan: found anchor block (cannot open)", "anchor", blockNum, "earliest", earliest)
+			break
+		}
+		earliest = blockNum
+		if blockNum%logEvery == 0 {
+			c.log.Info("Linear scan progress", "current", blockNum, "from", latestBlock, "scanned", latestBlock-blockNum)
+		}
+	}
+
+	c.log.Info("Linear scan complete", "earliest", earliest, "blocks_scanned", latestBlock-earliest+1)
+	return earliest
+}
+
+// findEarliestBinary uses binary search to find the first openable block. O(log n) —
+// assumes a single contiguous range of openable blocks starting somewhere above the anchor.
+func (c *LogsDBChainIngester) findEarliestBinary(latestBlock uint64) uint64 {
+	c.log.Info("Starting binary search for earliest block", "latest", latestBlock)
+
+	// Invariant: OpenBlock(lo) fails (anchor), OpenBlock(hi) succeeds.
+	// We search for the smallest block where OpenBlock succeeds.
+	lo, hi := uint64(0), latestBlock
+	iterations := 0
+
+	for lo+1 < hi {
+		mid := lo + (hi-lo)/2
+		iterations++
+		_, _, _, err := c.logsDB.OpenBlock(mid)
+		c.log.Debug("Binary search probe", "block", mid, "openable", err == nil, "lo", lo, "hi", hi, "iteration", iterations)
+		if err == nil {
+			// mid is openable — earliest could be mid or lower
+			hi = mid
+		} else {
+			// mid is not openable — earliest must be above mid
+			lo = mid
+		}
+	}
+
+	// hi is the first openable block
+	c.log.Info("Binary search complete", "earliest", hi, "iterations", iterations)
+	return hi
 }
 
 // calculateStartingBlock returns the block number where ingestion should start,
@@ -405,9 +470,6 @@ func (c *LogsDBChainIngester) runIngestion() {
 		return
 	}
 
-	// Track progress for logging
-	lastLogTime := clock.SystemClock.Now()
-
 	// Use ticker for polling interval
 	ticker := time.NewTicker(c.pollInterval)
 	defer ticker.Stop()
@@ -437,46 +499,24 @@ func (c *LogsDBChainIngester) runIngestion() {
 
 		// Reorg detection: if head moved behind our progress, check hash
 		if head.NumberU64() < nextBlock {
+			c.log.Info("Chain head is behind ingestion progress, waiting for node to catch up",
+				"head", head.NumberU64(),
+				"next_block", nextBlock,
+			)
 			if err := c.checkReorg(head); err != nil {
 				continue
 			}
+			continue
 		}
 
-		// Inner loop: ingest all available blocks without waiting between them
-		for nextBlock <= head.NumberU64() {
-			// Check for shutdown between blocks
-			select {
-			case <-c.ctx.Done():
+		// Ingest all available blocks using a concurrent prefetch pipeline.
+		nextBlock, err = c.ingestBlockRange(nextBlock, head.NumberU64())
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
 				return
-			default:
 			}
-
-			if err := c.ingestBlock(nextBlock); err != nil {
-				// Application context was canceled (e.g., during shutdown).
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				c.log.Error("Failed to ingest block", "block", nextBlock, "err", err)
-				break // Exit inner loop on error, wait for next tick to retry
-			}
-			nextBlock++
-
-			// Progress logging
-			if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
-				startingBlock := c.calculateStartingBlock()
-				if nextBlock <= startingBlock {
-					progress := float64(nextBlock-c.earliestIngestedBlock.Load()) / float64(startingBlock-c.earliestIngestedBlock.Load()+1)
-					c.log.Info("Ingestion progress",
-						"block", nextBlock-1,
-						"target", startingBlock,
-						"progress", fmt.Sprintf("%.0f%%", progress*100))
-					chainIDUint64, _ := c.chainID.Uint64()
-					c.metrics.RecordBackfillProgress(chainIDUint64, progress)
-				} else {
-					c.log.Debug("Ingestion progress", "block", nextBlock-1, "head", head.NumberU64())
-				}
-				lastLogTime = clock.SystemClock.Now()
-			}
+			c.log.Error("Failed to ingest blocks", "next", nextBlock, "err", err)
+			// nextBlock points to the failing block; retry on next tick
 		}
 		// Caught up to head, will wait for next ticker tick
 	}
@@ -592,34 +632,43 @@ func (c *LogsDBChainIngester) sealParentBlock(blockNum uint64) error {
 	return nil
 }
 
+// ingestBlock ingests a single block. Used in tests; production code uses ingestBlockRange.
 func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
-	if c.Error() != nil {
+	_, err := c.ingestBlockRange(blockNum, blockNum)
+	return err
+}
+
+// blockFetch holds the result of a prefetched block.
+type blockFetch struct {
+	blockInfo eth.BlockInfo
+	receipts  gethTypes.Receipts
+	err       error
+}
+
+// fetchBlockData fetches block info and receipts by block number in a single call.
+func (c *LogsDBChainIngester) fetchBlockData(blockNum uint64) blockFetch {
+	info, receipts, err := c.ethClient.FetchReceiptsByNumber(c.ctx, blockNum)
+	return blockFetch{info, receipts, err}
+}
+
+// writeBlock writes a pre-fetched block to the DB: verifies parent hash, processes logs, updates metrics.
+func (c *LogsDBChainIngester) writeBlock(fetched blockFetch, blockNum uint64) error {
+	if err := c.Error(); err != nil {
+		c.log.Info("Skipping block write due to error state", "block", blockNum, "reason", err.Reason, "msg", err.Message)
 		return nil
 	}
 
-	blockInfo, err := c.ethClient.InfoByNumber(c.ctx, blockNum)
-	if err != nil {
-		return fmt.Errorf("failed to get block info: %w", err)
-	}
-
+	blockInfo := fetched.blockInfo
 	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockInfo.NumberU64()}
-
-	_, receipts, err := c.ethClient.FetchReceipts(c.ctx, blockInfo.Hash())
-	if err != nil {
-		return fmt.Errorf("failed to get receipts: %w", err)
-	}
 
 	c.mu.RLock()
 	latestBlock, hasLatest := c.logsDB.LatestSealedBlock()
 	c.mu.RUnlock()
 
-	// Always verify parent hash when we have a previous block
 	if hasLatest {
-		// We should always be ingesting the next sequential block
 		if blockNum != latestBlock.Number+1 {
 			return fmt.Errorf("expected to ingest block %d but got %d", latestBlock.Number+1, blockNum)
 		}
-		// Parent hash of new block must match our latest sealed block
 		if blockInfo.ParentHash() != latestBlock.Hash {
 			c.log.Warn("Detected reorg: parent hash mismatch",
 				"block", blockNum,
@@ -630,7 +679,7 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 		}
 	}
 
-	logCount, err := c.processBlockLogs(blockInfo, blockID, receipts, blockNum)
+	logCount, err := c.processBlockLogs(blockInfo, blockID, fetched.receipts, blockNum)
 	if err != nil {
 		if errors.Is(err, types.ErrConflict) {
 			c.SetError(ErrorConflict, fmt.Sprintf("database conflict at block %d", blockNum))
@@ -652,14 +701,103 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
 	c.metrics.RecordLogsAdded(chainIDUint64, int64(logCount))
 
-	// Set earliest block on first successful ingestion (fresh start case).
-	// On restart, findAndSetEarliestBlock handles this instead.
+	c.log.Debug("Ingested block", "block", blockNum, "hash", blockID.Hash, "timestamp", blockInfo.Time(), "logs", logCount)
+
 	if !c.earliestIngestedBlockSet.Load() {
 		c.earliestIngestedBlock.Store(blockNum)
 		c.earliestIngestedBlockSet.Store(true)
 	}
 
 	return nil
+}
+
+// ingestBlockRange ingests blocks from startBlock to endBlock (inclusive) using a sliding
+// prefetch window: up to prefetchConcurrency blocks are fetched concurrently while writes
+// remain sequential. Returns the next block to ingest (may be < endBlock+1 on error).
+func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64) (uint64, error) {
+	if startBlock > endBlock {
+		return startBlock, nil
+	}
+
+	total := endBlock - startBlock + 1
+	concurrency := uint64(c.fetchConcurrency)
+	if concurrency > total {
+		concurrency = total
+	}
+
+	// Ring of buffered channels — one per slot in the window.
+	// Each slot holds exactly one in-flight fetch result.
+	slots := make([]chan blockFetch, concurrency)
+	for i := range slots {
+		slots[i] = make(chan blockFetch, 1)
+	}
+
+	startFetch := func(blockNum uint64) {
+		slot := slots[blockNum%concurrency]
+		go func() {
+			slot <- c.fetchBlockData(blockNum)
+		}()
+	}
+
+	// Seed the window.
+	nextFetch := startBlock
+	for i := uint64(0); i < concurrency; i++ {
+		startFetch(nextFetch)
+		nextFetch++
+	}
+
+	lastLogTime := clock.SystemClock.Now()
+
+	for blockNum := startBlock; blockNum <= endBlock; blockNum++ {
+		select {
+		case <-c.ctx.Done():
+			return blockNum, c.ctx.Err()
+		default:
+		}
+
+		// Consume the result for this block.
+		result := <-slots[blockNum%concurrency]
+
+		// Immediately kick off the next prefetch to keep the window full.
+		if nextFetch <= endBlock {
+			startFetch(nextFetch)
+			nextFetch++
+		}
+
+		if result.err != nil {
+			return blockNum, fmt.Errorf("failed to fetch block %d: %w", blockNum, result.err)
+		}
+
+		if err := c.writeBlock(result, blockNum); err != nil {
+			return blockNum, err
+		}
+
+		// writeBlock sets error state for reorgs/conflicts but returns nil — stop early.
+		if c.Error() != nil {
+			return blockNum + 1, nil
+		}
+
+		// Progress logging.
+		if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
+			startingBlock := c.calculateStartingBlock()
+			if blockNum <= startingBlock {
+				if earliest := c.earliestIngestedBlock.Load(); startingBlock > earliest {
+					progress := float64(blockNum-earliest) / float64(startingBlock-earliest+1)
+					c.log.Info("Ingestion progress",
+						"block", blockNum,
+						"target", startingBlock,
+						"progress", fmt.Sprintf("%.0f%%", progress*100))
+					chainIDUint64, _ := c.chainID.Uint64()
+					c.metrics.RecordBackfillProgress(chainIDUint64, progress)
+				}
+			} else {
+				c.log.Debug("Ingestion progress", "block", blockNum, "head", endBlock)
+			}
+			lastLogTime = clock.SystemClock.Now()
+		}
+	}
+
+	return endBlock + 1, nil
 }
 
 func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID eth.BlockID,
@@ -682,6 +820,17 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 			execMsg, err := processors.DecodeExecutingMessageLog(l)
 			if err != nil {
 				return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
+			}
+
+			if execMsg != nil {
+				c.log.Debug("Found executing message in block",
+					"block", blockNum,
+					"log_index", logIndex,
+					"src_chain", execMsg.ChainID,
+					"src_block", execMsg.BlockNum,
+					"src_log_index", execMsg.LogIdx,
+					"src_timestamp", execMsg.Timestamp,
+				)
 			}
 
 			if err := c.logsDB.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {

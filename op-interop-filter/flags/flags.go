@@ -104,6 +104,23 @@ var (
 		Usage:   "Allow all transactions through without interop filtering. DANGEROUS: disables all executing message validation.",
 		EnvVars: prefixEnvVars("DANGEROUSLY_ENABLE_PASSTHROUGH"),
 	}
+	LinearScanFlag = &cli.BoolFlag{
+		Name:    "linear-scan",
+		Usage:   "Use linear (backward) scan to find the earliest queryable block on startup instead of binary search. Slower on large DBs but simpler. Default: binary search.",
+		EnvVars: prefixEnvVars("LINEAR_SCAN"),
+	}
+	RPCConcurrencyFlag = &cli.IntFlag{
+		Name:    "rpc-concurrency",
+		Usage:   "Maximum number of concurrent RPC requests per chain. Higher values speed up backfill at the cost of more load on the RPC node.",
+		EnvVars: prefixEnvVars("RPC_CONCURRENCY"),
+		Value:   100,
+	}
+	FetchConcurrencyFlag = &cli.IntFlag{
+		Name:    "fetch-concurrency",
+		Usage:   "Number of blocks to prefetch concurrently during ingestion. Should be <= rpc-concurrency.",
+		EnvVars: prefixEnvVars("FETCH_CONCURRENCY"),
+		Value:   64,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -124,6 +141,9 @@ var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	ValidationIntervalFlag,
 	DangerouslyEnablePassthroughFlag,
+	LinearScanFlag,
+	RPCConcurrencyFlag,
+	FetchConcurrencyFlag,
 }
 
 func init() {

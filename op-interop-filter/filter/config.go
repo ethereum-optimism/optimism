@@ -37,6 +37,9 @@ type Config struct {
 	PollInterval                time.Duration // Interval for polling new blocks (default: 2s)
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
 	Passthrough                 bool          // If true, all transactions pass through without filtering
+	LinearScan                  bool          // If true, use linear backward scan to find earliest block on startup (default: binary search)
+	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
+	FetchConcurrency            int           // Number of blocks to prefetch concurrently (default: 64)
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -134,6 +137,9 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		PollInterval:                pollInterval,
 		ValidationInterval:          validationInterval,
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
+		LinearScan:                  ctx.Bool(flags.LinearScanFlag.Name),
+		RPCConcurrency:              ctx.Int(flags.RPCConcurrencyFlag.Name),
+		FetchConcurrency:            ctx.Int(flags.FetchConcurrencyFlag.Name),
 		LogConfig:                   oplog.ReadCLIConfig(ctx),
 		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                 oppprof.ReadCLIConfig(ctx),

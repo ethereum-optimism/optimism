@@ -51,6 +51,7 @@ func newTestLogsDBChainIngester(t *testing.T, cfg testIngesterConfig) *LogsDBCha
 		backfillDuration: 0,     // No backfill by default in tests
 		pollInterval:     100 * time.Millisecond,
 		rollupCfg:        cfg.rollupCfg,
+		fetchConcurrency: 4, // small value sufficient for unit tests
 		ctx:              ctx,
 		cancel:           cancel,
 	}
@@ -819,7 +820,7 @@ func TestLogsDBChainIngester_IngestBlock_RPCError(t *testing.T) {
 	// Set RPC error - block 100 is not in mock, will fail
 	err = ingester.ingestBlock(100)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to get block info")
+	require.Contains(t, err.Error(), "failed to fetch block 100")
 }
 
 func TestLogsDBChainIngester_IngestBlock_ReceiptsError(t *testing.T) {
@@ -853,7 +854,7 @@ func TestLogsDBChainIngester_IngestBlock_ReceiptsError(t *testing.T) {
 
 	err = ingester.ingestBlock(100)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to get receipts")
+	require.Contains(t, err.Error(), "failed to fetch block 100")
 }
 
 func TestLogsDBChainIngester_IngestBlock_ErrorStateSkipsIngestion(t *testing.T) {
