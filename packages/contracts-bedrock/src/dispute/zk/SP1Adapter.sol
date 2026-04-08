@@ -13,19 +13,24 @@ contract SP1Adapter is IZKVerifier {
     string public constant version = "1.0.0";
 
     /// @notice Address of the actual SP1 verifier.
-    ISP1Verifier public immutable sp1Verifier;
+    ISP1Verifier internal immutable SP1_VERIFIER; // nosemgrep: sol-safety-no-immutable-variables
 
     /// @notice Constructs the SP1Adapter.
     ///
     /// @param _sp1Verifier The SP1 verifier contract.
     constructor(ISP1Verifier _sp1Verifier) {
-        sp1Verifier = _sp1Verifier;
+        SP1_VERIFIER = _sp1Verifier;
+    }
+
+    /// @notice Returns the address of the underlying SP1 verifier.
+    function sp1Verifier() external view returns (ISP1Verifier sp1Verifier_) {
+        sp1Verifier_ = SP1_VERIFIER;
     }
 
     /// @notice Returns a verifier type identifier combining "SP1-" with the
     ///         verifier's version string.
     function verifierType() external view returns (string memory) {
-        return string(abi.encodePacked("SP1-", sp1Verifier.VERSION()));
+        return string(abi.encodePacked("SP1-", SP1_VERIFIER.VERSION()));
     }
 
     /// @notice Verifies an SP1 proof. Reverts if invalid.
@@ -34,6 +39,6 @@ contract SP1Adapter is IZKVerifier {
     /// @param _publicValues The ABI-encoded public values for verification.
     /// @param _proof The proof bytes.
     function verify(bytes32 _programId, bytes calldata _publicValues, bytes calldata _proof) external view {
-        sp1Verifier.verifyProof(_programId, _publicValues, _proof);
+        SP1_VERIFIER.verifyProof(_programId, _publicValues, _proof);
     }
 }
