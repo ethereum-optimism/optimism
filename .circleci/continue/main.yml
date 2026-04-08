@@ -77,6 +77,11 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
+  # Set to true by path-filtering when contracts or rebuild-all paths change.
+  # When false, contract feature matrix jobs are skipped entirely.
+  c-contracts_changed:
+    type: boolean
+    default: false
   # Passthrough declarations for setup config parameters.
   # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
   # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
