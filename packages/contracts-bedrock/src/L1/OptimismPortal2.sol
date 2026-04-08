@@ -234,9 +234,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.5.0
+    /// @custom:semver 5.6.0
     function version() public pure virtual returns (string memory) {
-        return "5.5.0";
+        return "5.6.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -736,7 +736,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Checks if the Interop feature is enabled.
     /// @return bool True if the Interop feature is enabled.
     function _isUsingInterop() internal view returns (bool) {
-        return systemConfig.isFeatureEnabled(Features.INTEROP);
+        return systemConfig.isFeatureEnabled(Features.INTEROP) && systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
     }
 
     /// @notice Checks if the Custom Gas Token feature is enabled.
