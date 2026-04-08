@@ -123,13 +123,7 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
                 header.logs_bloom(),
             )
         } else {
-            verify_receipts_optimism(
-                header.receipts_root(),
-                header.logs_bloom(),
-                receipts,
-                chain_spec,
-                header.timestamp(),
-            )
+            verify_receipts_optimism(header.receipts_root(), header.logs_bloom(), receipts)
         };
 
         if let Err(error) = result {
@@ -160,13 +154,10 @@ fn verify_receipts_optimism<R: DepositReceipt>(
     expected_receipts_root: B256,
     expected_logs_bloom: Bloom,
     receipts: &[R],
-    chain_spec: impl OpHardforks,
-    timestamp: u64,
 ) -> Result<(), ConsensusError> {
     // Calculate receipts root.
     let receipts_with_bloom = receipts.iter().map(TxReceipt::with_bloom_ref).collect::<Vec<_>>();
-    let receipts_root =
-        calculate_receipt_root_optimism(&receipts_with_bloom, chain_spec, timestamp);
+    let receipts_root = calculate_receipt_root_optimism(&receipts_with_bloom);
 
     // Calculate header logs bloom.
     let logs_bloom = receipts_with_bloom.iter().fold(Bloom::ZERO, |bloom, r| bloom | r.bloom_ref());
