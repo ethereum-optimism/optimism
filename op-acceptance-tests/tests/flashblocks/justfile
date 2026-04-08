@@ -31,6 +31,11 @@ transfer:
 	go test -v -count=1 -timeout 10m ./utils.go ./flashblocks_transfer_test.go |& tee out.log
 
 
+# if you get a compiler bug warning, run this
+clean:
+	cargo clean --package reth-optimism-node --manifest-path ../../../rust/Cargo.toml
+
+
 #RUST_LOG=trace,fBALs=trace,op_reth::flashblocks=trace,info \
 # RUST_LOG=op_reth=trace,op_rbuilder=warn \
 # for custom rollup-boost add
