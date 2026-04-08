@@ -59,11 +59,12 @@ contract L2DevFeatureFlags_SetDevFeatureBitmap_Test is L2DevFeatureFlags_TestIni
 /// @title L2DevFeatureFlags_IsDevFeatureEnabled_Test
 /// @notice Tests the `isDevFeatureEnabled` function of the `L2DevFeatureFlags` contract.
 contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestInit {
+    using stdStorage for StdStorage;
+
     /// @notice Tests that `isDevFeatureEnabled` returns false when the bitmap is zero.
     function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
-        // Ensure the stored dev feature bitmap is 0
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
-        l2DevFeatureFlags.setDevFeatureBitmap(bytes32(0));
+        // Use stdStorage to write the bitmap directly, isolating isDevFeatureEnabled from setDevFeatureBitmap.
+        stdstore.target(address(l2DevFeatureFlags)).sig("devFeatureBitmap()").checked_write(bytes32(0));
 
         vm.assume(_feature != bytes32(0));
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
@@ -71,8 +72,7 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
 
     /// @notice Tests that `isDevFeatureEnabled` returns false for zero feature.
     function testFuzz_isDevFeatureEnabled_zeroFeature_succeeds(bytes32 _bitmap) public {
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
-        l2DevFeatureFlags.setDevFeatureBitmap(_bitmap);
+        stdstore.target(address(l2DevFeatureFlags)).sig("devFeatureBitmap()").checked_write(_bitmap);
 
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(bytes32(0)));
     }
@@ -81,16 +81,16 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     function testFuzz_isDevFeatureEnabledFeatureSet_succeeds(bytes32 _feature) public {
         vm.assume(_feature != bytes32(0));
 
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
-        l2DevFeatureFlags.setDevFeatureBitmap(_feature);
+        stdstore.target(address(l2DevFeatureFlags)).sig("devFeatureBitmap()").checked_write(_feature);
 
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
     }
 
     /// @notice Tests that `isDevFeatureEnabled` works correctly with the known OPTIMISM_PORTAL_INTEROP feature.
     function test_isDevFeatureEnabled_optimismPortalInterop_succeeds() public {
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
-        l2DevFeatureFlags.setDevFeatureBitmap(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        stdstore.target(address(l2DevFeatureFlags)).sig("devFeatureBitmap()").checked_write(
+            DevFeatures.OPTIMISM_PORTAL_INTEROP
+        );
 
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP));
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.CANNON_KONA));
@@ -100,8 +100,7 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     function test_isDevFeatureEnabled_multipleFeatures_succeeds() public {
         bytes32 bitmap = DevFeatures.OPTIMISM_PORTAL_INTEROP | DevFeatures.CANNON_KONA;
 
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
-        l2DevFeatureFlags.setDevFeatureBitmap(bitmap);
+        stdstore.target(address(l2DevFeatureFlags)).sig("devFeatureBitmap()").checked_write(bitmap);
 
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP));
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.CANNON_KONA));
