@@ -15,14 +15,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestFlashblocksTransfer checks that a transfer gets reflected in a flashblock before the transaction is confirmed in a block
+// TestFlashblocksTransfer checks that a transfer is reflected in the op-rbuilder
+// flashblock stream for the same block that eventually includes the transaction.
 //
 // Expectations:
 //
 //   - There must have been a Flashblock containing a new_account_balance corresponding to Bob's
-//     account. This flashblock would be representative of the flashblock including Alice-to-Bob
-//     transaction.
-//   - Bob's balance reported in the flashblock must match the on-chain balance after confirmation.
+//     account. This flashblock is expected to represent the block containing Alice's transfer to Bob.
+//   - Bob's balance reported in the flashblock must match the on-chain balance at the transaction's
+//     inclusion block.
 //   - The transaction's confirmed block number must match the flashblock's block number.
 func TestFlashblocksTransfer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
@@ -48,15 +49,19 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	// Drive a couple blocks on the test sequencer so the faucet L2 funding tx has a chance to land before we rely on it.
 	driveViaTestSequencer(t, sys, 2)
 
+	// Subscribe directly to op-rbuilder here: rollup-boost may intentionally drop
+	// flashblocks, but this test needs to observe the flashblock carrying Alice's
+	// transfer to Bob.
 	fbClient := sources.NewFlashblockClient(
-		sys.L2RollupBoost.FlashblocksClient(),
-		t.Logger().With("stream_source", "rollup-boost"),
+		sys.L2OPRBuilder.FlashblocksClient(),
+		t.Logger().With("stream_source", "op-rbuilder"),
 		100,
 	)
 	startClient(t, fbClient)
 
 	bob := sys.Wallet.NewEOA(sys.L2EL)
-	txCh := make(chan *txplan.PlannedTx)
+	// Buffer the result so cleanup cannot deadlock if we time out before reading it.
+	txCh := make(chan *txplan.PlannedTx, 1)
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	wg.Add(1)
