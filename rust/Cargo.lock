@@ -1640,6 +1640,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "base-access-lists"
+version = "0.0.0"
+source = "git+https://github.com/base/base.git?rev=264ae1ca69ed19d938c4207a0a3a8940ab4abd3f#264ae1ca69ed19d938c4207a0a3a8940ab4abd3f"
+dependencies = [
+ "alloy-eip7928",
+ "alloy-primitives",
+ "alloy-rlp",
+ "revm 34.0.0",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "base-x"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7691,6 +7704,7 @@ dependencies = [
  "alloy-serde",
  "arbitrary",
  "arbtest",
+ "base-access-lists",
  "derive_more",
  "ethereum_ssz 0.9.1",
  "ethereum_ssz_derive 0.9.1",
@@ -7708,6 +7722,7 @@ version = "1.11.3"
 dependencies = [
  "clap",
  "eyre",
+ "rayon",
  "reth-cli-util",
  "reth-db",
  "reth-node-builder",
@@ -7721,6 +7736,7 @@ dependencies = [
  "reth-optimism-primitives",
  "reth-optimism-rpc",
  "tracing",
+ "tracing-test",
 ]
 
 [[package]]
@@ -11011,6 +11027,7 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-rpc-types-engine",
  "alloy-signer-local",
+ "base-access-lists",
  "brotli",
  "derive_more",
  "eyre",
@@ -11019,6 +11036,7 @@ dependencies = [
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "op-revm 17.0.0",
+ "rayon",
  "reth-chain-state",
  "reth-engine-primitives",
  "reth-errors",
@@ -11042,6 +11060,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tracing",
+ "tracing-test",
  "url",
 ]
 
@@ -14639,6 +14658,27 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "tracing-test"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19a4c448db514d4f24c5ddb9f73f2ee71bfb24c526cf0c570ba142d1119e0051"
+dependencies = [
+ "tracing-core",
+ "tracing-subscriber 0.3.23",
+ "tracing-test-macro",
+]
+
+[[package]]
+name = "tracing-test-macro"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad06847b7afb65c7866a36664b75c40b895e318cea4f71299f013fb22965329d"
+dependencies = [
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
