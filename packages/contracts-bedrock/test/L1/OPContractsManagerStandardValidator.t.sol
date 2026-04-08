@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { SuperGameTestInit } from "test/setup/SuperGameTestInit.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
 
@@ -1743,21 +1744,9 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
 /// @title OPContractsManagerStandardValidator_SuperMode_TestInit
 /// @notice Base contract for super mode StandardValidator tests. Requires SUPER_ROOT_GAMES_MIGRATION flag.
 ///         After setUp, the chain has both SUPER_PERMISSIONED_CANNON and SUPER_CANNON_KONA enabled.
-abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is CommonTest {
+abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is SuperGameTestInit {
     /// @notice The l2ChainId.
     uint256 l2ChainId;
-
-    /// @notice The cannon prestate (used by SUPER_PERMISSIONED_CANNON).
-    Claim cannonPrestate;
-
-    /// @notice The cannonKona prestate (used by SUPER_CANNON_KONA).
-    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
-
-    /// @notice The proposer role.
-    address proposer;
-
-    /// @notice The challenger role.
-    address challenger;
 
     /// @notice The DisputeGameFactory instance.
     IDisputeGameFactory dgf;

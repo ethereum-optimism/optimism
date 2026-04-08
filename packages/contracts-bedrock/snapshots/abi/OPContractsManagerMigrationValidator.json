@@ -47,6 +47,48 @@
         "internalType": "bool",
         "name": "_allowFailure",
         "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "disputeGameFactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "anchorStateRegistryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ethLockboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETHImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "mipsImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "withdrawalDelaySeconds",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct OPContractsManagerMigrationValidator.SharedImplementations",
+        "name": "_refs",
+        "type": "tuple"
       }
     ],
     "name": "validateMigration",
@@ -119,6 +161,48 @@
         ],
         "internalType": "struct IOPContractsManagerStandardValidator.ValidationOverrides",
         "name": "_overrides",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "disputeGameFactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "anchorStateRegistryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ethLockboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETHImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "mipsImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "withdrawalDelaySeconds",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct OPContractsManagerMigrationValidator.SharedImplementations",
+        "name": "_refs",
         "type": "tuple"
       }
     ],

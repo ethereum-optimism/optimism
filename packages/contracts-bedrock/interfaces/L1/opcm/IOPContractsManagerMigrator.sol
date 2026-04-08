@@ -28,6 +28,12 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when the starting respected game type is not a valid super game type.
     error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
 
+    /// @notice Thrown when attempting to migrate a CGT chain.
+    error OPContractsManagerMigrator_CustomGasTokenNotSupported();
+
+    /// @notice Thrown when the chainSystemConfigs array is empty.
+    error OPContractsManagerMigrator_NoChains();
+
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
 

@@ -45,6 +45,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the starting respected game type is not a valid super game type.
     error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
 
+    /// @notice Thrown when attempting to migrate a CGT chain.
+    error OPContractsManagerMigrator_CustomGasTokenNotSupported();
+
+    /// @notice Thrown when the chainSystemConfigs array is empty.
+    error OPContractsManagerMigrator_NoChains();
+
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
 
@@ -75,14 +81,21 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      upgraded to the current OPCM release version before calling migrate.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
+        // Check that at least one chain is being migrated.
+        if (_input.chainSystemConfigs.length == 0) {
+            revert OPContractsManagerMigrator_NoChains();
+        }
+
         // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert OPContractsManagerMigrator_InteropNotEnabled();
         }
 
         // Check that the starting respected game type is a valid super game type.
+        // SUPER_CANNON (Go/Cannon) is disabled during migration; only SUPER_CANNON_KONA and
+        // SUPER_PERMISSIONED_CANNON are valid targets.
         if (
-            _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON.raw()
+            _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()
                 && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         ) {
             revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
@@ -238,6 +251,11 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     )
         internal
     {
+        // CGT chains must not be migrated — prevents incorrect pooling into shared ETHLockbox.
+        if (_systemConfig.isCustomGasToken()) {
+            revert OPContractsManagerMigrator_CustomGasTokenNotSupported();
+        }
+
         // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.
         IOptimismPortal portal = IOptimismPortal(payable(_systemConfig.optimismPortal()));
         IETHLockbox existingLockbox = IETHLockbox(payable(address(portal.ethLockbox())));

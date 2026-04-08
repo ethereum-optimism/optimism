@@ -838,7 +838,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        return migrationValidator.validateMigration(_input, _allowFailure);
+        return migrationValidator.validateMigration(_input, _allowFailure, _buildSharedImplementations());
     }
 
     /// @notice Validates the configuration of all L1 contracts after an interop migration.
@@ -858,8 +858,26 @@ contract OPContractsManagerStandardValidator is ISemver {
             IOPContractsManagerStandardValidator.ValidationOverrides({
                 l1PAOMultisig: _overrides.l1PAOMultisig,
                 challenger: _overrides.challenger
-            })
+            }),
+            _buildSharedImplementations()
         );
+    }
+
+    /// @notice Builds the SharedImplementations struct from this validator's state.
+    function _buildSharedImplementations()
+        private
+        view
+        returns (IOPContractsManagerMigrationValidator.SharedImplementations memory)
+    {
+        return IOPContractsManagerMigrationValidator.SharedImplementations({
+            disputeGameFactoryImpl: disputeGameFactoryImpl,
+            anchorStateRegistryImpl: anchorStateRegistryImpl,
+            ethLockboxImpl: ethLockboxImpl,
+            delayedWETHImpl: delayedWETHImpl,
+            mipsImpl: mipsImpl,
+            l1PAOMultisig: l1PAOMultisig,
+            withdrawalDelaySeconds: withdrawalDelaySeconds
+        });
     }
 
     /// @notice Validates the configuration of the L1 contracts.

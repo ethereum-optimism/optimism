@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
+import { Features } from "src/libraries/Features.sol";
 import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Hash, Duration } from "src/dispute/lib/LibUDT.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
@@ -16,14 +17,43 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title OPContractsManagerMigrationValidator
 /// @notice Validates the configuration of L1 contracts after an interop migration. Separated from
 ///         OPContractsManagerStandardValidator due to EIP-170 contract size limits.
+///         This validator checks migration-specific state: shared DGF game type registration,
+///         shared DGF proxy/impl/owner, super game parameters (prestates, depths, clocks, anchor
+///         roots, roles, VM, WETH), shared ASR configuration, shared lockbox proxy/impl, shared
+///         DelayedWETH configuration, per-chain portal ASR migration, per-chain DGF clearing,
+///         and lockbox authorization.
+///         It does NOT check: SuperchainConfig or SystemConfig values. Those checks belong in
+///         OPContractsManagerStandardValidator.
 contract OPContractsManagerMigrationValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerMigrationValidator contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
+
+    /// @notice Reference addresses and config for shared infrastructure validation.
+    struct SharedImplementations {
+        address disputeGameFactoryImpl;
+        address anchorStateRegistryImpl;
+        address ethLockboxImpl;
+        address delayedWETHImpl;
+        address mipsImpl;
+        address l1PAOMultisig;
+        uint256 withdrawalDelaySeconds;
+    }
+
+    /// @notice Discovered shared contracts from on-chain state.
+    struct SharedContracts {
+        IProxyAdmin proxyAdmin;
+        address asr;
+        address weth;
+        IETHLockbox lockbox;
+    }
 
     /// @notice Struct containing the input parameters for post-migration validation.
     struct MigrationValidationInput {
@@ -35,12 +65,25 @@ contract OPContractsManagerMigrationValidator is ISemver {
         address challenger;
     }
 
+    /// @notice Parameters for a single super game type validation.
+    struct SuperGameParams {
+        IDisputeGameFactory dgf;
+        bytes32 expectedPrestate;
+        bool isPermissioned;
+        address proposer;
+        address challenger;
+        string prefix;
+        address mipsImpl;
+        address discoveredWeth;
+    }
+
     constructor() { }
 
     /// @notice Validates the configuration of all L1 contracts after an interop migration.
     function validateMigration(
         MigrationValidationInput memory _input,
-        bool _allowFailure
+        bool _allowFailure,
+        SharedImplementations memory _refs
     )
         external
         view
@@ -52,7 +95,8 @@ contract OPContractsManagerMigrationValidator is ISemver {
             IOPContractsManagerStandardValidator.ValidationOverrides({
                 l1PAOMultisig: address(0),
                 challenger: address(0)
-            })
+            }),
+            _refs
         );
     }
 
@@ -61,7 +105,8 @@ contract OPContractsManagerMigrationValidator is ISemver {
     function validateMigrationWithOverrides(
         MigrationValidationInput memory _input,
         bool _allowFailure,
-        IOPContractsManagerStandardValidator.ValidationOverrides memory _overrides
+        IOPContractsManagerStandardValidator.ValidationOverrides memory _overrides,
+        SharedImplementations memory _refs
     )
         public
         view
@@ -72,13 +117,65 @@ contract OPContractsManagerMigrationValidator is ISemver {
 
         string memory _errors = "";
 
+        // 1. Check DGF shape (game type registration).
         _errors = assertValidSharedDGFShape(_errors, _input.dgf);
+
+        // 2. Discover shared contracts from on-chain state.
+        SharedContracts memory _sharedContracts = _getSharedContracts(_input.dgf, _input.chainSystemConfigs);
+        bool _foundSharedContracts = address(_sharedContracts.proxyAdmin) != address(0);
+
+        // 3. If discovery succeeded, run shared DGF proxy/impl/owner checks.
+        if (_foundSharedContracts) {
+            _errors = assertValidSharedDGF(_errors, _input.dgf, _sharedContracts.proxyAdmin, _refs);
+        }
+
+        // 4. Super game checks (always run — they handle missing impls/args internally).
         _errors = assertValidSharedSuperGame(
-            _errors, _input.dgf, _input.cannonPrestate, true, _input.proposer, _input.challenger, "MIG-SPDG"
+            _errors,
+            SuperGameParams({
+                dgf: _input.dgf,
+                expectedPrestate: _input.cannonPrestate,
+                isPermissioned: true,
+                proposer: _input.proposer,
+                challenger: _input.challenger,
+                prefix: "MIG-SPDG",
+                mipsImpl: _refs.mipsImpl,
+                discoveredWeth: _sharedContracts.weth
+            })
         );
         _errors = assertValidSharedSuperGame(
-            _errors, _input.dgf, _input.cannonKonaPrestate, false, address(0), address(0), "MIG-SCKDG"
+            _errors,
+            SuperGameParams({
+                dgf: _input.dgf,
+                expectedPrestate: _input.cannonKonaPrestate,
+                isPermissioned: false,
+                proposer: address(0),
+                challenger: address(0),
+                prefix: "MIG-SCKDG",
+                mipsImpl: _refs.mipsImpl,
+                discoveredWeth: _sharedContracts.weth
+            })
         );
+
+        // 5. If discovery succeeded, run remaining shared infra checks.
+        if (_foundSharedContracts) {
+            // Shared ASR checks (includes SCKDG cross-validation).
+            _errors =
+                assertValidSharedASR(_errors, _sharedContracts.asr, _input.dgf, _sharedContracts.proxyAdmin, _refs);
+
+            // Shared lockbox checks (skip if lockbox is address(0) — caught by MIG-LOCKBOX-MISSING downstream).
+            if (address(_sharedContracts.lockbox) != address(0)) {
+                _errors =
+                    assertValidSharedLockbox(_errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _refs);
+            }
+
+            // Shared DelayedWETH checks (skip if no chains — weth can't be discovered).
+            if (_sharedContracts.weth != address(0)) {
+                _errors = assertValidSharedDelayedWETH(_errors, _sharedContracts.weth, _refs);
+            }
+        }
+
+        // Per-chain migration checks.
         _errors = assertValidPerChainMigration(_errors, _input.dgf, _input.chainSystemConfigs);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
@@ -86,6 +183,31 @@ contract OPContractsManagerMigrationValidator is ISemver {
         }
 
         return _errors;
+    }
+
+    /// @notice Discovers shared contracts from on-chain state.
+    ///         Returns zero-initialized struct if no chains are provided.
+    function _getSharedContracts(
+        IDisputeGameFactory _dgf,
+        ISystemConfig[] memory _chainSystemConfigs
+    )
+        internal
+        view
+        returns (SharedContracts memory)
+    {
+        if (_chainSystemConfigs.length == 0) {
+            return SharedContracts(IProxyAdmin(address(0)), address(0), address(0), IETHLockbox(address(0)));
+        }
+
+        IProxyAdmin proxyAdmin = IProxyAdminOwnedBase(address(_dgf)).proxyAdmin();
+        IOptimismPortal2 firstPortal = IOptimismPortal2(payable(_chainSystemConfigs[0].optimismPortal()));
+
+        return SharedContracts({
+            proxyAdmin: proxyAdmin,
+            asr: address(firstPortal.anchorStateRegistry()),
+            weth: _chainSystemConfigs[0].delayedWETH(),
+            lockbox: firstPortal.ethLockbox()
+        });
     }
 
     /// @notice Validates the shape of the shared DGF — correct game types registered/unregistered.
@@ -110,68 +232,202 @@ contract OPContractsManagerMigrationValidator is ISemver {
         return _errors;
     }
 
-    /// @notice Validates a single super game type's configuration on the shared DGF.
-    function assertValidSharedSuperGame(
+    /// @notice Validates the shared DGF proxy implementation, version, owner, and ProxyAdmin.
+    function assertValidSharedDGF(
         string memory _errors,
         IDisputeGameFactory _dgf,
-        bytes32 _expectedPrestate,
-        bool _isPermissioned,
-        address _proposer,
-        address _challenger,
-        string memory _prefix
+        IProxyAdmin _proxyAdmin,
+        SharedImplementations memory _refs
     )
         internal
         view
         returns (string memory)
     {
-        GameType gameType = _isPermissioned ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.SUPER_CANNON_KONA;
+        _errors = internalRequire(
+            LibString.eq(ISemver(address(_dgf)).version(), ISemver(_refs.disputeGameFactoryImpl).version()),
+            "MIG-SDGF-10",
+            _errors
+        );
+        _errors = internalRequire(
+            _proxyAdmin.getProxyImplementation(address(_dgf)) == _refs.disputeGameFactoryImpl, "MIG-SDGF-20", _errors
+        );
+        _errors = internalRequire(_dgf.owner() == _refs.l1PAOMultisig, "MIG-SDGF-30", _errors);
+        _errors = internalRequire(
+            address(IProxyAdminOwnedBase(address(_dgf)).proxyAdmin()) == address(_proxyAdmin), "MIG-SDGF-40", _errors
+        );
+        return _errors;
+    }
+
+    /// @notice Validates a single super game type's configuration on the shared DGF.
+    function assertValidSharedSuperGame(
+        string memory _errors,
+        SuperGameParams memory _p
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        GameType gameType = _p.isPermissioned ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.SUPER_CANNON_KONA;
 
         // If game impl is address(0), skip — already caught by shape checks.
-        address gameImpl = address(_dgf.gameImpls(gameType));
+        address gameImpl = address(_p.dgf.gameImpls(gameType));
         if (gameImpl == address(0)) return _errors;
 
         // Validate game args length and decode.
         LibGameArgs.GameArgs memory gameArgs;
         {
-            bytes memory gameArgsBytes = _dgf.gameArgs(gameType);
-            bool argsOk = _isPermissioned
+            bytes memory gameArgsBytes = _p.dgf.gameArgs(gameType);
+            bool argsOk = _p.isPermissioned
                 ? LibGameArgs.isValidPermissionedArgs(gameArgsBytes)
                 : LibGameArgs.isValidPermissionlessArgs(gameArgsBytes);
-            _errors = internalRequire(argsOk, string.concat(_prefix, "-GARGS-10"), _errors);
+            _errors = internalRequire(argsOk, string.concat(_p.prefix, "-GARGS-10"), _errors);
             if (!argsOk) return _errors;
             gameArgs = LibGameArgs.decode(gameArgsBytes);
         }
 
         // Validate game args fields.
-        _errors = internalRequire(gameArgs.l2ChainId == 0, string.concat(_prefix, "-10"), _errors);
+        _errors = internalRequire(gameArgs.l2ChainId == 0, string.concat(_p.prefix, "-10"), _errors);
         _errors =
-            internalRequire(gameArgs.absolutePrestate == _expectedPrestate, string.concat(_prefix, "-20"), _errors);
+            internalRequire(gameArgs.absolutePrestate == _p.expectedPrestate, string.concat(_p.prefix, "-20"), _errors);
+        _errors = internalRequire(gameArgs.vm == _p.mipsImpl, string.concat(_p.prefix, "-GARGS-20"), _errors);
+        // Skip weth cross-check if discoveredWeth is address(0) (no chains provided, can't discover).
+        if (_p.discoveredWeth != address(0)) {
+            _errors =
+                internalRequire(gameArgs.weth == _p.discoveredWeth, string.concat(_p.prefix, "-GARGS-30"), _errors);
+        }
 
         // Validate game impl params.
         {
             IPermissionedDisputeGame game = IPermissionedDisputeGame(gameImpl);
-            _errors = internalRequire(game.maxGameDepth() == 73, string.concat(_prefix, "-30"), _errors);
-            _errors = internalRequire(game.splitDepth() == 30, string.concat(_prefix, "-40"), _errors);
-            _errors =
-                internalRequire(Duration.unwrap(game.clockExtension()) == 10800, string.concat(_prefix, "-50"), _errors);
+            _errors = internalRequire(game.maxGameDepth() == 73, string.concat(_p.prefix, "-30"), _errors);
+            _errors = internalRequire(game.splitDepth() == 30, string.concat(_p.prefix, "-40"), _errors);
             _errors = internalRequire(
-                Duration.unwrap(game.maxClockDuration()) == 302400, string.concat(_prefix, "-60"), _errors
+                Duration.unwrap(game.clockExtension()) == 10800, string.concat(_p.prefix, "-50"), _errors
             );
-            _errors = internalRequire(game.l2SequenceNumber() == 0, string.concat(_prefix, "-70"), _errors);
+            _errors = internalRequire(
+                Duration.unwrap(game.maxClockDuration()) == 302400, string.concat(_p.prefix, "-60"), _errors
+            );
+            _errors = internalRequire(game.l2SequenceNumber() == 0, string.concat(_p.prefix, "-70"), _errors);
         }
 
         // Validate anchor root is non-zero (from ASR in game args).
         {
             (Hash anchorRoot,) = IAnchorStateRegistry(gameArgs.anchorStateRegistry).getAnchorRoot();
-            _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_prefix, "-80"), _errors);
+            _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_p.prefix, "-80"), _errors);
         }
 
         // Validate proposer and challenger for permissioned games.
-        if (_isPermissioned) {
-            _errors = internalRequire(gameArgs.proposer == _proposer, string.concat(_prefix, "-90"), _errors);
-            _errors = internalRequire(gameArgs.challenger == _challenger, string.concat(_prefix, "-100"), _errors);
+        if (_p.isPermissioned) {
+            _errors = internalRequire(gameArgs.proposer == _p.proposer, string.concat(_p.prefix, "-90"), _errors);
+            _errors = internalRequire(gameArgs.challenger == _p.challenger, string.concat(_p.prefix, "-100"), _errors);
         }
 
+        return _errors;
+    }
+
+    /// @notice Validates the shared ASR: version, proxy impl, DGF reference, ProxyAdmin,
+    ///         retirement timestamp, respected game type, and SCKDG cross-validation.
+    function assertValidSharedASR(
+        string memory _errors,
+        address _asr,
+        IDisputeGameFactory _dgf,
+        IProxyAdmin _proxyAdmin,
+        SharedImplementations memory _refs
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errors = internalRequire(
+            LibString.eq(ISemver(_asr).version(), ISemver(_refs.anchorStateRegistryImpl).version()),
+            "MIG-SASR-10",
+            _errors
+        );
+        _errors = internalRequire(
+            _proxyAdmin.getProxyImplementation(_asr) == _refs.anchorStateRegistryImpl, "MIG-SASR-20", _errors
+        );
+        _errors = internalRequire(
+            address(IAnchorStateRegistry(_asr).disputeGameFactory()) == address(_dgf), "MIG-SASR-30", _errors
+        );
+        _errors = internalRequire(
+            address(IProxyAdminOwnedBase(_asr).proxyAdmin()) == address(_proxyAdmin), "MIG-SASR-40", _errors
+        );
+        _errors = internalRequire(IAnchorStateRegistry(_asr).retirementTimestamp() > 0, "MIG-SASR-50", _errors);
+        _errors = internalRequire(
+            GameTypes.isSuperGame(IAnchorStateRegistry(_asr).respectedGameType()), "MIG-SASR-60", _errors
+        );
+
+        // Cross-validate: ASR in each super game type's args should match portal-discovered ASR.
+        {
+            address sckdgImpl = address(_dgf.gameImpls(GameTypes.SUPER_CANNON_KONA));
+            if (sckdgImpl != address(0)) {
+                bytes memory sckdgArgs = _dgf.gameArgs(GameTypes.SUPER_CANNON_KONA);
+                if (LibGameArgs.isValidPermissionlessArgs(sckdgArgs)) {
+                    LibGameArgs.GameArgs memory args = LibGameArgs.decode(sckdgArgs);
+                    _errors = internalRequire(args.anchorStateRegistry == _asr, "MIG-SASR-70", _errors);
+                }
+            }
+        }
+        {
+            address spdgImpl = address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
+            if (spdgImpl != address(0)) {
+                bytes memory spdgArgs = _dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+                if (LibGameArgs.isValidPermissionedArgs(spdgArgs)) {
+                    LibGameArgs.GameArgs memory args = LibGameArgs.decode(spdgArgs);
+                    _errors = internalRequire(args.anchorStateRegistry == _asr, "MIG-SASR-80", _errors);
+                }
+            }
+        }
+
+        return _errors;
+    }
+
+    /// @notice Validates the shared ETHLockbox: version, proxy impl, ProxyAdmin.
+    function assertValidSharedLockbox(
+        string memory _errors,
+        IETHLockbox _lockbox,
+        IProxyAdmin _proxyAdmin,
+        SharedImplementations memory _refs
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errors = internalRequire(
+            LibString.eq(ISemver(address(_lockbox)).version(), ISemver(_refs.ethLockboxImpl).version()),
+            "MIG-SLOCKBOX-10",
+            _errors
+        );
+        _errors = internalRequire(
+            _proxyAdmin.getProxyImplementation(address(_lockbox)) == _refs.ethLockboxImpl, "MIG-SLOCKBOX-20", _errors
+        );
+        _errors = internalRequire(
+            address(IProxyAdminOwnedBase(address(_lockbox)).proxyAdmin()) == address(_proxyAdmin),
+            "MIG-SLOCKBOX-30",
+            _errors
+        );
+        return _errors;
+    }
+
+    /// @notice Validates the shared DelayedWETH: version, delay, proxyAdminOwner.
+    function assertValidSharedDelayedWETH(
+        string memory _errors,
+        address _weth,
+        SharedImplementations memory _refs
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errors = internalRequire(
+            LibString.eq(ISemver(_weth).version(), ISemver(_refs.delayedWETHImpl).version()), "MIG-SDWETH-10", _errors
+        );
+        _errors = internalRequire(
+            IDelayedWETH(payable(_weth)).delay() == _refs.withdrawalDelaySeconds, "MIG-SDWETH-20", _errors
+        );
+        _errors = internalRequire(
+            IDelayedWETH(payable(_weth)).proxyAdminOwner() == _refs.l1PAOMultisig, "MIG-SDWETH-30", _errors
+        );
         return _errors;
     }
 
@@ -189,28 +445,14 @@ contract OPContractsManagerMigrationValidator is ISemver {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }
 
-        // Derive shared ASR from SUPER_PERMISSIONED_CANNON game args on shared DGF.
-        address sharedASR;
-        {
-            address spdgImpl = address(_sharedDGF.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
-            if (spdgImpl == address(0)) {
-                // Can't derive shared ASR — already caught by MIG-DGF-10. Skip per-chain checks.
-                return _errors;
-            }
-            bytes memory spdgArgs = _sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
-            if (!LibGameArgs.isValidPermissionedArgs(spdgArgs)) {
-                // Can't decode — already caught by MIG-SPDG-GARGS-10. Skip per-chain checks.
-                return _errors;
-            }
-            LibGameArgs.GameArgs memory args = LibGameArgs.decode(spdgArgs);
-            sharedASR = args.anchorStateRegistry;
-        }
+        // Derive shared ASR and lockbox from first chain's portal.
+        IOptimismPortal2 firstPortal = IOptimismPortal2(payable(_chainSystemConfigs[0].optimismPortal()));
+        address sharedASR = address(firstPortal.anchorStateRegistry());
+        IETHLockbox sharedLockbox = firstPortal.ethLockbox();
 
-        // Derive shared lockbox from first chain's portal.
-        IETHLockbox sharedLockbox;
-        {
-            IOptimismPortal2 firstPortal = IOptimismPortal2(payable(_chainSystemConfigs[0].optimismPortal()));
-            sharedLockbox = firstPortal.ethLockbox();
+        // Guard against missing lockbox — would revert on authorizedPortals call.
+        if (address(sharedLockbox) == address(0)) {
+            return internalRequire(false, "MIG-LOCKBOX-MISSING", _errors);
         }
 
         for (uint256 i = 0; i < _chainSystemConfigs.length; i++) {
@@ -224,37 +466,42 @@ contract OPContractsManagerMigrationValidator is ISemver {
             );
 
             // Per-chain DGF should have all game types cleared.
+            // After migration, systemConfig.disputeGameFactory() resolves through
+            // portal → shared ASR → shared DGF. When the per-chain DGF IS the shared DGF,
+            // skip these checks — the shared DGF is already validated by the shape checks above.
             IDisputeGameFactory perChainDGF = IDisputeGameFactory(_chainSystemConfigs[i].disputeGameFactory());
-            _errors = internalRequire(
-                address(perChainDGF.gameImpls(GameTypes.CANNON)) == address(0),
-                string.concat("MIG-CHAIN-", idx, "-20"),
-                _errors
-            );
-            _errors = internalRequire(
-                address(perChainDGF.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0),
-                string.concat("MIG-CHAIN-", idx, "-30"),
-                _errors
-            );
-            _errors = internalRequire(
-                address(perChainDGF.gameImpls(GameTypes.CANNON_KONA)) == address(0),
-                string.concat("MIG-CHAIN-", idx, "-40"),
-                _errors
-            );
-            _errors = internalRequire(
-                address(perChainDGF.gameImpls(GameTypes.SUPER_CANNON)) == address(0),
-                string.concat("MIG-CHAIN-", idx, "-50"),
-                _errors
-            );
-            _errors = internalRequire(
-                address(perChainDGF.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) == address(0),
-                string.concat("MIG-CHAIN-", idx, "-60"),
-                _errors
-            );
-            _errors = internalRequire(
-                address(perChainDGF.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0),
-                string.concat("MIG-CHAIN-", idx, "-70"),
-                _errors
-            );
+            if (address(perChainDGF) != address(_sharedDGF)) {
+                _errors = internalRequire(
+                    address(perChainDGF.gameImpls(GameTypes.CANNON)) == address(0),
+                    string.concat("MIG-CHAIN-", idx, "-20"),
+                    _errors
+                );
+                _errors = internalRequire(
+                    address(perChainDGF.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0),
+                    string.concat("MIG-CHAIN-", idx, "-30"),
+                    _errors
+                );
+                _errors = internalRequire(
+                    address(perChainDGF.gameImpls(GameTypes.CANNON_KONA)) == address(0),
+                    string.concat("MIG-CHAIN-", idx, "-40"),
+                    _errors
+                );
+                _errors = internalRequire(
+                    address(perChainDGF.gameImpls(GameTypes.SUPER_CANNON)) == address(0),
+                    string.concat("MIG-CHAIN-", idx, "-50"),
+                    _errors
+                );
+                _errors = internalRequire(
+                    address(perChainDGF.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) == address(0),
+                    string.concat("MIG-CHAIN-", idx, "-60"),
+                    _errors
+                );
+                _errors = internalRequire(
+                    address(perChainDGF.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0),
+                    string.concat("MIG-CHAIN-", idx, "-70"),
+                    _errors
+                );
+            }
 
             // Portal should be authorized in the shared lockbox.
             _errors = internalRequire(
@@ -264,6 +511,18 @@ contract OPContractsManagerMigrationValidator is ISemver {
             // Portal's lockbox should match the shared lockbox.
             _errors = internalRequire(
                 address(portal.ethLockbox()) == address(sharedLockbox), string.concat("MIG-CHAIN-", idx, "-90"), _errors
+            );
+
+            // Feature flags must be enabled on each chain's SystemConfig.
+            _errors = internalRequire(
+                _chainSystemConfigs[i].isFeatureEnabled(Features.INTEROP),
+                string.concat("MIG-CHAIN-", idx, "-100"),
+                _errors
+            );
+            _errors = internalRequire(
+                _chainSystemConfigs[i].isFeatureEnabled(Features.ETH_LOCKBOX),
+                string.concat("MIG-CHAIN-", idx, "-110"),
+                _errors
             );
         }
 

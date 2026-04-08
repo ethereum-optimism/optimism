@@ -2339,11 +2339,29 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_SuperchainConfigMismatch.selector);
     }
 
+    /// @notice Tests that the migration function reverts when no chains are provided.
+    function test_migrate_noChains_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.chainSystemConfigs = new ISystemConfig[](0);
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a chain uses a custom gas token.
+    function test_migrate_cgtChain_reverts() public {
+        vm.mockCall(
+            address(chainContracts1.systemConfig), abi.encodeCall(ISystemConfig.isCustomGasToken, ()), abi.encode(true)
+        );
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_CustomGasTokenNotSupported.selector
+        );
+    }
+
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
     /// @param _gameTypeRaw The raw game type value to test.
     function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {
-        // Only SUPER_CANNON (4) and SUPER_PERMISSIONED_CANNON (5) are valid for migration.
-        vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON.raw());
+        // Only SUPER_CANNON_KONA (9) and SUPER_PERMISSIONED_CANNON (5) are valid for migration.
+        vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON_KONA.raw());
         vm.assume(_gameTypeRaw != GameTypes.SUPER_PERMISSIONED_CANNON.raw());
 
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();

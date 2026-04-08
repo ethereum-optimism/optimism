@@ -18,11 +18,22 @@ interface IOPContractsManagerMigrationValidator {
         address challenger;
     }
 
+    struct SharedImplementations {
+        address disputeGameFactoryImpl;
+        address anchorStateRegistryImpl;
+        address ethLockboxImpl;
+        address delayedWETHImpl;
+        address mipsImpl;
+        address l1PAOMultisig;
+        uint256 withdrawalDelaySeconds;
+    }
+
     function version() external view returns (string memory);
 
     function validateMigration(
         MigrationValidationInput memory _input,
-        bool _allowFailure
+        bool _allowFailure,
+        SharedImplementations memory _refs
     )
         external
         view
@@ -31,7 +42,8 @@ interface IOPContractsManagerMigrationValidator {
     function validateMigrationWithOverrides(
         MigrationValidationInput memory _input,
         bool _allowFailure,
-        IOPContractsManagerStandardValidator.ValidationOverrides memory _overrides
+        IOPContractsManagerStandardValidator.ValidationOverrides memory _overrides,
+        SharedImplementations memory _refs
     )
         external
         view
