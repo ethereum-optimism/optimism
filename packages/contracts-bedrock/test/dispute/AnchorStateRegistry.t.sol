@@ -815,80 +815,78 @@ contract AnchorStateRegistry_IsGameResolved_Test is AnchorStateRegistry_TestInit
     }
 }
 
-/// @title AnchorStateRegistry_IsGameProper_Test
-/// @notice Tests the `isGameProper` function of the `AnchorStateRegistry` contract.
-contract AnchorStateRegistry_IsGameProper_Test is AnchorStateRegistry_TestInit {
-    /// @notice Tests that isGameProper will return true if the game meets all conditions.
+/// @title AnchorStateRegistry_IsGameProper_TestInit
+/// @notice Abstract base providing shared `isGameProper` tests for any dispute game type.
+///         Concrete subcontracts supply a `_game()` getter and any game-type-specific tests.
+abstract contract AnchorStateRegistry_IsGameProper_TestInit is AnchorStateRegistry_TestInit {
+    /// @notice Returns the game under test.
+    function _game() internal view virtual returns (IDisputeGame);
+
+    /// @notice Tests that isGameProper returns true when the game meets all conditions.
     function test_isGameProper_meetsAllConditions_succeeds() public view {
-        // Game will meet all conditions by default.
-        assertTrue(anchorStateRegistry.isGameProper(gameProxy));
+        assertTrue(anchorStateRegistry.isGameProper(_game()));
     }
 
-    /// @notice Tests that isGameProper will return false if the game is not registered.
-    function test_isGameProper_isNotFactoryRegistered_succeeds() public {
-        // Mock the DisputeGameFactory to make it seem that the game was not registered.
+    /// @notice Tests that isGameProper returns false when the game is not registered.
+    function test_isGameProper_notRegistered_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
-            abi.encodeCall(
-                disputeGameFactory.games, (gameProxy.gameType(), gameProxy.rootClaim(), gameProxy.extraData())
-            ),
+            abi.encodeCall(disputeGameFactory.games, (_game().gameType(), _game().rootClaim(), _game().extraData())),
             abi.encode(address(0), 0)
         );
-
-        assertFalse(anchorStateRegistry.isGameProper(gameProxy));
+        assertFalse(anchorStateRegistry.isGameProper(_game()));
     }
 
-    /// @notice Tests that isGameProper will return false if the game is not the respected game
-    ///         type.
+    /// @notice Tests that isGameProper returns false when the game is blacklisted.
+    function test_isGameProper_blacklisted_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(_game());
+        assertFalse(anchorStateRegistry.isGameProper(_game()));
+    }
+
+    /// @notice Tests that isGameProper returns false when the superchain is paused.
+    function test_isGameProper_superchainPaused_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+        assertFalse(anchorStateRegistry.isGameProper(_game()));
+    }
+}
+
+/// @title AnchorStateRegistry_IsGameProper_Test
+/// @notice Tests the `isGameProper` function of the `AnchorStateRegistry` contract.
+contract AnchorStateRegistry_IsGameProper_Test is AnchorStateRegistry_IsGameProper_TestInit {
+    /// @notice Returns the fault dispute game proxy.
+    function _game() internal view override returns (IDisputeGame) {
+        return gameProxy;
+    }
+
+    /// @notice Tests that isGameProper returns true even when the game was not the respected type
+    ///         at creation, since `wasRespectedGameTypeWhenCreated` is not a condition for
+    ///         isGameProper.
     /// @param _gameType The game type to use for the test.
     function testFuzz_isGameProper_anyGameType_succeeds(GameType _gameType) public {
         if (_gameType.raw() == gameProxy.gameType().raw()) {
             _gameType = GameType.wrap(_gameType.raw() + 1);
         }
 
-        // Mock that the game was not respected.
         vm.mockCall(
             address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(false)
         );
 
-        // Still a proper game.
         assertTrue(anchorStateRegistry.isGameProper(gameProxy));
     }
 
-    /// @notice Tests that isGameProper will return false if the game is blacklisted.
-    function test_isGameProper_isBlacklisted_succeeds() public {
-        // Blacklist the game.
-        vm.prank(superchainConfig.guardian());
-        anchorStateRegistry.blacklistDisputeGame(gameProxy);
-
-        // Should return false.
-        assertFalse(anchorStateRegistry.isGameProper(gameProxy));
-    }
-
-    /// @notice Tests that isGameProper will return false if the superchain is paused.
-    function test_isGameProper_superchainPaused_succeeds() public {
-        // Pause the superchain.
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(0));
-
-        // Game should not be proper.
-        assertFalse(anchorStateRegistry.isGameProper(gameProxy));
-    }
-
-    /// @notice Tests that isGameProper will return false if the game is retired.
+    /// @notice Tests that isGameProper returns false when the FaultDisputeGame is retired.
+    ///         Retirement is determined via the game's `createdAt` timestamp.
     /// @param _createdAtTimestamp The createdAt timestamp to use for the test.
     function testFuzz_isGameProper_isRetired_succeeds(uint64 _createdAtTimestamp) public {
-        // Set the retirement timestamp to now.
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.updateRetirementTimestamp();
 
-        // Make sure createdAt timestamp is less than or equal to the retirementTimestamp.
         _createdAtTimestamp = uint64(bound(_createdAtTimestamp, 0, anchorStateRegistry.retirementTimestamp()));
 
-        // Mock the call to createdAt.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.createdAt, ()), abi.encode(_createdAtTimestamp));
 
-        // Game should not be proper.
         assertFalse(anchorStateRegistry.isGameProper(gameProxy));
     }
 }
@@ -1675,43 +1673,22 @@ contract AnchorStateRegistry_IsGameClaimValid_ZkDisputeGame_Test is AnchorStateR
 
 /// @title AnchorStateRegistry_IsGameProper_ZkDisputeGame_Test
 /// @notice Tests the `isGameProper` function with ZKDisputeGame.
-contract AnchorStateRegistry_IsGameProper_ZkDisputeGame_Test is AnchorStateRegistry_ZkDisputeGame_TestInit {
-    /// @notice Tests that a ZK game meeting all conditions is proper.
-    function test_isGameProper_meetsAllConditions_succeeds() public view {
-        assertTrue(anchorStateRegistry.isGameProper(zkGameProxy));
+///         Shared cases are inherited from AnchorStateRegistry_IsGameProper_TestInit.
+contract AnchorStateRegistry_IsGameProper_ZkDisputeGame_Test is
+    AnchorStateRegistry_IsGameProper_TestInit,
+    AnchorStateRegistry_ZkDisputeGame_TestInit
+{
+    function setUp() public override(AnchorStateRegistry_TestInit, AnchorStateRegistry_ZkDisputeGame_TestInit) {
+        AnchorStateRegistry_ZkDisputeGame_TestInit.setUp();
     }
 
-    /// @notice Tests that a blacklisted ZK game is not proper.
-    function test_isGameProper_blacklisted_succeeds() public {
-        vm.prank(superchainConfig.guardian());
-        anchorStateRegistry.blacklistDisputeGame(zkGameProxy);
-
-        assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
-    }
-
-    /// @notice Tests that an unregistered ZK game is not proper.
-    function test_isGameProper_notRegistered_succeeds() public {
-        // Mock the factory to report the ZK game as not registered.
-        vm.mockCall(
-            address(disputeGameFactory),
-            abi.encodeCall(
-                disputeGameFactory.games, (zkGameProxy.gameType(), zkGameProxy.rootClaim(), zkGameProxy.extraData())
-            ),
-            abi.encode(address(0), 0)
-        );
-
-        assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
-    }
-
-    /// @notice Tests that a ZK game is not proper when the superchain is paused.
-    function test_isGameProper_superchainPaused_succeeds() public {
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(0));
-
-        assertFalse(anchorStateRegistry.isGameProper(zkGameProxy));
+    /// @notice Returns the ZK dispute game proxy.
+    function _game() internal view override returns (IDisputeGame) {
+        return zkGameProxy;
     }
 
     /// @notice Tests that a retired ZK game is not proper.
+    ///         ZKDisputeGame retirement does not rely on `createdAt`, unlike FaultDisputeGame.
     function test_isGameProper_retired_succeeds() public {
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.updateRetirementTimestamp();
