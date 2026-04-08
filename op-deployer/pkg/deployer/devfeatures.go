@@ -25,6 +25,7 @@ var (
 	L2CMDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
 
 	// ZKDisputeGameDevFlag enables the ZK dispute game system (ZKDisputeGame).
+	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
 	// When any chain in the intent uses VMTypeZK, this flag is automatically OR-ed into
 	// the DevFeatureBitmap passed to DeployImplementations so the ZkDisputeGameImpl gets deployed.
 	ZKDisputeGameDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
