@@ -48,13 +48,17 @@ pub enum OpTxEnvelope {
 
 /// Represents an Optimism transaction envelope.
 ///
-/// Compared to Ethereum it can tell whether the transaction is a deposit.
+/// Compared to Ethereum it can tell whether the transaction is a deposit or post-exec synthetic
+/// transaction.
 pub trait OpTransaction {
     /// Returns `true` if the transaction is a deposit.
     fn is_deposit(&self) -> bool;
 
     /// Returns `Some` if the transaction is a deposit.
     fn as_deposit(&self) -> Option<&Sealed<TxDeposit>>;
+
+    /// Returns `Some` if the transaction is a post-exec transaction.
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>>;
 }
 
 impl OpTransaction for OpTxEnvelope {
@@ -64,6 +68,10 @@ impl OpTransaction for OpTxEnvelope {
 
     fn as_deposit(&self) -> Option<&Sealed<TxDeposit>> {
         self.as_deposit()
+    }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
+        self.as_post_exec()
     }
 }
 
@@ -83,6 +91,13 @@ where
         match self {
             Self::BuiltIn(b) => b.as_deposit(),
             Self::Other(t) => t.as_deposit(),
+        }
+    }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
+        match self {
+            Self::BuiltIn(b) => b.as_post_exec(),
+            Self::Other(t) => t.as_post_exec(),
         }
     }
 }
@@ -424,6 +439,14 @@ impl OpTxEnvelope {
         }
     }
 
+    /// Returns the [`TxPostExec`] variant if the transaction is a post-exec transaction.
+    pub const fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
+        match self {
+            Self::PostExec(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
     /// Return the reference to signature.
     ///
     /// Returns `None` for unsigned variants: [`TxDeposit`] and [`TxPostExec`].
@@ -498,6 +521,8 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             Self::Deposit(tx) => return Ok(tx.from),
+            // Post-exec transactions are synthetic and unsigned, so use the canonical zero
+            // address placeholder.
             Self::PostExec(_) => return Ok(alloy_primitives::Address::ZERO),
         };
         let signature = match self {
@@ -523,6 +548,8 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             Self::Deposit(tx) => return Ok(tx.from),
+            // Post-exec transactions are synthetic and unsigned, so use the canonical zero
+            // address placeholder.
             Self::PostExec(_) => return Ok(alloy_primitives::Address::ZERO),
         };
         let signature = match self {
@@ -555,6 +582,8 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
                 alloy_consensus::transaction::SignerRecoverable::recover_unchecked_with_buf(tx, buf)
             }
             Self::Deposit(tx) => Ok(tx.from),
+            // Post-exec transactions are synthetic and unsigned, so use the canonical zero
+            // address placeholder.
             Self::PostExec(_) => Ok(alloy_primitives::Address::ZERO),
         }
     }

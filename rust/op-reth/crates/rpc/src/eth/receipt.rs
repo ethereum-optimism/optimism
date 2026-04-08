@@ -2,15 +2,9 @@
 
 use crate::{OpEthApi, OpEthApiError, eth::RpcNodeCore};
 use alloy_consensus::{BlockHeader, Receipt, ReceiptWithBloom, TxReceipt};
-use alloy_eips::{
-    Typed2718,
-    eip2718::{Decodable2718, Encodable2718},
-};
+use alloy_eips::{Typed2718, eip2718::Encodable2718};
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
-use op_alloy_consensus::{
-    OpReceipt, OpTransaction, POST_EXEC_TX_TYPE_ID, PostExecPayload, TxPostExec,
-    extract_post_exec_payload_from_tx,
-};
+use op_alloy_consensus::{OpReceipt, OpTransaction};
 use op_alloy_rpc_types::{L1BlockInfo, OpTransactionReceipt, OpTransactionReceiptFields};
 use op_revm::estimate_tx_compressed_size;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
@@ -92,17 +86,11 @@ where
         };
 
         let mut receipts = Vec::with_capacity(inputs.len());
-        let post_exec_payload: Option<PostExecPayload> =
-            block.body().transactions().iter().find_map(|tx| {
-                if tx.ty() != POST_EXEC_TX_TYPE_ID {
-                    return None;
-                }
-
-                let encoded = tx.encoded_2718();
-                let mut encoded_slice = encoded.as_ref();
-                let post_exec_tx = TxPostExec::decode_2718(&mut encoded_slice).ok()?;
-                extract_post_exec_payload_from_tx(&post_exec_tx)
-            });
+        let post_exec_payload = block
+            .body()
+            .transactions()
+            .iter()
+            .find_map(|tx| tx.as_post_exec().map(|tx| &tx.inner().payload));
 
         for input in inputs {
             // We must clear this cache as different L2 transactions can have different

@@ -166,7 +166,7 @@ impl From<TxPostExec> for OpTransactionRequest {
             gas: Some(0),
             nonce: Some(0),
             value: Some(U256::ZERO),
-            input: tx.payload.to_rlp_bytes().into(),
+            input: tx.input.into(),
             ..Default::default()
         })
     }

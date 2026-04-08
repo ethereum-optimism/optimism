@@ -256,7 +256,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
             Self::Eip7702(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
             Self::Deposit(tx) => tx.network_encode(out),
-            Self::PostExec(tx) => Encodable2718::network_encode(tx, out),
+            Self::PostExec(tx) => tx.network_encode(out),
         }
     }
 
@@ -267,7 +267,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.network_encode(signature, out),
             Self::Eip7702(tx) => tx.network_encode(signature, out),
             Self::Deposit(tx) => tx.network_encode(out),
-            Self::PostExec(tx) => Encodable2718::network_encode(tx, out),
+            Self::PostExec(tx) => tx.network_encode(out),
         }
     }
 

@@ -1,6 +1,8 @@
 //! Post-execution transaction types.
 
 use alloc::vec::Vec;
+#[cfg(feature = "serde")]
+use alloc::{format, string::String};
 use alloy_consensus::{Sealable, Transaction, Typed2718, transaction::RlpEcdsaEncodableTx};
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718, IsTyped2718},
@@ -84,8 +86,13 @@ impl PostExecPayload {
     }
 
     /// Decode a payload from RLP bytes.
-    pub fn from_rlp_bytes(data: &[u8]) -> Option<Self> {
-        Self::decode(&mut &data[..]).ok()
+    pub fn from_rlp_bytes(data: &[u8]) -> alloy_rlp::Result<Self> {
+        let mut buf = data;
+        let payload = Self::decode(&mut buf)?;
+        if !buf.is_empty() {
+            return Err(alloy_rlp::Error::UnexpectedLength);
+        }
+        Ok(payload)
     }
 }
 
@@ -169,6 +176,21 @@ impl TxPostExec {
         self.rlp_encoded_length() + 1
     }
 
+    fn network_header(&self) -> Header {
+        Header { list: false, payload_length: self.eip2718_encoded_length() }
+    }
+
+    /// Encoded length including the outer network RLP header.
+    pub fn network_encoded_length(&self) -> usize {
+        self.network_header().length_with_payload()
+    }
+
+    /// Network encode the transaction.
+    pub fn network_encode(&self, out: &mut dyn BufMut) {
+        self.network_header().encode(out);
+        self.encode_2718(out);
+    }
+
     /// Calculates a heuristic for the in-memory size of the transaction.
     pub fn size(&self) -> usize {
         core::mem::size_of::<PostExecPayload>() +
@@ -202,6 +224,8 @@ impl RlpEcdsaEncodableTx for TxPostExec {
     }
 
     fn rlp_encode_fields(&self, out: &mut dyn alloy_rlp::BufMut) {
+        // `input` already stores the canonical RLP-encoded payload, so the transaction fields are
+        // written as-is instead of being wrapped in an additional RLP list.
         out.put_slice(self.input.as_ref());
     }
 }
@@ -238,6 +262,8 @@ impl Transaction for TxPostExec {
         false
     }
     fn kind(&self) -> TxKind {
+        // Post-exec transactions do not carry a destination like deposits do, so expose them as a
+        // synthetic zero-address call placeholder.
         TxKind::Call(Default::default())
     }
     fn is_create(&self) -> bool {
@@ -325,29 +351,49 @@ struct TxPostExecSerdeHelper {
 #[cfg(feature = "serde")]
 impl From<TxPostExec> for TxPostExecSerdeHelper {
     fn from(value: TxPostExec) -> Self {
-        Self { gas: Some(0), value: Some(0), input: Some(value.input), payload: None }
+        // Emit both the canonical wire-format bytes and the decoded payload so JSON is both
+        // round-trippable and human-readable.
+        Self {
+            gas: Some(0),
+            value: Some(0),
+            input: Some(value.input),
+            payload: Some(value.payload),
+        }
     }
 }
 
 #[cfg(feature = "serde")]
 impl TryFrom<TxPostExecSerdeHelper> for TxPostExec {
-    type Error = &'static str;
+    type Error = String;
 
     fn try_from(value: TxPostExecSerdeHelper) -> Result<Self, Self::Error> {
         if value.gas.is_some_and(|gas| gas != 0) {
-            return Err("post-exec transaction gas must be 0");
+            return Err("post-exec transaction gas must be 0".into());
         }
         if value.value.is_some_and(|value| value != 0) {
-            return Err("post-exec transaction value must be 0");
+            return Err("post-exec transaction value must be 0".into());
         }
 
-        let payload = if let Some(input) = value.input {
-            PostExecPayload::from_rlp_bytes(input.as_ref())
-                .ok_or("invalid post-exec transaction input")?
-        } else if let Some(payload) = value.payload {
-            payload
-        } else {
-            return Err("missing post-exec transaction input");
+        // Accept either the raw input bytes or a decoded payload. If both are supplied, they must
+        // describe the same payload.
+        let input_payload = value
+            .input
+            .as_ref()
+            .map(|input| {
+                PostExecPayload::from_rlp_bytes(input.as_ref())
+                    .map_err(|err| format!("invalid post-exec transaction input: {err}"))
+            })
+            .transpose()?;
+
+        let payload = match (input_payload, value.payload) {
+            (Some(input_payload), Some(payload)) => {
+                if input_payload != payload {
+                    return Err("post-exec transaction input and payload mismatch".into());
+                }
+                input_payload
+            }
+            (Some(payload), None) | (None, Some(payload)) => payload,
+            (None, None) => return Err("missing post-exec transaction input or payload".into()),
         };
 
         Ok(Self::new(payload))
@@ -379,14 +425,12 @@ pub const fn is_post_exec_tx(ty: u8) -> bool {
     ty == POST_EXEC_TX_TYPE_ID
 }
 
-/// Extract the payload from a post-exec transaction.
-pub fn extract_post_exec_payload_from_tx(tx: &TxPostExec) -> Option<PostExecPayload> {
-    Some(tx.payload.clone())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "serde")]
+    use serde_json::json;
 
     #[test]
     fn post_exec_payload_rlp_roundtrip_preserves_block_number() {
@@ -403,11 +447,100 @@ mod tests {
     }
 
     #[test]
+    fn post_exec_payload_rlp_decode_rejects_trailing_bytes() {
+        let payload = PostExecPayload {
+            version: 1,
+            block_number: 42,
+            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
+        };
+
+        let mut encoded = payload.to_rlp_bytes().to_vec();
+        encoded.push(0);
+
+        let err = PostExecPayload::from_rlp_bytes(&encoded).expect_err("reject trailing bytes");
+        assert_eq!(err, alloy_rlp::Error::UnexpectedLength);
+    }
+
+    #[test]
     fn post_exec_tx_hash_depends_on_block_number() {
         let entries = vec![SDMGasEntry { index: 3, gas_refund: 7 }];
         let tx_a = build_post_exec_tx(42, entries.clone());
         let tx_b = build_post_exec_tx(43, entries);
 
         assert_ne!(tx_a.tx_hash(), tx_b.tx_hash());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn post_exec_tx_serde_emits_input_and_payload() {
+        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let value = serde_json::to_value(&tx).expect("serialize tx");
+
+        assert!(value.get("input").is_some());
+        assert!(value.get("payload").is_some());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn post_exec_tx_serde_accepts_matching_input_and_payload() {
+        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let value = serde_json::to_value(&tx).expect("serialize tx");
+
+        let decoded: TxPostExec = serde_json::from_value(value).expect("deserialize tx");
+        assert_eq!(decoded, tx);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn post_exec_tx_serde_accepts_input_only() {
+        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let mut value = serde_json::to_value(&tx).expect("serialize tx");
+        value.as_object_mut().expect("object").remove("payload");
+
+        let decoded: TxPostExec = serde_json::from_value(value).expect("deserialize tx");
+        assert_eq!(decoded, tx);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn post_exec_tx_serde_accepts_payload_only() {
+        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let mut value = serde_json::to_value(&tx).expect("serialize tx");
+        value.as_object_mut().expect("object").remove("input");
+
+        let decoded: TxPostExec = serde_json::from_value(value).expect("deserialize tx");
+        assert_eq!(decoded, tx);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn post_exec_tx_serde_rejects_conflicting_input_and_payload() {
+        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let value = json!({
+            "gas": "0x0",
+            "value": "0x0",
+            "input": tx.input,
+            "payload": {
+                "version": 1,
+                "blockNumber": 43,
+                "gasRefundEntries": [{ "index": 3, "gasRefund": 7 }]
+            }
+        });
+
+        let err = serde_json::from_value::<TxPostExec>(value).expect_err("reject mismatch");
+        assert!(err.to_string().contains("input and payload mismatch"));
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn post_exec_tx_serde_surfaces_input_decode_error() {
+        let value = json!({
+            "gas": "0x0",
+            "value": "0x0",
+            "input": "0xc0"
+        });
+
+        let err = serde_json::from_value::<TxPostExec>(value).expect_err("reject invalid input");
+        assert!(err.to_string().contains("invalid post-exec transaction input"));
     }
 }
