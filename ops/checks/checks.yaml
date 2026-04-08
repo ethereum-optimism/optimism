@@ -1,0 +1,335 @@
+checks:
+  # === Build Steps ===
+  - id: go-build
+    name: "Go build"
+    kind: build
+    language: go
+    command: "go build ./..."
+    avg_duration: 120
+    packages: ["*"]
+
+  - id: forge-build
+    name: "Forge build (contracts-bedrock)"
+    kind: build
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- forge build"
+    avg_duration: 180
+    directories: ["packages/contracts-bedrock/src"]
+
+  # === Go Test Packages ===
+  - id: go-test-op-node
+    name: "Go tests: op-node"
+    kind: test
+    language: go
+    command: "go test -short ./op-node/..."
+    avg_duration: 900
+    packages: ["op-node"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-batcher
+    name: "Go tests: op-batcher"
+    kind: test
+    language: go
+    command: "go test -short ./op-batcher/..."
+    avg_duration: 300
+    packages: ["op-batcher"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-proposer
+    name: "Go tests: op-proposer"
+    kind: test
+    language: go
+    command: "go test -short ./op-proposer/..."
+    avg_duration: 300
+    packages: ["op-proposer"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-challenger
+    name: "Go tests: op-challenger"
+    kind: test
+    language: go
+    command: "go test -short ./op-challenger/..."
+    avg_duration: 600
+    packages: ["op-challenger"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-conductor
+    name: "Go tests: op-conductor"
+    kind: test
+    language: go
+    command: "go test -short ./op-conductor/..."
+    avg_duration: 300
+    packages: ["op-conductor"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-program
+    name: "Go tests: op-program"
+    kind: test
+    language: go
+    command: "go test -short ./op-program/..."
+    avg_duration: 900
+    packages: ["op-program"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-service
+    name: "Go tests: op-service"
+    kind: test
+    language: go
+    command: "go test -short ./op-service/..."
+    avg_duration: 600
+    packages: ["op-service"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-chain-ops
+    name: "Go tests: op-chain-ops"
+    kind: test
+    language: go
+    command: "go test -short ./op-chain-ops/..."
+    avg_duration: 300
+    packages: ["op-chain-ops"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-deployer
+    name: "Go tests: op-deployer"
+    kind: test
+    language: go
+    command: "go test -short ./op-deployer/..."
+    avg_duration: 900
+    packages: ["op-deployer"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-dispute-mon
+    name: "Go tests: op-dispute-mon"
+    kind: test
+    language: go
+    command: "go test -short ./op-dispute-mon/..."
+    avg_duration: 300
+    packages: ["op-dispute-mon"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-supervisor
+    name: "Go tests: op-supervisor"
+    kind: test
+    language: go
+    command: "go test -short ./op-supervisor/..."
+    avg_duration: 600
+    packages: ["op-supervisor"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-alt-da
+    name: "Go tests: op-alt-da"
+    kind: test
+    language: go
+    command: "go test -short ./op-alt-da/..."
+    avg_duration: 300
+    packages: ["op-alt-da"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-cannon
+    name: "Go tests: cannon"
+    kind: test
+    language: go
+    command: "go test -short ./cannon/..."
+    avg_duration: 1800
+    packages: ["cannon"]
+    prerequisites: ["go-build"]
+    tags: ["slow"]
+
+  - id: go-test-op-e2e
+    name: "Go tests: op-e2e"
+    kind: test
+    language: go
+    command: "go test -short ./op-e2e/..."
+    avg_duration: 3600
+    packages: ["op-e2e"]
+    prerequisites: ["go-build", "forge-build"]
+    tags: ["slow", "e2e"]
+
+  - id: go-test-op-acceptance
+    name: "Go tests: op-acceptance-tests"
+    kind: test
+    language: go
+    command: "go test -short ./op-acceptance-tests/..."
+    avg_duration: 1800
+    packages: ["op-acceptance-tests"]
+    prerequisites: ["go-build", "forge-build"]
+    tags: ["slow", "e2e"]
+
+  - id: go-test-op-validator
+    name: "Go tests: op-validator"
+    kind: test
+    language: go
+    command: "go test -short ./op-validator/..."
+    avg_duration: 300
+    packages: ["op-validator"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-faucet
+    name: "Go tests: op-faucet"
+    kind: test
+    language: go
+    command: "go test -short ./op-faucet/..."
+    avg_duration: 300
+    packages: ["op-faucet"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-fetcher
+    name: "Go tests: op-fetcher"
+    kind: test
+    language: go
+    command: "go test -short ./op-fetcher/..."
+    avg_duration: 300
+    packages: ["op-fetcher"]
+    prerequisites: ["go-build"]
+
+  - id: go-test-op-test-sequencer
+    name: "Go tests: op-test-sequencer"
+    kind: test
+    language: go
+    command: "go test -short ./op-test-sequencer/..."
+    avg_duration: 600
+    packages: ["op-test-sequencer"]
+    prerequisites: ["go-build"]
+
+  # === Solidity Tests ===
+  - id: forge-test-l1
+    name: "Forge tests: L1"
+    kind: test
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- forge test --match-path './test/L1/*'"
+    avg_duration: 1200
+    directories: ["packages/contracts-bedrock/src/L1", "packages/contracts-bedrock/test/L1"]
+    prerequisites: ["forge-build"]
+
+  - id: forge-test-l2
+    name: "Forge tests: L2"
+    kind: test
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- forge test --match-path './test/L2/*'"
+    avg_duration: 600
+    directories: ["packages/contracts-bedrock/src/L2", "packages/contracts-bedrock/test/L2"]
+    prerequisites: ["forge-build"]
+
+  - id: forge-test-dispute
+    name: "Forge tests: dispute"
+    kind: test
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- forge test --match-path './test/dispute/*'"
+    avg_duration: 900
+    directories: ["packages/contracts-bedrock/src/dispute", "packages/contracts-bedrock/test/dispute"]
+    prerequisites: ["forge-build"]
+
+  - id: forge-test-libraries
+    name: "Forge tests: libraries"
+    kind: test
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- forge test --match-path './test/libraries/*'"
+    avg_duration: 300
+    directories: ["packages/contracts-bedrock/src/libraries", "packages/contracts-bedrock/test/libraries"]
+    prerequisites: ["forge-build"]
+
+  - id: forge-test-universal
+    name: "Forge tests: universal"
+    kind: test
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- forge test --match-path './test/universal/*'"
+    avg_duration: 600
+    directories: ["packages/contracts-bedrock/src/universal", "packages/contracts-bedrock/test/universal"]
+    prerequisites: ["forge-build"]
+
+  - id: forge-test-governance
+    name: "Forge tests: governance"
+    kind: test
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- forge test --match-path './test/governance/*'"
+    avg_duration: 300
+    directories: ["packages/contracts-bedrock/src/governance", "packages/contracts-bedrock/test/governance"]
+    prerequisites: ["forge-build"]
+
+  - id: forge-test-periphery
+    name: "Forge tests: periphery"
+    kind: test
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- forge test --match-path './test/periphery/*'"
+    avg_duration: 300
+    directories: ["packages/contracts-bedrock/src/periphery", "packages/contracts-bedrock/test/periphery"]
+    prerequisites: ["forge-build"]
+
+  # === Linting ===
+  - id: golangci-lint
+    name: "Go linting"
+    kind: lint
+    language: go
+    command: "just lint-go"
+    avg_duration: 300
+    packages: ["*"]
+
+  - id: semgrep
+    name: "Semgrep scan"
+    kind: lint
+    language: "*"
+    command: "semgrep scan --config .semgrep/rules/"
+    avg_duration: 600
+    file_patterns: ["**/*.go", "**/*.sol"]
+
+  - id: go-mod-tidy
+    name: "Go mod tidy check"
+    kind: check
+    language: go
+    command: "go mod tidy && git diff --exit-code go.mod go.sum"
+    avg_duration: 30
+    file_patterns: ["go.mod", "go.sum"]
+
+  # === Contract Checks ===
+  - id: snapshots-check
+    name: "ABI + storage layout snapshots"
+    kind: check
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- just snapshots-check-no-build"
+    avg_duration: 60
+    directories: ["packages/contracts-bedrock/src"]
+    prerequisites: ["forge-build"]
+
+  - id: interfaces-check
+    name: "Interface ABI match"
+    kind: check
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- just interfaces-check-no-build"
+    avg_duration: 60
+    directories: ["packages/contracts-bedrock/src"]
+    prerequisites: ["forge-build"]
+
+  - id: semver-check
+    name: "Semver diff check"
+    kind: check
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- just semver-diff-check-no-build"
+    avg_duration: 60
+    directories: ["packages/contracts-bedrock/src"]
+    prerequisites: ["forge-build"]
+
+  - id: lint-forge-tests
+    name: "Forge test naming lint"
+    kind: lint
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- just lint-forge-tests-check-no-build"
+    avg_duration: 30
+    directories: ["packages/contracts-bedrock/test"]
+
+  - id: validate-spacers
+    name: "Storage spacer validation"
+    kind: check
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- just validate-spacers-no-build"
+    avg_duration: 30
+    directories: ["packages/contracts-bedrock/src"]
+    prerequisites: ["forge-build"]
+
+  - id: reinitializer-check
+    name: "Reinitializer guard check"
+    kind: check
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- just reinitializer-check-no-build"
+    avg_duration: 30
+    directories: ["packages/contracts-bedrock/src"]
+    prerequisites: ["forge-build"]
