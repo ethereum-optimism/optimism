@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alloy_eips::eip7928::AccountChanges;
+use alloy_eips::eip7928::{AccountChanges, BalanceChange};
 use alloy_primitives::Address;
 use base_access_lists::FlashblockAccessList;
 
@@ -57,6 +57,31 @@ pub fn merge_account_changes(
 }
 
 pub fn merge_address_changes(left: &mut AccountChanges, right: &AccountChanges) {
-    // todo
-    *left = right.clone()
+    debug_assert_eq!(left.address(), right.address());
+    let address = left.address();
+
+    let storage_changes =
+        left.storage_changes().into_iter().chain(right.storage_changes()).cloned().collect();
+
+    // we could ignore these.
+    let storage_reads =
+        left.storage_reads().into_iter().chain(right.storage_reads()).cloned().collect();
+
+    let balance_changes =
+        left.balance_changes().into_iter().chain(right.balance_changes()).cloned().collect();
+
+    let nonce_changes =
+        left.nonce_changes().into_iter().chain(right.nonce_changes()).cloned().collect();
+
+    let code_changes =
+        left.code_changes().into_iter().chain(right.code_changes()).cloned().collect();
+
+    *left = AccountChanges {
+        address,
+        storage_changes,
+        storage_reads,
+        balance_changes,
+        nonce_changes,
+        code_changes,
+    };
 }
