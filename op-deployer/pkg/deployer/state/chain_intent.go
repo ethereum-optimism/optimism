@@ -48,6 +48,16 @@ type AdditionalDisputeGame struct {
 	MakeRespected bool
 }
 
+// ZKDisputeGameParams holds the configuration for a ZK dispute game in the upgrade pipeline.
+type ZKDisputeGameParams struct {
+	Verifier             common.Address `json:"verifier" toml:"verifier"`
+	AbsolutePrestate     common.Hash    `json:"absolutePrestate" toml:"absolutePrestate"`
+	MaxChallengeDuration uint64         `json:"maxChallengeDuration" toml:"maxChallengeDuration"`
+	MaxProveDuration     uint64         `json:"maxProveDuration" toml:"maxProveDuration"`
+	ChallengerBond       *hexutil.Big   `json:"challengerBond" toml:"challengerBond"`
+	InitBond             *hexutil.Big   `json:"initBond" toml:"initBond"`
+}
+
 type L2DevGenesisParams struct {
 	// Prefund is a map of addresses to balances (in wei), to prefund in the L2 dev genesis state.
 	// This is independent of the "Prefund" functionality that may fund a default 20 test accounts.
@@ -86,6 +96,9 @@ type ChainIntent struct {
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
+
+	// Optional. ZK dispute game configuration. Only used when ZKDisputeGameDevFlag is enabled.
+	ZKDisputeGame *ZKDisputeGameParams `json:"zkDisputeGame,omitempty" toml:"zkDisputeGame,omitempty"`
 }
 
 type ChainRoles struct {

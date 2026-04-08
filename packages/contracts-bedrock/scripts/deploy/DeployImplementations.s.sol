@@ -830,10 +830,6 @@ contract DeployImplementations is Script {
             ChainAssertions.checkZKDisputeGameImpl(_output.zkDisputeGameImpl);
         }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 8b5e741d696e5e600b9b82665d74c6573886834b
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);
         ChainAssertions.checkOptimismPortal2({
             _contracts: impls,
