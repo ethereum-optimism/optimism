@@ -3205,7 +3205,8 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
       # -----------------------------------------------------------------------
-      # Required gate — fans in on required contract CI jobs
+      # required-contracts-ci: GitHub required status for this workflow. Terminal requires
+      # keep this job scheduled even when upstream jobs fail; ci-gate then checks they passed.
       # -----------------------------------------------------------------------
       - required-contracts-ci:
           requires:
