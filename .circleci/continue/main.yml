@@ -1518,6 +1518,19 @@ jobs:
           command: just update-selectors
           working_directory: packages/contracts-bedrock
 
+  required-contracts-ci:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    parameters:
+      always-succed:
+        description: Force always succeed (skip API gate; for contracts-feature-tests-short)
+        type: boolean
+        default: false
+    steps:
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succed >>
+
   contracts-bedrock-checks-fast:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
