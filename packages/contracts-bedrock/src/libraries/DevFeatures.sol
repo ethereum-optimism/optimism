@@ -23,9 +23,6 @@ library DevFeatures {
     bytes32 public constant DEPLOY_V2_DISPUTE_GAMES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
 
-    /// @notice The feature that enables L2CM.
-    bytes32 public constant L2CM = bytes32(0x0000000000000000000000000000000000000000000000000000000000100000);
-
     /// @notice The feature that enables the ZK dispute game system (ZKDisputeGame).
     bytes32 public constant ZK_DISPUTE_GAME =
         bytes32(0x0000000000000000000000000000000000000000000000000000000001000000);
