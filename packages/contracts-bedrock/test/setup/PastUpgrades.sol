@@ -13,8 +13,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Libraries
-import { Claim, Duration, GameTypes } from "src/dispute/lib/Types.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
+import { Claim, GameTypes } from "src/dispute/lib/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces

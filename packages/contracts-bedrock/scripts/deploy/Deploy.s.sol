@@ -21,7 +21,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
 import { Types } from "scripts/libraries/Types.sol";
-import { GameType, Claim, GameTypes, Proposal, Hash, Duration } from "src/dispute/lib/Types.sol";
+import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
@@ -33,7 +33,6 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
