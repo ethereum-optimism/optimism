@@ -1286,3 +1286,29 @@ func TestChainContainer_SyncStatus_UninitializedVirtualNode(t *testing.T) {
 	require.Nil(t, status)
 	require.ErrorIs(t, err, virtual_node.ErrVirtualNodeNotRunning)
 }
+
+func TestChainContainer_BlockNumberToTimestamp_RespectsGenesisBlockNumber(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.Genesis.L2.Number = 100
+	vncfg.Rollup.BlockTime = 2
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	timestamp, err := impl.BlockNumberToTimestamp(context.Background(), 104)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1008), timestamp)
+
+	_, err = impl.BlockNumberToTimestamp(context.Background(), 99)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "before genesis 100")
+}

@@ -114,6 +114,15 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	// assertions.go:387:             	            	operation failed permanently after 30 attempts: expected head to reorg 0x893d77533b0ff9b37a92090679bf256d987b4535f06186ec71f29e68ddccd9a5:14, but got 0x893d77533b0ff9b37a92090679bf256d987b4535f06186ec71f29e68ddccd9a5:14
 	// assertions.go:387:             	Test:       	TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL
 	sysgo.SkipOnKonaNode(t, "not supported (timeout)")
+	// Example error with op-reth:
+	//
+	// assertions.go:387:
+	// Error Trace:	/op-devstack/dsl/l2_el.go:430
+	//             				/op-acceptance-tests/tests/sync/elsync/reorg/sync_test.go:218
+	// Error:      	Received unexpected error:
+	//             	operation failed permanently after 50 attempts: expected head to match: unsafe
+	// Test:       	TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL
+	sysgo.FlakyOnOpReth(t, "")
 	sys := newReorgSystem(t)
 	require := t.Require()
 	logger := t.Logger()

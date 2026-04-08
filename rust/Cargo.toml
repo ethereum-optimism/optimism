@@ -49,6 +49,9 @@ members = [
 
   # Alloy OP Hardforks
   "alloy-op-hardforks/",
+
+  # Op-Revm
+  "op-revm/",
 ]
 default-members = [
   "kona/bin/host",
@@ -298,7 +301,9 @@ alloy-op-evm = { version = "0.30.0", path = "alloy-op-evm/", default-features = 
 alloy-op-hardforks = { version = "0.4.7", path = "alloy-op-hardforks/", default-features = false }
 
 # ==================== RETH CRATES (crates.io) ====================
-reth-codecs = { version = "0.1.0", default-features = false, features = ["alloy"] }
+reth-codecs = { version = "0.1.0", default-features = false, features = [
+  "alloy",
+] }
 reth-codecs-derive = "0.1.0"
 reth-primitives-traits = { version = "0.1.0", default-features = false }
 reth-rpc-traits = { version = "0.1.0", default-features = false }
@@ -384,7 +389,7 @@ revm-state = { version = "10.0.0", default-features = false }
 revm-primitives = { version = "22.1.0", default-features = false }
 revm-interpreter = { version = "34.0.0", default-features = false }
 revm-database-interface = { version = "10.0.0", default-features = false }
-op-revm = { version = "17.0.0", default-features = false }
+op-revm = { version = "17.0.0", path = "op-revm/", default-features = false }
 revm-inspectors = "0.36.1"
 
 # ==================== ALLOY ====================
@@ -649,8 +654,3 @@ snmalloc-rs = { version = "0.3.8", features = ["build_cc"] }
 
 # K/V database
 rocksdb = { version = "0.24.0", default-features = false }
-
-[patch.crates-io]
-# Duplicated by: reth-payload-primitives, reth-engine-local (reth git)
-op-alloy-rpc-types-engine = { path = "op-alloy/crates/rpc-types-engine" }
-op-alloy-consensus = { path = "op-alloy/crates/consensus" }
