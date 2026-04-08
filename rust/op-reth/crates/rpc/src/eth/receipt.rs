@@ -2,7 +2,7 @@
 
 use crate::{OpEthApi, OpEthApiError, eth::RpcNodeCore};
 use alloy_consensus::{BlockHeader, Receipt, ReceiptWithBloom, TxReceipt};
-use alloy_eips::{Typed2718, eip2718::Encodable2718};
+use alloy_eips::eip2718::Encodable2718;
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
 use op_alloy_consensus::{OpReceipt, OpTransaction};
 use op_alloy_rpc_types::{L1BlockInfo, OpTransactionReceipt, OpTransactionReceiptFields};
@@ -43,7 +43,7 @@ impl<Provider> OpReceiptConverter<Provider> {
 
 impl<Provider, N> ReceiptConverter<N> for OpReceiptConverter<Provider>
 where
-    N: NodePrimitives<SignedTx: OpTransaction + Typed2718 + Encodable2718, Receipt = OpReceipt>,
+    N: NodePrimitives<SignedTx: OpTransaction, Receipt = OpReceipt>,
     Provider:
         BlockReader<Block = N::Block> + ChainSpecProvider<ChainSpec: OpHardforks> + Debug + 'static,
 {
