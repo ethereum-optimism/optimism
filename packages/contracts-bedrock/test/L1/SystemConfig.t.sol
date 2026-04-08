@@ -104,10 +104,10 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
     function test_initialize_interopFlag_succeeds() external view {
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             /// if devfeature flag is on, check in system config is on
-            vm.assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
+            assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
         } else {
             /// if dev feature flag is off, check system config is off
-            vm.assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
+            assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
         }
     }
 
