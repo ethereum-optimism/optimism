@@ -47,5 +47,11 @@ Commands:
   select    Select checks to run for a given diff and stage
   run       Select and execute checks
   explain   Show which checks are affected by a file and why
-  info      Print graph statistics`)
+  info      Print graph statistics
+
+Examples:
+  checks build
+  git diff develop | checks select --stage commit
+  git diff --name-only develop | checks select --stage pr
+  git diff HEAD~1 | checks run --stage commit --dry-run`)
 }

@@ -2,6 +2,7 @@ package diff
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
@@ -21,16 +22,230 @@ var blastRadiusPatterns = []string{
 	"Dockerfile",
 }
 
-// ChangedFiles parses `git diff --name-only` output into a list of file paths.
-func ChangedFiles(diffOutput string) []string {
+// Hunk represents a changed region within a file.
+type Hunk struct {
+	OldStart int
+	OldCount int
+	NewStart int
+	NewCount int
+	Added    []string // lines added (without leading +)
+	Removed  []string // lines removed (without leading -)
+	Context  []string // unchanged context lines (without leading space)
+}
+
+// FileDiff represents the parsed diff for a single file.
+type FileDiff struct {
+	Path    string // file path (from b/ side, or a/ side for deletes)
+	OldPath string // original path (for renames)
+	IsNew   bool
+	IsDelete bool
+	IsRename bool
+	Hunks   []Hunk
+}
+
+// ParseUnifiedDiff parses standard unified diff output (from `git diff`)
+// into structured FileDiff entries. Also works with `git diff --name-only`
+// (falls back to simple file list parsing).
+func ParseUnifiedDiff(input string) []FileDiff {
+	lines := strings.Split(input, "\n")
+
+	// Detect format: unified diff starts with "diff --git", name-only is just paths
+	if len(lines) > 0 && !strings.HasPrefix(lines[0], "diff ") {
+		// Looks like --name-only output: fall back to simple parsing
+		return nameOnlyToDiffs(lines)
+	}
+
+	var diffs []FileDiff
+	var current *FileDiff
+	var currentHunk *Hunk
+
+	for _, line := range lines {
+		// New file diff header
+		if strings.HasPrefix(line, "diff --git ") {
+			if current != nil {
+				if currentHunk != nil {
+					current.Hunks = append(current.Hunks, *currentHunk)
+					currentHunk = nil
+				}
+				diffs = append(diffs, *current)
+			}
+			current = &FileDiff{}
+			currentHunk = nil
+
+			// Parse "diff --git a/path b/path"
+			parts := strings.SplitN(line, " b/", 2)
+			if len(parts) == 2 {
+				current.Path = parts[1]
+			}
+			// Also extract a/ path for renames/deletes
+			aParts := strings.SplitN(line, " a/", 2)
+			if len(aParts) == 2 {
+				aPath := strings.SplitN(aParts[1], " ", 2)
+				current.OldPath = aPath[0]
+			}
+			continue
+		}
+
+		if current == nil {
+			continue
+		}
+
+		// File mode indicators
+		if strings.HasPrefix(line, "new file") {
+			current.IsNew = true
+			continue
+		}
+		if strings.HasPrefix(line, "deleted file") {
+			current.IsDelete = true
+			continue
+		}
+		if strings.HasPrefix(line, "rename from ") {
+			current.IsRename = true
+			current.OldPath = strings.TrimPrefix(line, "rename from ")
+			continue
+		}
+		if strings.HasPrefix(line, "rename to ") {
+			current.Path = strings.TrimPrefix(line, "rename to ")
+			continue
+		}
+
+		// --- and +++ lines refine the path
+		if strings.HasPrefix(line, "--- a/") {
+			current.OldPath = strings.TrimPrefix(line, "--- a/")
+			continue
+		}
+		if strings.HasPrefix(line, "+++ b/") {
+			current.Path = strings.TrimPrefix(line, "+++ b/")
+			continue
+		}
+		if line == "--- /dev/null" {
+			current.IsNew = true
+			continue
+		}
+		if line == "+++ /dev/null" {
+			current.IsDelete = true
+			// For deletes, use the a/ path
+			if current.OldPath != "" {
+				current.Path = current.OldPath
+			}
+			continue
+		}
+
+		// Hunk header: @@ -oldStart,oldCount +newStart,newCount @@
+		if strings.HasPrefix(line, "@@") {
+			if currentHunk != nil {
+				current.Hunks = append(current.Hunks, *currentHunk)
+			}
+			currentHunk = parseHunkHeader(line)
+			continue
+		}
+
+		// Hunk content
+		if currentHunk != nil {
+			if strings.HasPrefix(line, "+") {
+				currentHunk.Added = append(currentHunk.Added, strings.TrimPrefix(line, "+"))
+			} else if strings.HasPrefix(line, "-") {
+				currentHunk.Removed = append(currentHunk.Removed, strings.TrimPrefix(line, "-"))
+			} else if strings.HasPrefix(line, " ") {
+				currentHunk.Context = append(currentHunk.Context, strings.TrimPrefix(line, " "))
+			}
+		}
+	}
+
+	// Flush last file
+	if current != nil {
+		if currentHunk != nil {
+			current.Hunks = append(current.Hunks, *currentHunk)
+		}
+		diffs = append(diffs, *current)
+	}
+
+	return diffs
+}
+
+// ChangedFiles extracts file paths from either unified diff or --name-only output.
+func ChangedFiles(input string) []string {
+	diffs := ParseUnifiedDiff(input)
 	var files []string
-	for _, line := range strings.Split(diffOutput, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			files = append(files, line)
+	seen := make(map[string]bool)
+	for _, d := range diffs {
+		if d.Path != "" && !seen[d.Path] {
+			files = append(files, d.Path)
+			seen[d.Path] = true
 		}
 	}
 	return files
+}
+
+// DiffSummary returns a high-level summary of changes for scoring purposes.
+type DiffSummary struct {
+	Files        []FileDiff
+	TotalAdded   int
+	TotalRemoved int
+	HasNewFiles  bool
+	HasDeletes   bool
+	HasRenames   bool
+}
+
+// Summarize computes aggregate statistics from parsed diffs.
+func Summarize(diffs []FileDiff) DiffSummary {
+	s := DiffSummary{Files: diffs}
+	for _, d := range diffs {
+		if d.IsNew {
+			s.HasNewFiles = true
+		}
+		if d.IsDelete {
+			s.HasDeletes = true
+		}
+		if d.IsRename {
+			s.HasRenames = true
+		}
+		for _, h := range d.Hunks {
+			s.TotalAdded += len(h.Added)
+			s.TotalRemoved += len(h.Removed)
+		}
+	}
+	return s
+}
+
+func nameOnlyToDiffs(lines []string) []FileDiff {
+	var diffs []FileDiff
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			diffs = append(diffs, FileDiff{Path: line})
+		}
+	}
+	return diffs
+}
+
+func parseHunkHeader(line string) *Hunk {
+	// @@ -oldStart,oldCount +newStart,newCount @@ optional context
+	h := &Hunk{}
+	line = strings.TrimPrefix(line, "@@")
+	idx := strings.Index(line[1:], "@@")
+	if idx < 0 {
+		return h
+	}
+	line = strings.TrimSpace(line[:idx+1])
+
+	parts := strings.Fields(line)
+	for _, p := range parts {
+		if strings.HasPrefix(p, "-") {
+			nums := strings.SplitN(strings.TrimPrefix(p, "-"), ",", 2)
+			h.OldStart, _ = strconv.Atoi(nums[0])
+			if len(nums) > 1 {
+				h.OldCount, _ = strconv.Atoi(nums[1])
+			}
+		} else if strings.HasPrefix(p, "+") {
+			nums := strings.SplitN(strings.TrimPrefix(p, "+"), ",", 2)
+			h.NewStart, _ = strconv.Atoi(nums[0])
+			if len(nums) > 1 {
+				h.NewCount, _ = strconv.Atoi(nums[1])
+			}
+		}
+	}
+	return h
 }
 
 // FilesToNodeIDs maps changed file paths to graph node IDs.
