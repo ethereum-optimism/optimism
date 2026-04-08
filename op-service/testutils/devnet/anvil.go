@@ -22,14 +22,16 @@ import (
 const DefaultChainID = 77799777
 
 type Anvil struct {
-	args      map[string]string
-	proc      *exec.Cmd
-	stdout    io.ReadCloser
-	stderr    io.ReadCloser
-	logger    log.Logger
-	startedCh chan struct{}
-	wg        sync.WaitGroup
-	port      int32
+	args            map[string]string
+	proc            *exec.Cmd
+	stdout          io.ReadCloser
+	stderr          io.ReadCloser
+	logger          log.Logger
+	startedCh       chan struct{}
+	wg              sync.WaitGroup
+	port            int32
+	foundryHome     string
+	ownsFoundryHome bool
 }
 
 type AnvilOption func(*Anvil)
@@ -67,6 +69,12 @@ func WithForkBlockNumber(block uint64) AnvilOption {
 	}
 }
 
+func WithFoundryHome(dir string) AnvilOption {
+	return func(a *Anvil) {
+		a.foundryHome = dir
+	}
+}
+
 func NewAnvil(logger log.Logger, opts ...AnvilOption) (*Anvil, error) {
 	if _, err := exec.LookPath("anvil"); err != nil {
 		return nil, fmt.Errorf("anvil not found in PATH: %w", err)
@@ -93,6 +101,15 @@ func (r *Anvil) Start() error {
 		args = append(args, k, v)
 	}
 	proc := exec.Command("anvil", args...)
+	if r.foundryHome == "" {
+		tmpDir, err := os.MkdirTemp("", "anvil-foundry-home-*")
+		if err != nil {
+			return fmt.Errorf("failed to create temp foundry home: %w", err)
+		}
+		r.foundryHome = tmpDir
+		r.ownsFoundryHome = true
+	}
+	proc.Env = append(os.Environ(), "FOUNDRY_HOME="+r.foundryHome)
 	stdout, err := proc.StdoutPipe()
 	if err != nil {
 		return err
@@ -137,7 +154,17 @@ func (r *Anvil) Stop() error {
 
 	// make sure the output streams close
 	defer r.wg.Wait()
-	return r.proc.Wait()
+	waitErr := r.proc.Wait()
+
+	if r.ownsFoundryHome {
+		// Clean up the temporary foundry home directory to prevent
+		// accumulation of anvil state in ~/.foundry/anvil/tmp.
+		if err := os.RemoveAll(r.foundryHome); err != nil {
+			r.logger.Warn("failed to clean up foundry home", "path", r.foundryHome, "err", err)
+		}
+	}
+
+	return waitErr
 }
 
 func (r *Anvil) outputStream(stream io.ReadCloser) {

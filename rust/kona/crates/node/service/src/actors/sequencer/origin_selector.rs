@@ -70,7 +70,7 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
         }
 
         let Some(current) = self.current else {
-            unreachable!("Current L1 origin should always be set by `select_origins`");
+            return Err(L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash));
         };
 
         let max_seq_drift = self.cfg.max_sequencer_drift(current.timestamp);
@@ -128,7 +128,12 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
         in_recovery_mode: bool,
     ) -> Result<(), L1OriginSelectorError> {
         if in_recovery_mode {
-            self.current = self.l1.get_block_by_hash(unsafe_head.l1_origin.hash).await?;
+            self.current = Some(
+                self.l1
+                    .get_block_by_hash(unsafe_head.l1_origin.hash)
+                    .await?
+                    .ok_or(L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash))?,
+            );
             self.next = self.l1.get_block_by_number(unsafe_head.l1_origin.number + 1).await?;
             return Ok(());
         }
@@ -141,9 +146,12 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
             self.next = None;
         } else {
             // Find the current origin block, as it is missing.
-            let current = self.l1.get_block_by_hash(unsafe_head.l1_origin.hash).await?;
-
-            self.current = current;
+            self.current = Some(
+                self.l1
+                    .get_block_by_hash(unsafe_head.l1_origin.hash)
+                    .await?
+                    .ok_or(L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash))?,
+            );
             self.next = None;
         }
 
@@ -185,6 +193,9 @@ pub enum L1OriginSelectorError {
         "Waiting for more L1 data to be available to select the next L1 origin block. Current L1 origin: {0:?}"
     )]
     NotEnoughData(BlockInfo),
+    /// The L1 origin block could not be found by its hash.
+    #[error("L1 origin block not found for hash: {0}")]
+    OriginNotFound(B256),
 }
 
 /// L1 [`BlockInfo`] provider interface for the [`L1OriginSelector`].
@@ -492,5 +503,130 @@ mod test {
             let next_err = selector.next_l1_origin(unsafe_head, false).await.unwrap_err();
             assert!(matches!(next_err, L1OriginSelectorError::NotEnoughData(_)));
         }
+    }
+
+    #[tokio::test]
+    async fn test_next_l1_origin_recovery_mode_found() {
+        const L2_BLOCK_TIME: u64 = 2;
+
+        let cfg = Arc::new(RollupConfig {
+            block_time: L2_BLOCK_TIME,
+            max_sequencer_drift: 600,
+            ..Default::default()
+        });
+
+        let mut provider = MockOriginSelectorProvider::default();
+        provider.with_block(BlockInfo {
+            parent_hash: B256::ZERO,
+            hash: B256::with_last_byte(1),
+            number: 1,
+            timestamp: 12,
+        });
+        provider.with_block(BlockInfo {
+            parent_hash: B256::with_last_byte(1),
+            hash: B256::with_last_byte(2),
+            number: 2,
+            timestamp: 24,
+        });
+
+        let mut selector = L1OriginSelector::new(cfg, provider);
+
+        let unsafe_head = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::ZERO,
+                number: 5,
+                timestamp: 10,
+                ..Default::default()
+            },
+            l1_origin: NumHash { number: 1, hash: B256::with_last_byte(1) },
+            seq_num: 0,
+        };
+
+        let origin = selector.next_l1_origin(unsafe_head, true).await.unwrap();
+        assert_eq!(origin.number, 1);
+        assert_eq!(origin.hash, B256::with_last_byte(1));
+    }
+
+    #[tokio::test]
+    async fn test_next_l1_origin_recovery_mode_not_found() {
+        const L2_BLOCK_TIME: u64 = 2;
+
+        let cfg = Arc::new(RollupConfig {
+            block_time: L2_BLOCK_TIME,
+            max_sequencer_drift: 600,
+            ..Default::default()
+        });
+
+        let provider = MockOriginSelectorProvider::default();
+        let mut selector = L1OriginSelector::new(cfg, provider);
+
+        let unsafe_head = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::ZERO,
+                number: 5,
+                timestamp: 10,
+                ..Default::default()
+            },
+            l1_origin: NumHash { number: 1, hash: B256::with_last_byte(1) },
+            seq_num: 0,
+        };
+
+        let result = selector.next_l1_origin(unsafe_head, true).await;
+        assert!(matches!(
+            result,
+            Err(L1OriginSelectorError::OriginNotFound(hash)) if hash == B256::with_last_byte(1)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_next_l1_origin_normal_mode_origin_not_found() {
+        const L2_BLOCK_TIME: u64 = 2;
+
+        let cfg = Arc::new(RollupConfig {
+            block_time: L2_BLOCK_TIME,
+            max_sequencer_drift: 600,
+            ..Default::default()
+        });
+
+        let mut provider = MockOriginSelectorProvider::default();
+        provider.with_block(BlockInfo {
+            parent_hash: B256::ZERO,
+            hash: B256::ZERO,
+            number: 0,
+            timestamp: 0,
+        });
+
+        let mut selector = L1OriginSelector::new(cfg, provider);
+
+        // First call: set current to block 0.
+        let unsafe_head_epoch0 = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::ZERO,
+                number: 0,
+                timestamp: 0,
+                ..Default::default()
+            },
+            l1_origin: NumHash { number: 0, hash: B256::ZERO },
+            seq_num: 0,
+        };
+        let _ = selector.next_l1_origin(unsafe_head_epoch0, false).await.unwrap();
+
+        // Second call: reference a non-existent L1 origin hash, triggering the else branch.
+        let unsafe_head_missing = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::ZERO,
+                number: 1,
+                timestamp: L2_BLOCK_TIME,
+                ..Default::default()
+            },
+            l1_origin: NumHash { number: 99, hash: B256::with_last_byte(0xFF) },
+            seq_num: 0,
+        };
+
+        let result = selector.next_l1_origin(unsafe_head_missing, false).await;
+        assert!(matches!(
+            result,
+            Err(L1OriginSelectorError::OriginNotFound(hash)) if hash == B256::with_last_byte(0xFF)
+        ));
     }
 }
