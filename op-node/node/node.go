@@ -124,7 +124,8 @@ type OpNode struct {
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
 	p2pMu     gosync.Mutex          // protects p2pNode
 	p2pSigner p2p.Signer            // p2p gossip application messages will be signed with this signer
-	runCfg    *runcfg.RuntimeConfig // runtime configurables
+	runCfg        *runcfg.RuntimeConfig // runtime configurables
+	reloadCfgCh   chan struct{}         // channel to trigger reactive runtime config reloads from p2p gossip
 
 	l2FollowSource *sources.FollowClient // (Optional) L2 Follow source when derivation disabled
 
@@ -404,6 +405,9 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) er
 	runCfg := runcfg.NewRuntimeConfig(node.log, node.l1Source, &cfg.Rollup)
 	// Set node.runCfg early so handleProtocolVersionsUpdate can access it during initialization
 	node.runCfg = runCfg
+	if cfg.ExpectUnsafeSignerChange {
+		node.reloadCfgCh = make(chan struct{}, 1)
+	}
 
 	confDepth := cfg.Driver.VerifierConfDepth
 	reload := func(ctx context.Context) (eth.L1BlockRef, error) {
@@ -459,6 +463,11 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) er
 		}
 		ticker := time.NewTicker(reloadInterval)
 		defer ticker.Stop()
+
+		// Rate limit reactive reloads triggered by signature mismatches in p2p gossip.
+		const reactiveReloadCooldown = 2 * time.Second
+		var lastReactiveReload time.Time
+
 		for {
 			select {
 			case <-ticker.C:
@@ -479,6 +488,18 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) er
 					}
 				} else {
 					node.log.Debug("reloaded runtime config", "l1_head", l1Head)
+				}
+			case <-node.reloadCfgCh:
+				if time.Since(lastReactiveReload) < reactiveReloadCooldown {
+					node.log.Debug("skipping reactive runtime config reload, cooldown not elapsed")
+					continue
+				}
+				lastReactiveReload = time.Now()
+				l1Head, err := reload(ctx)
+				if err != nil {
+					node.log.Warn("failed to reactively reload runtime config", "err", err)
+				} else {
+					node.log.Info("reactively reloaded runtime config", "l1_head", l1Head)
 				}
 			case <-ctx.Done():
 				return
@@ -742,7 +763,7 @@ func initP2P(cfg *config.Config, node *OpNode) (*p2p.NodeP2P, error) {
 		}
 		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
 		rec := p2p.NewBlockReceiver(node.log, node.metrics, node.l2Driver.SyncDeriver, node.cfg.Tracer)
-		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics, node.clock)
+		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.reloadCfgCh, node.metrics, node.clock)
 		if err != nil {
 			return nil, err
 		}

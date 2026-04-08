@@ -60,6 +60,7 @@ func NewNodeP2P(
 	gossipIn GossipIn,
 	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
+	reloadCfgCh chan<- struct{},
 	metrics metrics.Metricer,
 	clock clock.Clock,
 ) (*NodeP2P, error) {
@@ -70,7 +71,7 @@ func NewNodeP2P(
 		return nil, errors.New("SetupP2P.Disabled is true")
 	}
 	var n NodeP2P
-	if err := n.init(resourcesCtx, rollupCfg, log, setup, gossipIn, l2Chain, runCfg, metrics, clock); err != nil {
+	if err := n.init(resourcesCtx, rollupCfg, log, setup, gossipIn, l2Chain, runCfg, reloadCfgCh, metrics, clock); err != nil {
 		closeErr := n.Close()
 		if closeErr != nil {
 			log.Error("failed to close p2p after starting with err", "closeErr", closeErr, "err", err)
@@ -93,6 +94,7 @@ func (n *NodeP2P) init(
 	gossipIn GossipIn,
 	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
+	reloadCfgCh chan<- struct{},
 	metrics metrics.Metricer,
 	clk clock.Clock,
 ) error {
@@ -164,7 +166,7 @@ func (n *NodeP2P) init(
 	if err != nil {
 		return fmt.Errorf("failed to start gossipsub router: %w", err)
 	}
-	n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn, setup, clk)
+	n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, reloadCfgCh, gossipIn, setup, clk)
 	if err != nil {
 		return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 	}

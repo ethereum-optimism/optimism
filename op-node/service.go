@@ -114,6 +114,7 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		P2PSigner:                   p2pSignerSetup,
 		L1EpochPollInterval:         ctx.Duration(flags.L1EpochPollIntervalFlag.Name),
 		RuntimeConfigReloadInterval: ctx.Duration(flags.RuntimeConfigReloadIntervalFlag.Name),
+		ExpectUnsafeSignerChange:    ctx.Bool(flags.ExpectUnsafeSignerChangeFlag.Name),
 		ConfigPersistence:           configPersistence,
 		SafeDBPath:                  ctx.String(flags.SafeDBPath.Name),
 		Sync:                        *syncConfig,

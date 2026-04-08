@@ -265,7 +265,7 @@ func (sb *seenBlocks) markSeen(h common.Hash) {
 	sb.blockHashes = append(sb.blockHashes, h)
 }
 
-func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, blockVersion eth.BlockVersion, gossipConf GossipSetupConfigurables, clk clock.Clock) pubsub.ValidatorEx {
+func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, reloadCfgCh chan<- struct{}, blockVersion eth.BlockVersion, gossipConf GossipSetupConfigurables, clk clock.Clock) pubsub.ValidatorEx {
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
 	blockHeightLRU, err := lru.New[uint64, *seenBlocks](1000)
@@ -305,8 +305,11 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		signature := eth.Bytes65(data[:65])
 		payloadBytes := data[65:]
 
-		// [REJECT] if the signature by the sequencer is not valid
-		result := verifyBlockSignature(log, cfg, runCfg, id, signature, payloadBytes)
+		// [REJECT] if the signature by the sequencer is not valid.
+		// When reloadCfgCh is set (--p2p.expect-unsafe-signer-change), a signature mismatch instead
+		// triggers a reactive runtime config reload and returns Ignore to avoid penalizing peers
+		// during legitimate signer rotations.
+		result := verifyBlockSignature(log, cfg, runCfg, reloadCfgCh, id, signature, payloadBytes)
 		if result != pubsub.ValidationAccept {
 			return result
 		}
@@ -442,7 +445,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	}
 }
 
-func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
+func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, reloadCfgCh chan<- struct{}, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
 	authCtx := &opsigner.OPStackP2PBlockAuthV1{
 		Allowed: runCfg.P2PSequencerAddress(),
 		Chain:   eth.ChainIDFromBig(cfg.L2ChainID),
@@ -456,6 +459,15 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		Signature: signature,
 	}
 	if err := block.VerifySignature(authCtx); err != nil {
+		if reloadCfgCh != nil {
+			log.Warn("invalid block signature, requesting runtime config reload", "err", err, "peer", id)
+			select {
+			case reloadCfgCh <- struct{}{}:
+			default:
+			}
+			// Use Ignore instead of Reject to avoid penalizing peers during legitimate signer rotations.
+			return pubsub.ValidationIgnore
+		}
 		log.Warn("invalid block signature", "err", err, "peer", id)
 		return pubsub.ValidationReject
 	}
@@ -634,11 +646,11 @@ func (p *publisher) Close() error {
 	return errors.Join(e1, e2)
 }
 
-func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn, gossipConf GossipSetupConfigurables, clk clock.Clock) (GossipOut, error) {
+func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, reloadCfgCh chan<- struct{}, gossipIn GossipIn, gossipConf GossipSetupConfigurables, clk clock.Clock) (GossipOut, error) {
 	p2pCtx, p2pCancel := context.WithCancel(context.Background())
 
 	v1Logger := log.New("topic", "blocksV1")
-	blocksV1Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv1", v1Logger, BuildBlocksValidator(v1Logger, cfg, runCfg, eth.BlockV1, gossipConf, clk)))
+	blocksV1Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv1", v1Logger, BuildBlocksValidator(v1Logger, cfg, runCfg, reloadCfgCh, eth.BlockV1, gossipConf, clk)))
 	blocksV1, err := newBlockTopic(p2pCtx, blocksTopicV1(cfg), ps, v1Logger, gossipIn, blocksV1Validator)
 	if err != nil {
 		p2pCancel()
@@ -646,7 +658,7 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 	}
 
 	v2Logger := log.New("topic", "blocksV2")
-	blocksV2Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv2", v2Logger, BuildBlocksValidator(v2Logger, cfg, runCfg, eth.BlockV2, gossipConf, clk)))
+	blocksV2Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv2", v2Logger, BuildBlocksValidator(v2Logger, cfg, runCfg, reloadCfgCh, eth.BlockV2, gossipConf, clk)))
 	blocksV2, err := newBlockTopic(p2pCtx, blocksTopicV2(cfg), ps, v2Logger, gossipIn, blocksV2Validator)
 	if err != nil {
 		p2pCancel()
@@ -654,7 +666,7 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 	}
 
 	v3Logger := log.New("topic", "blocksV3")
-	blocksV3Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv3", v3Logger, BuildBlocksValidator(v3Logger, cfg, runCfg, eth.BlockV3, gossipConf, clk)))
+	blocksV3Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv3", v3Logger, BuildBlocksValidator(v3Logger, cfg, runCfg, reloadCfgCh, eth.BlockV3, gossipConf, clk)))
 	blocksV3, err := newBlockTopic(p2pCtx, blocksTopicV3(cfg), ps, v3Logger, gossipIn, blocksV3Validator)
 	if err != nil {
 		p2pCancel()
@@ -662,7 +674,7 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 	}
 
 	v4Logger := log.New("topic", "blocksV4")
-	blocksV4Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv4", v4Logger, BuildBlocksValidator(v4Logger, cfg, runCfg, eth.BlockV4, gossipConf, clk)))
+	blocksV4Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv4", v4Logger, BuildBlocksValidator(v4Logger, cfg, runCfg, reloadCfgCh, eth.BlockV4, gossipConf, clk)))
 	blocksV4, err := newBlockTopic(p2pCtx, blocksTopicV4(cfg), ps, v4Logger, gossipIn, blocksV4Validator)
 	if err != nil {
 		p2pCancel()

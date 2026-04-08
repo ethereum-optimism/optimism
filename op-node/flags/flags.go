@@ -306,6 +306,12 @@ var (
 		Value:    time.Minute * 10,
 		Category: L1RPCCategory,
 	}
+	ExpectUnsafeSignerChangeFlag = &cli.BoolFlag{
+		Name:     "p2p.expect-unsafe-signer-change",
+		Usage:    "Enable reactive runtime config reloading on p2p block signature mismatch. When enabled, a signature mismatch triggers an early reload of the unsafe block signer from L1 (rate-limited to every 2s) and uses ValidationIgnore instead of ValidationReject to avoid penalizing peers during signer rotations.",
+		EnvVars:  prefixEnvVars("P2P_EXPECT_UNSAFE_SIGNER_CHANGE"),
+		Category: P2PCategory,
+	}
 	SnapshotLog = &cli.StringFlag{
 		Name:     "snapshotlog.file",
 		Usage:    "Deprecated. This flag is ignored, but here for compatibility.",
@@ -496,6 +502,7 @@ var optionalFlags = []cli.Flag{
 	FinalityDelayFlag,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
+	ExpectUnsafeSignerChangeFlag,
 	RPCAdminPersistence,
 	SnapshotLog,
 	HeartbeatEnabledFlag,

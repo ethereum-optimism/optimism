@@ -66,30 +66,42 @@ func TestVerifyBlockSignature(t *testing.T) {
 	secrets, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	msg := []byte("any msg")
+	reloadCh := make(chan struct{}, 1)
 
 	t.Run("Valid", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
 		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, reloadCh, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationAccept, result)
 	})
 
 	t.Run("WrongSigner", func(t *testing.T) {
+		// Drain any previous signal
+		select {
+		case <-reloadCh:
+		default:
+		}
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
 		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
-		require.Equal(t, pubsub.ValidationReject, result)
+		result := verifyBlockSignature(logger, cfg, runCfg, reloadCh, peerId, sig, msg)
+		require.Equal(t, pubsub.ValidationIgnore, result, "signature mismatch triggers Ignore to avoid penalizing peers during signer rotations")
+		// Verify that a reload was requested
+		select {
+		case <-reloadCh:
+		default:
+			t.Fatal("expected a runtime config reload signal on signature mismatch")
+		}
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
 		sig := eth.Bytes65{}
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
-		require.Equal(t, pubsub.ValidationReject, result)
+		result := verifyBlockSignature(logger, cfg, runCfg, reloadCh, peerId, sig, msg)
+		require.Equal(t, pubsub.ValidationIgnore, result, "invalid signature triggers Ignore and reload request")
 	})
 
 	t.Run("NoSequencer", func(t *testing.T) {
@@ -97,7 +109,7 @@ func TestVerifyBlockSignature(t *testing.T) {
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
 		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, reloadCh, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationIgnore, result)
 	})
 }
@@ -157,14 +169,14 @@ func TestBlockValidator(t *testing.T) {
 
 	// Create a mock gossip configuration for testing
 	mockGossipConf := &mockGossipSetupConfigurablesWithThreshold{threshold: 60 * time.Second}
-	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockGossipConf, clock.SystemClock)
-	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3, mockGossipConf, clock.SystemClock)
-	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelDebug), cfg, runCfg, eth.BlockV4, mockGossipConf, clock.SystemClock)
+	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, nil, eth.BlockV2, mockGossipConf, clock.SystemClock)
+	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, nil, eth.BlockV3, mockGossipConf, clock.SystemClock)
+	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelDebug), cfg, runCfg, nil, eth.BlockV4, mockGossipConf, clock.SystemClock)
 	jovianCfg := &rollup.Config{
 		L2ChainID:  big.NewInt(100),
 		JovianTime: ptr.New(uint64(0)),
 	}
-	v4JovianValidator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), jovianCfg, runCfg, eth.BlockV4, mockGossipConf, clock.SystemClock)
+	v4JovianValidator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), jovianCfg, runCfg, nil, eth.BlockV4, mockGossipConf, clock.SystemClock)
 
 	zero, one := uint64(0), uint64(1)
 	beaconHash, withdrawalsRoot := common.HexToHash("0x1234"), common.HexToHash("0x9876")
@@ -264,7 +276,7 @@ func TestGossipTimestampThreshold(t *testing.T) {
 			mockConfig := &mockGossipSetupConfigurablesWithThreshold{threshold: tc.threshold}
 
 			// Create validator with the mock config
-			validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockConfig, clock.SystemClock)
+			validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, nil, eth.BlockV2, mockConfig, clock.SystemClock)
 
 			// Create payload with the specific timestamp
 			payload := createExecutionPayload(types.Withdrawals{}, nil, nil, nil)
