@@ -154,7 +154,7 @@ parameters:
     default: "v0.0"
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.26
+  utils: ethereum-optimism/circleci-utils@1.0.27
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
@@ -3215,7 +3215,7 @@ workflows:
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-checks-fast: terminal
           context:
-            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
 
   # ============================================================================
   # Required contracts CI gate (skip) — runs when no contract changes
@@ -3237,4 +3237,4 @@ workflows:
       - required-contracts-ci:
           always-succed: true
           context:
-            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
