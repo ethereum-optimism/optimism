@@ -34,12 +34,6 @@ release history.
   `optional_eip3541`, `optional_eip3607`, `optional_no_base_fee`,
   `optional_fee_charge` — debugging / testing knobs forwarded to `revm`
 
-> **Note:** the upstream `hashbrown` feature has been dropped in the monorepo
-> build. Under `--all-features` it propagates through `revm/hashbrown` to
-> `alloy-primitives/map-hashbrown`, which switches the map type to
-> `FbBuildHasher` and breaks `reth-testing-utils` via Cargo feature
-> unification.
-
 ## Building & Testing
 
 From `rust/`:
