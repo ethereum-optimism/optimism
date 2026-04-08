@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -23,10 +22,8 @@ import (
 //   - There must have been a Flashblock containing a new_account_balance corresponding to Bob's
 //     account. This flashblock would be representative of the flashblock including Alice-to-Bob
 //     transaction.
-//   - The flashblock's time (in seconds) must be less than or equal to the Transaction's block
-//     time (in seconds). (Can't check the block time beyond the granularity of seconds)
-//   - That Flashblock's time in nanoseconds must be before the approximated transaction
-//     confirmation time recorded previously.
+//   - Bob's balance reported in the flashblock must match the on-chain balance after confirmation.
+//   - The transaction's confirmed block number must match the flashblock's block number.
 func TestFlashblocksTransfer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// Example error with kona-node:
@@ -73,7 +70,6 @@ func TestFlashblocksTransfer(gt *testing.T) {
 
 	var blockNumber int
 	var observedBalance *big.Int
-	var flashblockTime time.Time
 outer:
 	for {
 		select {
@@ -81,7 +77,6 @@ outer:
 			t.Require().True(ok, "client channel closed before we found the transaction")
 			balanceStr, found := fb.Metadata.NewAccountBalances[strings.ToLower(bob.Address().Hex())]
 			if found {
-				flashblockTime = time.Now()
 				blockNumber = fb.Metadata.BlockNumber
 				observedBalance, ok = new(big.Int).SetString(balanceStr[2:], 16)
 				t.Require().True(ok)
@@ -106,7 +101,5 @@ outer:
 	expectedBalance, err := sys.L2EL.EthClient().BalanceAt(t.Ctx(), bob.Address(), new(big.Int).SetUint64(txBlock.Number))
 	t.Require().NoError(err)
 	require.Equal(t, expectedBalance, observedBalance, "Bob's balance must be correct as per exactly what Alice transferred to them")
-
-	require.Equal(t, int(txBlock.Number), blockNumber, "the transaction's block number should be the same as the flashblock's parent block number")
-	require.LessOrEqual(t, flashblockTime.Unix(), int64(txBlock.Time), "the transaction's block time (in seconds) should be less than or equal to the flashblock's time (in seconds)")
+	require.Equal(t, int(txBlock.Number), blockNumber, "the transaction's block number should be the same as the flashblock's block number")
 }

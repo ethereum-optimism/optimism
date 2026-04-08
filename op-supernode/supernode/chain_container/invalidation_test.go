@@ -350,6 +350,7 @@ func TestInvalidateBlock(t *testing.T) {
 
 	tests := []struct {
 		name             string
+		genesisBlock     uint64
 		height           uint64
 		payloadHash      common.Hash
 		currentBlockHash common.Hash
@@ -359,6 +360,7 @@ func TestInvalidateBlock(t *testing.T) {
 	}{
 		{
 			name:             "current block matches triggers rewind",
+			genesisBlock:     0,
 			height:           5,
 			payloadHash:      common.HexToHash("0xdead"),
 			currentBlockHash: common.HexToHash("0xdead"), // Same hash
@@ -368,6 +370,7 @@ func TestInvalidateBlock(t *testing.T) {
 		},
 		{
 			name:             "current block differs no rewind",
+			genesisBlock:     0,
 			height:           5,
 			payloadHash:      common.HexToHash("0xdead"),
 			currentBlockHash: common.HexToHash("0xbeef"), // Different hash
@@ -376,6 +379,7 @@ func TestInvalidateBlock(t *testing.T) {
 		},
 		{
 			name:            "engine unavailable adds to denylist only",
+			genesisBlock:    0,
 			height:          5,
 			payloadHash:     common.HexToHash("0xdead"),
 			engineAvailable: false,
@@ -383,12 +387,23 @@ func TestInvalidateBlock(t *testing.T) {
 		},
 		{
 			name:             "rewind to height-1 timestamp calculated correctly",
+			genesisBlock:     0,
 			height:           10,
 			payloadHash:      common.HexToHash("0xabcd"),
 			currentBlockHash: common.HexToHash("0xabcd"),
 			engineAvailable:  true,
 			expectRewind:     true,
 			expectRewindTs:   genesisTime + (9 * blockTime), // height 9
+		},
+		{
+			name:             "rewind timestamp respects nonzero genesis block number",
+			genesisBlock:     100,
+			height:           105,
+			payloadHash:      common.HexToHash("0xcafe"),
+			currentBlockHash: common.HexToHash("0xcafe"),
+			engineAvailable:  true,
+			expectRewind:     true,
+			expectRewindTs:   genesisTime + (4 * blockTime), // block 104 relative to genesis block 100
 		},
 	}
 
@@ -419,6 +434,34 @@ func TestInvalidateBlock(t *testing.T) {
 		require.False(t, found, "genesis block should not be added to denylist")
 	})
 
+	t.Run("missing rollup config returns error before rewind", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		mockEng := &mockEngineForInvalidation{
+			blockRef: eth.L2BlockRef{Hash: common.HexToHash("0xdead")},
+		}
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			engine:   mockEng,
+			vn:       &mockVNForInvalidation{},
+		}
+
+		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"), 0, eth.Bytes32{}, eth.Bytes32{})
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to compute rewind timestamp")
+		require.Contains(t, err.Error(), "rollup config not available")
+		require.False(t, rewound)
+		require.False(t, mockEng.rewindCalled, "rewind should not be attempted without rollup config")
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -442,6 +485,7 @@ func TestInvalidateBlock(t *testing.T) {
 				vn:       &mockVNForInvalidation{},
 			}
 			c.vncfg.Rollup.Genesis.L2Time = genesisTime
+			c.vncfg.Rollup.Genesis.L2.Number = tt.genesisBlock
 			c.vncfg.Rollup.BlockTime = blockTime
 
 			if tt.engineAvailable {
