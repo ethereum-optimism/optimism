@@ -1556,6 +1556,29 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
         assertEq(updatedRoot.raw(), root.raw());
     }
 
+    /// @notice Tests that a ZK game still in progress (resolvedAt == 0) cannot update the anchor state.
+    function test_setAnchorState_inProgress_fails() public {
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.status, ()), abi.encode(GameStatus.IN_PROGRESS));
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true)
+        );
+        vm.mockCall(address(zkGameProxy), abi.encodeCall(zkGameProxy.resolvedAt, ()), abi.encode(uint256(0)));
+        vm.mockCall(
+            address(zkGameProxy), abi.encodeCall(zkGameProxy.l2SequenceNumber, ()), abi.encode(zkL2SequenceNumber)
+        );
+
+        vm.prank(address(zkGameProxy));
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
+        anchorStateRegistry.setAnchorState(zkGameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
+    }
+
     /// @notice Tests that an unfinalized ZK game cannot update the anchor state.
     function testFuzz_setAnchorState_notFinalized_fails(uint256 _resolvedAtTimestamp) public {
         uint256 finalityDelay = optimismPortal2.disputeGameFinalityDelaySeconds();
@@ -1587,6 +1610,9 @@ contract AnchorStateRegistry_SetAnchorState_ZkDisputeGame_Test is AnchorStateReg
 
     /// @notice Tests that a ZK game cannot update the anchor state when the superchain is paused.
     function test_setAnchorState_superchainPaused_fails() public {
+        // Mock the game as valid first so the only failing condition is the pause.
+        _mockZkGameAsValid();
+
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
 
         vm.prank(superchainConfig.guardian());
