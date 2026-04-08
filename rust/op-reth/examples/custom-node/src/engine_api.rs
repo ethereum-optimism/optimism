@@ -8,9 +8,8 @@ use alloy_rpc_types_engine::{
 };
 use async_trait::async_trait;
 use jsonrpsee::{RpcModule, core::RpcResult, proc_macros::rpc};
-use reth_ethereum::node::api::{
-    AddOnsContext, ConsensusEngineHandle, EngineApiMessageVersion, FullNodeComponents,
-};
+use reth_engine_primitives::ConsensusEngineHandle;
+use reth_node_api::{AddOnsContext, FullNodeComponents};
 use reth_node_builder::rpc::EngineApiBuilder;
 use reth_op::node::OpBuiltPayload;
 use reth_payload_builder::PayloadStore;
@@ -95,7 +94,10 @@ impl CustomEngineApiServer for CustomEngineApi {
         Ok(self
             .inner
             .beacon_consensus
-            .fork_choice_updated(fork_choice_state, payload_attributes, EngineApiMessageVersion::V3)
+            .fork_choice_updated(
+                fork_choice_state,
+                payload_attributes.map(|a| reth_op::node::payload::OpPayloadAttrs(a.inner)),
+            )
             .await
             .map_err(EngineApiError::ForkChoiceUpdate)?)
     }

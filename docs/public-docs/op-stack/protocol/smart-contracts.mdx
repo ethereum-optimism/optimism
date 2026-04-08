@@ -505,6 +505,7 @@ contract. If the ERC20 token is native to L1, it will be burnt.
 
 The `SequencerFeeVault` is the contract that holds any fees paid to the
 Sequencer during transaction processing and block production.
+See [fee vaults](/op-stack/transactions/fee-vaults) for details.
 
 *   **Address:** `0x4200000000000000000000000000000000000011`
 *   **Introduced:** Legacy
@@ -632,7 +633,8 @@ have the ability to upgrade any of the other predeploy contracts.
 
 The `BaseFeeVault` predeploy receives the base fees on L2. The base fee is not
 burnt on L2 like it is on L1. Once the contract has received a certain amount
-of fees, the ETH can be withdrawn to an immutable address on L1.
+of fees, the ETH can be withdrawn to a configured recipient.
+See [fee vaults](/op-stack/transactions/fee-vaults) for details.
 
 *   **Address:** `0x4200000000000000000000000000000000000019`
 *   **Introduced:** Bedrock
@@ -643,7 +645,8 @@ of fees, the ETH can be withdrawn to an immutable address on L1.
 
 The `L1FeeVault` predeploy receives the L1 portion of the transaction fees.
 Once the contract has received a certain amount of fees, the ETH can be
-withdrawn to an immutable address on L1.
+withdrawn to a configured recipient.
+See [fee vaults](/op-stack/transactions/fee-vaults) for details.
 
 *   **Address:** `0x420000000000000000000000000000000000001a`
 *   **Introduced:** Bedrock
@@ -654,7 +657,8 @@ withdrawn to an immutable address on L1.
 
 The `OperatorFeeVault` predeploy (introduced with the [Isthmus hardfork](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/isthmus/predeploys.md#operatorfeevault)) receives the operator portion of the transaction fees.
 Once the contract has received a certain amount of fees, funds can be withdrawn to
-the BaseFeeVault on the L2 network.
+a configured recipient.
+See [fee vaults](/op-stack/transactions/fee-vaults) for details.
 
 *   **Address:** `0x420000000000000000000000000000000000001B`
 *   **Introduced:** Isthmus

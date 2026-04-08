@@ -11,17 +11,18 @@ categories:
 is_imported_content: 'false'
 ---
 
-The `upgrade` and `manage` commands in `op-deployer` are deprecated and no longer maintained. OP Labs uses the OP Contracts Manager (OPCM) for upgrade and chain management operations, and will focus `op-deployer` on initial chain deployments only.
+The `manage` command in `op-deployer` is deprecated and no longer maintained. The `upgrade` command can still be used for upgrades up to `op-contracts/v5.0.0` but does **not** support upgrading from `op-contracts/v5.0.0` to `op-contracts/v6.0.0`. For upgrades beyond v5.0.0, use the OPCM directly or superchain-ops.
 
 ## What this means
 
-*   The `op-deployer upgrade` and `op-deployer manage` subcommands are no longer supported and will not receive updates.
+*   The `op-deployer manage` subcommand is no longer supported and will not receive updates.
+*   The `op-deployer upgrade` command can be used for the upgrade path from `op-contracts/v1.8.0` up to `op-contracts/v5.0.0` (in steps: v1.8.0 → v2.0.0 → v3.0.0 → v4.0.0 → v5.0.0). It does **not** support upgrading from `op-contracts/v5.0.0` to `op-contracts/v6.0.0`.
 *   `op-deployer` itself is **not** deprecated. It remains the recommended tool for initial chain deployments via the `bootstrap`, `init`, `apply`, and `inspect` commands.
-*   For L1 contract upgrades, use [superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) or interact with the OPCM directly.
+*   For L1 contract upgrades beyond `op-contracts/v5.0.0`, use [superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) or interact with the OPCM directly.
 
 ## Action required
 
-If you are currently using `op-deployer upgrade` or `op-deployer manage` for L1 contract upgrades, migrate to one of the following approaches:
+If you need to upgrade beyond `op-contracts/v5.0.0`, migrate to one of the following approaches:
 
 1.  **[superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)** — recommended for OP Stack chains managed by the Security Council, chains with the Foundation or Security Council as signers, and chains requiring a highly secure upgrade process.
 2.  **OPCM directly** — for non-Optimism governed chains, you can interact with the OP Contracts Manager directly using your own tooling.

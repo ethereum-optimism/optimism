@@ -4,44 +4,43 @@ REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 default:
     @just acceptance-test
 
-# Run acceptance tests, optionally filtered by a gate (reads packages from gates/<gate>.txt)
-acceptance-test gate="":
+# Build all dependencies for local acceptance test runs. Skipped in CI where jobs handle this.
+build-deps:
     #!/usr/bin/env bash
     set -euo pipefail
-    GATE="{{gate}}"
-    if [[ -n "$GATE" ]]; then
-        echo -e "DEVNET: in-memory, GATE: $GATE\n"
-    else
-        echo -e "DEVNET: in-memory, MODE: all tests\n"
-    fi
+    if [[ -n "${CIRCLECI:-}" ]]; then exit 0; fi
 
-    # Build dependencies for in-process mode if not in CI.
-    # In CI jobs already take care of this, so we skip it.
-    if [[ -z "${CIRCLECI:-}" ]]; then
-        echo "Building contracts (local build)..."
-        cd {{REPO_ROOT}}
-        echo " - Updating submodules..."
-        git submodule update --init --recursive --single-branch -j 8
-        echo " - Installing mise..."
-        mise install
-        cd packages/contracts-bedrock
-        echo " - Installing contracts..."
-        just install
-        echo " - Forge build..."
-        just build-no-tests
-        cd {{REPO_ROOT}}
+    echo "Building contracts (local build)..."
+    cd {{REPO_ROOT}}
+    echo " - Installing mise..."
+    mise install
+    cd packages/contracts-bedrock
+    echo " - Installing contracts..."
+    just install
+    echo " - Forge build..."
+    just build-no-tests
+    cd {{REPO_ROOT}}
 
-        echo "Checking cannon dependencies..."
-        if [ ! -e {{REPO_ROOT}}/cannon/bin/cannon ] || [ ! -e {{REPO_ROOT}}/op-program/bin/prestate-mt64.bin.gz ]; then
-            echo "Building cannon dependencies..."
-            cd {{REPO_ROOT}}
-            make cannon-prestates
-        fi
+    echo "Building cannon dependencies..."
+    cd {{REPO_ROOT}}
+    just cannon-prestates
 
-        echo "Building Rust binaries (kona-node, op-rbuilder, rollup-boost)..."
-        cd {{REPO_ROOT}}
-        just build-rust-release
-    fi
+    echo "Building Rust binaries (kona-node, op-rbuilder, rollup-boost)..."
+    cd {{REPO_ROOT}}
+    just build-rust-release
+
+# Run specific acceptance tests. Builds dependencies first, then passes all arguments to go test.
+# Examples:
+#   just test ./op-acceptance-tests/tests/base/...
+#   just test -run TestMyTest ./op-acceptance-tests/tests/base/
+test *args: build-deps
+    cd {{REPO_ROOT}} && go test -count=1 -timeout 30m {{args}}
+
+# Run acceptance tests
+acceptance-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo -e "DEVNET: in-memory\n"
 
     LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
     echo "LOG_LEVEL: $LOG_LEVEL"
@@ -66,7 +65,7 @@ acceptance-test gate="":
 
     JOBS="${ACCEPTANCE_TEST_JOBS:-$DEFAULT_JOBS}"
     TEST_PARALLEL="${ACCEPTANCE_TEST_PARALLEL:-$DEFAULT_TEST_PARALLEL}"
-    TEST_TIMEOUT="${ACCEPTANCE_TEST_TIMEOUT:-2h}"
+    TEST_TIMEOUT="${ACCEPTANCE_TEST_TIMEOUT:-30m}"
     echo "CPU COUNT: $CPU_COUNT"
     echo "PACKAGE JOBS: $JOBS"
     echo "TEST PARALLELISM: $TEST_PARALLEL"
@@ -92,25 +91,7 @@ acceptance-test gate="":
         grep -RIn "MarkFlaky(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
     fi
 
-    # Determine which packages to test
-    if [[ -n "$GATE" ]]; then
-        GATE_FILE="{{REPO_ROOT}}/op-acceptance-tests/gates/${GATE}.txt"
-        if [[ ! -f "$GATE_FILE" ]]; then
-            echo "error: gate file not found: $GATE_FILE" >&2
-            exit 1
-        fi
-        # Read non-empty, non-comment lines from the gate file
-        TEST_PACKAGES=()
-        while IFS= read -r line; do
-            line="${line%%#*}"   # strip comments
-            line="${line// /}"   # strip whitespace
-            [[ -z "$line" ]] && continue
-            TEST_PACKAGES+=("$line")
-        done < "$GATE_FILE"
-        echo "Gate '$GATE': ${#TEST_PACKAGES[@]} packages"
-    else
-        TEST_PACKAGES=("./op-acceptance-tests/tests/...")
-    fi
+    TEST_PACKAGES=("./op-acceptance-tests/tests/...")
 
     set +e
     LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \

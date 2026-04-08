@@ -126,7 +126,8 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainRoles = nil
-		intent.OPCMAddress = &impls.Opcm
+		intent.OPCMAddress = &impls.OpcmV2
+		intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -169,7 +170,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		name       string
 		devFeature common.Hash
 	}{
-		{"default", common.Hash{}},
+		// "default" (non-V2) test case removed: v1 OPCM was deleted.
 		{"opcm-v2", deployer.OPCMV2DevFlag},
 	}
 	for _, tt := range tests {
@@ -433,8 +434,9 @@ func TestEndToEndApply(t *testing.T) {
 		// Verify that the dev feature bitmap is set to OPCMV2
 		require.Equal(t, deployer.OPCMV2DevFlag, intent.GlobalDeployOverrides["devFeatureBitmap"])
 
-		// Assert that the OPCM V1 addresses are zero
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmImpl, "OPCM V1 implementation should be zero")
+		// OpcmImpl is populated with the v2 address for downstream compat (v1 deleted)
+		require.Equal(t, st.ImplementationsDeployment.OpcmV2Impl, st.ImplementationsDeployment.OpcmImpl, "OpcmImpl should equal OpcmV2Impl")
+		// V1 sub-contract addresses are zero (v1 deleted, deprecated output fields)
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmContractsContainerImpl, "OPCM container implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmGameTypeAdderImpl, "OPCM game type adder implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmDeployerImpl, "OPCM deployer implementation should be zero")
@@ -1176,7 +1178,7 @@ func validateSuperchainDeployment(t *testing.T, st *state.State, cg codeGetter, 
 		{"SuperchainProxyAdminImpl", st.SuperchainDeployment.SuperchainProxyAdminImpl},
 		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxy},
 		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxy},
-		{"OpcmImpl", st.ImplementationsDeployment.OpcmImpl},
+		{"OpcmV2Impl", st.ImplementationsDeployment.OpcmV2Impl},
 		{"PreimageOracleImpl", st.ImplementationsDeployment.PreimageOracleImpl},
 		{"MipsImpl", st.ImplementationsDeployment.MipsImpl},
 	}

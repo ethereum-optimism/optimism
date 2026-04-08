@@ -1,0 +1,121 @@
+---
+title: Fee vault operations
+description: How to configure, monitor, and withdraw from fee vaults on your OP Stack chain.
+---
+
+This guide covers the operational aspects of managing fee vaults on your OP Stack chain. For a conceptual overview of how fee vaults work, see [Fee vaults](/op-stack/transactions/fee-vaults).
+
+## Prerequisites
+
+- Access to the **ProxyAdminOwner** account (required for configuration changes)
+- An RPC endpoint for your L2 chain
+- `cast` CLI tool installed ([Foundry](https://book.getfoundry.sh/getting-started/installation))
+
+## Fee vault addresses
+
+| Vault | Address |
+|-------|---------|
+| `SequencerFeeVault` | `0x4200000000000000000000000000000000000011` |
+| `BaseFeeVault` | `0x4200000000000000000000000000000000000019` |
+| `L1FeeVault` | `0x420000000000000000000000000000000000001A` |
+| `OperatorFeeVault` | `0x420000000000000000000000000000000000001B` |
+
+## Checking vault state
+
+### View current balance
+
+```bash
+export L2_RPC=<L2_RPC>
+export VAULT=<VAULT_ADDRESS>
+
+cast balance $VAULT --rpc-url $L2_RPC
+```
+
+### View configuration
+
+```bash
+# Recipient address
+cast call $VAULT "recipient()" --rpc-url $L2_RPC
+
+# Minimum withdrawal amount (in wei)
+cast call $VAULT "minWithdrawalAmount()" --rpc-url $L2_RPC
+
+# Withdrawal network (0 = L1, 1 = L2)
+cast call $VAULT "withdrawalNetwork()" --rpc-url $L2_RPC
+
+# Total ETH withdrawn historically
+cast call $VAULT "totalProcessed()" --rpc-url $L2_RPC
+```
+
+## Updating configuration
+
+<Warning>
+  Configuration changes require the **ProxyAdminOwner** account. If your chain uses a multisig as the ProxyAdminOwner, these calls must be executed through the multisig.
+</Warning>
+
+### Set recipient
+
+```bash
+export L2_RPC=<L2_RPC>
+export VAULT=<VAULT_ADDRESS>
+export PK=<PROXY_ADMIN_OWNER_PRIVATE_KEY>
+
+cast send --rpc-url $L2_RPC --private-key $PK \
+  $VAULT "setRecipient(address)" <NEW_RECIPIENT_ADDRESS>
+```
+
+### Set minimum withdrawal amount
+
+```bash
+cast send --rpc-url $L2_RPC --private-key $PK \
+  $VAULT "setMinWithdrawalAmount(uint256)" <AMOUNT_IN_WEI>
+```
+
+### Set withdrawal network
+
+```bash
+# 0 = L1, 1 = L2
+cast send --rpc-url $L2_RPC --private-key $PK \
+  $VAULT "setWithdrawalNetwork(uint8)" <0_OR_1>
+```
+
+## Withdrawing fees
+
+Withdrawals are **permissionless** — anyone can trigger them once the vault balance meets the minimum threshold.
+
+### Trigger a withdrawal
+
+```bash
+cast send --rpc-url $L2_RPC --private-key $PK \
+  $VAULT "withdraw()"
+```
+
+This withdraws the **entire vault balance** to the configured recipient.
+
+### Withdrawal behavior by network
+
+- **L2 withdrawal (`withdrawalNetwork = 1`)**: Funds are transferred immediately to the recipient on L2. The transaction completes in a single step.
+- **L1 withdrawal (`withdrawalNetwork = 0`)**: An L2-to-L1 withdrawal is initiated via the `L2ToL1MessagePasser`. After calling `withdraw()`, you must still:
+  1. Wait for the withdrawal to be included in an L2 output root
+  2. Prove the withdrawal on L1
+  3. Wait for the finalization period
+  4. Finalize the withdrawal on L1
+
+  For details on completing L1 withdrawals, see [Withdrawal flow](/op-stack/bridging/withdrawal-flow).
+
+## Initial configuration during deployment
+
+Fee vault recipients, minimum withdrawal amounts, and withdrawal networks are configured during chain deployment with `op-deployer`. For details on setting these parameters, see the [op-deployer setup guide](/chain-operators/tutorials/create-l2-rollup/op-deployer-setup).
+
+## Monitoring
+
+It's good practice to monitor your fee vaults regularly:
+
+- **Vault balances**: Track balances to know when withdrawals can be triggered.
+- **`totalProcessed`**: Monitor cumulative withdrawals over time to understand revenue trends.
+
+## Next steps
+
+- Read the [fee vaults explainer](/op-stack/transactions/fee-vaults) to understand how vaults work at the protocol level.
+- See [Transaction Fees 101](/chain-operators/guides/management/transaction-fees-101) to learn how to tune fee parameters.
+- Review [fee components and formulas](/op-stack/transactions/fees) for detailed fee calculations.

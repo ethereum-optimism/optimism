@@ -354,9 +354,17 @@ func TestVerifiedDB_PendingTransition(t *testing.T) {
 			Result: &Result{
 				Timestamp:   42,
 				L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x1111"), Number: 42},
-				InvalidHeads: map[eth.ChainID]eth.BlockID{
-					eth.ChainIDFromUInt64(1): {Hash: common.HexToHash("0xaaaa"), Number: 100},
-					eth.ChainIDFromUInt64(2): {Hash: common.HexToHash("0xbbbb"), Number: 200},
+				InvalidHeads: map[eth.ChainID]InvalidHead{
+					eth.ChainIDFromUInt64(1): {
+						BlockID:                  eth.BlockID{Hash: common.HexToHash("0xaaaa"), Number: 100},
+						StateRoot:                eth.Bytes32(common.HexToHash("0xstate1")),
+						MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsg1")),
+					},
+					eth.ChainIDFromUInt64(2): {
+						BlockID:                  eth.BlockID{Hash: common.HexToHash("0xbbbb"), Number: 200},
+						StateRoot:                eth.Bytes32(common.HexToHash("0xstate2")),
+						MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsg2")),
+					},
 				},
 			},
 		}

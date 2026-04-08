@@ -1824,10 +1824,6 @@ jobs:
 
   op-acceptance-tests:
     parameters:
-      gate:
-        description: The gate to run. Reads package list from op-acceptance-tests/gates/<gate>.txt. If empty, runs all tests.
-        type: string
-        default: ""
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
@@ -1881,7 +1877,7 @@ jobs:
           working_directory: op-acceptance-tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
-            LOG_LEVEL=info just acceptance-test "<<parameters.gate>>"
+            LOG_LEVEL=info just acceptance-test
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2778,10 +2774,9 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # IN-MEMORY (base gate) - op-node/op-reth
+      # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
-          gate: "base"
           l2_el_kind: op-reth
           no_output_timeout: 120m
           context:
@@ -2793,10 +2788,9 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # IN-MEMORY (base gate) - kona/op-reth
+      # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
           name: memory-all-kona-op-reth
-          gate: "base"
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
           no_output_timeout: 120m

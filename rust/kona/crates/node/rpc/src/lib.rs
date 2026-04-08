@@ -10,12 +10,10 @@
 extern crate tracing;
 
 mod admin;
-pub use admin::{AdminRpc, NetworkAdminQuery, RollupBoostAdminQuery};
+pub use admin::{AdminRpc, NetworkAdminQuery};
 
 mod client;
-pub use client::{
-    EngineRpcClient, RollupBoostAdminClient, SequencerAdminAPIClient, SequencerAdminAPIError,
-};
+pub use client::{EngineRpcClient, SequencerAdminAPIClient, SequencerAdminAPIError};
 
 mod config;
 pub use config::RpcBuilder;
@@ -37,7 +35,7 @@ pub use dev::DevEngineRpc;
 mod jsonrpsee;
 pub use jsonrpsee::{
     AdminApiServer, DevEngineApiServer, HealthzApiServer, MinerApiExtServer, OpAdminApiServer,
-    OpP2PApiServer, RollupBoostHealthzApiServer, RollupNodeApiServer, WsServer,
+    OpP2PApiServer, RollupNodeApiServer, WsServer,
 };
 
 #[cfg(feature = "client")]
@@ -53,7 +51,4 @@ mod ws;
 pub use ws::WsRPC;
 
 mod health;
-pub use health::{
-    HealthzResponse, HealthzRpc, RollupBoostHealth, RollupBoostHealthQuery,
-    RollupBoostHealthzResponse,
-};
+pub use health::{HealthzResponse, HealthzRpc};

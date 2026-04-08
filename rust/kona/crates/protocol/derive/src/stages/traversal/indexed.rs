@@ -99,8 +99,16 @@ impl<F: ChainProvider> IndexedTraversal<F> {
             block_info.number,
         );
 
+        let prev_block_holocene = self.rollup_config.is_holocene_active(block.timestamp);
+        let next_block_holocene = self.rollup_config.is_holocene_active(block_info.timestamp);
+
         // Update the origin block.
         self.update_origin(block_info);
+
+        // If Holocene activates on this block, flag it so the pipeline driver resets.
+        if !prev_block_holocene && next_block_holocene {
+            return Err(ResetError::HoloceneActivation.reset());
+        }
 
         Ok(())
     }
@@ -157,7 +165,7 @@ mod tests {
     use alloc::vec;
     use alloy_consensus::Receipt;
     use alloy_primitives::{B256, Bytes, Log, LogData, address, b256, hex};
-    use kona_genesis::{CONFIG_UPDATE_EVENT_VERSION_0, CONFIG_UPDATE_TOPIC};
+    use kona_genesis::{CONFIG_UPDATE_EVENT_VERSION_0, CONFIG_UPDATE_TOPIC, HardForkConfig};
 
     const L1_SYS_CONFIG_ADDR: Address = address!("1337000000000000000000000000000000000000");
 
@@ -323,5 +331,33 @@ mod tests {
         assert!(traversal.provide_next_block(next_block).await.is_ok());
         let expected = address!("000000000000000000000000000000000000bEEF");
         assert_eq!(traversal.system_config.batcher_address, expected);
+    }
+
+    #[tokio::test]
+    async fn test_managed_traversal_holocene_activation_reset() {
+        let first = b256!("3333333333333333333333333333333333333333333333333333333333333333");
+        let second = b256!("4444444444444444444444444444444444444444444444444444444444444444");
+        // Block before Holocene activation (timestamp 99), block at activation (timestamp 100).
+        let block1 = BlockInfo { hash: first, timestamp: 99, ..BlockInfo::default() };
+        let block2 = BlockInfo { number: 1, hash: second, parent_hash: first, timestamp: 100 };
+
+        let mut provider = TestChainProvider::default();
+        provider.insert_block(0, block1);
+        provider.insert_block(1, block2);
+        provider.insert_receipts(second, vec![]);
+
+        let rollup_config = RollupConfig {
+            l1_system_config_address: L1_SYS_CONFIG_ADDR,
+            hardforks: HardForkConfig { holocene_time: Some(100), ..Default::default() },
+            ..RollupConfig::default()
+        };
+        let mut traversal = IndexedTraversal::new(provider, Arc::new(rollup_config));
+        traversal.block = Some(block1);
+        traversal.done = true;
+
+        let err = traversal.provide_next_block(block2).await.unwrap_err();
+        assert_eq!(err, ResetError::HoloceneActivation.reset());
+        // Origin should still be updated despite the reset error.
+        assert_eq!(traversal.origin(), Some(block2));
     }
 }

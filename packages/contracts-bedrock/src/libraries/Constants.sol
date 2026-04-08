@@ -54,9 +54,6 @@ library Constants {
     ///         contracts to be deployed. Used for both initial deployments and migrations.
     bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
 
-    /// @notice The minimum OPCM version considered to support OPCM v2.
-    string internal constant OPCM_V2_MIN_VERSION = "7.0.0";
-
     /// @notice Current bundle artifact path for Network Upgrade Transaction bundles.
     string internal constant CURRENT_BUNDLE_PATH = "snapshots/upgrades/current-upgrade-bundle.json";
 

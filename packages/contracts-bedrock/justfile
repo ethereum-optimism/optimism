@@ -294,15 +294,6 @@ snapshots-check: build snapshots-check-no-build
 interfaces-check-no-build:
   go run ./scripts/checks/interfaces
 
-# Checks that, if any L1 source contracts that have an upgrade method,
-# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
-# Build the contracts first.
-opcm-upgrade-checks: clean build-dev opcm-upgrade-checks-no-build
-
-# Checks that, if any L1 source contracts that have an upgrade method,
-# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
-opcm-upgrade-checks-no-build:
-  go run ./scripts/checks/opcm-upgrade-checks/
 
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
@@ -369,10 +360,6 @@ valid-semver-check-no-build:
 # Checks that the semver of contracts are valid.
 valid-semver-check: build valid-semver-check-no-build
 
-# Checks that the deploy configs are valid.
-validate-deploy-configs:
-  ./scripts/checks/check-deploy-configs.sh
-
 # Checks that spacer variables are correctly inserted without building.
 validate-spacers-no-build:
   go run ./scripts/checks/spacers
@@ -414,7 +401,6 @@ check:
   strict-pragma-check-no-build \
   valid-semver-check-no-build \
   semver-diff-check-no-build \
-  validate-deploy-configs \
   validate-spacers-no-build \
   reinitializer-check-no-build \
   interfaces-check-no-build \

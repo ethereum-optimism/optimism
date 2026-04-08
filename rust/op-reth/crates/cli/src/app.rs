@@ -86,16 +86,20 @@ where
                 runner.run_command_until_exit(|ctx| command.execute(ctx, launcher))
             }
             Commands::Init(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
+                let runtime = runner.runtime();
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
             }
             Commands::InitState(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
+                let runtime = runner.runtime();
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
             }
             Commands::ImportOp(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
+                let runtime = runner.runtime();
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
             }
             Commands::ImportReceiptsOp(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
+                let runtime = runner.runtime();
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
             }
             Commands::DumpGenesis(command) => runner.run_blocking_until_ctrl_c(command.execute()),
             Commands::Db(command) => {
@@ -112,10 +116,12 @@ where
             #[cfg(feature = "dev")]
             Commands::TestVectors(command) => runner.run_until_ctrl_c(command.execute()),
             Commands::ReExecute(command) => {
-                runner.run_until_ctrl_c(command.execute::<OpNode>(components))
+                let runtime = runner.runtime();
+                runner.run_until_ctrl_c(command.execute::<OpNode>(components, runtime))
             }
             Commands::OpProofs(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
+                let runtime = runner.runtime();
+                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
             }
         }
     }
@@ -131,7 +137,7 @@ where
             let otlp_status = runner.block_on(self.cli.traces.init_otlp_tracing(&mut layers))?;
             let otlp_logs_status = runner.block_on(self.cli.traces.init_otlp_logs(&mut layers))?;
 
-            self.guard = self.cli.logs.init_tracing_with_layers(layers)?;
+            self.guard = self.cli.logs.init_tracing_with_layers(layers, false)?;
             info!(target: "reth::cli", "Initialized tracing, debug log directory: {}", self.cli.logs.log_file_directory);
 
             match otlp_status {

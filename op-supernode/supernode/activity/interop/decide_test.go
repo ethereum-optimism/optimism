@@ -81,8 +81,8 @@ func TestDecideVerifiedResult(t *testing.T) {
 		L2Heads: map[eth.ChainID]eth.BlockID{
 			eth.ChainIDFromUInt64(1): {Hash: common.HexToHash("0xa"), Number: 100},
 		},
-		InvalidHeads: map[eth.ChainID]eth.BlockID{
-			eth.ChainIDFromUInt64(2): {Hash: common.HexToHash("0xbad"), Number: 200},
+		InvalidHeads: map[eth.ChainID]InvalidHead{
+			eth.ChainIDFromUInt64(2): {BlockID: eth.BlockID{Hash: common.HexToHash("0xbad"), Number: 200}},
 		},
 	}
 

@@ -53,7 +53,6 @@ func TestInteropMigration(t *testing.T) {
 		name       string
 		devFeature common.Hash
 	}{
-		{"opcm-v1", common.Hash{}},
 		{"opcm-v2", deployer.OPCMV2DevFlag},
 	}
 

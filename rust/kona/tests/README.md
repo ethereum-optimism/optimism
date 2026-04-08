@@ -46,13 +46,12 @@ just test-e2e-sysgo node node/common simple-kona
 To run acceptance tests for the Rust stack:
 
 ```bash
-just acceptance-tests CL_TYPE EL_TYPE GATE
+just acceptance-tests CL_TYPE EL_TYPE
 ```
 
 Where:
 - `CL_TYPE`: Consensus layer type (`kona` or `op-node`)
 - `EL_TYPE`: Execution layer type (`op-reth` or `op-geth`)
-- `GATE`: The gate to run (default: `jovian`)
 
 ### Other Recipes
 

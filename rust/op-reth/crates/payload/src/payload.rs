@@ -19,23 +19,142 @@ use op_alloy_rpc_types_engine::{
 use reth_chainspec::EthChainSpec;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
-use reth_payload_builder::{EthPayloadBuilderAttributes, PayloadBuilderError};
-use reth_payload_primitives::{
-    BuildNextEnv, BuiltPayload, BuiltPayloadExecutedBlock, PayloadBuilderAttributes,
-};
+use reth_payload_builder_primitives::PayloadBuilderError;
+use reth_payload_primitives::{BuildNextEnv, BuiltPayload, BuiltPayloadExecutedBlock};
 use reth_primitives_traits::{
     NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, WithEncoded,
 };
 
 /// Re-export for use in downstream arguments.
-pub use op_alloy_rpc_types_engine::OpPayloadAttributes;
+pub use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadAttributes};
 use reth_optimism_primitives::OpPrimitives;
+use reth_payload_primitives::EngineApiMessageVersion;
+
+/// Newtype wrapper around [`OpExecutionData`] to implement
+/// [`reth_payload_primitives::ExecutionPayload`].
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct OpExecData(pub OpExecutionData);
+
+impl core::ops::Deref for OpExecData {
+    type Target = OpExecutionData;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<OpExecutionData> for OpExecData {
+    fn from(data: OpExecutionData) -> Self {
+        Self(data)
+    }
+}
+
+impl reth_payload_primitives::ExecutionPayload for OpExecData {
+    fn parent_hash(&self) -> B256 {
+        self.0.payload.parent_hash()
+    }
+
+    fn block_hash(&self) -> B256 {
+        self.0.payload.block_hash()
+    }
+
+    fn block_number(&self) -> u64 {
+        self.0.payload.block_number()
+    }
+
+    fn withdrawals(&self) -> Option<&Vec<alloy_eips::eip4895::Withdrawal>> {
+        self.0.withdrawals()
+    }
+
+    fn block_access_list(&self) -> Option<&Bytes> {
+        None
+    }
+
+    fn parent_beacon_block_root(&self) -> Option<B256> {
+        self.0.sidecar.parent_beacon_block_root()
+    }
+
+    fn timestamp(&self) -> u64 {
+        self.0.payload.timestamp()
+    }
+
+    fn gas_used(&self) -> u64 {
+        self.0.payload.as_v1().gas_used
+    }
+
+    fn transaction_count(&self) -> usize {
+        self.0.payload.as_v1().transactions.len()
+    }
+}
+
+/// Newtype wrapper around [`OpPayloadAttributes`] to implement
+/// [`reth_payload_primitives::PayloadAttributes`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct OpPayloadAttrs(pub OpPayloadAttributes);
+
+impl core::ops::Deref for OpPayloadAttrs {
+    type Target = OpPayloadAttributes;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<OpPayloadAttributes> for OpPayloadAttrs {
+    fn from(attrs: OpPayloadAttributes) -> Self {
+        Self(attrs)
+    }
+}
+
+impl From<alloy_rpc_types_engine::PayloadAttributes> for OpPayloadAttrs {
+    fn from(attrs: alloy_rpc_types_engine::PayloadAttributes) -> Self {
+        Self(OpPayloadAttributes {
+            payload_attributes: attrs,
+            transactions: None,
+            no_tx_pool: None,
+            gas_limit: None,
+            eip_1559_params: None,
+            min_base_fee: None,
+        })
+    }
+}
+
+impl reth_payload_primitives::PayloadAttributes for OpPayloadAttrs {
+    fn payload_id(&self, parent_hash: &B256) -> PayloadId {
+        // Use the default engine API message version for computing the payload id.
+        payload_id_optimism(parent_hash, &self.0, EngineApiMessageVersion::default() as u8)
+    }
+
+    fn timestamp(&self) -> u64 {
+        self.0.payload_attributes.timestamp
+    }
+
+    fn withdrawals(&self) -> Option<&Vec<alloy_eips::eip4895::Withdrawal>> {
+        self.0.payload_attributes.withdrawals.as_ref()
+    }
+
+    fn parent_beacon_block_root(&self) -> Option<B256> {
+        self.0.payload_attributes.parent_beacon_block_root
+    }
+}
 
 /// Optimism Payload Builder Attributes
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpPayloadBuilderAttributes<T> {
-    /// Inner ethereum payload builder attributes
-    pub payload_attributes: EthPayloadBuilderAttributes,
+    /// Id of the payload
+    pub id: PayloadId,
+    /// Parent block to build the payload on top
+    pub parent: B256,
+    /// Unix timestamp for the generated payload
+    pub timestamp: u64,
+    /// Address of the recipient for collecting transaction fee
+    pub suggested_fee_recipient: Address,
+    /// Randomness value for the generated payload
+    pub prev_randao: B256,
+    /// Withdrawals for the generated payload
+    pub withdrawals: Withdrawals,
+    /// Root of the parent beacon block
+    pub parent_beacon_block_root: Option<B256>,
     /// `NoTxPool` option for the generated payload
     pub no_tx_pool: bool,
     /// Decoded transactions and the original EIP-2718 encoded bytes as received in the payload
@@ -49,15 +168,84 @@ pub struct OpPayloadBuilderAttributes<T> {
     pub min_base_fee: Option<u64>,
 }
 
+// Manual serde implementations required because:
+// - Serialize: the `transactions` field must serialize as encoded bytes (Vec<&Bytes>), not as the
+//   inner `WithEncoded<T>` type, so #[derive(Serialize)] can't be used.
+// - Deserialize: intentionally errors out since this builder type is never deserialized from the
+//   wire (the engine API uses OpPayloadAttributes, not this builder type).
+impl<T> serde::Serialize for OpPayloadBuilderAttributes<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("OpPayloadBuilderAttributes", 11)?;
+        s.serialize_field("id", &self.id)?;
+        s.serialize_field("parent", &self.parent)?;
+        s.serialize_field("timestamp", &self.timestamp)?;
+        s.serialize_field("suggestedFeeRecipient", &self.suggested_fee_recipient)?;
+        s.serialize_field("prevRandao", &self.prev_randao)?;
+        s.serialize_field("withdrawals", &self.withdrawals)?;
+        s.serialize_field("parentBeaconBlockRoot", &self.parent_beacon_block_root)?;
+        s.serialize_field("noTxPool", &self.no_tx_pool)?;
+        // Serialize transactions as encoded bytes
+        let tx_bytes: Vec<&alloy_primitives::Bytes> =
+            self.transactions.iter().map(|t| t.encoded_bytes()).collect();
+        s.serialize_field("transactions", &tx_bytes)?;
+        s.serialize_field("gasLimit", &self.gas_limit)?;
+        s.serialize_field("eip1559Params", &self.eip_1559_params)?;
+        s.serialize_field("minBaseFee", &self.min_base_fee)?;
+        s.end()
+    }
+}
+
+impl<'de, T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> serde::Deserialize<'de>
+    for OpPayloadBuilderAttributes<T>
+{
+    fn deserialize<D: serde::Deserializer<'de>>(_deserializer: D) -> Result<Self, D::Error> {
+        // This type is never deserialized in practice; the PayloadAttributes trait bound
+        // requires DeserializeOwned but the engine API uses OpPayloadAttributes for
+        // deserialization, not OpPayloadBuilderAttributes.
+        Err(serde::de::Error::custom(
+            "OpPayloadBuilderAttributes cannot be deserialized directly; \
+             use OpPayloadAttributes instead",
+        ))
+    }
+}
+
+impl<T: Decodable2718 + Send + Sync + Debug + Clone + Unpin + 'static>
+    reth_payload_primitives::PayloadAttributes for OpPayloadBuilderAttributes<T>
+{
+    fn payload_id(&self, _parent_hash: &B256) -> PayloadId {
+        // The payload ID was already computed during construction via try_new.
+        self.id
+    }
+
+    fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
+    fn withdrawals(&self) -> Option<&Vec<alloy_eips::eip4895::Withdrawal>> {
+        Some(&self.withdrawals.0)
+    }
+
+    fn parent_beacon_block_root(&self) -> Option<B256> {
+        self.parent_beacon_block_root
+    }
+}
+
 impl<T> Default for OpPayloadBuilderAttributes<T> {
     fn default() -> Self {
         Self {
-            payload_attributes: Default::default(),
-            no_tx_pool: Default::default(),
-            gas_limit: Default::default(),
-            eip_1559_params: Default::default(),
-            transactions: Default::default(),
-            min_base_fee: Default::default(),
+            id: PayloadId::default(),
+            parent: B256::default(),
+            timestamp: 0,
+            suggested_fee_recipient: Address::default(),
+            prev_randao: B256::default(),
+            withdrawals: Default::default(),
+            parent_beacon_block_root: None,
+            no_tx_pool: false,
+            transactions: Vec::new(),
+            gas_limit: None,
+            eip_1559_params: None,
+            min_base_fee: None,
         }
     }
 }
@@ -87,20 +275,15 @@ impl<T> OpPayloadBuilderAttributes<T> {
     }
 }
 
-impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> PayloadBuilderAttributes
-    for OpPayloadBuilderAttributes<T>
-{
-    type RpcPayloadAttributes = OpPayloadAttributes;
-    type Error = alloy_rlp::Error;
-
+impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> OpPayloadBuilderAttributes<T> {
     /// Creates a new payload builder for the given parent block and the attributes.
     ///
     /// Derives the unique [`PayloadId`] for the given parent and attributes
-    fn try_new(
+    pub fn try_new(
         parent: B256,
         attributes: OpPayloadAttributes,
         version: u8,
-    ) -> Result<Self, Self::Error> {
+    ) -> Result<Self, alloy_rlp::Error> {
         let id = payload_id_optimism(&parent, &attributes, version);
 
         let transactions = attributes
@@ -112,7 +295,7 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> PayloadBuilderAtt
             })
             .collect::<Result<_, _>>()?;
 
-        let payload_attributes = EthPayloadBuilderAttributes {
+        Ok(Self {
             id,
             parent,
             timestamp: attributes.payload_attributes.timestamp,
@@ -120,10 +303,6 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> PayloadBuilderAtt
             prev_randao: attributes.payload_attributes.prev_randao,
             withdrawals: attributes.payload_attributes.withdrawals.unwrap_or_default().into(),
             parent_beacon_block_root: attributes.payload_attributes.parent_beacon_block_root,
-        };
-
-        Ok(Self {
-            payload_attributes,
             no_tx_pool: attributes.no_tx_pool.unwrap_or_default(),
             transactions,
             gas_limit: attributes.gas_limit,
@@ -132,40 +311,73 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> PayloadBuilderAtt
         })
     }
 
-    fn payload_id(&self) -> PayloadId {
-        self.payload_attributes.id
+    /// Creates a new payload builder from RPC attributes with a pre-computed payload ID.
+    ///
+    /// This is used when the payload ID has already been computed (e.g., by the payload service)
+    /// and we just need to decode the transaction bytes.
+    pub fn from_rpc_attrs(
+        parent: B256,
+        id: PayloadId,
+        attributes: OpPayloadAttributes,
+    ) -> Result<Self, alloy_rlp::Error> {
+        let transactions = attributes
+            .transactions
+            .unwrap_or_default()
+            .into_iter()
+            .map(|data| {
+                Decodable2718::decode_2718_exact(data.as_ref()).map(|tx| WithEncoded::new(data, tx))
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self {
+            id,
+            parent,
+            timestamp: attributes.payload_attributes.timestamp,
+            suggested_fee_recipient: attributes.payload_attributes.suggested_fee_recipient,
+            prev_randao: attributes.payload_attributes.prev_randao,
+            withdrawals: attributes.payload_attributes.withdrawals.unwrap_or_default().into(),
+            parent_beacon_block_root: attributes.payload_attributes.parent_beacon_block_root,
+            no_tx_pool: attributes.no_tx_pool.unwrap_or_default(),
+            transactions,
+            gas_limit: attributes.gas_limit,
+            eip_1559_params: attributes.eip_1559_params,
+            min_base_fee: attributes.min_base_fee,
+        })
     }
 
-    fn parent(&self) -> B256 {
-        self.payload_attributes.parent
+    /// Returns the identifier of the payload.
+    pub const fn payload_id(&self) -> PayloadId {
+        self.id
     }
 
-    fn timestamp(&self) -> u64 {
-        self.payload_attributes.timestamp
+    /// Returns the parent block hash.
+    pub const fn parent(&self) -> B256 {
+        self.parent
     }
 
-    fn parent_beacon_block_root(&self) -> Option<B256> {
-        self.payload_attributes.parent_beacon_block_root
+    /// Returns the timestamp for the payload.
+    pub const fn timestamp(&self) -> u64 {
+        self.timestamp
     }
 
-    fn suggested_fee_recipient(&self) -> Address {
-        self.payload_attributes.suggested_fee_recipient
+    /// Returns the parent beacon block root.
+    pub const fn parent_beacon_block_root(&self) -> Option<B256> {
+        self.parent_beacon_block_root
     }
 
-    fn prev_randao(&self) -> B256 {
-        self.payload_attributes.prev_randao
+    /// Returns the suggested fee recipient.
+    pub const fn suggested_fee_recipient(&self) -> Address {
+        self.suggested_fee_recipient
     }
 
-    fn withdrawals(&self) -> &Withdrawals {
-        &self.payload_attributes.withdrawals
+    /// Returns the prev randao value.
+    pub const fn prev_randao(&self) -> B256 {
+        self.prev_randao
     }
-}
 
-impl<OpTransactionSigned> From<EthPayloadBuilderAttributes>
-    for OpPayloadBuilderAttributes<OpTransactionSigned>
-{
-    fn from(value: EthPayloadBuilderAttributes) -> Self {
-        Self { payload_attributes: value, ..Default::default() }
+    /// Returns the withdrawals.
+    pub const fn withdrawals(&self) -> &Withdrawals {
+        &self.withdrawals
     }
 }
 
@@ -414,16 +626,16 @@ where
         parent: &SealedHeader<H>,
         chain_spec: &ChainSpec,
     ) -> Result<Self, PayloadBuilderError> {
-        let extra_data = if chain_spec.is_jovian_active_at_timestamp(attributes.timestamp()) {
+        let extra_data = if chain_spec.is_jovian_active_at_timestamp(attributes.timestamp) {
             attributes
                 .get_jovian_extra_data(
-                    chain_spec.base_fee_params_at_timestamp(attributes.timestamp()),
+                    chain_spec.base_fee_params_at_timestamp(attributes.timestamp),
                 )
                 .map_err(PayloadBuilderError::other)?
-        } else if chain_spec.is_holocene_active_at_timestamp(attributes.timestamp()) {
+        } else if chain_spec.is_holocene_active_at_timestamp(attributes.timestamp) {
             attributes
                 .get_holocene_extra_data(
-                    chain_spec.base_fee_params_at_timestamp(attributes.timestamp()),
+                    chain_spec.base_fee_params_at_timestamp(attributes.timestamp),
                 )
                 .map_err(PayloadBuilderError::other)?
         } else {
@@ -431,11 +643,11 @@ where
         };
 
         Ok(Self {
-            timestamp: attributes.timestamp(),
-            suggested_fee_recipient: attributes.suggested_fee_recipient(),
-            prev_randao: attributes.prev_randao(),
+            timestamp: attributes.timestamp,
+            suggested_fee_recipient: attributes.suggested_fee_recipient,
+            prev_randao: attributes.prev_randao,
             gas_limit: attributes.gas_limit.unwrap_or_else(|| parent.gas_limit()),
-            parent_beacon_block_root: attributes.parent_beacon_block_root(),
+            parent_beacon_block_root: attributes.parent_beacon_block_root,
             extra_data,
         })
     }
