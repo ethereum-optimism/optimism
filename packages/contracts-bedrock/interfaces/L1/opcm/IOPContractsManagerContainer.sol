@@ -10,6 +10,7 @@ interface IOPContractsManagerContainer {
         address resolvedDelegateProxy;
     }
 
+    // TODO(#19709): Remove the reference to optimismPortalInteropImpl when we remove OptimismPortalInterop from src
     struct Implementations {
         address superchainConfigImpl;
         address protocolVersionsImpl;
