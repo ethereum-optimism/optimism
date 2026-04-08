@@ -453,7 +453,7 @@ func TestInvalidateBlock(t *testing.T) {
 			vn:       &mockVNForInvalidation{},
 		}
 
-		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"))
+		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"), 0)
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to compute rewind timestamp")
