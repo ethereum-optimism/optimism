@@ -212,12 +212,12 @@ contract DeployConfig is Script {
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", uint256(10800));
         faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", uint256(302400));
 
-        zkDisputeGameInitBond = _readOr(_json, "$.zkDisputeGameInitBond", uint256(0));
+        zkDisputeGameInitBond = _readOr(_json, "$.zkDisputeGameInitBond", uint256(1 ether));
         zkDisputeGameAbsolutePrestate = bytes32(_readOr(_json, "$.zkDisputeGameAbsolutePrestate", uint256(0)));
         zkDisputeGameVerifier = _readOr(_json, "$.zkDisputeGameVerifier", address(0));
-        zkDisputeGameMaxChallengeDuration = _readOr(_json, "$.zkDisputeGameMaxChallengeDuration", uint256(0));
-        zkDisputeGameMaxProveDuration = _readOr(_json, "$.zkDisputeGameMaxProveDuration", uint256(0));
-        zkDisputeGameChallengerBond = _readOr(_json, "$.zkDisputeGameChallengerBond", uint256(0));
+        zkDisputeGameMaxChallengeDuration = _readOr(_json, "$.zkDisputeGameMaxChallengeDuration", uint256(604800));
+        zkDisputeGameMaxProveDuration = _readOr(_json, "$.zkDisputeGameMaxProveDuration", uint256(259200));
+        zkDisputeGameChallengerBond = _readOr(_json, "$.zkDisputeGameChallengerBond", uint256(1 ether));
     }
 
     function fork() public view returns (Fork fork_) {
@@ -416,6 +416,10 @@ contract DeployConfig is Script {
         faultGameV2SplitDepth = 30;
         faultGameV2ClockExtension = 10800;
         faultGameV2MaxClockDuration = 302400;
+        zkDisputeGameInitBond = 1 ether;
+        zkDisputeGameMaxChallengeDuration = 604800;
+        zkDisputeGameMaxProveDuration = 259200;
+        zkDisputeGameChallengerBond = 1 ether;
         useInterop = false;
         useUpgradedFork = false;
         devFeatureBitmap = bytes32(0);

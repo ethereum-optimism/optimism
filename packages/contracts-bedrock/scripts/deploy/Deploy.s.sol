@@ -533,17 +533,9 @@ contract Deploy is Deployer {
         });
         disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
-            initBond: cfg.zkDisputeGameInitBond(),
+            initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.ZKDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(cfg.zkDisputeGameAbsolutePrestate()),
-                    verifier: IZKVerifier(cfg.zkDisputeGameVerifier()),
-                    maxChallengeDuration: Duration.wrap(uint64(cfg.zkDisputeGameMaxChallengeDuration())),
-                    maxProveDuration: Duration.wrap(uint64(cfg.zkDisputeGameMaxProveDuration())),
-                    challengerBond: cfg.zkDisputeGameChallengerBond()
-                })
-            )
+            gameArgs: bytes("")
         });
 
         return IOPContractsManagerV2.FullConfig({

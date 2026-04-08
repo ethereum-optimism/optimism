@@ -325,15 +325,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 enabled: false,
                 initBond: 0,
                 gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                        verifier: IZKVerifier(address(0)),
-                        maxChallengeDuration: Duration.wrap(0),
-                        maxProveDuration: Duration.wrap(0),
-                        challengerBond: 0
-                    })
-                )
+                gameArgs: hex""
             });
 
             // Migration needs 3 extra instructions: DelayedWETH proxy + anchor root + game type overrides.
@@ -410,15 +402,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 enabled: false,
                 initBond: 0,
                 gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                        verifier: IZKVerifier(address(0)),
-                        maxChallengeDuration: Duration.wrap(0),
-                        maxProveDuration: Duration.wrap(0),
-                        challengerBond: 0
-                    })
-                )
+                gameArgs: hex""
             });
 
             // Standard path only needs DelayedWETH proxy deployment permission.

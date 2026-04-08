@@ -276,17 +276,9 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             });
             disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
-                initBond: disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
+                initBond: 0,
                 gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                        verifier: IZKVerifier(address(0)),
-                        maxChallengeDuration: Duration.wrap(0),
-                        maxProveDuration: Duration.wrap(0),
-                        challengerBond: 0
-                    })
-                )
+                gameArgs: hex""
             });
 
             // Call upgrade to all games to be enabled.

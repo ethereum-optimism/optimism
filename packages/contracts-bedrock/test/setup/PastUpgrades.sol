@@ -254,17 +254,9 @@ library PastUpgrades {
         // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
         disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
-            initBond: _disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME),
+            initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.ZKDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(DUMMY_ZK_PRESTATE),
-                    verifier: IZKVerifier(address(0)),
-                    maxChallengeDuration: Duration.wrap(0),
-                    maxProveDuration: Duration.wrap(0),
-                    challengerBond: 0
-                })
-            )
+            gameArgs: hex""
         });
 
         _sortDisputeGameConfigs(disputeGameConfigs);
