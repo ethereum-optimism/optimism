@@ -2042,12 +2042,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         // Check that the INTEROP feature is enabled on both SystemConfigs.
         assertTrue(
-            chainContracts1.systemConfig.isFeatureEnabled(Features.INTEROP),
-            "Chain 1 INTEROP feature should be enabled"
+            chainContracts1.systemConfig.isFeatureEnabled(Features.INTEROP), "Chain 1 INTEROP feature should be enabled"
         );
         assertTrue(
-            chainContracts2.systemConfig.isFeatureEnabled(Features.INTEROP),
-            "Chain 2 INTEROP feature should be enabled"
+            chainContracts2.systemConfig.isFeatureEnabled(Features.INTEROP), "Chain 2 INTEROP feature should be enabled"
         );
         // Check that the ETH_LOCKBOX feature is enabled on both SystemConfigs.
         assertTrue(
