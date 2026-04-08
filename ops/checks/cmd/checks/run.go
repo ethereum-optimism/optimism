@@ -75,8 +75,8 @@ func cmdRun(args []string) error {
 		return nil
 	}
 
-	fmt.Printf("Running %d checks (stage: %s, est. %.0fs)...\n\n",
-		len(result.Selections), stage.Name, result.TotalTime)
+	fmt.Printf("Running %d checks (stage: %s, est. %.0fs wall-clock, %d layers)...\n\n",
+		len(result.Selections), stage.Name, result.WallClock, len(result.Schedule.Layers))
 
 	// Execute
 	exec := executor.New(*root, *dryRun)
@@ -107,8 +107,8 @@ func cmdRun(args []string) error {
 		}
 	}
 
-	fmt.Printf("\nResults: %d passed, %d failed, %d skipped (%.1fs total)\n",
-		runResult.Passed, runResult.Failed, runResult.Skipped, runResult.TotalTime.Seconds())
+	fmt.Printf("\nResults: %d passed, %d failed, %d skipped (%.1fs wall-clock)\n",
+		runResult.Passed, runResult.Failed, runResult.Skipped, runResult.WallClock.Seconds())
 
 	if runResult.Failed > 0 {
 		return fmt.Errorf("%d checks failed", runResult.Failed)

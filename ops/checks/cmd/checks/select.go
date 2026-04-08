@@ -100,11 +100,20 @@ func printResultText(result *selector.Result) error {
 		return nil
 	}
 
-	fmt.Printf("Selected checks (%d, est. %.0fs):\n", len(result.Selections), result.TotalTime)
+	fmt.Printf("Selected checks (%d):\n", len(result.Selections))
 	for i, sel := range result.Selections {
 		fmt.Printf("  %d. %s  P(fail)=%.3f  cost=%.0fs  skip_cost=%.2f\n",
 			i+1, sel.CheckID, sel.PFail, sel.RunCost, sel.SkipCost)
 	}
+
+	// Show execution schedule
+	fmt.Printf("\nExecution schedule (%d layers):\n", len(result.Schedule.Layers))
+	for i, layer := range result.Schedule.Layers {
+		checks := strings.Join(layer.Checks, ", ")
+		fmt.Printf("  Layer %d (%.0fs): %s\n", i+1, layer.Duration, checks)
+	}
+	fmt.Printf("\nEstimated time: %.0fs wall-clock, %.0fs CPU (%.1fx speedup from parallelism)\n",
+		result.WallClock, result.TotalCPU, result.TotalCPU/max(result.WallClock, 1))
 
 	if len(result.Skipped) > 0 {
 		fmt.Printf("\nSkipped checks (%d):\n", len(result.Skipped))
@@ -117,11 +126,18 @@ func printResultText(result *selector.Result) error {
 	return nil
 }
 
+func max(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func printResultJSON(result *selector.Result) error {
-	// Simple JSON output
 	fmt.Println("{")
 	fmt.Printf("  \"stage\": %q,\n", result.Stage)
-	fmt.Printf("  \"total_time\": %.0f,\n", result.TotalTime)
+	fmt.Printf("  \"wall_clock\": %.0f,\n", result.WallClock)
+	fmt.Printf("  \"total_cpu\": %.0f,\n", result.TotalCPU)
 	fmt.Println("  \"selected\": [")
 	for i, sel := range result.Selections {
 		comma := ","

@@ -5,15 +5,21 @@ import "fmt"
 // Stage represents a point in the development lifecycle.
 type Stage struct {
 	Name     string
-	MissCost float64 // how expensive is a failure at this stage (relative units)
+	MissCost float64 // seconds of engineer time wasted by a failure at this stage
 }
 
+// Miss costs in seconds:
+//   save:        10s — you see the error immediately, trivial to fix
+//   commit:     300s — 5 min to notice, fix, re-commit
+//   pr:        1800s — 30 min to notice CI failure, context-switch, fix, re-push
+//   merge_queue: 7200s — 2 hours: blocks the queue, everyone notices, high-pressure fix
+//   develop:   86400s — essentially infinite: run everything, any miss is unacceptable
 var (
-	StageOnSave     = Stage{Name: "save", MissCost: 0.1}
-	StageOnCommit   = Stage{Name: "commit", MissCost: 1.0}
-	StageOnPR       = Stage{Name: "pr", MissCost: 5.0}
-	StageMergeQueue = Stage{Name: "merge_queue", MissCost: 50.0}
-	StageDevelop    = Stage{Name: "develop", MissCost: 1000.0}
+	StageOnSave     = Stage{Name: "save", MissCost: 10}
+	StageOnCommit   = Stage{Name: "commit", MissCost: 300}
+	StageOnPR       = Stage{Name: "pr", MissCost: 1800}
+	StageMergeQueue = Stage{Name: "merge_queue", MissCost: 7200}
+	StageDevelop    = Stage{Name: "develop", MissCost: 86400}
 )
 
 var stages = map[string]Stage{

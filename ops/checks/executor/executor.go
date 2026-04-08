@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
@@ -31,7 +32,7 @@ type CheckResult struct {
 // RunResult is the aggregate outcome.
 type RunResult struct {
 	Results   []CheckResult
-	TotalTime time.Duration
+	WallClock time.Duration
 	Passed    int
 	Failed    int
 	Skipped   int
@@ -48,76 +49,102 @@ func New(rootDir string, dryRun bool) *Executor {
 	return &Executor{rootDir: rootDir, dryRun: dryRun}
 }
 
-// Run executes the selected checks in prerequisite order.
+// Run executes selected checks using the parallel schedule.
+// Each layer runs its checks in parallel; layers run sequentially.
+// If any check in a layer fails, dependents in later layers are skipped.
 func (e *Executor) Run(selections []selector.Selection, cat *catalog.Catalog) *RunResult {
 	result := &RunResult{}
-
-	// Build execution order: prerequisites first, then checks
-	// Use topological sort based on prerequisites
-	ordered := topologicalSort(selections)
+	schedule := selector.ComputeSchedule(selections, 0)
 
 	failed := make(map[string]bool)
+	var mu sync.Mutex
+	wallStart := time.Now()
 
-	for _, sel := range ordered {
-		// Skip if any prerequisite failed
-		skip := false
-		for _, prereq := range sel.Prerequisites {
-			if failed[prereq] {
-				skip = true
-				break
+	// Build prerequisite lookup
+	prereqsOf := make(map[string][]string)
+	for _, sel := range selections {
+		prereqsOf[sel.CheckID] = sel.Prerequisites
+	}
+
+	for _, layer := range schedule.Layers {
+		var wg sync.WaitGroup
+		layerResults := make([]CheckResult, len(layer.Checks))
+
+		for i, checkID := range layer.Checks {
+			// Check if any prerequisite failed
+			mu.Lock()
+			skip := false
+			for _, prereq := range prereqsOf[checkID] {
+				if failed[prereq] {
+					skip = true
+					break
+				}
 			}
+			mu.Unlock()
+
+			if skip {
+				layerResults[i] = CheckResult{
+					CheckID: checkID,
+					Status:  StatusSkipped,
+				}
+				continue
+			}
+
+			// Look up the command
+			rawID := strings.TrimPrefix(checkID, "check:")
+			ch := cat.ByID(rawID)
+			if ch == nil {
+				layerResults[i] = CheckResult{
+					CheckID: checkID,
+					Status:  StatusError,
+					Output:  fmt.Sprintf("check %q not found in catalog", rawID),
+				}
+				mu.Lock()
+				failed[checkID] = true
+				mu.Unlock()
+				continue
+			}
+
+			if e.dryRun {
+				layerResults[i] = CheckResult{
+					CheckID: checkID,
+					Status:  StatusPassed,
+					Output:  fmt.Sprintf("[dry-run] would execute: %s", ch.Command),
+				}
+				continue
+			}
+
+			// Execute in parallel
+			wg.Add(1)
+			go func(idx int, cID, command string) {
+				defer wg.Done()
+				cr := e.execute(cID, command)
+				layerResults[idx] = cr
+				if cr.Status == StatusFailed || cr.Status == StatusError {
+					mu.Lock()
+					failed[cID] = true
+					mu.Unlock()
+				}
+			}(i, checkID, ch.Command)
 		}
 
-		if skip {
-			result.Results = append(result.Results, CheckResult{
-				CheckID: sel.CheckID,
-				Status:  StatusSkipped,
-			})
-			result.Skipped++
-			continue
-		}
+		wg.Wait()
 
-		// Look up the command
-		checkID := strings.TrimPrefix(sel.CheckID, "check:")
-		ch := cat.ByID(checkID)
-		if ch == nil {
-			result.Results = append(result.Results, CheckResult{
-				CheckID: sel.CheckID,
-				Status:  StatusError,
-				Output:  fmt.Sprintf("check %q not found in catalog", checkID),
-			})
-			result.Failed++
-			failed[sel.CheckID] = true
-			continue
-		}
-
-		if e.dryRun {
-			result.Results = append(result.Results, CheckResult{
-				CheckID: sel.CheckID,
-				Status:  StatusPassed,
-				Output:  fmt.Sprintf("[dry-run] would execute: %s", ch.Command),
-			})
-			result.Passed++
-			continue
-		}
-
-		// Execute
-		cr := e.execute(sel.CheckID, ch.Command)
-		result.Results = append(result.Results, cr)
-		result.TotalTime += cr.Duration
-
-		switch cr.Status {
-		case StatusPassed:
-			result.Passed++
-		case StatusFailed:
-			result.Failed++
-			failed[sel.CheckID] = true
-		case StatusError:
-			result.Failed++
-			failed[sel.CheckID] = true
+		// Collect results
+		for _, cr := range layerResults {
+			result.Results = append(result.Results, cr)
+			switch cr.Status {
+			case StatusPassed:
+				result.Passed++
+			case StatusFailed, StatusError:
+				result.Failed++
+			case StatusSkipped:
+				result.Skipped++
+			}
 		}
 	}
 
+	result.WallClock = time.Since(wallStart)
 	return result
 }
 
@@ -131,7 +158,6 @@ func (e *Executor) execute(checkID, command string) CheckResult {
 	duration := time.Since(start)
 
 	output := string(out)
-	// Truncate long output
 	const maxOutput = 4096
 	if len(output) > maxOutput {
 		output = output[:maxOutput] + "\n... (truncated)"
@@ -148,40 +174,4 @@ func (e *Executor) execute(checkID, command string) CheckResult {
 		Duration: duration,
 		Output:   output,
 	}
-}
-
-// topologicalSort orders selections so prerequisites come before dependents.
-func topologicalSort(selections []selector.Selection) []selector.Selection {
-	// Build dependency map
-	byID := make(map[string]*selector.Selection)
-	for i := range selections {
-		byID[selections[i].CheckID] = &selections[i]
-	}
-
-	visited := make(map[string]bool)
-	var ordered []selector.Selection
-
-	var visit func(id string)
-	visit = func(id string) {
-		if visited[id] {
-			return
-		}
-		visited[id] = true
-
-		sel, ok := byID[id]
-		if !ok {
-			return
-		}
-
-		for _, prereq := range sel.Prerequisites {
-			visit(prereq)
-		}
-		ordered = append(ordered, *sel)
-	}
-
-	for _, sel := range selections {
-		visit(sel.CheckID)
-	}
-
-	return ordered
 }

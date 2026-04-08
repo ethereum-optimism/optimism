@@ -15,6 +15,8 @@ func TestSelect_HighPFailLowCost(t *testing.T) {
 	g := emptyGraph()
 	_ = g.AddNode(&graph.Node{ID: "check:lint", Kind: graph.KindCheck, Name: "lint"})
 
+	// P(fail)=0.8, RunCost=5s, commit miss_cost=300s
+	// skip_cost = 0.8 × 300 = 240 > 5 → SELECTED
 	scores := []scorer.Score{
 		{CheckID: "check:lint", PFail: 0.8, RunCost: 5, Explanation: "lint check"},
 	}
@@ -33,6 +35,8 @@ func TestSelect_LowPFailHighCost(t *testing.T) {
 	g := emptyGraph()
 	_ = g.AddNode(&graph.Node{ID: "check:e2e", Kind: graph.KindCheck, Name: "e2e"})
 
+	// P(fail)=0.02, RunCost=3600s, commit miss_cost=300s
+	// skip_cost = 0.02 × 300 = 6 < 3600 → SKIPPED
 	scores := []scorer.Score{
 		{CheckID: "check:e2e", PFail: 0.02, RunCost: 3600, Explanation: "e2e test"},
 	}
@@ -51,23 +55,24 @@ func TestSelect_SameCheckDifferentStages(t *testing.T) {
 	g := emptyGraph()
 	_ = g.AddNode(&graph.Node{ID: "check:medium", Kind: graph.KindCheck, Name: "medium"})
 
+	// P(fail)=0.1, RunCost=600s
 	scores := []scorer.Score{
 		{CheckID: "check:medium", PFail: 0.1, RunCost: 600, Explanation: "medium check"},
 	}
 
-	// At commit stage: skip_cost = 0.1 × 1.0 = 0.1, run_cost = 600/60 = 10 → SKIP
+	// At commit: skip_cost = 0.1 × 300 = 30 < 600 → SKIP
 	commitResult := Select(scores, StageOnCommit, g)
 	if len(commitResult.Selections) != 0 {
 		t.Error("expected medium check to be skipped at commit stage")
 	}
 
-	// At merge queue: skip_cost = 0.1 × 50 = 5, run_cost = 600/60 = 10 → SKIP
+	// At merge_queue: skip_cost = 0.1 × 7200 = 720 > 600 → SELECT
 	mqResult := Select(scores, StageMergeQueue, g)
-	if len(mqResult.Selections) != 0 {
-		t.Error("expected medium check to be skipped at merge_queue stage too")
+	if len(mqResult.Selections) != 1 {
+		t.Error("expected medium check to be selected at merge_queue stage")
 	}
 
-	// At develop: skip_cost = 0.1 × 1000 = 100, run_cost = 600/60 = 10 → SELECT
+	// At develop: skip_cost = 0.1 × 86400 = 8640 > 600 → SELECT
 	devResult := Select(scores, StageDevelop, g)
 	if len(devResult.Selections) != 1 {
 		t.Error("expected medium check to be selected at develop stage")
@@ -80,14 +85,12 @@ func TestSelect_DevelopRunsEverything(t *testing.T) {
 	_ = g.AddNode(&graph.Node{ID: "check:b", Kind: graph.KindCheck, Name: "b"})
 	_ = g.AddNode(&graph.Node{ID: "check:c", Kind: graph.KindCheck, Name: "c"})
 
-	// At develop stage (miss_cost=1000), even low-P(fail) checks with moderate
-	// run costs should be selected. The normalization is 60s per miss unit,
-	// so a 600s check costs 10 units, and P(fail)=0.01 × 1000 = 10 > 10 (borderline).
-	// Use realistic values that clearly pass the threshold.
+	// At develop stage (miss_cost=86400s), even P(fail)=0.01 on a 600s check:
+	// skip_cost = 0.01 × 86400 = 864 > 600 → SELECTED
 	scores := []scorer.Score{
-		{CheckID: "check:a", PFail: 0.05, RunCost: 600},
-		{CheckID: "check:b", PFail: 0.1, RunCost: 300},
-		{CheckID: "check:c", PFail: 0.02, RunCost: 300},
+		{CheckID: "check:a", PFail: 0.01, RunCost: 600},
+		{CheckID: "check:b", PFail: 0.05, RunCost: 900},
+		{CheckID: "check:c", PFail: 0.001, RunCost: 60},
 	}
 
 	result := Select(scores, StageDevelop, g)
@@ -110,7 +113,8 @@ func TestSelect_PrerequisiteInclusion(t *testing.T) {
 		Source: graph.SourceManual, Confidence: 1, Strength: 1,
 	})
 
-	// Only test is scored, but build is its prerequisite
+	// P(fail)=0.5, RunCost=600s, merge_queue miss_cost=7200s
+	// skip_cost = 0.5 × 7200 = 3600 > 600 → SELECTED, and build is prereq
 	scores := []scorer.Score{
 		{CheckID: "check:test", PFail: 0.5, RunCost: 600, Explanation: "test"},
 	}

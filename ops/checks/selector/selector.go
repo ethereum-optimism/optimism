@@ -22,23 +22,26 @@ type Result struct {
 	Stage      string
 	Selections []Selection // ordered by priority (highest skip cost first)
 	Skipped    []Selection // checks that didn't meet the threshold
-	TotalTime  float64     // estimated total run time (seconds)
+	Schedule   Schedule    // parallel execution schedule
+	WallClock  float64     // estimated wall-clock time (parallel)
+	TotalCPU   float64     // sum of all durations (sequential)
 }
 
 // Select applies the expected-cost model:
-// For each scored check, compute skip_cost = P(fail) × stage.MissCost.
-// Include the check if skip_cost > run_cost (normalized).
+// For each scored check, compute expected_cost_of_skipping = P(fail) × stage.MissCost.
+// Include the check if expected_cost_of_skipping > run_cost.
+// Both MissCost and RunCost are in seconds — no normalization needed.
+// MissCost represents "seconds of engineer time wasted if this fails at this stage."
 // Resolve prerequisites: if check X is selected and depends on Y, include Y.
 // Sort by skip_cost descending.
 func Select(scores []scorer.Score, stage Stage, g *graph.Graph) *Result {
 	result := &Result{Stage: stage.Name}
 
-	// Score normalization: convert run_cost seconds to same scale as miss_cost.
-	// miss_cost is in abstract "pain" units. We need a conversion factor.
-	// Heuristic: 1 miss unit = 60 seconds of engineer time wasted.
-	const secondsPerMissUnit = 60.0
-
-	// Compute skip cost and partition
+	// Compute skip cost and partition.
+	// Both skip_cost and run_cost are in seconds:
+	//   skip_cost = P(fail) × miss_cost_seconds
+	//   run_cost  = avg_duration in seconds
+	// Select the check if the expected cost of skipping exceeds running it.
 	type candidate struct {
 		score    scorer.Score
 		skipCost float64
@@ -49,13 +52,13 @@ func Select(scores []scorer.Score, stage Stage, g *graph.Graph) *Result {
 	candidates := make(map[string]*candidate)
 	for _, sc := range scores {
 		skipCost := sc.PFail * stage.MissCost
-		normalizedRunCost := sc.RunCost / secondsPerMissUnit
+		runCost := sc.RunCost
 
 		c := &candidate{
 			score:    sc,
 			skipCost: skipCost,
-			runCost:  normalizedRunCost,
-			selected: skipCost > normalizedRunCost,
+			runCost:  runCost,
+			selected: skipCost > runCost,
 		}
 		candidates[sc.CheckID] = c
 	}
@@ -100,7 +103,7 @@ func Select(scores []scorer.Score, stage Stage, g *graph.Graph) *Result {
 						Explanation: "prerequisite (auto-included)",
 					},
 					skipCost: 0,
-					runCost:  dur / secondsPerMissUnit,
+					runCost:  dur,
 					selected: true,
 				}
 			}
@@ -120,7 +123,6 @@ func Select(scores []scorer.Score, stage Stage, g *graph.Graph) *Result {
 		}
 		if c.selected {
 			result.Selections = append(result.Selections, sel)
-			result.TotalTime += c.score.RunCost
 		} else {
 			result.Skipped = append(result.Skipped, sel)
 		}
@@ -133,6 +135,11 @@ func Select(scores []scorer.Score, stage Stage, g *graph.Graph) *Result {
 	sort.Slice(result.Skipped, func(i, j int) bool {
 		return result.Skipped[i].SkipCost > result.Skipped[j].SkipCost
 	})
+
+	// Compute parallel execution schedule
+	result.Schedule = ComputeSchedule(result.Selections, 0)
+	result.WallClock = result.Schedule.WallClock
+	result.TotalCPU = result.Schedule.TotalCPU
 
 	return result
 }
