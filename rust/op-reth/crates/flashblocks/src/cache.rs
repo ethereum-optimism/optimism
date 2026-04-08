@@ -6,6 +6,7 @@
 use crate::{
     FlashBlock, FlashBlockCompleteSequence, PendingFlashBlock,
     pending_state::PendingBlockState,
+    prefix_sum,
     sequence::{FlashBlockPendingSequence, SequenceExecutionOutcome},
     validation::{
         CanonicalBlockFingerprint, CanonicalBlockReconciler, ReconciliationStrategy, ReorgDetector,
@@ -554,12 +555,17 @@ impl<T: SignedTransaction> SequenceManager<T> {
             "Building from flashblock sequence"
         );
 
+        // measure
+        let prefix_sum_received_access_lists = prefix_sum(&received_access_lists);
+        debug_assert_eq!(transactions.len(), prefix_sum_received_access_lists.len());
+
         Some(BuildCandidate {
             ticket,
             args: BuildArgs {
                 base,
                 transactions,
                 received_access_lists,
+                prefix_sum_received_access_lists,
                 cached_state,
                 last_flashblock_index: last_flashblock.index,
                 last_flashblock_hash: last_flashblock.diff.block_hash,

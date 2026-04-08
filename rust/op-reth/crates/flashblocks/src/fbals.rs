@@ -85,3 +85,9 @@ pub fn merge_address_changes(left: &mut AccountChanges, right: &AccountChanges) 
         code_changes,
     };
 }
+
+#[derive(Debug)]
+pub enum FBalsValidationResult {
+    AllValidated,
+    OneOrMoreFailed,
+}

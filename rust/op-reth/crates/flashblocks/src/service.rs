@@ -3,6 +3,7 @@ use crate::{
     PendingFlashBlock,
     cache::{BuildApplyOutcome, BuildTicket, SequenceManager},
     pending_state::PendingStateRegistry,
+    prefix_sum,
     tx_cache::TransactionCache,
     validation::{CanonicalBlockFingerprint, ReconciliationStrategy},
     worker::{BuildResult, FlashBlockBuilder, FlashblockCachedReceipt},
@@ -472,6 +473,7 @@ where
         let builder = self.builder.clone();
 
         let transactions = 0..args.transactions.len();
+
         let args = Arc::new(args);
 
         self.spawner.spawn_blocking(move || {

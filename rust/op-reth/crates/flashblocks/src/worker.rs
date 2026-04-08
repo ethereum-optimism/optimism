@@ -1,5 +1,5 @@
 use crate::{
-    PendingFlashBlock, fbals,
+    FBalsValidationResult, PendingFlashBlock, fbals,
     pending_state::PendingBlockState,
     tx_cache::{CachedExecutionMeta, TransactionCache},
 };
@@ -62,6 +62,7 @@ pub(crate) struct BuildArgs<I, N: NodePrimitives> {
     pub(crate) transactions: I,
     /// received access list (fBAL). one-to-one with transactions
     pub(crate) received_access_lists: Vec<FlashblockAccessList>,
+    pub(crate) prefix_sum_received_access_lists: Vec<FlashblockAccessList>,
     pub(crate) cached_state: Option<(B256, CachedReads)>,
     pub(crate) last_flashblock_index: u64,
     pub(crate) last_flashblock_hash: B256,
@@ -70,12 +71,6 @@ pub(crate) struct BuildArgs<I, N: NodePrimitives> {
     /// When set, allows building on top of a pending block that hasn't been
     /// canonicalized yet.
     pub(crate) pending_parent: Option<PendingBlockState<N>>,
-}
-
-#[derive(Debug)]
-pub enum FBalsValidationResult {
-    AllValidated,
-    OneOrMoreFailed,
 }
 
 /// Result of a flashblock build operation.
@@ -768,6 +763,7 @@ mod tests {
                     base: base.clone(),
                     transactions: vec![tx_a.clone(), tx_b.clone()],
                     received_access_lists: Default::default(),
+                    prefix_sum_received_access_lists: Default::default(),
                     cached_state: None,
                     last_flashblock_index: 0,
                     last_flashblock_hash: B256::repeat_byte(0xA0),
@@ -821,6 +817,7 @@ mod tests {
                     base,
                     transactions: vec![tx_a, tx_b, tx_c],
                     received_access_lists: Default::default(),
+                    prefix_sum_received_access_lists: Default::default(),
                     cached_state: None,
                     last_flashblock_index: 1,
                     last_flashblock_hash: B256::repeat_byte(0xA1),
