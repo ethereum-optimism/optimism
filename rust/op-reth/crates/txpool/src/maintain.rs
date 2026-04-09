@@ -1,8 +1,11 @@
 //! Support for maintaining the state of the transaction pool
 
-/// The interval for which we check transaction against supervisor, 10 min.
+/// Revalidation window: how long a successfully revalidated tx remains valid.
+/// Intentionally shorter than the ingress TRANSACTION_VALIDITY_WINDOW_SECS (86400s)
+/// because revalidation should be stricter — a tx valid now gets a 10-minute lease,
+/// forcing periodic re-checks against the supervisor rather than a single 24-hour window.
 const TRANSACTION_VALIDITY_WINDOW: u64 = 600;
-/// Interval in seconds at which the transaction should be revalidated.
+/// Offset before deadline expiry at which a tx becomes "stale" and triggers revalidation.
 const OFFSET_TIME: u64 = 60;
 /// Maximum number of supervisor requests at the same time
 const MAX_SUPERVISOR_QUERIES: usize = 10;
