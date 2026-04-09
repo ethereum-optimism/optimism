@@ -150,14 +150,14 @@
     "bytes": "20",
     "label": "standardValidatorUtils",
     "offset": 0,
-    "slot": "21",
+    "slot": "20",
     "type": "contract IStandardValidatorUtils"
   },
   {
     "bytes": "20",
     "label": "migrationValidator",
     "offset": 0,
-    "slot": "22",
+    "slot": "21",
     "type": "contract IOPContractsManagerMigrationValidator"
   }
 ]
