@@ -16,7 +16,7 @@ import (
 )
 
 func TestBuildDevFeatureBitmap(t *testing.T) {
-	interopBit := devfeatures.OptimismPortalInterop
+	interopBit := devfeatures.OptimismPortalInteropFlag
 
 	tests := []struct {
 		name       string

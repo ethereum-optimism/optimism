@@ -215,7 +215,7 @@ func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 		devFeatureBitmap = common.HexToHash(v)
 	}
 
-	interopBitEnabled := devfeatures.IsEnabled(devFeatureBitmap, devfeatures.OptimismPortalInterop)
+	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
 
 	if intent.UseInterop != interopBitEnabled {
 		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")

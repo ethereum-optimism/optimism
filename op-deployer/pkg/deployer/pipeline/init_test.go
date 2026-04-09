@@ -450,7 +450,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -520,7 +520,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -789,7 +789,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
