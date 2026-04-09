@@ -11,11 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -23,6 +23,18 @@ import (
 
 func setupInteropFilterTest(t devtest.T) *presets.TwoL2SupernodeInterop {
 	return presets.NewTwoL2SupernodeInterop(t, 0, presets.WithInteropFilter())
+}
+
+// waitForFailsafeState confirms the interop filter's state matches expected,
+// then waits for two L2 blocks to ensure op-reth's 1s polling task has had
+// time to pick up the change. This replaces time.Sleep-based waits.
+func waitForFailsafeState(t devtest.T, sys *presets.TwoL2SupernodeInterop, expected bool) {
+	t.Require().Equal(expected, sys.InteropFilter.FailsafeEnabled(),
+		"interop filter failsafe state should already be %v after SetFailsafeEnabled", expected)
+	// Op-reth polls admin_getFailsafeEnabled every 1s. With 2s L2 block times,
+	// waiting for 2 blocks guarantees at least 2 poll cycles have elapsed.
+	sys.L2B.WaitForBlock()
+	sys.L2B.WaitForBlock()
 }
 
 // TestInteropFilter_IngressAcceptsValid verifies that a valid interop transaction
@@ -112,54 +124,46 @@ func TestInteropFilter_FailsafeBlocksInterop(gt *testing.T) {
 	sys.L2B.WaitForBlock()
 	_ = bob.SendExecMessage(initMsg)
 
-	// Step 2: Enable failsafe
+	// Step 2: Enable failsafe and wait for propagation to op-reth
 	require.NotNil(sys.InteropFilter, "interop filter must be configured")
 	sys.InteropFilter.SetFailsafeEnabled(true)
+	waitForFailsafeState(t, sys, true)
 
-	// Step 3: Wait for failsafe to propagate to op-reth (polls every 1s)
-	time.Sleep(2 * time.Second)
-
-	// Step 4: Send another init message and try exec — should fail
+	// Step 3: Send another init message and try exec — should fail
 	initMsg2 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
 	sys.L2B.WaitForBlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// The exec message should be rejected by the filter during failsafe
-	execTrigger := interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5)
-	_ = execTrigger // We need to construct the exec message manually to catch the error
-
-	// Try to submit interop tx - construct with fabricated valid-looking access list
 	// During failsafe, even valid access lists should be rejected
 	result, err := initMsg2.Tx.Result.Eval(ctx)
-	if err == nil && len(result.Entries) > 0 {
-		msg := result.Entries[0]
-		accessList := types.AccessList{{
-			Address:     predeploys.CrossL2InboxAddr,
-			StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{msg.Access()}),
-		}}
+	require.NoError(err, "init message result must be available")
+	require.Greater(len(result.Entries), 0, "init message must have entries")
 
-		bobAddr := bob.Address()
-		tx := txplan.NewPlannedTx(
-			bob.Plan(),
-			txplan.WithTo(&bobAddr),
-			txplan.WithValue(eth.GWei(1)),
-			txplan.WithAccessList(accessList),
-			txplan.WithGasLimit(100_000),
-		)
+	msg := result.Entries[0]
+	accessList := types.AccessList{{
+		Address:     predeploys.CrossL2InboxAddr,
+		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{msg.Access()}),
+	}}
 
-		_, err = tx.Included.Eval(ctx)
-		require.Error(err, "interop tx should be rejected during failsafe")
-	}
+	bobAddr := bob.Address()
+	tx := txplan.NewPlannedTx(
+		bob.Plan(),
+		txplan.WithTo(&bobAddr),
+		txplan.WithValue(eth.GWei(1)),
+		txplan.WithAccessList(accessList),
+		txplan.WithGasLimit(100_000),
+	)
 
-	// Step 5: Disable failsafe
+	_, err = tx.Included.Eval(ctx)
+	require.Error(err, "interop tx should be rejected during failsafe")
+
+	// Step 4: Disable failsafe and wait for propagation
 	sys.InteropFilter.SetFailsafeEnabled(false)
+	waitForFailsafeState(t, sys, false)
 
-	// Step 6: Wait for failsafe to clear
-	time.Sleep(2 * time.Second)
-
-	// Step 7: Verify interop txs work again
+	// Step 5: Verify interop txs work again
 	initMsg3 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
 	sys.L2B.WaitForBlock()
 	_ = bob.SendExecMessage(initMsg3)
@@ -175,10 +179,10 @@ func TestInteropFilter_NonInteropUnaffected(gt *testing.T) {
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 	bob := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 
-	// Enable failsafe
+	// Enable failsafe and wait for propagation
 	require.NotNil(sys.InteropFilter, "interop filter must be configured")
 	sys.InteropFilter.SetFailsafeEnabled(true)
-	time.Sleep(2 * time.Second)
+	waitForFailsafeState(t, sys, true)
 
 	// Send a regular (non-interop) transfer — should succeed even during failsafe
 	tx := alice.Transfer(bob.Address(), eth.GWei(1000))
@@ -214,12 +218,7 @@ func TestInteropFilter_FailsafeEvictsPooled(gt *testing.T) {
 
 	// Enable failsafe — this should evict interop txs from the pool within 1s
 	sys.InteropFilter.SetFailsafeEnabled(true)
-
-	// Wait for failsafe polling to detect and evict (polls every 1s)
-	time.Sleep(3 * time.Second)
-
-	// Verify failsafe is active
-	require.True(sys.InteropFilter.FailsafeEnabled())
+	waitForFailsafeState(t, sys, true)
 
 	// New interop exec message should fail
 	initMsg2 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
@@ -230,31 +229,32 @@ func TestInteropFilter_FailsafeEvictsPooled(gt *testing.T) {
 	defer cancel()
 
 	result, err := initMsg2.Tx.Result.Eval(ctx)
-	if err == nil && len(result.Entries) > 0 {
-		msg := result.Entries[0]
-		accessList := types.AccessList{{
-			Address:     predeploys.CrossL2InboxAddr,
-			StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{msg.Access()}),
-		}}
+	require.NoError(err, "init message result must be available")
+	require.Greater(len(result.Entries), 0, "init message must have entries")
 
-		bobAddr := bob.Address()
-		tx := txplan.NewPlannedTx(
-			bob.Plan(),
-			txplan.WithTo(&bobAddr),
-			txplan.WithValue(eth.GWei(1)),
-			txplan.WithAccessList(accessList),
-			txplan.WithGasLimit(100_000),
-		)
+	msg := result.Entries[0]
+	accessList := types.AccessList{{
+		Address:     predeploys.CrossL2InboxAddr,
+		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{msg.Access()}),
+	}}
 
-		_, err = tx.Included.Eval(ctx)
-		require.Error(err, "interop tx should be rejected during failsafe")
-	}
+	bobAddr := bob.Address()
+	tx := txplan.NewPlannedTx(
+		bob.Plan(),
+		txplan.WithTo(&bobAddr),
+		txplan.WithValue(eth.GWei(1)),
+		txplan.WithAccessList(accessList),
+		txplan.WithGasLimit(100_000),
+	)
+
+	_, err = tx.Included.Eval(ctx)
+	require.Error(err, "interop tx should be rejected during failsafe")
 
 	// Disable failsafe and verify recovery
 	sys.InteropFilter.SetFailsafeEnabled(false)
-	time.Sleep(2 * time.Second)
+	waitForFailsafeState(t, sys, false)
 
-	// Wait for state to settle, then retry interop flow (non-mandatory, verify recovery)
+	// Retry interop flow to verify recovery
 	err = retry.Do0(context.Background(), 5, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
 		initMsg3 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 3))
 		sys.L2B.WaitForBlock()
