@@ -3199,13 +3199,10 @@ workflows:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - equal: ["develop", << pipeline.git.branch >>]
             - << pipeline.parameters.c-non_docs_changes >>
-        # Always run in merge queue
-        - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
-            - matches:
-                pattern: "^gh-readonly-queue/"
-                value: << pipeline.git.branch >>
-            - << pipeline.parameters.c-non_docs_changes >>
+        # Merge queue (merge gate). Match checkout branch.
+        - matches:
+            pattern: "^gh-readonly-queue/.*"
+            value: << pipeline.git.branch >>
         - and:
             - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -3374,16 +3371,24 @@ workflows:
   # ============================================================================
   contracts-feature-tests-short:
     when:
-      and:
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        - not: << pipeline.parameters.c-contracts_changed >>
-        - << pipeline.parameters.c-non_docs_changes >>
-        - not:
-            equal: ["develop", << pipeline.git.branch >>]
-        - not:
-            matches:
-              pattern: "^gh-readonly-queue/"
+      not: # these conditions should be kept in sync with the ones in contracts-feature-tests
+        or:
+          - and:
+              - equal: ["webhook", << pipeline.trigger_source >>]
+              - << pipeline.parameters.c-contracts_changed >>
+              - << pipeline.parameters.c-non_docs_changes >>
+          # Always run on develop (mirrors previous check-changed whitelist behavior)
+          - and:
+              - equal: ["webhook", << pipeline.trigger_source >>]
+              - equal: ["develop", << pipeline.git.branch >>]
+              - << pipeline.parameters.c-non_docs_changes >>
+          # Merge queue (merge gate). Match checkout branch.
+          - matches:
+              pattern: "^gh-readonly-queue/.*"
               value: << pipeline.git.branch >>
+          - and:
+            - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - required-contracts-ci:
           always-succed: true
