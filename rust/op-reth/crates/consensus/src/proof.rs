@@ -514,6 +514,45 @@ mod tests {
         );
     }
 
+    /// Manta Sepolia block 549192 (another single Regolith deposit-only block; vectors from RPC).
+    ///
+    /// Pre-fix op-reth logged: got `0xac185bb4402e70ccef2c1188aea24fa4055a0334ffa0f703b6b0d50881c20da5`,
+    /// expected header `0xdbf9def3e8d930433596aa91b3ad3279652031ca45b1a3ca92785703f84aa6b0`.
+    #[test]
+    fn manta_sepolia_549192_regolith_deposit_receipt_root_matches_chain_header() {
+        let deposit = OpReceipt::Deposit(OpDepositReceipt {
+            inner: Receipt { status: true.into(), cumulative_gas_used: 0xccfd, logs: vec![] },
+            deposit_nonce: Some(0x86147),
+            deposit_receipt_version: None,
+        });
+        let root = calculate_receipt_root_no_memo_optimism(std::slice::from_ref(&deposit));
+        assert_eq!(
+            root,
+            b256!("0xdbf9def3e8d930433596aa91b3ad3279652031ca45b1a3ca92785703f84aa6b0")
+        );
+    }
+
+    /// Trie built from raw `encode_2718` (nonce included) for block 549192 matches the faulty
+    /// `got` root from pre-fix nodes.
+    #[test]
+    fn regolith_deposit_549192_wrong_root_if_nonce_encoded_in_trie_value() {
+        let deposit = OpReceipt::Deposit(OpDepositReceipt {
+            inner: Receipt { status: true.into(), cumulative_gas_used: 0xccfd, logs: vec![] },
+            deposit_nonce: Some(0x86147),
+            deposit_receipt_version: None,
+        });
+        let correct = calculate_receipt_root_no_memo_optimism(std::slice::from_ref(&deposit));
+        let wrong = ordered_trie_root_with_encoder(
+            std::slice::from_ref(&deposit),
+            |r, buf| r.with_bloom_ref().encode_2718(buf),
+        );
+        assert_ne!(wrong, correct);
+        assert_eq!(
+            wrong,
+            b256!("0xac185bb4402e70ccef2c1188aea24fa4055a0334ffa0f703b6b0d50881c20da5")
+        );
+    }
+
     /// Including `deposit_nonce` in the typed RLP payload (MarshalBinary-style) must not match the
     /// canonical receipts trie for pre-Canyon deposit receipts.
     #[test]

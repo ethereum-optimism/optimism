@@ -116,6 +116,7 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
     // See more about EIP here: https://eips.ethereum.org/EIPS/eip-658
     if chain_spec.is_byzantium_active_at_block(header.number()) {
         let result = if let Some((receipts_root, logs_bloom)) = receipt_root_bloom {
+          tracing::info!("blablabla");
             compare_receipts_root_and_logs_bloom(
                 receipts_root,
                 logs_bloom,
@@ -123,6 +124,12 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
                 header.logs_bloom(),
             )
         } else {
+            tracing::info!(
+                block_number = header.number(),
+                header_receipts_root = %header.receipts_root(),
+                receipt_count = receipts.len(),
+                "verifying optimism receipts root against execution receipts"
+            );
             verify_receipts_optimism(header.receipts_root(), header.logs_bloom(), receipts)
         };
 
@@ -131,7 +138,7 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
                 .iter()
                 .map(|r| Bytes::from(r.with_bloom_ref().encoded_2718()))
                 .collect::<Vec<_>>();
-            tracing::debug!(%error, ?receipts, "receipts verification failed");
+            tracing::debug!(%error, ?receipts, "receipts verification failed2222");
             return Err(error);
         }
     }
