@@ -333,7 +333,6 @@ contract L2ContractsManager is ISemver {
                 INITIALIZABLE_SLOT_OZ_V4,
                 0
             );
-
         }
 
         // TODO(#19600): Remove FeeSplitter upgrade as part of revenue sharing deprecation.
