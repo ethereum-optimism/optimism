@@ -709,11 +709,6 @@
   },
   {
     "inputs": [],
-    "name": "InvalidSuperchainERC20Address",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidTokenPair",
     "type": "error"
   },

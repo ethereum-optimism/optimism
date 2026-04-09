@@ -17,6 +17,9 @@ import { IOptimismERC20Factory } from "interfaces/L2/IOptimismERC20Factory.sol";
 /// @title L2StandardBridgeInterop_TestInit
 /// @notice Reusable test initialization for `L2StandardBridgeInterop` tests.
 abstract contract L2StandardBridgeInterop_TestInit is CommonTest, MockHelper {
+    /// @notice Placeholder address for the removed OptimismSuperchainERC20Factory.
+    address l2OptimismSuperchainERC20Factory = address(0);
+
     /// @notice Emitted when a conversion is made.
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);
 
@@ -146,35 +149,6 @@ contract L2StandardBridgeInterop_Convert_Test is L2StandardBridgeInterop_TestIni
         l2StandardBridge.convert(_from, _to, _amount);
     }
 
-    /// @notice Test that the `convert` function with an invalid superchain ERC20 address reverts
-    ///         (legacy to super)
-    function testFuzz_convert_legacyToSuperInvalidSuperchainERC20Address_reverts(
-        address _from,
-        address _to,
-        uint256 _amount,
-        address _remoteToken
-    )
-        public
-    {
-        // Assume
-        vm.assume(_remoteToken != address(0));
-
-        // Arrange
-        _setUpLegacyToSuper(_from, _to);
-
-        // Mock the legacy factory to return `_remoteToken`
-        _mockDeployments(address(l2OptimismMintableERC20Factory), _from, _remoteToken);
-
-        // Mock the superchain factory to return address(0)
-        _mockDeployments(address(l2OptimismSuperchainERC20Factory), _to, address(0));
-
-        // Expect the revert with `InvalidSuperchainERC20Address` selector
-        vm.expectRevert(IL2StandardBridgeInterop.InvalidSuperchainERC20Address.selector);
-
-        // Act
-        l2StandardBridge.convert(_from, _to, _amount);
-    }
-
     /// @notice Test that the `convert` function with different remote tokens reverts (legacy to
     ///         super)
     function testFuzz_convert_legacyToSuperDifferentRemoteAddresses_reverts(
@@ -285,35 +259,6 @@ contract L2StandardBridgeInterop_Convert_Test is L2StandardBridgeInterop_TestIni
 
         // Expect the revert with `InvalidLegacyERC20Address` selector
         vm.expectRevert(IL2StandardBridgeInterop.InvalidLegacyERC20Address.selector);
-
-        // Act
-        l2StandardBridge.convert(_from, _to, _amount);
-    }
-
-    /// @notice Test that the `convert` function with an invalid superchain ERC20 address reverts
-    ///         (super to legacy)
-    function testFuzz_convert_superToLegacyInvalidSuperchainERC20Address_reverts(
-        address _from,
-        address _to,
-        uint256 _amount,
-        address _remoteToken
-    )
-        public
-    {
-        // Assume
-        vm.assume(_remoteToken != address(0));
-
-        // Arrange
-        _setUpSuperToLegacy(_from, _to);
-
-        // Mock the legacy factory to return `_remoteToken`
-        _mockDeployments(address(l2OptimismMintableERC20Factory), _to, _remoteToken);
-
-        // Mock the superchain factory to return address(0)
-        _mockDeployments(address(l2OptimismSuperchainERC20Factory), _from, address(0));
-
-        // Expect the revert with `InvalidSuperchainERC20Address` selector
-        vm.expectRevert(IL2StandardBridgeInterop.InvalidSuperchainERC20Address.selector);
 
         // Act
         l2StandardBridge.convert(_from, _to, _amount);

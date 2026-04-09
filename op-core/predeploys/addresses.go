@@ -30,7 +30,6 @@ const (
 	L2toL2CrossDomainMessenger    = "0x4200000000000000000000000000000000000023"
 	SuperchainETHBridge           = "0x4200000000000000000000000000000000000024"
 	ETHLiquidity                  = "0x4200000000000000000000000000000000000025"
-	SuperchainTokenBridge         = "0x4200000000000000000000000000000000000028"
 	NativeAssetLiquidity          = "0x4200000000000000000000000000000000000029"
 	LiquidityController           = "0x420000000000000000000000000000000000002a"
 	FeeSplitter                   = "0x420000000000000000000000000000000000002b"
@@ -74,7 +73,6 @@ var (
 	L2toL2CrossDomainMessengerAddr    = common.HexToAddress(L2toL2CrossDomainMessenger)
 	SuperchainETHBridgeAddr           = common.HexToAddress(SuperchainETHBridge)
 	ETHLiquidityAddr                  = common.HexToAddress(ETHLiquidity)
-	SuperchainTokenBridgeAddr         = common.HexToAddress(SuperchainTokenBridge)
 	NativeAssetLiquidityAddr          = common.HexToAddress(NativeAssetLiquidity)
 	LiquidityControllerAddr           = common.HexToAddress(LiquidityController)
 	FeeSplitterAddr                   = common.HexToAddress(FeeSplitter)
@@ -111,7 +109,6 @@ func init() {
 	Predeploys["L2toL2CrossDomainMessenger"] = &Predeploy{Address: L2toL2CrossDomainMessengerAddr}
 	Predeploys["SuperchainETHBridge"] = &Predeploy{Address: SuperchainETHBridgeAddr}
 	Predeploys["ETHLiquidity"] = &Predeploy{Address: ETHLiquidityAddr}
-	Predeploys["SuperchainTokenBridge"] = &Predeploy{Address: SuperchainTokenBridgeAddr}
 	Predeploys["FeeSplitter"] = &Predeploy{Address: FeeSplitterAddr}
 	Predeploys["GovernanceToken"] = &Predeploy{
 		Address:       GovernanceTokenAddr,

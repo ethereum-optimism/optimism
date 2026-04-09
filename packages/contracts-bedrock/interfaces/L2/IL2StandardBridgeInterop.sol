@@ -8,7 +8,6 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 interface IL2StandardBridgeInterop is IStandardBridge, IProxyAdminOwnedBase {
     error InvalidDecimals();
     error InvalidLegacyERC20Address();
-    error InvalidSuperchainERC20Address();
     error InvalidTokenPair();
 
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);

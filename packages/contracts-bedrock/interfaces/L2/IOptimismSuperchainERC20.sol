@@ -2,11 +2,13 @@
 pragma solidity ^0.8.0;
 
 // Interfaces
-import { ISuperchainERC20 } from "interfaces/L2/ISuperchainERC20.sol";
+import { IERC20Solady as IERC20 } from "interfaces/vendor/IERC20Solady.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title IOptimismSuperchainERC20
 /// @notice This interface is available on the OptimismSuperchainERC20 contract.
-interface IOptimismSuperchainERC20 is ISuperchainERC20 {
+interface IOptimismSuperchainERC20 is IERC20, ISemver {
+    error Unauthorized();
     error ZeroAddress();
     error InvalidInitialization();
     error NotInitializing();

@@ -110,7 +110,6 @@ type L2PredeploySemvers struct {
 	L2toL2CrossDomainMessenger    string
 	SuperchainETHBridge           string
 	ETHLiquidity                  string
-	SuperchainTokenBridge         string
 	OptimismMintableERC20         string
 	OptimismMintableERC721        string
 }
