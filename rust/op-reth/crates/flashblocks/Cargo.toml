@@ -57,6 +57,8 @@ eyre.workspace = true
 ringbuffer.workspace = true
 derive_more.workspace = true
 rayon.workspace = true
+#revm_provider.workspace = true
+reth-provider = { workspace = true, features = ["test-utils"] }
 
 [dev-dependencies]
 test-case.workspace = true
@@ -67,5 +69,4 @@ op-alloy-consensus.workspace = true
 op-revm.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-optimism-evm.workspace = true
-reth-provider = { workspace = true, features = ["test-utils"] }
 tracing-test = "0.2.6"

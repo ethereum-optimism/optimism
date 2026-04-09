@@ -486,6 +486,7 @@ where
                     // we could modify BuildArgs to contain only information needed for this
                     // transaction.
                     args.transactions = vec![args.transactions[i].clone()];
+                    args.received_access_lists = vec![args.received_access_lists[i].clone()];
 
                     builder.execute(args, tx_cache)
                 })

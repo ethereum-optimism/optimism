@@ -1,5 +1,5 @@
 use crate::{
-    FBalsValidationResult, PendingFlashBlock, fbals,
+    FBalsValidationResult, FbalsDb, PendingFlashBlock, fbals,
     pending_state::PendingBlockState,
     tx_cache::{CachedExecutionMeta, TransactionCache},
 };
@@ -184,7 +184,7 @@ where
         let tx_hashes: Vec<B256> = transactions.iter().map(|tx| *tx.tx_hash()).collect();
         let received_access_lists: Vec<FlashblockAccessList> =
             args.received_access_lists.iter().cloned().collect();
-        let cumulative_account_changes = fbals::prefix_sum(&received_access_lists);
+        // let cumulative_account_changes = fbals::prefix_sum(&received_access_lists);
         // this seems off
         let max_tx_index: u64 = transactions.len().try_into().unwrap();
 
@@ -250,6 +250,10 @@ where
         let rq = request_cache.clone();
 
         let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
+
+        // let fbals_db = FbalsDb::new(cached_db, received_access_lists[0]);
+        let fbals_db = FbalsDb::new(cached_db, received_access_lists[0]);
+
         // let cached_db2 = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
         // Check for resumable canonical execution state.
@@ -299,24 +303,20 @@ where
         // - Canonical cache-hit builds use cached prefix prestate
         let mut state = if let Some(ref pending) = args.pending_parent {
             State::builder()
-                .with_database(cached_db)
+                .with_database(fbals_db)
                 .with_bundle_prestate(pending.execution_outcome.state.clone())
                 .with_bundle_update()
                 .with_bal_builder()
                 .build()
         } else if let Some(ref cached_prefix) = cached_prefix {
             State::builder()
-                .with_database(cached_db)
+                .with_database(fbals_db)
                 .with_bundle_prestate(cached_prefix.bundle.clone())
                 .with_bundle_update()
                 .with_bal_builder()
                 .build()
         } else {
-            State::builder()
-                .with_database(cached_db)
-                .with_bundle_update()
-                .with_bal_builder()
-                .build()
+            State::builder().with_database(fbals_db).with_bundle_update().with_bal_builder().build()
         };
 
         let (execution_result, block, hashed_state, bundle) = if let Some(cached_prefix) =

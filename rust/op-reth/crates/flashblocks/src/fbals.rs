@@ -1,8 +1,16 @@
 use std::collections::HashMap;
 
 use alloy_eips::eip7928::{AccountChanges, BalanceChange};
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256, U256, map::U256Map};
 use base_access_lists::FlashblockAccessList;
+use reth_provider::StateProvider;
+use reth_revm::{
+    Database, DatabaseRef,
+    cached::{self, CachedReadsDbMut},
+    database::{EvmStateProvider, StateProviderDatabase},
+    primitives::{StorageKey, StorageValue},
+    state::{AccountInfo, Bytecode},
+};
 
 // OPT: compute hashmaps before call, take ownership and only store writes
 /// Compute the prefix sum of all Account changes for FlashBlock 1..n
@@ -90,4 +98,80 @@ pub fn merge_address_changes(left: &mut AccountChanges, right: &AccountChanges) 
 pub enum FBalsValidationResult {
     AllValidated,
     OneOrMoreFailed,
+}
+
+#[derive(Debug)]
+pub struct FbalsDb<'a, DB> {
+    inner: CachedReadsDbMut<'a, DB>,
+    access_lists: FlashblockAccessList,
+}
+
+// impl<'a, DB: Database> std::ops::Deref for FbalsDb<'a, DB> {
+//     type Target = CachedReadsDbMut<'a, DB>;
+
+//     fn deref(&self) -> &Self::Target {
+//         &self.inner
+//     }
+// }
+
+impl<'a, DB: Database> FbalsDb<'a, DB> {
+    pub(crate) fn new(
+        cached_db: CachedReadsDbMut<'a, DB>,
+        access_list: FlashblockAccessList,
+    ) -> Self {
+        Self { inner: cached_db, access_lists: access_list }
+    }
+}
+
+impl<'a, DB: DatabaseRef> Database for FbalsDb<'a, DB> {
+    #[doc = " The database error type."]
+    type Error = <DB as DatabaseRef>::Error;
+
+    #[doc = " Gets basic account information."]
+    fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
+        todo!()
+    }
+
+    #[doc = " Gets account code by its hash."]
+    fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+        todo!()
+    }
+
+    #[doc = " Gets storage value of address at index."]
+    fn storage(
+        &mut self,
+        address: Address,
+        index: StorageKey,
+    ) -> Result<StorageValue, Self::Error> {
+        todo!()
+    }
+
+    #[doc = " Gets block hash by block number."]
+    fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
+        todo!()
+    }
+}
+
+impl<'a, DB> FbalsDb<'a, DB> {
+    pub fn inject_fbals(&self, fbals: &FlashblockAccessList) {
+        for AccountChanges {
+            address,
+            storage_changes,
+            storage_reads,
+            balance_changes,
+            nonce_changes,
+            code_changes,
+        } in fbals.account_changes.iter()
+        {
+            let info = AccountInfo {
+                balance: todo!(),
+                nonce: todo!(),
+                code_hash: todo!(),
+                account_id: todo!(),
+                code: todo!(),
+            };
+            let storage: U256Map<U256> = todo!();
+            self.inner.cached.insert_account(*address, info, storage);
+        }
+    }
 }

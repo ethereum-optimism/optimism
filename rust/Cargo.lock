@@ -11087,6 +11087,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
  "clap",
+ "derive_more",
  "eyre",
  "futures",
  "futures-util",

@@ -20,7 +20,8 @@ reth-consensus.workspace = true
 reth-node-api.workspace = true
 reth-node-builder.workspace = true
 reth-tracing.workspace = true
-reth-provider.workspace = true
+#reth-provider.workspace = true
+reth-provider = { workspace = true, features = ["test-utils"] }
 reth-transaction-pool.workspace = true
 reth-network.workspace = true
 reth-evm.workspace = true
@@ -85,12 +86,12 @@ tracing.workspace = true
 reth-e2e-test-utils = { workspace = true, optional = true }
 alloy-genesis = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
+derive_more.workspace = true
 
 [dev-dependencies]
 reth-optimism-node = { workspace = true, features = ["test-utils"] }
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-node-builder = { workspace = true, features = ["test-utils"] }
-reth-provider = { workspace = true, features = ["test-utils"] }
 reth-tasks.workspace = true
 reth-payload-util.workspace = true
 reth-revm = { workspace = true, features = ["std"] }
