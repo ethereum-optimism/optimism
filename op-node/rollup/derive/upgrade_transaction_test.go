@@ -80,6 +80,14 @@ func TestReadNUTBundleInvalidJSON(t *testing.T) {
 	require.Contains(t, err.Error(), "failed to parse NUT bundle")
 }
 
+func TestReadNUTBundleUnsupportedVersion(t *testing.T) {
+	jsonData := []byte(`{"metadata":{"version":"2.0.0"},"transactions":[]}`)
+	_, err := readNUTBundle("Test", bytes.NewReader(jsonData))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported NUT bundle version")
+	require.Contains(t, err.Error(), "2.0.0")
+}
+
 func TestNUTBundleMissingIntent(t *testing.T) {
 	jsonData := []byte(`{
 		"metadata": {"version": "1.0.0"},
