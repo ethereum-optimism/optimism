@@ -1939,6 +1939,16 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
         // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
         assertEq("DF-50,SPDG-SHAPE,SPDG-10", _validate(true));
     }
+
+    /// @notice Tests that disabling SUPER_CANNON_KONA triggers SCKDG-SHAPE.
+    function test_validate_superCannonKonaNotRegistered_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(address(0))
+        );
+        assertEq("SCKDG-SHAPE,SCKDG-10", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test
@@ -1994,13 +2004,14 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
     OPContractsManagerStandardValidator_SuperMode_TestInit
 {
     /// @notice Tests SCKDG-10 when SUPER_CANNON_KONA implementation is null.
+    ///         Also fires SCKDG-SHAPE from the shape check in assertValidSuperRootDisputeGames.
     function test_validate_superPermissionlessDisputeGameNullImplementation_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
             abi.encode(address(0))
         );
-        assertEq("SCKDG-10", _validate(true));
+        assertEq("SCKDG-SHAPE,SCKDG-10", _validate(true));
     }
 
     /// @notice Tests SCKDG-20 when SUPER_CANNON_KONA version is invalid.

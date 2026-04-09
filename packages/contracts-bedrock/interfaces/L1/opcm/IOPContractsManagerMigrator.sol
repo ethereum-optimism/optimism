@@ -37,6 +37,9 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
 
+    /// @notice Thrown when a chain's SystemConfig does not have Features.INTEROP enabled.
+    error OPContractsManagerMigrator_InteropFeatureNotEnabled();
+
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 

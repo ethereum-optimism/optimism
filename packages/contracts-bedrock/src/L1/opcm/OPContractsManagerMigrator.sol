@@ -54,6 +54,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
 
+    /// @notice Thrown when a chain's SystemConfig does not have Features.INTEROP enabled.
+    error OPContractsManagerMigrator_InteropFeatureNotEnabled();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -256,6 +259,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             revert OPContractsManagerMigrator_CustomGasTokenNotSupported();
         }
 
+        // Verify INTEROP is already enabled (set by OPCMv2.upgrade()).
+        // migrateToSharedDisputeGame requires both INTEROP and ETH_LOCKBOX.
+        if (!_systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            revert OPContractsManagerMigrator_InteropFeatureNotEnabled();
+        }
+
         // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.
         IOptimismPortal portal = IOptimismPortal(payable(_systemConfig.optimismPortal()));
         IETHLockbox existingLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
@@ -290,10 +299,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
-        // NOTE: This requires the portal to already be upgraded to the interop version
-        // (OptimismPortal2). And it requires the feature flag for INTEROP to be enabled
-        // If the portal is not on the interop version, this call will
-        // fail.
         portal.migrateToSharedDisputeGame(_newLockbox, _newASR);
     }
 

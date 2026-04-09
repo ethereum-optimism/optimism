@@ -1750,10 +1750,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.
         // In standard mode, CANNON and CANNON_KONA are disabled → PLDG-10,CKDG-10.
-        // In super root mode, SUPER_CANNON_KONA is disabled → SCKDG-10.
+        // In super root mode, SUPER_CANNON_KONA is disabled → SCKDG-SHAPE,SCKDG-10.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
-        string memory expectedErrors = superRoot ? "SCKDG-10" : "PLDG-10,CKDG-10";
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "PLDG-10,CKDG-10";
         if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
@@ -1894,7 +1894,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
         GameType permType = superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         deployConfig.startingRespectedGameType = permType;
-        string memory expectedErrors = superRoot ? "SCKDG-10" : "PLDG-10,CKDG-10";
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "PLDG-10,CKDG-10";
         if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         assertEq(cts.anchorStateRegistry.respectedGameType().raw(), permType.raw(), "respected game type mismatch");
@@ -2390,6 +2390,21 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         // Execute the migration, expect revert.
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a chain's SystemConfig does not have
+    ///         Features.INTEROP enabled, simulating Step 1 (OPCMv2.upgrade) not having run.
+    function test_migrate_interopFeatureNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Mock one chain's SystemConfig to report Features.INTEROP as disabled.
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)),
+            abi.encode(false)
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropFeatureNotEnabled.selector);
     }
 }
 
