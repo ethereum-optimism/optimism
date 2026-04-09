@@ -173,6 +173,28 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
             let mut to_revalidate = Vec::new();
             let mut interop_count = 0;
 
+            // If failsafe is active, evict ALL interop txs and skip revalidation.
+            // Belt-and-suspenders with poll_failsafe: catches any tx that raced past
+            // the ingress check or was added between poll_failsafe transition ticks.
+            if supervisor_client.is_failsafe_enabled() {
+                let interop_hashes: Vec<_> = pool
+                    .pooled_transactions()
+                    .iter()
+                    .filter(|tx| tx.transaction.interop_deadline().is_some())
+                    .map(|tx| *tx.hash())
+                    .collect();
+                if !interop_hashes.is_empty() {
+                    info!(
+                        target: "txpool::interop",
+                        count = interop_hashes.len(),
+                        "failsafe active on block event: evicting all interop transactions"
+                    );
+                    let removed = pool.remove_transactions(interop_hashes);
+                    metrics.inc_removed_tx_interop(removed.len());
+                }
+                continue;
+            }
+
             // scan all pooled interop transactions
             for pooled_tx in pool.pooled_transactions() {
                 if let Some(interop_deadline_val) = pooled_tx.transaction.interop_deadline() {

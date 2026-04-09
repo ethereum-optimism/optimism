@@ -111,6 +111,11 @@ impl SupervisorClient {
             return Some(Err(InvalidCrossTx::CrossChainTxPreInterop));
         }
 
+        // Fast-path: reject immediately if failsafe is active (no RPC round-trip)
+        if self.is_failsafe_enabled() {
+            return Some(Err(InvalidCrossTx::FailsafeEnabled));
+        }
+
         if let Err(err) = self
             .check_access_list(
                 inbox_entries.as_slice(),

@@ -2,6 +2,7 @@ package filter
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"testing"
 	"time"
@@ -87,7 +88,7 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 	// Send a transaction with the fabricated access list.
 	// The interop filter should reject this because the inbox entry doesn't
 	// correspond to any real cross-chain message.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	bobAddr := bob.Address()
@@ -99,15 +100,17 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 		txplan.WithGasLimit(100_000),
 	)
 
-	// The transaction should fail — the filter rejects invalid interop entries.
-	// This may manifest as a submission error or the tx never being included.
+	// The transaction should be explicitly rejected by the filter, not just time out.
 	_, err := tx.Included.Eval(ctx)
 	require.Error(err, "transaction with fabricated access list should not be included")
+	require.False(errors.Is(err, context.DeadlineExceeded),
+		"expected explicit rejection, not timeout: %v", err)
 }
 
-// TestInteropFilter_FailsafeBlocksInterop verifies that enabling failsafe
-// prevents new interop transactions from being accepted.
-func TestInteropFilter_FailsafeBlocksInterop(gt *testing.T) {
+// TestInteropFilter_FailsafeLifecycle verifies the full failsafe lifecycle:
+// interop txs succeed normally, are blocked when failsafe is enabled,
+// and recover after failsafe is disabled.
+func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := setupInteropFilterTest(t)
 	require := t.Require()
@@ -122,7 +125,9 @@ func TestInteropFilter_FailsafeBlocksInterop(gt *testing.T) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 2, 10))
 	sys.L2B.WaitForBlock()
-	_ = bob.SendExecMessage(initMsg)
+	execMsg := bob.SendExecMessage(initMsg)
+	require.Equal(types.ReceiptStatusSuccessful, execMsg.Receipt.Status,
+		"interop tx should succeed before failsafe")
 
 	// Step 2: Enable failsafe and wait for propagation to op-reth
 	require.NotNil(sys.InteropFilter, "interop filter must be configured")
@@ -163,98 +168,7 @@ func TestInteropFilter_FailsafeBlocksInterop(gt *testing.T) {
 	sys.InteropFilter.SetFailsafeEnabled(false)
 	waitForFailsafeState(t, sys, false)
 
-	// Step 5: Verify interop txs work again
-	initMsg3 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
-	sys.L2B.WaitForBlock()
-	_ = bob.SendExecMessage(initMsg3)
-}
-
-// TestInteropFilter_NonInteropUnaffected verifies that regular (non-interop)
-// transactions are accepted regardless of failsafe state.
-func TestInteropFilter_NonInteropUnaffected(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sys := setupInteropFilterTest(t)
-	require := t.Require()
-
-	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
-	bob := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
-
-	// Enable failsafe and wait for propagation
-	require.NotNil(sys.InteropFilter, "interop filter must be configured")
-	sys.InteropFilter.SetFailsafeEnabled(true)
-	waitForFailsafeState(t, sys, true)
-
-	// Send a regular (non-interop) transfer — should succeed even during failsafe
-	tx := alice.Transfer(bob.Address(), eth.GWei(1000))
-	receipt, err := tx.Included.Eval(context.Background())
-	require.NoError(err, "regular transfer should succeed during failsafe")
-	require.Equal(types.ReceiptStatusSuccessful, receipt.Status, "regular transfer should succeed")
-
-	// Disable failsafe
-	sys.InteropFilter.SetFailsafeEnabled(false)
-}
-
-// TestInteropFilter_FailsafeEvictsPooled verifies that when failsafe transitions
-// from disabled to enabled, existing interop transactions in the pool are evicted.
-func TestInteropFilter_FailsafeEvictsPooled(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sys := setupInteropFilterTest(t)
-	require := t.Require()
-
-	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
-
-	eventLoggerAddress := alice.DeployEventLogger()
-	sys.L2B.CatchUpTo(sys.L2A)
-
-	// Send init message — this creates an interop tx that goes into chain A's pool
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 2, 10))
-	sys.L2B.WaitForBlock()
-
-	// Verify the exec message works normally
-	execMsg := bob.SendExecMessage(initMsg)
-	require.Equal(types.ReceiptStatusSuccessful, execMsg.Receipt.Status)
-
-	// Enable failsafe — this should evict interop txs from the pool within 1s
-	sys.InteropFilter.SetFailsafeEnabled(true)
-	waitForFailsafeState(t, sys, true)
-
-	// New interop exec message should fail
-	initMsg2 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
-	sys.L2B.WaitForBlock()
-
-	// Attempt the exec — should be rejected
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	result, err := initMsg2.Tx.Result.Eval(ctx)
-	require.NoError(err, "init message result must be available")
-	require.Greater(len(result.Entries), 0, "init message must have entries")
-
-	msg := result.Entries[0]
-	accessList := types.AccessList{{
-		Address:     predeploys.CrossL2InboxAddr,
-		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{msg.Access()}),
-	}}
-
-	bobAddr := bob.Address()
-	tx := txplan.NewPlannedTx(
-		bob.Plan(),
-		txplan.WithTo(&bobAddr),
-		txplan.WithValue(eth.GWei(1)),
-		txplan.WithAccessList(accessList),
-		txplan.WithGasLimit(100_000),
-	)
-
-	_, err = tx.Included.Eval(ctx)
-	require.Error(err, "interop tx should be rejected during failsafe")
-
-	// Disable failsafe and verify recovery
-	sys.InteropFilter.SetFailsafeEnabled(false)
-	waitForFailsafeState(t, sys, false)
-
-	// Retry interop flow to verify recovery
+	// Step 5: Verify interop txs recover — retry to tolerate propagation lag
 	err = retry.Do0(context.Background(), 5, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
 		initMsg3 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 3))
 		sys.L2B.WaitForBlock()
@@ -262,4 +176,36 @@ func TestInteropFilter_FailsafeEvictsPooled(gt *testing.T) {
 		return nil
 	})
 	require.NoError(err, "interop flow should recover after failsafe disabled")
+}
+
+// TestInteropFilter_NonInteropUnaffected verifies that regular (non-interop)
+// transactions are accepted on both chains regardless of failsafe state.
+func TestInteropFilter_NonInteropUnaffected(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := setupInteropFilterTest(t)
+	require := t.Require()
+
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bobA := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	aliceB := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
+	bobB := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
+
+	// Enable failsafe and wait for propagation
+	require.NotNil(sys.InteropFilter, "interop filter must be configured")
+	sys.InteropFilter.SetFailsafeEnabled(true)
+	waitForFailsafeState(t, sys, true)
+
+	// Send regular (non-interop) transfers on both chains — should succeed even during failsafe
+	txA := aliceA.Transfer(bobA.Address(), eth.GWei(1000))
+	receiptA, err := txA.Included.Eval(context.Background())
+	require.NoError(err, "regular transfer on chain A should succeed during failsafe")
+	require.Equal(types.ReceiptStatusSuccessful, receiptA.Status, "regular transfer on chain A should succeed")
+
+	txB := aliceB.Transfer(bobB.Address(), eth.GWei(1000))
+	receiptB, err := txB.Included.Eval(context.Background())
+	require.NoError(err, "regular transfer on chain B should succeed during failsafe")
+	require.Equal(types.ReceiptStatusSuccessful, receiptB.Status, "regular transfer on chain B should succeed")
+
+	// Disable failsafe
+	sys.InteropFilter.SetFailsafeEnabled(false)
 }
