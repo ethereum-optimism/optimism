@@ -28,7 +28,6 @@ func setupInteropFilterTest(t devtest.T) *presets.TwoL2SupernodeInterop {
 // TestInteropFilter_IngressAcceptsValid verifies that a valid interop transaction
 // with correct cross-chain references passes through the interop filter.
 func TestInteropFilter_IngressAcceptsValid(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := setupInteropFilterTest(t)
 
@@ -59,7 +58,6 @@ func TestInteropFilter_IngressAcceptsValid(gt *testing.T) {
 // TestInteropFilter_IngressRejectsInvalid verifies that a transaction with fabricated
 // CrossL2Inbox access list entries is rejected by the interop filter.
 func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := setupInteropFilterTest(t)
 	require := t.Require()
@@ -98,7 +96,6 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 // TestInteropFilter_FailsafeBlocksInterop verifies that enabling failsafe
 // prevents new interop transactions from being accepted.
 func TestInteropFilter_FailsafeBlocksInterop(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := setupInteropFilterTest(t)
 	require := t.Require()
@@ -171,7 +168,6 @@ func TestInteropFilter_FailsafeBlocksInterop(gt *testing.T) {
 // TestInteropFilter_NonInteropUnaffected verifies that regular (non-interop)
 // transactions are accepted regardless of failsafe state.
 func TestInteropFilter_NonInteropUnaffected(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := setupInteropFilterTest(t)
 	require := t.Require()
@@ -197,7 +193,6 @@ func TestInteropFilter_NonInteropUnaffected(gt *testing.T) {
 // TestInteropFilter_FailsafeEvictsPooled verifies that when failsafe transitions
 // from disabled to enabled, existing interop transactions in the pool are evicted.
 func TestInteropFilter_FailsafeEvictsPooled(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := setupInteropFilterTest(t)
 	require := t.Require()
