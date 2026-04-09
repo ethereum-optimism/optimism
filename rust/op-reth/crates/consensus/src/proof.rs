@@ -488,7 +488,6 @@ mod tests {
             OpReceipt::Eip2930(Receipt { status: true.into(), cumulative_gas_used: 102068, logs });
         let receipt = ReceiptWithBloom { receipt: &inner, logs_bloom };
         let receipt = vec![receipt];
-        tracing::info!("blablabla2322");
         let root = calculate_receipt_root_optimism(&receipt);
         assert_eq!(
             root,
