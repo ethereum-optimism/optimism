@@ -27,9 +27,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -101,6 +103,39 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 // respecting DEVSTACK_L2EL_KIND (defaults to op-geth when unset).
 func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
 	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+}
+
+// startSupernodeELWithSupervisorURL starts an L2 EL node with --rollup.supervisor-http
+// pointing at the given URL. Used by supernode interop presets to connect ELs
+// to the interop filter for tx pool validation.
+func startSupernodeELWithSupervisorURL(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	supervisorURL string,
+) L2ELNode {
+	switch devstackL2ELKind() {
+	case MixedL2ELOpGeth:
+		cfg := DefaultL2ELConfig()
+		l2EL := &OpGeth{
+			name:          key,
+			p:             t,
+			logger:        t.Logger().New("component", "l2el-"+key),
+			l2Net:         l2Net,
+			jwtPath:       jwtPath,
+			jwtSecret:     jwtSecret,
+			supervisorRPC: supervisorURL,
+			cfg:           cfg,
+		}
+		l2EL.Start()
+		t.Cleanup(l2EL.Stop)
+		return l2EL
+	default: // op-reth
+		return startMixedOpRethNodeWithSupervisorURL(
+			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL)
+	}
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
@@ -188,8 +223,38 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 
-	l2AEL := startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
-	l2BEL := startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+	var l2AEL, l2BEL L2ELNode
+	var interopFilter *InteropFilter
+
+	if cfg.UseInteropFilter {
+		// Proxy pattern: allocate stable address before ELs start
+		filterProxy := tcpproxy.New(t.Logger().New("proxy", "interop-filter"))
+		require.NoError(filterProxy.Start())
+		t.Cleanup(func() { filterProxy.Close() })
+		filterRPC := "http://" + filterProxy.Addr()
+
+		// Start ELs with filter proxy URL
+		l2AEL = startSupernodeELWithSupervisorURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2BEL = startSupernodeELWithSupervisorURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
+
+		// Build rollup config map from L2 networks (Go structs, no file I/O)
+		rollupConfigs := map[eth.ChainID]*rollup.Config{
+			eth.ChainIDFromBig(l2ANet.RollupConfig().L2ChainID): l2ANet.RollupConfig(),
+			eth.ChainIDFromBig(l2BNet.RollupConfig().L2ChainID): l2BNet.RollupConfig(),
+		}
+
+		// Create and start interop filter in-process
+		interopFilter = startInteropFilter(t, "interop-filter",
+			[]string{l2AEL.UserRPC(), l2BEL.UserRPC()},
+			rollupConfigs)
+
+		// Connect proxy to the filter's actual RPC endpoint
+		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
+	} else {
+		// No interop filter — ELs start without supervisor/filter URL (existing behavior)
+		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
+		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+	}
 
 	var activationTime uint64
 	var interopActivationTimestamp *uint64
@@ -271,9 +336,10 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 				Proposer: l2BProposer,
 			},
 		},
-		Supernode:     supernode,
-		FaucetService: faucetService,
-		TimeTravel:    timeTravelClock,
+		Supernode:      supernode,
+		FaucetService:  faucetService,
+		TimeTravel:     timeTravelClock,
+		InteropFilter:  interopFilter,
 	}, activationTime
 }
 

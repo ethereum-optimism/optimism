@@ -266,6 +266,17 @@ func WithMaxSequencingWindow(max uint64) Option {
 	}
 }
 
+// WithInteropFilter enables the in-process op-interop-filter for EL transaction
+// validation. Only supported on supernode interop presets.
+func WithInteropFilter() Option {
+	return option{
+		kinds: optionKindInteropFilter,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.UseInteropFilter = true
+		},
+	}
+}
+
 func WithRequireInteropNotAtGenesis() Option {
 	return option{
 		kinds: optionKindRequireInteropNotAtGen,
