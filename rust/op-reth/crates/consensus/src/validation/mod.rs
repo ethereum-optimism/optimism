@@ -198,10 +198,10 @@ fn compare_receipts_root_and_logs_bloom(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_consensus::Header;
+    use alloy_consensus::{Header, Receipt};
     use alloy_eips::eip7685::Requests;
-    use alloy_primitives::{Bytes, U256, b256, hex};
-    use op_alloy_consensus::OpTxEnvelope;
+    use alloy_primitives::{Bloom, Bytes, U256, b256, hex};
+    use op_alloy_consensus::{OpDepositReceipt, OpTxEnvelope};
     use reth_chainspec::{BaseFeeParams, ChainSpec, EthChainSpec, ForkCondition, Hardfork};
     use reth_optimism_chainspec::{BASE_SEPOLIA, OpChainSpec};
     use reth_optimism_forks::{BASE_SEPOLIA_HARDFORKS, OpHardfork};
@@ -575,5 +575,34 @@ mod tests {
             ConsensusError::BlobGasUsedDiff(diff)
                 if diff.got == BLOB_GAS_USED && diff.expected == BLOB_GAS_USED + 1
         ));
+    }
+
+    /// End-to-end: `validate_block_post_execution` → `verify_receipts_optimism` →
+    /// `calculate_receipt_root_optimism` for Manta Sepolia block 863731 (Regolith deposit, pre-Canyon).
+    #[test]
+    fn validate_post_execution_matches_manta_sepolia_863731_header_receipts_root() {
+        let chainspec = BASE_SEPOLIA.clone();
+        let header = Header {
+            number: 863_731,
+            timestamp: 1,
+            gas_used: 0xf9f5,
+            receipts_root: b256!(
+                "0x3c715dd96d2597ccd46fde046da5e4b13e0a5b7d0a2ff60c3ee6c92fee9600ea"
+            ),
+            logs_bloom: Bloom::ZERO,
+            ..Default::default()
+        };
+        let receipts = vec![OpReceipt::Deposit(OpDepositReceipt {
+            inner: Receipt { status: true.into(), cumulative_gas_used: 0xf9f5, logs: vec![] },
+            deposit_nonce: Some(0xd2df2),
+            deposit_receipt_version: None,
+        })];
+        let result = BlockExecutionResult {
+            blob_gas_used: 0,
+            receipts,
+            requests: Requests::default(),
+            gas_used: 0xf9f5,
+        };
+        validate_block_post_execution(&header, chainspec.as_ref(), &result, None).unwrap();
     }
 }

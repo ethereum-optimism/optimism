@@ -494,4 +494,86 @@ mod tests {
             b256!("0xfe70ae4a136d98944951b2123859698d59ad251a381abc9960fa81cae3d0d4a0")
         );
     }
+
+    /// Manta Sepolia block 863731: single Regolith deposit (`depositNonce` set, no
+    /// `depositReceiptVersion`). Header `receiptsRoot` from a live RPC; trie encoding must match
+    /// op-geth `Receipts.EncodeIndex` (nonce omitted) not `Receipt.MarshalBinary` (nonce present).
+    ///
+    /// Reproduces the pre-fix op-reth failure: computed root `0x49f9…` vs header `0x3c71…`.
+    #[test]
+    fn manta_sepolia_863731_regolith_deposit_receipt_root_matches_chain_header() {
+        let deposit = OpReceipt::Deposit(OpDepositReceipt {
+            inner: Receipt { status: true.into(), cumulative_gas_used: 0xf9f5, logs: vec![] },
+            deposit_nonce: Some(0xd2df2),
+            deposit_receipt_version: None,
+        });
+        let root = calculate_receipt_root_no_memo_optimism(std::slice::from_ref(&deposit));
+        assert_eq!(
+            root,
+            b256!("0x3c715dd96d2597ccd46fde046da5e4b13e0a5b7d0a2ff60c3ee6c92fee9600ea")
+        );
+    }
+
+    /// Including `deposit_nonce` in the typed RLP payload (MarshalBinary-style) must not match the
+    /// canonical receipts trie for pre-Canyon deposit receipts.
+    #[test]
+    fn regolith_deposit_wrong_root_if_nonce_encoded_in_trie_value() {
+        let deposit = OpReceipt::Deposit(OpDepositReceipt {
+            inner: Receipt { status: true.into(), cumulative_gas_used: 0xf9f5, logs: vec![] },
+            deposit_nonce: Some(0xd2df2),
+            deposit_receipt_version: None,
+        });
+        let correct = calculate_receipt_root_no_memo_optimism(std::slice::from_ref(&deposit));
+        let wrong = ordered_trie_root_with_encoder(
+            std::slice::from_ref(&deposit),
+            |r, buf| r.with_bloom_ref().encode_2718(buf),
+        );
+        assert_ne!(wrong, correct);
+        assert_eq!(
+            wrong,
+            b256!("0x49f9ab1e7322d0075c5783ee199ece50eb2e25291a680476bdf5043a0c6e68bd")
+        );
+    }
+
+    /// Manta Sepolia block 836765: Regolith deposit + EIP-1559 user tx. Verifies normalization
+    /// interacts correctly when only the first receipt is a deposit.
+    ///
+    /// Reproduces the pre-fix failure: got `0xa43c…` vs header `0x11e4…`.
+    #[test]
+    fn manta_sepolia_836765_mixed_deposit_and_eip1559_receipt_root_matches_chain_header() {
+        let transfer_log = Log {
+            address: hex!("9c76c6304885661cdb97f3984b13114b6d4b5248").into(),
+            data: LogData::new_unchecked(
+                vec![
+                    b256!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+                    b256!("0x00000000000000000000000070ce2d9bb8502e302b9cbe5c56a5d0f1067da713"),
+                    b256!("0x000000000000000000000000717c7f9822e8c2ae6a64773f7a92727755a7e2fc"),
+                ],
+                Bytes::from_static(&hex!(
+                    "00000000000000000000000000000000000000000000003635c9adc5dea00000"
+                )),
+            ),
+        };
+        let receipts = [
+            OpReceipt::Deposit(OpDepositReceipt {
+                inner: Receipt {
+                    status: true.into(),
+                    cumulative_gas_used: 0xccfd,
+                    logs: vec![],
+                },
+                deposit_nonce: Some(0xcc49c),
+                deposit_receipt_version: None,
+            }),
+            OpReceipt::Eip1559(Receipt {
+                status: true.into(),
+                cumulative_gas_used: 0x18336,
+                logs: vec![transfer_log],
+            }),
+        ];
+        let root = calculate_receipt_root_no_memo_optimism(&receipts);
+        assert_eq!(
+            root,
+            b256!("0x11e432ab48d8ffcb3278758a25fb2e10ba1267feae336da97a0f7bc861c74bbe")
+        );
+    }
 }
