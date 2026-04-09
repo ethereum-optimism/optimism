@@ -12,7 +12,7 @@ const MAX_SUPERVISOR_QUERIES: usize = 10;
 
 use crate::{
     conditional::MaybeConditionalTransaction,
-    interop::{MaybeInteropTransaction, is_stale_interop, is_valid_interop},
+    interop::{MaybeInteropTransaction, is_interop_tx, is_stale_interop, is_valid_interop},
     supervisor::SupervisorClient,
 };
 use alloy_consensus::{BlockHeader, conditional::BlockConditionalAttributes};
@@ -180,7 +180,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                 let interop_hashes: Vec<_> = pool
                     .pooled_transactions()
                     .iter()
-                    .filter(|tx| tx.transaction.interop_deadline().is_some())
+                    .filter(|tx| is_interop_tx(&tx.transaction))
                     .map(|tx| *tx.hash())
                     .collect();
                 if !interop_hashes.is_empty() {
@@ -278,7 +278,7 @@ where
                     let interop_hashes: Vec<_> = pool
                         .pooled_transactions()
                         .iter()
-                        .filter(|tx| tx.transaction.interop_deadline().is_some())
+                        .filter(|tx| is_interop_tx(&tx.transaction))
                         .map(|tx| *tx.hash())
                         .collect();
                     if !interop_hashes.is_empty() {
