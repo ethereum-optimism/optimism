@@ -11,6 +11,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
+/// TODO(#19709) remove this file and migrate fully to the OptimismPortal2
 interface IOptimismPortalInterop is IProxyAdminOwnedBase {
     error ContentLengthMismatch();
     error EmptyItem();
@@ -64,7 +65,7 @@ interface IOptimismPortalInterop is IProxyAdminOwnedBase {
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function donateETH() external payable;
     function superchainConfig() external view returns (ISuperchainConfig);
-    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
+    function migrateToSharedDisputeGame(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external;
     function finalizeWithdrawalTransactionExternalProof(
         Types.WithdrawalTransaction memory _tx,

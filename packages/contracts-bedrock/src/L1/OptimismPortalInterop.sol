@@ -32,6 +32,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
+///         TODO(#19709) remove this file and migrate fully to the OptimismPortal2
 contract OptimismPortalInterop is Initializable, ResourceMetering, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
     /// @notice Represents a proven withdrawal.
     /// @custom:field disputeGameProxy Game that the withdrawal was proven against.
@@ -217,9 +218,9 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     error OptimismPortal_MigratingToSameRegistry();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.3.1+interop
+    /// @custom:semver 5.5.1+interop
     function version() public pure virtual returns (string memory) {
-        return "5.3.1+interop";
+        return "5.5.1+interop";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -378,7 +379,12 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     ///         ETHLockbox.migrateLiquidity() function within the same transaction.
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
-    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
+    function migrateToSharedDisputeGame(
+        IETHLockbox _newLockbox,
+        IAnchorStateRegistry _newAnchorStateRegistry
+    )
+        external
+    {
         // Migration can only be triggered when the system is not paused because the migration can
         // potentially unpause the system as a result of the modified ETHLockbox address.
         _assertNotPaused();
