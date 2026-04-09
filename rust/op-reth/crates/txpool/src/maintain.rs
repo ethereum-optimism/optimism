@@ -1,7 +1,7 @@
 //! Support for maintaining the state of the transaction pool
 
 /// Revalidation window: how long a successfully revalidated tx remains valid.
-/// Intentionally shorter than the ingress TRANSACTION_VALIDITY_WINDOW_SECS (86400s)
+/// Intentionally shorter than the ingress `TRANSACTION_VALIDITY_WINDOW_SECS` (86400s)
 /// because revalidation should be stricter — a tx valid now gets a 10-minute lease,
 /// forcing periodic re-checks against the supervisor rather than a single 24-hour window.
 const TRANSACTION_VALIDITY_WINDOW: u64 = 600;
@@ -22,8 +22,8 @@ use reth_chain_state::CanonStateNotification;
 use reth_metrics::{Metrics, metrics::Counter};
 use reth_primitives_traits::NodePrimitives;
 use reth_transaction_pool::{PoolTransaction, TransactionPool, error::PoolTransactionError};
-use std::time::Instant;
-use tracing::warn;
+use std::time::{Duration, Instant};
+use tracing::{info, warn};
 
 /// Transaction pool maintenance metrics
 #[derive(Metrics)]
@@ -233,4 +233,63 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
             }
         }
     }
+}
+
+/// Background task that polls the supervisor for failsafe state every second.
+/// When failsafe transitions from disabled to enabled, evicts all interop txs
+/// from the pool immediately (does not wait for the next block event).
+/// Matches op-geth's `startBackgroundInteropFailsafeDetection` (miner/miner.go:140-165).
+pub async fn poll_failsafe<Pool>(supervisor_client: SupervisorClient, pool: Pool)
+where
+    Pool: TransactionPool,
+    Pool::Transaction: MaybeInteropTransaction,
+{
+    let metrics = MaintainPoolInteropMetrics::default();
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    let mut was_enabled = false;
+    loop {
+        interval.tick().await;
+        match supervisor_client.query_failsafe().await {
+            Ok(enabled) => {
+                // On transition to enabled: evict all interop txs immediately
+                if enabled && !was_enabled {
+                    let interop_hashes: Vec<_> = pool
+                        .pooled_transactions()
+                        .iter()
+                        .filter(|tx| tx.transaction.interop_deadline().is_some())
+                        .map(|tx| *tx.hash())
+                        .collect();
+                    if !interop_hashes.is_empty() {
+                        info!(
+                            target: "txpool::interop",
+                            count = interop_hashes.len(),
+                            "failsafe enabled: evicting all interop transactions"
+                        );
+                        let removed = pool.remove_transactions(interop_hashes);
+                        metrics.inc_removed_tx_interop(removed.len());
+                    }
+                }
+                was_enabled = enabled;
+            }
+            Err(err) => {
+                warn!(
+                    target: "txpool::interop",
+                    %err,
+                    "failed to query failsafe state"
+                );
+            }
+        }
+    }
+}
+
+/// Creates a boxed future for the failsafe polling task.
+pub fn poll_failsafe_future<Pool>(
+    supervisor_client: SupervisorClient,
+    pool: Pool,
+) -> BoxFuture<'static, ()>
+where
+    Pool: TransactionPool + 'static,
+    Pool::Transaction: MaybeInteropTransaction,
+{
+    Box::pin(poll_failsafe(supervisor_client, pool))
 }

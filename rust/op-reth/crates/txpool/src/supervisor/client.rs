@@ -21,7 +21,10 @@ use reth_transaction_pool::PoolTransaction;
 use std::{
     borrow::Cow,
     future::IntoFuture,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tracing::trace;
@@ -49,7 +52,7 @@ impl SupervisorClient {
         SupervisorClientBuilder::new(supervisor_endpoint, chain_id)
     }
 
-    /// Returns configured timeout. See [`SupervisorClientInner`].
+    /// Returns the configured request timeout.
     pub fn timeout(&self) -> Duration {
         self.inner.timeout
     }
@@ -122,6 +125,26 @@ impl SupervisorClient {
         Some(Ok(()))
     }
 
+    /// Returns the cached failsafe state.
+    pub fn is_failsafe_enabled(&self) -> bool {
+        self.inner.failsafe_enabled.load(Ordering::Acquire)
+    }
+
+    /// Queries the interop filter for failsafe state and caches the result.
+    /// Calls `admin_getFailsafeEnabled` RPC.
+    pub async fn query_failsafe(&self) -> Result<bool, InteropTxValidatorError> {
+        let result = tokio::time::timeout(
+            self.inner.timeout,
+            self.inner.client.request::<_, bool>("admin_getFailsafeEnabled", ()),
+        )
+        .await
+        .map_err(|_| InteropTxValidatorError::Timeout(self.inner.timeout.as_secs()))?
+        .map_err(InteropTxValidatorError::from_json_rpc)?;
+
+        self.inner.failsafe_enabled.store(result, Ordering::Release);
+        Ok(result)
+    }
+
     /// Creates a stream that revalidates interop transactions against the supervisor.
     /// Returns
     /// An implementation of `Stream` that is `Send`-able and tied to the lifetime `'a` of `self`.
@@ -166,8 +189,8 @@ impl SupervisorClient {
 }
 
 /// Holds supervisor data. Inner type of [`SupervisorClient`].
-#[derive(Debug, Clone)]
-pub struct SupervisorClientInner {
+#[derive(Debug)]
+pub(crate) struct SupervisorClientInner {
     client: ReqwestClient,
     /// The chain ID of the executing chain
     chain_id: u64,
@@ -177,6 +200,8 @@ pub struct SupervisorClientInner {
     timeout: Duration,
     /// Metrics for tracking supervisor operations
     metrics: SupervisorMetrics,
+    /// Cached failsafe state, polled by the background failsafe task.
+    failsafe_enabled: AtomicBool,
 }
 
 /// Builds [`SupervisorClient`].
@@ -234,6 +259,7 @@ impl SupervisorClientBuilder {
                 safety,
                 timeout,
                 metrics: SupervisorMetrics::default(),
+                failsafe_enabled: AtomicBool::new(false),
             }),
         }
     }
