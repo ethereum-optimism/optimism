@@ -20,11 +20,11 @@ import (
 //
 // Expectations:
 //
-//   - There must have been a Flashblock containing a new_account_balance corresponding to Bob's
-//     account. This flashblock is expected to represent the block containing Alice's transfer to Bob.
-//   - Bob's balance reported in the flashblock must match the on-chain balance at the transaction's
-//     inclusion block.
+//   - There must have been a Flashblock whose metadata.receipts contains Alice's transaction hash.
+//     This identifies the flashblock that carried Alice's transfer to Bob.
 //   - The transaction's confirmed block number must match the flashblock's block number.
+//   - If Bob's balance is reported in new_account_balances for that flashblock, it must match the
+//     on-chain balance at the transaction's inclusion block.
 func TestFlashblocksTransfer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// Example error with kona-node:
@@ -60,16 +60,22 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	startClient(t, fbClient)
 
 	bob := sys.Wallet.NewEOA(sys.L2EL)
+	alice := sys.FunderL2.NewFundedEOA(eth.ThreeHundredthsEther)
+	bobAddress := bob.Address()
+	tx := txplan.NewPlannedTx(alice.Plan(), txplan.WithTo(&bobAddress), txplan.WithValue(eth.OneHundredthEther))
+	signedTx, err := tx.Signed.Eval(t.Ctx())
+	t.Require().NoError(err)
+	txHash := strings.ToLower(signedTx.Hash().Hex())
+
 	// Buffer the result so cleanup cannot deadlock if we time out before reading it.
-	txCh := make(chan *txplan.PlannedTx, 1)
+	txCh := make(chan error, 1)
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		alice := sys.FunderL2.NewFundedEOA(eth.ThreeHundredthsEther)
-		bobAddress := bob.Address()
-		txCh <- alice.Transact(alice.Plan(), txplan.WithTo(&bobAddress), txplan.WithValue(eth.OneHundredthEther))
+		_, err := tx.Success.Eval(t.Ctx())
+		txCh <- err
 		close(txCh)
 	}()
 
@@ -80,31 +86,35 @@ outer:
 		select {
 		case fb, ok := <-fbClient.Next():
 			t.Require().True(ok, "client channel closed before we found the transaction")
-			balanceStr, found := fb.Metadata.NewAccountBalances[strings.ToLower(bob.Address().Hex())]
-			if found {
+			if _, found := fb.Metadata.Receipts[txHash]; found {
 				blockNumber = fb.Metadata.BlockNumber
-				observedBalance, ok = new(big.Int).SetString(balanceStr[2:], 16)
-				t.Require().True(ok)
+				if balanceStr, ok := fb.Metadata.NewAccountBalances[strings.ToLower(bob.Address().Hex())]; ok {
+					observedBalance, ok = new(big.Int).SetString(balanceStr[2:], 16)
+					t.Require().True(ok)
+				}
 				break outer
 			}
 		case <-t.Ctx().Done():
-			t.Require().NoError(t.Ctx().Err(), "never found the transaction")
+			t.Require().NoError(t.Ctx().Err(), "never found the transaction in flashblock receipts")
 		}
 	}
 
-	var txBlock eth.BlockRef
 	select {
-	case tx, ok := <-txCh:
-		t.Require().True(ok)
-		var err error
-		txBlock, err = tx.IncludedBlock.Eval(t.Ctx())
+	case err := <-txCh:
 		t.Require().NoError(err)
 	case <-t.Ctx().Done():
 		t.Require().NoError(t.Ctx().Err())
 	}
 
+	txBlock, err := tx.IncludedBlock.Eval(t.Ctx())
+	t.Require().NoError(err)
+	require.Equal(t, int(txBlock.Number), blockNumber, "the transaction's block number should be the same as the flashblock's block number")
+
+	if observedBalance == nil {
+		t.Require().Fail("matched flashblock via receipts but Bob was absent from new_account_balances", "bob=%s txHash=%s", bob.Address(), txHash)
+	}
+
 	expectedBalance, err := sys.L2EL.EthClient().BalanceAt(t.Ctx(), bob.Address(), new(big.Int).SetUint64(txBlock.Number))
 	t.Require().NoError(err)
-	require.Equal(t, expectedBalance, observedBalance, "Bob's balance must be correct as per exactly what Alice transferred to them")
-	require.Equal(t, int(txBlock.Number), blockNumber, "the transaction's block number should be the same as the flashblock's block number")
+	require.Equal(t, expectedBalance, observedBalance, "Bob's balance must match the on-chain balance at the transaction inclusion block when reported in flashblock metadata")
 }
