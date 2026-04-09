@@ -2,7 +2,6 @@ package filter
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"testing"
 	"time"
@@ -92,19 +91,24 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 	defer cancel()
 
 	bobAddr := bob.Address()
+	elClient := sys.L2ELB.EthClient()
 	tx := txplan.NewPlannedTx(
 		bob.Plan(),
+		// Override retry submission with single-attempt submitter so the
+		// filter's rejection propagates immediately instead of retrying
+		// until the context expires.
+		txplan.WithTransactionSubmitter(elClient),
 		txplan.WithTo(&bobAddr),
 		txplan.WithValue(eth.GWei(1)),
 		txplan.WithAccessList(accessList),
 		txplan.WithGasLimit(100_000),
 	)
 
-	// The transaction should be explicitly rejected by the filter, not just time out.
-	_, err := tx.Included.Eval(ctx)
+	// The transaction should be explicitly rejected by the interop filter.
+	_, err := tx.Submitted.Eval(ctx)
 	require.Error(err, "transaction with fabricated access list should not be included")
-	require.False(errors.Is(err, context.DeadlineExceeded),
-		"expected explicit rejection, not timeout: %v", err)
+	require.Contains(err.Error(), "failed to parse access entry",
+		"expected interop filter rejection, got: %v", err)
 }
 
 // TestInteropFilter_FailsafeLifecycle verifies the full failsafe lifecycle:
@@ -153,16 +157,20 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	}}
 
 	bobAddr := bob.Address()
+	elClient := sys.L2ELB.EthClient()
 	tx := txplan.NewPlannedTx(
 		bob.Plan(),
+		txplan.WithTransactionSubmitter(elClient),
 		txplan.WithTo(&bobAddr),
 		txplan.WithValue(eth.GWei(1)),
 		txplan.WithAccessList(accessList),
 		txplan.WithGasLimit(100_000),
 	)
 
-	_, err = tx.Included.Eval(ctx)
+	_, err = tx.Submitted.Eval(ctx)
 	require.Error(err, "interop tx should be rejected during failsafe")
+	require.Contains(err.Error(), "interop failsafe is active",
+		"expected failsafe rejection, got: %v", err)
 
 	// Step 4: Disable failsafe and wait for propagation
 	sys.InteropFilter.SetFailsafeEnabled(false)
