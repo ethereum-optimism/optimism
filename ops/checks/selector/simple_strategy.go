@@ -145,14 +145,24 @@ func (s *SimpleStrategy) planScopeableCheck(
 		}
 
 		config := mapSignalToConfig(ct, maxSignal, stage)
-		cost := float64(ct.PerUnitDuration) * float64(len(tierScopes))
-		if cost == 0 {
-			cost = float64(ct.AvgDuration)
-		}
+		cost := estimateScopedRunCost(ct, len(tierScopes), config)
+
 
 		// P(fail) heuristic: signal × check type prior
+		// For direct changes (high signal), tests are very likely to fail
 		prior := checkTypePrior(ct.Kind)
+		if maxSignal > 0.6 {
+			prior = 0.7 // direct dependency: tests are very likely relevant
+		}
 		pFail := maxSignal * prior
+
+		skipCost := pFail * stage.MissCost
+		// Direct changes always run their tests — the cost optimization only
+		// applies to transitive/distant dependencies where there's a real
+		// question of whether the test is relevant.
+		if maxSignal > 0.6 {
+			skipCost = cost + 1 // force selection
+		}
 
 		items = append(items, ExecutionItem{
 			ID:          fmt.Sprintf("%s:%s", ct.ID, t.label),
@@ -161,7 +171,7 @@ func (s *SimpleStrategy) planScopeableCheck(
 			Config:      config,
 			Signal:      maxSignal,
 			RunCost:     cost,
-			SkipCost:    pFail * stage.MissCost,
+			SkipCost:    skipCost,
 			Prerequisites: prereqItemIDs(ct),
 		})
 	}
@@ -458,8 +468,65 @@ func checkTypePrior(kind string) float64 {
 	}
 }
 
+// estimateScopedRunCost estimates the run time for a scoped check invocation.
+// A scoped run is ONE command with multiple --match-path or package args.
+// The cost is NOT per_unit × num_scopes — that would assume serial execution.
+// Instead: base cost for the first scope, plus marginal cost for each additional.
+// Forge runs all matched tests in one invocation, so additional paths add
+// less than the first. Fuzz depth also affects cost.
+func estimateScopedRunCost(ct *catalog.CheckType, numScopes int, config map[string]any) float64 {
+	if ct.PerUnitDuration <= 0 {
+		return float64(ct.AvgDuration)
+	}
+
+	// Base cost for the first scope
+	baseCost := float64(ct.PerUnitDuration)
+
+	// Marginal cost for additional scopes (diminishing — they share compilation, setup)
+	marginalCost := baseCost * 0.3
+	if numScopes > 1 {
+		baseCost += marginalCost * float64(numScopes-1)
+	}
+
+	// Fuzz depth scaling: more fuzz runs = proportionally more time
+	// But it's sublinear — forge parallelizes fuzz runs internally
+	if fuzzRuns, ok := config["fuzz_runs"]; ok {
+		var fuzz float64
+		switch v := fuzzRuns.(type) {
+		case int:
+			fuzz = float64(v)
+		case float64:
+			fuzz = v
+		}
+		// At 8 fuzz runs (baseline), cost = baseCost
+		// At 128 fuzz runs, cost ≈ 4x baseCost
+		// At 1024 fuzz runs, cost ≈ 10x baseCost
+		if fuzz > 8 {
+			fuzzMultiplier := 1.0 + 0.7*log2(fuzz/8)
+			baseCost *= fuzzMultiplier
+		}
+	}
+
+	return baseCost
+}
+
+func log2(x float64) float64 {
+	if x <= 0 {
+		return 0
+	}
+	// log2(x) = ln(x) / ln(2)
+	result := 0.0
+	for x >= 2 {
+		x /= 2
+		result++
+	}
+	// Linear interpolation for the fractional part
+	if x > 1 {
+		result += x - 1
+	}
+	return result
+}
+
 func prereqItemIDs(ct *catalog.CheckType) []string {
-	// For now, prerequisite item IDs = prerequisite check type IDs
-	// (binary prereqs like forge-build have the same item ID as their check type ID)
 	return ct.Prerequisites
 }

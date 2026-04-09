@@ -26,7 +26,7 @@ check_types:
     scope_flag: "--match-path"
     scope_type: paths
     avg_duration: 3600
-    per_unit_duration: 300
+    per_unit_duration: 60
     prerequisites: ["forge-build"]
     knobs:
       - name: fuzz_runs
@@ -53,7 +53,7 @@ check_types:
     scope_flag: ""
     scope_type: packages
     avg_duration: 7200
-    per_unit_duration: 300
+    per_unit_duration: 60
     prerequisites: ["go-build"]
     knobs:
       - name: short
