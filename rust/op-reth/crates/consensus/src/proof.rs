@@ -488,6 +488,7 @@ mod tests {
             OpReceipt::Eip2930(Receipt { status: true.into(), cumulative_gas_used: 102068, logs });
         let receipt = ReceiptWithBloom { receipt: &inner, logs_bloom };
         let receipt = vec![receipt];
+        tracing::info!("blablabla2322");
         let root = calculate_receipt_root_optimism(&receipt);
         assert_eq!(
             root,
@@ -550,6 +551,40 @@ mod tests {
         assert_eq!(
             wrong,
             b256!("0xac185bb4402e70ccef2c1188aea24fa4055a0334ffa0f703b6b0d50881c20da5")
+        );
+    }
+
+    /// Manta Sepolia block 697672 (StateRootTask / `receipt_root_bloom` path exposed wrong trie).
+    #[test]
+    fn manta_sepolia_697672_regolith_deposit_receipt_root_matches_chain_header() {
+        let deposit = OpReceipt::Deposit(OpDepositReceipt {
+            inner: Receipt { status: true.into(), cumulative_gas_used: 0xc545, logs: vec![] },
+            deposit_nonce: Some(0xaa547),
+            deposit_receipt_version: None,
+        });
+        let root = calculate_receipt_root_no_memo_optimism(std::slice::from_ref(&deposit));
+        assert_eq!(
+            root,
+            b256!("0x0e7c255df3e2b7ca4d55b82047531f7f3e7437ab1eb33e22eca70653c874982d")
+        );
+    }
+
+    #[test]
+    fn regolith_deposit_697672_wrong_root_matches_precomputed_ethereum_trie_got() {
+        let deposit = OpReceipt::Deposit(OpDepositReceipt {
+            inner: Receipt { status: true.into(), cumulative_gas_used: 0xc545, logs: vec![] },
+            deposit_nonce: Some(0xaa547),
+            deposit_receipt_version: None,
+        });
+        let correct = calculate_receipt_root_no_memo_optimism(std::slice::from_ref(&deposit));
+        let wrong = ordered_trie_root_with_encoder(
+            std::slice::from_ref(&deposit),
+            |r, buf| r.with_bloom_ref().encode_2718(buf),
+        );
+        assert_ne!(wrong, correct);
+        assert_eq!(
+            wrong,
+            b256!("0xe0afede48ad81b1163eaa1f659972d7eefa65a5be63e6a98a534516b390fbb79")
         );
     }
 

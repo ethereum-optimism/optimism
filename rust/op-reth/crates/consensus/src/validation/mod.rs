@@ -86,8 +86,11 @@ where
 /// - Compares the receipts root in the block header to the block body
 /// - Compares the gas used in the block header to the actual gas usage after execution
 ///
-/// If `receipt_root_bloom` is provided, the pre-computed receipt root and logs bloom are used
-/// instead of computing them from the receipts.
+/// `receipt_root_bloom` is accepted for API compatibility with upstream consensus hooks but is
+/// **ignored** for receipt checks: parallel execution may supply a root from the generic Ethereum
+/// receipts trie, which incorrectly includes Regolith `deposit_nonce` in deposit leaves. OP Stack
+/// headers use op-geth `Receipts.EncodeIndex` rules; we always recompute via
+/// [`verify_receipts_optimism`] from `result.receipts`.
 pub fn validate_block_post_execution<R: DepositReceipt>(
     header: impl BlockHeader,
     chain_spec: impl OpHardforks,
@@ -115,30 +118,34 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
     // transaction This was replaced with is_success flag.
     // See more about EIP here: https://eips.ethereum.org/EIPS/eip-658
     if chain_spec.is_byzantium_active_at_block(header.number()) {
-        let result = if let Some((receipts_root, logs_bloom)) = receipt_root_bloom {
-          tracing::info!("blablabla");
-            compare_receipts_root_and_logs_bloom(
-                receipts_root,
-                logs_bloom,
-                header.receipts_root(),
-                header.logs_bloom(),
-            )
-        } else {
-            tracing::info!(
-                block_number = header.number(),
-                header_receipts_root = %header.receipts_root(),
-                receipt_count = receipts.len(),
-                "verifying optimism receipts root against execution receipts"
-            );
+        match receipt_root_bloom.as_ref() {
+            Some((precomputed_root, _precomputed_bloom)) => {
+                // Parallel execution (e.g. StateRootTask) may pass this; we still recompute below
+                // using OP trie rules (see module docs).
+                tracing::info!(
+                    block_number = header.number(),
+                    precomputed_receipts_root = %precomputed_root,
+                    receipt_count = receipts.len(),
+                    "blablabla: validate_block_post_execution received receipt_root_bloom, recomputing OP receipts root from execution receipts"
+                );
+            }
+            None => {
+                tracing::info!(
+                    block_number = header.number(),
+                    header_receipts_root = %header.receipts_root(),
+                    receipt_count = receipts.len(),
+                    "blablabla: validate_block_post_execution verifying optimism receipts root (no precomputed receipt_root_bloom)"
+                );
+            }
+        }
+        if let Err(error) =
             verify_receipts_optimism(header.receipts_root(), header.logs_bloom(), receipts)
-        };
-
-        if let Err(error) = result {
+        {
             let receipts = receipts
                 .iter()
                 .map(|r| Bytes::from(r.with_bloom_ref().encoded_2718()))
                 .collect::<Vec<_>>();
-            tracing::debug!(%error, ?receipts, "receipts verification failed2222");
+            tracing::debug!(%error, ?receipts, "receipts verification failed");
             return Err(error);
         }
     }
@@ -164,6 +171,10 @@ fn verify_receipts_optimism<R: DepositReceipt>(
 ) -> Result<(), ConsensusError> {
     // Calculate receipts root.
     let receipts_with_bloom = receipts.iter().map(TxReceipt::with_bloom_ref).collect::<Vec<_>>();
+    tracing::info!(
+        receipt_count = receipts_with_bloom.len(),
+        "blablabla232211: verify_receipts_optimism computing root via calculate_receipt_root_optimism"
+    );
     let receipts_root = calculate_receipt_root_optimism(&receipts_with_bloom);
 
     // Calculate header logs bloom.
