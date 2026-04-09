@@ -20,8 +20,9 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
-/// The interval for which we check transaction against supervisor, 1 hour.
-const TRANSACTION_VALIDITY_WINDOW_SECS: u64 = 3600;
+/// The timeout for cross-chain transaction validation against the supervisor/interop-filter.
+/// Matches op-geth's `ingressFilterTxValidityWindow` (86400s = 24 hours).
+const TRANSACTION_VALIDITY_WINDOW_SECS: u64 = 86400;
 
 /// Tracks additional infos for the current block.
 #[derive(Debug, Default)]
