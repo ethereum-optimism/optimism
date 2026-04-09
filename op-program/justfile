@@ -164,6 +164,22 @@ verify-compat: verify-mainnet-genesis verify-sepolia-delta verify-sepolia-ecoton
 analyze-op-program-client-current:
     ./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64.yaml ./compatibility-test/baseline-cannon-multithreaded-64.json
 
+# Regenerate the current baseline (full report without baseline, then normalize)
+regenerate-baseline-current:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    FULL_REPORT=$(mktemp)
+    # Run without baseline — will exit 1 since all findings are "new", which is expected
+    FINDINGS_OUTPUT_PATH="$FULL_REPORT" ./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64.yaml || true
+    # Strip assembly-level fields that cause false positives when they change
+    jq 'walk(
+      if type == "object" and has("line") then del(.line) else . end |
+      if type == "object" and has("absPath") then del(.absPath) else . end |
+      if type == "object" and has("file") then del(.file) else . end
+    )' "$FULL_REPORT" > ./compatibility-test/baseline-cannon-multithreaded-64.json
+    rm -f "$FULL_REPORT"
+    echo "Baseline regenerated: ./compatibility-test/baseline-cannon-multithreaded-64.json ($(jq length ./compatibility-test/baseline-cannon-multithreaded-64.json) entries)"
+
 # Analyze next op-program client for VM compatibility
 analyze-op-program-client-next:
     ./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64-next.yaml ./compatibility-test/baseline-cannon-multithreaded-64-next.json
@@ -181,3 +197,16 @@ run-vm-compat:
     # TODO(#18334): Uncomment once vm-compat supports go1.25
     #@docker build --build-arg GO_VERSION=1.25.4-alpine3.21 --build-arg VM_TARGET=next --progress plain --output "{{VM_COMPAT_OUTPUT_DIR}}" -f Dockerfile.vmcompat ../
     #@exit $(cat "{{VM_COMPAT_OUTPUT_DIR}}/vm-compat-exit-code")
+
+# Regenerate the vm-compat baseline via Docker, then copy it back into the repo
+regenerate-vm-compat-baseline:
+    @rm -rf "{{VM_COMPAT_OUTPUT_DIR}}" && mkdir -p "{{VM_COMPAT_OUTPUT_DIR}}"
+    @docker build \
+        --build-arg GO_VERSION=1.24.10-alpine3.21 \
+        --build-arg VM_TARGET=current \
+        --build-arg VM_COMPAT_TASK=regenerate-baseline \
+        --progress plain \
+        --output "{{VM_COMPAT_OUTPUT_DIR}}" \
+        -f Dockerfile.vmcompat ../
+    @cp "{{VM_COMPAT_OUTPUT_DIR}}/baseline-cannon-multithreaded-64.json" ./compatibility-test/baseline-cannon-multithreaded-64.json
+    @echo "Baseline updated: ./compatibility-test/baseline-cannon-multithreaded-64.json ($(jq length ./compatibility-test/baseline-cannon-multithreaded-64.json) entries)"

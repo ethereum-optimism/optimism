@@ -28,13 +28,23 @@ build *args='':
 build-release *args='':
   cargo build --workspace --release {{args}}
 
-# Build the rollup node
-build-node:
+# Build kona-node
+build-kona-node:
   cargo build --release --bin kona-node
+
+# Build kona-node in debug mode (faster compilation for local E2E test iteration)
+build-kona-node-debug:
+  cargo build --bin kona-node
+
+alias build-node := build-kona-node
 
 # Build op-reth
 build-op-reth:
   cargo build --release --bin op-reth
+
+# Build op-reth in debug mode (faster compilation for local E2E test iteration)
+build-op-reth-debug:
+  cargo build --bin op-reth
 
 ############################### Test ################################
 

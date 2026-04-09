@@ -28,7 +28,7 @@ type RustBinarySpec struct {
 //   - RUST_SRC_DIR_<BINARY>: overrides SrcDir (absolute path to cargo project root)
 //
 // Build behavior:
-//   - RUST_JIT_BUILD=1: runs cargo build --release (letting cargo handle rebuild detection)
+//   - RUST_JIT_BUILD=1: runs cargo build in debug mode (letting cargo handle rebuild detection)
 //   - Otherwise: only checks binary exists, errors if missing
 func EnsureRustBinary(p devtest.CommonT, spec RustBinarySpec) (string, error) {
 	envSuffix := toEnvVarSuffix(spec.Binary)
@@ -59,7 +59,8 @@ func EnsureRustBinary(p devtest.CommonT, spec RustBinarySpec) (string, error) {
 
 	binaryPath, err := resolveBuiltRustBinaryPath(srcRoot, spec.Binary)
 	if err != nil {
-		return "", fmt.Errorf("%s binary not found; run 'just build-rust-debug' before the test or set RUST_JIT_BUILD=1: %w", spec.Binary, err)
+		return "", fmt.Errorf("%s binary not found; run 'cd %s && just build-%s-debug' (or just build-%s for release) or set RUST_JIT_BUILD=1: %w",
+			spec.Binary, spec.SrcDir, spec.Binary, spec.Binary, err)
 	}
 	return binaryPath, nil
 }
@@ -88,7 +89,7 @@ func toEnvVarSuffix(binary string) string {
 }
 
 func buildRustBinary(ctx context.Context, root, pkg, bin string) error {
-	cmd := exec.CommandContext(ctx, "cargo", "build", "--release", "-p", pkg, "--bin", bin)
+	cmd := exec.CommandContext(ctx, "cargo", "build", "-p", pkg, "--bin", bin)
 	cmd.Dir = root
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -107,6 +108,7 @@ func resolveBuiltRustBinaryPath(srcRoot, binary string) (string, error) {
 
 	candidates := []string{
 		filepath.Join(targetDir, "release", binary),
+		filepath.Join(targetDir, "debug", binary),
 	}
 	globMatches, err := filepath.Glob(filepath.Join(targetDir, "*", "release", binary))
 	if err == nil {

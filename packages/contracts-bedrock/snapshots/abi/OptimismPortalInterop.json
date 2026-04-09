@@ -339,7 +339,7 @@
         "type": "address"
       }
     ],
-    "name": "migrateToSuperRoots",
+    "name": "migrateToSharedDisputeGame",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

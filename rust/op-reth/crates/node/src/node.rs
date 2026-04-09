@@ -506,6 +506,34 @@ where
         )
     }
 
+    /// Maps the [`EngineValidatorBuilder`] builder type.
+    pub fn with_engine_validator<T>(
+        self,
+        engine_validator_builder: T,
+    ) -> OpAddOns<N, EthB, PVB, EB, T, RpcMiddleware> {
+        let Self {
+            rpc_add_ons,
+            da_config,
+            gas_limit_config,
+            sequencer_url,
+            sequencer_headers,
+            enable_tx_conditional,
+            min_suggested_priority_fee,
+            historical_rpc,
+            ..
+        } = self;
+        OpAddOns::new(
+            rpc_add_ons.with_engine_validator(engine_validator_builder),
+            da_config,
+            gas_limit_config,
+            sequencer_url,
+            sequencer_headers,
+            historical_rpc,
+            enable_tx_conditional,
+            min_suggested_priority_fee,
+        )
+    }
+
     /// Sets the RPC middleware stack for processing RPC requests.
     ///
     /// This method configures a custom middleware stack that will be applied to all RPC requests

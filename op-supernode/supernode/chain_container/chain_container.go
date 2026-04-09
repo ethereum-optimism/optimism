@@ -336,10 +336,7 @@ func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts ui
 }
 
 func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
-	if c.vncfg == nil {
-		return 0, fmt.Errorf("rollup config not available")
-	}
-	return c.vncfg.Rollup.Genesis.L2Time + (blocknum * c.vncfg.Rollup.BlockTime), nil
+	return c.blockNumberToTimestamp(blocknum)
 }
 
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
@@ -627,9 +624,12 @@ func (c *simpleChainContainer) SetResetCallback(cb ResetCallback) {
 }
 
 // blockNumberToTimestamp converts a block number to its timestamp using rollup config.
-func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) uint64 {
+func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) (uint64, error) {
 	if c.vncfg == nil {
-		return 0
+		return 0, fmt.Errorf("rollup config not available")
 	}
-	return c.vncfg.Rollup.Genesis.L2Time + (blockNum * c.vncfg.Rollup.BlockTime)
+	if blockNum < c.vncfg.Rollup.Genesis.L2.Number {
+		return 0, fmt.Errorf("block number %d before genesis %d", blockNum, c.vncfg.Rollup.Genesis.L2.Number)
+	}
+	return c.vncfg.Rollup.TimestampForBlock(blockNum), nil
 }

@@ -312,8 +312,7 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	state.SetTxContext(tx.Hash(), 0)
 
 	cCtx := &simChainContext{eng: beacon.New(ethash.NewFaker()), head: header, cfg: conf}
-	gp := core.GasPool(tx.Gas())
-	usedGas := uint64(0)
+	gp := core.NewGasPool(tx.Gas())
 	vmConfig := vm.Config{}
 
 	if doProfile {
@@ -326,7 +325,7 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	// nil block-author, since it defaults to header.coinbase
 	blockCtx := core.NewEVMBlockContext(header, cCtx, nil, conf, state)
 	evm := vm.NewEVM(blockCtx, state, conf, vmConfig)
-	receipt, err := core.ApplyTransaction(evm, &gp, state, header, tx, &usedGas)
+	receipt, err := core.ApplyTransaction(evm, gp, state, header, tx)
 	if err != nil {
 		return fmt.Errorf("failed to apply tx: %w", err)
 	}
