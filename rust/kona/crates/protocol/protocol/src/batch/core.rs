@@ -42,8 +42,7 @@ impl Batch {
         }
 
         // Read the batch type
-        let batch_type =
-            BatchType::try_from(r[0]).map_err(BatchDecodingError::UnknownBatchType)?;
+        let batch_type = BatchType::try_from(r[0]).map_err(BatchDecodingError::UnknownBatchType)?;
         r.advance(1);
 
         match batch_type {
