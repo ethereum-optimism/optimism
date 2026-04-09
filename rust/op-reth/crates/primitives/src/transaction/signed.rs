@@ -110,9 +110,9 @@ impl SignerRecoverable for OpTransactionSigned {
     fn recover_signer(&self) -> Result<Address, RecoveryError> {
         // Optimism's Deposit transaction does not have a signature. Directly return the
         // `from` address.
-        match self.transaction {
-            OpTypedTransaction::Deposit(TxDeposit { from, .. }) => return Ok(from),
-            OpTypedTransaction::PostExec(_) => return Ok(Address::ZERO),
+        match &self.transaction {
+            OpTypedTransaction::Deposit(TxDeposit { from, .. }) => return Ok(*from),
+            OpTypedTransaction::PostExec(tx) => return Ok(tx.signer_address()),
             _ => {}
         }
 
@@ -126,7 +126,7 @@ impl SignerRecoverable for OpTransactionSigned {
         // `from` address.
         match &self.transaction {
             OpTypedTransaction::Deposit(TxDeposit { from, .. }) => return Ok(*from),
-            OpTypedTransaction::PostExec(_) => return Ok(Address::ZERO),
+            OpTypedTransaction::PostExec(tx) => return Ok(tx.signer_address()),
             _ => {}
         }
 
@@ -140,7 +140,7 @@ impl SignerRecoverable for OpTransactionSigned {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             OpTypedTransaction::Deposit(tx) => return Ok(tx.from),
-            OpTypedTransaction::PostExec(_) => return Ok(Address::ZERO),
+            OpTypedTransaction::PostExec(tx) => return Ok(tx.signer_address()),
             OpTypedTransaction::Legacy(tx) => tx.encode_for_signing(buf),
             OpTypedTransaction::Eip2930(tx) => tx.encode_for_signing(buf),
             OpTypedTransaction::Eip1559(tx) => tx.encode_for_signing(buf),
@@ -200,11 +200,7 @@ impl From<Sealed<TxDeposit>> for OpTransactionSigned {
 impl From<Sealed<TxPostExec>> for OpTransactionSigned {
     fn from(value: Sealed<TxPostExec>) -> Self {
         let (tx, hash) = value.into_parts();
-        Self::new(
-            OpTypedTransaction::PostExec(tx),
-            Signature::new(Default::default(), Default::default(), false),
-            hash,
-        )
+        Self::new(OpTypedTransaction::PostExec(tx), TxPostExec::signature(), hash)
     }
 }
 
@@ -323,7 +319,7 @@ impl Decodable2718 for OpTransactionSigned {
             )),
             op_alloy_consensus::OpTxType::PostExec => Ok(Self::new_unhashed(
                 OpTypedTransaction::PostExec(TxPostExec::decode_2718(buf)?),
-                Signature::new(Default::default(), Default::default(), false),
+                TxPostExec::signature(),
             )),
         }
     }

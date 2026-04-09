@@ -161,7 +161,7 @@ impl From<Sealed<TxDeposit>> for OpTransactionRequest {
 impl From<TxPostExec> for OpTransactionRequest {
     fn from(tx: TxPostExec) -> Self {
         Self(TransactionRequest {
-            from: Some(Address::ZERO),
+            from: Some(tx.signer_address()),
             transaction_type: Some(POST_EXEC_TX_TYPE_ID),
             gas: Some(0),
             nonce: Some(0),

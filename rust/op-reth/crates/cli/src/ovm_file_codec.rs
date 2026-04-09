@@ -279,7 +279,7 @@ impl Decodable2718 for OvmTransactionSigned {
             )),
             OpTxType::PostExec => Ok(Self::from_transaction_and_signature(
                 OpTypedTransaction::PostExec(TxPostExec::decode_2718(buf)?),
-                Signature::new(Default::default(), Default::default(), false),
+                TxPostExec::signature(),
             )),
         }
     }

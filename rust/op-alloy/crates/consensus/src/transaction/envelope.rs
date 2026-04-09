@@ -521,9 +521,7 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             Self::Deposit(tx) => return Ok(tx.from),
-            // Post-exec transactions are synthetic and unsigned, so use the canonical zero
-            // address placeholder.
-            Self::PostExec(_) => return Ok(alloy_primitives::Address::ZERO),
+            Self::PostExec(tx) => return Ok(tx.inner().signer_address()),
         };
         let signature = match self {
             Self::Legacy(tx) => tx.signature(),
@@ -548,9 +546,7 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             Self::Deposit(tx) => return Ok(tx.from),
-            // Post-exec transactions are synthetic and unsigned, so use the canonical zero
-            // address placeholder.
-            Self::PostExec(_) => return Ok(alloy_primitives::Address::ZERO),
+            Self::PostExec(tx) => return Ok(tx.inner().signer_address()),
         };
         let signature = match self {
             Self::Legacy(tx) => tx.signature(),
@@ -582,9 +578,7 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
                 alloy_consensus::transaction::SignerRecoverable::recover_unchecked_with_buf(tx, buf)
             }
             Self::Deposit(tx) => Ok(tx.from),
-            // Post-exec transactions are synthetic and unsigned, so use the canonical zero
-            // address placeholder.
-            Self::PostExec(_) => Ok(alloy_primitives::Address::ZERO),
+            Self::PostExec(tx) => Ok(tx.inner().signer_address()),
         }
     }
 }
