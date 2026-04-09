@@ -46,7 +46,7 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
-import { IL2StandardBridgeInterop } from "interfaces/L2/IL2StandardBridgeInterop.sol";
+import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
@@ -140,7 +140,7 @@ abstract contract Setup is FeatureFlags {
     ICrossL2Inbox crossL2Inbox = ICrossL2Inbox(payable(Predeploys.CROSS_L2_INBOX));
     IL2CrossDomainMessenger l2CrossDomainMessenger =
         IL2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
-    IL2StandardBridgeInterop l2StandardBridge = IL2StandardBridgeInterop(payable(Predeploys.L2_STANDARD_BRIDGE));
+    IL2StandardBridge l2StandardBridge = IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
     IL2ToL1MessagePasser l2ToL1MessagePasser = IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
     IOptimismMintableERC20Factory l2OptimismMintableERC20Factory =
         IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);

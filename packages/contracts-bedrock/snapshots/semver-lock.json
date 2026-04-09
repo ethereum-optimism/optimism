@@ -111,10 +111,6 @@
     "initCodeHash": "0xceccf652d13f2492b853c2ca2117538549259ce0ddfc085d75c5d5074cc5e80f",
     "sourceCodeHash": "0x00bf544cb76e2ee689de6cc9f1cd4cfdaae1ea63cd2edc16b3fde6357b04722e"
   },
-  "src/L2/L2StandardBridgeInterop.sol:L2StandardBridgeInterop": {
-    "initCodeHash": "0x29ddd562a5d4d63a7a7c6f68b3b08159cc60a2c49d453c5a171731fe78454479",
-    "sourceCodeHash": "0x929831a2f0569b1289a5704f28390e0626925f72780847c426c747bc1454b934"
-  },
   "src/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser": {
     "initCodeHash": "0xe30675ea6623cd7390dd2cd1e9a523c92c66956dfab86d06e318eb410cd1989b",
     "sourceCodeHash": "0xdc7bd63134eeab163a635950f2afd16b59f40f9cf1306f2ed33ad661cc7b4962"
@@ -146,10 +142,6 @@
   "src/L2/OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory": {
     "initCodeHash": "0x50452b7514964a4c9cb75963ad5439d08d7b4e7908a41d555c9d380e17c85d55",
     "sourceCodeHash": "0x934698844664ca01b0898fc4fafd74d9685977dd141e71823c9ef7501cee505e"
-  },
-  "src/L2/OptimismSuperchainERC20.sol:OptimismSuperchainERC20": {
-    "initCodeHash": "0x1ad4b7c19d10f80559bad15063ac1fd420f36d76853eb6d846b0acd52fb93acb",
-    "sourceCodeHash": "0xa135241cee15274eb07045674106becf8e830ddc55412ebf5d608c5c3da6313e"
   },
   "src/L2/SequencerFeeVault.sol:SequencerFeeVault": {
     "initCodeHash": "0x5ac8f2c2c28baefb7e8987fcc44e5d18091d2ff38f3690f5a5d18eb6e26b9001",
