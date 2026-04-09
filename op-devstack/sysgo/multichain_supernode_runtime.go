@@ -311,6 +311,12 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		runtimeDepSet = wb.outFullCfgSet.DependencySet
 	}
 
+	// Wait for interop filter readiness now that the supernode and batchers are running.
+	// The filter needs blocks to be produced before its chain ingesters can backfill.
+	if interopFilter != nil {
+		interopFilter.WaitForReady(t, 120*time.Second)
+	}
+
 	return &MultiChainRuntime{
 		Keys:          keys,
 		Migration:     newInteropMigrationState(wb),

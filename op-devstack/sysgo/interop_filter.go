@@ -39,6 +39,23 @@ func (f *InteropFilter) Ready() bool {
 	return f.service.Ready()
 }
 
+// WaitForReady blocks until all chain ingesters have backfilled or the timeout expires.
+// Call this after the supernode/CL layer has started so that blocks are being produced.
+func (f *InteropFilter) WaitForReady(t devtest.T, timeout time.Duration) {
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), timeout)
+	defer waitCancel()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for !f.Ready() {
+		select {
+		case <-waitCtx.Done():
+			t.Require().Fail("interop filter did not become ready within timeout")
+		case <-ticker.C:
+		}
+	}
+	f.logger.Info("Interop filter ready")
+}
+
 // SetFailsafeEnabled toggles failsafe mode directly on the backend.
 // No admin RPC or JWT needed — this is the in-process advantage.
 func (f *InteropFilter) SetFailsafeEnabled(enabled bool) {
@@ -110,20 +127,6 @@ func startInteropFilter(
 	t.Require().NoError(err, "failed to start interop filter")
 	t.Cleanup(func() { f.Stop() })
 	logger.Info("Started interop filter", "endpoint", service.HTTPEndpoint())
-
-	// Wait for readiness (all chain ingesters backfilled)
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer waitCancel()
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-	for !f.service.Ready() {
-		select {
-		case <-waitCtx.Done():
-			t.Require().Fail("interop filter did not become ready within 60s")
-		case <-ticker.C:
-		}
-	}
-	logger.Info("Interop filter ready")
 
 	return f
 }
