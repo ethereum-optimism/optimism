@@ -22,6 +22,7 @@ op-alloy-consensus = { workspace = true, features = ["serde"] }
 alloy-serde.workspace = true
 alloy-consensus.workspace = true
 alloy-network-primitives.workspace = true
+alloy-network = { workspace = true, optional = true }
 alloy-eips = { workspace = true, features = ["serde"] }
 alloy-rpc-types-eth = { workspace = true, features = ["serde"] }
 alloy-primitives = { workspace = true, features = ["map", "rlp", "serde"] }
@@ -51,6 +52,7 @@ similar-asserts.workspace = true
 [features]
 default = ["std"]
 std = [
+	"dep:alloy-network",
 	"alloy-network-primitives/std",
 	"alloy-eips/std",
 	"alloy-primitives/std",
