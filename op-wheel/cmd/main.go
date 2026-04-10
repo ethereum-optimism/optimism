@@ -38,6 +38,7 @@ func main() {
 	app.ErrWriter = os.Stderr
 	app.Commands = []*cli.Command{
 		wheel.CheatCmd,
+		wheel.CheatRethCmd,
 		wheel.EngineCmd,
 	}
 

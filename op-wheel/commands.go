@@ -675,32 +675,14 @@ var (
 	EngineRewindRethCmd = &cli.Command{
 		Name:        "rewind-reth",
 		Description: "Rewind a reth node offline by running 'reth stage unwind'. The reth node must be stopped.",
-		Flags: append([]cli.Flag{
+		Flags: rethFlags(
 			&cli.Uint64Flag{
 				Name:     "to",
 				Usage:    "Block number to rewind chain to",
 				Required: true,
 				EnvVars:  prefixEnvVars("REWIND_TO"),
 			},
-			&cli.StringFlag{
-				Name:     "reth-binary",
-				Usage:    "Path to the reth binary",
-				Required: true,
-				EnvVars:  prefixEnvVars("RETH_BINARY"),
-			},
-			&cli.StringFlag{
-				Name:     "reth-datadir",
-				Usage:    "Reth data directory path",
-				Required: true,
-				EnvVars:  prefixEnvVars("RETH_DATADIR"),
-			},
-			&cli.StringFlag{
-				Name:     "reth-chain",
-				Usage:    "Chain spec name or path (e.g., 'op-mainnet', 'op-sepolia', or path to genesis file)",
-				Required: true,
-				EnvVars:  prefixEnvVars("RETH_CHAIN"),
-			},
-		}, oplog.CLIFlags(envVarPrefix)...),
+		),
 		Action: func(ctx *cli.Context) error {
 			lgr := initLogger(ctx)
 			return engine.RethRewind(
@@ -741,6 +723,95 @@ var (
 		}),
 	}
 )
+
+func rethFlags(flags ...cli.Flag) []cli.Flag {
+	return append(append(flags,
+		&cli.StringFlag{
+			Name:     "reth-binary",
+			Usage:    "Path to the reth binary",
+			Required: true,
+			EnvVars:  prefixEnvVars("RETH_BINARY"),
+		},
+		&cli.StringFlag{
+			Name:     "reth-datadir",
+			Usage:    "Reth data directory path",
+			Required: true,
+			EnvVars:  prefixEnvVars("RETH_DATADIR"),
+		},
+		&cli.StringFlag{
+			Name:     "reth-chain",
+			Usage:    "Chain spec name or path (e.g., 'optimism', 'dev', or path to genesis file)",
+			Required: true,
+			EnvVars:  prefixEnvVars("RETH_CHAIN"),
+		},
+	), oplog.CLIFlags(envVarPrefix)...)
+}
+
+var (
+	CheatRethStateCmd = &cli.Command{
+		Name:        "state",
+		Description: "Read account state (balance, nonce, code, storage) from a reth database offline.",
+		Flags: rethFlags(
+			&cli.StringFlag{
+				Name:     "address",
+				Usage:    "Account address to inspect",
+				Required: true,
+				EnvVars:  prefixEnvVars("ADDRESS"),
+			},
+			&cli.StringFlag{
+				Name:    "block",
+				Usage:   "Block number to query state at (uses latest if not provided)",
+				EnvVars: prefixEnvVars("BLOCK"),
+			},
+			&cli.Uint64Flag{
+				Name:    "limit",
+				Usage:   "Maximum number of storage slots to display",
+				Value:   100,
+				EnvVars: prefixEnvVars("LIMIT"),
+			},
+		),
+		Action: func(ctx *cli.Context) error {
+			lgr := initLogger(ctx)
+			return engine.RethState(
+				ctx.Context,
+				lgr,
+				ctx.String("reth-binary"),
+				ctx.String("reth-datadir"),
+				ctx.String("reth-chain"),
+				ctx.String("address"),
+				ctx.String("block"),
+				ctx.Uint64("limit"),
+			)
+		},
+	}
+
+	CheatRethHeadCmd = &cli.Command{
+		Name:        "head",
+		Description: "Show the current head block via stage checkpoints from a reth database offline.",
+		Flags:       rethFlags(),
+		Action: func(ctx *cli.Context) error {
+			lgr := initLogger(ctx)
+			return engine.RethHead(
+				ctx.Context,
+				lgr,
+				ctx.String("reth-binary"),
+				ctx.String("reth-datadir"),
+				ctx.String("reth-chain"),
+			)
+		},
+	}
+)
+
+var CheatRethCmd = &cli.Command{
+	Name:  "cheat-reth",
+	Usage: "Read-only inspection commands for a reth database (offline).",
+	Description: "Each sub-command invokes reth CLI tools against the database. " +
+		"The reth node must be stopped before running these commands.",
+	Subcommands: []*cli.Command{
+		CheatRethStateCmd,
+		CheatRethHeadCmd,
+	},
+}
 
 var CheatCmd = &cli.Command{
 	Name:  "cheat",
