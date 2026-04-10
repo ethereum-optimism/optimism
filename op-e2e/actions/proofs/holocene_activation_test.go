@@ -89,11 +89,9 @@ func Test_ProgramAction_HoloceneActivation(gt *testing.T) {
 		env.Sequencer.ActL2PipelineFull(t)
 
 		l2SafeHead := env.Sequencer.L2Safe()
-		t.Log(l2SafeHead.Time)
+		t.Log("Safe head", "time", l2SafeHead.Time)
 		require.EqualValues(t, uint64(0), l2SafeHead.Number) // channel should be dropped, so no safe head progression
-		if uint64(0) == l2SafeHead.Number {
-			t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
-		}
+		t.Log("Safe head progressed as expected", "number", l2SafeHead.Number)
 
 		// Log assertions
 		filters := []string{
@@ -106,7 +104,14 @@ func Test_ProgramAction_HoloceneActivation(gt *testing.T) {
 			recs := env.Logs.FindLogs(testlog.NewMessageContainsFilter(filter), testlog.NewAttributesFilter("role", "sequencer"))
 			require.Len(t, recs, 1, "searching for %d instances of '%s' in logs from role %s", 1, filter, "sequencer")
 		}
-		env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+
+		// Now make sure the safe head progresses over the activation boundary so proofs tests aren't trivial over the genesis block.
+		env.BatchMineAndSync(t)
+		l2SafeHead = env.Sequencer.L2Safe()
+		t.Log("Safe head", "time", l2SafeHead.Time)
+		require.EqualValues(t, uint64(14), l2SafeHead.Number)
+		t.Log("Safe head progressed as expected", "number", l2SafeHead.Number)
+		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	matrix := helpers.NewMatrix[any]()
