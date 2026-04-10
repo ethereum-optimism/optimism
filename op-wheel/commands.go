@@ -672,6 +672,48 @@ var (
 		}),
 	}
 
+	EngineRewindRethCmd = &cli.Command{
+		Name:        "rewind-reth",
+		Description: "Rewind a reth node offline by running 'reth stage unwind'. The reth node must be stopped.",
+		Flags: append([]cli.Flag{
+			&cli.Uint64Flag{
+				Name:     "to",
+				Usage:    "Block number to rewind chain to",
+				Required: true,
+				EnvVars:  prefixEnvVars("REWIND_TO"),
+			},
+			&cli.StringFlag{
+				Name:     "reth-binary",
+				Usage:    "Path to the reth binary",
+				Required: true,
+				EnvVars:  prefixEnvVars("RETH_BINARY"),
+			},
+			&cli.StringFlag{
+				Name:     "reth-datadir",
+				Usage:    "Reth data directory path",
+				Required: true,
+				EnvVars:  prefixEnvVars("RETH_DATADIR"),
+			},
+			&cli.StringFlag{
+				Name:     "reth-chain",
+				Usage:    "Chain spec name or path (e.g., 'op-mainnet', 'op-sepolia', or path to genesis file)",
+				Required: true,
+				EnvVars:  prefixEnvVars("RETH_CHAIN"),
+			},
+		}, oplog.CLIFlags(envVarPrefix)...),
+		Action: func(ctx *cli.Context) error {
+			lgr := initLogger(ctx)
+			return engine.RethRewind(
+				ctx.Context,
+				lgr,
+				ctx.String("reth-binary"),
+				ctx.String("reth-datadir"),
+				ctx.String("reth-chain"),
+				ctx.Uint64("to"),
+			)
+		},
+	}
+
 	EngineJSONCmd = &cli.Command{
 		Name:        "json",
 		Description: "read json values from remaining args, or STDIN, and use them as RPC params to call the engine RPC method (first arg)",
@@ -728,6 +770,7 @@ var EngineCmd = &cli.Command{
 		EngineSetForkchoiceCmd,
 		EngineSetForkchoiceHashCmd,
 		EngineRewindCmd,
+		EngineRewindRethCmd,
 		EngineJSONCmd,
 	},
 }
