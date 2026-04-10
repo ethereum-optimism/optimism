@@ -3,7 +3,24 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 )
+
+func loadGraph(path string) (*graph.Graph, error) {
+	g, err := graph.Load(path)
+	if err != nil {
+		return nil, fmt.Errorf("loading graph: %w", err)
+	}
+	return g, nil
+}
+
+func saveGraph(g *graph.Graph, path string) error {
+	if err := graph.Save(g, path); err != nil {
+		return fmt.Errorf("saving graph: %w", err)
+	}
+	return nil
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -23,6 +40,8 @@ func main() {
 		err = cmdExplain(os.Args[2:])
 	case "info":
 		err = cmdInfo(os.Args[2:])
+	case "coverage":
+		err = cmdCoverage(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -48,6 +67,7 @@ Commands:
   run       Select and execute checks
   explain   Show which checks are affected by a file and why
   info      Print graph statistics
+  coverage  Collect and ingest test coverage data
 
 Examples:
   checks build

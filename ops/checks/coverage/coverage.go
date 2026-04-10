@@ -1,150 +1,71 @@
 package coverage
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
-
-	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 )
 
-// IngestGoCoverage reads a Go coverage profile (from `go test -coverprofile`)
-// and creates precise tested_by edges from source packages to test packages.
-func IngestGoCoverage(g *graph.Graph, profilePath string) error {
-	f, err := os.Open(profilePath)
-	if err != nil {
-		return fmt.Errorf("opening coverage profile: %w", err)
-	}
-	defer f.Close()
-
-	// Coverage profile format:
-	// mode: set|count|atomic
-	// file:startLine.startCol,endLine.endCol statements count
-	// e.g.: github.com/org/repo/pkg/file.go:10.2,20.5 3 1
-
-	coveredPackages := make(map[string]int) // package path -> covered statement count
-	totalPackages := make(map[string]int)   // package path -> total statement count
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "mode:") {
-			continue
-		}
-
-		// Parse: file:start,end statements count
-		colonIdx := strings.LastIndex(line, ":")
-		if colonIdx < 0 {
-			continue
-		}
-		filePath := line[:colonIdx]
-
-		// Extract package path from file path
-		lastSlash := strings.LastIndex(filePath, "/")
-		if lastSlash < 0 {
-			continue
-		}
-		pkgPath := filePath[:lastSlash]
-
-		// Parse count (last field)
-		fields := strings.Fields(line[colonIdx+1:])
-		if len(fields) < 3 {
-			continue
-		}
-
-		totalPackages[pkgPath]++
-		if fields[2] != "0" {
-			coveredPackages[pkgPath]++
-		}
-	}
-
-	// Create tested_by edges with strength proportional to coverage
-	for pkgPath, covered := range coveredPackages {
-		total := totalPackages[pkgPath]
-		if total == 0 {
-			continue
-		}
-		strength := float64(covered) / float64(total)
-
-		fromID := "go:" + pkgPath
-		// Find check nodes that test this package
-		for _, edge := range g.EdgesTo(fromID) {
-			if edge.Kind == graph.EdgeTestedBy {
-				continue
-			}
-		}
-
-		// Add coverage edge from source to any check that covers it
-		// The check ID is derived from the package path
-		// This is a best-effort mapping — the builder wires more precisely
-		_ = g.AddEdge(&graph.Edge{
-			From:       fromID,
-			To:         fromID, // Placeholder — builder resolves actual check ID
-			Kind:       graph.EdgeTestedBy,
-			Source:     graph.SourceCoverage,
-			Confidence: 1.0,
-			Strength:   strength,
-			Properties: map[string]any{
-				"covered_statements": covered,
-				"total_statements":   total,
-			},
-		})
-	}
-
-	return scanner.Err()
+// Report is the language-agnostic coverage output format.
+// One report per test unit (file, package, or function).
+type Report struct {
+	Test     string              `json:"test"`     // test identifier (file path, package, function)
+	Language string              `json:"language"`  // "solidity", "go", "rust"
+	Covers   map[string][][2]int `json:"covers"`   // source file → list of [startLine, endLine] ranges
 }
 
-// IngestForgeCoverage reads a Forge LCOV coverage report and creates
-// tested_by edges from Solidity source files to test files.
-func IngestForgeCoverage(g *graph.Graph, lcovPath string) error {
-	f, err := os.Open(lcovPath)
+// LoadReport reads a coverage report from a JSON file.
+func LoadReport(path string) (*Report, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("opening LCOV report: %w", err)
+		return nil, fmt.Errorf("reading coverage report: %w", err)
 	}
-	defer f.Close()
+	var r Report
+	if err := json.Unmarshal(data, &r); err != nil {
+		return nil, fmt.Errorf("parsing coverage report: %w", err)
+	}
+	return &r, nil
+}
 
-	// LCOV format:
-	// SF:path/to/file.sol
-	// DA:lineNum,hitCount
-	// ...
-	// end_of_record
-
-	var currentFile string
-	var totalLines, coveredLines int
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if strings.HasPrefix(line, "SF:") {
-			currentFile = strings.TrimPrefix(line, "SF:")
-			totalLines = 0
-			coveredLines = 0
-		} else if strings.HasPrefix(line, "DA:") {
-			totalLines++
-			parts := strings.SplitN(strings.TrimPrefix(line, "DA:"), ",", 2)
-			if len(parts) == 2 && parts[1] != "0" {
-				coveredLines++
-			}
-		} else if line == "end_of_record" && currentFile != "" {
-			if totalLines > 0 {
-				strength := float64(coveredLines) / float64(totalLines)
-				fromID := "sol:" + currentFile
-				if g.GetNode(fromID) != nil {
-					// Store coverage data as node property for later use by scorer
-					node := g.GetNode(fromID)
-					if node.Properties == nil {
-						node.Properties = make(map[string]any)
-					}
-					node.Properties["coverage_strength"] = strength
-					node.Properties["covered_lines"] = coveredLines
-					node.Properties["total_lines"] = totalLines
-				}
-			}
-			currentFile = ""
+// LoadReports reads all coverage reports from a directory.
+func LoadReports(dir string) ([]*Report, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading coverage directory: %w", err)
+	}
+	var reports []*Report
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
 		}
+		path := dir + "/" + e.Name()
+		r, err := LoadReport(path)
+		if err != nil {
+			continue // skip invalid files
+		}
+		reports = append(reports, r)
 	}
+	return reports, nil
+}
 
-	return scanner.Err()
+// SaveReport writes a coverage report to a JSON file.
+func SaveReport(r *Report, path string) error {
+	data, err := json.MarshalIndent(r, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// Collector produces coverage reports for a given language.
+type Collector interface {
+	// Language returns the language this collector handles.
+	Language() string
+
+	// Collect runs coverage for a single test unit and returns a report.
+	// testPath is language-specific:
+	//   solidity: test file path (e.g. "test/L1/OptimismPortal2.t.sol")
+	//   go: package path (e.g. "./op-node/rollup/derive/...")
+	//   rust: crate or test name
+	Collect(rootDir string, testPath string) (*Report, error)
 }
