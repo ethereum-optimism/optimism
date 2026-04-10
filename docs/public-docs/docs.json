@@ -2370,6 +2370,7 @@
           {
             "group": "Notices",
             "pages": [
+              "notices/stake-based-priority-ordering",
               "notices/req-resp-cl-sync-deprecation",
               "notices/op-geth-deprecation",
               "notices/op-deployer-upgrade-deprecation",
