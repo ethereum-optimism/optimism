@@ -27,20 +27,28 @@ func (c *SolidityCollector) Language() string { return "solidity" }
 func (c *SolidityCollector) Collect(rootDir string, testPath string) (*Report, error) {
 	contractsDir := filepath.Join(rootDir, c.ContractsDir)
 
-	// Run forge coverage for the specific test file
+	// Create temp file for LCOV output
+	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("checks-coverage-%d.lcov", os.Getpid()))
+	defer os.Remove(tmpFile)
+
+	// Run forge coverage for the specific test file, writing LCOV to file
 	cmd := exec.Command("forge", "coverage",
 		"--report", "lcov",
+		"--report-file", tmpFile,
 		"--match-path", testPath,
 	)
 	cmd.Dir = contractsDir
+	cmd.Stderr = os.Stderr
 
-	out, err := cmd.Output()
+	// Run forge coverage — tolerate test failures since coverage is still
+	// produced for passing tests. The LCOV file is what we care about.
+	_ = cmd.Run()
+
+	// Parse LCOV file (may be partial if some tests failed)
+	covers, err := parseLCOVFile(tmpFile)
 	if err != nil {
-		return nil, fmt.Errorf("forge coverage: %w", err)
+		return nil, fmt.Errorf("parsing LCOV output (forge may have failed): %w", err)
 	}
-
-	// Parse LCOV output
-	covers := parseLCOV(string(out))
 
 	return &Report{
 		Test:     testPath,
