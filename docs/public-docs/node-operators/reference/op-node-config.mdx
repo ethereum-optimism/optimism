@@ -286,6 +286,20 @@ Blockchain sync mode. Options are "consensus-layer" or "execution-layer". The de
   <Tab title="Environment variable">`OP_NODE_SYNCMODE=consensus-layer`</Tab>
 </Tabs>
 
+### syncmode.req-resp
+
+Enables the Req/Res CL P2P sync client path, used to close gaps against gossip. When disabled, `op-node` relies on the connected EL client to reach the chain tip. Default is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--syncmode.req-resp=[true|false]`</Tab>
+  <Tab title="Example">`--syncmode.req-resp=false`</Tab>
+  <Tab title="Environment variable">`OP_NODE_SYNCMODE_REQ_RESP=false`</Tab>
+</Tabs>
+
+<Warning>
+Deprecated in favor of execution-layer syncing; see the [Req/Res CL sync deprecation notice](/notices/req-resp-cl-sync-deprecation).
+</Warning>
+
 ## Fork overrides
 
 Manually override fork activation timestamps for testing or custom deployments.
@@ -821,13 +835,17 @@ Restricts `RequestL2Range` sync requests to static peers only. Useful for enforc
 
 ### p2p.sync.req-resp
 
-Enables P2P req-resp alternative sync method, on both server and client side. Default is `true`.
+Enables P2P req-resp sync, used to both serve block requests from peers and request missing blocks from peers. Default is `true`.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.sync.req-resp=[true|false]`</Tab>
   <Tab title="Example">`--p2p.sync.req-resp=true`</Tab>
   <Tab title="Environment variable">`OP_NODE_P2P_SYNC_REQ_RESP=true`</Tab>
 </Tabs>
+
+<Warning>
+The Req/Res CL P2P sync client is deprecated in favor of execution-layer syncing; see the [Req/Res CL sync deprecation notice](/notices/req-resp-cl-sync-deprecation). The server path will remain temporarily but is also planned for removal.
+</Warning>
 
 ## Sequencer options
 
