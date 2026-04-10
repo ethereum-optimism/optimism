@@ -14,14 +14,13 @@ use core::fmt::Debug;
 use kona_genesis::{
     MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig, SystemConfig,
 };
-use kona_protocol::{BlockInfo, Channel};
+use kona_protocol::{BlockInfo, OrderedChannel};
 
 /// The [`ChannelAssembler`] stage is responsible for assembling the [`Frame`]s from the
-/// [`FrameQueue`] stage into a raw compressed [`Channel`].
+/// [`FrameQueue`] stage into a raw compressed [`OrderedChannel`].
 ///
 /// [`Frame`]: kona_protocol::Frame
 /// [`FrameQueue`]: crate::stages::FrameQueue
-/// [`Channel`]: kona_protocol::Channel
 #[derive(Debug)]
 pub struct ChannelAssembler<P>
 where
@@ -31,8 +30,8 @@ where
     pub cfg: Arc<RollupConfig>,
     /// The previous stage of the derivation pipeline.
     pub prev: P,
-    /// The current [`Channel`] being assembled.
-    pub channel: Option<Channel>,
+    /// The current [`OrderedChannel`] being assembled.
+    pub channel: Option<OrderedChannel>,
 }
 
 impl<P> ChannelAssembler<P>
@@ -90,7 +89,7 @@ where
                 hex::encode(next_frame.id),
                 origin.number
             );
-            self.channel = Some(Channel::new(next_frame.id, origin));
+            self.channel = Some(OrderedChannel::new(next_frame.id, origin));
         }
 
         let _count = if self.channel.is_some() { 1 } else { 0 };
