@@ -8,8 +8,10 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/lmittmann/w3"
 )
 
 func DeployAdditionalDisputeGames(
@@ -121,6 +123,40 @@ func deployDisputeGame(
 			}
 			vmAddr = out.MipsSingleton
 		}
+	case state.VMTypeZK:
+		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
+		if zkImpl == (common.Address{}) {
+			return fmt.Errorf("ZkDisputeGameImpl is not deployed; ensure ZKDisputeGameDevFlag is set in devFeatureBitmap")
+		}
+		if game.ZKDisputeGame == nil {
+			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
+		}
+		zk := game.ZKDisputeGame
+		zkArgEncoder := w3.MustNewFunc("dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))", "")
+		encoded, err := zkArgEncoder.EncodeArgs(&embedded.ZKDisputeGameConfig{
+			AbsolutePrestate:     zk.AbsolutePrestate,
+			Verifier:             zk.Verifier,
+			MaxChallengeDuration: zk.MaxChallengeDuration,
+			MaxProveDuration:     zk.MaxProveDuration,
+			ChallengerBond:       zk.ChallengerBond.ToInt(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to encode ZK game args: %w", err)
+		}
+		if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, opcm.SetDisputeGameImplInput{
+			Factory:  thisState.OpChainContracts.DisputeGameFactoryProxy,
+			Impl:     zkImpl,
+			GameType: uint32(embedded.GameTypeZKDisputeGame),
+			GameArgs: encoded[4:],
+		}); err != nil {
+			return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
+		}
+		thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
+			GameType:    uint32(embedded.GameTypeZKDisputeGame),
+			VMType:      game.VMType,
+			GameAddress: zkImpl,
+		})
+		return nil
 	default:
 		return fmt.Errorf("unsupported VM type: %v", game.VMType)
 	}

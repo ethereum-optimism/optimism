@@ -18,6 +18,7 @@ const (
 	VMTypeAlphabet   = "ALPHABET"
 	VMTypeCannon     = "CANNON"      // Corresponds to the currently released Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
 	VMTypeCannonNext = "CANNON-NEXT" // Corresponds to the next in-development Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
+	VMTypeZK         = "ZK"          // ZK dispute game — uses a ZK verifier instead of a MIPS VM.
 )
 
 func (v VMType) MipsVersion() uint64 {
@@ -46,6 +47,8 @@ type AdditionalDisputeGame struct {
 	ChainProofParams
 	VMType        VMType
 	MakeRespected bool
+	// ZKDisputeGame holds ZK-specific configuration. Only used when VMType == VMTypeZK.
+	ZKDisputeGame *ZKDisputeGameParams `json:"zkDisputeGame,omitempty" toml:"zkDisputeGame,omitempty"`
 }
 
 // ZKDisputeGameParams holds the configuration for a ZK dispute game in the upgrade pipeline.
@@ -96,9 +99,6 @@ type ChainIntent struct {
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
-
-	// Optional. ZK dispute game configuration. Only used when ZKDisputeGameDevFlag is enabled.
-	ZKDisputeGame *ZKDisputeGameParams `json:"zkDisputeGame,omitempty" toml:"zkDisputeGame,omitempty"`
 }
 
 type ChainRoles struct {

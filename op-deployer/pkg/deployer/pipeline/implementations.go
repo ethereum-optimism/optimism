@@ -43,6 +43,19 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
+	// Auto-enable zkDisputeGameDevFlag if any chain has a ZK dispute game in AdditionalDisputeGames.
+outer:
+	for _, chain := range intent.Chains {
+		for _, game := range chain.AdditionalDisputeGames {
+			if game.VMType == state.VMTypeZK {
+				for i := range proofParams.DevFeatureBitmap {
+					proofParams.DevFeatureBitmap[i] |= zkDisputeGameDevFlag[i]
+				}
+				break outer
+			}
+		}
+	}
+
 	var dio opcm.DeployImplementationsOutput
 	input := opcm.DeployImplementationsInput{
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
@@ -116,3 +129,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {
 	return st.ImplementationsDeployment == nil
 }
+
+// zkDisputeGameDevFlag mirrors deployer.ZKDisputeGameDevFlag.
+// Defined locally to avoid an import cycle between pipeline and deployer packages.
+var zkDisputeGameDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
