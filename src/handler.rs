@@ -322,13 +322,12 @@ where
 
         let l1_cost = l1_block_info.calculate_tx_l1_cost(enveloped_tx, spec);
         // Exclude reservoir gas (EIP-8037) from used gas — reservoir is unused and reimbursed.
-        let effective_used = frame_result.gas().used().saturating_sub(frame_result.gas().reservoir());
+        let effective_used = frame_result
+            .gas()
+            .used()
+            .saturating_sub(frame_result.gas().reservoir());
         let operator_fee_cost = if spec.is_enabled_in(OpSpecId::ISTHMUS) {
-            l1_block_info.operator_fee_charge(
-                enveloped_tx,
-                U256::from(effective_used),
-                spec,
-            )
+            l1_block_info.operator_fee_charge(enveloped_tx, U256::from(effective_used), spec)
         } else {
             U256::ZERO
         };

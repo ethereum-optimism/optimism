@@ -451,7 +451,9 @@ mod tests {
         bad_input_len = bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE + 1;
         assert!(bad_input_len < bls12_381::ISTHMUS_G1_MSM_MAX_INPUT_SIZE);
         let input = vec![0u8; bad_input_len];
-        let res = bls12_381_g1_msm_precompile.execute(&input, u64::MAX, 0).unwrap();
+        let res = bls12_381_g1_msm_precompile
+            .execute(&input, u64::MAX, 0)
+            .unwrap();
         assert!(
             matches!(res.status, PrecompileStatus::Halt(PrecompileHalt::Other(msg)) if msg.contains("input length too long"))
         );
@@ -463,7 +465,9 @@ mod tests {
         bad_input_len = bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE + 1;
         assert!(bad_input_len < bls12_381::ISTHMUS_G2_MSM_MAX_INPUT_SIZE);
         let input = vec![0u8; bad_input_len];
-        let res = bls12_381_g2_msm_precompile.execute(&input, u64::MAX, 0).unwrap();
+        let res = bls12_381_g2_msm_precompile
+            .execute(&input, u64::MAX, 0)
+            .unwrap();
         assert!(
             matches!(res.status, PrecompileStatus::Halt(PrecompileHalt::Other(msg)) if msg.contains("input length too long"))
         );
@@ -475,7 +479,9 @@ mod tests {
         bad_input_len = bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE + 1;
         assert!(bad_input_len < bls12_381::ISTHMUS_PAIRING_MAX_INPUT_SIZE);
         let input = vec![0u8; bad_input_len];
-        let res = bls12_381_pairing_precompile.execute(&input, u64::MAX, 0).unwrap();
+        let res = bls12_381_pairing_precompile
+            .execute(&input, u64::MAX, 0)
+            .unwrap();
         assert!(
             matches!(res.status, PrecompileStatus::Halt(PrecompileHalt::Other(msg)) if msg.contains("input length too long"))
         );
