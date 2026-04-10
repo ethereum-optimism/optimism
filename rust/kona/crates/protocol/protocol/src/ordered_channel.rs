@@ -7,26 +7,7 @@
 use alloc::vec::Vec;
 use alloy_primitives::Bytes;
 
-use crate::{BlockInfo, ChannelId, Frame};
-
-/// An error returned when adding a frame to an [`OrderedChannel`].
-#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum OrderedChannelError {
-    /// The frame ID does not match the channel ID.
-    #[error("Frame id does not match channel id")]
-    FrameIdMismatch,
-    /// The channel is already closed.
-    #[error("Channel is closed")]
-    ChannelClosed,
-    /// The frame number is out of order.
-    #[error("Frame out of order: expected {expected}, got {got}")]
-    FrameOutOfOrder {
-        /// The expected frame number.
-        expected: u16,
-        /// The actual frame number.
-        got: u16,
-    },
-}
+use crate::{BlockInfo, ChannelError, ChannelId, Frame};
 
 /// An ordered channel that enforces strict sequential frame ingestion.
 ///
@@ -95,17 +76,17 @@ impl OrderedChannel {
         &mut self,
         frame: Frame,
         l1_inclusion_block: BlockInfo,
-    ) -> Result<(), OrderedChannelError> {
+    ) -> Result<(), ChannelError> {
         if frame.id != self.id {
-            return Err(OrderedChannelError::FrameIdMismatch);
+            return Err(ChannelError::FrameIdMismatch);
         }
         if self.closed {
-            return Err(OrderedChannelError::ChannelClosed);
+            return Err(ChannelError::ChannelClosed);
         }
 
         let expected = self.inputs.len() as u16;
         if frame.number != expected {
-            return Err(OrderedChannelError::FrameOutOfOrder { expected, got: frame.number });
+            return Err(ChannelError::FrameOutOfOrder { expected, got: frame.number });
         }
 
         if frame.is_last {
@@ -129,14 +110,8 @@ impl OrderedChannel {
 
     /// Returns all of the channel's [`Frame`] data concatenated together.
     pub fn frame_data(&self) -> Option<Bytes> {
-        if self.inputs.is_empty() {
-            return None;
-        }
-        let mut data = Vec::with_capacity(self.estimated_size);
-        for frame in &self.inputs {
-            data.extend_from_slice(&frame.data);
-        }
-        Some(data.into())
+        (!self.inputs.is_empty())
+            .then(|| self.inputs.iter().flat_map(|f| &f.data).copied().collect::<Vec<_>>().into())
     }
 }
 
@@ -187,7 +162,7 @@ mod test {
         let mut channel = OrderedChannel::new(id, block);
 
         let err = channel.add_frame(frame([0xEE; 16], 0, b"bad", false), block).unwrap_err();
-        assert_eq!(err, OrderedChannelError::FrameIdMismatch);
+        assert_eq!(err, ChannelError::FrameIdMismatch);
     }
 
     #[test]
@@ -201,7 +176,7 @@ mod test {
 
         // Frame 2 (skipping 1) is rejected
         let err = channel.add_frame(frame(id, 2, b"skip", false), block).unwrap_err();
-        assert_eq!(err, OrderedChannelError::FrameOutOfOrder { expected: 1, got: 2 });
+        assert_eq!(err, ChannelError::FrameOutOfOrder { expected: 1, got: 2 });
         assert_eq!(channel.len(), 1);
     }
 
@@ -215,7 +190,7 @@ mod test {
         assert!(channel.is_ready());
 
         let err = channel.add_frame(frame(id, 1, b"extra", false), block).unwrap_err();
-        assert_eq!(err, OrderedChannelError::ChannelClosed);
+        assert_eq!(err, ChannelError::ChannelClosed);
     }
 
     #[test]
@@ -233,7 +208,7 @@ mod test {
 
         // T2 starts at frame 4 — out of order, rejected
         let err = channel.add_frame(frame(id, 4, b"f4", false), block).unwrap_err();
-        assert_eq!(err, OrderedChannelError::FrameOutOfOrder { expected: 3, got: 4 });
+        assert_eq!(err, ChannelError::FrameOutOfOrder { expected: 3, got: 4 });
 
         // Channel is not ready and not closed
         assert!(!channel.is_ready());
@@ -276,7 +251,7 @@ mod test {
 
     #[test]
     fn test_error_display() {
-        let err = OrderedChannelError::FrameOutOfOrder { expected: 3, got: 5 };
+        let err = ChannelError::FrameOutOfOrder { expected: 3, got: 5 };
         assert_eq!(err.to_string(), "Frame out of order: expected 3, got 5");
     }
 }

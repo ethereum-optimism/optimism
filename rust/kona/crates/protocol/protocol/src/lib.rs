@@ -50,7 +50,7 @@ pub use channel::{
 };
 
 mod ordered_channel;
-pub use ordered_channel::{OrderedChannel, OrderedChannelError};
+pub use ordered_channel::OrderedChannel;
 
 mod deposits;
 pub use deposits::{
