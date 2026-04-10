@@ -47,6 +47,8 @@ packages/contracts-bedrock/deployments/anvil
 
 coverage.out
 
+.oprm/
+
 __pycache__
 
 # Ignore echidna artifacts
