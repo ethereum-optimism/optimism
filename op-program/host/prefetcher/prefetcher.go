@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"slices"
 	"strings"
 
@@ -110,7 +111,7 @@ func (p *Prefetcher) Hint(hint string) error {
 	}
 
 	// ignore parsing error, and assume non-bulk hint
-	if err == nil && (hintType == l2.HintL2AccountProof || hintType == l2.HintL2PayloadWitness) {
+	if err == nil && (hintType == l2.HintL2AccountProof || hintType == l2.HintL2PayloadWitness || hintType == l2.HintL2BlockHashLookup) {
 		p.lastBulkHint = hint
 	} else {
 		p.lastHint = hint
@@ -216,6 +217,40 @@ func (p *Prefetcher) bulkPrefetch(ctx context.Context, hint string) error {
 		}
 
 		return p.storeNodes(values)
+
+	case l2.HintL2BlockHashLookup:
+		if len(hintBytes) != 8+32+8 {
+			return fmt.Errorf("invalid L2 block hash lookup hint: %x", hintBytes)
+		}
+
+		blockNumber := binary.BigEndian.Uint64(hintBytes[:8])
+		blockHash := common.Hash(hintBytes[8:40])
+		chainID := eth.ChainIDFromUInt64(binary.BigEndian.Uint64(hintBytes[40:]))
+
+		cl, err := p.l2Sources.ForChainID(chainID)
+		if err != nil {
+			return err
+		}
+
+		storageSlot := common.BigToHash(big.NewInt(int64(blockNumber % params.HistoryServeWindow)))
+
+		result, err := cl.GetProof(ctx, params.HistoryStorageAddress, []common.Hash{storageSlot}, blockHash.Hex())
+		if err != nil {
+			return fmt.Errorf("failed to fetch L2 proofs for block number %d at hash %v: %w", blockNumber, blockHash, err)
+		}
+
+		for _, proof := range result.StorageProof {
+			if err := p.storeNodes(proof.Proof); err != nil {
+				return err
+			}
+		}
+
+		if err := p.storeNodes(result.AccountProof); err != nil {
+			return err
+		}
+
+		return nil
+
 	default:
 	}
 	return fmt.Errorf("unknown bulk hint type: %v", hintType)
