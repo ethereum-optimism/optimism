@@ -38,24 +38,11 @@ func (a *App) ExecuteTask(identifier string, taskID string) error {
 		task.Reason = "review diff confirmed"
 		task.UpdatedAt = now
 		run.AddTimeline(now, fmt.Sprintf("confirmed task %s", taskID))
-	case strings.HasSuffix(taskID, ".prepare-release-notes"):
+	case strings.HasSuffix(taskID, ".local-tag"):
 		if task.Status != workflow.StatusReady {
 			return fmt.Errorf("task %q is not ready for execution (status=%s)", taskID, task.Status)
 		}
-		componentID := strings.TrimSuffix(taskID, ".prepare-release-notes")
-		notesPath, err := a.writeReleaseNotes(run, componentID)
-		if err != nil {
-			return err
-		}
-		task.Status = workflow.StatusCompleted
-		task.Reason = fmt.Sprintf("release notes written to %s", notesPath)
-		task.UpdatedAt = now
-		run.AddTimeline(now, fmt.Sprintf("prepared release notes for %s", componentID), notesPath)
-	case strings.HasSuffix(taskID, ".create-tag"):
-		if task.Status != workflow.StatusReady {
-			return fmt.Errorf("task %q is not ready for execution (status=%s)", taskID, task.Status)
-		}
-		componentID := strings.TrimSuffix(taskID, ".create-tag")
+		componentID := strings.TrimSuffix(taskID, ".local-tag")
 		result, err := a.createTag(run, componentID)
 		if err != nil {
 			return err
@@ -103,19 +90,14 @@ func (a *App) ExecuteTask(identifier string, taskID string) error {
 		task.Reason = fmt.Sprintf("docker build readiness confirmed for %s", emptyReasonFallback(proposal.Proposed))
 		task.UpdatedAt = now
 		run.AddTimeline(now, fmt.Sprintf("confirmed docker build readiness for %s", componentID), task.Reason)
-	case strings.HasSuffix(taskID, ".rollout"):
+	case taskID == rolloutTaskID:
 		if task.Status != workflow.StatusNeedsConfirmation && task.Status != workflow.StatusReady {
 			return fmt.Errorf("task %q is not ready for confirmation (status=%s)", taskID, task.Status)
 		}
-		componentID := strings.TrimSuffix(taskID, ".rollout")
-		proposal, ok := run.Versions[componentID]
-		if !ok {
-			return fmt.Errorf("component %q has no version proposal in run %q", componentID, run.RunID)
-		}
 		task.Status = workflow.StatusCompleted
-		task.Reason = fmt.Sprintf("manual rollout confirmed for %s; trigger ./op rollout outside oprm", emptyReasonFallback(proposal.Proposed))
+		task.Reason = fmt.Sprintf("manual rollout confirmed for selected stack; trigger ./op rollout outside oprm for: %s", strings.Join(run.Components, ", "))
 		task.UpdatedAt = now
-		run.AddTimeline(now, fmt.Sprintf("manually confirmed rollout for %s", componentID), task.Reason)
+		run.AddTimeline(now, "manually confirmed rollout for selected stack", task.Reason)
 	case strings.HasSuffix(taskID, ".finalize-release"):
 		if task.Status != workflow.StatusReady {
 			return fmt.Errorf("task %q is not ready for execution (status=%s)", taskID, task.Status)
@@ -163,60 +145,41 @@ func (a *App) writeReleaseNotes(run *release.Run, componentID string) (string, e
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create release notes dir %q: %w", dir, err)
 	}
-	displayVersion := proposal.Proposed
+	displayVersion := proposal.TargetRelease
 	if strings.TrimSpace(displayVersion) == "" {
-		displayVersion = proposal.TargetRelease
+		displayVersion = proposal.Proposed
 	}
 	if strings.TrimSpace(displayVersion) == "" {
 		displayVersion = "draft"
 	}
 
+	tagLabel := componentID + "/" + displayVersion
+	commits := proposal.Review.CommitSummaries
+	if len(commits) > 20 {
+		commits = commits[:20]
+	}
+
 	var out strings.Builder
-	out.WriteString("# ")
-	out.WriteString(componentID)
-	out.WriteString(" ")
-	out.WriteString(displayVersion)
+	out.WriteString("## What's Changed in ")
+	out.WriteString(tagLabel)
 	out.WriteString("\n\n")
-	out.WriteString("- Repo: ")
-	out.WriteString(spec.GitHubOwner)
-	out.WriteString("/")
-	out.WriteString(spec.GitHubRepo)
-	out.WriteString("\n- Branch: ")
-	out.WriteString(spec.BaseBranch)
-	out.WriteString("\n- Latest release: ")
-	out.WriteString(emptyReasonFallback(proposal.LatestRelease))
-	out.WriteString("\n- Target release: ")
-	out.WriteString(emptyReasonFallback(proposal.TargetRelease))
-	out.WriteString("\n- Proposed RC: ")
-	out.WriteString(emptyReasonFallback(proposal.Proposed))
-	out.WriteString("\n")
+	if len(commits) == 0 {
+		out.WriteString("- No commit summaries were captured for this release candidate.\n")
+	} else {
+		for _, item := range commits {
+			out.WriteString("- ")
+			out.WriteString(item)
+			out.WriteString("\n")
+		}
+	}
 	if proposal.Review.CompareURL != "" {
-		out.WriteString("- Compare: ")
+		out.WriteString("\n**Full Changelog**: ")
 		out.WriteString(proposal.Review.CompareURL)
 		out.WriteString("\n")
 	}
-	out.WriteString("\n## Review range\n\n")
-	out.WriteString("- From: ")
-	out.WriteString(emptyReasonFallback(proposal.Review.FromRef))
-	out.WriteString("\n- To: ")
-	out.WriteString(emptyReasonFallback(proposal.Review.ToRef))
+	out.WriteString("\n**🚢 Docker Image**: ")
+	out.WriteString(dockerImageURL(spec, componentID, displayVersion))
 	out.WriteString("\n")
-	if len(proposal.ChangeEvidence) > 0 {
-		out.WriteString("\n## Change evidence\n\n")
-		for _, item := range proposal.ChangeEvidence {
-			out.WriteString("- ")
-			out.WriteString(item)
-			out.WriteString("\n")
-		}
-	}
-	if len(proposal.Review.CommitSummaries) > 0 {
-		out.WriteString("\n## Commits\n\n")
-		for _, item := range proposal.Review.CommitSummaries {
-			out.WriteString("- ")
-			out.WriteString(item)
-			out.WriteString("\n")
-		}
-	}
 	if err := os.WriteFile(path, []byte(out.String()), 0o644); err != nil {
 		return "", fmt.Errorf("write release notes %q: %w", path, err)
 	}
@@ -228,6 +191,10 @@ func emptyReasonFallback(value string) string {
 		return "<none>"
 	}
 	return value
+}
+
+func dockerImageURL(_ components.ComponentSpec, componentID string, version string) string {
+	return fmt.Sprintf("https://us-docker.pkg.dev/oplabs-tools-artifacts/images/%s:%s", componentID, version)
 }
 
 func (a *App) createTag(run *release.Run, componentID string) (taskResult, error) {
@@ -470,8 +437,25 @@ func (a *App) finalizeRelease(run *release.Run, componentID string) (taskResult,
 	return taskResult{}, fmt.Errorf("cannot finalize %s because no matching draft release exists for RC tag %s in %s/%s", componentID, rcTagName, spec.GitHubOwner, spec.GitHubRepo)
 }
 
-func (a *App) releaseNotesBody(run *release.Run, componentID string, proposal release.VersionProposal) (string, error) {
+func (a *App) ensureReleaseNotes(run *release.Run, componentID string) (string, error) {
+	proposal, ok := run.Versions[componentID]
+	if !ok {
+		return "", fmt.Errorf("component %q has no version proposal in run %q", componentID, run.RunID)
+	}
 	notesPath := a.releaseNotesPath(run, componentID, proposal)
+	if _, err := os.Stat(notesPath); err == nil {
+		return notesPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("stat release notes artifact for %s: %w", componentID, err)
+	}
+	return a.writeReleaseNotes(run, componentID)
+}
+
+func (a *App) releaseNotesBody(run *release.Run, componentID string, proposal release.VersionProposal) (string, error) {
+	notesPath, err := a.ensureReleaseNotes(run, componentID)
+	if err != nil {
+		return "", err
+	}
 	bodyBytes, err := os.ReadFile(notesPath)
 	if err != nil {
 		return "", fmt.Errorf("read release notes artifact for %s: %w", componentID, err)

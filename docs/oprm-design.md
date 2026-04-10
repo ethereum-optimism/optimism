@@ -54,14 +54,13 @@ As of 2026-04-10, the `oprm` prototype branch already has a working foundation a
   - local checkout path in task context
   - remote tag-state highlighting for target release / proposed RC
   - retry / skip / externally-satisfied actions
-- initial per-component task flow:
+- initial task flow:
   - `component.review-diff`
-  - `component.prepare-release-notes`
-  - `component.create-tag`
+  - `component.local-tag`
   - `component.push-tag`
   - `component.github-draft-release`
   - `component.docker-build`
-  - `component.rollout`
+  - `stack.rollout`
   - `component.finalize-release`
 - release-notes artifact generation under `.oprm/releases/<run-id>/release-notes/`
 
@@ -585,16 +584,20 @@ In component-selection mode:
 - any component with a draft RC is also preselected
 - the release manager confirms which components are part of the run
 
-#### Current per-component task model
+#### Current task model
 
 For each selected component, the currently implemented task flow is:
 
 1. `component.review-diff`
-2. `component.prepare-release-notes`
-3. `component.create-tag`
-4. `component.push-tag`
-5. `component.github-draft-release`
-6. `component.docker-build`
+2. `component.local-tag`
+3. `component.push-tag`
+4. `component.github-draft-release`
+5. `component.docker-build`
+
+After every selected component clears `component.docker-build`, the workflow continues with:
+
+6. `stack.rollout`
+7. `component.finalize-release`
 
 Current behavior:
 
@@ -602,17 +605,18 @@ Current behavior:
   - reviewing the diff
   - approving that diff as the intended release scope
 - local checkout / branch verification is now handled during startup doctor checks rather than as a per-component task
-- `component.prepare-release-notes` writes a release-notes artifact under `.oprm/releases/<run-id>/release-notes/`
-- `component.create-tag` creates the proposed RC tag locally only
+- `component.local-tag` creates the proposed RC tag locally only
 - `component.push-tag` pushes the already-created local RC tag to the remote repository and verifies remote visibility
-- `component.github-draft-release` creates or updates the GitHub draft release using the generated release-notes artifact
+- `component.github-draft-release` materializes a generated release-notes artifact under `.oprm/releases/<run-id>/release-notes/` and creates or updates the GitHub draft release using that artifact
 - `component.docker-build` is a manual confirmation checkpoint that happens only after the RC tag exists remotely and the draft release is present
+- `stack.rollout` is a singleton manual checkpoint that happens once for the selected stack, only after every selected component has cleared `component.docker-build`
+- `component.finalize-release` only becomes ready after `stack.rollout` is completed
 
 Task confirmation should happen on the concrete task itself, not via a separate meta-task.
 
-### Planned next per-component tasks
+### Planned next task improvements
 
-The next layer of tasks to add after `component.github-draft-release` is:
+The next layer of improvements after `component.github-draft-release` is:
 
 1. additional reconciliation-hardening for inconsistent tag/release states
 2. richer build/link surfacing for the manual confirmation step

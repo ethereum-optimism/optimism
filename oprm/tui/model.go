@@ -428,6 +428,13 @@ func (m *Model) renderComponentDetails(componentID string) string {
 }
 
 func (m *Model) renderTaskComponentDetails(taskID string) string {
+	if taskID == "stack.rollout" {
+		lines := []string{
+			titleStyle.Render("stack"),
+			fmt.Sprintf("Selected components: %s", emptyFallback(strings.Join(m.run.Components, ", "))),
+		}
+		return strings.Join(lines, "\n")
+	}
 	componentID, suffix, ok := strings.Cut(taskID, ".")
 	if !ok || strings.HasPrefix(taskID, "doctor.") {
 		return ""
@@ -442,18 +449,17 @@ func (m *Model) renderTaskComponentDetails(taskID string) string {
 	case "review-diff":
 		options.IncludeReviewRange = true
 		options.IncludeCommits = true
-	case "prepare-release-notes":
-		options.IncludeReviewRange = true
-		options.IncludeCommits = true
-		options.ReleaseNotesLabel = "Output artifact"
-	case "create-tag":
+	case "local-tag":
 		options.ExtraLines = append(options.ExtraLines, fmt.Sprintf("Tag target commit: %s", emptyFallback(m.app.ComponentHeadSHA(componentID))))
 	case "github-draft-release":
 		options.ReleaseNotesLabel = "Release notes artifact"
-	case "docker-build", "rollout", "finalize-release", "push-tag":
+		options.ReleaseNotesBody = m.app.ReleaseNotesBody(m.run, componentID)
+	case "docker-build":
+		options.ExtraLines = append(options.ExtraLines, "Monitor builds: https://github.com/ethereum-optimism/optimism/actions/workflows/tags.yaml")
+	case "rollout", "finalize-release", "push-tag":
 		// no additional sections
 		if suffix == "push-tag" {
-			// keep the same compact context as create-tag without diff details
+			// keep the same compact context as local-tag without diff details
 		}
 	}
 	return m.renderComponentDetailsWithOptions(componentID, options)
@@ -467,6 +473,7 @@ type componentDetailsOptions struct {
 	IncludeReviewRange  bool
 	IncludeCommits      bool
 	ReleaseNotesLabel   string
+	ReleaseNotesBody    string
 	ExtraLines          []string
 }
 
@@ -475,8 +482,6 @@ func (m *Model) renderComponentDetailsWithOptions(componentID string, opts compo
 	lines := []string{
 		titleStyle.Render(componentID),
 		fmt.Sprintf("Latest release: %s", emptyFallback(proposal.LatestRelease)),
-		fmt.Sprintf("Latest RC: %s", emptyFallback(proposal.LatestRC)),
-		fmt.Sprintf("Latest draft RC: %s", emptyFallback(proposal.LatestDraftRC)),
 		fmt.Sprintf("Changed: %t", proposal.Changed),
 	}
 	if opts.IncludeRepoTarget || opts.IncludeBranchTarget || opts.IncludeLocalPath {
@@ -524,6 +529,9 @@ func (m *Model) renderComponentDetailsWithOptions(componentID string, opts compo
 			lines = append(lines, "- "+item)
 		}
 	}
+	if strings.TrimSpace(opts.ReleaseNotesBody) != "" {
+		lines = append(lines, "", subtitleStyle.Render("Release notes"), opts.ReleaseNotesBody)
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -558,7 +566,7 @@ func requiresConfirmation(taskID string) bool {
 	switch {
 	case strings.HasSuffix(taskID, ".review-diff"):
 		return true
-	case strings.HasSuffix(taskID, ".create-tag"):
+	case strings.HasSuffix(taskID, ".local-tag"):
 		return true
 	case strings.HasSuffix(taskID, ".push-tag"):
 		return true
@@ -604,17 +612,18 @@ func (m *Model) taskDescription(taskID string) string {
 	switch suffix {
 	case "review-diff":
 		return fmt.Sprintf("Review release scope for %s: in-scope changes, target release %s, and proposed RC %s.", componentID, emptyFallback(proposal.TargetRelease), emptyFallback(proposal.Proposed))
-	case "prepare-release-notes":
-		return "Write a draft release-notes artifact under the run directory for operator review and later release publishing."
-	case "create-tag":
+	case "local-tag":
 		return fmt.Sprintf("Create the proposed RC tag %s locally only. This does not push anything to the remote repository.", emptyFallback(proposal.Proposed))
 	case "push-tag":
 		return fmt.Sprintf("Push the already-created local RC tag %s to the configured remote repository and verify it exists remotely.", emptyFallback(proposal.Proposed))
 	case "github-draft-release":
-		return fmt.Sprintf("Create or update the GitHub draft release for %s using the generated release-notes artifact.", emptyFallback(proposal.Proposed))
+		return fmt.Sprintf("Prepare generated release notes for %s and create or update the matching GitHub draft release.", emptyFallback(proposal.Proposed))
 	case "docker-build":
 		return fmt.Sprintf("Human checkpoint to confirm docker builds, images, and jobs are ready after %s has been tagged and the draft release exists.", emptyFallback(proposal.Proposed))
 	case "rollout":
+		if taskID == "stack.rollout" {
+			return "Manual checkpoint to trigger ./op rollout once for the selected stack after all component docker builds are ready and before any final release tags are published."
+		}
 		return fmt.Sprintf("Manual checkpoint to trigger ./op rollout for %s before finalizing the release.", emptyFallback(proposal.TargetRelease))
 	case "finalize-release":
 		return fmt.Sprintf("Create and push the final release tag %s at the validated RC %s commit, then retarget and publish the GitHub release.", emptyFallback(proposal.TargetRelease), emptyFallback(proposal.Proposed))

@@ -65,10 +65,12 @@ func (a *App) autoReconcileReadyTasks(run *release.Run, now time.Time) bool {
 
 func (a *App) autoReconcileTask(run *release.Run, taskID string) (taskResult, bool, error) {
 	switch {
-	case strings.HasSuffix(taskID, ".create-tag"):
-		return a.reconcileCreateTag(run, strings.TrimSuffix(taskID, ".create-tag"))
+	case strings.HasSuffix(taskID, ".local-tag"):
+		return a.reconcileCreateTag(run, strings.TrimSuffix(taskID, ".local-tag"))
 	case strings.HasSuffix(taskID, ".push-tag"):
 		return a.reconcilePushTag(run, strings.TrimSuffix(taskID, ".push-tag"))
+	case taskID == rolloutTaskID:
+		return taskResult{}, false, nil
 	case strings.HasSuffix(taskID, ".finalize-release"):
 		return a.reconcileFinalizeRelease(run, strings.TrimSuffix(taskID, ".finalize-release"))
 	default:

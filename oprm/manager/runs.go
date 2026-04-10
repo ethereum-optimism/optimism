@@ -3,6 +3,8 @@ package manager
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/oprm/release"
@@ -47,6 +49,9 @@ func (a *App) LoadRun(identifier string) (*release.Run, string, error) {
 	if a.autoReconcileReadyTasks(run, a.now()) {
 		changed = true
 	}
+	if a.ensureReadyTaskArtifacts(run) {
+		changed = true
+	}
 	if changed {
 		path, err = a.store.Save(run)
 		if err != nil {
@@ -72,6 +77,31 @@ func (a *App) SatisfyTask(identifier string, taskID string, reason string) (*rel
 		return nil, "", fmt.Errorf("satisfy reason is required")
 	}
 	return a.updateTask(identifier, taskID, workflow.StatusExternallySatisfied, reason)
+}
+
+func (a *App) ensureReadyTaskArtifacts(run *release.Run) bool {
+	changed := false
+	for _, task := range run.Tasks {
+		if task.Status != workflow.StatusReady {
+			continue
+		}
+		if !strings.HasSuffix(task.ID, ".github-draft-release") {
+			continue
+		}
+		componentID := strings.TrimSuffix(task.ID, ".github-draft-release")
+		proposal, ok := run.Versions[componentID]
+		if !ok {
+			continue
+		}
+		path := a.releaseNotesPath(run, componentID, proposal)
+		if _, err := os.Stat(path); err == nil {
+			continue
+		}
+		if _, err := a.ensureReleaseNotes(run, componentID); err == nil {
+			changed = true
+		}
+	}
+	return changed
 }
 
 func (a *App) updateTask(identifier string, taskID string, status workflow.Status, reason string) (*release.Run, string, error) {

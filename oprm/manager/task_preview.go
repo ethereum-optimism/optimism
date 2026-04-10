@@ -13,8 +13,8 @@ func (a *App) PreviewTaskCommands(run *release.Run, taskID string) ([]string, er
 		return nil, nil
 	}
 	switch {
-	case strings.HasSuffix(taskID, ".create-tag"):
-		componentID := strings.TrimSuffix(taskID, ".create-tag")
+	case strings.HasSuffix(taskID, ".local-tag"):
+		componentID := strings.TrimSuffix(taskID, ".local-tag")
 		proposal, _, tagName, err := a.releaseTaskContext(run, componentID)
 		if err != nil {
 			return nil, err
@@ -53,16 +53,15 @@ func (a *App) PreviewTaskCommands(run *release.Run, taskID string) ([]string, er
 		notesPath := a.releaseNotesPath(run, componentID, proposal)
 		title := tagName
 		if proposal.ResumeDraft {
-			return []string{formatCommand("gh", "api", fmt.Sprintf("repos/%s/%s/releases/<matching-draft-release-id>", spec.GitHubOwner, spec.GitHubRepo), "--method", "PATCH", "-f", "name="+title, "-F", "draft=true", "-F", "prerelease=false", "-f", "body=@"+notesPath)}, nil
+			releaseID, err := a.resolveReleaseIDForTag(context.Background(), spec.GitHubOwner, spec.GitHubRepo, tagName, true)
+			if err != nil {
+				return nil, err
+			}
+			return []string{formatCommand("gh", "api", fmt.Sprintf("repos/%s/%s/releases/%d", spec.GitHubOwner, spec.GitHubRepo, releaseID), "--method", "PATCH", "-f", "name="+title, "-F", "draft=true", "-F", "prerelease=false", "-f", "body=@"+notesPath)}, nil
 		}
 		return []string{formatCommand("gh", "api", fmt.Sprintf("repos/%s/%s/releases", spec.GitHubOwner, spec.GitHubRepo), "--method", "POST", "-f", "tag_name="+tagName, "-f", "target_commitish="+spec.BaseBranch, "-f", "name="+title, "-F", "draft=true", "-F", "prerelease=false", "-f", "body=@"+notesPath)}, nil
-	case strings.HasSuffix(taskID, ".rollout"):
-		componentID := strings.TrimSuffix(taskID, ".rollout")
-		proposal, _, _, err := a.releaseTaskContext(run, componentID)
-		if err != nil {
-			return nil, err
-		}
-		return []string{formatCommand("./op", "rollout", componentID, emptyReasonFallback(proposal.TargetRelease))}, nil
+	case taskID == rolloutTaskID:
+		return []string{formatCommand("./op", "rollout")}, nil
 	case strings.HasSuffix(taskID, ".finalize-release"):
 		componentID := strings.TrimSuffix(taskID, ".finalize-release")
 		proposal, spec, rcTagName, err := a.releaseTaskContext(run, componentID)
@@ -81,14 +80,56 @@ func (a *App) PreviewTaskCommands(run *release.Run, taskID string) ([]string, er
 		if err != nil {
 			return nil, err
 		}
+		releaseID, err := a.resolveFinalizeReleaseID(context.Background(), spec.GitHubOwner, spec.GitHubRepo, rcTagName, targetTagName)
+		if err != nil {
+			return nil, err
+		}
 		return []string{
 			formatCommand("git", "-C", checkout, "tag", "-a", targetTagName, rcTagName, "-m", fmt.Sprintf("%s %s", componentID, emptyReasonFallback(proposal.TargetRelease))),
 			formatCommand("git", "-C", checkout, "push", remoteName, targetTagName),
-			formatCommand("gh", "api", fmt.Sprintf("repos/%s/%s/releases/<matching-rc-draft-release-id>", spec.GitHubOwner, spec.GitHubRepo), "--method", "PATCH", "-f", "tag_name="+targetTagName, "-F", "draft=false", "-F", "prerelease=false"),
+			formatCommand("gh", "api", fmt.Sprintf("repos/%s/%s/releases/%d", spec.GitHubOwner, spec.GitHubRepo, releaseID), "--method", "PATCH", "-f", "tag_name="+targetTagName, "-F", "draft=false", "-F", "prerelease=false"),
 		}, nil
 	default:
 		return nil, nil
 	}
+}
+
+func (a *App) resolveReleaseIDForTag(ctx context.Context, owner string, repo string, tagName string, requireDraft bool) (int, error) {
+	releases, err := a.gh.ListReleases(ctx, owner, repo)
+	if err != nil {
+		return 0, err
+	}
+	for _, rel := range releases {
+		if rel.TagName != tagName {
+			continue
+		}
+		if requireDraft && !rel.Draft {
+			continue
+		}
+		return rel.ID, nil
+	}
+	if requireDraft {
+		return 0, fmt.Errorf("could not resolve a draft release id for tag %s in %s/%s", tagName, owner, repo)
+	}
+	return 0, fmt.Errorf("could not resolve a release id for tag %s in %s/%s", tagName, owner, repo)
+}
+
+func (a *App) resolveFinalizeReleaseID(ctx context.Context, owner string, repo string, rcTagName string, targetTagName string) (int, error) {
+	releases, err := a.gh.ListReleases(ctx, owner, repo)
+	if err != nil {
+		return 0, err
+	}
+	for _, rel := range releases {
+		if rel.TagName == targetTagName && rel.Draft {
+			return rel.ID, nil
+		}
+	}
+	for _, rel := range releases {
+		if rel.TagName == rcTagName && rel.Draft {
+			return rel.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("could not resolve a draft release id for finalizing %s via %s in %s/%s", targetTagName, rcTagName, owner, repo)
 }
 
 func formatCommand(command string, args ...string) string {

@@ -76,3 +76,15 @@ func (a *App) ComponentHeadSHA(componentID string) string {
 	}
 	return sha
 }
+
+func (a *App) ReleaseNotesBody(run *release.Run, componentID string) string {
+	proposal, ok := run.Versions[componentID]
+	if !ok {
+		return ""
+	}
+	body, err := a.releaseNotesBody(run, componentID, proposal)
+	if err != nil {
+		return ""
+	}
+	return body
+}
