@@ -19,31 +19,10 @@ var (
 		Usage:   "Address of the OPCM implementation contract. Not compatible with the --workdir flag.",
 		EnvVars: deployer.PrefixEnvVar("OPCM_IMPL_ADDRESS"),
 	}
-	ProposerFlag = &cli.StringFlag{
-		Name:    "proposer-address",
-		Usage:   "Address of the proposer contract.",
-		EnvVars: deployer.PrefixEnvVar("PROPOSER_ADDRESS"),
-	}
-	ChallengerFlag = &cli.StringFlag{
-		Name:    "challenger-address",
-		Usage:   "Address of the challenger contract.",
-		EnvVars: deployer.PrefixEnvVar("CHALLENGER_ADDRESS"),
-	}
 	SystemConfigProxyFlag = &cli.StringFlag{
 		Name:    "system-config-proxy-address",
 		Usage:   "Address of the SystemConfig proxy contract. Not compatible with the --workdir flag.",
 		EnvVars: deployer.PrefixEnvVar("SYSTEM_CONFIG_PROXY_ADDRESS"),
-	}
-	OPChainProxyAdminFlag = &cli.StringFlag{
-		Name:    "op-chain-proxy-admin-address",
-		Usage:   "Address of the OP Chain's proxy admin on L1. Not compatible with the --workdir flag.",
-		EnvVars: deployer.PrefixEnvVar("OP_CHAIN_PROXY_ADMIN_ADDRESS"),
-	}
-	DelayedWETHProxyFlag = &cli.StringFlag{
-		Name: "delayed-weth-proxy-address",
-		Usage: "Address of the DelayedWETHProxy contract to include as part of this game type. If not specified, " +
-			"one will be deployed for you by the OPCM.",
-		EnvVars: deployer.PrefixEnvVar("DELAYED_WETH_PROXY_ADDRESS"),
 	}
 	DisputeGameTypeFlag = &cli.Uint64Flag{
 		Name:    "dispute-game-type",
@@ -57,57 +36,11 @@ var (
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
 		Value:   standard.DisputeAbsolutePrestate.Hex(),
 	}
-	DisputeAbsolutePrestateCannonFlag = &cli.StringFlag{
-		Name:    "dispute-absolute-prestate-cannon",
-		Usage:   "The absolute prestate hash for the CANNON dispute game. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE_CANNON"),
-		Value:   standard.DisputeAbsolutePrestate.Hex(),
-	}
-	DisputeAbsolutePrestateCannonKonaFlag = &cli.StringFlag{
-		Name:    "dispute-absolute-prestate-cannon-kona",
-		Usage:   "The absolute prestate hash for the CANNON_KONA dispute game. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE_CANNON_KONA"),
-		Value:   standard.DisputeAbsolutePrestate.Hex(),
-	}
-	DisputeMaxGameDepthFlag = &cli.Uint64Flag{
-		Name:    "dispute-max-game-depth",
-		Usage:   "Maximum depth of the dispute game tree (value as string). Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_MAX_GAME_DEPTH"),
-		Value:   standard.DisputeMaxGameDepth,
-	}
-	DisputeSplitDepthFlag = &cli.Uint64Flag{
-		Name:    "dispute-split-depth",
-		Usage:   "Depth at which the dispute game tree splits (value as string). Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_SPLIT_DEPTH"),
-		Value:   standard.DisputeSplitDepth,
-	}
-	DisputeClockExtensionFlag = &cli.Uint64Flag{
-		Name:    "dispute-clock-extension",
-		Usage:   "Clock extension in seconds for dispute game timing. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_CLOCK_EXTENSION"),
-		Value:   standard.DisputeClockExtension,
-	}
-	DisputeMaxClockDurationFlag = &cli.Uint64Flag{
-		Name:    "dispute-max-clock-duration",
-		Usage:   "Maximum clock duration in seconds for dispute game timing. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_MAX_CLOCK_DURATION"),
-		Value:   standard.DisputeMaxClockDuration,
-	}
 	InitialBondFlag = &cli.StringFlag{
 		Name:    "initial-bond",
 		Usage:   "Initial bond amount required for the dispute game (value as string, in wei). Defaults to 1 ETH.",
 		EnvVars: deployer.PrefixEnvVar("INITIAL_BOND"),
 		Value:   "1000000000000000000",
-	}
-	VMFlag = &cli.StringFlag{
-		Name:    "vm-address",
-		Usage:   "Address of the VM contract used by the dispute game.",
-		EnvVars: deployer.PrefixEnvVar("VM_ADDRESS"),
-	}
-	PermissionlessFlag = &cli.BoolFlag{
-		Name:    "permissionless",
-		Usage:   "Boolean indicating if the dispute game should be deployed in permissionless mode.",
-		EnvVars: deployer.PrefixEnvVar("PERMISSIONED"),
 	}
 	StartingAnchorRootFlag = &cli.StringFlag{
 		Name:    "starting-anchor-root",
@@ -118,22 +51,6 @@ var (
 		Name:    "starting-anchor-l2-sequence-number",
 		Usage:   "Starting anchor L2 sequence number.",
 		EnvVars: deployer.PrefixEnvVar("STARTING_ANCHOR_L2_SEQUENCE_NUMBER"),
-	}
-	SaltMixerFlag = &cli.StringFlag{
-		Name:    "salt-mixer",
-		Usage:   "String value for the salt mixer, used in CREATE2 address calculation. Default to keccak256(\"op-stack-contract-impls-salt-v0\").",
-		EnvVars: deployer.PrefixEnvVar("SALT_MIXER"),
-		Value:   "89fca2352a158519d2daabf7e53686272e828ddbff9487204546d918490b2ecf",
-	}
-	WorkdirFlag = &cli.StringFlag{
-		Name:    "workdir",
-		Usage:   "Path to a working directory containing a state file. Addresses will be retrieved from the state file, and cannot be specified on the command line.",
-		EnvVars: deployer.PrefixEnvVar("WORKDIR"),
-	}
-	L2ChainIDFlag = &cli.StringFlag{
-		Name:    "l2-chain-id",
-		Usage:   "Chain ID of the L2 network to retrieve from state. Must be specified when --workdir is set.",
-		EnvVars: deployer.PrefixEnvVar("CHAIN_ID"),
 	}
 	// OPCM v2 flags
 	MigrateStartingRespectedGameTypeFlag = &cli.Uint64Flag{
@@ -152,32 +69,6 @@ var (
 
 var Commands = cli.Commands{
 	&cli.Command{
-		Name:  "add-game-type",
-		Usage: "adds a new game type to the chain",
-		Flags: append([]cli.Flag{
-			deployer.L1RPCURLFlag,
-			deployer.ArtifactsLocatorFlag,
-			L1ProxyAdminOwnerFlag,
-			OPCMImplFlag,
-			SystemConfigProxyFlag,
-			OPChainProxyAdminFlag,
-			DelayedWETHProxyFlag,
-			DisputeGameTypeFlag,
-			DisputeAbsolutePrestateFlag,
-			DisputeMaxGameDepthFlag,
-			DisputeSplitDepthFlag,
-			DisputeClockExtensionFlag,
-			DisputeMaxClockDurationFlag,
-			InitialBondFlag,
-			VMFlag,
-			PermissionlessFlag,
-			SaltMixerFlag,
-			WorkdirFlag,
-			L2ChainIDFlag,
-		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
-		Action: AddGameTypeCLI,
-	},
-	&cli.Command{
 		Name:  "add-game-type-v2",
 		Usage: "allows to add new game types to the chain using the OPContractsManager V2",
 		Flags: append([]cli.Flag{
@@ -191,7 +82,7 @@ var Commands = cli.Commands{
 	},
 	&cli.Command{
 		Name:  "migrate",
-		Usage: "migrates the chain to use superproofs. It supports both OPCM v1 and v2.",
+		Usage: "migrates the chain to use superproofs using OPCM v2.",
 		Flags: append([]cli.Flag{
 			deployer.CacheDirFlag,
 			deployer.L1RPCURLFlag,
@@ -199,27 +90,15 @@ var Commands = cli.Commands{
 			deployer.ArtifactsLocatorFlag,
 			L1ProxyAdminOwnerFlag,
 			OPCMImplFlag,
-			PermissionlessFlag,
 			StartingAnchorRootFlag,
 			StartingAnchorL2SequenceNumberFlag,
-			ProposerFlag,
-			ChallengerFlag,
-			DisputeMaxGameDepthFlag,
-			DisputeSplitDepthFlag,
 			InitialBondFlag,
-			DisputeClockExtensionFlag,
-			DisputeMaxClockDurationFlag,
-			//
-			// The following flags represent one item in The EncodedChainConfigs array
-			//
 			SystemConfigProxyFlag,
-			DisputeAbsolutePrestateCannonFlag,
-			DisputeAbsolutePrestateCannonKonaFlag,
+			DisputeAbsolutePrestateFlag,
 			// OPCM v2 flags
 			MigrateStartingRespectedGameTypeFlag,
 			MigrateDisputeGameEnabledFlag,
 			DisputeGameTypeFlag,
-			DisputeAbsolutePrestateFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: MigrateCLI,
 	},

@@ -219,9 +219,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 				FaultGameClockExtension:         standard.DisputeClockExtension,
 				FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 			}
-			if deployer.IsDevFeatureEnabled(tt.devFeature, deployer.OPCMV2DevFlag) {
-				cfg.DevFeatureBitmap = deployer.OPCMV2DevFlag
-			}
+			cfg.DevFeatureBitmap = deployer.OPCMV2DevFlag
 
 			runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
 		})
@@ -435,9 +433,6 @@ func TestEndToEndApply(t *testing.T) {
 		require.Equal(t, deployer.OPCMV2DevFlag, intent.GlobalDeployOverrides["devFeatureBitmap"])
 
 		require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OpcmV2Impl should be set")
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmGameTypeAdderImpl, "OPCM game type adder implementation should be zero")
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmDeployerImpl, "OPCM deployer implementation should be zero")
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmUpgraderImpl, "OPCM upgrader implementation should be zero")
 	})
 }
 
@@ -863,10 +858,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		)
 		require.NoError(t, err)
 
-		opcmAddress := impls.Opcm
-		if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
-			opcmAddress = impls.OpcmV2
-		}
+		opcmAddress := impls.OpcmV2
 
 		// Only run the superchain config upgrade if the live superchain config is behind the freshly deployed
 		// implementation. Running the script when versions match will revert and panic the test harness.
@@ -891,34 +883,8 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			shared.RunPastUpgrades(t, host, 11155111, superchainProxyAdminOwner, deployer.DefaultSystemConfigProxySepolia)
 		})
 
-		// Then run the OPCM upgrade
-		t.Run("upgrade opcm", func(t *testing.T) {
-			if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
-				t.Skip("Skipping OPCM upgrade for OPCM V2")
-				return
-			}
-			upgradeConfig := embedded.UpgradeOPChainInput{
-				Prank: superchainProxyAdminOwner,
-				Opcm:  impls.Opcm,
-				ChainConfigs: []embedded.OPChainConfig{
-					{
-						SystemConfigProxy:  deployer.DefaultSystemConfigProxySepolia,
-						CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
-						CannonKonaPrestate: common.Hash{'K', 'O', 'N', 'A'},
-					},
-				},
-			}
-			// Test the upgrade
-			upgradeConfigBytes, err := json.Marshal(upgradeConfig)
-			require.NoError(t, err, "UpgradeOPChainInput should marshal to JSON")
-			err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
-			require.NoError(t, err, "OPCM upgrade should succeed")
-		})
+		// Run the OPCM V2 upgrade
 		t.Run("upgrade opcm v2", func(t *testing.T) {
-			if !deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
-				t.Skip("Skipping OPCM V2 upgrade for non-OPCM V2 dev feature")
-				return
-			}
 			require.NotEqual(t, common.Address{}, impls.OpcmV2, "OpcmV2 address should not be zero")
 			t.Logf("Using OpcmV2 at address: %s", impls.OpcmV2.Hex())
 			t.Logf("Using OpcmUtils at address: %s", impls.OpcmUtils.Hex())
