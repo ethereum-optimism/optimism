@@ -209,8 +209,9 @@ impl L1BlockInfo {
 
         let operator_cost_gas_limit =
             self.operator_fee_charge_inner(U256::from(gas.limit()), spec_id);
+        // Exclude reservoir gas (EIP-8037) from used gas — reservoir is unused and reimbursed.
         let operator_cost_gas_used = self.operator_fee_charge_inner(
-            U256::from(gas.limit() - (gas.remaining() + gas.refunded() as u64)),
+            U256::from(gas.limit() - (gas.remaining() + gas.reservoir() + gas.refunded() as u64)),
             spec_id,
         );
 

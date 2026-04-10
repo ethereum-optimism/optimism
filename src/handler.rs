@@ -195,6 +195,8 @@ where
         let gas = frame_result.gas_mut();
         let remaining = gas.remaining();
         let refunded = gas.refunded();
+        let reservoir = gas.reservoir();
+        let state_gas_spent = gas.state_gas_spent();
 
         // Spend the gas limit. Gas is reimbursed when the tx returns successfully.
         *gas = Gas::new_spent(tx_gas_limit);
@@ -214,8 +216,7 @@ where
             //     enabled.
             //   - Regular transactions report their gas used as normal.
             if !is_deposit || is_regolith {
-                // For regular transactions prior to Regolith and all transactions after
-                // Regolith, gas is reported as normal.
+                // Return unused regular gas and unused reservoir gas.
                 gas.erase_cost(remaining);
                 gas.record_refund(refunded);
             } else if is_deposit && tx.is_system_transaction() {
@@ -237,9 +238,15 @@ where
             //     gas used on failure. Refunds on remaining gas enabled.
             //   - Regular transactions receive a refund on remaining gas as normal.
             if !is_deposit || is_regolith {
+                // Return unused regular gas.
                 gas.erase_cost(remaining);
             }
         }
+
+        // Restore state_gas_spent on all paths (lost by Gas::new_spent overwrite).
+        gas.set_state_gas_spent(state_gas_spent);
+        gas.set_reservoir(reservoir);
+
         Ok(())
     }
 
@@ -314,16 +321,18 @@ where
         };
 
         let l1_cost = l1_block_info.calculate_tx_l1_cost(enveloped_tx, spec);
+        // Exclude reservoir gas (EIP-8037) from used gas — reservoir is unused and reimbursed.
+        let effective_used = frame_result.gas().used().saturating_sub(frame_result.gas().reservoir());
         let operator_fee_cost = if spec.is_enabled_in(OpSpecId::ISTHMUS) {
             l1_block_info.operator_fee_charge(
                 enveloped_tx,
-                U256::from(frame_result.gas().used()),
+                U256::from(effective_used),
                 spec,
             )
         } else {
             U256::ZERO
         };
-        let base_fee_amount = U256::from(basefee.saturating_mul(frame_result.gas().used() as u128));
+        let base_fee_amount = U256::from(basefee.saturating_mul(effective_used as u128));
 
         // Send fees to their respective recipients
         for (recipient, amount) in [
@@ -419,7 +428,7 @@ where
             // clear the journal
             output = Ok(ExecutionResult::Halt {
                 reason: OpHaltReason::FailedDeposit,
-                gas: ResultGas::new(gas_limit, gas_used, 0, 0, 0),
+                gas: ResultGas::default().with_total_gas_spent(gas_used),
                 logs: Vec::new(),
             })
         }
@@ -509,7 +518,7 @@ mod tests {
 
         let gas = call_last_frame_return(ctx, InstructionResult::Revert, Gas::new(90));
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spent(), 10);
+        assert_eq!(gas.total_gas_spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -525,7 +534,7 @@ mod tests {
 
         let gas = call_last_frame_return(ctx, InstructionResult::Stop, Gas::new(90));
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spent(), 10);
+        assert_eq!(gas.total_gas_spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -545,12 +554,12 @@ mod tests {
 
         let gas = call_last_frame_return(ctx.clone(), InstructionResult::Stop, ret_gas);
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spent(), 10);
+        assert_eq!(gas.total_gas_spent(), 10);
         assert_eq!(gas.refunded(), 2); // min(20, 10/5)
 
         let gas = call_last_frame_return(ctx, InstructionResult::Revert, ret_gas);
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spent(), 10);
+        assert_eq!(gas.total_gas_spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -566,7 +575,7 @@ mod tests {
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK));
         let gas = call_last_frame_return(ctx, InstructionResult::Stop, Gas::new(90));
         assert_eq!(gas.remaining(), 0);
-        assert_eq!(gas.spent(), 100);
+        assert_eq!(gas.total_gas_spent(), 100);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -583,7 +592,7 @@ mod tests {
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK));
         let gas = call_last_frame_return(ctx, InstructionResult::Stop, Gas::new(90));
         assert_eq!(gas.remaining(), 100);
-        assert_eq!(gas.spent(), 0);
+        assert_eq!(gas.total_gas_spent(), 0);
         assert_eq!(gas.refunded(), 0);
     }
 
