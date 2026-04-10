@@ -143,16 +143,20 @@ func deployDisputeGame(
 		if err != nil {
 			return fmt.Errorf("failed to encode ZK game args: %w", err)
 		}
-		if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, opcm.SetDisputeGameImplInput{
+		zkInput := opcm.SetDisputeGameImplInput{
 			Factory:  thisState.OpChainContracts.DisputeGameFactoryProxy,
 			Impl:     zkImpl,
-			GameType: uint32(embedded.GameTypeZKDisputeGame),
+			GameType: game.DisputeGameType,
 			GameArgs: encoded[4:],
-		}); err != nil {
+		}
+		if game.MakeRespected {
+			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
+		}
+		if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, zkInput); err != nil {
 			return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
 		}
 		thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
-			GameType:    uint32(embedded.GameTypeZKDisputeGame),
+			GameType:    game.DisputeGameType,
 			VMType:      game.VMType,
 			GameAddress: zkImpl,
 		})
