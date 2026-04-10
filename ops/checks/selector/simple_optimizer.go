@@ -266,9 +266,92 @@ type scopeWithSignal struct {
 	Signal float64
 }
 
-// affectedScopes walks the graph to find which source nodes are affected
-// and maps them to scope units for a specific check type.
+// affectedScopes finds which test scopes are affected by changed source nodes.
+// Tries two strategies in order:
+//   1. Coverage-based (precise): look for coverage edges pointing at changed source
+//      nodes. These come from `checks coverage ingest` and tell us exactly which
+//      test files exercise the changed code.
+//   2. Import-based (broad): walk from changed nodes through import edges and
+//      collect source nodes with tested_by edges to the check type. This is the
+//      fallback when no coverage data exists.
 func affectedScopes(
+	g *graph.Graph,
+	changedIDs []string,
+	checkTypeNodeID string,
+	scopeType string,
+) []scopeWithSignal {
+	// Strategy 1: Coverage-based scoping
+	if results := coverageBasedScopes(g, changedIDs, scopeType); len(results) > 0 {
+		return results
+	}
+
+	// Strategy 2: Import-based scoping (fallback)
+	return importBasedScopes(g, changedIDs, checkTypeNodeID, scopeType)
+}
+
+// coverageBasedScopes finds test files that have coverage edges pointing at
+// changed source nodes. This is precise — it uses actual execution data.
+func coverageBasedScopes(
+	g *graph.Graph,
+	changedIDs []string,
+	scopeType string,
+) []scopeWithSignal {
+	changedSet := make(map[string]bool)
+	for _, id := range changedIDs {
+		changedSet[id] = true
+	}
+
+	// Walk the graph from changed source nodes, collect test nodes that
+	// have coverage edges TO these source nodes.
+	// Coverage edges go: test_node → (covers/tested_by, source=coverage) → source_node
+	// So we look at incoming edges on the changed nodes.
+	testSignals := make(map[string]float64)
+
+	for _, changedID := range changedIDs {
+		for _, edge := range g.EdgesTo(changedID) {
+			if edge.Source != graph.SourceCoverage {
+				continue
+			}
+			// This test node covers the changed source
+			testNode := g.GetNode(edge.From)
+			if testNode == nil {
+				continue
+			}
+
+			// Signal based on how much of the changed file this test covers
+			signal := edge.Strength * edge.Confidence
+			if signal > testSignals[edge.From] {
+				testSignals[edge.From] = signal
+			}
+		}
+	}
+
+	if len(testSignals) == 0 {
+		return nil
+	}
+
+	// Convert test node IDs to scope units
+	var results []scopeWithSignal
+	seen := make(map[string]bool)
+	for testNodeID, signal := range testSignals {
+		scope := nodeIDToScope(testNodeID, scopeType)
+		if scope != "" && !seen[scope] {
+			results = append(results, scopeWithSignal{Scope: scope, Signal: signal})
+			seen[scope] = true
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Signal > results[j].Signal
+	})
+
+	return results
+}
+
+// importBasedScopes is the fallback when no coverage data exists.
+// Walks from changed nodes through import edges and collects source nodes
+// that have tested_by edges to the check type.
+func importBasedScopes(
 	g *graph.Graph,
 	changedIDs []string,
 	checkTypeNodeID string,
@@ -323,6 +406,7 @@ func affectedScopes(
 	}
 
 	var results []scopeWithSignal
+	seen := make(map[string]bool)
 	for nodeID, signal := range bestSignal {
 		node := g.GetNode(nodeID)
 		if node == nil || node.Kind != graph.KindSource {
@@ -331,8 +415,9 @@ func affectedScopes(
 		for _, edge := range g.EdgesFrom(nodeID) {
 			if edge.Kind == graph.EdgeTestedBy && edge.To == checkTypeNodeID {
 				scope := nodeIDToScope(nodeID, scopeType)
-				if scope != "" {
+				if scope != "" && !seen[scope] {
 					results = append(results, scopeWithSignal{Scope: scope, Signal: signal})
+					seen[scope] = true
 				}
 				break
 			}
