@@ -1932,6 +1932,12 @@ jobs:
       - when:
           condition: always
           steps:
+            - store_artifacts:
+                path: ./op-acceptance-tests/results
+                destination: junit-results
+      - when:
+          condition: always
+          steps:
             - store_test_results:
                 path: ./op-acceptance-tests/results
       - when:
