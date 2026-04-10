@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [17.1.0](https://github.com/bluealloy/revm/compare/op-revm-v17.0.0...op-revm-v17.1.0) - 2026-04-10
+
+### Added
+
+- add EIP-8037 / TIP-1016 state gas support ([#3406](https://github.com/bluealloy/revm/pull/3406))
+- add crate-level re-exports for all revm-* dependencies ([#3507](https://github.com/bluealloy/revm/pull/3507))
+
+### Other
+
+- move EIP-8037 gas cap validation into validate_initial_tx_gas ([#3552](https://github.com/bluealloy/revm/pull/3552))
+- *(op-revm)* use typed error for missing enveloped tx in all paths ([#3509](https://github.com/bluealloy/revm/pull/3509))
+
 ## [17.0.0](https://github.com/bluealloy/revm/compare/op-revm-v16.0.0...op-revm-v17.0.0) - 2026-03-04
 
 ### Other

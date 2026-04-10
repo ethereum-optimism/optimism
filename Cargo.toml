@@ -1,7 +1,7 @@
 [package]
 name = "op-revm"
 description = "Optimism variant of Revm"
-version = "17.0.0"
+version = "17.1.0"
 authors.workspace = true
 edition.workspace = true
 keywords.workspace = true
