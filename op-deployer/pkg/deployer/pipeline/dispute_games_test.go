@@ -100,6 +100,67 @@ func TestDeployDisputeGame_ZK_NilParams(t *testing.T) {
 	require.ErrorContains(t, err, "ZKDisputeGame params must be set")
 }
 
+func TestDeployDisputeGame_ZK_ZeroDisputeGameType(t *testing.T) {
+	lgr := testlog.Logger(t, slog.LevelInfo)
+
+	env := &Env{Logger: lgr}
+	st := &state.State{
+		ImplementationsDeployment: &addresses.ImplementationsContracts{
+			ZkDisputeGameImpl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		},
+	}
+	game := state.AdditionalDisputeGame{
+		VMType:          state.VMTypeZK,
+		ZKDisputeGame:   &state.ZKDisputeGameParams{},
+		ChainProofParams: state.ChainProofParams{DisputeGameType: 0}, // not set
+	}
+
+	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
+	require.ErrorContains(t, err, "DisputeGameType must be set")
+}
+
+func TestDeployDisputeGame_ZK_NilChallengerBond(t *testing.T) {
+	lgr := testlog.Logger(t, slog.LevelInfo)
+
+	env := &Env{Logger: lgr}
+	st := &state.State{
+		ImplementationsDeployment: &addresses.ImplementationsContracts{
+			ZkDisputeGameImpl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		},
+	}
+	game := state.AdditionalDisputeGame{
+		VMType: state.VMTypeZK,
+		ZKDisputeGame: &state.ZKDisputeGameParams{
+			ChallengerBond: nil,
+		},
+		ChainProofParams: state.ChainProofParams{DisputeGameType: 10},
+	}
+
+	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
+	require.ErrorContains(t, err, "ChallengerBond must be set")
+}
+
+func TestDeployDisputeGame_ZK_ZeroChallengerBond(t *testing.T) {
+	lgr := testlog.Logger(t, slog.LevelInfo)
+
+	env := &Env{Logger: lgr}
+	st := &state.State{
+		ImplementationsDeployment: &addresses.ImplementationsContracts{
+			ZkDisputeGameImpl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		},
+	}
+	game := state.AdditionalDisputeGame{
+		VMType: state.VMTypeZK,
+		ZKDisputeGame: &state.ZKDisputeGameParams{
+			ChallengerBond: (*hexutil.Big)(big.NewInt(0)),
+		},
+		ChainProofParams: state.ChainProofParams{DisputeGameType: 10},
+	}
+
+	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
+	require.ErrorContains(t, err, "ChallengerBond must be set")
+}
+
 func TestDeployDisputeGame_UnsupportedVMType(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelInfo)
 

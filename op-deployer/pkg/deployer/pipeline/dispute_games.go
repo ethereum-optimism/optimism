@@ -131,14 +131,20 @@ func deployDisputeGame(
 		if game.ZKDisputeGame == nil {
 			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
 		}
+		if game.DisputeGameType == 0 {
+			return fmt.Errorf("DisputeGameType must be set for ZK dispute game (expected %d)", embedded.GameTypeZKDisputeGame)
+		}
 		zk := game.ZKDisputeGame
-		zkArgEncoder := w3.MustNewFunc("dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))", "")
-		encoded, err := zkArgEncoder.EncodeArgs(&embedded.ZKDisputeGameConfig{
+		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
+			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
+		}
+		challengerBond := zk.ChallengerBond.ToInt()
+		encoded, err := zkGameArgEncoder.EncodeArgs(&embedded.ZKDisputeGameConfig{
 			AbsolutePrestate:     zk.AbsolutePrestate,
 			Verifier:             zk.Verifier,
 			MaxChallengeDuration: zk.MaxChallengeDuration,
 			MaxProveDuration:     zk.MaxProveDuration,
-			ChallengerBond:       zk.ChallengerBond.ToInt(),
+			ChallengerBond:       challengerBond,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to encode ZK game args: %w", err)
@@ -252,6 +258,10 @@ func deployDisputeGame(
 
 	return nil
 }
+
+// zkGameArgEncoder encodes the ZK dispute game args for SetDisputeGameImpl.
+// Mirrors the zkEncoder in upgrade/embedded/upgrade.go (same ABI signature).
+var zkGameArgEncoder = w3.MustNewFunc("dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))", "")
 
 func shouldDeployAdditionalDisputeGames(thisIntent *state.ChainIntent, thisState *state.ChainState) bool {
 	if len(thisIntent.AdditionalDisputeGames) == 0 {
