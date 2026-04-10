@@ -327,7 +327,6 @@ rules:
         - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtilsCaller.sol
         - /packages/contracts-bedrock/src/L1/opcm/OPContractsManagerMigrator.sol
         - /packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-        - /packages/contracts-bedrock/src/L1/OptimismPortalInterop.sol
         - /packages/contracts-bedrock/src/L2/FeeVault.sol
         - /packages/contracts-bedrock/src/L2/OptimismMintableERC721.sol
         - /packages/contracts-bedrock/src/L2/OptimismMintableERC721Factory.sol
