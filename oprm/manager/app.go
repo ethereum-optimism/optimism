@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -62,4 +63,16 @@ func (a *App) ReleaseNotesPath(run *release.Run, componentID string) string {
 		return ""
 	}
 	return a.releaseNotesPath(run, componentID, proposal)
+}
+
+func (a *App) ComponentHeadSHA(componentID string) string {
+	checkout, err := a.checkoutPath(componentID)
+	if err != nil {
+		return ""
+	}
+	sha, err := a.git.HeadSHA(context.Background(), checkout)
+	if err != nil {
+		return ""
+	}
+	return sha
 }

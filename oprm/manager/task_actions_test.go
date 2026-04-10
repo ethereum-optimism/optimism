@@ -29,7 +29,7 @@ func TestEnsureComponentTasks(t *testing.T) {
 	require.Equal(t, workflow.StatusPending, tasks[3].Status)
 	require.Equal(t, "op-node.github-draft-release", tasks[4].ID)
 	require.Equal(t, workflow.StatusPending, tasks[4].Status)
-	require.Equal(t, "op-node.manual-confirm-builds-ready", tasks[5].ID)
+	require.Equal(t, "op-node.docker-build", tasks[5].ID)
 	require.Equal(t, workflow.StatusPending, tasks[5].Status)
 	require.Equal(t, "op-node.rollout", tasks[6].ID)
 	require.Equal(t, workflow.StatusPending, tasks[6].Status)
@@ -57,7 +57,7 @@ func TestExecuteReviewTaskUnblocksPrepareReleaseNotesTask(t *testing.T) {
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.create-tag").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.push-tag").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.github-draft-release").Status)
-	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.manual-confirm-builds-ready").Status)
+	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.docker-build").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.finalize-release").Status)
 }
 
@@ -76,7 +76,7 @@ func TestPrepareReleaseNotesWritesArtifact(t *testing.T) {
 	require.Equal(t, workflow.StatusReady, updatedRun.FindTask("op-node.create-tag").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.push-tag").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.github-draft-release").Status)
-	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.manual-confirm-builds-ready").Status)
+	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.docker-build").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.finalize-release").Status)
 	require.FileExists(t, filepath.Join(store.RunsDir(), run.RunID, "release-notes", "op-node-v1.2.4-rc.1.md"))
 }
@@ -326,7 +326,7 @@ func TestCreateOrUpdateDraftReleaseUnblocksBuildConfirmation(t *testing.T) {
 	updatedRun, _, err := app.LoadRun(run.RunID)
 	require.NoError(t, err)
 	require.Equal(t, workflow.StatusCompleted, updatedRun.FindTask("op-node.github-draft-release").Status)
-	require.Equal(t, workflow.StatusNeedsConfirmation, updatedRun.FindTask("op-node.manual-confirm-builds-ready").Status)
+	require.Equal(t, workflow.StatusNeedsConfirmation, updatedRun.FindTask("op-node.docker-build").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.rollout").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.finalize-release").Status)
 }
@@ -351,10 +351,10 @@ func TestManualConfirmBuildsReadyUnblocksRolloutTask(t *testing.T) {
 	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.create-tag"))
 	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.push-tag"))
 	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.github-draft-release"))
-	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.manual-confirm-builds-ready"))
+	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.docker-build"))
 	updatedRun, _, err := app.LoadRun(run.RunID)
 	require.NoError(t, err)
-	require.Equal(t, workflow.StatusCompleted, updatedRun.FindTask("op-node.manual-confirm-builds-ready").Status)
+	require.Equal(t, workflow.StatusCompleted, updatedRun.FindTask("op-node.docker-build").Status)
 	require.Equal(t, workflow.StatusNeedsConfirmation, updatedRun.FindTask("op-node.rollout").Status)
 	require.Equal(t, workflow.StatusPending, updatedRun.FindTask("op-node.finalize-release").Status)
 }
@@ -379,7 +379,7 @@ func TestRolloutUnblocksFinalizeReleaseTask(t *testing.T) {
 	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.create-tag"))
 	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.push-tag"))
 	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.github-draft-release"))
-	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.manual-confirm-builds-ready"))
+	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.docker-build"))
 	require.NoError(t, app.ExecuteTask(run.RunID, "op-node.rollout"))
 	updatedRun, _, err := app.LoadRun(run.RunID)
 	require.NoError(t, err)
@@ -399,7 +399,7 @@ func TestFinalizeReleaseCreatesTargetTagAndPublishesRelease(t *testing.T) {
 	run.Tasks = rebuildTasks(run.Tasks, run.Components, run.SelectionConfirmed, now)
 	run.FindTask("op-node.github-draft-release").Status = workflow.StatusCompleted
 	run.Tasks = rebuildTasks(run.Tasks, run.Components, run.SelectionConfirmed, now)
-	run.FindTask("op-node.manual-confirm-builds-ready").Status = workflow.StatusCompleted
+	run.FindTask("op-node.docker-build").Status = workflow.StatusCompleted
 	run.Tasks = rebuildTasks(run.Tasks, run.Components, run.SelectionConfirmed, now)
 	run.FindTask("op-node.rollout").Status = workflow.StatusCompleted
 	run.Tasks = rebuildTasks(run.Tasks, run.Components, run.SelectionConfirmed, now)
@@ -449,7 +449,7 @@ func TestFinalizeReleaseTreatsPublishedTargetReleaseAsExternallySatisfied(t *tes
 	run.Tasks = rebuildTasks(run.Tasks, run.Components, run.SelectionConfirmed, now)
 	run.FindTask("op-node.github-draft-release").Status = workflow.StatusCompleted
 	run.Tasks = rebuildTasks(run.Tasks, run.Components, run.SelectionConfirmed, now)
-	run.FindTask("op-node.manual-confirm-builds-ready").Status = workflow.StatusCompleted
+	run.FindTask("op-node.docker-build").Status = workflow.StatusCompleted
 	run.Tasks = rebuildTasks(run.Tasks, run.Components, run.SelectionConfirmed, now)
 	run.FindTask("op-node.rollout").Status = workflow.StatusCompleted
 	run.Tasks = rebuildTasks(run.Tasks, run.Components, run.SelectionConfirmed, now)

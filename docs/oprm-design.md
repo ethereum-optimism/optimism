@@ -60,7 +60,7 @@ As of 2026-04-10, the `oprm` prototype branch already has a working foundation a
   - `component.create-tag`
   - `component.push-tag`
   - `component.github-draft-release`
-  - `component.manual-confirm-builds-ready`
+  - `component.docker-build`
   - `component.rollout`
   - `component.finalize-release`
 - release-notes artifact generation under `.oprm/releases/<run-id>/release-notes/`
@@ -319,7 +319,9 @@ versions:
     proposed: v1.14.3-rc.2
     manual_override: false
 tasks:
-  - id: doctor.gh-installed
+  - id: doctor.git
+    status: completed
+  - id: doctor.gh-cli
     status: completed
   - id: op-geth.tag-rc
     status: pending
@@ -557,17 +559,14 @@ with `N` auto-incremented from GitHub/tag state.
 
 #### Global doctor checks
 
-1. `doctor.gh-installed`
-2. `doctor.gh-authenticated`
-3. `doctor.git-installed`
-4. `doctor.git-configured`
-5. `doctor.git-fetch-tags-monorepo`
-6. `doctor.git-fetch-tags-op-geth`
-7. `doctor.monorepo-base-branch-synced`
-8. `doctor.op-geth-base-branch-synced`
-9. `doctor.release-manager-detected`
-10. `doctor.repo-push-monorepo`
-11. `doctor.repo-push-op-geth`
+1. `doctor.git`
+2. `doctor.gh-cli`
+3. `doctor.git-fetch-tags-monorepo`
+4. `doctor.git-fetch-tags-op-geth`
+5. `doctor.monorepo-base-branch-synced`
+6. `doctor.op-geth-base-branch-synced`
+7. `doctor.release-manager-detected`
+8. `doctor.repo-push-permissions`
 
 #### Component planning and selection
 
@@ -595,7 +594,7 @@ For each selected component, the currently implemented task flow is:
 3. `component.create-tag`
 4. `component.push-tag`
 5. `component.github-draft-release`
-6. `component.manual-confirm-builds-ready`
+6. `component.docker-build`
 
 Current behavior:
 
@@ -607,7 +606,7 @@ Current behavior:
 - `component.create-tag` creates the proposed RC tag locally only
 - `component.push-tag` pushes the already-created local RC tag to the remote repository and verifies remote visibility
 - `component.github-draft-release` creates or updates the GitHub draft release using the generated release-notes artifact
-- `component.manual-confirm-builds-ready` is a manual confirmation checkpoint that happens only after the RC tag exists remotely and the draft release is present
+- `component.docker-build` is a manual confirmation checkpoint that happens only after the RC tag exists remotely and the draft release is present
 
 Task confirmation should happen on the concrete task itself, not via a separate meta-task.
 
@@ -712,7 +711,7 @@ CircleCI is intentionally manual in the MVP.
 
 Each component gets a task:
 
-- `component.manual-confirm-builds-ready`
+- `component.docker-build`
 
 This task should:
 

@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -63,31 +64,28 @@ func (a *App) Doctor(ctx context.Context) (*DoctorReport, error) {
 		})
 	}
 
-	ghInstalledErr := a.gh.Installed(ctx)
-	add("doctor.gh-installed", "gh installed", ghInstalledErr)
-
-	var ghAuthErr error
-	if ghInstalledErr == nil {
-		ghAuthErr = a.gh.Authenticated(ctx)
-	} else {
-		ghAuthErr = fmt.Errorf("blocked: gh is not installed")
-	}
-	add("doctor.gh-authenticated", "gh authenticated", ghAuthErr)
-
 	gitInstalledErr := a.git.Installed(ctx)
-	add("doctor.git-installed", "git installed", gitInstalledErr)
 
 	var gitName, gitEmail string
-	var gitConfiguredErr error
+	var gitErr error
 	if gitInstalledErr == nil {
-		gitName, gitConfiguredErr = a.git.ConfigGet(ctx, "user.name")
-		if gitConfiguredErr == nil {
-			gitEmail, gitConfiguredErr = a.git.ConfigGet(ctx, "user.email")
+		gitName, gitErr = a.git.ConfigGet(ctx, "user.name")
+		if gitErr == nil {
+			gitEmail, gitErr = a.git.ConfigGet(ctx, "user.email")
 		}
 	} else {
-		gitConfiguredErr = fmt.Errorf("blocked: git is not installed")
+		gitErr = gitInstalledErr
 	}
-	add("doctor.git-configured", "git configured", gitConfiguredErr)
+	add("doctor.git", "git installed and configured", gitErr)
+
+	ghInstalledErr := a.gh.Installed(ctx)
+	var ghErr error
+	if ghInstalledErr == nil {
+		ghErr = a.gh.Authenticated(ctx)
+	} else {
+		ghErr = ghInstalledErr
+	}
+	add("doctor.gh-cli", "gh installed and authenticated", ghErr)
 
 	monorepoPath := a.MonorepoPath()
 	opGethPath := a.OpGethPath()
@@ -152,7 +150,7 @@ func (a *App) Doctor(ctx context.Context) (*DoctorReport, error) {
 
 	var ghLogin string
 	var ghUserErr error
-	if ghInstalledErr == nil && ghAuthErr == nil {
+	if ghErr == nil {
 		user, err := a.gh.CurrentUser(ctx)
 		if err != nil {
 			ghUserErr = err
@@ -177,31 +175,28 @@ func (a *App) Doctor(ctx context.Context) (*DoctorReport, error) {
 		add("doctor.release-manager-detected", "release manager detected", nil)
 	}
 
-	var monorepoPushErr error
-	if ghInstalledErr == nil && ghAuthErr == nil {
+	var pushErr error
+	if ghErr == nil {
+		var failures []string
 		repo, err := a.gh.GetRepo(ctx, a.Config.GitHub.Owner, a.Config.GitHub.Repo)
 		if err != nil {
-			monorepoPushErr = err
+			failures = append(failures, err.Error())
 		} else if !repo.Permissions.Push {
-			monorepoPushErr = fmt.Errorf("GitHub user does not have push access to %s/%s", a.Config.GitHub.Owner, a.Config.GitHub.Repo)
+			failures = append(failures, fmt.Sprintf("GitHub user does not have push access to %s/%s", a.Config.GitHub.Owner, a.Config.GitHub.Repo))
 		}
-	} else {
-		monorepoPushErr = fmt.Errorf("blocked: cannot check push access until gh is installed and authenticated")
-	}
-	add("doctor.repo-push-monorepo", fmt.Sprintf("monorepo push access to %s/%s", a.Config.GitHub.Owner, a.Config.GitHub.Repo), monorepoPushErr)
-
-	var opGethPushErr error
-	if ghInstalledErr == nil && ghAuthErr == nil {
-		repo, err := a.gh.GetRepo(ctx, a.Config.OpGeth.Owner, a.Config.OpGeth.Repo)
+		repo, err = a.gh.GetRepo(ctx, a.Config.OpGeth.Owner, a.Config.OpGeth.Repo)
 		if err != nil {
-			opGethPushErr = err
+			failures = append(failures, err.Error())
 		} else if !repo.Permissions.Push {
-			opGethPushErr = fmt.Errorf("GitHub user does not have push access to %s/%s", a.Config.OpGeth.Owner, a.Config.OpGeth.Repo)
+			failures = append(failures, fmt.Sprintf("GitHub user does not have push access to %s/%s", a.Config.OpGeth.Owner, a.Config.OpGeth.Repo))
+		}
+		if len(failures) > 0 {
+			pushErr = errors.New(strings.Join(failures, "; "))
 		}
 	} else {
-		opGethPushErr = fmt.Errorf("blocked: cannot check push access until gh is installed and authenticated")
+		pushErr = fmt.Errorf("blocked: cannot check push access until gh is installed and authenticated")
 	}
-	add("doctor.repo-push-op-geth", fmt.Sprintf("push access to %s/%s", a.Config.OpGeth.Owner, a.Config.OpGeth.Repo), opGethPushErr)
+	add("doctor.repo-push-permissions", fmt.Sprintf("push access to %s/%s and %s/%s", a.Config.GitHub.Owner, a.Config.GitHub.Repo, a.Config.OpGeth.Owner, a.Config.OpGeth.Repo), pushErr)
 
 	return report, nil
 }

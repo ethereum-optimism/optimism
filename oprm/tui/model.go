@@ -390,7 +390,6 @@ func (m *Model) renderDetails(contentWidth int) string {
 	if task == nil {
 		return titleStyle.Render("No tasks")
 	}
-	componentID := strings.SplitN(task.ID, ".", 2)[0]
 	lines := []string{titleStyle.Render(task.ID)}
 	if task.Title != "" {
 		lines = append(lines, fmt.Sprintf("Title: %s", task.Title))
@@ -402,16 +401,14 @@ func (m *Model) renderDetails(contentWidth int) string {
 	if task.Reason != "" {
 		lines = append(lines, fmt.Sprintf("Reason: %s", task.Reason))
 	}
-	lines = append(lines, "", m.renderComponentDetails(componentID))
+	if details := m.renderTaskComponentDetails(task.ID); details != "" {
+		lines = append(lines, "", details)
+	}
 	if commands, err := m.app.PreviewTaskCommands(m.run, task.ID); err != nil {
 		lines = append(lines, "", subtitleStyle.Render("Command preview"), errorStyle.Render(err.Error()))
 	} else if len(commands) > 0 {
 		lines = append(lines, "", subtitleStyle.Render("Command preview"))
 		lines = append(lines, renderCommandPreview(commands, contentWidth)...)
-	}
-	if info := m.taskContextDetails(task.ID); len(info) > 0 {
-		lines = append(lines, "", subtitleStyle.Render("Task context"))
-		lines = append(lines, info...)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -420,6 +417,60 @@ func (m *Model) renderComponentDetails(componentID string) string {
 	if componentID == "" {
 		return titleStyle.Render("No component selected")
 	}
+	return m.renderComponentDetailsWithOptions(componentID, componentDetailsOptions{
+		IncludeRepoTarget:   false,
+		IncludeBranchTarget: false,
+		IncludeLocalPath:    false,
+		IncludeTargets:      true,
+		IncludeReviewRange:  true,
+		IncludeCommits:      true,
+	})
+}
+
+func (m *Model) renderTaskComponentDetails(taskID string) string {
+	componentID, suffix, ok := strings.Cut(taskID, ".")
+	if !ok || strings.HasPrefix(taskID, "doctor.") {
+		return ""
+	}
+	options := componentDetailsOptions{
+		IncludeRepoTarget:   true,
+		IncludeBranchTarget: true,
+		IncludeLocalPath:    true,
+		IncludeTargets:      true,
+	}
+	switch suffix {
+	case "review-diff":
+		options.IncludeReviewRange = true
+		options.IncludeCommits = true
+	case "prepare-release-notes":
+		options.IncludeReviewRange = true
+		options.IncludeCommits = true
+		options.ReleaseNotesLabel = "Output artifact"
+	case "create-tag":
+		options.ExtraLines = append(options.ExtraLines, fmt.Sprintf("Tag target commit: %s", emptyFallback(m.app.ComponentHeadSHA(componentID))))
+	case "github-draft-release":
+		options.ReleaseNotesLabel = "Release notes artifact"
+	case "docker-build", "rollout", "finalize-release", "push-tag":
+		// no additional sections
+		if suffix == "push-tag" {
+			// keep the same compact context as create-tag without diff details
+		}
+	}
+	return m.renderComponentDetailsWithOptions(componentID, options)
+}
+
+type componentDetailsOptions struct {
+	IncludeRepoTarget   bool
+	IncludeBranchTarget bool
+	IncludeLocalPath    bool
+	IncludeTargets      bool
+	IncludeReviewRange  bool
+	IncludeCommits      bool
+	ReleaseNotesLabel   string
+	ExtraLines          []string
+}
+
+func (m *Model) renderComponentDetailsWithOptions(componentID string, opts componentDetailsOptions) string {
 	proposal := m.run.Versions[componentID]
 	lines := []string{
 		titleStyle.Render(componentID),
@@ -428,27 +479,50 @@ func (m *Model) renderComponentDetails(componentID string) string {
 		fmt.Sprintf("Latest draft RC: %s", emptyFallback(proposal.LatestDraftRC)),
 		fmt.Sprintf("Changed: %t", proposal.Changed),
 	}
+	if opts.IncludeRepoTarget || opts.IncludeBranchTarget || opts.IncludeLocalPath {
+		if spec, err := m.app.ConfiguredComponentSpec(componentID); err == nil {
+			if opts.IncludeRepoTarget {
+				lines = append(lines, fmt.Sprintf("Repo target: %s/%s", emptyFallback(spec.GitHubOwner), emptyFallback(spec.GitHubRepo)))
+			}
+			if opts.IncludeBranchTarget {
+				lines = append(lines, fmt.Sprintf("Branch target: %s", emptyFallback(spec.BaseBranch)))
+			}
+			if opts.IncludeLocalPath {
+				lines = append(lines, fmt.Sprintf("Local checkout: %s", emptyFallback(m.app.CheckoutLocation(componentID))))
+			}
+		}
+	}
 	if proposal.ResumeDraft {
 		lines = append(lines, "Resuming existing draft RC: yes")
 	}
-	if proposal.TargetRelease != "" {
-		lines = append(lines, fmt.Sprintf("Target release: %s", remoteTagStyled(proposal.TargetRelease, proposal.TargetTagRemoteState)))
+	if opts.IncludeTargets {
+		if proposal.TargetRelease != "" {
+			lines = append(lines, fmt.Sprintf("Target release: %s", remoteTagStyled(proposal.TargetRelease, proposal.TargetTagRemoteState)))
+		}
+		if proposal.Proposed != "" {
+			lines = append(lines, fmt.Sprintf("Proposed RC: %s", remoteTagStyled(proposal.Proposed, proposal.ProposedTagRemoteState)))
+		}
 	}
-	if proposal.Proposed != "" {
-		lines = append(lines, fmt.Sprintf("Proposed RC: %s", remoteTagStyled(proposal.Proposed, proposal.ProposedTagRemoteState)))
+	if opts.ReleaseNotesLabel != "" {
+		lines = append(lines, fmt.Sprintf("%s: %s", opts.ReleaseNotesLabel, emptyFallback(m.app.ReleaseNotesPath(m.run, componentID))))
 	}
-	lines = append(lines,
-		"",
-		subtitleStyle.Render("Review range"),
-		fmt.Sprintf("From: %s", emptyFallback(proposal.Review.FromRef)),
-		fmt.Sprintf("To: %s (%s)", emptyFallback(proposal.Review.ToRef), emptyFallback(proposal.Review.ToRefKind)),
-	)
-	if proposal.Review.CompareURL != "" {
-		lines = append(lines, fmt.Sprintf("Compare: %s", proposal.Review.CompareURL))
+	lines = append(lines, opts.ExtraLines...)
+	if opts.IncludeReviewRange {
+		lines = append(lines,
+			"",
+			subtitleStyle.Render("Review range"),
+			fmt.Sprintf("From: %s", emptyFallback(proposal.Review.FromRef)),
+			fmt.Sprintf("To: %s (%s)", emptyFallback(proposal.Review.ToRef), emptyFallback(proposal.Review.ToRefKind)),
+		)
+		if proposal.Review.CompareURL != "" {
+			lines = append(lines, fmt.Sprintf("Compare: %s", proposal.Review.CompareURL))
+		}
 	}
-	lines = append(lines, "", subtitleStyle.Render("Commits"))
-	for _, item := range proposal.Review.CommitSummaries {
-		lines = append(lines, "- "+item)
+	if opts.IncludeCommits && len(proposal.Review.CommitSummaries) > 0 {
+		lines = append(lines, "", subtitleStyle.Render("Commits"))
+		for _, item := range proposal.Review.CommitSummaries {
+			lines = append(lines, "- "+item)
+		}
 	}
 	return strings.Join(lines, "\n")
 }
@@ -490,7 +564,7 @@ func requiresConfirmation(taskID string) bool {
 		return true
 	case strings.HasSuffix(taskID, ".github-draft-release"):
 		return true
-	case strings.HasSuffix(taskID, ".manual-confirm-builds-ready"):
+	case strings.HasSuffix(taskID, ".docker-build"):
 		return true
 	case strings.HasSuffix(taskID, ".rollout"):
 		return true
@@ -503,14 +577,10 @@ func requiresConfirmation(taskID string) bool {
 
 func (m *Model) taskDescription(taskID string) string {
 	switch taskID {
-	case "doctor.gh-installed":
-		return "Required for GitHub API access and later release operations."
-	case "doctor.gh-authenticated":
-		return "Confirms gh is logged in as the acting release manager for this run."
-	case "doctor.git-installed":
-		return "Required for local checkout checks and later tag-related git actions."
-	case "doctor.git-configured":
-		return "Ensures git user.name and user.email are available for auditability and future mutations."
+	case "doctor.git":
+		return "Confirms git is installed and that user.name and user.email are configured for auditability and future mutations."
+	case "doctor.gh-cli":
+		return "Confirms gh is installed and authenticated for GitHub API access and later release operations."
 	case "doctor.git-fetch-tags-monorepo":
 		return "Fetches all tags from the local git remote that matches the configured monorepo target so local tag state is current before planning and tag operations."
 	case "doctor.git-fetch-tags-op-geth":
@@ -521,10 +591,8 @@ func (m *Model) taskDescription(taskID string) string {
 		return "Confirms the local op-geth checkout is on its base branch and that HEAD is a releasable commit for the local remote matching the configured target: either matching that remote or an older ancestor suitable for resuming an in-progress release."
 	case "doctor.release-manager-detected":
 		return "Binds the run to the current GitHub and git identity."
-	case "doctor.repo-push-monorepo":
-		return "Confirms the acting user can push to the configured monorepo target."
-	case "doctor.repo-push-op-geth":
-		return "Confirms the acting user can push to the configured op-geth target."
+	case "doctor.repo-push-permissions":
+		return "Confirms the acting user can push to the configured monorepo and op-geth targets."
 	}
 
 	componentID, suffix, ok := strings.Cut(taskID, ".")
@@ -544,8 +612,8 @@ func (m *Model) taskDescription(taskID string) string {
 		return fmt.Sprintf("Push the already-created local RC tag %s to the configured remote repository and verify it exists remotely.", emptyFallback(proposal.Proposed))
 	case "github-draft-release":
 		return fmt.Sprintf("Create or update the GitHub draft release for %s using the generated release-notes artifact.", emptyFallback(proposal.Proposed))
-	case "manual-confirm-builds-ready":
-		return fmt.Sprintf("Human checkpoint to confirm builds, images, and jobs are ready after %s has been tagged and the draft release exists.", emptyFallback(proposal.Proposed))
+	case "docker-build":
+		return fmt.Sprintf("Human checkpoint to confirm docker builds, images, and jobs are ready after %s has been tagged and the draft release exists.", emptyFallback(proposal.Proposed))
 	case "rollout":
 		return fmt.Sprintf("Manual checkpoint to trigger ./op rollout for %s before finalizing the release.", emptyFallback(proposal.TargetRelease))
 	case "finalize-release":
@@ -553,39 +621,6 @@ func (m *Model) taskDescription(taskID string) string {
 	default:
 		return ""
 	}
-}
-
-func (m *Model) taskContextDetails(taskID string) []string {
-	componentID, suffix, ok := strings.Cut(taskID, ".")
-	if !ok || strings.HasPrefix(taskID, "doctor.") {
-		return nil
-	}
-	spec, err := m.app.ConfiguredComponentSpec(componentID)
-	if err != nil {
-		return nil
-	}
-	proposal := m.run.Versions[componentID]
-	lines := []string{
-		fmt.Sprintf("- Repo target: %s/%s", emptyFallback(spec.GitHubOwner), emptyFallback(spec.GitHubRepo)),
-		fmt.Sprintf("- Branch target: %s", emptyFallback(spec.BaseBranch)),
-		fmt.Sprintf("- Local checkout: %s", emptyFallback(m.app.CheckoutLocation(componentID))),
-	}
-	switch suffix {
-	case "review-diff", "create-tag", "push-tag", "github-draft-release", "manual-confirm-builds-ready", "rollout", "finalize-release":
-		lines = append(lines,
-			fmt.Sprintf("- Target release: %s", remoteTagStyled(emptyFallback(proposal.TargetRelease), proposal.TargetTagRemoteState)),
-			fmt.Sprintf("- Proposed RC: %s", remoteTagStyled(emptyFallback(proposal.Proposed), proposal.ProposedTagRemoteState)),
-		)
-		if suffix == "github-draft-release" || suffix == "finalize-release" {
-			lines = append(lines, fmt.Sprintf("- Release notes artifact: %s", emptyFallback(m.app.ReleaseNotesPath(m.run, componentID))))
-		}
-	case "prepare-release-notes":
-		lines = append(lines,
-			fmt.Sprintf("- Review range: %s -> %s", emptyFallback(proposal.Review.FromRef), emptyFallback(proposal.Review.ToRef)),
-			fmt.Sprintf("- Output artifact: %s", emptyFallback(m.app.ReleaseNotesPath(m.run, componentID))),
-		)
-	}
-	return lines
 }
 
 func remoteTagStyled(value string, state string) string {

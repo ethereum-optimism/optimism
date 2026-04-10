@@ -90,19 +90,19 @@ func (a *App) ExecuteTask(identifier string, taskID string) error {
 		task.Reason = summary
 		task.UpdatedAt = now
 		run.AddTimeline(now, fmt.Sprintf("created or updated draft release for %s", componentID), summary)
-	case strings.HasSuffix(taskID, ".manual-confirm-builds-ready"):
+	case strings.HasSuffix(taskID, ".docker-build"):
 		if task.Status != workflow.StatusNeedsConfirmation && task.Status != workflow.StatusReady {
 			return fmt.Errorf("task %q is not ready for confirmation (status=%s)", taskID, task.Status)
 		}
-		componentID := strings.TrimSuffix(taskID, ".manual-confirm-builds-ready")
+		componentID := strings.TrimSuffix(taskID, ".docker-build")
 		proposal, ok := run.Versions[componentID]
 		if !ok {
 			return fmt.Errorf("component %q has no version proposal in run %q", componentID, run.RunID)
 		}
 		task.Status = workflow.StatusCompleted
-		task.Reason = fmt.Sprintf("manual build readiness confirmed for %s", emptyReasonFallback(proposal.Proposed))
+		task.Reason = fmt.Sprintf("docker build readiness confirmed for %s", emptyReasonFallback(proposal.Proposed))
 		task.UpdatedAt = now
-		run.AddTimeline(now, fmt.Sprintf("manually confirmed builds ready for %s", componentID), task.Reason)
+		run.AddTimeline(now, fmt.Sprintf("confirmed docker build readiness for %s", componentID), task.Reason)
 	case strings.HasSuffix(taskID, ".rollout"):
 		if task.Status != workflow.StatusNeedsConfirmation && task.Status != workflow.StatusReady {
 			return fmt.Errorf("task %q is not ready for confirmation (status=%s)", taskID, task.Status)
@@ -245,7 +245,11 @@ func (a *App) createTag(run *release.Run, componentID string) (taskResult, error
 	if err != nil {
 		return taskResult{}, err
 	}
-	if err := a.git.CreateAnnotatedTag(ctx, checkout, tagName, fmt.Sprintf("%s %s", componentID, emptyReasonFallback(proposal.Proposed))); err != nil {
+	intendedCommit, err := a.git.HeadSHA(ctx, checkout)
+	if err != nil {
+		return taskResult{}, err
+	}
+	if err := a.git.CreateAnnotatedTagAtRef(ctx, checkout, tagName, intendedCommit, fmt.Sprintf("%s %s", componentID, emptyReasonFallback(proposal.Proposed))); err != nil {
 		return taskResult{}, err
 	}
 	return taskResult{Status: workflow.StatusCompleted, Summary: fmt.Sprintf("created local tag %s", tagName)}, nil

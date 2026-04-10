@@ -18,13 +18,14 @@ var componentTaskTemplates = []struct {
 	{Suffix: "create-tag", Title: "Create local tag for %s", Status: workflow.StatusReady},
 	{Suffix: "push-tag", Title: "Push tag for %s", Status: workflow.StatusReady},
 	{Suffix: "github-draft-release", Title: "GitHub draft release for %s", Status: workflow.StatusReady},
-	{Suffix: "manual-confirm-builds-ready", Title: "Manually confirm builds are ready for %s", Status: workflow.StatusNeedsConfirmation},
+	{Suffix: "docker-build", Title: "Confirm docker build readiness for %s", Status: workflow.StatusNeedsConfirmation},
 	{Suffix: "rollout", Title: "Trigger rollout workflow for %s", Status: workflow.StatusNeedsConfirmation},
 	{Suffix: "finalize-release", Title: "Finalize release for %s", Status: workflow.StatusReady},
 }
 
 var taskIDSuffixAliases = map[string]string{
 	"create-or-update-draft-release": "github-draft-release",
+	"manual-confirm-builds-ready":    "docker-build",
 }
 
 func canonicalTaskID(taskID string) string {
@@ -134,7 +135,7 @@ func sortTasks(tasks []workflow.TaskState) []workflow.TaskState {
 			suffixWeight = "3"
 		case "github-draft-release":
 			suffixWeight = "4"
-		case "manual-confirm-builds-ready":
+		case "docker-build":
 			suffixWeight = "5"
 		case "rollout":
 			suffixWeight = "6"

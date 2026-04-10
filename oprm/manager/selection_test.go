@@ -44,7 +44,7 @@ func TestPlanRunWithoutExplicitSelectionLeavesSelectionUnconfirmed(t *testing.T)
 	require.False(t, updatedRun.SelectionConfirmed)
 	require.NotEmpty(t, updatedRun.Candidates)
 	require.Equal(t, []string{"op-node"}, updatedRun.Components)
-	require.Len(t, updatedRun.Tasks, 11) // doctor only
+	require.Len(t, updatedRun.Tasks, 8) // doctor only
 }
 
 func TestUpdateSelectionConfirmsSelectionAndCreatesTasks(t *testing.T) {

@@ -23,8 +23,12 @@ func (a *App) PreviewTaskCommands(run *release.Run, taskID string) ([]string, er
 		if err != nil {
 			return nil, err
 		}
+		intendedCommit, err := a.git.HeadSHA(context.Background(), checkout)
+		if err != nil {
+			return nil, err
+		}
 		message := fmt.Sprintf("%s %s", componentID, emptyReasonFallback(proposal.Proposed))
-		return []string{formatCommand("git", "-C", checkout, "tag", "-a", tagName, "-m", message)}, nil
+		return []string{formatCommand("git", "-C", checkout, "tag", "-a", tagName, intendedCommit, "-m", message)}, nil
 	case strings.HasSuffix(taskID, ".push-tag"):
 		componentID := strings.TrimSuffix(taskID, ".push-tag")
 		_, spec, tagName, err := a.releaseTaskContext(run, componentID)

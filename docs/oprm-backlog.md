@@ -16,7 +16,7 @@ The following snapshot refers to the OPRM prototype / implementation branch, not
 - release discovery, including draft RC detection
 - change detection and review-range generation
 - component-selection TUI stage
-- initial task TUI with `review-diff`, `prepare-release-notes`, `create-tag`, `push-tag`, `github-draft-release`, `manual-confirm-builds-ready`, `retry`, `skip`, and `externally-satisfied`
+- initial task TUI with `review-diff`, `prepare-release-notes`, `create-tag`, `push-tag`, `github-draft-release`, `docker-build`, `retry`, `skip`, and `externally-satisfied`
 
 The backlog below remains useful as a decomposition, but some items are now partially or fully complete and should be updated if converted into GitHub issues.
 

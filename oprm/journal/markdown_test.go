@@ -18,8 +18,8 @@ func TestMarshalUnmarshalRoundTrip(t *testing.T) {
 		GitEmail: "alice@example.com",
 	}, ".oprm/releases")
 	run.Tasks = append(run.Tasks, workflow.TaskState{
-		ID:        "doctor.gh-installed",
-		Title:     "gh installed",
+		ID:        "doctor.gh-cli",
+		Title:     "gh installed and authenticated",
 		Status:    workflow.StatusCompleted,
 		UpdatedAt: now,
 		Reason:    "ok",

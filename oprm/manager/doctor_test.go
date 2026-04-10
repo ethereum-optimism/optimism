@@ -357,7 +357,7 @@ func TestDoctorSuccess(t *testing.T) {
 		GitName:  "Alice Example",
 		GitEmail: "alice@example.com",
 	}, report.ReleaseManager)
-	require.Len(t, report.Checks, 11)
+	require.Len(t, report.Checks, 8)
 	for _, check := range report.Checks {
 		require.Equal(t, workflow.StatusCompleted, check.Status)
 	}
@@ -373,7 +373,7 @@ func TestDoctorFailureBlocksRun(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, report.Blocking())
 	require.Empty(t, report.ReleaseManager.GHLogin)
-	require.Equal(t, workflow.StatusFailed, report.Checks[0].Status)
+	require.Equal(t, workflow.StatusFailed, doctorCheckByID(t, report, "doctor.gh-cli").Status)
 }
 
 func TestDoctorAllowsBaseBranchToLagOriginWhenResuming(t *testing.T) {
@@ -390,7 +390,7 @@ func TestDoctorAllowsBaseBranchToLagOriginWhenResuming(t *testing.T) {
 	report, err := app.Doctor(context.Background())
 	require.NoError(t, err)
 	require.False(t, report.Blocking())
-	require.Equal(t, workflow.StatusCompleted, report.Checks[6].Status)
+	require.Equal(t, workflow.StatusCompleted, doctorCheckByID(t, report, "doctor.monorepo-base-branch-synced").Status)
 }
 
 func TestDoctorReportsDivergedBaseBranch(t *testing.T) {
@@ -408,8 +408,9 @@ func TestDoctorReportsDivergedBaseBranch(t *testing.T) {
 	report, err := app.Doctor(context.Background())
 	require.NoError(t, err)
 	require.True(t, report.Blocking())
-	require.Equal(t, workflow.StatusFailed, report.Checks[6].Status)
-	require.Contains(t, report.Checks[6].Detail, "diverges from origin/develop")
+	check := doctorCheckByID(t, report, "doctor.monorepo-base-branch-synced")
+	require.Equal(t, workflow.StatusFailed, check.Status)
+	require.Contains(t, check.Detail, "diverges from origin/develop")
 }
 
 func TestDoctorUsesRemoteMatchingConfiguredTarget(t *testing.T) {
@@ -430,8 +431,8 @@ func TestDoctorUsesRemoteMatchingConfiguredTarget(t *testing.T) {
 	require.False(t, report.Blocking())
 	require.Equal(t, cfg.MonorepoPath+":upstream", git.fetchedCalls[0])
 	require.Equal(t, filepath.Clean(filepath.Join(cfg.MonorepoPath, cfg.OpGeth.CheckoutPath))+":upstream", git.fetchedCalls[1])
-	require.Equal(t, "monorepo checkout on develop and releasable against upstream/develop", report.Checks[6].Title)
-	require.Equal(t, "op-geth checkout on optimism and releasable against upstream/optimism", report.Checks[7].Title)
+	require.Equal(t, "monorepo checkout on develop and releasable against upstream/develop", doctorCheckByID(t, report, "doctor.monorepo-base-branch-synced").Title)
+	require.Equal(t, "op-geth checkout on optimism and releasable against upstream/optimism", doctorCheckByID(t, report, "doctor.op-geth-base-branch-synced").Title)
 }
 
 func TestDoctorReportsMissingPushAccess(t *testing.T) {
@@ -447,8 +448,10 @@ func TestDoctorReportsMissingPushAccess(t *testing.T) {
 	report, err := app.Doctor(context.Background())
 	require.NoError(t, err)
 	require.True(t, report.Blocking())
-	require.Equal(t, workflow.StatusFailed, report.Checks[9].Status)
-	require.Equal(t, workflow.StatusCompleted, report.Checks[10].Status)
+	check := doctorCheckByID(t, report, "doctor.repo-push-permissions")
+	require.Equal(t, workflow.StatusFailed, check.Status)
+	require.Contains(t, check.Detail, "ethereum-optimism/optimism")
+	require.NotContains(t, check.Detail, "ethereum-optimism/op-geth; blocked")
 }
 
 func TestDoctorUsesConfiguredRepoTargets(t *testing.T) {
@@ -473,8 +476,18 @@ func TestDoctorUsesConfiguredRepoTargets(t *testing.T) {
 	report, err := app.Doctor(context.Background())
 	require.NoError(t, err)
 	require.False(t, report.Blocking())
-	require.Equal(t, "monorepo push access to nonsense/optimism", report.Checks[9].Title)
-	require.Equal(t, "push access to nonsense/op-geth", report.Checks[10].Title)
+	require.Equal(t, "push access to nonsense/optimism and nonsense/op-geth", doctorCheckByID(t, report, "doctor.repo-push-permissions").Title)
+}
+
+func doctorCheckByID(t *testing.T, report *DoctorReport, id string) DoctorCheck {
+	t.Helper()
+	for _, check := range report.Checks {
+		if check.ID == id {
+			return check
+		}
+	}
+	t.Fatalf("doctor check %s not found", id)
+	return DoctorCheck{}
 }
 
 var (
