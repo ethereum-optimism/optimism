@@ -106,14 +106,6 @@ pub struct FbalsDb<'a, DB> {
     access_lists: FlashblockAccessList,
 }
 
-// impl<'a, DB: Database> std::ops::Deref for FbalsDb<'a, DB> {
-//     type Target = CachedReadsDbMut<'a, DB>;
-
-//     fn deref(&self) -> &Self::Target {
-//         &self.inner
-//     }
-// }
-
 impl<'a, DB: Database> FbalsDb<'a, DB> {
     pub(crate) fn new(
         cached_db: CachedReadsDbMut<'a, DB>,
@@ -129,12 +121,12 @@ impl<'a, DB: DatabaseRef> Database for FbalsDb<'a, DB> {
 
     #[doc = " Gets basic account information."]
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        todo!()
+        self.inner.basic(address)
     }
 
     #[doc = " Gets account code by its hash."]
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        todo!()
+        self.inner.code_by_hash(code_hash)
     }
 
     #[doc = " Gets storage value of address at index."]
@@ -143,12 +135,12 @@ impl<'a, DB: DatabaseRef> Database for FbalsDb<'a, DB> {
         address: Address,
         index: StorageKey,
     ) -> Result<StorageValue, Self::Error> {
-        todo!()
+        self.inner.storage(address, index)
     }
 
     #[doc = " Gets block hash by block number."]
     fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
-        todo!()
+        self.inner.block_hash(number)
     }
 }
 
@@ -174,4 +166,12 @@ impl<'a, DB> FbalsDb<'a, DB> {
             self.inner.cached.insert_account(*address, info, storage);
         }
     }
+}
+
+pub fn split_fbal_into_transactions(fbal: &FlashblockAccessList) -> Vec<FlashblockAccessList> {
+    let FlashblockAccessList { account_changes, min_tx_index, max_tx_index, fal_hash } = fbal;
+
+    let capacity = max_tx_index - min_tx_index;
+    let out = Vec::with_capacity(capacity);
+    out
 }
