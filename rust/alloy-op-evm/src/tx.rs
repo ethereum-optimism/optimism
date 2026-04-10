@@ -118,6 +118,24 @@ impl revm::context::Transaction for OpTx {
     }
 }
 
+impl op_revm::transaction::OpTxTr for OpTx {
+    fn enveloped_tx(&self) -> Option<&Bytes> {
+        self.0.enveloped_tx()
+    }
+
+    fn source_hash(&self) -> Option<B256> {
+        self.0.source_hash()
+    }
+
+    fn mint(&self) -> Option<u128> {
+        self.0.mint()
+    }
+
+    fn is_system_transaction(&self) -> bool {
+        self.0.is_system_transaction()
+    }
+}
+
 impl FromRecoveredTx<OpTxEnvelope> for OpTx {
     fn from_recovered_tx(tx: &OpTxEnvelope, sender: Address) -> Self {
         let encoded = tx.encoded_2718();
