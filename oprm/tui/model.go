@@ -399,7 +399,11 @@ func (m *Model) renderDetails(contentWidth int) string {
 		lines = append(lines, fmt.Sprintf("Purpose: %s", desc))
 	}
 	if task.Reason != "" {
-		lines = append(lines, fmt.Sprintf("Reason: %s", task.Reason))
+		if task.Status == workflow.StatusFailed {
+			lines = append(lines, errorStyle.Render("Failure: "+task.Reason))
+		} else {
+			lines = append(lines, fmt.Sprintf("Reason: %s", task.Reason))
+		}
 	}
 	if details := m.renderTaskComponentDetails(task.ID); details != "" {
 		lines = append(lines, "", details)
