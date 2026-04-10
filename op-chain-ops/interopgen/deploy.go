@@ -342,6 +342,12 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		return fmt.Errorf("failed to create L2 genesis script: %w", err)
 	}
 
+	// Interop should only be enabled at genesis when the fork activates at genesis (offset == 0),
+	// not merely because multiple L2 chains exist. A nonzero InteropOffset means Interop
+	// activates after genesis, so genesis must not install interop contracts or feature flags.
+	interopAtGenesis := multichainDepSet &&
+		cfg.L2GenesisInteropTimeOffset != nil && *cfg.L2GenesisInteropTimeOffset == 0
+
 	if err := genesisScript.Run(opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(cfg.L1ChainID),
 		L2ChainID:                                new(big.Int).SetUint64(cfg.L2ChainID),
@@ -373,8 +379,8 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet), // TODO(#19102): add support for L2CM
-		UseInterop:                               multichainDepSet,
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(interopAtGenesis), // TODO(#19102): add support for L2CM
+		UseInterop:                               interopAtGenesis,
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}
@@ -382,12 +388,12 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 	return nil
 }
 
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on the multichain deployment set.
-// If the multichain deployment set is true, the dev feature bitmap will be the OptimismPortalInteropDevFlag.
-func devFeatureBitmapForL2Genesis(multichainDepSet bool) common.Hash {
+// devFeatureBitmapForL2Genesis returns the dev feature bitmap for L2 genesis.
+// The interop dev flag is only enabled when interop activates at genesis.
+func devFeatureBitmapForL2Genesis(enableInterop bool) common.Hash {
 	// TODO(#19102): add support for L2CM
 	var bitmap common.Hash
-	if multichainDepSet {
+	if enableInterop {
 		bitmap = deployer.EnableDevFeature(bitmap, deployer.OptimismPortalInteropDevFlag)
 	}
 	return bitmap
