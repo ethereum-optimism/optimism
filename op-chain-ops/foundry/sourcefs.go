@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"maps"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )

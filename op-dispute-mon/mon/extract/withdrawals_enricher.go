@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-
 	"maps"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"

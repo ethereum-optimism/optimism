@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math/big"
 	"path"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
-
-	"maps"
 
 	"github.com/BurntSushi/toml"
 

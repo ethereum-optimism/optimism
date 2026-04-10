@@ -4,10 +4,9 @@ package tests
 import (
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
-
-	"maps"
 
 	"github.com/stretchr/testify/require"
 

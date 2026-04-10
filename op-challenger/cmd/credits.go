@@ -3,11 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/big"
 	"slices"
 	"time"
-
-	"maps"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"

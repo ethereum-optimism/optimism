@@ -1,10 +1,9 @@
 package registry
 
 import (
+	"maps"
 	"slices"
 	"sync"
-
-	"maps"
 
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"

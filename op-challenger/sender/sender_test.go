@@ -3,13 +3,12 @@ package sender
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/big"
 	"slices"
 	"sync"
 	"testing"
 	"time"
-
-	"maps"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"

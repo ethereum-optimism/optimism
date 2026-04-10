@@ -2,12 +2,11 @@ package event
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
 	"time"
-
-	"maps"
 )
 
 // TimingTracer generates an HTML output with an SVG that shows,

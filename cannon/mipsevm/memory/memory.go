@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"sort"
-
-	"maps"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 )
