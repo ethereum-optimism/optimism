@@ -130,7 +130,16 @@ func Test_ProgramAction_HoloceneBatches(gt *testing.T) {
 		testCfg.Custom.RequireExpectedProgressAndLogs(t, l2SafeHead, isHolocene, env.Engine, env.Logs)
 		t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
 
-		env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+		// Ensure the safe head progresses so proofs tests aren't trivial over the genesis block.
+		// Build a new L2 block so the batcher has fresh data to submit (its buffer was consumed by the earlier manual batching).
+		if l2SafeHead.Number == 0 {
+			env.Sequencer.ActL2StartBlock(t)
+			env.Sequencer.ActL2EndBlock(t)
+			env.BatchMineAndSync(t)
+			l2SafeHead = env.Sequencer.L2Safe()
+			require.Greater(t, l2SafeHead.Number, uint64(0))
+		}
+		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	matrix := helpers.NewMatrix[testCase]()
