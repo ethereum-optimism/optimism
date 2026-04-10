@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -210,17 +211,8 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 }
 
 // IntraBlockCases returns all intra-block test scenarios.
-//
-// TODO(#19010): Add longDependencyChainValid case (depth-10 exec→exec chain across chains)
-// and a faithful cyclicDependencyInvalid case (pure exec→exec cycle with no init messages).
-// Both require constructing exec messages that reference other exec messages'
-// ExecutingMessage events, which the SameTimestampPair API doesn't support yet.
-//
-// The current CyclicDependencyInvalid case uses two independent invalid execs (bad log
-// index) rather than a pure exec→exec cycle. This means kona's cycle detection codepath
-// during consolidation is not exercised — only the "missing log" rejection path is tested.
-// Cycle detection at the supernode level is covered by TestSupernodeSameTimestampCycle,
-// but that test does not invoke kona/FPP.
+// CyclicDependencyInvalid uses a fabricated pending message approach to create a true
+// exec→exec cycle, exercising kona's cycle detection codepath during consolidation.
 func IntraBlockCases() []*IntraBlockTestCase {
 	return []*IntraBlockTestCase{
 		{
@@ -261,16 +253,77 @@ func IntraBlockCases() []*IntraBlockTestCase {
 			},
 		},
 		{
-			// Invalid cyclic dependency: both chains have invalid execs.
-			// Init(A) + invalid Exec(B→A) on chain A,
-			// Init(B) + invalid Exec(A→B) on chain B.
-			// Both blocks replaced.
+			// True exec→exec cycle using fabricated pending messages.
+			// ExecA references a fabricated init at B's position (wrong origin),
+			// ExecB references ExecA's ExecutingMessage event.
+			// Both are invalid: ExecA references wrong origin, ExecB depends on invalid ExecA.
 			Name: "CyclicDependencyInvalid",
 			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+				// Fabricate a pending init message at ExecB's expected position.
+				// ExecA will reference this, but the actual log at (chainB, blockNumB, logIdx=0)
+				// will be ExecB's ExecutingMessage event (wrong origin), making ExecA invalid.
+				topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
+				msgHash := crypto.Keccak256Hash([]byte("fabricated cyclic msg"))
+				var fabricatedPayload []byte
+				fabricatedPayload = append(fabricatedPayload, topic.Bytes()...)
+				fabricatedPayload = append(fabricatedPayload, msgHash.Bytes()...)
+
+				fabricatedBMsg := suptypes.Message{
+					Identifier: suptypes.Identifier{
+						Origin:      s.eventLoggerB,
+						BlockNumber: s.expectedBlockNumB,
+						LogIndex:    0,
+						Timestamp:   s.nextTimestamp,
+						ChainID:     s.bob.ChainID(),
+					},
+					PayloadHash: crypto.Keccak256Hash(fabricatedPayload),
+				}
+
+				// Precompute ExecA's ExecutingMessage event message
+				execAEventMsg := dsl.PrecomputeExecEventMessage(
+					fabricatedBMsg, s.alice.ChainID(),
+					s.expectedBlockNumA, 0, s.nextTimestamp,
+				)
+
+				// ExecA references fabricated message from B
+				// ExecB references ExecA's event
+				return []*txplan.PlannedTx{dsl.SubmitExecForMessage(fabricatedBMsg, s.alice)},
+					[]*txplan.PlannedTx{dsl.SubmitExecForMessage(execAEventMsg, s.bob)}
+			},
+		},
+		{
+			// Depth-10 exec→exec dependency chain alternating between chains A and B.
+			// Starts with an init on chain A, then 10 execs alternating B, A, B, A, ...
+			// All valid.
+			Name: "LongDependencyChainValid",
+			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
 				pairA := s.prepareInitA(0)
-				pairB := s.prepareInitB(0)
-				return []*txplan.PlannedTx{pairA.SubmitInit(), pairB.SubmitInvalidExecTo(s.alice)},
-					[]*txplan.PlannedTx{pairB.SubmitInit(), pairA.SubmitInvalidExecTo(s.bob)}
+
+				var txsA, txsB []*txplan.PlannedTx
+				txsA = append(txsA, pairA.SubmitInit())
+
+				currentMsg := pairA.Message
+				logIdxA := uint32(1) // init occupies logIdx 0
+				logIdxB := uint32(0)
+
+				const depth = 10
+				for i := 0; i < depth; i++ {
+					if i%2 == 0 {
+						// Exec on chain B referencing currentMsg
+						execEventMsg := dsl.PrecomputeExecEventMessage(currentMsg, s.bob.ChainID(), s.expectedBlockNumB, logIdxB, s.nextTimestamp)
+						txsB = append(txsB, dsl.SubmitExecForMessage(currentMsg, s.bob))
+						currentMsg = execEventMsg
+						logIdxB++
+					} else {
+						// Exec on chain A referencing currentMsg
+						execEventMsg := dsl.PrecomputeExecEventMessage(currentMsg, s.alice.ChainID(), s.expectedBlockNumA, logIdxA, s.nextTimestamp)
+						txsA = append(txsA, dsl.SubmitExecForMessage(currentMsg, s.alice))
+						currentMsg = execEventMsg
+						logIdxA++
+					}
+				}
+
+				return txsA, txsB
 			},
 		},
 		{
