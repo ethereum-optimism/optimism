@@ -219,6 +219,10 @@
     "initCodeHash": "0xa080730728e812e8b02d03b5857b23d16ade46f1656f26f22274835a3100edd7",
     "sourceCodeHash": "0x314b6e0412f698ce3531e8176ce8e5b8a3976cc3fa9d7ecb1f3278612f90ed4e"
   },
+  "src/dispute/zk/RiscZeroAdapter.sol:RiscZeroAdapter": {
+    "initCodeHash": "0x42f82f347d7f1e118fcfa34bec6b717ed9f1287e77387974fca4597dca21ee4e",
+    "sourceCodeHash": "0x77c185280c390308de0ada1cdd7022df44f3306a9c646c1c42aac1faecdd5245"
+  },
   "src/dispute/zk/SP1Adapter.sol:SP1Adapter": {
     "initCodeHash": "0x86011bf7f4fdd47b9c259c2ce659729e5ae27fb2c1e0ad52ae3dd51506b74a1a",
     "sourceCodeHash": "0x2c1964d7624ca4d1b84974ed60d2ab898e17ceb3add9013f61643fde90e9f18a"
