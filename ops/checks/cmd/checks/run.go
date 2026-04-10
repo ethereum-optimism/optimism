@@ -58,10 +58,14 @@ func cmdRun(args []string) error {
 
 	diffs := diff.ParseUnifiedDiff(string(data))
 
-	strategy := selector.NewSimpleStrategy()
-	result, err := strategy.Plan(g, diffs, stage, cat)
+	// Phase 1: Reachability
+	candidates := selector.FindCandidates(g, diffs, cat)
+
+	// Phase 2: Optimization
+	optimizer := selector.NewSimpleOptimizer()
+	result, err := optimizer.Optimize(g, candidates, stage, cat)
 	if err != nil {
-		return fmt.Errorf("planning: %w", err)
+		return fmt.Errorf("optimizing: %w", err)
 	}
 
 	if len(result.Items) == 0 {

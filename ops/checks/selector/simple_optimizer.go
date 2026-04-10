@@ -6,47 +6,56 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
-	"github.com/ethereum-optimism/optimism/ops/checks/diff"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 )
 
-// SimpleStrategy is the initial algorithm implementation.
-type SimpleStrategy struct{}
+// SimpleOptimizer is the initial optimization algorithm.
+// Given candidate nodes from Phase 1, it:
+//   - Groups candidates by check type (scopeable vs binary)
+//   - For scopeable checks: resolves affected scopes, maps (signal, stage) → config
+//   - For binary checks: run/skip based on signal and stage cost
+//   - Resolves prerequisites
+//   - Computes parallel schedule
+type SimpleOptimizer struct{}
 
-// NewSimpleStrategy creates a new SimpleStrategy.
-func NewSimpleStrategy() *SimpleStrategy { return &SimpleStrategy{} }
+// NewSimpleOptimizer creates a new SimpleOptimizer.
+func NewSimpleOptimizer() *SimpleOptimizer { return &SimpleOptimizer{} }
 
-// Plan computes an execution plan.
-func (s *SimpleStrategy) Plan(
+// Optimize implements Optimizer.
+func (o *SimpleOptimizer) Optimize(
 	g *graph.Graph,
-	diffs []diff.FileDiff,
+	candidates []NodeWithSignal,
 	stage Stage,
 	cat *catalog.Catalog,
 ) (*Result, error) {
 	result := &Result{Stage: stage.Name}
 
-	// Extract changed file paths
-	var filePaths []string
-	for _, d := range diffs {
-		if d.Path != "" {
-			filePaths = append(filePaths, d.Path)
-		}
-	}
-
-	if len(filePaths) == 0 {
+	if len(candidates) == 0 {
 		return result, nil
 	}
 
-	// Check blast radius
-	isBlast, _ := diff.BlastRadiusFiles(filePaths)
+	// Build candidate lookup
+	candidateSignal := make(map[string]float64)
+	for _, c := range candidates {
+		candidateSignal[c.NodeID] = c.Signal
+	}
 
-	// Map files to graph node IDs
-	changedIDs, _ := diff.FilesToNodeIDs(g, filePaths)
+	// Get changed source node IDs for scope resolution.
+	// We reconstruct these from the graph — source nodes that have edges
+	// leading to the candidate check nodes.
+	changedIDs := inferChangedSourceNodes(g, candidates)
 
-	// Process each check type
-	for _, ct := range cat.CheckTypes {
+	// Process each candidate
+	for _, c := range candidates {
+		// Strip "check:" prefix to get check type ID
+		ctID := strings.TrimPrefix(c.NodeID, "check:")
+		ct := cat.ByID(ctID)
+		if ct == nil {
+			continue
+		}
+
 		if ct.Scopeable {
-			items := s.planScopeableCheck(g, changedIDs, &ct, stage, isBlast)
+			items := o.optimizeScopeable(g, changedIDs, ct, c.Signal, stage)
 			for _, item := range items {
 				if item.SkipCost > item.RunCost {
 					result.Items = append(result.Items, item)
@@ -55,20 +64,17 @@ func (s *SimpleStrategy) Plan(
 				}
 			}
 		} else {
-			item := s.planBinaryCheck(g, changedIDs, filePaths, &ct, stage, isBlast)
-			if item == nil {
-				continue
-			}
+			item := o.optimizeBinary(ct, c.Signal, stage)
 			if item.SkipCost > item.RunCost {
-				result.Items = append(result.Items, *item)
+				result.Items = append(result.Items, item)
 			} else {
-				result.Skipped = append(result.Skipped, *item)
+				result.Skipped = append(result.Skipped, item)
 			}
 		}
 	}
 
-	// Resolve prerequisites: if an item is selected, its prereqs must be too
-	s.resolvePrerequisites(result, cat, stage)
+	// Resolve prerequisites
+	o.resolvePrerequisites(result, cat)
 
 	// Sort by skip cost descending
 	sort.Slice(result.Items, func(i, j int) bool {
@@ -83,30 +89,57 @@ func (s *SimpleStrategy) Plan(
 	return result, nil
 }
 
-// planScopeableCheck creates ExecutionItems for a scopeable check (forge-test, go-test).
-// Groups affected scopes by signal tier and creates one item per tier.
-func (s *SimpleStrategy) planScopeableCheck(
+// inferChangedSourceNodes finds source nodes that are "close" to the candidate
+// check nodes. We walk backward from check nodes to find source nodes with
+// tested_by edges, then trace which ones have high signal.
+func inferChangedSourceNodes(g *graph.Graph, candidates []NodeWithSignal) []string {
+	// Collect all source nodes that have tested_by edges to candidate check nodes
+	candidateSet := make(map[string]bool)
+	for _, c := range candidates {
+		candidateSet[c.NodeID] = true
+	}
+
+	var sourceIDs []string
+	seen := make(map[string]bool)
+	for _, node := range g.NodesOfKind(graph.KindSource) {
+		for _, edge := range g.EdgesFrom(node.ID) {
+			if edge.Kind == graph.EdgeTestedBy && candidateSet[edge.To] {
+				if !seen[node.ID] {
+					sourceIDs = append(sourceIDs, node.ID)
+					seen[node.ID] = true
+				}
+				break
+			}
+		}
+	}
+	return sourceIDs
+}
+
+// optimizeScopeable creates ExecutionItems for a scopeable check type.
+func (o *SimpleOptimizer) optimizeScopeable(
 	g *graph.Graph,
 	changedIDs []string,
 	ct *catalog.CheckType,
+	signal float64,
 	stage Stage,
-	isBlast bool,
 ) []ExecutionItem {
 	checkNodeID := "check:" + ct.ID
 	scopes := affectedScopes(g, changedIDs, checkNodeID, ct.ScopeType)
 
-	if isBlast {
-		// Blast radius: everything at max config
+	// If signal=1.0 (blast radius or direct trigger) and no scopes found,
+	// run everything (nil scope = unscoped)
+	if len(scopes) == 0 && signal >= 1.0 {
 		config := mapSignalToConfig(ct, 1.0, stage)
 		cost := float64(ct.AvgDuration)
 		return []ExecutionItem{{
-			ID:          ct.ID + ":all",
-			CheckTypeID: ct.ID,
-			Scope:       nil, // nil scope = run everything
-			Config:      config,
-			Signal:      1.0,
-			RunCost:     cost,
-			SkipCost:    1.0 * stage.MissCost,
+			ID:            ct.ID + ":all",
+			CheckTypeID:   ct.ID,
+			Scope:         nil,
+			Config:        config,
+			Signal:        1.0,
+			RunCost:       cost,
+			SkipCost:      cost + 1, // always run
+			Prerequisites: prereqItemIDs(ct),
 		}}
 	}
 
@@ -147,31 +180,26 @@ func (s *SimpleStrategy) planScopeableCheck(
 		config := mapSignalToConfig(ct, maxSignal, stage)
 		cost := estimateScopedRunCost(ct, len(tierScopes), config)
 
-
-		// P(fail) heuristic: signal × check type prior
-		// For direct changes (high signal), tests are very likely to fail
 		prior := checkTypePrior(ct.Kind)
 		if maxSignal > 0.6 {
-			prior = 0.7 // direct dependency: tests are very likely relevant
+			prior = 0.7
 		}
 		pFail := maxSignal * prior
 
 		skipCost := pFail * stage.MissCost
-		// Direct changes always run their tests — the cost optimization only
-		// applies to transitive/distant dependencies where there's a real
-		// question of whether the test is relevant.
+		// Direct changes always run their tests
 		if maxSignal > 0.6 {
-			skipCost = cost + 1 // force selection
+			skipCost = cost + 1
 		}
 
 		items = append(items, ExecutionItem{
-			ID:          fmt.Sprintf("%s:%s", ct.ID, t.label),
-			CheckTypeID: ct.ID,
-			Scope:       tierScopes,
-			Config:      config,
-			Signal:      maxSignal,
-			RunCost:     cost,
-			SkipCost:    skipCost,
+			ID:            fmt.Sprintf("%s:%s", ct.ID, t.label),
+			CheckTypeID:   ct.ID,
+			Scope:         tierScopes,
+			Config:        config,
+			Signal:        maxSignal,
+			RunCost:       cost,
+			SkipCost:      skipCost,
 			Prerequisites: prereqItemIDs(ct),
 		})
 	}
@@ -179,58 +207,32 @@ func (s *SimpleStrategy) planScopeableCheck(
 	return items
 }
 
-// planBinaryCheck creates an ExecutionItem for a non-scopeable check.
-func (s *SimpleStrategy) planBinaryCheck(
-	g *graph.Graph,
-	changedIDs []string,
-	filePaths []string,
+// optimizeBinary creates an ExecutionItem for a binary check.
+func (o *SimpleOptimizer) optimizeBinary(
 	ct *catalog.CheckType,
+	signal float64,
 	stage Stage,
-	isBlast bool,
-) *ExecutionItem {
-	triggered := isBlast
-
-	if !triggered {
-		// Check if any changed files match triggers
-		if len(ct.Triggers) > 0 {
-			triggered = ct.MatchesTriggers(filePaths)
-		} else {
-			// No triggers defined — check if any changed node reaches this check
-			reachable := graph.ReachableChecks(g, changedIDs, 0.01)
-			for _, r := range reachable {
-				if r.CheckID == "check:"+ct.ID {
-					triggered = true
-					break
-				}
-			}
-		}
-	}
-
-	if !triggered {
-		return nil
-	}
-
+) ExecutionItem {
 	prior := checkTypePrior(ct.Kind)
-	pFail := prior // binary checks: if triggered, use the prior directly
+	pFail := prior * signal
 
-	return &ExecutionItem{
+	return ExecutionItem{
 		ID:            ct.ID,
 		CheckTypeID:   ct.ID,
-		Signal:        1.0,
+		Signal:        signal,
 		RunCost:       float64(ct.AvgDuration),
 		SkipCost:      pFail * stage.MissCost,
 		Prerequisites: prereqItemIDs(ct),
 	}
 }
 
-// resolvePrerequisites ensures prerequisite items are included when dependents are selected.
-func (s *SimpleStrategy) resolvePrerequisites(result *Result, cat *catalog.Catalog, stage Stage) {
+// resolvePrerequisites ensures prerequisite items are included.
+func (o *SimpleOptimizer) resolvePrerequisites(result *Result, cat *catalog.Catalog) {
 	selected := make(map[string]bool)
 	for _, item := range result.Items {
 		selected[item.ID] = true
 	}
 
-	// Check if any selected item has unresolved prerequisites
 	changed := true
 	for changed {
 		changed = false
@@ -239,19 +241,17 @@ func (s *SimpleStrategy) resolvePrerequisites(result *Result, cat *catalog.Catal
 				if selected[prereqID] {
 					continue
 				}
-				// Find the prerequisite check type
 				ct := cat.ByID(prereqID)
 				if ct == nil {
 					continue
 				}
-				prereqItem := ExecutionItem{
+				result.Items = append(result.Items, ExecutionItem{
 					ID:          prereqID,
 					CheckTypeID: prereqID,
 					Signal:      0,
 					RunCost:     float64(ct.AvgDuration),
 					SkipCost:    0,
-				}
-				result.Items = append(result.Items, prereqItem)
+				})
 				selected[prereqID] = true
 				changed = true
 			}
@@ -259,23 +259,23 @@ func (s *SimpleStrategy) resolvePrerequisites(result *Result, cat *catalog.Catal
 	}
 }
 
+// --- Helpers (Phase 2 / optimization concerns) ---
+
+type scopeWithSignal struct {
+	Scope  string
+	Signal float64
+}
+
 // affectedScopes walks the graph to find which source nodes are affected
-// and maps them to scope units.
+// and maps them to scope units for a specific check type.
 func affectedScopes(
 	g *graph.Graph,
 	changedIDs []string,
 	checkTypeNodeID string,
 	scopeType string,
 ) []scopeWithSignal {
-	// Walk from changed nodes. For each source node we reach,
-	// check if it has a tested_by edge to the check type node.
-	// Reuse the ReachableChecks mechanism but collect source nodes.
-
-	// First, find all source nodes with their signal
 	allReachable := graph.ReachableChecks(g, changedIDs, 0.01)
 
-	// If the check type node is reachable, collect the source nodes
-	// that have tested_by edges to it.
 	checkReachable := false
 	for _, r := range allReachable {
 		if r.CheckID == checkTypeNodeID {
@@ -283,18 +283,15 @@ func affectedScopes(
 			break
 		}
 	}
-
 	if !checkReachable {
 		return nil
 	}
 
-	// Now walk from changed nodes and collect source nodes that connect to this check
 	type nodeSignal struct {
 		id     string
 		signal float64
 	}
 
-	// BFS from changed nodes
 	bestSignal := make(map[string]float64)
 	queue := make([]nodeSignal, 0, len(changedIDs))
 	for _, id := range changedIDs {
@@ -312,7 +309,7 @@ func affectedScopes(
 
 		for _, edge := range g.EdgesFrom(curr.id) {
 			if edge.Kind == graph.EdgeTestedBy || edge.Kind == graph.EdgePrerequisite {
-				continue // don't walk into check nodes
+				continue
 			}
 			newSignal := curr.signal * edge.Strength * edge.Confidence
 			if newSignal < 0.01 {
@@ -325,29 +322,23 @@ func affectedScopes(
 		}
 	}
 
-	// Collect source nodes that have tested_by edges to the check type node
 	var results []scopeWithSignal
 	for nodeID, signal := range bestSignal {
 		node := g.GetNode(nodeID)
 		if node == nil || node.Kind != graph.KindSource {
 			continue
 		}
-		// Check if this source has a tested_by edge to the target check
 		for _, edge := range g.EdgesFrom(nodeID) {
 			if edge.Kind == graph.EdgeTestedBy && edge.To == checkTypeNodeID {
 				scope := nodeIDToScope(nodeID, scopeType)
 				if scope != "" {
-					results = append(results, scopeWithSignal{
-						Scope:  scope,
-						Signal: signal,
-					})
+					results = append(results, scopeWithSignal{Scope: scope, Signal: signal})
 				}
 				break
 			}
 		}
 	}
 
-	// Sort by signal descending
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Signal > results[j].Signal
 	})
@@ -355,21 +346,12 @@ func affectedScopes(
 	return results
 }
 
-type scopeWithSignal struct {
-	Scope  string
-	Signal float64
-}
-
-// nodeIDToScope converts a graph node ID to a scope unit.
 func nodeIDToScope(nodeID, scopeType string) string {
 	switch scopeType {
 	case "packages":
 		if strings.HasPrefix(nodeID, "go:") {
-			// Convert full import path to relative package path
-			// e.g. "go:github.com/ethereum-optimism/optimism/op-node/rollup" → "./op-node/rollup/..."
 			path := strings.TrimPrefix(nodeID, "go:")
-			// Find the repo-relative part (after the module path)
-			parts := strings.SplitN(path, "/", 4) // github.com/org/repo/rest
+			parts := strings.SplitN(path, "/", 4)
 			if len(parts) >= 4 {
 				return "./" + parts[3] + "/..."
 			}
@@ -378,14 +360,11 @@ func nodeIDToScope(nodeID, scopeType string) string {
 	case "paths":
 		if strings.HasPrefix(nodeID, "sol:") {
 			path := strings.TrimPrefix(nodeID, "sol:")
-			// Convert source paths to test paths for forge
-			// src/L1/Foo.sol → test/L1/*
 			if strings.HasPrefix(path, "src/") {
 				dir := strings.TrimPrefix(path, "src/")
-				dir = strings.Split(dir, "/")[0] // get top-level dir (L1, L2, etc.)
+				dir = strings.Split(dir, "/")[0]
 				return "./test/" + dir + "/*"
 			}
-			// Test files are already in test/ paths
 			if strings.HasPrefix(path, "test/") {
 				dir := strings.TrimPrefix(path, "test/")
 				dir = strings.Split(dir, "/")[0]
@@ -396,19 +375,15 @@ func nodeIDToScope(nodeID, scopeType string) string {
 	return ""
 }
 
-// mapSignalToConfig maps graph signal × stage to knob values.
 func mapSignalToConfig(ct *catalog.CheckType, signal float64, stage Stage) map[string]any {
 	config := make(map[string]any)
-
 	for _, knob := range ct.Knobs {
 		switch knob.Name {
 		case "fuzz_runs":
 			config[knob.Name] = fuzzRunsForSignalStage(signal, stage)
 		case "short":
-			// Direct dependency (high signal) → don't skip slow tests
 			config[knob.Name] = signal < 0.8
 		case "race":
-			// Only enable race detector for direct dependencies at higher stages
 			config[knob.Name] = signal > 0.8 && stage.MissCost >= StageOnPR.MissCost
 		case "timeout":
 			if signal > 0.8 {
@@ -422,12 +397,10 @@ func mapSignalToConfig(ct *catalog.CheckType, signal float64, stage Stage) map[s
 			config[knob.Name] = knob.Default
 		}
 	}
-
 	return config
 }
 
 func fuzzRunsForSignalStage(signal float64, stage Stage) int {
-	// Stage determines the base fuzz depth
 	var high, med, low int
 	switch {
 	case stage.MissCost >= StageDevelop.MissCost:
@@ -438,11 +411,10 @@ func fuzzRunsForSignalStage(signal float64, stage Stage) int {
 		high, med, low = 128, 64, 8
 	case stage.MissCost >= StageOnCommit.MissCost:
 		high, med, low = 64, 8, 1
-	default: // save
+	default:
 		high, med, low = 1, 1, 1
 	}
 
-	// Signal selects which tier
 	switch {
 	case signal > 0.6:
 		return high
@@ -468,28 +440,17 @@ func checkTypePrior(kind string) float64 {
 	}
 }
 
-// estimateScopedRunCost estimates the run time for a scoped check invocation.
-// A scoped run is ONE command with multiple --match-path or package args.
-// The cost is NOT per_unit × num_scopes — that would assume serial execution.
-// Instead: base cost for the first scope, plus marginal cost for each additional.
-// Forge runs all matched tests in one invocation, so additional paths add
-// less than the first. Fuzz depth also affects cost.
 func estimateScopedRunCost(ct *catalog.CheckType, numScopes int, config map[string]any) float64 {
 	if ct.PerUnitDuration <= 0 {
 		return float64(ct.AvgDuration)
 	}
 
-	// Base cost for the first scope
 	baseCost := float64(ct.PerUnitDuration)
-
-	// Marginal cost for additional scopes (diminishing — they share compilation, setup)
 	marginalCost := baseCost * 0.3
 	if numScopes > 1 {
 		baseCost += marginalCost * float64(numScopes-1)
 	}
 
-	// Fuzz depth scaling: more fuzz runs = proportionally more time
-	// But it's sublinear — forge parallelizes fuzz runs internally
 	if fuzzRuns, ok := config["fuzz_runs"]; ok {
 		var fuzz float64
 		switch v := fuzzRuns.(type) {
@@ -498,9 +459,6 @@ func estimateScopedRunCost(ct *catalog.CheckType, numScopes int, config map[stri
 		case float64:
 			fuzz = v
 		}
-		// At 8 fuzz runs (baseline), cost = baseCost
-		// At 128 fuzz runs, cost ≈ 4x baseCost
-		// At 1024 fuzz runs, cost ≈ 10x baseCost
 		if fuzz > 8 {
 			fuzzMultiplier := 1.0 + 0.7*log2(fuzz/8)
 			baseCost *= fuzzMultiplier
@@ -514,13 +472,11 @@ func log2(x float64) float64 {
 	if x <= 0 {
 		return 0
 	}
-	// log2(x) = ln(x) / ln(2)
 	result := 0.0
 	for x >= 2 {
 		x /= 2
 		result++
 	}
-	// Linear interpolation for the fractional part
 	if x > 1 {
 		result += x - 1
 	}

@@ -60,10 +60,14 @@ func cmdSelect(args []string) error {
 		return nil
 	}
 
-	strategy := selector.NewSimpleStrategy()
-	result, err := strategy.Plan(g, diffs, stage, cat)
+	// Phase 1: Reachability — find all candidates
+	candidates := selector.FindCandidates(g, diffs, cat)
+
+	// Phase 2: Optimization — produce execution plan
+	optimizer := selector.NewSimpleOptimizer()
+	result, err := optimizer.Optimize(g, candidates, stage, cat)
 	if err != nil {
-		return fmt.Errorf("planning: %w", err)
+		return fmt.Errorf("optimizing: %w", err)
 	}
 
 	if *format == "json" {

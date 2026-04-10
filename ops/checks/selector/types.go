@@ -7,6 +7,14 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 )
 
+// NodeWithSignal is a graph node reached during the reachability walk (Phase 1),
+// with its accumulated signal strength. This is the interface between Phase 1
+// and Phase 2 — the optimizer receives these as candidates.
+type NodeWithSignal struct {
+	NodeID string  // graph node ID (e.g. "check:forge-test", "check:snapshots-check")
+	Signal float64 // accumulated relevance signal (0.0-1.0)
+}
+
 // ExecutionItem is a single thing to run — a command with scope and config.
 type ExecutionItem struct {
 	ID            string         `json:"id"`              // unique: "forge-test:L1" or "snapshots-check"
