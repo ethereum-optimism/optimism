@@ -11,6 +11,12 @@ import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
+import {
+    EXPECTED_MAX_GAME_DEPTH,
+    EXPECTED_SPLIT_DEPTH,
+    EXPECTED_CLOCK_EXTENSION,
+    EXPECTED_MAX_CLOCK_DURATION
+} from "src/L1/opcm/StandardValidatorUtils.sol";
 
 // Interfaces
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/IOPContractsManagerMigrationValidator.sol";
@@ -676,12 +682,16 @@ contract OPContractsManagerStandardValidator is ISemver {
         uint256 expectedL2ChainId = isSuperGame(_args.gameType) ? 0 : _args.l2ChainID;
         errors_ = internalRequire(game.l2ChainId == expectedL2ChainId, string.concat(errorPrefix, "-60"), errors_);
         errors_ = internalRequire(game.l2SequenceNumber == 0, string.concat(errorPrefix, "-70"), errors_);
-        errors_ =
-            internalRequire(Duration.unwrap(game.clockExtension) == 10800, string.concat(errorPrefix, "-80"), errors_);
-        errors_ = internalRequire(game.splitDepth == 30, string.concat(errorPrefix, "-90"), errors_);
-        errors_ = internalRequire(game.maxGameDepth == 73, string.concat(errorPrefix, "-100"), errors_);
         errors_ = internalRequire(
-            Duration.unwrap(game.maxClockDuration) == 302400, string.concat(errorPrefix, "-110"), errors_
+            Duration.unwrap(game.clockExtension) == EXPECTED_CLOCK_EXTENSION, string.concat(errorPrefix, "-80"), errors_
+        );
+        errors_ = internalRequire(game.splitDepth == EXPECTED_SPLIT_DEPTH, string.concat(errorPrefix, "-90"), errors_);
+        errors_ =
+            internalRequire(game.maxGameDepth == EXPECTED_MAX_GAME_DEPTH, string.concat(errorPrefix, "-100"), errors_);
+        errors_ = internalRequire(
+            Duration.unwrap(game.maxClockDuration) == EXPECTED_MAX_CLOCK_DURATION,
+            string.concat(errorPrefix, "-110"),
+            errors_
         );
         errors_ = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
 

@@ -19,6 +19,11 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
+uint256 constant EXPECTED_MAX_GAME_DEPTH = 73;
+uint256 constant EXPECTED_SPLIT_DEPTH = 30;
+uint256 constant EXPECTED_CLOCK_EXTENSION = 10800;
+uint256 constant EXPECTED_MAX_CLOCK_DURATION = 302400;
+
 /// @title StandardValidatorUtils
 /// @notice StandardValidatorUtils is a contract that provides some validation logic
 /// for the OPContractsManagerStandardValidator to split the bytecode across multiple

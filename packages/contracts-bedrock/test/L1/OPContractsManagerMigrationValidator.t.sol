@@ -810,6 +810,22 @@ contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad)));
         assertEq("MIG-SDWETH-30", _validateMigration(true));
     }
+
+    /// @notice MIG-SDWETH-40: DelayedWETH proxy implementation doesn't match expected.
+    function test_validate_sdweth40WrongImpl_succeeds() public {
+        vm.mockCall(
+            sharedProxyAdmin,
+            abi.encodeCall(IProxyAdmin.getProxyImplementation, (sharedWETH)),
+            abi.encode(address(0xbad))
+        );
+        assertEq("MIG-SDWETH-40", _validateMigration(true));
+    }
+
+    /// @notice MIG-SDWETH-50: DelayedWETH proxyAdmin doesn't match shared ProxyAdmin.
+    function test_validate_sdweth50WrongProxyAdmin_succeeds() public {
+        vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad)));
+        assertEq("MIG-SDWETH-50", _validateMigration(true));
+    }
 }
 
 /// @title OPContractsManagerMigrationValidator_AllowFailure_Test

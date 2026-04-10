@@ -16,10 +16,16 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import {
+    EXPECTED_MAX_GAME_DEPTH,
+    EXPECTED_SPLIT_DEPTH,
+    EXPECTED_CLOCK_EXTENSION,
+    EXPECTED_MAX_CLOCK_DURATION
+} from "src/L1/opcm/StandardValidatorUtils.sol";
 
 /// @title OPContractsManagerMigrationValidator
 /// @notice Validates the configuration of L1 contracts after an interop migration. Separated from
@@ -112,8 +118,9 @@ contract OPContractsManagerMigrationValidator is ISemver {
         view
         returns (string memory)
     {
-        // Overrides accepted but unused for now.
-        (_overrides);
+        if (_overrides.l1PAOMultisig != address(0)) {
+            _refs.l1PAOMultisig = _overrides.l1PAOMultisig;
+        }
 
         string memory _errors = "";
 
@@ -171,7 +178,8 @@ contract OPContractsManagerMigrationValidator is ISemver {
 
             // Shared DelayedWETH checks (skip if no chains — weth can't be discovered).
             if (_sharedContracts.weth != address(0)) {
-                _errors = assertValidSharedDelayedWETH(_errors, _sharedContracts.weth, _refs);
+                _errors =
+                    assertValidSharedDelayedWETH(_errors, _sharedContracts.weth, _sharedContracts.proxyAdmin, _refs);
             }
         }
 
@@ -298,14 +306,21 @@ contract OPContractsManagerMigrationValidator is ISemver {
 
         // Validate game impl params.
         {
-            IPermissionedDisputeGame game = IPermissionedDisputeGame(gameImpl);
-            _errors = internalRequire(game.maxGameDepth() == 73, string.concat(_p.prefix, "-30"), _errors);
-            _errors = internalRequire(game.splitDepth() == 30, string.concat(_p.prefix, "-40"), _errors);
+            IFaultDisputeGame game = IFaultDisputeGame(gameImpl);
             _errors = internalRequire(
-                Duration.unwrap(game.clockExtension()) == 10800, string.concat(_p.prefix, "-50"), _errors
+                game.maxGameDepth() == EXPECTED_MAX_GAME_DEPTH, string.concat(_p.prefix, "-30"), _errors
+            );
+            _errors =
+                internalRequire(game.splitDepth() == EXPECTED_SPLIT_DEPTH, string.concat(_p.prefix, "-40"), _errors);
+            _errors = internalRequire(
+                Duration.unwrap(game.clockExtension()) == EXPECTED_CLOCK_EXTENSION,
+                string.concat(_p.prefix, "-50"),
+                _errors
             );
             _errors = internalRequire(
-                Duration.unwrap(game.maxClockDuration()) == 302400, string.concat(_p.prefix, "-60"), _errors
+                Duration.unwrap(game.maxClockDuration()) == EXPECTED_MAX_CLOCK_DURATION,
+                string.concat(_p.prefix, "-60"),
+                _errors
             );
             _errors = internalRequire(game.l2SequenceNumber() == 0, string.concat(_p.prefix, "-70"), _errors);
         }
@@ -409,10 +424,11 @@ contract OPContractsManagerMigrationValidator is ISemver {
         return _errors;
     }
 
-    /// @notice Validates the shared DelayedWETH: version, delay, proxyAdminOwner.
+    /// @notice Validates the shared DelayedWETH: version, delay, proxyAdminOwner, proxy impl, ProxyAdmin.
     function assertValidSharedDelayedWETH(
         string memory _errors,
         address _weth,
+        IProxyAdmin _proxyAdmin,
         SharedImplementations memory _refs
     )
         internal
@@ -427,6 +443,12 @@ contract OPContractsManagerMigrationValidator is ISemver {
         );
         _errors = internalRequire(
             IDelayedWETH(payable(_weth)).proxyAdminOwner() == _refs.l1PAOMultisig, "MIG-SDWETH-30", _errors
+        );
+        _errors = internalRequire(
+            _proxyAdmin.getProxyImplementation(_weth) == _refs.delayedWETHImpl, "MIG-SDWETH-40", _errors
+        );
+        _errors = internalRequire(
+            address(IProxyAdminOwnedBase(_weth).proxyAdmin()) == address(_proxyAdmin), "MIG-SDWETH-50", _errors
         );
         return _errors;
     }
