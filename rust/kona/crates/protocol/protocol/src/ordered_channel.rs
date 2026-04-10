@@ -110,8 +110,10 @@ impl OrderedChannel {
 
     /// Returns all of the channel's [`Frame`] data concatenated together.
     pub fn frame_data(&self) -> Option<Bytes> {
-        (!self.inputs.is_empty())
-            .then(|| self.inputs.iter().flat_map(|f| &f.data).copied().collect::<Vec<_>>().into())
+        if self.inputs.is_empty() {
+            return None;
+        }
+        Some(self.inputs.iter().flat_map(|f| &f.data).copied().collect::<Vec<_>>().into())
     }
 }
 
