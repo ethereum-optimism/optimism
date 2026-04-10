@@ -10,15 +10,17 @@ import (
 	"net"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"maps"
+
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	ds "github.com/ipfs/go-datastore"
 	dsSync "github.com/ipfs/go-datastore/sync"
@@ -871,7 +873,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	// Rollup nodes
 
 	// Ensure we are looping through the nodes in alphabetical order
-	ks := maps.Keys(cfg.Nodes)
+	ks := slices.Collect(maps.Keys(cfg.Nodes))
 	// Sort strings in ascending alphabetical order
 	sort.Strings(ks)
 

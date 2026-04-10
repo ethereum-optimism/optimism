@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
+
+	"maps"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
@@ -13,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/exp/maps"
 )
 
 var (
@@ -125,7 +127,7 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 		updatedGameData[enrichedGame.Proxy] = enrichedGame
 	}
 	e.latestGameData = updatedGameData
-	return maps.Values(updatedGameData), int(ignored.Load()), int(failed.Load())
+	return slices.Collect(maps.Values(updatedGameData)), int(ignored.Load()), int(failed.Load())
 }
 
 func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game gameTypes.GameMetadata) (*monTypes.EnrichedGameData, error) {

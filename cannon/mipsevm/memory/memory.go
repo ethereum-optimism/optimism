@@ -8,8 +8,9 @@ import (
 	"slices"
 	"sort"
 
+	"maps"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"golang.org/x/exp/maps"
 )
 
 // Note: 2**12 = 4 KiB, the min phys page size in the Go runtime.
@@ -334,7 +335,7 @@ func (m *Memory) Serialize(out io.Writer) error {
 	if err := binary.Write(out, binary.BigEndian, Word(m.PageCount())); err != nil {
 		return err
 	}
-	indexes := maps.Keys(m.pageTable)
+	indexes := slices.Collect(maps.Keys(m.pageTable))
 	// iterate sorted map keys for consistent serialization
 	slices.Sort(indexes)
 	for _, pageIndex := range indexes {

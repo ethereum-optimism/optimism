@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"slices"
 	"sync"
 	"testing"
 	"time"
+
+	"maps"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -16,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 )
 
 func TestSendAndWaitQueueWithMaxPending(t *testing.T) {
@@ -163,7 +165,7 @@ func (s *stubTxMgr) txSuccess(candidate txmgr.TxCandidate) {
 	ch, ok := s.sending[candidate.TxData[0]]
 	if !ok {
 		// Shouldn't happen if tests are well written, but double check...
-		panic(fmt.Sprintf("Completing unknown transaction: %v Known: %v", candidate.TxData[0], maps.Keys(s.sending)))
+		panic(fmt.Sprintf("Completing unknown transaction: %v Known: %v", candidate.TxData[0], slices.Collect(maps.Keys(s.sending))))
 	}
 	ch <- &types.Receipt{Status: types.ReceiptStatusSuccessful}
 	close(ch)

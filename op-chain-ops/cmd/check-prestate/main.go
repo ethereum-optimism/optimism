@@ -6,7 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
+
+	"maps"
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/prestate"
@@ -18,7 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/mattn/go-isatty"
-	"golang.org/x/exp/maps"
 )
 
 type FPProgramType interface {
@@ -65,7 +67,7 @@ func main() {
 		chainFilter = func(chainName string) bool {
 			return chains[chainName]
 		}
-		filteredChainNames = maps.Keys(chains)
+		filteredChainNames = slices.Collect(maps.Keys(chains))
 	}
 	prestateHash := common.HexToHash(prestateHashStr)
 	if prestateHash == (common.Hash{}) {
@@ -158,7 +160,7 @@ func main() {
 		ExecutionClient:    elCommitInfo,
 		SuperchainRegistry: commitInfo("superchain-registry", commit, "main", "superchain"),
 		UpToDateChains:     supportedChains,
-		OutdatedChains:     maps.Values(outdatedChains),
+		OutdatedChains:     slices.Collect(maps.Values(outdatedChains)),
 		MissingChains:      missingChains,
 	}
 	encoder := json.NewEncoder(os.Stdout)

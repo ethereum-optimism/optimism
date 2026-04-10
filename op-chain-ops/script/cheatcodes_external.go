@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"math/big"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"maps"
+
 	"github.com/BurntSushi/toml"
-	"golang.org/x/exp/maps"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -388,7 +390,7 @@ func lookupKeys(v any, query string) ([]string, error) {
 	if query == "$" || query == "" {
 		switch x := v.(type) {
 		case map[string]any:
-			return maps.Keys(x), nil
+			return slices.Collect(maps.Keys(x)), nil
 		default:
 			return nil, fmt.Errorf("JSON value (Type %T) is not an object", x)
 		}
@@ -414,7 +416,7 @@ func lookupKeys(v any, query string) ([]string, error) {
 			if trailing != "" {
 				return nil, errors.New("cannot continue query after $ sign")
 			}
-			return maps.Keys(x), nil
+			return slices.Collect(maps.Keys(x)), nil
 		}
 		data, ok := x[stringKey]
 		if !ok {

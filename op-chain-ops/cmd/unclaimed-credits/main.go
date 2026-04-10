@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"slices"
 	"time"
+
+	"maps"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -20,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/exp/maps"
 )
 
 var (
@@ -130,7 +132,7 @@ func unclaimedCreditsForGame(ctx context.Context, game contracts.FaultDisputeGam
 			players[claim.CounteredBy] = true
 		}
 	}
-	playerList := maps.Keys(players)
+	playerList := slices.Collect(maps.Keys(players))
 	credits, err := game.GetCredits(ctx, rpcblock.Latest, playerList...)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve credits: %w", err)

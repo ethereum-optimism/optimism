@@ -1,11 +1,13 @@
 package registry
 
 import (
+	"slices"
 	"sync"
+
+	"maps"
 
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
-	"golang.org/x/exp/maps"
 )
 
 type OracleRegistry struct {
@@ -28,5 +30,5 @@ func (r *OracleRegistry) RegisterOracle(oracle keccakTypes.LargePreimageOracle) 
 func (r *OracleRegistry) Oracles() []keccakTypes.LargePreimageOracle {
 	r.l.Lock()
 	defer r.l.Unlock()
-	return maps.Values(r.oracles)
+	return slices.Collect(maps.Values(r.oracles))
 }
