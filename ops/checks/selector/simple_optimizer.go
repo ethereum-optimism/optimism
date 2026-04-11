@@ -45,8 +45,10 @@ func (o *SimpleOptimizer) Optimize(
 		candidateSignal[c.NodeID] = c.Signal
 	}
 
-	// Get changed source node IDs for scope resolution.
-	changedIDs := inferChangedSourceNodes(g, candidates)
+	// Get changed source node IDs from the diff — NOT from the graph.
+	// Using the graph (inferChangedSourceNodes) returns every source node
+	// connected to any candidate check, which is everything.
+	changedIDs := diffToNodeIDs(g, diffs)
 
 	// Process each candidate
 	for _, c := range candidates {
@@ -91,30 +93,16 @@ func (o *SimpleOptimizer) Optimize(
 	return result, nil
 }
 
-// inferChangedSourceNodes finds source nodes that are "close" to the candidate
-// check nodes. We walk backward from check nodes to find source nodes with
-// tested_by edges, then trace which ones have high signal.
-func inferChangedSourceNodes(g *graph.Graph, candidates []NodeWithSignal) []string {
-	// Collect all source nodes that have tested_by edges to candidate check nodes
-	candidateSet := make(map[string]bool)
-	for _, c := range candidates {
-		candidateSet[c.NodeID] = true
-	}
-
-	var sourceIDs []string
-	seen := make(map[string]bool)
-	for _, node := range g.NodesOfKind(graph.KindSource) {
-		for _, edge := range g.EdgesFrom(node.ID) {
-			if edge.Kind == graph.EdgeTestedBy && candidateSet[edge.To] {
-				if !seen[node.ID] {
-					sourceIDs = append(sourceIDs, node.ID)
-					seen[node.ID] = true
-				}
-				break
-			}
+// diffToNodeIDs maps changed file paths from diffs to graph node IDs.
+func diffToNodeIDs(g *graph.Graph, diffs []diff.FileDiff) []string {
+	var filePaths []string
+	for _, d := range diffs {
+		if d.Path != "" {
+			filePaths = append(filePaths, d.Path)
 		}
 	}
-	return sourceIDs
+	nodeIDs, _ := diff.FilesToNodeIDs(g, filePaths)
+	return nodeIDs
 }
 
 // optimizeScopeable creates ExecutionItems for a scopeable check type.
