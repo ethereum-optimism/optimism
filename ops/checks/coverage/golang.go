@@ -3,7 +3,9 @@ package coverage
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -16,17 +18,29 @@ func NewGoCollector() *GoCollector { return &GoCollector{} }
 func (c *GoCollector) Language() string { return "go" }
 
 // Collect runs go test with coverage for a single package and parses the profile.
+// testPath is a Go package path like "./op-node/rollup/derive/..."
 func (c *GoCollector) Collect(rootDir string, testPath string) (*Report, error) {
-	// Run go test -coverprofile for the specific package
-	cmd := exec.Command("go", "test", "-coverprofile=/dev/stdout", "-covermode=set", testPath)
-	cmd.Dir = rootDir
+	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("checks-go-coverage-%d.prof", os.Getpid()))
+	defer os.Remove(tmpFile)
 
-	out, err := cmd.Output()
+	cmd := exec.Command("go", "test",
+		"-coverprofile", tmpFile,
+		"-covermode", "set",
+		"-short",
+		testPath,
+	)
+	cmd.Dir = rootDir
+	cmd.Stderr = os.Stderr
+
+	// Tolerate test failures — coverage is still produced for passing tests
+	_ = cmd.Run()
+
+	data, err := os.ReadFile(tmpFile)
 	if err != nil {
-		return nil, fmt.Errorf("go test -coverprofile: %w", err)
+		return nil, fmt.Errorf("reading coverprofile (go test may have failed): %w", err)
 	}
 
-	covers := parseGoCoverprofile(string(out))
+	covers := parseGoCoverprofile(string(data))
 
 	return &Report{
 		Test:     testPath,
@@ -50,7 +64,6 @@ func parseGoCoverprofile(data string) map[string][][2]int {
 			continue
 		}
 
-		// Parse: file:startLine.startCol,endLine.endCol statements count
 		colonIdx := strings.LastIndex(line, ":")
 		if colonIdx < 0 {
 			continue
@@ -58,7 +71,6 @@ func parseGoCoverprofile(data string) map[string][][2]int {
 		filePath := line[:colonIdx]
 		rest := line[colonIdx+1:]
 
-		// Parse start and end lines
 		fields := strings.Fields(rest)
 		if len(fields) < 3 {
 			continue
@@ -69,7 +81,6 @@ func parseGoCoverprofile(data string) map[string][][2]int {
 			continue
 		}
 
-		// Parse "startLine.startCol,endLine.endCol"
 		rangeParts := strings.SplitN(fields[0], ",", 2)
 		if len(rangeParts) != 2 {
 			continue
@@ -95,7 +106,6 @@ func parseGoCoverprofile(data string) map[string][][2]int {
 }
 
 func parseLineNum(s string) int {
-	// "10.2" → 10
 	dotIdx := strings.Index(s, ".")
 	if dotIdx >= 0 {
 		s = s[:dotIdx]
