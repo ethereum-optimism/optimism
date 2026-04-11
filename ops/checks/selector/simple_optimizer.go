@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
+	"github.com/ethereum-optimism/optimism/ops/checks/diff"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 )
 
@@ -25,6 +26,7 @@ func NewSimpleOptimizer() *SimpleOptimizer { return &SimpleOptimizer{} }
 func (o *SimpleOptimizer) Optimize(
 	g *graph.Graph,
 	candidates []NodeWithSignal,
+	diffs []diff.FileDiff,
 	stage Stage,
 	cat *catalog.Catalog,
 ) (*Result, error) {
@@ -34,6 +36,9 @@ func (o *SimpleOptimizer) Optimize(
 		return result, nil
 	}
 
+	// Build changed lines map from diffs: file path → set of changed line numbers
+	changedLines := buildChangedLinesMap(diffs)
+
 	// Build candidate lookup
 	candidateSignal := make(map[string]float64)
 	for _, c := range candidates {
@@ -41,13 +46,10 @@ func (o *SimpleOptimizer) Optimize(
 	}
 
 	// Get changed source node IDs for scope resolution.
-	// We reconstruct these from the graph — source nodes that have edges
-	// leading to the candidate check nodes.
 	changedIDs := inferChangedSourceNodes(g, candidates)
 
 	// Process each candidate
 	for _, c := range candidates {
-		// Strip "check:" prefix to get check type ID
 		ctID := strings.TrimPrefix(c.NodeID, "check:")
 		ct := cat.ByID(ctID)
 		if ct == nil {
@@ -55,7 +57,7 @@ func (o *SimpleOptimizer) Optimize(
 		}
 
 		if ct.Scopeable {
-			items := o.optimizeScopeable(g, changedIDs, ct, c.Signal, stage)
+			items := o.optimizeScopeable(g, changedIDs, ct, c.Signal, stage, changedLines)
 			for _, item := range items {
 				if item.SkipCost > item.RunCost {
 					result.Items = append(result.Items, item)
@@ -122,9 +124,10 @@ func (o *SimpleOptimizer) optimizeScopeable(
 	ct *catalog.CheckType,
 	signal float64,
 	stage Stage,
+	changedLines map[string]map[int]bool,
 ) []ExecutionItem {
 	checkNodeID := "check:" + ct.ID
-	scopes := affectedScopes(g, changedIDs, checkNodeID, ct.ScopeType)
+	scopes := affectedScopes(g, changedIDs, checkNodeID, ct.ScopeType, changedLines)
 
 	// If signal=1.0 (blast radius or direct trigger) and no scopes found,
 	// run everything (nil scope = unscoped)
@@ -279,9 +282,10 @@ func affectedScopes(
 	changedIDs []string,
 	checkTypeNodeID string,
 	scopeType string,
+	changedLines map[string]map[int]bool,
 ) []scopeWithSignal {
-	// Strategy 1: Coverage-based scoping
-	if results := coverageBasedScopes(g, changedIDs, scopeType); len(results) > 0 {
+	// Strategy 1: Coverage-based scoping with line-level intersection
+	if results := coverageBasedScopes(g, changedIDs, scopeType, changedLines); len(results) > 0 {
 		return results
 	}
 
@@ -289,37 +293,69 @@ func affectedScopes(
 	return importBasedScopes(g, changedIDs, checkTypeNodeID, scopeType)
 }
 
-// coverageBasedScopes finds test files that have coverage edges pointing at
-// changed source nodes. This is precise — it uses actual execution data.
+// coverageBasedScopes finds test files that cover the *specific lines* that changed.
+// It intersects coverage line ranges (from coverage edges) with changed lines (from diff).
+// A test is only included if it covers at least one changed line.
 func coverageBasedScopes(
 	g *graph.Graph,
 	changedIDs []string,
 	scopeType string,
+	changedLines map[string]map[int]bool,
 ) []scopeWithSignal {
-	changedSet := make(map[string]bool)
-	for _, id := range changedIDs {
-		changedSet[id] = true
+	if len(changedLines) == 0 {
+		return nil
 	}
 
-	// Walk the graph from changed source nodes, collect test nodes that
-	// have coverage edges TO these source nodes.
-	// Coverage edges go: test_node → (covers/tested_by, source=coverage) → source_node
-	// So we look at incoming edges on the changed nodes.
+	// For each changed source node, find test nodes with coverage edges
+	// and check if their covered line ranges intersect with the changed lines.
 	testSignals := make(map[string]float64)
 
 	for _, changedID := range changedIDs {
+		// Get the source file path from the node ID to look up changed lines
+		sourceFile := nodeIDToSourceFile(changedID)
+		fileChangedLines := changedLines[sourceFile]
+		if len(fileChangedLines) == 0 {
+			// No line-level info for this file — fall back to file-level match
+			// (any test covering this file counts)
+			for _, edge := range g.EdgesTo(changedID) {
+				if edge.Source != graph.SourceCoverage {
+					continue
+				}
+				signal := edge.Strength * edge.Confidence
+				if signal > testSignals[edge.From] {
+					testSignals[edge.From] = signal
+				}
+			}
+			continue
+		}
+
+		// Line-level intersection: only include tests that cover changed lines
 		for _, edge := range g.EdgesTo(changedID) {
 			if edge.Source != graph.SourceCoverage {
 				continue
 			}
-			// This test node covers the changed source
-			testNode := g.GetNode(edge.From)
-			if testNode == nil {
+
+			// Get the line ranges this test covers for this source file
+			lineRanges, ok := edge.Properties["line_ranges"]
+			if !ok {
+				// No line data on edge — treat as file-level match
+				signal := edge.Strength * edge.Confidence
+				if signal > testSignals[edge.From] {
+					testSignals[edge.From] = signal
+				}
 				continue
 			}
 
-			// Signal based on how much of the changed file this test covers
-			signal := edge.Strength * edge.Confidence
+			// Check if any covered ranges intersect with changed lines
+			hitCount := countLineHits(lineRanges, fileChangedLines)
+			if hitCount == 0 {
+				continue // this test doesn't cover any changed lines
+			}
+
+			// Signal proportional to how many changed lines this test covers
+			totalChanged := len(fileChangedLines)
+			hitFraction := float64(hitCount) / float64(totalChanged)
+			signal := hitFraction * edge.Confidence
 			if signal > testSignals[edge.From] {
 				testSignals[edge.From] = signal
 			}
@@ -330,11 +366,16 @@ func coverageBasedScopes(
 		return nil
 	}
 
-	// Convert test node IDs to scope units
 	var results []scopeWithSignal
 	seen := make(map[string]bool)
 	for testNodeID, signal := range testSignals {
-		scope := nodeIDToScope(testNodeID, scopeType)
+		// Coverage gives us precise test file IDs — use the file path directly
+		// instead of converting to directory globs via nodeIDToScope.
+		scope := nodeIDToTestPath(testNodeID)
+		if scope == "" {
+			// Fallback to directory-level scope
+			scope = nodeIDToScope(testNodeID, scopeType)
+		}
 		if scope != "" && !seen[scope] {
 			results = append(results, scopeWithSignal{Scope: scope, Signal: signal})
 			seen[scope] = true
@@ -346,6 +387,108 @@ func coverageBasedScopes(
 	})
 
 	return results
+}
+
+// nodeIDToTestPath converts a test node ID to a specific test file path for scoping.
+// Returns the file path for forge --match-path (e.g. "test/L1/OptimismPortal2.t.sol").
+func nodeIDToTestPath(nodeID string) string {
+	if strings.HasPrefix(nodeID, "sol:") {
+		path := strings.TrimPrefix(nodeID, "sol:")
+		if strings.HasPrefix(path, "test/") && strings.HasSuffix(path, ".t.sol") {
+			return "./" + path
+		}
+	}
+	return ""
+}
+
+// countLineHits counts how many changed lines fall within the coverage ranges.
+func countLineHits(lineRanges any, changedLines map[int]bool) int {
+	hits := 0
+
+	// lineRanges can be []interface{} (from JSON) or [][2]int (from Go)
+	switch ranges := lineRanges.(type) {
+	case [][2]int:
+		for _, r := range ranges {
+			for line := r[0]; line <= r[1]; line++ {
+				if changedLines[line] {
+					hits++
+				}
+			}
+		}
+	case []interface{}:
+		for _, r := range ranges {
+			rSlice, ok := r.([]interface{})
+			if !ok || len(rSlice) != 2 {
+				continue
+			}
+			start, ok1 := toInt(rSlice[0])
+			end, ok2 := toInt(rSlice[1])
+			if !ok1 || !ok2 {
+				continue
+			}
+			for line := start; line <= end; line++ {
+				if changedLines[line] {
+					hits++
+				}
+			}
+		}
+	}
+
+	return hits
+}
+
+func toInt(v interface{}) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	}
+	return 0, false
+}
+
+// nodeIDToSourceFile extracts the source file path from a graph node ID.
+func nodeIDToSourceFile(nodeID string) string {
+	if strings.HasPrefix(nodeID, "sol:") {
+		return strings.TrimPrefix(nodeID, "sol:")
+	}
+	if strings.HasPrefix(nodeID, "go:") {
+		return strings.TrimPrefix(nodeID, "go:")
+	}
+	return nodeID
+}
+
+// buildChangedLinesMap extracts changed line numbers from parsed diffs.
+// Returns: file path → set of changed line numbers (new side).
+func buildChangedLinesMap(diffs []diff.FileDiff) map[string]map[int]bool {
+	result := make(map[string]map[int]bool)
+
+	for _, d := range diffs {
+		if d.Path == "" || len(d.Hunks) == 0 {
+			continue
+		}
+
+		// Strip common prefix for Solidity files
+		path := d.Path
+		if strings.HasPrefix(path, "packages/contracts-bedrock/") {
+			path = strings.TrimPrefix(path, "packages/contracts-bedrock/")
+		}
+
+		lines := make(map[int]bool)
+		for _, h := range d.Hunks {
+			// The new-side lines (added/modified)
+			for i := h.NewStart; i < h.NewStart+h.NewCount; i++ {
+				lines[i] = true
+			}
+		}
+		if len(lines) > 0 {
+			result[path] = lines
+		}
+	}
+
+	return result
 }
 
 // importBasedScopes is the fallback when no coverage data exists.

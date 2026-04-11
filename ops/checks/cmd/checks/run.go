@@ -63,7 +63,7 @@ func cmdRun(args []string) error {
 
 	// Phase 2: Optimization
 	optimizer := selector.NewSimpleOptimizer()
-	result, err := optimizer.Optimize(g, candidates, stage, cat)
+	result, err := optimizer.Optimize(g, candidates, diffs, stage, cat)
 	if err != nil {
 		return fmt.Errorf("optimizing: %w", err)
 	}
