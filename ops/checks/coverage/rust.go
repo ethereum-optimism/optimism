@@ -37,9 +37,11 @@ func (c *RustCollector) Collect(rootDir string, testPath string) (*Report, error
 	cmd := exec.Command("cargo", "llvm-cov",
 		"--lcov",
 		"--output-path", tmpFile,
+		"--no-cfg-coverage",
 		"--package", testPath,
 	)
 	cmd.Dir = workDir
+	cmd.Env = os.Environ() // inherit PATH (needed for mise-managed toolchains)
 	cmd.Stderr = os.Stderr
 
 	// Tolerate test failures
