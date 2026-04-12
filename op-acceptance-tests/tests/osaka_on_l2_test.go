@@ -18,6 +18,7 @@ import (
 )
 
 var modexpPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000005")
+var p256VerifyPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000100")
 
 // buildModExpInput constructs input data for the MODEXP precompile (address 0x05).
 // Format: <Bsize (32 bytes)> <Esize (32 bytes)> <Msize (32 bytes)> <B> <E> <M>
@@ -170,6 +171,50 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	karstOffset := uint64(3)
+	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
+
+	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
+	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
+	preForkBlockNum := activationBlock.Number - 1
+	postForkBlockNum := activationBlock.Number + 1
+	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
+
+	l2Client := sys.L2EL.EthClient()
+
+	// Call P256VERIFY with empty calldata. The precompile charges its full gas
+	// cost regardless of input length, then returns empty (input != 160 bytes).
+	// Empty calldata avoids EIP-7623 calldata cost inflation, so intrinsic gas
+	// is just 21,000 and we can precisely control execution gas via gas limit.
+	//   RIP-7212 (pre-Karst):  P256VERIFY costs 3,450 gas
+	//   EIP-7951 (post-Karst): P256VERIFY costs 6,900 gas
+
+	// Pre-fork: 21,000 + 3,500 execution gas is enough for 3,450-gas precompile.
+	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
+		To:  &p256VerifyPrecompile,
+		Gas: 24_500,
+	}, rpc.BlockNumber(preForkBlockNum))
+	t.Require().NoError(err, "pre-fork: P256VERIFY should succeed with 3,500 execution gas (cost is 3,450)")
+
+	// Post-fork: 21,000 + 3,500 execution gas is NOT enough for 6,900-gas precompile.
+	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
+		To:  &p256VerifyPrecompile,
+		Gas: 24_500,
+	}, rpc.BlockNumber(postForkBlockNum))
+	t.Require().Error(err, "post-fork: P256VERIFY should fail with 3,500 execution gas (cost is 6,900)")
+
+	// Post-fork: 21,000 + 7,000 execution gas is enough for 6,900-gas precompile.
+	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
+		To:  &p256VerifyPrecompile,
+		Gas: 28_000,
+	}, rpc.BlockNumber(postForkBlockNum))
+	t.Require().NoError(err, "post-fork: P256VERIFY should succeed with 7,000 execution gas (cost is 6,900)")
 }
 
 func TestEIP7939CLZ(gt *testing.T) {
