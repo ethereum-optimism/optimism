@@ -74,6 +74,50 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 	t.Require().Equal([]byte{3}, result, "2^3 mod 5 should equal 3")
 }
 
+func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	karstOffset := uint64(3)
+	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
+
+	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
+	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
+	preForkBlockNum := activationBlock.Number - 1
+	postForkBlockNum := activationBlock.Number + 1
+	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
+
+	l2Client := sys.L2EL.EthClient()
+
+	// Call modexp with empty calldata. The precompile pads missing bytes with
+	// zeros, giving Bsize=0, Esize=0, Msize=0. This hits exactly the gas floor:
+	//   EIP-2565 (pre-Karst):  max(200, floor(0*0/3)) = 200 gas
+	//   EIP-7883 (post-Karst): max(500, floor(0*0))   = 500 gas
+	// Empty calldata also avoids EIP-7623 calldata cost inflation, so intrinsic
+	// gas is just 21,000 and we can precisely control execution gas via Gas limit.
+
+	// Pre-fork: 21,000 + 300 execution gas is enough for 200-gas floor.
+	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
+		To:  &modexpPrecompile,
+		Gas: 21_300,
+	}, rpc.BlockNumber(preForkBlockNum))
+	t.Require().NoError(err, "pre-fork: modexp should succeed with 300 execution gas (floor is 200)")
+
+	// Post-fork: 21,000 + 300 execution gas is NOT enough for 500-gas floor.
+	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
+		To:  &modexpPrecompile,
+		Gas: 21_300,
+	}, rpc.BlockNumber(postForkBlockNum))
+	t.Require().Error(err, "post-fork: modexp should fail with 300 execution gas (floor is 500)")
+
+	// Post-fork: 21,000 + 600 execution gas is enough for 500-gas floor.
+	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
+		To:  &modexpPrecompile,
+		Gas: 21_600,
+	}, rpc.BlockNumber(postForkBlockNum))
+	t.Require().NoError(err, "post-fork: modexp should succeed with 600 execution gas (floor is 500)")
+}
+
 func TestEIP7939CLZ(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
