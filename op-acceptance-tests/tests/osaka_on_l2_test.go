@@ -1,10 +1,15 @@
 package tests
 
 import (
+	"context"
 	"math/big"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -257,4 +262,90 @@ func TestEIP7939CLZ(gt *testing.T) {
 	t.Require().NoError(err, "post-fork: CLZ opcode should be available")
 	expected := common.LeftPadBytes([]byte{0xff}, 32) // 255 as uint256
 	t.Require().Equal(expected, result, "CLZ(1) should equal 255")
+}
+
+func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	// Example error with kona-node:
+	//
+	// proxy.go:124:               ERROR[04-12|21:17:19.317] failed to proxy                          direction=upstream   err="writeto tcp 127.0.0.1:40991->127.0.0.1:34446: readfrom tcp 127.0.0.1:51850->127.0.0.1:38457: splice: connection reset by peer"
+	// proxy.go:124:               ERROR[04-12|21:17:19.317] failed to proxy                          direction=downstream err="writeto tcp 127.0.0.1:51850->127.0.0.1:38457: readfrom tcp 127.0.0.1:40991->127.0.0.1:34446: splice: broken pipe"
+	// driver.go:295:              WARN [04-12|21:17:19.317] Failed to load block into state          component=l2-batcher err="getting L2 block: websocket: read limit exceeded"
+	// driver.go:552:              WARN [04-12|21:17:19.317] error loading blocks, retrying on next tick component=l2-batcher err="getting L2 block: websocket: read limit exceeded"
+	// proxy.go:124:               ERROR[04-12|21:17:19.512] failed to proxy                          direction=downstream err="writeto tcp 127.0.0.1:44702->127.0.0.1:38457: readfrom tcp 127.0.0.1:40991->127.0.0.1:54452: splice: connection reset by peer"
+	// assertions.go:387:
+	//     	Error Trace:	/home/circleci/project/op-acceptance-tests/tests/osaka_on_l2_test.go:283
+	//     	Error:      	Received unexpected error:
+	//     	            	websocket: read limit exceeded
+	//     	Test:       	TestEIP7934BlockSizeLimitDisabled
+	sysgo.SkipOnKonaNode(t, "not supported")
+
+	// EIP-7934 limits RLP-encoded block size to 10 MiB on L1. OP Stack
+	// chains must NOT enforce this limit. We prove it by building a single
+	// block whose transaction data alone exceeds 10 MiB.
+	//
+	// EIP-7623 inflates zero-byte calldata cost to 10 gas/byte, so packing
+	// 12 MB into one block requires ~120M gas.
+	sys := presets.NewMinimal(t, presets.WithDeployerOptions(
+		sysgo.WithKarstAtGenesis,
+		sysgo.WithL2GasLimit(200_000_000),
+	))
+
+	spamTxs(sys)
+
+	// Find a block whose total transaction data exceeds 10 MiB.
+	l2Client := sys.L2EL.EthClient()
+	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
+	for {
+		select {
+		case <-time.After(l2BlockTime):
+			_, blockTxs, err := l2Client.InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
+			t.Require().NoError(err)
+
+			var totalTxSize int
+			for _, tx := range blockTxs {
+				bin, err := tx.MarshalBinary()
+				t.Require().NoError(err)
+				totalTxSize += len(bin)
+			}
+
+			if totalTxSize > 10_000_000 {
+				return
+			}
+		case <-t.Ctx().Done():
+			t.Require().NoError(t.Ctx().Err())
+		}
+	}
+}
+
+func spamTxs(sys *presets.Minimal) {
+	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	eoasRR := loadtest.NewRoundRobin(eoas)
+	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
+		// Max tx size in op-geth and op-reth mempools is 128 kB per tx.
+		// We leave an 8 kB buffer for tx data outside the calldata.
+		const calldataSize = 120 * 1024
+		_, err := eoasRR.Get().Include(t,
+			txplan.WithTo(&predeploys.L1BlockAddr),
+			txplan.WithData(make([]byte, calldataSize)),
+			txplan.WithGasLimit(1_250_000),
+		)
+		return err
+	})
+	schedule := loadtest.NewBurst(l2BlockTime, loadtest.WithBaseRPS(50))
+
+	ctx, cancel := context.WithCancel(sys.T.Ctx())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	sys.T.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
+	go func() {
+		defer wg.Done()
+		schedule.Run(sys.T.WithCtx(ctx), spammer)
+	}()
 }

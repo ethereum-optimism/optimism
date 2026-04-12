@@ -80,6 +80,14 @@ func WithJovianAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Buil
 	}
 }
 
+func WithL2GasLimit(gasLimit uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithGasLimit(gasLimit)
+		}
+	}
+}
+
 func WithEcotoneAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 	for _, l2Cfg := range builder.L2s() {
 		l2Cfg.WithForkAtGenesis(opforks.Ecotone)
