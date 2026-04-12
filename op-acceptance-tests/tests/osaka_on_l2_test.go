@@ -1,10 +1,15 @@
 package tests
 
 import (
+	"context"
 	"math/big"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -257,4 +262,78 @@ func TestEIP7939CLZ(gt *testing.T) {
 	t.Require().NoError(err, "post-fork: CLZ opcode should be available")
 	expected := common.LeftPadBytes([]byte{0xff}, 32) // 255 as uint256
 	t.Require().Equal(expected, result, "CLZ(1) should equal 255")
+}
+
+// TestEIP7934BlockSizeLimitDisabled proves that EIP-7934 is disabled by building a single block
+// whose transaction data alone exceeds the max block size.
+func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	// EIP-7623 inflates zero-byte calldata cost to 10 gas/byte, so packing
+	// 12 MB into one block requires ~120M gas.
+	sys := presets.NewMinimal(t, presets.WithDeployerOptions(
+		sysgo.WithKarstAtGenesis,
+		sysgo.WithL2GasLimit(120_000_000),
+	))
+
+	spamTxs(sys)
+
+	// Find a block whose total transaction data exceeds 10 MiB.
+	l2Client := sys.L2EL.EthClient()
+	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
+	for {
+		select {
+		case <-time.After(l2BlockTime):
+			info, blockTxs, err := l2Client.InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
+			t.Require().NoError(err)
+
+			var totalTxSize int
+			for _, tx := range blockTxs {
+				bin, err := tx.MarshalBinary()
+				t.Require().NoError(err)
+				totalTxSize += len(bin)
+			}
+
+			t.Logger().Info("Checking L2 block...", "number", info.NumberU64(), "size", totalTxSize, "gasUsed", info.GasUsed())
+
+			// We use tx data size instead of the total block size since we don't have a client
+			// capable of deserializing block responses.
+			if totalTxSize > params.MaxBlockSize {
+				return
+			}
+		case <-t.Ctx().Done():
+			t.Require().NoError(t.Ctx().Err())
+		}
+	}
+}
+
+func spamTxs(sys *presets.Minimal) {
+	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	eoasRR := loadtest.NewRoundRobin(eoas)
+	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
+		// Max tx size in op-geth and op-reth mempools is 128 kB per tx.
+		// We leave an 8 kB buffer for tx data outside the calldata.
+		const calldataSize = 120 * 1024
+		_, err := eoasRR.Get().Include(t,
+			txplan.WithTo(&predeploys.L1BlockAddr),
+			txplan.WithData(make([]byte, calldataSize)),
+			txplan.WithGasLimit(1_250_000),
+		)
+		return err
+	})
+	schedule := loadtest.NewBurst(l2BlockTime, loadtest.WithBaseRPS(50))
+
+	ctx, cancel := context.WithCancel(sys.T.Ctx())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	sys.T.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
+	go func() {
+		defer wg.Done()
+		schedule.Run(sys.T.WithCtx(ctx), spammer)
+	}()
 }
