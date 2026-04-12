@@ -94,11 +94,11 @@ pub fn karst() -> &'static Precompiles {
         let mut precompiles = jovian().clone();
 
         let mut to_remove = Precompiles::default();
-        to_remove.extend([modexp::BERLIN]);
+        to_remove.extend([modexp::BERLIN, secp256r1::P256VERIFY]);
 
         precompiles.difference(&to_remove);
 
-        precompiles.extend([modexp::OSAKA]);
+        precompiles.extend([modexp::OSAKA, secp256r1::P256VERIFY_OSAKA]);
 
         precompiles
     })
