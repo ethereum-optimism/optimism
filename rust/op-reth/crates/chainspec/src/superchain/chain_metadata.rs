@@ -27,6 +27,7 @@ pub(crate) struct HardforkConfig {
     pub holocene_time: Option<u64>,
     pub isthmus_time: Option<u64>,
     pub jovian_time: Option<u64>,
+    pub karst_time: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -60,6 +61,8 @@ pub(crate) struct ChainConfigExtraFields {
     pub isthmus_time: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jovian_time: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub karst_time: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optimism: Option<ChainConfigExtraFieldsOptimism>,
 }
@@ -108,7 +111,7 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
         shanghai_time: chain_config.hardforks.canyon_time, // Shanghai activates with Canyon
         cancun_time: chain_config.hardforks.ecotone_time,  // Cancun activates with Ecotone
         prague_time: chain_config.hardforks.isthmus_time,  // Prague activates with Isthmus
-        osaka_time: None,
+        osaka_time: chain_config.hardforks.karst_time,     // Osaka activates with Karst
         terminal_total_difficulty: Some(U256::ZERO),
         terminal_total_difficulty_passed: true,
         ethash: None,
@@ -141,6 +144,7 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
         holocene_time: chain_config.hardforks.holocene_time,
         isthmus_time: chain_config.hardforks.isthmus_time,
         jovian_time: chain_config.hardforks.jovian_time,
+        karst_time: chain_config.hardforks.karst_time,
         optimism: chain_config.optimism.as_ref().map(|o| o.into()),
     };
     res.extra_fields =
@@ -204,6 +208,7 @@ mod tests {
             holocene_time: Some(1736445601),
             isthmus_time: Some(1746806401),
             jovian_time: None,
+            karst_time: None,
             optimism: Option::from(ChainConfigExtraFieldsOptimism {
                 eip1559_elasticity: 6,
                 eip1559_denominator: 50,

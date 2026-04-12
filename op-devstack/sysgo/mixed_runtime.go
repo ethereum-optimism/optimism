@@ -55,6 +55,13 @@ const (
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
 )
 
+// SkipOnOpGeth skips the test when the L2 execution layer is op-geth
+func SkipOnOpGeth(t devtest.T, reason string) {
+	if devstackL2ELKind() == MixedL2ELOpGeth {
+		t.Skipf("skipping on op-geth: %s", reason)
+	}
+}
+
 // SkipOnOpReth skips the test when the L2 execution layer is op-reth
 func SkipOnOpReth(t devtest.T, reason string) {
 	if devstackL2ELKind() == MixedL2ELOpReth {
