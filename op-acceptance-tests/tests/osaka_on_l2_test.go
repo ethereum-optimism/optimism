@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -71,4 +72,46 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 	}, rpc.BlockNumber(postForkBlockNum))
 	t.Require().NoError(err)
 	t.Require().Equal([]byte{3}, result, "2^3 mod 5 should equal 3")
+}
+
+func TestEIP7939CLZ(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	karstOffset := uint64(3)
+	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
+
+	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
+	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
+	preForkBlockNum := activationBlock.Number - 1
+	postForkBlockNum := activationBlock.Number + 1
+	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
+
+	l2Client := sys.L2EL.EthClient()
+
+	// EVM init code that computes CLZ(1) and returns the 32-byte result.
+	// CLZ(1) = 255 because 1 has 255 leading zero bits in a uint256.
+	clzCode := []byte{
+		byte(vm.PUSH1), 1, // stack: [1]
+		byte(vm.CLZ),      // stack: [255] (1 has 255 leading zeros)
+		byte(vm.PUSH1), 0, // stack: [0, 255]
+		byte(vm.MSTORE),    // mem[0:32] = 255
+		byte(vm.PUSH1), 32, // stack: [32]
+		byte(vm.PUSH1), 0, // stack: [0, 32]
+		byte(vm.RETURN), // return mem[0:32]
+	}
+
+	// Pre-fork: CLZ opcode (0x1e) is not yet valid, so execution should fail.
+	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
+		Data: clzCode,
+	}, rpc.BlockNumber(preForkBlockNum))
+	t.Require().Error(err, "pre-fork: CLZ opcode should not be available")
+
+	// Post-fork: CLZ opcode is valid, execution should succeed.
+	result, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
+		Data: clzCode,
+	}, rpc.BlockNumber(postForkBlockNum))
+	t.Require().NoError(err, "post-fork: CLZ opcode should be available")
+	expected := common.LeftPadBytes([]byte{0xff}, 32) // 255 as uint256
+	t.Require().Equal(expected, result, "CLZ(1) should equal 255")
 }
