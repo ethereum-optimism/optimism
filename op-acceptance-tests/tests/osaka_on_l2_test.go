@@ -8,9 +8,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -116,6 +119,57 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 		Gas: 21_600,
 	}, rpc.BlockNumber(postForkBlockNum))
 	t.Require().NoError(err, "post-fork: modexp should succeed with 600 execution gas (floor is 500)")
+}
+
+func TestEIP7825TxGasLimitCap(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	testCases := map[string]struct {
+		opt       sysgo.DeployerOption
+		expectErr bool
+	}{
+		"pre-karst": {
+			opt: sysgo.WithJovianAtGenesis,
+		},
+		"post-karst": {
+			opt:       sysgo.WithKarstAtGenesis,
+			expectErr: true,
+		},
+	}
+
+	// EIP-7825 caps transaction gas at 2^24 = 16,777,216.
+	// This is a tx validity rule enforced at the txpool/block level, not by the
+	// EVM, so eth_call and eth_simulateV1 don't enforce it. We must send a real
+	// transaction and verify the RPC rejects it.
+	for name, testCase := range testCases {
+		t.Run(name, func(t devtest.T) {
+			t.Parallel()
+			sys := presets.NewMinimal(t, presets.WithDeployerOptions(testCase.opt))
+
+			eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+			planWithGasLimit := func(gas uint64) txplan.Option {
+				return txplan.Combine(
+					eoa.Plan(),
+					txplan.WithGasLimit(gas),
+					txplan.WithTo(&common.Address{}),
+				)
+			}
+
+			_, err := txplan.NewPlannedTx(planWithGasLimit(params.MaxTxGas)).Success.Eval(t.Ctx())
+			t.Require().NoError(err, "tx with gas at 2^24 should succeed")
+
+			tx := txplan.NewPlannedTx(planWithGasLimit(params.MaxTxGas + 1))
+			if testCase.expectErr {
+				_, err := tx.Included.Eval(t.Ctx())
+				t.Require().Error(err, "tx with gas above 2^24 should be rejected")
+			} else {
+				_, err := tx.Success.Eval(t.Ctx())
+				t.Require().NoError(err, "tx with gas above 2^24 should succeed")
+			}
+		})
+	}
 }
 
 func TestEIP7939CLZ(gt *testing.T) {
