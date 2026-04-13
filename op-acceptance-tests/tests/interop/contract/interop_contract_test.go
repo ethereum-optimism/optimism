@@ -16,9 +16,8 @@ import (
 
 // TestRegularMessage checks that messages can be sent and relayed via L2ToL2CrossDomainMessenger
 func TestRegularMessage(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	require := sys.T.Require()
 	logger := t.Logger()
 	rng := rand.New(rand.NewSource(1234))
@@ -57,8 +56,8 @@ func TestRegularMessage(gt *testing.T) {
 	require.Equal(1, len(sendMsgReceipt.Logs)) // SentMessage event
 	require.Equal(predeploys.L2toL2CrossDomainMessengerAddr, sendMsgReceipt.Logs[0].Address)
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init message
+	sys.L2A.WaitForBlock()
 
 	// Intent to relay message on chain B
 	txB := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](bob.Plan())

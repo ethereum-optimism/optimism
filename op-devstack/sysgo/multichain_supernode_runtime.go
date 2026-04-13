@@ -100,7 +100,7 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 }
 
 // startSupernodeEL starts an L2 EL node for the supernode runtime,
-// respecting DEVSTACK_L2EL_KIND (defaults to op-geth when unset).
+// respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
 func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
 	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 }
