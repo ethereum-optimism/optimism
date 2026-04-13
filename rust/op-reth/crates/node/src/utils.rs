@@ -61,6 +61,7 @@ pub const fn optimism_payload_attributes(timestamp: u64) -> OpPayloadAttrs {
             suggested_fee_recipient: Address::ZERO,
             withdrawals: Some(vec![]),
             parent_beacon_block_root: Some(B256::ZERO),
+            slot_number: None,
         },
         transactions: None,
         no_tx_pool: None,

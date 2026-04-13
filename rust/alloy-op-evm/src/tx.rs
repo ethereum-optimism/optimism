@@ -136,7 +136,6 @@ impl op_revm::transaction::OpTxTr for OpTx {
     }
 }
 
-
 impl FromRecoveredTx<OpTxEnvelope> for OpTx {
     fn from_recovered_tx(tx: &OpTxEnvelope, sender: Address) -> Self {
         let encoded = tx.encoded_2718();
