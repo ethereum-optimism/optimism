@@ -25,13 +25,11 @@ contract OPContractsManagerContainer_TestInit is Test {
             resolvedDelegateProxy: makeAddr("resolvedDelegateProxy")
         });
 
-        // TODO(#19709): Remove the reference to OptimismPortalImpl when we remove OptimismPortalInterop from src
         implementations = OPContractsManagerContainer.Implementations({
             superchainConfigImpl: makeAddr("superchainConfigImpl"),
             protocolVersionsImpl: makeAddr("protocolVersionsImpl"),
             l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
             optimismPortalImpl: makeAddr("optimismPortalImpl"),
-            optimismPortalInteropImpl: makeAddr("optimismPortalInteropImpl"),
             ethLockboxImpl: makeAddr("ethLockboxImpl"),
             systemConfigImpl: makeAddr("systemConfigImpl"),
             optimismMintableERC20FactoryImpl: makeAddr("optimismMintableERC20FactoryImpl"),

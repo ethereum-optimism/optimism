@@ -8,7 +8,7 @@ import (
 
 // Development feature flag constants.
 var (
-	// OptimismPortalInteropFlag enables the OptimismPortalInterop contract.
+	// OptimismPortalInteropFlag enables interop features in OptimismPortal2.
 	OptimismPortalInteropFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
 	// CannonKonaFlag enables Kona as the default cannon prover.

@@ -40,8 +40,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.6.0
-    string public constant version = "2.6.0";
+    /// @custom:semver 2.7.0
+    string public constant version = "2.7.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -62,9 +62,6 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice The OptimismPortal implementation address.
     address public optimismPortalImpl;
-
-    /// @notice The OptimismPortalInterop implementation address.
-    address public optimismPortalInteropImpl;
 
     /// @notice The ETHLockbox implementation address.
     address public ethLockboxImpl;
@@ -112,7 +109,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     struct Implementations {
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
-        address optimismPortalInteropImpl;
         address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
@@ -189,7 +185,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         // Set implementation addresses from struct
         l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
         optimismPortalImpl = _implementations.optimismPortalImpl;
-        optimismPortalInteropImpl = _implementations.optimismPortalInteropImpl;
         ethLockboxImpl = _implementations.ethLockboxImpl;
         systemConfigImpl = _implementations.systemConfigImpl;
         optimismMintableERC20FactoryImpl = _implementations.optimismMintableERC20FactoryImpl;

@@ -303,7 +303,7 @@ func l2NetworkFromWorldBuilder(t devtest.T, wb *worldBuilder, l1ChainID, l2Chain
 		genesis:    l2Genesis,
 		rollupCfg:  l2RollupCfg,
 		deployment: l2Dep,
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmImpl,
+		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}
