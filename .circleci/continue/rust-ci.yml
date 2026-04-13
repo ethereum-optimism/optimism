@@ -408,10 +408,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
       - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
-      - run:
           name: Check formatting
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
@@ -599,10 +595,6 @@ jobs:
           prefix: <<parameters.directory>>-docs
           features: "all"
       - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
-      - run:
           name: Build documentation
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
@@ -701,10 +693,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-udeps
           profile: "release"
-      - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
       - install-cargo-binstall
       - run:
           name: Install cargo-udeps

@@ -1,6 +1,6 @@
 set positional-arguments
 
-NIGHTLY := "nightly-2026-02-20"
+NIGHTLY := `grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' ../mise.toml | head -1`
 
 # Aliases
 alias t := test
