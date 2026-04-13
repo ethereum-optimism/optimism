@@ -87,7 +87,6 @@ func TestCLIMigrateRequiredFlags(t *testing.T) {
 	})
 }
 
-
 // TestCLIMigrateV2 tests the migrate-v2 CLI command for OPCM v2
 func TestCLIMigrateV2(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelDebug)
