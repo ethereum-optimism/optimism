@@ -56,7 +56,7 @@ contract GenerateNUTBundle is Script {
     L2ContractsManagerTypes.Implementations internal implementations;
 
     /// @notice Implementation configurations.
-    mapping(string => ImplementationConfig) internal implementationConfigs;
+    mapping(string => ImplementationConfig) public implementationConfigs;
 
     /// @notice Array of generated transactions.
     NetworkUpgradeTxns.NetworkUpgradeTxn[] internal txns;
@@ -118,7 +118,7 @@ contract GenerateNUTBundle is Script {
         // Write transactions to artifact with metadata
         NetworkUpgradeTxns.BundleMetadata memory metadata =
             NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
-        NetworkUpgradeTxns.writeArtifact(txns, metadata, upgradeBundlePath());
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, Constants.CURRENT_BUNDLE_PATH);
     }
 
     /// @notice Asserts the output is valid.
@@ -306,11 +306,6 @@ contract GenerateNUTBundle is Script {
     // HELPERS
     // ========================================
 
-    /// @notice Returns the path to the upgrade bundle.
-    function upgradeBundlePath() public pure returns (string memory) {
-        return string.concat("snapshots/upgrades/current-upgrade-bundle.json");
-    }
-
     /// @notice Retrieves all expected implementation addresses for the upgrade.
     /// @dev All addresses are looked up from the implementationConfigs mapping, which contains
     ///      deterministically computed CREATE2 addresses using the hardcoded salt. This ensures
@@ -344,13 +339,11 @@ contract GenerateNUTBundle is Script {
             l2ToL2CrossDomainMessengerImpl: implementationConfigs["L2ToL2CrossDomainMessenger"].implementation,
             superchainETHBridgeImpl: implementationConfigs["SuperchainETHBridge"].implementation,
             ethLiquidityImpl: implementationConfigs["ETHLiquidity"].implementation,
-            optimismSuperchainERC20FactoryImpl: implementationConfigs["OptimismSuperchainERC20Factory"].implementation,
-            optimismSuperchainERC20BeaconImpl: implementationConfigs["OptimismSuperchainERC20Beacon"].implementation,
-            superchainTokenBridgeImpl: implementationConfigs["SuperchainTokenBridge"].implementation,
             nativeAssetLiquidityImpl: implementationConfigs["NativeAssetLiquidity"].implementation,
             liquidityControllerImpl: implementationConfigs["LiquidityController"].implementation,
             feeSplitterImpl: implementationConfigs["FeeSplitter"].implementation,
-            conditionalDeployerImpl: implementationConfigs["ConditionalDeployer"].implementation
+            conditionalDeployerImpl: implementationConfigs["ConditionalDeployer"].implementation,
+            l2DevFeatureFlagsImpl: implementationConfigs["L2DevFeatureFlags"].implementation
         });
     }
 
@@ -359,218 +352,229 @@ contract GenerateNUTBundle is Script {
     /// configuration.
     /// @dev An array of strings is used to add contracts that are not predeploys (StorageSetter) or have
     /// feature-specific variants (e.g. CGT).
+    /// @dev Gas limits are based on actual gas profiling of mainnet fork execution with 1.5x safety margin.
     function _buildImplementationDeploymentConfigs() internal {
+        // Gas profiling: 280,600 gas used → 420,900 recommended → 500K with safety margin
         implementationConfigs["StorageSetter"] = ImplementationConfig({
             name: "StorageSetter",
             artifactPath: "StorageSetter.sol:StorageSetter",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 500_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("StorageSetter.sol:StorageSetter"), SALT)
         });
+        // Gas profiling: 1,708,099 gas used → 2,562,148 recommended → 2.6M with safety margin
         implementationConfigs["L2CrossDomainMessenger"] = ImplementationConfig({
             name: "L2CrossDomainMessenger",
             artifactPath: "L2CrossDomainMessenger.sol:L2CrossDomainMessenger",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 2_600_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2CrossDomainMessenger.sol:L2CrossDomainMessenger"), SALT
             )
         });
+        // Gas profiling: 1,681,024 gas used → 2,521,536 recommended → 2.6M with safety margin
         implementationConfigs["GasPriceOracle"] = ImplementationConfig({
             name: "GasPriceOracle",
             artifactPath: "GasPriceOracle.sol:GasPriceOracle",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 2_600_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("GasPriceOracle.sol:GasPriceOracle"), SALT
             )
         });
+        // Gas profiling: 2,358,092 gas used → 3,537,138 recommended → 3.6M with safety margin
         implementationConfigs["L2StandardBridge"] = ImplementationConfig({
             name: "L2StandardBridge",
             artifactPath: "L2StandardBridge.sol:L2StandardBridge",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 3_600_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2StandardBridge.sol:L2StandardBridge"), SALT
             )
         });
+        // Gas profiling: 841,152 gas used → 1,261,728 recommended → 1.3M with safety margin
         implementationConfigs["SequencerFeeVault"] = ImplementationConfig({
             name: "SequencerFeeVault",
             artifactPath: "SequencerFeeVault.sol:SequencerFeeVault",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 1_300_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("SequencerFeeVault.sol:SequencerFeeVault"), SALT
             )
         });
+        // Gas profiling: 2,347,504 gas used → 3,521,256 recommended → 3.6M with safety margin
         implementationConfigs["OptimismMintableERC20Factory"] = ImplementationConfig({
             name: "OptimismMintableERC20Factory",
             artifactPath: "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 3_600_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory"), SALT
             )
         });
+        // Gas profiling: 1,242,108 gas used → 1,863,162 recommended → 1.9M with safety margin
         implementationConfigs["L2ERC721Bridge"] = ImplementationConfig({
             name: "L2ERC721Bridge",
             artifactPath: "L2ERC721Bridge.sol:L2ERC721Bridge",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 1_900_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ERC721Bridge.sol:L2ERC721Bridge"), SALT
             )
         });
+        // Gas profiling: 750K with safety margin
         implementationConfigs["L1Block"] = ImplementationConfig({
             name: "L1Block",
             artifactPath: "L1Block.sol:L1Block",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 750_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1Block.sol:L1Block"), SALT)
         });
+        // Gas profiling: 710,257 gas used → 1,065,385 recommended → 1.1M with safety margin
         implementationConfigs["L1BlockCGT"] = ImplementationConfig({
             name: "L1BlockCGT",
             artifactPath: "L1BlockCGT.sol:L1BlockCGT",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 1_100_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1BlockCGT.sol:L1BlockCGT"), SALT)
         });
+        // Gas profiling: 400,911 gas used → 601,366 recommended → 650K with safety margin
         implementationConfigs["L2ToL1MessagePasser"] = ImplementationConfig({
             name: "L2ToL1MessagePasser",
             artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 650_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ToL1MessagePasser.sol:L2ToL1MessagePasser"), SALT
             )
         });
+        // Gas profiling: 484,560 gas used → 726,840 recommended → 750K with safety margin
         implementationConfigs["L2ToL1MessagePasserCGT"] = ImplementationConfig({
             name: "L2ToL1MessagePasserCGT",
             artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 750_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT"), SALT
             )
         });
 
+        // Gas profiling: 3,248,395 gas used → 4,872,592 recommended → 4.9M with safety margin
         implementationConfigs["OptimismMintableERC721Factory"] = ImplementationConfig({
             name: "OptimismMintableERC721Factory",
             artifactPath: "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 4_900_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory"), SALT
             )
         });
+        // Gas profiling: 1,538,265 gas used → 2,307,397 recommended → 2.4M with safety margin
         implementationConfigs["L2ProxyAdmin"] = ImplementationConfig({
             name: "L2ProxyAdmin",
             artifactPath: "L2ProxyAdmin.sol:L2ProxyAdmin",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 2_400_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L2ProxyAdmin.sol:L2ProxyAdmin"), SALT)
         });
+        // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
         implementationConfigs["BaseFeeVault"] = ImplementationConfig({
             name: "BaseFeeVault",
             artifactPath: "BaseFeeVault.sol:BaseFeeVault",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 1_300_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("BaseFeeVault.sol:BaseFeeVault"), SALT)
         });
+        // Gas profiling: 14,439 gas used → 21,658 recommended → 50K with safety margin
         implementationConfigs["L1FeeVault"] = ImplementationConfig({
             name: "L1FeeVault",
             artifactPath: "L1FeeVault.sol:L1FeeVault",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 50_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1FeeVault.sol:L1FeeVault"), SALT)
         });
+        // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
         implementationConfigs["OperatorFeeVault"] = ImplementationConfig({
             name: "OperatorFeeVault",
             artifactPath: "OperatorFeeVault.sol:OperatorFeeVault",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 1_300_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("OperatorFeeVault.sol:OperatorFeeVault"), SALT
             )
         });
+        // Gas profiling: 464,947 gas used → 697,420 recommended → 700K with safety margin
         implementationConfigs["SchemaRegistry"] = ImplementationConfig({
             name: "SchemaRegistry",
             artifactPath: "SchemaRegistry.sol:SchemaRegistry",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 700_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("SchemaRegistry.sol:SchemaRegistry"), SALT
             )
         });
+        // Gas profiling: 3,820,943 gas used → 5,731,414 recommended → 5.8M with safety margin
         implementationConfigs["EAS"] = ImplementationConfig({
             name: "EAS",
             artifactPath: "EAS.sol:EAS",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 5_800_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("EAS.sol:EAS"), SALT)
         });
+        // Gas profiling: 385,975 gas used → 578,962 recommended → 600K with safety margin
         implementationConfigs["CrossL2Inbox"] = ImplementationConfig({
             name: "CrossL2Inbox",
             artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 600_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("CrossL2Inbox.sol:CrossL2Inbox"), SALT)
         });
+        // Gas profiling: 965,734 gas used → 1,448,601 recommended → 1.5M with safety margin
         implementationConfigs["L2ToL2CrossDomainMessenger"] = ImplementationConfig({
             name: "L2ToL2CrossDomainMessenger",
             artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 1_500_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger"), SALT
             )
         });
+        // Gas profiling: 441,198 gas used → 661,797 recommended → 700K with safety margin
         implementationConfigs["SuperchainETHBridge"] = ImplementationConfig({
             name: "SuperchainETHBridge",
             artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 700_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("SuperchainETHBridge.sol:SuperchainETHBridge"), SALT
             )
         });
+        // Gas profiling: 230,857 gas used → 346,285 recommended → 400K with safety margin
         implementationConfigs["ETHLiquidity"] = ImplementationConfig({
             name: "ETHLiquidity",
             artifactPath: "ETHLiquidity.sol:ETHLiquidity",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 400_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("ETHLiquidity.sol:ETHLiquidity"), SALT)
         });
-        implementationConfigs["OptimismSuperchainERC20Factory"] = ImplementationConfig({
-            name: "OptimismSuperchainERC20Factory",
-            artifactPath: "OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory"), SALT
-            )
-        });
-        implementationConfigs["OptimismSuperchainERC20Beacon"] = ImplementationConfig({
-            name: "OptimismSuperchainERC20Beacon",
-            artifactPath: "OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon"), SALT
-            )
-        });
-        implementationConfigs["SuperchainTokenBridge"] = ImplementationConfig({
-            name: "SuperchainTokenBridge",
-            artifactPath: "SuperchainTokenBridge.sol:SuperchainTokenBridge",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("SuperchainTokenBridge.sol:SuperchainTokenBridge"), SALT
-            )
-        });
+        // Gas profiling: 215,592 gas used → 323,388 recommended → 400K with safety margin
         implementationConfigs["NativeAssetLiquidity"] = ImplementationConfig({
             name: "NativeAssetLiquidity",
             artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 400_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("NativeAssetLiquidity.sol:NativeAssetLiquidity"), SALT
             )
         });
+        // Gas profiling: 914,648 gas used → 1,371,972 recommended → 1.4M with safety margin
         implementationConfigs["LiquidityController"] = ImplementationConfig({
             name: "LiquidityController",
             artifactPath: "LiquidityController.sol:LiquidityController",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 1_400_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("LiquidityController.sol:LiquidityController"), SALT
             )
         });
+        // Gas profiling: 1,077,380 gas used → 1,616,070 recommended → 1.7M with safety margin
         implementationConfigs["FeeSplitter"] = ImplementationConfig({
             name: "FeeSplitter",
             artifactPath: "FeeSplitter.sol:FeeSplitter",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 1_700_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("FeeSplitter.sol:FeeSplitter"), SALT)
         });
+        // Gas profiling: 339,403 gas used → 509,104 recommended → 600K with safety margin
         implementationConfigs["ConditionalDeployer"] = ImplementationConfig({
             name: "ConditionalDeployer",
             artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
-            deploymentGasLimit: UpgradeUtils.DEFAULT_DEPLOYMENT_GAS,
+            deploymentGasLimit: 600_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
+            )
+        });
+        implementationConfigs["L2DevFeatureFlags"] = ImplementationConfig({
+            name: "L2DevFeatureFlags",
+            artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
+            deploymentGasLimit: 300_000,
+            implementation: UpgradeUtils.computeCreate2Address(
+                DeployUtils.getCode("L2DevFeatureFlags.sol:L2DevFeatureFlags"), SALT
             )
         });
     }

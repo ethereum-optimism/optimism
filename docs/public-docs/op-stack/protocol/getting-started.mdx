@@ -1,0 +1,66 @@
+---
+title: Getting started with the OP Stack
+description: Learn the basics of OP Stack development.
+---
+
+**The OP Stack is the standardized, shared, and open-source development stack that powers Optimism, maintained by the Optimism Collective.**
+
+<Info>
+  Stay up to date on the OP Stack by reading the [Optimism Blog](https://www.optimism.io/blog)
+</Info>
+
+The OP Stack consists of the many different software components managed and maintained by the Optimism Collective that, together, form the backbone of Optimism.
+The OP Stack is built as a public good for the Ethereum and Optimism ecosystems.
+To understand how to operate an OP Stack chain, including roll-up and chain deployment basics, visit [Chain Operator guide](/). Check out these guides to get an overview of everything you need to know to properly support OP mainnet within your [exchange](/app-developers/quickstarts/starter-kit) and [wallet](/app-developers/quickstarts/starter-kit).
+
+## The OP Stack powers Optimism
+
+The OP Stack is the set of software that powers Optimism — currently in the form of the software behind OP Mainnet and its governance.
+
+It has become increasingly important for Optimism to easily support the secure creation of new chains that can interoperate within the OP Stack ecosystem.
+As a result, the OP Stack is primarily focused around the creation of a shared, high-quality, and fully open-source system for creating new L2 blockchains.
+By coordinating on shared standards, the Optimism Collective can avoid rebuilding the same software in silos repeatedly.
+
+Although the OP Stack today significantly simplifies the process of creating L2 blockchains, it's important to note that this does not fundamentally define what the OP Stack **is**.
+The OP Stack is *all* of the software that powers Optimism.
+As Optimism evolves, so will the OP Stack.
+
+**The OP Stack can be thought of as software components that either help define a specific layer of the Optimism ecosystem or fill a role as a module within an existing layer.**
+Although the current heart of the OP Stack is infrastructure for running L2 blockchains, the OP Stack theoretically extends to layers on top of the underlying blockchain including tools like block explorers, message passing mechanisms, governance systems, and more.
+
+Layers are generally more tightly defined towards the bottom of the stack (like the Data Availability Layer) but become more loosely defined towards the top of the stack (like the Governance Layer).
+
+## The OP Stack today
+
+Optimism Bedrock is the current iteration of the OP Stack.
+The Bedrock release provides the tools for launching a production-quality Optimistic Rollup blockchain.
+At this point in time, the APIs for the different layers of the OP Stack are still tightly coupled to this Rollup configuration of the stack.
+
+The OP Stack of today was built to support [the OP Stack ecosystem](/op-stack/introduction/op-stack), a proposed network of L2s that share security, communication layers, and a common development stack (the OP Stack itself).
+The Bedrock release of the OP Stack makes it easy to spin up an L2 that will be compatible with the OP Stack interop cluster when it launches.
+If you'd like to launch an interop ready L2, check out our guide for running a chain based on the Bedrock release of the OP Stack.
+
+It is possible to modify components of the OP Stack to build novel L2 systems.
+If you're interested in experimenting with the OP Stack, check out [the OP Stack Hacks developers repo](https://github.com/ethereum-optimism/developers/tree/main/docs).
+Please note that, as of the Bedrock release, the OP Stack is *not* designed to support these modifications and you will very much be *hacking* on the codebase.
+As a result, **you should, for the moment, expect limited (if any) developer support for OP Stack Hacks.**
+OP Stack Hacks will likely make your chain incompatible with standard OP Stack chains.
+Have fun, but at your own risk and **stick to the Bedrock release if you're looking to deploy a standard OP Stack chain!**
+
+## The OP Stack tomorrow
+
+The OP Stack is an evolving concept.
+As Optimism grows, so will the OP Stack.
+Today, the Bedrock Release of the OP Stack simplifies the process of deploying new L2 Rollups.
+As work on the stack continues, it should become easier to plug in and configure different modules.
+As the [OP Stack](/op-stack/introduction/op-stack) continues to evolve, it will include the message-passing infrastructure that allows different chains to interoperate seamlessly.
+At the end of the day, the OP Stack becomes what Optimism needs.
+
+## Dive deeper into the OP Stack
+
+Ready to dive into the world of the OP Stack?
+
+*   If you're interested in understanding the OP Stack in more depth, start with the [Design Principles](/op-stack/protocol/design-principles).
+*   If you're excited to deploy on the OP Stack, launch your first [standard OP Stack L2](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup) or dive directly into the OP Stack codebase to learn more.
+
+The OP Stack is the next frontier for Ethereum. You're already here, so what are you waiting for?

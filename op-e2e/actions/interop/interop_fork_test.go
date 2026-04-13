@@ -219,6 +219,31 @@ func TestInteropUpgrade(gt *testing.T) {
 	assertProgramOutputMatchesDerivationForBlockTimestamp(gt, system, system.Actors.ChainA.Sequencer.L2Safe().Time)
 }
 
+func TestInteropGenesisActivation(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	system := dsl.NewInteropDSL(t) // default offset 0 = genesis activation
+
+	interopProxies := []common.Address{
+		predeploys.CrossL2InboxAddr,
+		predeploys.L2toL2CrossDomainMessengerAddr,
+		predeploys.SuperchainETHBridgeAddr,
+		predeploys.ETHLiquidityAddr,
+	}
+
+	for _, c := range []*dsl.Chain{system.Actors.ChainA, system.Actors.ChainB} {
+		genesis := new(big.Int)
+		for _, addr := range interopProxies {
+			code, err := c.SequencerEngine.EthClient().CodeAt(t.Ctx(), addr, genesis)
+			require.NoError(gt, err)
+			require.NotEmpty(gt, code, "contract at %s should have code at genesis", addr)
+		}
+
+		bal, err := c.SequencerEngine.EthClient().BalanceAt(t.Ctx(), predeploys.ETHLiquidityAddr, genesis)
+		require.NoError(gt, err)
+		require.Equal(gt, derive.InteropETHLiquidityFundingAmount(), bal, "ETHLiquidity balance should match funding amount")
+	}
+}
+
 func VerifyContractsDeployedCorrectly(t helpers.Testing, chain *dsl.Chain, activationBlockTxs []*types.Transaction, activationBlockID eth.BlockID) {
 	require.Len(t, activationBlockTxs, 5) // 4 upgrade txs + 1 system deposit tx
 	upgradeTransactions := activationBlockTxs[1:]

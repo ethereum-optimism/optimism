@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-exex"
-version = "1.11.1"
+version = "1.11.3"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -35,7 +35,7 @@ tokio.workspace = true
 
 [dev-dependencies]
 futures.workspace = true
-reth-db = { workspace = true, features = ["op", "test-utils"] }
+reth-db = { workspace = true, features = ["test-utils"] }
 reth-node-builder.workspace = true
 reth-optimism-node.workspace = true
 reth-optimism-chainspec.workspace = true

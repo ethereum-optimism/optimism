@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -108,7 +108,7 @@ func (v *ExecTrigger) EncodeInput() ([]byte, error) {
 func (v *ExecTrigger) AccessList() (types.AccessList, error) {
 	access := v.Msg.Access()
 	accessList := types.AccessList{{
-		Address:     constants.CrossL2Inbox,
+		Address:     predeploys.CrossL2InboxAddr,
 		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{access}),
 	}}
 	return accessList, nil

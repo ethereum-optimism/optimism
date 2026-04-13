@@ -1,0 +1,173 @@
+---
+title: Upgrade 18 - Cannon + Kona and Custom Gas Token v2
+description: Learn how to prepare for Upgrade 18.
+---
+
+Upgrade 18 is a proposed network upgrade for OP Stack chains, which **introduces support for kona-proof as an alternate fault proof program**, introduces **Custom Gas Token v2 (CGT v2)** for new OP Stack chains that want to use a non-ETH native fee currency, and a creator pattern dispute game refactor.
+
+<Info>
+  Upgrade 18 is purely a smart contract upgrade. There are no hardforks activating during this upgrade.
+</Info>
+
+## What's included in Upgrade 18
+
+Upgrade 18 introduces the following changes:
+* **Cannon + Kona game type support:** adds a new fault dispute game type `CANNON_KONA` (8) alongside `CANNON` (0) increasing the redundancy and diversity in the fault proof layer. This is a Rust-based fault proof implementation where `kona-client` (`kona-node` + `op-reth`) can operate alongside `op-program` (`op-node` + `op-geth`). Both game types use Cannon as the FPVM and the same dispute game implementation (`FaultDisputeGame.sol`). This upgrade does not change the respected game type.
+* **Custom Gas Token v2 (CGT v2):** introduces an `isCustomGasToken()` flag and two new predeploys (`NativeAssetLiquidity` and `LiquidityController`) to support non-ETH native fee currencies configured at genesis (available in `op-contracts/v6.0.0`).
+* **Creator Pattern Dispute Game Refactor:** simplifies the chain deployment by introducing clone-with-immutable-arguments (CWIA) for dispute game contracts. This change removes the need for chain-specific deployments, reducing operational overhead while preserving safety and upgradeability across chains, and reducing gas costs to ensure all operations stay below the EIP-7825 transaction gas limit cap.
+
+## Breaking Changes
+
+### `OPCM`: new `OpChainConfig` parameters for the Cannon + Kona game type
+
+Upgrade 18 updates the upgrade parameters so `OpChainConfig` include:
+* `cannonKonaPrestate` (must be a valid `cannon64-kona` prestate hash) and
+* `cannonPrestate` (must be a valid `cannon64` prestate hash)
+
+Both prestates must be canonical hashes from the Superchain Registry `standard-prestates.toml` and must embed an up-to-date chain config for your chain.
+
+After upgrade, `DisputeGameFactory` will have implementations set for:
+
+* `CANNON` (0)
+* `PERMISSIONED` (1)
+* `CANNON_KONA` (8)
+
+Games of any type can be created after upgrade, but withdrawals continue to use the respected game type.
+
+<Info>
+  For chains running only permissioned proofs: cannon+kona will not be deployed and `cannonKonaPrestate` is ignored.
+</Info>
+
+### Custom Gas Token v2: ETH value is rejected when enabled
+
+When CGTv2 is enabled at genesis, `isCustomGasToken()` is set on L1 and L2:
+
+* **On L1** (`SystemConfig`): `OptimismPortal`, `L1CrossDomainMessenger`, and `L1StandardBridge` reject transactions containing ETH value (`msg.value`).
+* **On L2** (`L1Block`): ETH-related operations are blocked in `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`, and fee vaults.
+
+<Info>
+  ETH bridging routes through L1-WETH as an ERC-20 wrapper when CGT is enabled.
+</Info>
+
+<Warning>
+  There is currently no migration path from legacy CGT to CGT v2.
+</Warning>
+
+
+## For chain operators
+
+Update the following components:
+
+| Component       | Version | Notes |
+| -------------- | ------- | ----- |
+| `op-challenger` | [`op-challenger/v1.9.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.0) | Must be updated **prior** to the upgrade for permissionless fault proof chains. |
+| `op-dispute-mon` | [`op-dispute-mon/v1.5.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.5.0) | Must be updated **prior** to the upgrade for permissionless fault proof chains. |
+| `op-contracts` | `op-contracts/v6.0.0` | [op-contracts/v6.0.0-rc.1](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv6.0.0-rc.1) will be finalized if it gets governance approval. |
+
+
+### For permissionless fault proof enabled chains
+
+Chains running permissionless fault proofs must ensure challengers are Kona-ready and that both `CANNON` and `CANNON_KONA` are configured correctly.
+
+<Info>
+  Optimism will complete the onchain cannon+kona deployment for chains managed by the Optimism Security Council.
+  However, off-chain components must still be configured by operators to support cannon-kona games.
+  If you are a permissionless FP enabled chain not included in the prepared set, you must perform all steps below yourself.
+</Info>
+
+<Steps>
+  <Step title="Verify the new op-program absolute prestate">
+
+  The absolute prestate is generated with the [op-program/v1.9.0-rc.1](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.9.0-rc.1). You can use this new absolute prestate `0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e` for the following chains:
+
+  *   Mainnet and Sepolia: `OP`, `Base`, `Ink`, `Soneium`, and `Unichain`
+
+  You can verify this absolute prestate by running the following command in the root of the monorepo on the `op-program/v1.9.0-rc.1` tag:
+
+  ```shell
+  make reproducible-prestate
+  ```
+
+  This will output the calculated prestates, the tail end of the output should look like this:
+
+  ```shell
+  -------------------- Production Prestates --------------------
+
+  Cannon64 Absolute prestate hash: 
+  0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e
+  ...
+  ```
+
+  *   The "Cannon64" hash is the 64-bit prestate.
+
+  Verify that your target prestate was calculated as expected and matches the corresponding entry in
+  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+  </Step>
+
+  <Step title="Verify the new kona-client absolute prestate">
+   The absolute prestate is generated with the [kona-client/v1.2.7](https://github.com/ethereum-optimism/kona/tree/kona-client/v1.2.7) (Note that Kona is currently being moved into the [ethereum-optimism/optimism repo](https://github.com/ethereum-optimism/optimism), but for building this release use the [op-rs/kona repo](https://github.com/op-rs/kona)). You can use this new absolute prestate `0x0323914d3050e80c3d09da528be54794fde60cd26849cd3410dde0da7cd7d4fa` for the following chains:
+
+  *   Mainnet and Sepolia: `OP`, `Base`, `Ink`, `Soneium`, and `Unichain`
+
+  You can verify this absolute prestate by running the following commands in the root of the kona monorepo on the `kona-client/v1.2.7` tag:
+
+  ```shell
+  cd docker/fpvm-prestates
+  just cannon kona-client kona-client/v1.2.7 $(cat ../../.config/cannon_tag)
+  jq -r .pre ../../prestate-artifacts-cannon/prestate-proof.json
+  ```
+
+  Verify that your target prestate was calculated as expected and matches the corresponding entry in
+  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+  </Step>
+
+  <Step title="Upload your new preimage files">
+    During the previous step, you also generated the preimage of the absolute prestate, which is the op-program serialized into a binary file. You'll find the new cannon file at `optimism/op-program/bin/prestate-mt64.bin.gz`. Rename that file to have the absolute prestate hash as the filename so it looks like `0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e.bin.gz`.
+
+    You'll find the new kona cannon file at `prestate-artifacts-cannon/prestate.bin.gz`. Rename that file to have the absolute prestate hash as the filename so it looks like `0x0323914d3050e80c3d09da528be54794fde60cd26849cd3410dde0da7cd7d4fa.bin.gz`.
+
+    Upload those file to where you're storing your other absolute preimage files. This should be the location where you're pointing your `--prestates-url` at. The `op-challenger` will grab this file and use it when it needs to challenge games.
+  </Step>
+
+  <Step title="Configure op-challenger for cannon-kona">
+    Ensure `op-challenger` is updated and configured to support Kona games. 
+    Include `cannon-kona` in trace types:
+
+      ```bash
+      OP_CHALLENGER_TRACE_TYPE="cannon,cannon-kona,permissioned"
+      # or
+      --trace-type=cannon,cannon-kona,permissioned
+      ```
+
+    Upload new preimage files and ensure they're available for the challenger.
+    If both preimage files are uploaded at the same location:
+
+    ```bash
+    --prestates-url=<PRESTATES_URL>
+    ```
+
+    If stored separately:
+
+    ```bash
+    --cannon-prestates-url=<CANNON_PRESTATES_URL>
+    --cannon-kona-prestates-url=<CANNON_KONA_PRESTATES_URL>
+    ```
+
+    If not using the standard OP Labs `op-challenger` Docker image, set the `kona-host` binary path:
+
+    ```bash
+    OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+    # or
+    --cannon-kona-server=/path/to/kona-host
+    ```
+
+    Build `kona-host` from the same release as the configured cannon-kona prestate.
+  </Step>
+</Steps>
+
+## Execute the L1 Contract Upgrade
+
+Once your `op-challenger` is ready (and Kona-ready if permissionless), you can execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contract Manager at the address listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
+
+Please simulate and validate the expected output prior to executing the transaction.
+

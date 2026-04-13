@@ -1,18 +1,18 @@
 use crate::primitives::{CustomTransaction, TxPayment};
 use alloy_eips::{Typed2718, eip2930::AccessList};
-use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
+use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, TransactionEnvMut};
 use alloy_op_evm::block::OpTxEnv;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use op_alloy_consensus::OpTxEnvelope;
-use op_revm::OpTransaction;
-use reth_ethereum::evm::{primitives::TransactionEnv, revm::context::TxEnv};
+use reth_optimism_evm::OpTx;
+use revm::context::TxEnv;
 
 /// An Optimism transaction extended by [`PaymentTxEnv`] that can be fed to [`Evm`].
 ///
 /// [`Evm`]: alloy_evm::Evm
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, derive_more::From)]
 pub enum CustomTxEnv {
-    Op(OpTransaction<TxEnv>),
+    Op(reth_optimism_evm::OpTx),
     Payment(PaymentTxEnv),
 }
 
@@ -210,13 +210,9 @@ impl revm::context::Transaction for PaymentTxEnv {
     }
 }
 
-impl TransactionEnv for PaymentTxEnv {
+impl TransactionEnvMut for PaymentTxEnv {
     fn set_gas_limit(&mut self, gas_limit: u64) {
         self.0.set_gas_limit(gas_limit);
-    }
-
-    fn nonce(&self) -> u64 {
-        self.0.nonce()
     }
 
     fn set_nonce(&mut self, nonce: u64) {
@@ -228,18 +224,11 @@ impl TransactionEnv for PaymentTxEnv {
     }
 }
 
-impl TransactionEnv for CustomTxEnv {
+impl TransactionEnvMut for CustomTxEnv {
     fn set_gas_limit(&mut self, gas_limit: u64) {
         match self {
             Self::Op(tx) => tx.set_gas_limit(gas_limit),
             Self::Payment(tx) => tx.set_gas_limit(gas_limit),
-        }
-    }
-
-    fn nonce(&self) -> u64 {
-        match self {
-            Self::Op(tx) => tx.nonce(),
-            Self::Payment(tx) => tx.nonce(),
         }
     }
 
@@ -292,13 +281,13 @@ impl FromTxWithEncoded<TxPayment> for TxEnv {
 
 impl FromRecoveredTx<OpTxEnvelope> for CustomTxEnv {
     fn from_recovered_tx(tx: &OpTxEnvelope, sender: Address) -> Self {
-        Self::Op(OpTransaction::from_recovered_tx(tx, sender))
+        Self::Op(OpTx::from_recovered_tx(tx, sender))
     }
 }
 
 impl FromTxWithEncoded<OpTxEnvelope> for CustomTxEnv {
     fn from_encoded_tx(tx: &OpTxEnvelope, sender: Address, encoded: Bytes) -> Self {
-        Self::Op(OpTransaction::from_encoded_tx(tx, sender, encoded))
+        Self::Op(OpTx::from_encoded_tx(tx, sender, encoded))
     }
 }
 

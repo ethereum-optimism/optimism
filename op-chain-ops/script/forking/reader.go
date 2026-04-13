@@ -1,6 +1,8 @@
 package forking
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -13,6 +15,11 @@ type forkStateReader struct {
 }
 
 var _ state.Reader = (*forkStateReader)(nil)
+
+func (f *forkStateReader) Has(addr common.Address, codeHash common.Hash) bool {
+	_, err := f.trie.ContractCode(addr, codeHash)
+	return err != nil
+}
 
 func (f *forkStateReader) Account(addr common.Address) (*types.StateAccount, error) {
 	acc, err := f.trie.GetAccount(addr)
@@ -31,12 +38,20 @@ func (f *forkStateReader) Storage(addr common.Address, slot common.Hash) (common
 	return common.Hash(v), nil
 }
 
-func (f *forkStateReader) Code(addr common.Address, codeHash common.Hash) ([]byte, error) {
-	return f.trie.ContractCode(addr, codeHash)
+func (f *forkStateReader) Code(addr common.Address, codeHash common.Hash) []byte {
+	result, err := f.trie.ContractCode(addr, codeHash)
+	if err != nil {
+		panic(fmt.Errorf("get contract code for address %q and codeHash %q: %w", addr, codeHash, err))
+	}
+	return result
 }
 
-func (f *forkStateReader) CodeSize(addr common.Address, codeHash common.Hash) (int, error) {
-	return f.trie.ContractCodeSize(addr, codeHash)
+func (f *forkStateReader) CodeSize(addr common.Address, codeHash common.Hash) int {
+	result, err := f.trie.ContractCodeSize(addr, codeHash)
+	if err != nil {
+		panic(fmt.Errorf("get contract code size for address %q and codeHash %q: %w", addr, codeHash, err))
+	}
+	return result
 }
 
 func (f *forkStateReader) Copy() state.Reader {

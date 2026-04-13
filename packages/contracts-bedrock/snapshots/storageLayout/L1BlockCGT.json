@@ -96,5 +96,12 @@
     "offset": 12,
     "slot": "8",
     "type": "uint16"
+  },
+  {
+    "bytes": "32",
+    "label": "isFeatureEnabled",
+    "offset": 0,
+    "slot": "9",
+    "type": "mapping(bytes32 => bool)"
   }
 ]

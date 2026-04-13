@@ -57,7 +57,7 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
 
     function init(Claim _rootClaim, Claim _absolutePrestate, Types.SuperRootProof memory _super) public {
         // Set the time to a realistic date.
-        if (!isForkTest()) {
+        if (!isL1ForkTest()) {
             vm.warp(1690906994);
         }
 

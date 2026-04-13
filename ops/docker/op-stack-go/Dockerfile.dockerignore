@@ -3,14 +3,13 @@
 *
 
 !/cannon
-!/devnet-sdk
 !/op-core
 !/op-batcher
 !/op-chain-ops
 !/op-deployer
 !/op-dripper
 !/op-challenger
-!/packages/contracts-bedrock/snapshots
+!/packages/contracts-bedrock
 !/op-dispute-mon
 !/op-conductor
 !/op-node

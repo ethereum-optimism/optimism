@@ -1,0 +1,59 @@
+---
+title: Building apps on OP Stack chains
+description: Learn the basics of building apps on OP Stack chains.
+---
+
+This guide explains the basics of OP Stack development.
+OP Stack chains are [EVM equivalent](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306), meaning they run a slightly modified version of the same `geth` you run on mainnet.
+Therefore, the differences between OP Stack development and Ethereum development are minor.
+But a few differences [do exist](/op-stack/protocol/differences).
+
+## OP Stack chains endpoint URLs
+
+To access any Ethereum type network you need an endpoint. [These providers](/app-developers/reference/rpc-providers) support our networks.
+
+### Network choice
+
+For development purposes we recommend you use either a local development network or [OP Sepolia](https://sepolia-optimism.etherscan.io).
+That way you don't need to spend real money.
+If you need ETH on OP Sepolia for testing purposes, [you can use this faucet](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs).
+
+## Interacting with contracts on OP Stack chains
+
+We have Hardhat's Greeter contract on OP Sepolia at address [0x9d334aFBa83865E67a9219830ADA57aaA9406681](https://testnet-explorer.optimism.io/address/0x9d334aFBa83865E67a9219830ADA57aaA9406681#code).
+You can verify your development stack configuration by interacting with it.
+
+## Development stacks
+
+As you can see in the different development stacks below, the way you deploy contracts and interact with them on OP Stack chains is almost identical to the way you do it with L1 Ethereum.
+The most visible difference is that you have to specify a different endpoint (of course).
+For more detail, see the guide on [Differences between Ethereum and OP Stack Chains](/op-stack/protocol/differences).
+
+*   [Foundry](https://getfoundry.sh/)
+*   [Hardhat](https://hardhat.org/)
+*   [Apeworx](https://www.apeworx.io/)
+*   [Brownie](https://eth-brownie.readthedocs.io/en/stable/install.html)
+*   [Remix](https://remix.ethereum.org)
+*   [Waffle](https://getwaffle.io/)
+
+## Best practices
+
+### Use provided EVM
+
+It is best to start development with the EVM provided by the development stack.
+Not only is it faster, but such EVMs often have extra features, such as the [ability to log messages from Solidity](https://hardhat.org/tutorial/debugging-with-hardhat-network.html) or a [graphical user interface](https://trufflesuite.com/ganache/).
+
+### Debug before deploying
+
+After you are done with that development, debug your decentralized application locally and then on a [Sepolia test network](/op-mainnet/network-information/connecting-to-op).
+This lets you debug parts that are OP Stack chains specific such as calls to bridges to transfer ETH or tokens between layers.
+
+Only when you have a version that works well on a test network should you deploy to the production network, where every transaction has a cost.
+
+### Contract source verification
+
+You don't have to upload your source code to [block explorers](/app-developers/tools/infrastructure/block-explorers), but it is a good idea.
+On the test network, it lets you issue queries and transactions from the explorer's user interface.
+On the production network, it lets users know exactly what your contract does, which is conducive to trust.
+
+Just remember, if you use [the Etherscan API](https://explorer.optimism.io/apis?utm_source=op-docs&utm_medium=docs), you need one API key for OP Stack chains and a separate one for OP Sepolia.

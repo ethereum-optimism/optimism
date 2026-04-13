@@ -381,6 +381,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 			}
 		}
 
+		isIsthmus := cfg.IsIsthmus(blockTimestamp)
 		for i, txBytes := range batch.GetBlockTransactions(i) {
 			if len(txBytes) == 0 {
 				log.Warn("transaction data must not be empty, but found empty tx", "tx_index", i)
@@ -388,6 +389,10 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 			}
 			if txBytes[0] == types.DepositTxType {
 				log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", i)
+				return BatchDrop
+			}
+			if !isIsthmus && txBytes[0] == types.SetCodeTxType {
+				log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", i)
 				return BatchDrop
 			}
 		}

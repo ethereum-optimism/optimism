@@ -140,7 +140,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 
 // sendTx reimplements creating & sending transactions because we need to do the final send as async in
 // the action tests while we do it synchronously in the real system.
-func (p *L2Proposer) sendTx(t Testing, data []byte) {
+func (p *L2Proposer) sendTx(t Testing, data []byte, value *big.Int) {
 	gasTipCap := big.NewInt(2 * params.GWei)
 	pendingHeader, err := p.l1.HeaderByNumber(t.Ctx(), big.NewInt(-1))
 	require.NoError(t, err, "need l1 pending header for gas price estimation")
@@ -155,6 +155,7 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 		To:        p.disputeGameFactoryAddr,
 		GasFeeCap: gasFeeCap,
 		GasTipCap: gasTipCap,
+		Value:     value,
 		Data:      data,
 	})
 	require.NoError(t, err)
@@ -163,6 +164,7 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 		Nonce:     nonce,
 		To:        p.disputeGameFactoryAddr,
 		Data:      data,
+		Value:     value,
 		GasFeeCap: gasFeeCap,
 		GasTipCap: gasTipCap,
 		Gas:       gasLimit,
@@ -228,11 +230,10 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 
 	tx, err := p.driver.ProposeL2OutputDGFTxCandidate(context.Background(), output)
 	require.NoError(t, err)
-	txData := tx.TxData
 
 	// Note: Use L1 instead of the output submitter's transaction manager because
 	// this is non-blocking while the txmgr is blocking & deadlocks the tests
-	p.sendTx(t, txData)
+	p.sendTx(t, tx.TxData, tx.Value)
 }
 
 func (p *L2Proposer) LastProposalTx() common.Hash {

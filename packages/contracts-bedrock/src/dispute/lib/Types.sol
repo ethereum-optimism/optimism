@@ -49,7 +49,7 @@ struct Proposal {
 /// @title GameTypes
 /// @notice A library that defines the IDs of games that can be played.
 ///         When adding a new game type, the hardcoded game type lists in OPContractsManagerMigrator
-///         and OPContractsManagerV2's _assertValidFullConfig must also be updated.
+///         and OPContractsManagerUtils must also be updated.
 library GameTypes {
     /// @dev A dispute game type the uses the cannon vm.
     GameType internal constant CANNON = GameType.wrap(0);
@@ -92,7 +92,14 @@ library GameTypes {
     /// @notice A dispute game type that uses RISC Zero's Kailua
     GameType internal constant KAILUA = GameType.wrap(1337);
 
-    GameType internal constant OPTIMISTIC_ZK_GAME_TYPE = GameType.wrap(10);
+    GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
+
+    /// @notice Returns true if the game type uses super roots.
+    function isSuperGame(GameType _gameType) internal pure returns (bool) {
+        uint32 raw = _gameType.raw();
+        return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED_CANNON.raw() || raw == SUPER_ASTERISC_KONA.raw()
+            || raw == SUPER_CANNON_KONA.raw();
+    }
 }
 
 /// @title VMStatuses
@@ -128,19 +135,4 @@ library LocalPreimageKey {
 
     /// @notice The identifier for the chain ID.
     uint256 internal constant CHAIN_ID = 0x05;
-}
-
-////////////////////////////////////////////////////////////////
-//               `OptimisticZkGame` Types                   //
-////////////////////////////////////////////////////////////////
-
-/// @notice The public values committed to for an OP Succinct aggregation program.
-struct AggregationOutputs {
-    bytes32 l1Head;
-    bytes32 l2PreRoot;
-    bytes32 claimRoot;
-    uint256 claimBlockNum;
-    bytes32 rollupConfigHash;
-    bytes32 rangeVkeyCommitment;
-    address proverAddress;
 }

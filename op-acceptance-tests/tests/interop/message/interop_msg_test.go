@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -33,7 +32,7 @@ import (
 // TestInitExecMsg tests basic interop messaging
 func TestInitExecMsg(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -51,7 +50,7 @@ func TestInitExecMsg(gt *testing.T) {
 // TestInitExecMsgWithDSL tests basic interop messaging with contract DSL
 func TestInitExecMsgWithDSL(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -127,7 +126,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 // Construct random directed graph of messages.
 func TestRandomDirectedGraph(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	sys := presets.NewSimpleInterop(t)
 	logger := sys.Log.With("Test", "TestRandomDirectedGraph")
@@ -250,7 +249,7 @@ func TestRandomDirectedGraph(gt *testing.T) {
 // Transaction initiates and executes multiple messages of self
 func TestInitExecMultipleMsg(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -265,7 +264,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 		interop.RandomInitTrigger(rng, eventLoggerAddress, 2, 13),
 	}
 	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](alice.Plan())
-	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: initCalls})
 
 	// Trigger two events
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
@@ -282,7 +281,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 
 	// Two events in tx so use every index
 	indexes := []int{0, 1}
-	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -296,7 +295,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 // Transaction that executes the same message twice.
 func TestExecSameMsgTwice(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -325,7 +324,7 @@ func TestExecSameMsgTwice(gt *testing.T) {
 
 	// Single event in tx so indexes are 0, 0
 	indexes := []int{0, 0}
-	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -341,7 +340,7 @@ func TestExecSameMsgTwice(gt *testing.T) {
 // Execute message that links with initiating message with: 0, 1, 2, 3, or 4 topics in it
 func TestExecDifferentTopicCount(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -357,7 +356,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 		initCalls[topicCnt] = interop.RandomInitTrigger(rng, eventLoggerAddress, topicCnt, 10)
 	}
 	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](alice.Plan())
-	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: initCalls})
 
 	// Trigger five events, each have {0, 1, 2, 3, 4} topics in it
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
@@ -378,7 +377,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 
 	// Five events in tx so use every index
 	indexes := []int{0, 1, 2, 3, 4}
-	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -392,7 +391,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 // Execute message that links with initiating message with: 0, 10KB of opaque event data in it
 func TestExecMsgOpaqueData(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -410,7 +409,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 	initCalls[1] = largeInitTrigger
 
 	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](alice.Plan())
-	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: initCalls})
 
 	// Trigger two events
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
@@ -429,7 +428,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 
 	// Two events in tx so use every index
 	indexes := []int{0, 1}
-	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -443,7 +442,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 // Execute message that links with initiating message with: first, random or last event of a tx.
 func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -461,7 +460,7 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	}
 
 	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](alice.Plan())
-	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: initCalls})
 
 	// Trigger multiple events
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
@@ -478,7 +477,7 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 
 	// first, random or last event of a tx.
 	indexes := []int{0, 1 + rng.Intn(eventCnt-1), eventCnt - 1}
-	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -562,7 +561,7 @@ func executeIndexedFault(
 // Execute message, but with one or more invalid attributes inside identifiers
 func TestExecMessageInvalidAttributes(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
 	logger := t.Logger()
@@ -584,7 +583,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 		interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 50),
 	}
 	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](alice.Plan())
-	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: initCalls})
 
 	// Trigger multiple events
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
@@ -611,7 +610,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 
 		// Random select event index in tx for injecting faults
 		eventIdx := rng.Intn(len(initCalls))
-		txC.Content.Fn(executeIndexedFault(constants.CrossL2Inbox, &txA.Result, eventIdx, rng, faults, chuck.ChainID()))
+		txC.Content.Fn(executeIndexedFault(predeploys.CrossL2InboxAddr, &txA.Result, eventIdx, rng, faults, chuck.ChainID()))
 
 		// make sure that the transaction is not reverted by CrossL2Inbox...
 		gas, err := txC.PlannedTx.Gas.Eval(t.Ctx())
@@ -633,7 +632,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 
 	// Three events in tx so use every index
 	indexes := []int{0, 1, 2}
-	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)

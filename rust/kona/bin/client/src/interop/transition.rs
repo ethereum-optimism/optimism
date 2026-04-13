@@ -97,10 +97,17 @@ where
         );
     }
 
+    let agreed_l2_output_root = boot
+        .agreed_pre_state
+        .active_l2_output_root()
+        .ok_or(FaultProofProgramError::StateTransitionFailed)?
+        .output_root;
+
     // Create a new derivation driver with the given boot information and oracle.
     let cursor = new_oracle_pipeline_cursor(
         rollup_config.as_ref(),
         safe_head,
+        agreed_l2_output_root,
         &mut l1_provider,
         &mut l2_provider,
     )

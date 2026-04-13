@@ -1,0 +1,73 @@
+---
+title: OP-Supervisor
+description: Learn the basics of OP-Supervisor.
+---
+
+<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+OP-Supervisor is a service that verifies cross-chain messages and manages interoperability between chains in the OP Stack. Anyone is able to run OP-Supervisor but only chain operators and full-node operators are expected to run OP-Supervisor. The main information it contains about other blockchains is:
+
+*   Log entries, which could be [initiating messages](/op-stack/interop/explainer#how-messages-get-from-one-chain-to-the-other) for cross-domain messages.
+*   Blockchain heads, which are the latest blocks at various levels of confidence and safety:
+    *   Unsafe (the latest block available through the gossip protocol)
+    *   Local-safe (the latest block written to L1)
+    *   Cross-safe (the latest block written to L1, and for which all the dependencies are written to L1)
+    *   Finalized (the latest block written to L1, and that L1 block is safe from reorgs)
+
+```mermaid
+
+graph LR
+
+  classDef chain fill:#FFE
+  classDef transparent fill:none, stroke:none
+  
+  subgraph chain1[OP Stack chain #1]
+    node1[OP Node]
+    super1[OP-Supervisor]
+    geth1[Execution Engine]
+    node1<-->super1--->geth1<-->node1
+  end
+  subgraph X[ ]
+    chain2[OP Stack chain #2]
+    chain3[OP Stack chain #3]
+    l1node[L1 Consensus Layer]
+  end
+
+  chain2-->|log events|super1
+  chain3-->|log events|super1
+  l1node-->|block status|super1
+
+  class chain1,chain2,chain3 chain
+  class X transparent
+```
+
+To do this, OP-Supervisor has to have RPC access to all the chains in the dependency set (all those that can contain an initiating message whose destination is this blockchain).
+
+## How other components use OP-Supervisor
+
+*   The execution client (typically `op-geth`) queries `op-supervisor` during block-building to verify if a message is sufficiently safe to include.
+    To do this, the execution client looks at every executing message and  queries `op-supervisor` to see if there is a corresponding initiating message.
+
+*   `op-node` queries cross-chain safety information and coordinates safety updates between OP stack nodes and `op-supervisor`. It uses the API provided by `op-supervisor` to:
+    *   Retrieve the unsafe, local-safe, cross-safe, and finalized heads for other chains.
+    *   Update the unsafe, local-safe, and finalized heads for its own chain.
+    *   Attempt to promote blocks in its own chain to cross-safe status.
+    *   Attempt to finalize L2 blocks based on L1 finality.
+
+### API
+
+Here are the most important API methods exposed by OP-Supervisor.
+For a full listing of API names, see the [source code](https://github.com/ethereum-optimism/optimism/blob/develop/op-service/sources/supervisor_client.go).
+
+| Method(s)                                 | Description                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------- |
+| `UnsafeView` and `SafeView`               | Return the Local and Cross heads for their respective levels                          |
+| `DerivedFrom`                             | OP Nodes use to check the L1 source of the Supervisor (needed for Safe Head tracking) |
+| `UpdateLocalSafe` and `UpdateLocalUnsafe` | Tell the Supervisor when the Node's heads change                                      |
+| `Finalized`                               | Returns the Finalized Head                                                            |
+| `UpdateFinalizedL1`                       | Signals to the Supervisor new finality signals                                        |
+| `CheckMessage`                            | Checks logs in the DB directly in tests                                               |
+
+## Next steps
+
+*   Learn [how ETH can move across chains](/op-stack/interop/superchain-eth-bridge)
+*   For more info about how OP Stack interoperability works under the hood, [check out the specs](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs).

@@ -1,0 +1,91 @@
+---
+title: OPChainB (chainID 902)
+description: Learn network details and contract addresses for OPChainB (chainID 902).
+---
+
+This guide provides network details and contract addresses for OPChainB (chainID 902) when running `supersim` vanilla mode.
+
+## Network details
+
+| **Parameter** | **Value**                                      |
+| ------------- | ---------------------------------------------- |
+| **Name**      | OPChainB                                       |
+| **Chain ID**  | 902                                            |
+| **RPC URL**   | [http://127.0.0.1:9546](http://127.0.0.1:9546) |
+
+## Contract addresses
+
+### L1 contracts
+
+```json
+{
+  "AddressManager": "0xafB51A0f73C8409AeA1207DF7f39885c927BeA46",
+  "AnchorStateRegistry": "0x05493149c84A71063f7948127bb931f8377F779C",
+  "AnchorStateRegistryProxy": "0xfd0269a716A59fF125Bd7eb65Cd3427C8555bab7",
+  "DelayedWETH": "0x49BBFf1629824A1e7993Ab5c17AFa45D24AB28c9",
+  "DelayedWETHProxy": "0xA63353128502269b4A4A4c2677fE316cd9ad4397",
+  "DisputeGameFactory": "0x20B168142354Cee65a32f6D8cf3033E592299765",
+  "DisputeGameFactoryProxy": "0x5F416fEb15c8B382d338FDBDb7D44967ca2b59BC",
+  "L1CrossDomainMessenger": "0x094e6508ba9d9bf1ce421fff3dE06aE56e67901b",
+  "L1CrossDomainMessengerProxy": "0xeCA0f912b4bd255f3851951caE5775CC9400aA3B",
+  "L1ERC721Bridge": "0x5C4F5e749A61a9503c4AAE8a9393e89609a0e804",
+  "L1ERC721BridgeProxy": "0xDCE41E6C0901586EE27Eac329EBD4b5fe5A7170d",
+  "L1StandardBridge": "0xb7900B27Be8f0E0fF65d1C3A4671e1220437dd2b",
+  "L1StandardBridgeProxy": "0x67B2aB287a32bB9ACe84F6a5A30A62597b10AdE9",
+  "L2OutputOracle": "0x19652082F846171168Daf378C4fD3ee85a0D4A60",
+  "L2OutputOracleProxy": "0x006Af3fB62c4BE4fB0393995d364BbFe6b0F3CB2",
+  "Mips": "0xB3A0348310a0ff78E5FbDB7f14BB7d3e02d40773",
+  "OptimismMintableERC20Factory": "0x39Aea2Dd53f2d01c15877aCc2791af6BDD7aD567",
+  "OptimismMintableERC20FactoryProxy": "0x1A2A942d891e525D1Ab192578a378980729fD585",
+  "OptimismPortal": "0x35e67BC631C327b60C6A39Cff6b03a8adBB19c2D",
+  "OptimismPortal2": "0xfcbb237388CaF5b08175C9927a37aB6450acd535",
+  "OptimismPortalProxy": "0xdfC9DEAbEEbDaa7620C71e2E76AEda32919DE5f2",
+  "PreimageOracle": "0x3bd7E801E51d48c5d94Ea68e8B801DFFC275De75",
+  "ProtocolVersions": "0xfbfD64a6C0257F613feFCe050Aa30ecC3E3d7C3F",
+  "ProtocolVersionsProxy": "0xE139cB0CDa5EF722870068ea331d0989776A7aDf",
+  "ProxyAdmin": "0xff5E6C2Af859f70B875BA59B958BEde60E36bf69",
+  "SafeProxyFactory": "0xb68f3B057fE3c6CdDF9DB35837Ea769FCc81978a",
+  "SafeSingleton": "0xeeB44D84d505AbD958d032e90704c56443eB3ED0",
+  "SuperchainConfig": "0x068E44eB31e111028c41598E4535be7468674D0A",
+  "SuperchainConfigProxy": "0x2ED4AA34573c36bF3856e597501aEf9d9Dc1687C",
+  "SystemConfig": "0x6167B477F8d9138aa509f54b2800443857e28c0f",
+  "SystemConfigProxy": "0x2Db03FE998D7c20E4B65afD1f50f04Ec4BfAb694",
+  "SystemOwnerSafe": "0xBF3830711B7c559042453B7546dB4736eFB4245e"
+}
+```
+
+### L2 contracts
+
+```json
+{
+  // OP Stack predeploys
+  "L2ToL1MessagePasser": "0x4200000000000000000000000000000000000016",
+  "L2CrossDomainMessenger": "0x4200000000000000000000000000000000000007",
+  "L2StandardBridge": "0x4200000000000000000000000000000000000010",
+  "L2ERC721Bridge": "0x4200000000000000000000000000000000000014",
+  "SequencerFeeVault": "0x4200000000000000000000000000000000000011",
+  "OptimismMintableERC20Factory": "0x4200000000000000000000000000000000000012",
+  "OptimismMintableERC721Factory": "0x4200000000000000000000000000000000000017",
+  "L1BlockInterop": "0x4200000000000000000000000000000000000015",
+  "GasPriceOracle": "0x420000000000000000000000000000000000000F",
+  "ProxyAdmin": "0x4200000000000000000000000000000000000018",
+  "BaseFeeVault": "0x4200000000000000000000000000000000000019",
+  "L1FeeVault": "0x420000000000000000000000000000000000001A",
+  "OperatorFeeVault": "0x420000000000000000000000000000000000001B",
+  "GovernanceToken": "0x4200000000000000000000000000000000000042",
+  "SchemaRegistry": "0x4200000000000000000000000000000000000020",
+  "EAS": "0x4200000000000000000000000000000000000021",
+  "CrossL2Inbox": "0x4200000000000000000000000000000000000022",
+  "L2ToL2CrossDomainMessenger": "0x4200000000000000000000000000000000000023",
+  "SuperchainETHBridge": "0x4200000000000000000000000000000000000024",
+  "SuperchainTokenBridge": "0x4200000000000000000000000000000000000028",
+
+  // Periphery
+  "L2NativeSuperchainERC20": "0x420beeF000000000000000000000000000000001"
+}
+```
+
+## Next steps
+
+*   Learn how to [deposit transactions](/app-developers/tutorials/bridging/deposit-transactions) with Supersim, using a much simpler approach that bypasses the derivation pipeline.
+*   For more info about how OP Stack interoperability works under the hood, [check out the specs](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs).

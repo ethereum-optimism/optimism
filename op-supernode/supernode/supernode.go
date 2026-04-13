@@ -10,6 +10,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
+	supernodeactivity "github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/supernode"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
@@ -28,19 +30,20 @@ import (
 )
 
 type Supernode struct {
-	log          gethlog.Logger
-	version      string
-	requestStop  context.CancelCauseFunc
-	stopped      bool
-	cfg          *config.CLIConfig
-	chains       map[eth.ChainID]cc.ChainContainer
-	activities   []activity.Activity
-	rootRPC      *oprpc.Handler
-	wg           sync.WaitGroup
-	l1Client     *sources.L1Client
-	beaconClient *sources.L1BeaconClient
-	httpServer   *httputil.HTTPServer
-	rpcRouter    *resources.Router
+	log             gethlog.Logger
+	version         string
+	requestStop     context.CancelCauseFunc
+	stopped         bool
+	cfg             *config.CLIConfig
+	chains          map[eth.ChainID]cc.ChainContainer
+	activities      []activity.Activity
+	rootRPC         *oprpc.Handler
+	wg              sync.WaitGroup
+	lifecycleCancel context.CancelFunc // canceled in Stop() to unblock goroutines from Start()
+	l1Client        *sources.L1Client
+	beaconClient    *sources.L1BeaconClient
+	httpServer      *httputil.HTTPServer
+	rpcRouter       *resources.Router
 	// Metrics router/server for per-chain metrics
 	metrics      *resources.MetricsService
 	metricsFanIn *resources.MetricsFanIn
@@ -88,6 +91,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Initialize fixed activities
 	s.activities = []activity.Activity{
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
+		supernodeactivity.New(log.New("activity", "supernode"), s.chains),
 		superroot.New(log.New("activity", "superroot"), s.chains),
 	}
 
@@ -95,7 +99,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Initialize interop activity if the activation timestamp is set (non-nil)
 	// If it's nil, don't start interop. If it's non-nil (including 0), do start it.
 	if cfg.InteropActivationTimestamp != nil {
-		interopActivity := interop.New(log.New("activity", "interop"), *cfg.InteropActivationTimestamp, s.chains, cfg.DataDir)
+		interopActivity := interop.New(log.New("activity", "interop"), *cfg.InteropActivationTimestamp, s.chains, cfg.DataDir, s.l1Client)
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)
@@ -121,6 +125,15 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 
 func (s *Supernode) Start(ctx context.Context) error {
 	s.log.Info("supernode starting", "version", s.version)
+
+	// Create a lifecycle context that is canceled in Stop(). This ensures that
+	// goroutines spawned below will exit even if Stop() wins the race and runs
+	// before the goroutine has been scheduled. Without this, an activity's
+	// Start(ctx) could block forever if its Stop() was already called (and
+	// found cancel == nil) before Start() had a chance to initialize.
+	var lifecycleCtx context.Context
+	lifecycleCtx, s.lifecycleCancel = context.WithCancel(ctx)
+
 	if s.httpServer != nil {
 		s.wg.Add(1)
 		go func() {
@@ -159,7 +172,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 			s.wg.Add(1)
 			go func(run activity.RunnableActivity) {
 				defer s.wg.Done()
-				err := run.Start(ctx)
+				err := run.Start(lifecycleCtx)
 				activityName := a.Name()
 				switch err {
 				case nil:
@@ -179,7 +192,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 		s.wg.Add(1)
 		go func(chainID eth.ChainID, chain cc.ChainContainer) {
 			defer s.wg.Done()
-			if err := chain.Start(ctx); err != nil {
+			if err := chain.Start(lifecycleCtx); err != nil {
 				s.log.Error("error starting chain", "chain_id", chainID.String(), "error", err)
 			}
 		}(chainID, chain)
@@ -190,6 +203,15 @@ func (s *Supernode) Start(ctx context.Context) error {
 func (s *Supernode) Stop(ctx context.Context) error {
 	s.log.Info("supernode stopping")
 	s.stopped = true
+
+	// Cancel the lifecycle context before anything else. This guarantees that
+	// activity and chain goroutines will observe a canceled context even if
+	// they haven't been scheduled yet when the individual Stop() calls below
+	// execute. The individual Stop() calls are still made for orderly cleanup,
+	// but the lifecycle cancellation is the backstop that prevents hangs.
+	if s.lifecycleCancel != nil {
+		s.lifecycleCancel()
+	}
 
 	// Stop RPC server first, then close router resources
 	if s.httpServer != nil {
@@ -239,8 +261,17 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	}
 
 	s.log.Info("all chain containers stopped, waiting for goroutines to finish")
-	s.wg.Wait()
-	s.log.Info("goroutines finished, closing l1 client")
+	wgDone := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(wgDone)
+	}()
+	select {
+	case <-wgDone:
+		s.log.Info("goroutines finished, closing l1 client")
+	case <-time.After(60 * time.Second):
+		s.log.Error("timed out waiting for chain goroutines to finish after 60s, proceeding with cleanup")
+	}
 
 	if s.l1Client != nil {
 		s.l1Client.Close()
@@ -367,11 +398,18 @@ func (s *Supernode) initBeaconClient(ctx context.Context, cfg *config.CLIConfig)
 	basicClient := client.NewBasicHTTPClient(cfg.L1BeaconAddr, s.log)
 	beaconHTTPClient := sources.NewBeaconHTTPClient(basicClient)
 
+	// Create fallback beacon clients (e.g. blob archiver)
+	var fallbacks []apis.BeaconClient
+	for _, addr := range cfg.L1BeaconFallbackAddrs {
+		fb := client.NewBasicHTTPClient(addr, s.log)
+		fallbacks = append(fallbacks, sources.NewBeaconHTTPClient(fb))
+	}
+
 	// Create L1 Beacon client with default config
 	beaconCfg := sources.L1BeaconClientConfig{
 		FetchAllSidecars: false,
 	}
-	s.beaconClient = sources.NewL1BeaconClient(beaconHTTPClient, beaconCfg)
+	s.beaconClient = sources.NewL1BeaconClient(beaconHTTPClient, beaconCfg, fallbacks...)
 
 	s.log.Info("L1 Beacon client initialized successfully")
 	return nil

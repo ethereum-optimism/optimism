@@ -1,5 +1,11 @@
 # Optimism Monorepo Contributing Guide
 
+## Documentation
+
+Public developer documentation for `docs.optimism.io` lives in [`docs/public-docs/`](./docs/public-docs/).
+To update the docs site, edit files in `docs/public-docs/` and open a PR against `develop`.
+See [`docs/public-docs/DOCS_CONTRIBUTING.md`](./docs/public-docs/DOCS_CONTRIBUTING.md) for style guide and contribution standards.
+
 ## What to Contribute
 
 Welcome to the Optimism Monorepo Contributing Guide!
@@ -14,7 +20,7 @@ You can:
 - Help improve the [Optimism Docs] by reporting issues or adding missing sections.
 - Get involved in the protocol design process by joining discussions within the [OP Stack Specs](https://github.com/ethereum-optimism/specs/discussions) repository.
 
-[Optimism Docs]: https://github.com/ethereum-optimism/docs
+[Optimism Docs]: https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs
 
 ### Contributions Related to Spelling and Grammar
 
@@ -108,7 +114,7 @@ You must install all of the required [Software Dependencies](#software-dependenc
 Optimism Monorepo. Once you've done so, run the following command to build:
 
 ```bash
-make build
+just build
 ```
 
 Packages built on one branch may not be compatible with packages on a different branch.

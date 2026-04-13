@@ -129,8 +129,8 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		}
 
 		expectedState.PendingProgress = append(expectedState.PendingProgress, interopTypes.OptimisticBlock{
-			BlockHash:  optimistic.Output.BlockRef.Hash,
-			OutputRoot: optimistic.Output.OutputRoot,
+			BlockHash:  optimistic.Output.BlockHash,
+			OutputRoot: optimistic.OutputRoot,
 		})
 	}
 	return expectedState.Marshal(), nil

@@ -15,11 +15,6 @@
           },
           {
             "internalType": "address",
-            "name": "optimismPortalInteropImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "ethLockboxImpl",
             "type": "address"
           },
@@ -71,6 +66,16 @@
           {
             "internalType": "address",
             "name": "permissionedDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superFaultDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGameImpl",
             "type": "address"
           }
         ],
@@ -291,19 +296,6 @@
   },
   {
     "inputs": [],
-    "name": "optimismPortalInteropImpl",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "permissionedDisputeGameImpl",
     "outputs": [
       {
@@ -326,6 +318,32 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superFaultDisputeGameImpl",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superPermissionedDisputeGameImpl",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

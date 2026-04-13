@@ -77,6 +77,12 @@ func (s *AltDADataSource) Next(ctx context.Context) (eth.Data, error) {
 	if errors.Is(err, altda.ErrReorgRequired) {
 		// challenge for a new previously derived commitment expired.
 		return nil, NewResetError(err)
+	} else if errors.Is(err, altda.ErrCommitmentTypeMismatch) {
+		// expected different commitment type
+		s.log.Warn("commitment mismatch, skipping batch", "err", err.Error())
+		s.comm = nil
+		// skip the input
+		return s.Next(ctx)
 	} else if errors.Is(err, altda.ErrExpiredChallenge) {
 		// this commitment was challenged and the challenge expired.
 		s.log.Warn("challenge expired, skipping batch", "comm", s.comm)

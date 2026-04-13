@@ -1,7 +1,7 @@
 //! Contains the kind of system config update.
 
 /// Represents type of update to the system config.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, derive_more::TryFrom)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, derive_more::Display, derive_more::TryFrom)]
 #[try_from(repr)]
 #[repr(u64)]
 pub enum SystemConfigUpdateKind {

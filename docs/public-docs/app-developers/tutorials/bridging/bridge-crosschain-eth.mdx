@@ -1,0 +1,385 @@
+---
+title: Transferring ETH
+description: Learn how to transfer ETH across the OP Stack interop cluster
+---
+
+
+
+<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+<Info>
+  This tutorial provides step-by-step instructions for how to send ETH from one chain in the OP Stack interop cluster to another.
+  For a conceptual overview,
+  see the [interoperable ETH explainer](/op-stack/interop/superchain-eth-bridge).
+</Info>
+
+## Overview
+
+Crosschain ETH transfers across OP Stack chains are facilitated through the [SuperchainETHBridge](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol) contract.
+This tutorial walks through how to send ETH from one chain to another.
+You can do this on [Supersim](/> app-developers/tools/development/supersim) or production once it is released.
+
+### What you'll build
+
+*   A TypeScript application to transfer ETH between chains
+
+### What you'll learn
+
+*   How to send ETH on the blockchain and between blockchains
+*   How to relay messages between chains
+
+## Prerequisites
+
+Before starting this tutorial, ensure your development environment meets the following requirements:
+
+### Technical knowledge
+
+*   Intermediate TypeScript knowledge
+*   Understanding of smart contract development
+*   Familiarity with blockchain concepts
+
+### Development environment
+
+*   Unix-like operating system (Linux, macOS, or WSL for Windows)
+*   Node.js version 16 or higher
+*   Git for version control
+
+### Required tools
+
+The tutorial uses these primary tools:
+
+*   Foundry: For smart contract development
+*   Supersim: For local blockchain simulation
+*   TypeScript: For implementation
+*   Viem: For blockchain interaction
+
+<Steps>
+  <Step title="Install prerequisite software">
+  1.  Install [Foundry](https://book.getfoundry.sh/getting-started/installation).
+    1.  Install [Node](https://nodejs.org/en).
+    1.  Install [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+        The exact mechanism to do this depends on your operating system; most come with it preinstalled.
+  </Step>
+
+  <Step title="Configure the network">
+  You can run this tutorial either with [Supersim](/> app-developers/tools/development/supersim) running locally, or using the [Interop devnet](/app-developers/guides/building-apps).
+    Select the correct tab and follow the directions. 
+  
+  
+    <Tabs>
+      <Tab title="Supersim">
+        1.  Follow the [Installation Guide](/app-developers/tutorials/development/supersim/installation) to install Supersim for running blockchains with Interop.
+  
+        1.  Start Supersim.
+  
+            ```sh
+            ./supersim --interop.autorelay
+            ```  
+  
+        1.  Supersim uses Foundry's `anvil` blockchains, which start with ten prefunded accounts.
+            Set these environment variables to access one of those accounts on the L2 blockchains.
+  
+            ```sh
+            export PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+            ```
+  
+        1.  Specify the URLs to the chains.
+  
+            ```sh
+            SRC_URL=http://localhost:9545
+            DST_URL=http://localhost:9546
+            ```
+  
+        <Expandable title="Sanity check">
+  
+          Get the ETH balances for your address on both the source and destination chains.
+  
+          ```sh
+          cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $SRC_URL
+          cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $DST_URL
+          ```
+  
+        </Expandable>
+  
+  
+      </Tab>
+  
+      <Tab title="Interop Devnets">
+        1.  Set `PRIVATE_KEY` to the private key of an address that has [Sepolia ETH](https://cloud.google.com/application/web3/faucet/ethereum/sepolia).
+  
+            ```sh
+            export PRIVATE_KEY=0x <PRIVATE_KEY>
+            ```
+  
+        1.  Send ETH to the two L2 blockchains via their OptimismPortal contracts on Sepolia.
+  
+            ```sh
+            cast send --rpc-url https://endpoints.omniatech.io/v1/eth/sepolia/public --private-key $PRIVATE_KEY --value 0.02ether 0x7385d89d38ab79984e7c84fab9ce5e6f4815468a
+            cast send --rpc-url https://endpoints.omniatech.io/v1/eth/sepolia/public --private-key $PRIVATE_KEY --value 0.02ether 0x55f5c4653dbcde7d1254f9c690a5d761b315500c
+            ```
+  
+        1.  Wait a few minutes until you can see the ETH [on the block explorer](https://sid.testnet.routescan.io/) for your address.
+  
+        1.  Specify the URLs to the chains.
+  
+            ```sh
+            SRC_URL=https://interop-alpha-0.optimism.io
+            DST_URL=https://interop-alpha-1.optimism.io          
+            ```      
+  
+        <Expandable title="Sanity check">
+  
+          Get the ETH balances for your address on both the source and destination chains.
+  
+          ```sh
+          cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $SRC_URL
+          cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $DST_URL
+          ```
+        </Expandable>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Transfer ETH using Foundry">
+  Run these commands:
+  
+    ```sh
+    DST_CHAINID=`cast chain-id --rpc-url $DST_URL`
+    MY_ADDRESS=`cast wallet address $PRIVATE_KEY`
+    SUPERCHAIN_ETH_BRIDGE=0x4200000000000000000000000000000000000024
+    BEFORE=`cast balance $MY_ADDRESS --rpc-url $DST_URL | cast from-wei`          
+    cast send --rpc-url $SRC_URL --private-key $PRIVATE_KEY $SUPERCHAIN_ETH_BRIDGE "sendETH(address,uint256)" $MY_ADDRESS $DST_CHAINID --value 0.001ether
+    sleep 10
+    AFTER=`cast balance $MY_ADDRESS --rpc-url $DST_URL | cast from-wei`
+    echo -e Balance before transfer\\t$BEFORE
+    echo -e Balance after transfer\\t$AFTER
+    ```
+  </Step>
+
+  <Step title="Create the TypeScript project">
+  <Note>Messages are relayed automatically in the interop devnet.</Note>
+  <Steps>
+    <Step title="Create a new TypeScript project">
+
+        ```sh
+        mkdir transfer-eth
+        cd transfer-eth
+        npm init -y
+        npm install --save-dev -y viem tsx @types/node @eth-optimism/viem typescript
+        mkdir src
+        ```
+    </Step>
+
+    <Step title="Download the SuperchainETHBridge ABI">
+
+        ```sh
+        curl https://raw.githubusercontent.com/ethereum-optimism/optimism/refs/heads/develop/packages/contracts-bedrock/snapshots/abi/SuperchainETHBridge.json > src/SuperchainETHBridge.abi.json
+        ```
+    </Step>
+
+    <Step title="Create src/transfer-eth.mts">
+
+        ```typescript
+            import {
+                createWalletClient,
+                http,
+                publicActions,
+                getContract,
+                Address,
+                formatEther,
+                parseEther,
+            } from 'viem'
+
+            import { privateKeyToAccount } from 'viem/accounts'
+
+            import {
+                supersimL2A,
+                supersimL2B,
+                interopAlpha0,
+                interopAlpha1
+            } from '@eth-optimism/viem/chains'
+
+            import {
+                walletActionsL2,
+                publicActionsL2,
+                contracts as optimismContracts
+            } from '@eth-optimism/viem'
+
+            import superchainEthBridgeAbi from './SuperchainETHBridge.abi.json'
+
+            const supersimAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
+            const sourceChain = account.address === supersimAddress ? supersimL2A : interopAlpha0
+            const destinationChain = account.address === supersimAddress ? supersimL2B : interopAlpha1
+
+            const sourceWallet = createWalletClient({
+                chain: sourceChain,
+                transport: http(),
+                account,
+            }).extend(publicActions)
+                .extend(publicActionsL2())
+                .extend(walletActionsL2())
+
+            const destinationWallet = createWalletClient({
+                chain: destinationChain,
+                transport: http(),
+                account,
+            }).extend(publicActions)
+                .extend(publicActionsL2())
+                .extend(walletActionsL2())
+
+            const ethBridgeOnSource = await getContract({
+                address: optimismContracts.superchainETHBridge.address,
+                abi: superchainEthBridgeAbi,
+                client: sourceWallet,
+            })
+
+            const reportBalance = async (address: string): Promise<void> => {
+                const sourceBalance = await sourceWallet.getBalance({ address })
+                const destinationBalance = await destinationWallet.getBalance({ address })
+
+                console.log(`
+                    Address: ${address}
+                    Balance on source chain: ${formatEther(sourceBalance)}
+                    Balance on destination chain: ${formatEther(destinationBalance)}
+                `)
+            }
+
+            console.log('Before transfer')
+            await reportBalance(account.address)
+
+            const sourceHash = await ethBridgeOnSource.write.sendETH({
+                value: parseEther('0.001'),
+                args: [account.address, destinationChain.id],
+            })
+            const sourceReceipt = await sourceWallet.waitForTransactionReceipt({
+                hash: sourceHash,
+            })
+
+            console.log('After transfer on source chain')
+            await reportBalance(account.address)
+
+            const sentMessages = await sourceWallet.interop.getCrossDomainMessages({
+                logs: sourceReceipt.logs,
+            })
+            const sentMessage = sentMessages[0]
+            const relayMessageParams = await sourceWallet.interop.buildExecutingMessage({
+                log: sentMessage.log,
+            })
+
+            const relayMsgTxnHash = await destinationWallet.interop.relayCrossDomainMessage(relayMessageParams)
+            await destinationWallet.waitForTransactionReceipt({ hash: relayMsgTxnHash })
+
+            console.log('After relaying message to destination chain')
+            await reportBalance(account.address)
+        ```
+    </Step>
+  </Steps>
+    
+        <Expandable title="Explanation of `transfer-eth.mts`">
+  
+        ```typescript
+            import { 
+                supersimL2A, 
+                supersimL2B, 
+                interopAlpha0, 
+                interopAlpha1 
+            } from '@eth-optimism/viem/chains'
+        ```
+  
+          Import all chain definitions from `@eth-optimism/viem`.
+  
+        ```typescript
+            const supersimAddress="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+            const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
+            const sourceChain = account.address == supersimAddress ? supersimL2A : interopAlpha0
+            const destinationChain = account.address == supersimAddress ? supersimL2B : interopAlpha1
+        ```
+  
+          If the address we use is `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`, one of the prefunded addresses on `anvil`, assume we're using Supersim.
+          Otherwise, use Interop devnet.
+  
+        ```typescript
+            const sourceHash = await ethBridgeOnSource.write.sendETH({
+                value: parseEther('0.001'),
+                args: [account.address, destinationChain.id]
+            })
+            const sourceReceipt = await sourceWallet.waitForTransactionReceipt({
+                hash: sourceHash
+            })
+        ```
+  
+          To relay a message we need the information in the receipt.
+          Also, we need to wait until the transaction with the relayed message is actually part of a block.
+  
+        ```typescript
+            const sentMessages = await sourceWallet.interop.getCrossDomainMessages({
+                logs: sourceReceipt.logs,
+            })
+            const sentMessage = sentMessages[0]
+        ```
+  
+          A single transaction can send multiple messages.
+          But here we know we sent just one, so we look for the first one in the list.
+  
+        ```typescript
+            const relayMessageParams = await sourceWallet.interop.buildExecutingMessage({
+                log: sentMessage.log,
+            })
+
+            const relayMsgTxnHash = await destinationWallet.interop.relayCrossDomainMessage(relayMessageParams)
+        ```
+  
+  This is how you use `@eth-optimism/viem` to create an executing message.
+  </Expandable>
+  </Step>
+
+  <Step title="Run the example">
+  1.  Run the example.
+  
+        ```sh
+        npx tsx src/transfer-eth.mts
+        ```
+  
+    2.  Read the results.
+  
+        ```
+        Before transfer
+  
+                Address: 0x7ED53BfaA58B79Dd655B2f229258C093b6C09A8C
+                Balance on source chain: 0.020999799151902245
+                Balance on destination chain: 0.026999459226731331
+        ```
+  
+        The initial state. Note that the address depends on your private key; it should be different from mine.
+  
+        ```
+        After transfer on source chain
+  
+                Address: 0x7ED53BfaA58B79Dd655B2f229258C093b6C09A8C
+                Balance on source chain: 0.019999732176717961
+                Balance on destination chain: 0.026999459226731331
+        ```
+  
+        After the initiating message the balance on the source chain is immediately reduced.
+        Notice that even though we are sending 0.001 ETH, the balance on the source chain is reduced by a bit more (here, approximately 67 gwei).
+        This is the cost of the initiating transaction on the source chain.
+        Of course, as there has been no transaction on the destination chain, that balance is unchanged.
+  
+        ```
+        After relaying message to destination chain
+  
+                Address: 0x7ED53BfaA58B79Dd655B2f229258C093b6C09A8C
+                Balance on source chain: 0.019999732176717961
+                Balance on destination chain: 0.027999278943880868    
+        ```
+  
+        Now the balance on the destination chain increases, by slightly less than 0.001 ETH.
+        The executing message also has a transaction cost (in this case, about 180gwei).
+  </Step>
+</Steps>
+
+## Next steps
+
+*   Check out the [SuperchainETHBridge guide](/op-stack/interop/superchain-eth-bridge) for more information.
+*   Review the [OP Stack interop explainer](/> op-stack/interop/explainer) for answers to common questions about interoperability.
+

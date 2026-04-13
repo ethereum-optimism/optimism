@@ -9,8 +9,12 @@
 
 extern crate alloc;
 
-pub mod spec_id;
-pub use spec_id::{spec, spec_by_timestamp_after_bedrock};
+pub mod env;
+#[cfg(feature = "engine")]
+pub use env::evm_env_for_op_payload;
+pub use env::{
+    evm_env_for_op_block, evm_env_for_op_next_block, spec, spec_by_timestamp_after_bedrock,
+};
 
 pub mod error;
 pub use error::{OpTxError, map_op_err};

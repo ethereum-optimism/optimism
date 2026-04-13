@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,7 +13,7 @@ import (
 
 // SubProcess is a process that can be started and stopped.
 type SubProcess struct {
-	p   devtest.P
+	p   devtest.CommonT
 	cmd *exec.Cmd
 
 	stdOutCallback logpipe.LogCallback
@@ -24,7 +25,7 @@ type SubProcess struct {
 	mu sync.Mutex
 }
 
-func NewSubProcess(p devtest.P, stdOutCallback, stdErrCallback logpipe.LogCallback) *SubProcess {
+func NewSubProcess(p devtest.CommonT, stdOutCallback, stdErrCallback logpipe.LogCallback) *SubProcess {
 	return &SubProcess{
 		p:              p,
 		stdOutCallback: stdOutCallback,
@@ -79,8 +80,16 @@ func (sp *SubProcess) Stop(interrupt bool) error {
 		}
 	}
 
-	if _, err := sp.cmd.Process.Wait(); err != nil {
-		sp.p.Logger().Warn("Sub-process exited with error", "err", err)
+	// Use cmd.Wait() instead of cmd.Process.Wait() to ensure all stdout/stderr
+	// data is fully flushed before returning. Process.Wait() only waits for the
+	// process to exit but does not guarantee I/O completion, which causes races
+	// where log output hasn't been written to the LineBuffer yet.
+	waitErr := sp.cmd.Wait()
+	var exitErr *exec.ExitError
+	if waitErr != nil && !(interrupt && errors.As(waitErr, &exitErr)) {
+		sp.p.Logger().Warn("Sub-process exited with error", "err", waitErr)
+	} else if interrupt && waitErr != nil {
+		sp.p.Logger().Info("Sub-process stopped")
 	} else {
 		sp.p.Logger().Info("Sub-process gracefully exited")
 	}

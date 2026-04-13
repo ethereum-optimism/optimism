@@ -32,6 +32,8 @@ import (
 )
 
 var (
+	// ErrForkChoiceUpdated is returned when a forkChoiceUpdated returns an error
+	ErrForkChoiceUpdated = errors.New("forkChoiceUpdated status was not valid")
 	// ErrForkChoiceUpdatedNotValid is returned when a forkChoiceUpdated returns a status other than Valid
 	ErrForkChoiceUpdatedNotValid = errors.New("forkChoiceUpdated status was not valid")
 	// ErrNewPayloadNotValid is returned when a newPayload call returns a status other than Valid, indicating the new block is invalid
@@ -188,7 +190,7 @@ func (d *OpGeth) StartBlockBuilding(ctx context.Context, attrs *eth.PayloadAttri
 	}
 	res, err := d.l2Engine.ForkchoiceUpdate(ctx, &fc, attrs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrForkChoiceUpdated, err)
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, fmt.Errorf("%w: %s", ErrForkChoiceUpdatedNotValid, res.PayloadStatus.Status)

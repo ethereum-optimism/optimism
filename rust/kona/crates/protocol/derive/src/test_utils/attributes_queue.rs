@@ -2,14 +2,13 @@
 
 use crate::{
     errors::{PipelineError, PipelineErrorKind},
-    traits::{
-        AttributesBuilder, AttributesProvider, OriginAdvancer, OriginProvider, SignalReceiver,
-    },
-    types::{PipelineResult, Signal},
+    traits::{AttributesBuilder, AttributesProvider, OriginAdvancer, OriginProvider, Stage},
+    types::PipelineResult,
 };
 use alloc::{boxed::Box, vec::Vec};
 use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
+use kona_genesis::SystemConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, SingleBatch};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
@@ -65,13 +64,23 @@ impl OriginAdvancer for TestAttributesProvider {
 }
 
 #[async_trait]
-impl SignalReceiver for TestAttributesProvider {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        match signal {
-            Signal::FlushChannel => self.flushed = true,
-            Signal::Reset { .. } => self.reset = true,
-            _ => {}
-        }
+impl Stage for TestAttributesProvider {
+    async fn reset(&mut self, _: alloy_eips::BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
+        self.reset = true;
+        Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.reset = true;
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.flushed = true;
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
         Ok(())
     }
 }

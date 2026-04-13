@@ -68,6 +68,8 @@ consensus = ["dep:op-alloy-consensus"]
 rpc-types = ["dep:op-alloy-rpc-types"]
 rpc-types-engine = ["dep:op-alloy-rpc-types-engine"]
 
+reth = ["rpc-types", "op-alloy-rpc-types/reth"]
+
 # std features
 network = ["dep:op-alloy-network"]
 rpc-jsonrpsee = ["dep:op-alloy-rpc-jsonrpsee"]

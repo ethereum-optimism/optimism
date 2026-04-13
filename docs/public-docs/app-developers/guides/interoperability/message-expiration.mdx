@@ -1,0 +1,34 @@
+---
+title: Message expiration
+description: What message expiration is, why it exists, and how to reemit a previously sent message if it has expired and was never relayed.
+---
+
+# Message expiration
+
+[Messages](/app-developers/guides/interoperability/message-passing) referenced between OP Stack chains have a limited validity period called the expiry window. Once this window elapses, the referenced message becomes invalid and can no longer be referenced.
+
+For messages using [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interoperability/message-passing), if a message expires before being referenced, developers can reemit the message on the source chain. This triggers a fresh `SentMessage` event, enabling the message to be relayed.
+
+## The expiry window
+
+The expiry window is an offchain constant, defined by [OP-Supervisor](/chain-operators/reference/components/op-supervisor), that defines how long a cross-chain message or event emitted remains valid. For any chain in the [Superchain interop cluster](/interop/explainer#superchain-interop-cluster), messages must be referenced within 7 days (604,800 seconds) of the log being created.
+
+After this period, a message can no longer be referenced unless the event is remitted.
+
+## Reemitting an expired message
+
+The `resendMessage` function on the [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interoperability/message-passing) contract allows developers to reemit a message that was sent but not yet relayed.
+
+This emits a new `SentMessage` log with the same content as the original message, enabling offchain relayers to pick it up again.
+
+The process to reemit an expired message:
+
+1.  Call [`resendMessage`](https://github.com/ethereum-optimism/optimism/blob/a979a9444dbb482843f2a42f437ced54a8ac1053/packages/contracts-bedrock/interfaces/L2/IL2ToL2CrossDomainMessenger.sol#L110-L128) on the origin chain to reemit the message event. The contract verifies the message hash was originally sent. The call requires   [every parameter](https://github.com/ethereum-optimism/optimism/blob/a979a9444dbb482843f2a42f437ced54a8ac1053/packages/contracts-bedrock/interfaces/L2/IL2ToL2CrossDomainMessenger.sol#L110-L128) to rebuild the original message.
+
+2.  [Relay the new message](/interop/message-passing#executing-message) as normal.
+
+Note: Re-emitting an already relayed message will have no effect on the destination chain since the re-emitted event won't be logged by OP-Supervisor. 
+
+## Next steps
+
+*   Learn how to [pass messages between blockchains](/app-developers/tutorials/interoperability/message-passing)

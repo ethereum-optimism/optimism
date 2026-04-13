@@ -21,7 +21,7 @@ When contributing to the `contracts-bedrock` package there are some additional s
 conveniently packaged into a just command which you should run before pushing your changes.
 
 ```bash
-just pre-pr
+just pr
 ```
 
 ### Style Guide

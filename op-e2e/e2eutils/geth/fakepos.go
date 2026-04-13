@@ -57,17 +57,17 @@ type Backend interface {
 }
 
 type EngineAPI interface {
-	ForkchoiceUpdatedV3(engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
-	ForkchoiceUpdatedV2(engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
+	ForkchoiceUpdatedV3(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
+	ForkchoiceUpdatedV2(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 
 	GetPayloadV5(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV4(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV3(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV2(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 
-	NewPayloadV4(engine.ExecutableData, []common.Hash, *common.Hash, []hexutil.Bytes) (engine.PayloadStatusV1, error)
-	NewPayloadV3(engine.ExecutableData, []common.Hash, *common.Hash) (engine.PayloadStatusV1, error)
-	NewPayloadV2(engine.ExecutableData) (engine.PayloadStatusV1, error)
+	NewPayloadV4(context.Context, engine.ExecutableData, []common.Hash, *common.Hash, []hexutil.Bytes) (engine.PayloadStatusV1, error)
+	NewPayloadV3(context.Context, engine.ExecutableData, []common.Hash, *common.Hash) (engine.PayloadStatusV1, error)
+	NewPayloadV2(context.Context, engine.ExecutableData) (engine.PayloadStatusV1, error)
 }
 
 func NewFakePoS(backend Backend, engineAPI EngineAPI, c clock.Clock, logger log.Logger, blockTime uint64, finalizedDistance uint64, beacon Beacon, config *params.ChainConfig) *FakePoS {
@@ -100,6 +100,13 @@ func (f *FakePoS) Start() error {
 		return fmt.Errorf("get genesis header: %w", err)
 	}
 	f.sub = event.NewSubscription(func(quit <-chan struct{}) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() {
+			<-quit
+			cancel()
+		}()
+
 		// poll every half a second: enough to catch up with any block time when ticks are missed
 		t := f.clock.NewTicker(time.Second / 2)
 		for {
@@ -173,9 +180,9 @@ func (f *FakePoS) Start() error {
 				}
 				var res engine.ForkChoiceResponse
 				if isCancun {
-					res, err = f.engineAPI.ForkchoiceUpdatedV3(fcState, attrs)
+					res, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, attrs)
 				} else {
-					res, err = f.engineAPI.ForkchoiceUpdatedV2(fcState, attrs)
+					res, err = f.engineAPI.ForkchoiceUpdatedV2(ctx, fcState, attrs)
 				}
 				if err != nil {
 					f.log.Error("failed to start building L1 block", "err", err)
@@ -191,7 +198,7 @@ func (f *FakePoS) Start() error {
 				select {
 				case <-tim.Ch():
 					// no-op
-				case <-quit:
+				case <-ctx.Done():
 					tim.Stop()
 					return nil
 				}
@@ -226,11 +233,11 @@ func (f *FakePoS) Start() error {
 				}
 
 				if isPrague {
-					_, err = f.engineAPI.NewPayloadV4(*envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+					_, err = f.engineAPI.NewPayloadV4(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 				} else if isCancun {
-					_, err = f.engineAPI.NewPayloadV3(*envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)
+					_, err = f.engineAPI.NewPayloadV3(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)
 				} else {
-					_, err = f.engineAPI.NewPayloadV2(*envelope.ExecutionPayload)
+					_, err = f.engineAPI.NewPayloadV2(context.Background(), *envelope.ExecutionPayload)
 				}
 				if err != nil {
 					f.log.Error("failed to insert built L1 block", "err", err)
@@ -248,7 +255,7 @@ func (f *FakePoS) Start() error {
 						continue
 					}
 				}
-				if _, err := f.engineAPI.ForkchoiceUpdatedV3(engine.ForkchoiceStateV1{
+				if _, err := f.engineAPI.ForkchoiceUpdatedV3(ctx, engine.ForkchoiceStateV1{
 					HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 					SafeBlockHash:      safe.Hash(),
 					FinalizedBlockHash: finalized.Hash(),
@@ -260,7 +267,7 @@ func (f *FakePoS) Start() error {
 				// The EL doesn't really care about the value,
 				// but it's nice to mock something consistent with the CL specs.
 				f.withdrawalsIndex += uint64(len(withdrawals))
-			case <-quit:
+			case <-ctx.Done():
 				return nil
 			}
 		}

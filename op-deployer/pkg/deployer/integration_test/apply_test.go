@@ -126,7 +126,8 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainRoles = nil
-		intent.OPCMAddress = &impls.Opcm
+		intent.OPCMAddress = &impls.OpcmV2
+		intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -169,7 +170,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		name       string
 		devFeature common.Hash
 	}{
-		{"default", common.Hash{}},
+		// "default" (non-V2) test case removed: v1 OPCM was deleted.
 		{"opcm-v2", deployer.OPCMV2DevFlag},
 	}
 	for _, tt := range tests {
@@ -433,9 +434,7 @@ func TestEndToEndApply(t *testing.T) {
 		// Verify that the dev feature bitmap is set to OPCMV2
 		require.Equal(t, deployer.OPCMV2DevFlag, intent.GlobalDeployOverrides["devFeatureBitmap"])
 
-		// Assert that the OPCM V1 addresses are zero
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmImpl, "OPCM V1 implementation should be zero")
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmContractsContainerImpl, "OPCM container implementation should be zero")
+		require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OpcmV2Impl should be set")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmGameTypeAdderImpl, "OPCM game type adder implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmDeployerImpl, "OPCM deployer implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmUpgraderImpl, "OPCM upgrader implementation should be zero")
@@ -997,6 +996,21 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeCannonKona,
 							},
+							{
+								Enabled:  false,
+								InitBond: big.NewInt(0),
+								GameType: embedded.GameTypeSuperCannon,
+							},
+							{
+								Enabled:  false,
+								InitBond: big.NewInt(0),
+								GameType: embedded.GameTypeSuperPermCannon,
+							},
+							{
+								Enabled:  false,
+								InitBond: big.NewInt(0),
+								GameType: embedded.GameTypeSuperCannonKona,
+							},
 						},
 						ExtraInstructions: []embedded.ExtraInstruction{
 							{
@@ -1019,21 +1033,27 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				// Structure breakdown:
 				// - Tuple offset (0x20)
 				// - SystemConfig address (0x034edd2a225f7f429a63e0f1d2084b9e0a93b538)
-				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x340)
-				// - DisputeGameConfigs[]: 3 configs
+				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x580)
+				// - DisputeGameConfigs[]: 6 configs
 				//   [0] Cannon: enabled=true, initBond=1e18, gameType=0, gameArgs="PRESTATE"
 				//   [1] PermissionedCannon: enabled=true, initBond=1e18, gameType=1, gameArgs="PRESTATE"+proposer+challenger
-				//   [2] CannonKona: enabled=false, initBond=0, gameType=0, gameArgs=empty
+				//   [2] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
+				//   [3] SuperCannon: enabled=false, initBond=0, gameType=4, gameArgs=empty
+				//   [4] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
+				//   [5] SuperCannonKona: enabled=false, initBond=0, gameType=9, gameArgs=empty
 				// - ExtraInstructions[]: 1 instruction
 				//   [0] key="PermittedProxyDeployment", data="DelayedWETH"
 				expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
 					"000000000000000000000000034edd2a225f7f429a63e0f1d2084b9e0a93b538" + // systemConfig address
 					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
-					"0000000000000000000000000000000000000000000000000000000000000340" + // offset to extraInstructions
-					"0000000000000000000000000000000000000000000000000000000000000003" + // disputeGameConfigs.length (3)
-					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs[0]
-					"0000000000000000000000000000000000000000000000000000000000000120" + // offset to disputeGameConfigs[1]
-					"0000000000000000000000000000000000000000000000000000000000000220" + // offset to disputeGameConfigs[2]
+					"0000000000000000000000000000000000000000000000000000000000000580" + // offset to extraInstructions
+					"0000000000000000000000000000000000000000000000000000000000000006" + // disputeGameConfigs.length (6)
+					"00000000000000000000000000000000000000000000000000000000000000c0" + // offset to disputeGameConfigs[0]
+					"0000000000000000000000000000000000000000000000000000000000000180" + // offset to disputeGameConfigs[1]
+					"0000000000000000000000000000000000000000000000000000000000000280" + // offset to disputeGameConfigs[2]
+					"0000000000000000000000000000000000000000000000000000000000000320" + // offset to disputeGameConfigs[3]
+					"00000000000000000000000000000000000000000000000000000000000003c0" + // offset to disputeGameConfigs[4]
+					"0000000000000000000000000000000000000000000000000000000000000460" + // offset to disputeGameConfigs[5]
 					// DisputeGameConfigs[0] - Cannon
 					"0000000000000000000000000000000000000000000000000000000000000001" + // enabled=true
 					"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // initBond=1e18
@@ -1054,6 +1074,24 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
 					"0000000000000000000000000000000000000000000000000000000000000008" + // gameType=8 (CannonKona)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// DisputeGameConfigs[3] - SuperCannon (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"0000000000000000000000000000000000000000000000000000000000000004" + // gameType=4 (SuperCannon)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// DisputeGameConfigs[4] - SuperPermCannon (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"0000000000000000000000000000000000000000000000000000000000000005" + // gameType=5 (SuperPermCannon)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// DisputeGameConfigs[5] - SuperCannonKona (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"0000000000000000000000000000000000000000000000000000000000000009" + // gameType=9 (SuperCannonKona)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
 					// ExtraInstructions array
@@ -1137,7 +1175,7 @@ func validateSuperchainDeployment(t *testing.T, st *state.State, cg codeGetter, 
 		{"SuperchainProxyAdminImpl", st.SuperchainDeployment.SuperchainProxyAdminImpl},
 		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxy},
 		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxy},
-		{"OpcmImpl", st.ImplementationsDeployment.OpcmImpl},
+		{"OpcmV2Impl", st.ImplementationsDeployment.OpcmV2Impl},
 		{"PreimageOracleImpl", st.ImplementationsDeployment.PreimageOracleImpl},
 		{"MipsImpl", st.ImplementationsDeployment.MipsImpl},
 	}
@@ -1165,7 +1203,6 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 	implAddrs := []addrTuple{
 		{"DelayedWethImpl", st.ImplementationsDeployment.DelayedWethImpl},
 		{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImpl},
-		{"OptimismPortalInteropImpl", st.ImplementationsDeployment.OptimismPortalInteropImpl},
 		{"SystemConfigImpl", st.ImplementationsDeployment.SystemConfigImpl},
 		{"L1CrossDomainMessengerImpl", st.ImplementationsDeployment.L1CrossDomainMessengerImpl},
 		{"L1ERC721BridgeImpl", st.ImplementationsDeployment.L1Erc721BridgeImpl},

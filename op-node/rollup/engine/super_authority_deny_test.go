@@ -26,15 +26,27 @@ type superAuthorityTestCase struct {
 func TestSuperAuthority(t *testing.T) {
 	tests := []superAuthorityTestCase{
 		{
-			name: "DeniedPayload_EmitsDepositsOnlyRequest",
+			name: "DeniedPayload_Safe_EmitsDepositsOnlyRequest",
 			setup: func(payload *eth.ExecutionPayloadEnvelope) (*testutils.MockEngine, rollup.SuperAuthority, eth.L1BlockRef) {
 				sa := newMockSuperAuthority()
 				sa.denyBlock(uint64(payload.ExecutionPayload.BlockNumber), payload.ExecutionPayload.BlockHash)
-				// Need DerivedFrom for Holocene path
+				// Safe payloads have a non-zero DerivedFrom
 				return nil, sa, eth.L1BlockRef{Number: 1}
 			},
 			expectations: func(emitter *testutils.MockEmitter, engine *testutils.MockEngine, payload *eth.ExecutionPayloadEnvelope) {
 				emitter.ExpectOnceType("DepositsOnlyPayloadAttributesRequestEvent")
+			},
+		},
+		{
+			name: "DeniedPayload_Unsafe_DropsPayload",
+			setup: func(payload *eth.ExecutionPayloadEnvelope) (*testutils.MockEngine, rollup.SuperAuthority, eth.L1BlockRef) {
+				sa := newMockSuperAuthority()
+				sa.denyBlock(uint64(payload.ExecutionPayload.BlockNumber), payload.ExecutionPayload.BlockHash)
+				// Unsafe payloads have zero DerivedFrom - should NOT emit DepositsOnlyRequest
+				return nil, sa, eth.L1BlockRef{}
+			},
+			expectations: func(emitter *testutils.MockEmitter, engine *testutils.MockEngine, payload *eth.ExecutionPayloadEnvelope) {
+				// No events expected - unsafe denied payloads are silently dropped
 			},
 		},
 		{

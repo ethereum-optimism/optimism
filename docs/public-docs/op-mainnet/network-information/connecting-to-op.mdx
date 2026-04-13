@@ -1,0 +1,47 @@
+---
+title: Connecting to OP Mainnet
+description: Documentation for OP Mainnet and OP Sepolia. This page covers network information including network names, chain IDs, RPC endpoints, currency symbols, block explorers, and contract addresses.
+---
+
+This page provides network information for OP Mainnet and OP Sepolia, including RPC endpoints, chain IDs, and block explorers.
+
+<Info>
+  The public RPC URLs provided below are rate limited and do not support websocket connections.
+  If you are experiencing rate limiting issues or need websocket functionality, consider [running your own node](/node-operators/reference/architecture/rollup-node) or signing up for a [third-party RPC provider](/app-developers/reference/rpc-providers).
+</Info>
+
+## OP Mainnet
+
+| Parameter                                | Value                                                                                    |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Network Name                             | `OP Mainnet`                                                                             |
+| Chain ID                                 | `10`                                                                                     |
+| Currency Symbol<sup>1</sup>              | ETH                                                                                      |
+| Explorer                                 | [https://explorer.optimism.io](https://explorer.optimism.io)                             |
+| Public RPC URL                           | [https://mainnet.optimism.io](https://mainnet.optimism.io)                               |
+| Sequencer URL<sup>2</sup>                | [https://mainnet-sequencer.optimism.io](https://mainnet-sequencer.optimism.io)           |
+| Flashblocks websocket URL <sup>3</sup>   | [wss://op-mainnet-fb-ws-pub.optimism.io/ws](wss://op-mainnet-fb-ws-pub.optimism.io/ws)   |
+| Contract Addresses                       | Refer to the [Contract Addresses page](/op-mainnet/network-information/op-addresses#op-mainnet)                    |
+| Connect Wallet                           | [Click here to connect your wallet to OP Mainnet](https://chainid.link?network=optimism) |
+
+1.  The "currency symbol" is required by some wallets like MetaMask.
+2.  The sequencer URL is write only.
+3.  Strictly rate-limited public URL. Please rely on Ethereum JSON RPC or reach out to the Optimism team for a more relaxed private endpoint.
+
+## OP Sepolia
+
+| Parameter                                | Value                                                                                      |
+| ---------------------------              | ------------------------------------------------------------------------------------------ |
+| Network Name                             | `OP Sepolia`                                                                               |
+| Chain ID                                 | `11155420`                                                                                 |
+| Currency Symbol<sup>1</sup>              | ETH                                                                                        |
+| Explorer                                 | [https://testnet-explorer.optimism.io](https://testnet-explorer.optimism.io)               |
+| Public RPC URL                           | [https://sepolia.optimism.io](https://sepolia.optimism.io)                                 |
+| Flashblocks websocket URL <sup>3</sup>   | [wss://op-sepolia-fb-ws.optimism.io/ws](wss://op-sepolia-fb-ws.optimism.io/ws)             |
+| Sequencer URL<sup>2</sup>                | [https://sepolia-sequencer.optimism.io](https://sepolia-sequencer.optimism.io)             |
+| Contract Addresses                       | Refer to the [Contract Addresses page](/op-mainnet/network-information/op-addresses#op-sepolia)              |
+| Connect Wallet                           | [Click here to connect your wallet to OP Sepolia](https://chainid.link?network=op-sepolia) |
+
+1.  The "currency symbol" is required by some wallets like MetaMask.
+2.  The sequencer URL is write only.
+3.  Strictly rate-limited public URL. Please rely on Ethereum JSON RPC or reach out to the Optimism team for a more relaxed private endpoint.

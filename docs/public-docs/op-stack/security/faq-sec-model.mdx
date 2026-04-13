@@ -1,0 +1,90 @@
+---
+title: OP Stack security model
+description: Learn about the OP Stack security model and answers to common questions.
+---
+
+Many OP Stack chains, such as OP Mainnet, are a work in progress.
+Constant, iterative improvement of the security mechanisms that safeguard OP Stack users is a top priority for the entire [Optimism Collective](governance/evolution-and-experimentation).
+The Optimism Collective strives to be clear and transparent about the security of OP Stack chains and the OP Stack as a whole.
+
+## Bottom line
+
+The security model of any blockchain system is only as strong as its lowest common denominator.
+At the moment, **it's important to understand that the security of OP Stack chains is dependent on a [multisig](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A)** managed jointly by the [Optimism Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885) and the Optimism Foundation.
+OP Stack chains **may also contain unknown bugs that could lead to the loss of some or all of the ETH or tokens held within the system**.
+
+## OP Stack multisig
+
+The security of OP Stack chains is currently dependent on a multisig managed jointly by the [Optimism Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885) and the Optimism Foundation.
+This multisig is a [2-of-2 nested multisig](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A) which is in turn governed by a [10-of-13 multisig](https://etherscan.io/address/0xc2819DC788505Aac350142A7A707BF9D03E3Bd03) managed by the Optimism Security Council and a [5-of-7 multisig](https://etherscan.io/address/0x847B5c174615B1B7fDF770882256e2D3E95b9D92) managed by the Optimism Foundation.
+
+This multisig can be used to upgrade core OP Stack smart contracts **without upgrade delays** to allow for quick responses to potential security concerns.
+All upgrades to the OP Stack system must be approved by both component multisigs and either can veto an upgrade.
+
+## Fault proofs
+
+<Info>
+  It is important to understand that **fault proofs are not a silver bullet** and that **fault proofs provide limited improvements to the security of a system if the system still has a multisig or security council that can instantly upgrade the system**.
+  OP Stack chains are following a multi-client and multi-proof approach designed to eventually remove the need for instant upgrades entirely.
+</Info>
+
+Users can withdraw ETH and tokens from OP Stack chains to Ethereum by submitting a withdrawal proof that shows the withdrawal was actually included inside of the OP Stack chain.
+Withdrawals are proven against proposals about the state of the chain that are published through the [`DisputeGameFactory`](https://github.com/ethereum-optimism/optimism/blob/363c5d7f4fb14180a0e2a28cc948fe2146f03dce/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol) contract.
+
+Proposals can be submitted to the `DisputeGameFactory` contract by any user and submissions do not require any special permissions.
+Each submitted proposal creates a [`FaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol) contract that allows any other user to challenge the validity of a proposal by participating in a "fault proof" process.
+A more detailed explanation of the fault proof game can be found in the [Fault Proofs Explainer](/op-stack/fault-proofs/explainer).
+
+Although the fault proof game is permissionless, the Optimism Security Council acting as the [Guardian](/op-stack/protocol/privileged-roles#guardian) role provides a backstop in case of a failure in the fault proof game.
+
+Each proposal must wait for a delay period during which the Guardian can prevent invalid proposals from being used to withdraw ETH or tokens through a number of safety hatches.
+The Guardian can also choose to shift the system to use a `PermissionedDisputeGame` in which only specific `PROPOSER` and `CHALLENGER` roles can submit and challenge proposals.
+
+## Bugs and unknowns
+
+Please also keep in mind that just like any other system, **the Optimism codebase may contain unknown bugs** that could lead to the loss of some or all of the ETH or tokens held within the system.
+The OP Stack has been audited [on many occasions](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/technical-documents/security-reviews), but **audits are not a stamp of approval** and **a completed audit does not mean that the audited codebase is free of bugs.**
+
+It's important to understand that using OP Stack chains inherently exposes you to the risk of bugs within the Optimism codebase, and that you use these chains at your own risk.
+
+## Work in progress
+
+### Sequencer decentralization
+
+The Optimism Foundation currently operates the sole sequencer on OP Stack chains.
+Although users can always bypass the Sequencer by sending transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/5877ee24cc9aaef5848c1372e0e196707fb336a0/packages/contracts-bedrock/src/L1/OptimismPortal.sol) contract, sequencer decentralization can still help mitigate the effect of short-term outages for users.
+
+## Security model FAQ
+
+### Do OP Stack chains have fault proofs?
+
+**Yes**, fault proofs are available to OP Stack chains.
+It is important to note that **fault proofs are not a silver bullet** and that **fault proofs provide limited improvements to the security of a system if the system still has a multisig or security council that can instantly upgrade the system**.
+A system with fast upgrade keys, such as OP Mainnet, is fully dependent on the upgrade keys for security.
+The goal is to be the first system that deploys fault proofs that can secure the system by themselves, without fast upgrade keys.
+
+### How is Optimism planning to remove the multisig?
+
+Check out Optimism's detailed [Pragmatic Path to Decentralization](https://web.archive.org/web/20230331065342/https://medium.com/ethereum-optimism/our-pragmatic-path-to-decentralization-cb5805ca43c1) post for a detailed view into how the multisig may be removed in a way that makes OP Stack chains the first with true fault proof security.
+
+### How can I help make OP Stack chains more secure?
+
+[OP Stack has one of the biggest bug bounties (ever)](/op-stack/security/security-policy).
+You can earn up to $2,000,042 by finding critical bugs in the Optimism codebase.
+You can also run your own verifier node to detect network faults.
+
+### Where do I report bugs?
+
+For details about reporting vulnerabilities and available bug bounty programs, see the [Security Policy](/op-stack/security/security-policy).
+
+### Is every OP Stack chain safe?
+
+The security model of an OP Stack based blockchain depends on the modules used for its components. Because of the flexibility and permissionless nature of the OP Stack, it is always possible for someone to maliciously or in error set up a chain which does not make use of core security features, but uses other components of OP Stack. **The goal of the OP Stack is to provide safe defaults.**
+
+Please also keep in mind that just like any other system, **the OP Stack (or chains built using the OP Stack) may contain unknown bugs**  that could lead to the loss of some or all of the ETH and tokens held within an OP Stack based system.
+Many components of the OP Stack codebase have been [audited](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/technical-documents/security-reviews), but successful audits do not remove all potential risk from an emerging technology, and a completed audit does not mean that the codebase is completely free of bugs.
+It's important to understand that using the OP Stack inherently exposes you to the risk of bugs within the OP Stack codebase.
+
+### Is the OP Stack safe to modify?
+
+As with anything, modify the OP Stack at your own risk. There is no guarantee that modifications to the stack will be safe. If you aren't entirely sure about what you're doing, stick with the safer defaults that the OP Stack provides. At the moment, the OP Stack is not particularly amenable to modifications and **you should not expect any technical support for modifications that fall outside of the standard Rollup configuration of the stack**.

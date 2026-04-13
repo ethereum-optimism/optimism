@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -24,21 +23,35 @@ import (
 // L2Network wraps a stack.L2Network interface for DSL operations
 type L2Network struct {
 	commonImpl
-	inner   stack.L2Network
-	control stack.ControlPlane
+	inner     stack.L2Network
+	primaryEL *L2ELNode
+	primaryCL *L2CLNode
+	primaryL1 *L1ELNode
+	archiveEL *L2ELNode
+	publicRPC *L2ELNode
 }
 
 // NewL2Network creates a new L2Network DSL wrapper
-func NewL2Network(inner stack.L2Network, control stack.ControlPlane) *L2Network {
+func NewL2Network(inner stack.L2Network, primaryEL *L2ELNode, primaryCL *L2CLNode, primaryL1 *L1ELNode, archiveEL *L2ELNode, publicRPC *L2ELNode) *L2Network {
+	if archiveEL == nil {
+		archiveEL = primaryEL
+	}
+	if publicRPC == nil {
+		publicRPC = primaryEL
+	}
 	return &L2Network{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
-		control:    control,
+		primaryEL:  primaryEL,
+		primaryCL:  primaryCL,
+		primaryL1:  primaryL1,
+		archiveEL:  archiveEL,
+		publicRPC:  publicRPC,
 	}
 }
 
 func (n *L2Network) String() string {
-	return n.inner.ID().String()
+	return n.inner.Name()
 }
 
 func (n *L2Network) ChainID() eth.ChainID {
@@ -55,18 +68,38 @@ func (n *L2Network) Escape() stack.L2Network {
 	return n.inner
 }
 
+func (n *L2Network) PrimaryEL() *L2ELNode {
+	n.require.NotNil(n.primaryEL, "l2 network %s is missing a primary EL node", n.String())
+	return n.primaryEL
+}
+
+func (n *L2Network) ArchiveEL() *L2ELNode {
+	n.require.NotNil(n.archiveEL, "l2 network %s is missing an archive EL node", n.String())
+	return n.archiveEL
+}
+
+func (n *L2Network) PrimaryCL() *L2CLNode {
+	n.require.NotNil(n.primaryCL, "l2 network %s is missing a primary CL node", n.String())
+	return n.primaryCL
+}
+
+func (n *L2Network) PrimaryL1EL() *L1ELNode {
+	n.require.NotNil(n.primaryL1, "l2 network %s is missing a primary L1 EL node", n.String())
+	return n.primaryL1
+}
+
 func (n *L2Network) L2ELNodes() []*L2ELNode {
 	innerNodes := n.inner.L2ELNodes()
 	nodes := make([]*L2ELNode, len(innerNodes))
 	for i, inner := range innerNodes {
-		nodes[i] = NewL2ELNode(inner, n.control)
+		nodes[i] = NewL2ELNode(inner)
 	}
 	return nodes
 }
 
 func (n *L2Network) CatchUpTo(o *L2Network) {
-	this := n.inner.L2ELNode(match.FirstL2EL)
-	other := o.inner.L2ELNode(match.FirstL2EL)
+	this := n.PrimaryEL().Escape()
+	other := o.PrimaryEL().Escape()
 
 	err := wait.For(n.ctx, 5*time.Second, func() (bool, error) {
 		a, err := this.EthClient().InfoByLabel(n.ctx, "latest")
@@ -91,26 +124,19 @@ func (n *L2Network) CatchUpTo(o *L2Network) {
 }
 
 func (n *L2Network) WaitForBlock() eth.BlockRef {
-	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL), n.control).WaitForBlock()
+	return n.PrimaryEL().WaitForBlock()
 }
 
 func (n *L2Network) PublicRPC() *L2ELNode {
-	if proxyds := match.Proxyd.Match(n.Escape().L2ELNodes()); len(proxyds) > 0 {
-		n.log.Info("PublicRPC - Using proxyd", "network", n.String())
-		return NewL2ELNode(proxyds[0], n.control)
-	}
-
-	n.log.Info("PublicRPC - Using fallback instead of proxyd", "network", n.String())
-	// Fallback since sysgo doesn't have proxyd support at the moment, and may never get it.
-	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL), n.control)
+	n.require.NotNil(n.publicRPC, "l2 network %s is missing a public RPC node", n.String())
+	return n.publicRPC
 }
 
 // PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests
 func (n *L2Network) PrintChain() {
-	l2_el := n.inner.L2ELNode(match.FirstL2EL)
-	l2_cl := n.inner.L2CLNode(match.FirstL2CL)
-
-	l1_el := n.inner.L1().L1ELNode(match.FirstL1EL)
+	l2_el := n.PrimaryEL().Escape()
+	l2_cl := n.PrimaryCL().Escape()
+	l1_el := n.PrimaryL1EL().Escape()
 
 	biAddr := n.inner.RollupConfig().BatchInboxAddress
 	dgfAddr := n.inner.Deployment().DisputeGameFactoryProxyAddr()
@@ -179,7 +205,7 @@ func (n *L2Network) PrintChain() {
 }
 
 func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {
-	l2_el := n.inner.L2ELNode(match.FirstL2EL)
+	l2_el := n.PrimaryEL().Escape()
 
 	unsafeHead, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
 	n.require.NoError(err, "Expected to get latest block from L2 execution client")
@@ -195,16 +221,14 @@ func (n *L2Network) IsActivated(timestamp uint64) bool {
 	blockNum, err := n.Escape().RollupConfig().TargetBlockNumber(timestamp)
 	n.require.NoError(err)
 
-	el := n.Escape().L2ELNode(match.FirstL2EL)
-	head, err := el.EthClient().BlockRefByLabel(n.ctx, eth.Unsafe)
+	head, err := n.PrimaryEL().EthClient().BlockRefByLabel(n.ctx, eth.Unsafe)
 	n.require.NoError(err)
 
 	return head.Number >= blockNum
 }
 
 func (n *L2Network) IsForkActive(fork forks.Name) bool {
-	el := NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL), n.control)
-	timestamp := el.BlockRefByLabel(eth.Unsafe).Time
+	timestamp := n.PrimaryEL().BlockRefByLabel(eth.Unsafe).Time
 	return n.IsForkActiveAt(fork, timestamp)
 }
 
@@ -221,8 +245,7 @@ func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) et
 	blockNum, err := n.Escape().RollupConfig().TargetBlockNumber(timestamp)
 	require.NoError(err)
 
-	el := n.Escape().L2ELNode(match.FirstL2EL)
-	head, err := el.EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	head, err := n.PrimaryEL().EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(err)
 
 	t.Logger().Info("Preparing",
@@ -234,7 +257,7 @@ func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) et
 		return head
 	} else {
 		t.Logger().Info("Reached block already, proceeding with last block before timestamp")
-		v, err := el.EthClient().BlockRefByNumber(t.Ctx(), blockNum-1)
+		v, err := n.PrimaryEL().EthClient().BlockRefByNumber(t.Ctx(), blockNum-1)
 		require.NoError(err)
 		return v
 	}
@@ -244,20 +267,18 @@ func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) et
 func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.BlockID {
 	require := t.Require()
 
-	el := n.Escape().L2ELNode(match.FirstL2EL)
-
 	rollupCfg := n.Escape().RollupConfig()
 	maybeActivationTime := rollupCfg.ActivationTime(forkName)
 	require.NotNil(maybeActivationTime, "Required fork is not scheduled for activation")
 	activationTime := *maybeActivationTime
 	if activationTime == 0 {
-		block, err := el.EthClient().BlockRefByNumber(t.Ctx(), 0)
+		block, err := n.PrimaryEL().EthClient().BlockRefByNumber(t.Ctx(), 0)
 		require.NoError(err, "Fork activated at genesis, but failed to get genesis block")
 		return block.ID()
 	}
 	blockNum, err := rollupCfg.TargetBlockNumber(activationTime)
 	require.NoError(err)
-	activationBlock := eth.ToBlockID(NewL2ELNode(el, n.control).WaitForBlockNumber(blockNum))
+	activationBlock := eth.ToBlockID(n.PrimaryEL().WaitForBlockNumber(blockNum))
 	t.Logger().Info("Activation block", "block", activationBlock)
 	return activationBlock
 
@@ -282,7 +303,7 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 	rollupCfg := n.inner.RollupConfig()
 	batchInboxAddr := rollupCfg.BatchInboxAddress
 
-	l1EC := n.inner.L1().L1ELNode(match.FirstL1EL).EthClient()
+	l1EC := n.PrimaryL1EL().EthClient()
 
 	// Get current L1 block number before starting to monitor
 	startBlockRef, err := l1EC.BlockRefByLabel(ctx, eth.Unsafe)
@@ -293,7 +314,7 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 
 	// Monitor L1 blocks for batch transactions
 	for range blocks {
-		NewL1ELNode(n.inner.L1().L1ELNode(match.FirstL1EL)).WaitForBlock()
+		n.PrimaryL1EL().WaitForBlock()
 
 		// Get current block number
 		currentBlockRef, err := l1EC.BlockRefByLabel(ctx, eth.Unsafe)

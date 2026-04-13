@@ -1,0 +1,134 @@
+{
+  "shared_paths": [
+    "docker-bake.hcl",
+    ".github/workflows/branches.yaml",
+    ".github/docker-images.json",
+    ".github/actions/docker-build-prep/**",
+    "ops/scripts/compute-git-versions.sh"
+  ],
+  "shared_go_paths": [
+    "go.mod",
+    "go.sum",
+    "ops/docker/op-stack-go/**",
+    "op-service/**",
+    "op-core/**",
+    "op-chain-ops/**"
+  ],
+  "images": {
+    "op-node": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-node/**"]
+    },
+    "op-batcher": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-batcher/**"]
+    },
+    "op-faucet": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-faucet/**"]
+    },
+    "op-program": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-program/**", "op-preimage/**"]
+    },
+    "op-proposer": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-proposer/**"]
+    },
+    "op-challenger": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-challenger/**", "op-program/**", "cannon/**", "op-preimage/**", "rust/kona/**"]
+    },
+    "op-dispute-mon": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-dispute-mon/**"]
+    },
+    "op-conductor": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-conductor/**", "op-node/**"]
+    },
+    "da-server": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-alt-da/**"]
+    },
+    "op-supervisor": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-supervisor/**"]
+    },
+    "op-supernode": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-supernode/**", "op-node/**"]
+    },
+    "op-test-sequencer": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-test-sequencer/**"]
+    },
+    "cannon": {
+      "type": "go",
+      "check": "go",
+      "paths": ["cannon/**", "op-preimage/**"]
+    },
+    "op-deployer": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-deployer/**", "packages/contracts-bedrock/**"]
+    },
+    "op-dripper": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-dripper/**"]
+    },
+    "op-interop-mon": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-interop-mon/**"]
+    },
+    "op-interop-filter": {
+      "type": "go",
+      "check": "go",
+      "paths": ["op-interop-filter/**"]
+    },
+    "op-rbuilder": {
+      "type": "rust",
+      "check": "rust",
+      "paths": ["op-rbuilder/**"]
+    },
+    "kona-node": {
+      "type": "rust",
+      "check": "rust",
+      "paths": ["rust/**"]
+    },
+    "kona-client": {
+      "type": "rust",
+      "check": "none",
+      "paths": ["rust/**"]
+    },
+    "kona-host": {
+      "type": "rust",
+      "check": "rust",
+      "paths": ["rust/**"]
+    },
+    "op-reth": {
+      "type": "rust",
+      "check": "rust",
+      "paths": ["rust/**"]
+    },
+    "cannon-builder": {
+      "type": "rust",
+      "check": "none",
+      "paths": ["rust/kona/docker/cannon/**"]
+    }
+  }
+}

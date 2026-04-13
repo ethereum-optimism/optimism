@@ -46,12 +46,12 @@ where
                 .get_earliest_block_number()
                 .map_err(|e| ProviderError::Database(e.into()))?,
         ) else {
-            // if no earliest block, db is empty - use historical provider
-            return Ok(historical_provider);
+            // if no earliest block, db is empty, return error
+            return Err(ProviderError::StateForNumberNotFound(block_number));
         };
 
         if block_number < earliest_block_number || block_number > latest_block_number {
-            return Ok(historical_provider);
+            return Err(ProviderError::StateForNumberNotFound(block_number));
         }
 
         let external_overlay_provider =

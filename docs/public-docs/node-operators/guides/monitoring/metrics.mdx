@@ -1,0 +1,66 @@
+---
+title: Node Metrics and Monitoring
+description: Learn about the different metrics you can use to monitor the health of your node.
+---
+
+The Optimism `op-node` exposes a variety of metrics to help observe the health of the system and debug issues. Metrics are formatted for use with Prometheus and exposed via a metrics endpoint. The default metrics endpoint is `http://localhost:7300/metrics`.
+
+To enable metrics, pass the `--metrics.enabled` flag to the `op-node`. You can customize the metrics port and address via the `--metrics.port` and `--metrics.addr` flags, respectively.
+
+## Important metrics
+
+To monitor the health of your node, you should monitor the following metrics:
+
+*   `op_node_default_refs_number`: This metric represents the `op-node`'s current L1/L2 reference block number for different sync types. If it stops increasing, it means that the node is not syncing. If it goes backwards, it means your node is reorging.
+*   `op_node_default_peer_count`: This metric represents how many peers the `op-node` is connected to. Without peers, the `op-node` cannot sync unsafe blocks and your node will lag behind the sequencer as it will fall back to syncing purely from L1.
+*   `op_node_default_rpc_client_request_duration_seconds`: This metric measures the latency of RPC requests initiated by the `op-node`. This metric is important when debugging sync performance, as it will reveal which specific RPC calls are slowing down sync. This metric exposes one timeseries per RPC method. The most important RPC methods to monitor are:
+    *   `engine_forkChoiceUpdatedV1`, `engine_getPayloadV1`, and `engine_newPayloadV1`: These methods are used to execute blocks on `op-geth`. If these methods are slow, it means that sync time is bottlenecked by either `op-geth` itself or your connection to it.
+    *   `eth_getBlockByHash`, `eth_getTransactionReceipt`, and `eth_getBlockByNumber`: These methods are used by the `op-node` to fetch transaction data from L1. If these methods are slow, it means that sync time is bottlenecked by your L1 RPC.
+
+## Available metrics
+
+A complete list of available metrics is below:
+
+| METRIC                                                     | DESCRIPTION                                                                                      | LABELS       | TYPE      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------ | --------- |
+| op\_node\_default\_info                                    | Pseudo-metric tracking version and config info                                                   | version      | gauge     |
+| op\_node\_default\_up                                      | 1 if the op node has finished starting up                                                        |              | gauge     |
+| op\_node\_default\_rpc\_server\_requests\_total            | Total requests to the RPC server                                                                 | method       | counter   |
+| op\_node\_default\_rpc\_server\_request\_duration\_seconds | Histogram of RPC server request durations                                                        | method       | histogram |
+| op\_node\_default\_rpc\_client\_requests\_total            | Total RPC requests initiated by the opnode's RPC client                                          | method       | counter   |
+| op\_node\_default\_rpc\_client\_request\_duration\_seconds | Histogram of RPC client request durations                                                        | method       | histogram |
+| op\_node\_default\_rpc\_client\_responses\_total           | Total RPC request responses received by the opnode's RPC client                                  | method,error | counter   |
+| op\_node\_default\_l1\_source\_cache\_size                 | L1 Source cache size                                                                             | type         | gauge     |
+| op\_node\_default\_l1\_source\_cache\_get                  | L1 Source cache lookups, hitting or not                                                          | type,hit     | counter   |
+| op\_node\_default\_l1\_source\_cache\_add                  | L1 Source cache additions, evicting previous values or not                                       | type,evicted | counter   |
+| op\_node\_default\_l2\_source\_cache\_size                 | L2 Source cache size                                                                             | type         | gauge     |
+| op\_node\_default\_l2\_source\_cache\_get                  | L2 Source cache lookups, hitting or not                                                          | type,hit     | counter   |
+| op\_node\_default\_l2\_source\_cache\_add                  | L2 Source cache additions, evicting previous values or not                                       | type,evicted | counter   |
+| op\_node\_default\_derivation\_idle                        | 1 if the derivation pipeline is idle                                                             |              | gauge     |
+| op\_node\_default\_pipeline\_resets\_total                 | Count of derivation pipeline resets events                                                       |              | counter   |
+| op\_node\_default\_last\_pipeline\_resets\_unix            | Timestamp of last derivation pipeline resets event                                               |              | gauge     |
+| op\_node\_default\_unsafe\_payloads\_total                 | Count of unsafe payloads events                                                                  |              | counter   |
+| op\_node\_default\_last\_unsafe\_payloads\_unix            | Timestamp of last unsafe payloads event                                                          |              | gauge     |
+| op\_node\_default\_derivation\_errors\_total               | Count of derivation errors events                                                                |              | counter   |
+| op\_node\_default\_last\_derivation\_errors\_unix          | Timestamp of last derivation errors event                                                        |              | gauge     |
+| op\_node\_default\_sequencing\_errors\_total               | Count of sequencing errors events                                                                |              | counter   |
+| op\_node\_default\_last\_sequencing\_errors\_unix          | Timestamp of last sequencing errors event                                                        |              | gauge     |
+| op\_node\_default\_publishing\_errors\_total               | Count of p2p publishing errors events                                                            |              | counter   |
+| op\_node\_default\_last\_publishing\_errors\_unix          | Timestamp of last p2p publishing errors event                                                    |              | gauge     |
+| op\_node\_default\_unsafe\_payloads\_buffer\_len           | Number of buffered L2 unsafe payloads                                                            |              | gauge     |
+| op\_node\_default\_unsafe\_payloads\_buffer\_mem\_size     | Total estimated memory size of buffered L2 unsafe payloads                                       |              | gauge     |
+| op\_node\_default\_refs\_number                            | Gauge representing the different L1/L2 reference block numbers                                   | layer,type   | gauge     |
+| op\_node\_default\_refs\_time                              | Gauge representing the different L1/L2 reference block timestamps                                | layer,type   | gauge     |
+| op\_node\_default\_refs\_hash                              | Gauge representing the different L1/L2 reference block hashes truncated to float values          | layer,type   | gauge     |
+| op\_node\_default\_refs\_seqnr                             | Gauge representing the different L2 reference sequence numbers                                   | type         | gauge     |
+| op\_node\_default\_refs\_latency                           | Gauge representing the different L1/L2 reference block timestamps minus current time, in seconds | layer,type   | gauge     |
+| op\_node\_default\_l1\_reorg\_depth                        | Histogram of L1 Reorg Depths                                                                     |              | histogram |
+| op\_node\_default\_transactions\_sequenced\_total          | Count of total transactions sequenced                                                            |              | gauge     |
+| op\_node\_default\_p2p\_peer\_count                        | Count of currently connected p2p peers                                                           |              | gauge     |
+| op\_node\_default\_p2p\_stream\_count                      | Count of currently connected p2p streams                                                         |              | gauge     |
+| op\_node\_default\_p2p\_gossip\_events\_total              | Count of gossip events by type                                                                   | type         | counter   |
+| op\_node\_default\_p2p\_bandwidth\_bytes\_total            | P2P bandwidth by direction                                                                       | direction    | gauge     |
+| op\_node\_default\_sequencer\_building\_diff\_seconds      | Histogram of Sequencer building time, minus block time                                           |              | histogram |
+| op\_node\_default\_sequencer\_building\_diff\_total        | Number of sequencer block building jobs                                                          |              | counter   |
+| op\_node\_default\_sequencer\_sealing\_seconds             | Histogram of Sequencer block sealing time                                                        |              | histogram |
+| op\_node\_default\_sequencer\_sealing\_total               | Number of sequencer block sealing jobs                                                           |              | counter   |

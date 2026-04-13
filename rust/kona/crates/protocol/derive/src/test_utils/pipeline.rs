@@ -13,9 +13,11 @@ use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use crate::{
     AttributesQueue, BatchStream, ChannelProvider, ChannelReader, DerivationPipeline, FrameQueue,
     L1Retrieval, NextAttributes, OriginAdvancer, OriginProvider, PipelineBuilder, PipelineError,
-    PollingTraversal, Signal, SignalReceiver,
+    PollingTraversal, Stage,
     test_utils::{TestAttributesBuilder, TestDAP},
 };
+use alloy_eips::BlockNumHash;
+use kona_genesis::SystemConfig;
 
 /// A fully custom [`NextAttributes`].
 #[derive(Default, Debug, Clone)]
@@ -25,9 +27,20 @@ pub struct TestNextAttributes {
 }
 
 #[async_trait::async_trait]
-impl SignalReceiver for TestNextAttributes {
-    /// Resets the derivation stage to its initial state.
-    async fn signal(&mut self, _: Signal) -> PipelineResult<()> {
+impl Stage for TestNextAttributes {
+    async fn reset(&mut self, _: BlockNumHash, _: SystemConfig) -> PipelineResult<()> {
+        Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
         Ok(())
     }
 }

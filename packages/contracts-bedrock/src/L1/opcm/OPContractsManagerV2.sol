@@ -24,7 +24,6 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
@@ -153,9 +152,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.11
+    /// @custom:semver 7.1.15
     function version() public pure returns (string memory) {
-        return "7.0.11";
+        return "7.1.15";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -340,12 +339,21 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
                 return true;
             }
+
+            // Super root games migration requires overriding anchor root.
+            if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+                if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
+            }
         }
 
         // Allow overriding the starting respected game type during upgrades. This is needed when
         // disabling the currently-respected game type, since the validation requires the starting
         // respected game type to correspond to an enabled game config.
         if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingRespectedGameType")) {
+            GameType gameType = abi.decode(_instruction.data, (GameType));
+            if (gameType.raw() == GameTypes.CANNON_KONA.raw()) {
+                return isDevFeatureEnabled(DevFeatures.CANNON_KONA);
+            }
             return true;
         }
 
@@ -676,24 +684,26 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
+    /// @param _isInitialDeployment Whether or not this is an initial deployment.
     function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
-        // Start validating the dispute game configs. Put allowed game types here. Note that
-        // these game types are intentionally hardcoded rather than sourced from a shared utility.
-        // When new game types are added, this list and the corresponding list in the Migrator's
-        // _migratePortal function must both be updated.
-        GameType[] memory validGameTypes = new GameType[](3);
+        // All valid game types. StandardValidator is responsible for rejecting game types that
+        // should not be used in a given mode (e.g., legacy types in super root mode).
+        GameType[] memory validGameTypes = new GameType[](6);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
+        validGameTypes[3] = GameTypes.SUPER_CANNON;
+        validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        validGameTypes[5] = GameTypes.SUPER_CANNON_KONA;
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        // Simplest possible check, iterate over each provided config and confirm that it matches
-        // the game type array. This places a requirement on the user to order the configs properly
-        // but that's probably a good thing, keeps the config consistent.
+        // Iterate over each provided config and confirm that it matches the game type array.
+        // This places a requirement on the user to order the configs properly but that's
+        // probably a good thing, keeps the config consistent.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
@@ -704,21 +714,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // During initial deployment, only PERMISSIONED_CANNON can be enabled, because no prestate exists for
-            // permissionless games.
-            if (
-                _isInitialDeployment && (validGameTypes[i].raw() != GameTypes.PERMISSIONED_CANNON.raw())
-                    && _cfg.disputeGameConfigs[i].enabled
-            ) {
+            // Check if this is a permissioned type.
+            bool isPermissioned = validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
+
+            // During initial deployment, only permissioned types can be enabled, because no
+            // prestate exists for permissionless games.
+            if (_isInitialDeployment && !isPermissioned && _cfg.disputeGameConfigs[i].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
-        }
-
-        // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
-        // remove this check at some point in the future if we stop making this assumption, but for
-        // now we explicitly assert that it is enabled.
-        if (!_cfg.disputeGameConfigs[1].enabled) {
-            revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
         // Validate that the starting respected game type corresponds to an enabled game config.
@@ -778,13 +782,20 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Update the OptimismPortal.
+        // When interop is enabled, the ETH_LOCKBOX feature must be set on SystemConfig before
+        // upgrading the portal. OptimismPortal2.initialize() calls _assertValidLockboxState()
+        // which requires the ETH_LOCKBOX feature flag and ethLockbox address to be consistent.
+        // Otherwise we end up in a state where we have a lockbox and the feature flag is off.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            }
             _upgrade(
                 _cts.proxyAdmin,
                 address(_cts.optimismPortal),
-                impls.optimismPortalInteropImpl,
+                impls.optimismPortalImpl,
                 abi.encodeCall(
-                    IOptimismPortalInterop.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
+                    IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
                 )
             );
         } else {
@@ -792,7 +803,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cts.proxyAdmin,
                 address(_cts.optimismPortal),
                 impls.optimismPortalImpl,
-                abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry))
+                abi.encodeCall(
+                    IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, IETHLockbox(address(0)))
+                )
             );
         }
 
@@ -823,9 +836,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
                 _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
             }
+            if (!_cts.systemConfig.isFeatureEnabled(Features.INTEROP)) {
+                _cts.systemConfig.setFeature(Features.INTEROP, true);
+            }
 
             // Migrate any ETH into the ETHLockbox.
-            IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
+            IOptimismPortal(payable(_cts.optimismPortal)).migrateLiquidity();
         }
 
         // Update the L1CrossDomainMessenger.

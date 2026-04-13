@@ -3,17 +3,49 @@ package sync_tester_hfs
 import (
 	"testing"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func TestSyncTesterHardforks(gt *testing.T) {
-	t := devtest.SerialT(gt)
+func ptrToUint64(v uint64) *uint64 {
+	return &v
+}
 
-	sys := presets.NewSimpleWithSyncTester(t)
+func simpleWithSyncTesterOpts() []presets.Option {
+	return []presets.Option{
+		presets.WithDeployerOptions(sysgo.WithHardforkSequentialActivation(forks.Bedrock, forks.Jovian, ptrToUint64(6))),
+		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(_ devtest.T, id sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.NoDiscovery = true
+		})),
+		presets.WithBatcherOption(func(id sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+			// For supporting pre-delta batches
+			cfg.BatchType = derive.SingularBatchType
+			// For supporting pre-Fjord batches
+			cfg.CompressionAlgo = derive.Zlib
+		}),
+	}
+}
+
+func TestSyncTesterHardforks(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	// Example error with op-reth:
+	//
+	// assertions.go:387:             ERROR[03-31|10:08:04.055]
+	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/check.go:26
+	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_hfs/sync_tester_hfs_test.go:54
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	operation failed permanently after 42 attempts: expected head to advance: unsafe
+	// assertions.go:387:             	Test:       	TestSyncTesterHardforks
+	sysgo.SkipOnOpReth(t, "not supported")
+
+	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()

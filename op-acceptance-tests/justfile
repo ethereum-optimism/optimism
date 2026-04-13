@@ -1,184 +1,115 @@
 REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
-KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.10.2")
-DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
-ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test "" base
+    @just acceptance-test
 
-jovian:
-    @just acceptance-test jovian jovian
-
-interop:
-    @just acceptance-test "" interop
-
-cgt:
-    @just acceptance-test "" cgt
-
-
-# Run acceptance tests with mise-managed binary
-# Usage: just acceptance-test [devnet] [gate]
-# Examples:
-#   just acceptance-test "" base         # In-process (sysgo) with specific gate
-#   just acceptance-test "" ""           # In-process gateless mode (all tests)
-#   just acceptance-test "simple" base     # External devnet with specific gate
-#   just acceptance-test "simple" ""       # External devnet gateless mode (all tests)
-acceptance-test devnet="" gate="base":
+# Build all dependencies for local acceptance test runs. Skipped in CI where jobs handle this.
+build-deps:
     #!/usr/bin/env bash
     set -euo pipefail
+    if [[ -n "${CIRCLECI:-}" ]]; then exit 0; fi
 
-    # Determine mode and orchestrator
-    GATELESS_MODE=$([[ "{{gate}}" == "" ]] && echo "true" || echo "false")
-    ORCHESTRATOR=$([[ "{{devnet}}" == "" ]] && echo "sysgo" || echo "sysext")
+    echo "Building contracts (local build)..."
+    cd {{REPO_ROOT}}
+    echo " - Installing mise..."
+    mise install
+    cd packages/contracts-bedrock
+    echo " - Installing contracts..."
+    just install
+    echo " - Forge build..."
+    just build-no-tests
+    cd {{REPO_ROOT}}
 
-    # Display mode information
-    if [[ "$GATELESS_MODE" == "true" ]]; then
-        echo -e "DEVNET: $([[ "$ORCHESTRATOR" == "sysgo" ]] && echo "in-memory" || echo "{{devnet}}") ($ORCHESTRATOR), MODE: gateless (all tests)\n"
-    else
-        echo -e "DEVNET: $([[ "$ORCHESTRATOR" == "sysgo" ]] && echo "in-memory" || echo "{{devnet}}") ($ORCHESTRATOR), GATE: {{gate}}\n"
-    fi
+    echo "Building cannon dependencies..."
+    cd {{REPO_ROOT}}
+    just cannon-prestates
 
-    # Build dependencies for sysgo (in-process) mode if not in CI
-    # In CI jobs already take care of this, so we skip it.
-    if [[ "$ORCHESTRATOR" == "sysgo" && -z "${CIRCLECI:-}" ]]; then
-        echo "Building contracts (local build)..."
-        cd {{REPO_ROOT}}
-        echo " - Updating submodules..."
-        git submodule update --init --recursive --single-branch -j 8
-        echo " - Installing mise..."
-        mise install
-        cd packages/contracts-bedrock
-        echo " - Installing contracts..."
-        just install
-        echo " - Forge build..."
-        just build-no-tests
-        cd {{REPO_ROOT}}
+    echo "Building Rust binaries (kona-node, op-rbuilder, rollup-boost)..."
+    cd {{REPO_ROOT}}
+    just build-rust-release
 
-        echo "Checking cannon dependencies..."
-        if [ ! -e {{REPO_ROOT}}/cannon/bin/cannon ] || [ ! -e {{REPO_ROOT}}/op-program/bin/prestate-mt64.bin.gz ]; then
-            echo "Building cannon dependencies..."
-            cd {{REPO_ROOT}}
-            make cannon-prestates
-        fi
+# Run specific acceptance tests. Builds dependencies first, then passes all arguments to go test.
+# Examples:
+#   just test ./op-acceptance-tests/tests/base/...
+#   just test -run TestMyTest ./op-acceptance-tests/tests/base/
+test *args: build-deps
+    cd {{REPO_ROOT}} && go test -count=1 -timeout 30m {{args}}
 
-        echo "Building Rust binaries (kona-node, kona-supervisor, op-rbuilder, rollup-boost)..."
-        cd {{REPO_ROOT}}
-        just build-rust-release
-    fi
+# Run acceptance tests
+acceptance-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo -e "DEVNET: in-memory\n"
 
-    cd {{REPO_ROOT}}/op-acceptance-tests
-
-    # Check mise installation and fallback to Docker if needed
-    if ! command -v mise >/dev/null; then
-        echo "Mise not installed, falling back to Docker..."
-        just acceptance-test-docker {{devnet}} {{gate}}
-        exit 0
-    fi
-
-    # Install op-acceptor using mise
-    if ! mise install op-acceptor; then
-        echo "WARNING: Failed to install op-acceptor with mise, falling back to Docker..."
-        just acceptance-test-docker {{devnet}} {{gate}}
-        exit 0
-    fi
-
-    # Set binary path and log level
-    BINARY_PATH=$(mise which op-acceptor)
-    echo "Using mise-managed binary: $BINARY_PATH"
     LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
     echo "LOG_LEVEL: $LOG_LEVEL"
 
-    # Deploy devnet for sysext if it's a simple name
-    if [[ "$ORCHESTRATOR" == "sysext" && ! "{{devnet}}" =~ ^(kt://|ktnative://|/) ]]; then
-        echo "Deploying devnet {{devnet}}..."
-        just {{KURTOSIS_DIR}}/{{devnet}}-devnet || true
+    CPU_COUNT=""
+    if command -v nproc >/dev/null 2>&1; then
+        CPU_COUNT="$(nproc)"
+    elif command -v getconf >/dev/null 2>&1; then
+        CPU_COUNT="$(getconf _NPROCESSORS_ONLN)"
+    elif command -v sysctl >/dev/null 2>&1; then
+        CPU_COUNT="$(sysctl -n hw.ncpu)"
+    fi
+    if [[ -z "$CPU_COUNT" || "$CPU_COUNT" -lt 1 ]]; then
+        CPU_COUNT=1
     fi
 
-    # Build command arguments based on mode
-    if [[ "$GATELESS_MODE" == "true" ]]; then
-        # Gateless mode - use binary directly
-        CMD_ARGS=(
-            "$BINARY_PATH"
-            "--testdir" "{{REPO_ROOT}}/op-acceptance-tests/..."
-            "--validators" "./acceptance-tests.yaml"
-            "--exclude-gates" "flake-shake"
-            "--allow-skips"
-            "--timeout" "120m"
-            "--orchestrator" "$ORCHESTRATOR"
-            "--show-progress"
-        )
+    DEFAULT_JOBS="$CPU_COUNT"
+    DEFAULT_TEST_PARALLEL="$(( CPU_COUNT / 2 ))"
+    if [[ "$DEFAULT_TEST_PARALLEL" -lt 1 ]]; then
+        DEFAULT_TEST_PARALLEL=1
+    fi
+
+    JOBS="${ACCEPTANCE_TEST_JOBS:-$DEFAULT_JOBS}"
+    TEST_PARALLEL="${ACCEPTANCE_TEST_PARALLEL:-$DEFAULT_TEST_PARALLEL}"
+    TEST_TIMEOUT="${ACCEPTANCE_TEST_TIMEOUT:-30m}"
+    echo "CPU COUNT: $CPU_COUNT"
+    echo "PACKAGE JOBS: $JOBS"
+    echo "TEST PARALLELISM: $TEST_PARALLEL"
+    echo "PACKAGE TIMEOUT: $TEST_TIMEOUT"
+
+    cd {{REPO_ROOT}}
+    if ! command -v gotestsum >/dev/null; then
+        echo "error: gotestsum is required for acceptance-test runs." >&2
+        exit 1
+    fi
+
+    LOG_ROOT="{{REPO_ROOT}}/op-acceptance-tests/logs"
+    RESULTS_DIR="{{REPO_ROOT}}/op-acceptance-tests/results"
+    mkdir -p "$LOG_ROOT" "$RESULTS_DIR"
+    LOG_DIR="$LOG_ROOT/testrun-$(date -u +%Y%m%d-%H%M%S)"
+    mkdir -p "$LOG_DIR/failed"
+    rm -f "$RESULTS_DIR/results.xml"
+
+    FLAKY_REPORT="$LOG_DIR/flaky-tests.txt"
+    if command -v rg >/dev/null 2>&1; then
+        rg -n "MarkFlaky\\(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
     else
-        # Gate mode - use go run with acceptor binary
-        CMD_ARGS=(
-            "go" "run" "cmd/main.go"
-            "--gate" "{{gate}}"
-            "--testdir" "{{REPO_ROOT}}"
-            "--validators" "./acceptance-tests.yaml"
-            "--acceptor" "$BINARY_PATH"
-            "--log.level" "${LOG_LEVEL}"
-            "--orchestrator" "$ORCHESTRATOR"
-            "--show-progress"
-        )
+        grep -RIn "MarkFlaky(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
     fi
 
-    # Add sysext-specific arguments
-    if [[ "$ORCHESTRATOR" == "sysext" ]]; then
-        CMD_ARGS+=("--devnet" "{{devnet}}" "--kurtosis-dir" "{{KURTOSIS_DIR}}" "--serial")
-    fi
+    TEST_PACKAGES=("./op-acceptance-tests/tests/...")
 
-    # Execute the command
-    "${CMD_ARGS[@]}"
+    set +e
+    LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
+        --format testname \
+        --junitfile "$RESULTS_DIR/results.xml" \
+        --jsonfile "$LOG_DIR/raw_go_events.log" \
+        -- \
+        -count=1 \
+        -p "${JOBS}" \
+        -parallel "${TEST_PARALLEL}" \
+        -timeout "${TEST_TIMEOUT}" \
+        "${TEST_PACKAGES[@]}" \
+        2>&1 | tee "$LOG_DIR/all.log"
+    TEST_STATUS=${PIPESTATUS[0]}
+    set -e
 
-
-
-# Run acceptance tests against a devnet using Docker (fallback if needed)
-acceptance-test-docker devnet="simple" gate="base":
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
-
-    # First run the appropriate devnet from the kurtosis-devnet directory if needed.
-    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet
-
-    # Print which image is being used (for debugging)
-    echo "Using acceptor image: {{ACCEPTOR_IMAGE}}"
-
-    # Run op-acceptor with the repository mounted at the correct Go module path
-    docker run \
-        -v "$(pwd)/acceptance-tests.yaml:/acceptance-tests.yaml" \
-        -v "{{REPO_ROOT}}:/go/src/github.com/ethereum-optimism/optimism" \
-        {{ACCEPTOR_IMAGE}} \
-        --testdir "/go/src/github.com/ethereum-optimism/optimism" \
-        --gate {{gate}} \
-        --validators /acceptance-tests.yaml \
-        $( [[ "{{gate}}" != "flake-shake" ]] && echo --exclude-gates flake-shake ) \
-        --log.level debug
-
-
+    cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
+    exit "$TEST_STATUS"
 
 clean:
-    kurtosis clean --all
     rm -rf tests/interop/loadtest/artifacts
-
-
-# Build, vet, lint and test Go code in ./cmd
-cmd-check:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    cd {{REPO_ROOT}}/op-acceptance-tests
-
-    echo "Downloading Go modules..."
-    go mod download
-
-    echo "Building ./cmd/..."
-    go build ./cmd/...
-
-    echo "Running go vet on ./cmd/..."
-    go vet ./cmd/...
-
-    echo "Running unit tests for ./cmd/..."
-    go test -v ./cmd/...

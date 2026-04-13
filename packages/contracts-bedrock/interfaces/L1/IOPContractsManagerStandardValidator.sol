@@ -9,7 +9,6 @@ interface IOPContractsManagerStandardValidator {
     struct Implementations {
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
-        address optimismPortalInteropImpl;
         address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
@@ -21,6 +20,8 @@ interface IOPContractsManagerStandardValidator {
         address mipsImpl;
         address faultDisputeGameImpl;
         address permissionedDisputeGameImpl;
+        address superFaultDisputeGameImpl;
+        address superPermissionedDisputeGameImpl;
     }
 
     struct ValidationInput {
@@ -58,9 +59,10 @@ interface IOPContractsManagerStandardValidator {
     function mipsImpl() external view returns (address);
     function faultDisputeGameImpl() external view returns (address);
     function permissionedDisputeGameImpl() external view returns (address);
+    function superFaultDisputeGameImpl() external view returns (address);
+    function superPermissionedDisputeGameImpl() external view returns (address);
     function optimismMintableERC20FactoryImpl() external view returns (address);
     function optimismPortalImpl() external view returns (address);
-    function optimismPortalInteropImpl() external view returns (address);
     function ethLockboxImpl() external view returns (address);
     function preimageOracleVersion() external pure returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);

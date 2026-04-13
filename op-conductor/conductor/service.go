@@ -620,6 +620,12 @@ func (oc *OpConductor) RemoveServer(_ context.Context, id string, version uint64
 	return oc.cons.RemoveServer(id, version)
 }
 
+// DemoteVoter demotes a voting member to a non-voting member.
+// If the leader is demoted, it will cause a new leader election.
+func (oc *OpConductor) DemoteVoter(_ context.Context, id string, version uint64) error {
+	return oc.cons.DemoteVoter(id, version)
+}
+
 // TransferLeader transfers leadership to another server.
 func (oc *OpConductor) TransferLeader(_ context.Context) error {
 	return oc.cons.TransferLeader()

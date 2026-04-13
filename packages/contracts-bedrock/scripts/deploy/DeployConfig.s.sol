@@ -15,6 +15,9 @@ contract DeployConfig is Script {
     using stdJson for string;
     using ForkUtils for Fork;
 
+    /// @notice Thrown when a config file cannot be read at the given path.
+    error UnableToReadConfigFile(string path);
+
     /// @notice Represents an unset offset value, as opposed to 0, which denotes no-offset.
     uint256 constant NULL_OFFSET = type(uint256).max;
 
@@ -93,10 +96,8 @@ contract DeployConfig is Script {
     uint256 public faultGameV2ClockExtension;
     uint256 public faultGameV2MaxClockDuration;
 
-    bool public useL2CM;
-
-    bool public useInterop;
     bool public useUpgradedFork;
+    bool public useInterop;
     bytes32 public devFeatureBitmap;
 
     bool public useRevenueShare;
@@ -106,13 +107,22 @@ contract DeployConfig is Script {
     address public l1FeesDepositor;
 
     function read(string memory _path) public {
-        console.log("DeployConfig: reading file %s", _path);
-        try vm.readFile(_path) returns (string memory data_) {
-            _json = data_;
-        } catch {
-            require(false, string.concat("DeployConfig: cannot find deploy config file at ", _path));
+        // If no path provided, use hardcoded defaults only
+        if (bytes(_path).length == 0) {
+            console.log("DeployConfig: using hardcoded defaults (no config file)");
+            _initDefaults();
+            return;
         }
 
+        // Try to read file, revert if not found
+        try vm.readFile(_path) returns (string memory data_) {
+            _json = data_;
+            console.log("DeployConfig: reading file %s", _path);
+        } catch {
+            revert UnableToReadConfigFile(_path);
+        }
+
+        // Read values from JSON, using _readOr with hardcoded defaults for optional fields
         finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");
         superchainConfigGuardian = stdJson.readAddress(_json, "$.superchainConfigGuardian");
         l1ChainID = stdJson.readUint(_json, "$.l1ChainID");
@@ -149,12 +159,12 @@ contract DeployConfig is Script {
         operatorFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.operatorFeeVaultWithdrawalNetwork");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
-        basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
-        blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
+        basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", uint256(1368)));
+        blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", uint256(810949)));
         useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
-        gasPayingTokenName = _readOr(_json, "$.gasPayingTokenName", "");
-        gasPayingTokenSymbol = _readOr(_json, "$.gasPayingTokenSymbol", "");
-        nativeAssetLiquidityAmount = _readOr(_json, "$.nativeAssetLiquidityAmount", 0);
+        gasPayingTokenName = _json.readStringOr("$.gasPayingTokenName", "");
+        gasPayingTokenSymbol = _json.readStringOr("$.gasPayingTokenSymbol", "");
+        nativeAssetLiquidityAmount = _readOr(_json, "$.nativeAssetLiquidityAmount", uint256(0));
         liquidityControllerOwner = _readOr(_json, "$.liquidityControllerOwner", finalSystemOwner);
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
@@ -162,9 +172,9 @@ contract DeployConfig is Script {
         requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
         recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
 
-        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", 0);
-        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", 0);
-        respectedGameType = _readOr(_json, "$.respectedGameType", 0);
+        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(0));
+        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(0));
+        respectedGameType = _readOr(_json, "$.respectedGameType", uint256(0));
 
         faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
         faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
@@ -179,23 +189,20 @@ contract DeployConfig is Script {
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
 
         useAltDA = _readOr(_json, "$.useAltDA", false);
-        daCommitmentType = _readOr(_json, "$.daCommitmentType", "KeccakCommitment");
-        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
-        daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
-        daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
-        daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
+        daCommitmentType = _json.readStringOr("$.daCommitmentType", "KeccakCommitment");
+        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", uint256(1000));
+        daResolveWindow = _readOr(_json, "$.daResolveWindow", uint256(1000));
+        daBondSize = _readOr(_json, "$.daBondSize", uint256(1000000000));
+        daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", uint256(0));
 
-        useL2CM = _readOr(_json, "$.useL2CM", false);
-
-        useInterop = _readOr(_json, "$.useInterop", false);
-        devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
-        useUpgradedFork;
+        devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", uint256(0)));
         useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
+        useInterop = _readOr(_json, "$.useInterop", false);
         chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
-        faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", 73);
-        faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
-        faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", 10800);
-        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", 302400);
+        faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", uint256(73));
+        faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", uint256(30));
+        faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", uint256(10800));
+        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", uint256(302400));
     }
 
     function fork() public view returns (Fork fork_) {
@@ -242,14 +249,14 @@ contract DeployConfig is Script {
         useAltDA = _useAltDA;
     }
 
-    /// @notice Allow the `useInterop` config to be overridden in testing environments
-    function setUseInterop(bool _useInterop) public {
-        useInterop = _useInterop;
-    }
-
     /// @notice Allow the `useRevenueShare` config to be overridden in testing environments
     function setUseRevenueShare(bool _useRevenueShare) public {
         useRevenueShare = _useRevenueShare;
+    }
+
+    /// @notice Allow the `useInterop` config to be overriden in testing environments
+    function setUseInterop(bool _useInterop) public {
+        useInterop = _useInterop;
     }
 
     /// @notice Allow the `l1FeesDepositor` config to be overridden in testing environments
@@ -323,9 +330,82 @@ contract DeployConfig is Script {
         operatorFeeVaultWithdrawalNetwork = _operatorFeeVaultWithdrawalNetwork;
     }
 
-    /// @notice Allow the `useL2CM` config to be overridden in testing environments
-    function setUseL2CM(bool _useL2CM) public {
-        useL2CM = _useL2CM;
+    /// @notice Initializes the config with hardcoded defaults. Used when no config file is provided
+    ///         or when the config file is not found. These values match what was previously in hardhat.json.
+    function _initDefaults() internal {
+        finalSystemOwner = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        superchainConfigGuardian = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        l1ChainID = 900;
+        l2ChainID = 901;
+        l2GenesisDeltaTimeOffset = 0;
+        l2GenesisEcotoneTimeOffset = 0;
+        l2GenesisFjordTimeOffset = 0;
+        l2GenesisGraniteTimeOffset = 0;
+        l2GenesisHoloceneTimeOffset = 0;
+        l2GenesisJovianTimeOffset = 0;
+        l2GenesisKarstTimeOffset = 0;
+        p2pSequencerAddress = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        batchInboxAddress = 0x00289C189bEE4E70334629f04Cd5eD602B6600eB;
+        batchSenderAddress = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
+        _l2OutputOracleStartingTimestamp = 1;
+        l2OutputOracleStartingBlockNumber = 1;
+        l2OutputOracleProposer = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
+        l2OutputOracleChallenger = 0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A;
+        fundDevAccounts = true;
+        proxyAdminOwner = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        baseFeeVaultRecipient = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        baseFeeVaultMinimumWithdrawalAmount = 10 ether;
+        baseFeeVaultWithdrawalNetwork = 0;
+        l1FeeVaultRecipient = 0x71bE63f3384f5fb98995898A86B02Fb2426c5788;
+        l1FeeVaultMinimumWithdrawalAmount = 10 ether;
+        l1FeeVaultWithdrawalNetwork = 0;
+        sequencerFeeVaultRecipient = 0xFABB0ac9d68B0B445fB7357272Ff202C5651694a;
+        sequencerFeeVaultMinimumWithdrawalAmount = 10 ether;
+        sequencerFeeVaultWithdrawalNetwork = 0;
+        operatorFeeVaultRecipient = 0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec;
+        operatorFeeVaultMinimumWithdrawalAmount = 10 ether;
+        operatorFeeVaultWithdrawalNetwork = 0;
+        governanceTokenOwner = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        l2GenesisBlockGasLimit = 25_000_000;
+        basefeeScalar = 1368;
+        blobbasefeeScalar = 810949;
+        enableGovernance = true;
+        faultGameAbsolutePrestate = 0;
+        faultGameGenesisBlock = 0;
+        faultGameGenesisOutputRoot = 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF;
+        faultGameMaxDepth = 73;
+        faultGameSplitDepth = 30;
+        faultGameClockExtension = 10800;
+        faultGameMaxClockDuration = 302400;
+        faultGameWithdrawalDelay = 302400;
+        preimageOracleMinProposalSize = 126000;
+        preimageOracleChallengePeriod = 86400;
+        systemConfigStartBlock = 0;
+        requiredProtocolVersion = 1;
+        recommendedProtocolVersion = 1;
+        proofMaturityDelaySeconds = 604800;
+        disputeGameFinalityDelaySeconds = 302400;
+        respectedGameType = 0;
+        useAltDA = false;
+        daCommitmentType = "KeccakCommitment";
+        daChallengeWindow = 100;
+        daResolveWindow = 100;
+        daBondSize = 1000;
+        daResolverRefundPercentage = 50;
+        useCustomGasToken = false;
+        gasPayingTokenName = "";
+        gasPayingTokenSymbol = "";
+        nativeAssetLiquidityAmount = 0;
+        liquidityControllerOwner = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        faultGameV2MaxGameDepth = 73;
+        faultGameV2SplitDepth = 30;
+        faultGameV2ClockExtension = 10800;
+        faultGameV2MaxClockDuration = 302400;
+        useInterop = false;
+        useUpgradedFork = false;
+        devFeatureBitmap = bytes32(0);
+        useRevenueShare = false;
+        chainFeesRecipient = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
     }
 
     function latestGenesisFork() internal view returns (Fork) {
@@ -396,5 +476,21 @@ contract DeployConfig is Script {
         returns (string memory)
     {
         return _jsonInp.readStringOr(_key, _defaultValue);
+    }
+
+    function _readOr(string memory _jsonInp, string memory _key, int256 _defaultValue) internal view returns (int256) {
+        return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readInt(_key) : _defaultValue;
+    }
+
+    function _readOr(
+        string memory _jsonInp,
+        string memory _key,
+        bytes32 _defaultValue
+    )
+        internal
+        view
+        returns (bytes32)
+    {
+        return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readBytes32(_key) : _defaultValue;
     }
 }

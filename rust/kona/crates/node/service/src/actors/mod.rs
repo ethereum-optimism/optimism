@@ -15,8 +15,7 @@ pub use engine::{
 
 mod rpc;
 pub use rpc::{
-    QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RollupBoostAdminApiClient,
-    RollupBoostHealthRpcClient, RpcActor, RpcActorError, RpcContext,
+    QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor, RpcActorError, RpcContext,
 };
 
 mod derivation;

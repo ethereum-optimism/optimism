@@ -1,0 +1,109 @@
+---
+title: Data Glossary
+description: This glossary explains various data terms.
+---
+
+This glossary is a living document and will be updated over time as new metrics emerge or definitions evolve.
+
+| Metric                    | What It Measures                                                 | Why It Matters                                                    |
+| ------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Real Economic Value (REV) | Fees paid by users to transact (txn fees + out-of-protocol tips) | Captures users' willingness to pay for onchain activity           |
+| Collective Revenue        | ETH earned by the Optimism Collective                            | Revenue can be directed by governance to support ecosystem growth |
+| Total Value Locked (TVL)  | Tokens locked in DeFi protocols and other apps                   | Supply side of the DeFi ecosystem                                 |
+| Gas Used per Second       | Average compute consumed onchain                                 | Measures throughput and execution load                            |
+| Median Transaction Fee    | Typical cost for a user to transact                              | Lower fees reduce friction and may unlock broader usage           |
+| Market Share              | OP Stack ecosystem's share of activity vs. the broader crypto industry   | Tracks relative performance against L2s or the broader market     |
+
+## Measure Demand
+
+### Transaction Fees Paid
+
+**Metric:** Real Economic Value (REV)
+
+**Definition:** The total fees paid to execute a transaction onchain. This includes both the traditional gas fees required for inclusion onchain and additional fees paid to transaction execution services (e.g., Jito, Flashbots, Timeboost).
+
+**Calculation:** Gas Fees + Out-of-Protocol Tips (e.g., Jito, Flashbots, Timeboost)
+
+*   Out-of-Protocol Tips can be sourced from Defillama's MEV category
+
+**Why it matters:**
+
+*   REV is a topline metric that "measures the monetary demand to transact onchain" (Blockworks).
+*   It's used as a proxy for users' willingness to pay, capturing all transaction fees to better reflect real demand (excludes app-level fees like DEX swap costs).
+
+### Revenue
+
+**Metric:** Estimated Optimism Collective Revenue (Collective Revenue)
+
+**Definition:** The amount of ETH expected to be earned by the Optimism Collective from revenue sharing.
+
+**Calculation:** For each chain, take the greater of (a) 2.5% of Chain Revenue or (b) 15% of Net Onchain Profit. OP Mainnet contributes 100% of Net Onchain Profit.
+
+**Key Components:**
+
+*   **Net Onchain Profit:** Chain Revenue - L1 Gas Fees
+*   **Chain Revenue:** Sum of the L1 Data Fee + L2 Base Fee + L2 Priority Fee + L2 Operator Fee (Also includes any additional fee types added in the future.)
+*   *L1 Gas Fees:* Total gas fees spent by the chain on L1 in transaction batches (including blob costs) and state output submissions or dispute games.
+*   **Transaction Batches:** All transactions where the transaction from address is the `batcherHash` address and the transaction to address is the `batchInbox` as defined in the chains' `SystemConfigProxy` contract.
+*   **State Output Submissions or Dispute Games:** All transactions where the transaction from address is the `Proposer` and the transaction to address is either the `outputOracleProxy` or the `disputeGameFactoryProxy` as defined in the chains' `SystemConfigProxy` contract.
+*   Each chain's `SystemConfigProxy` contract can be found in the superchain-registry.
+*   **Resolving Dispute Games:** All transactions sent to dispute game contracts created by the `disputeGameFactoryProxy`, where the transaction's method id (function call) is either `Resolve`, `ResolveClaim`, or `ClaimCredit`.
+
+**Why it matters:**
+
+*   This is what the Optimism Collective earns by operating OP Stack chains, which can be directed by governance to support ecosystem growth.
+*   See How (and why) the OP Stack drives fees to the Optimism Collective (Optimism blog, Aug 2024)
+
+## Onchain Signals
+
+### Value Onchain
+
+**Metric:** Total Value Locked (TVL)
+
+**Definition:** "Value of all coins held in smart contracts of the protocol" (Defillama).
+
+**Calculation:** The sum of all USD value of assets locked in applications, as reported by DefiLlama.
+
+*   TVL can be priced in USD or a crypto asset like ETH, but both are subject to price volatility. USD is often used because it's easier to interpret and consistent across the broader crypto ecosystem.
+
+**Why it Matters:** TVL represents the supply side of onchain economic activity for use in protocols such as Decentralized Exchanges (DEXs) and lending markets. Strong TVL in the right places may enable greater onchain demand.
+
+#### How to Measure Growth: Net TVL Flows
+
+Because TVL is influenced by market fluctuations, it can be misleading when trying to measure true growth or user behavior. Net TVL Flows can adjust for this by tracking the net change in token balances, valued at current prices.
+
+**Calculation:** ( `# of Tokens on Day N` - `# of Tokens on Day 0` ) \* `Price of Tokens on Day N`
+
+**Example:** If an app has 100,000 ETH locked on Day 0 when ETH/USD is $2,000, and 90,000 ETH locked at $3,000 on Day N:
+
+*   Net TVL Flows = −10,000 ETH × $3,000 = $30 million in net outflows
+*   Naive TVL change would suggest growth: $200 million → $270 million
+
+## Network Usage & Infrastructure
+
+**Metric:** Gas Used per Second (gas/s)
+
+**Definition:** "Gas refers to the unit that measures the amount of computational effort required to execute specific operations on Ethereum" (ethereum.org). Gas Used is tracked as an average rate per second for simplicity.
+
+**Why it Matters:** Gas, sometimes referred to as blockspace, is the limited resource that blockchains provide. Gas used shows how much of that resource is actually being consumed.
+
+**Caution:** Gas is only comparable across chains that use Ethereum-equivalent gas units.
+
+### User Experience (UX)
+
+**Metric:** Median Transaction Fee (USD)
+
+**Definition:** The median gas fee paid to submit a transaction, expressed in USD for simplicity and easier comparison across ecosystems.
+
+**Calculation:** Median of all transaction fees over a period of time, marked at the USD price at the time of the transaction.
+
+**Why it Matters:** This metric serves as a proxy for the cost to transact. Lower median fees enable broader usage by reducing friction, lowering breakeven costs, and unlocking use cases that would otherwise be cost-prohibitive.
+
+## Market Share
+
+**Definition:** The OP Stack ecosystem's share of a broader market segment for any measure (e.g., L2s, total crypto).
+
+**Calculation:** OP Stack Metric Value / Total Market Metric Value
+
+**Why it Matters:** Market share helps isolate whether growth is driven by the OP Stack ecosystem itself, or is simply part of a broader market trend. A rising share signals outperformance, while a declining share suggests that other ecosystems are growing faster.
+

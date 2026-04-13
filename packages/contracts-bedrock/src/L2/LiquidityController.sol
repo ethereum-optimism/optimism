@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { SafeSend } from "src/universal/SafeSend.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -18,7 +19,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title LiquidityController
 /// @notice The LiquidityController contract is responsible for controlling the liquidity of the native asset on the L2
 ///         chain.
-contract LiquidityController is ISemver, Initializable, OwnableUpgradeable {
+contract LiquidityController is ProxyAdminOwnedBase, ISemver, Initializable, OwnableUpgradeable {
     /// @notice Emitted when an address is authorized to mint/burn liquidity
     /// @param minter The address that was authorized
     event MinterAuthorized(address indexed minter);
@@ -42,8 +43,8 @@ contract LiquidityController is ISemver, Initializable, OwnableUpgradeable {
     error LiquidityController_Unauthorized();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Mapping of addresses authorized to control liquidity operations
     mapping(address => bool) public minters;
@@ -70,6 +71,7 @@ contract LiquidityController is ISemver, Initializable, OwnableUpgradeable {
         external
         initializer
     {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         __Ownable_init();
         transferOwnership(_owner);
 

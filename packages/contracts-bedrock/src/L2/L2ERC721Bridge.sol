@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
@@ -23,9 +24,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         This contract also acts as a burner for tokens being withdrawn.
 ///         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This
 ///         bridge ONLY supports ERC721s originally deployed on Ethereum.
-contract L2ERC721Bridge is ERC721Bridge, ISemver {
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
+contract L2ERC721Bridge is ProxyAdminOwnedBase, ERC721Bridge, ISemver {
+    /// @custom:semver 1.10.1
+    string public constant version = "1.10.1";
 
     /// @notice Constructs the L2ERC721Bridge contract.
     constructor() ERC721Bridge() {
@@ -35,6 +36,7 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
     /// @notice Initializes the contract.
     /// @param _l1ERC721Bridge Address of the ERC721 bridge contract on the other network.
     function initialize(address payable _l1ERC721Bridge) external initializer {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         __ERC721Bridge_init({
             _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
             _otherBridge: ERC721Bridge(_l1ERC721Bridge)

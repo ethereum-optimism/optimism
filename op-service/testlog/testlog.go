@@ -37,14 +37,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var useColorInTestLog bool = true
-
-func init() {
-	if os.Getenv("OP_TESTLOG_DISABLE_COLOR") == "true" {
-		useColorInTestLog = false
-	}
-}
-
 // Testing interface to log to. Some functions are marked as Helper function to log the call site accurately.
 // Standard Go testing.TB implements this, as well as Hive and other Go-like test frameworks.
 type Testing interface {
@@ -87,7 +79,14 @@ func LoggerWithHandlerMod(t Testing, level slog.Level, handlerMods ...logmods.Ha
 	// Check if handler is nil here because setupFileLogger will return nil if it fails to
 	// create the logfile.
 	if handler == nil {
-		handler = log.NewTerminalHandlerWithLevel(l.buf, level, useColorInTestLog)
+		useColor := true
+		if fileInfo, _ := os.Stdout.Stat(); fileInfo != nil && (fileInfo.Mode()&os.ModeCharDevice) == 0 {
+			useColor = false
+		}
+		if parsed, err := strconv.ParseBool(os.Getenv("OP_TESTLOG_DISABLE_COLOR")); err == nil {
+			useColor = parsed
+		}
+		handler = log.NewTerminalHandlerWithLevel(l.buf, level, useColor)
 	}
 
 	for _, mod := range handlerMods {

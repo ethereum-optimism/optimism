@@ -1,5 +1,5 @@
 use crate::{chainspec::CustomChainSpec, evm::CustomEvmConfig, primitives::CustomNodePrimitives};
-use reth_ethereum::node::api::FullNodeTypes;
+use reth_node_api::FullNodeTypes;
 use reth_node_builder::{BuilderContext, NodeTypes, components::ExecutorBuilder};
 use std::{future, future::Future};
 

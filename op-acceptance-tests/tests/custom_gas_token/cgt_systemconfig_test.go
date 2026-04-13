@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,8 +16,8 @@ import (
 // TestCGT_SystemConfigFlagOnL1 checks that the L1 SystemConfig contract reports
 // CGT=true via isCustomGasToken(). Skips if the devnet does not wire this flag.
 func TestCGT_SystemConfigFlagOnL1(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	t := devtest.ParallelT(gt)
+	sys := newCGTMinimal(t)
 	ensureCGTOrSkip(t, sys)
 
 	l1c := sys.L1EL.EthClient()
@@ -62,8 +61,8 @@ func TestCGT_SystemConfigFlagOnL1(gt *testing.T) {
 // TestCGT_SystemConfigFeatureFlag re-validates the CGT flag on SystemConfig,
 // using locally encoded calls (mirrors the previous test structure). Skips on devnets without the flag.
 func TestCGT_SystemConfigFeatureFlag(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	t := devtest.ParallelT(gt)
+	sys := newCGTMinimal(t)
 
 	// Skip if not in CGT mode (uses L2 L1Block.isCustomGasToken()).
 	ensureCGTOrSkip(t, sys)

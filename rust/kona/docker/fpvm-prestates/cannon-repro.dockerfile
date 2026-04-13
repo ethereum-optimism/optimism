@@ -2,31 +2,20 @@
 #              Build Cannon from local monorepo                #
 ################################################################
 
-FROM ubuntu:22.04 AS cannon-build
-SHELL ["/bin/bash", "-c"]
+FROM golang:1.24.10-alpine3.21 AS cannon-build
 
-ARG TARGETARCH
-
-# Install deps
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates make
-
-ENV GO_VERSION=1.23.8
-
-# Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
-RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-$TARGETARCH.tar.gz -o go$GO_VERSION.linux-$TARGETARCH.tar.gz && \
-  tar -C /usr/local/ -xzf go$GO_VERSION.linux-$TARGETARCH.tar.gz
-ENV GOPATH=/go
-ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
+RUN apk add --no-cache bash just
 
 # Copy monorepo source needed for the cannon build
 COPY --from=monorepo go.mod go.sum /optimism/
 COPY --from=monorepo cannon/ /optimism/cannon/
 COPY --from=monorepo op-service/ /optimism/op-service/
 COPY --from=monorepo op-preimage/ /optimism/op-preimage/
+COPY --from=monorepo justfiles/ /optimism/justfiles/
 
 # Build cannon from local source
 RUN cd /optimism/cannon && \
-  make && \
+  just cannon && \
   cp bin/cannon /cannon-bin
 
 ################################################################
@@ -48,6 +37,9 @@ ENV KONA_CUSTOM_CONFIGS=$KONA_CUSTOM_CONFIGS
 ENV KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs
 
 # Build kona-client
+# Override the target spec baked into the cannon-builder image (which has
+# target-c-int-width: 64) with the corrected one from the source tree.
+COPY kona/docker/cannon/mips64-unknown-none.json /mips64-unknown-none.json
 RUN cd kona && \
   cargo build -Zbuild-std=core,alloc -Zjson-target-spec -p kona-client --bin $CLIENT_BIN --locked --profile release-client-lto && \
   mv ./target/mips64-unknown-none/release-client-lto/$CLIENT_BIN /kona-client-elf

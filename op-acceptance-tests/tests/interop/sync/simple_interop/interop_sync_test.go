@@ -15,8 +15,8 @@ import (
 // Resync is only possible when supervisor and L2CL reconnects.
 func TestL2CLResync(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	t := devtest.ParallelT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	logger := sys.Log.With("Test", "TestL2CLResync")
 
 	logger.Info("Check unsafe chains are advancing")
@@ -26,8 +26,8 @@ func TestL2CLResync(gt *testing.T) {
 	)
 
 	logger.Info("Stop L2CL nodes")
-	sys.L2CLA.Stop()
-	sys.L2CLB.Stop()
+	sys.L2ACL.Stop()
+	sys.L2BCL.Stop()
 
 	logger.Info("Make sure L2ELs does not advance")
 	dsl.CheckAll(t,
@@ -36,8 +36,8 @@ func TestL2CLResync(gt *testing.T) {
 	)
 
 	logger.Info("Restart L2CL nodes")
-	sys.L2CLA.Start()
-	sys.L2CLB.Start()
+	sys.L2ACL.Start()
+	sys.L2BCL.Start()
 
 	// L2CL may advance a few blocks without supervisor connection, but eventually it will stop without the connection
 	// we must check that unsafe head is advancing due to reconnection

@@ -41,15 +41,15 @@ func RegisterGameTypes(
 	clients *client.Provider,
 	gameStatusProvider GameStatusProvider,
 ) error {
-	if cfg.GameTypeEnabled(gameTypes.OptimisticZKGameType) {
-		registry.RegisterGameType(gameTypes.OptimisticZKGameType, func(game gameTypes.GameMetadata, dir string) (scheduler.GamePlayer, error) {
+	if cfg.GameTypeEnabled(gameTypes.ZKDisputeGameType) {
+		registry.RegisterGameType(gameTypes.ZKDisputeGameType, func(game gameTypes.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 			rollupClient, syncValidator, err := clients.RollupClients()
 			if err != nil {
 				return nil, fmt.Errorf("failed to create rollup clients: %w", err)
 			}
-			contract, err := contracts.NewOptimisticZKDisputeGameContract(m, game.Proxy, clients.MultiCaller())
+			contract, err := contracts.NewZKDisputeGameContract(m, game.Proxy, clients.MultiCaller())
 			if err != nil {
-				return nil, fmt.Errorf("failed to create optimistic zk dispute game bindings: %w", err)
+				return nil, fmt.Errorf("failed to create zk dispute game bindings: %w", err)
 			}
 			return generic.NewGenericGamePlayer(
 				ctx,
@@ -62,8 +62,8 @@ func RegisterGameTypes(
 				ActorCreator(l1Clock, rollupClient, gameStatusProvider, contract, txSender),
 			)
 		})
-		registry.RegisterBondContract(gameTypes.OptimisticZKGameType, func(game gameTypes.GameMetadata) (claims.BondContract, error) {
-			return contracts.NewOptimisticZKDisputeGameContract(m, game.Proxy, clients.MultiCaller())
+		registry.RegisterBondContract(gameTypes.ZKDisputeGameType, func(game gameTypes.GameMetadata) (claims.BondContract, error) {
+			return contracts.NewZKDisputeGameContract(m, game.Proxy, clients.MultiCaller())
 		})
 	}
 	return nil

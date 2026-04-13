@@ -247,6 +247,11 @@ func (c *LogsDBChainIngester) BlockHashAt(blockNum uint64) (common.Hash, bool) {
 	return seal.Hash, true
 }
 
+// BlockHashByNumber returns the sealed block hash at the given height.
+func (c *LogsDBChainIngester) BlockHashByNumber(blockNum uint64) (common.Hash, bool) {
+	return c.BlockHashAt(blockNum)
+}
+
 // LatestTimestamp returns the timestamp of the latest sealed block
 func (c *LogsDBChainIngester) LatestTimestamp() (uint64, bool) {
 	c.mu.RLock()
@@ -340,7 +345,12 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock(latestBlock uint64) {
 // calculateStartingBlock returns the block number where ingestion should start,
 // calculated from startTimestamp and backfillDuration.
 func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
-	backfillTimestamp := c.startTimestamp - uint64(c.backfillDuration.Seconds())
+	backfillSeconds := uint64(c.backfillDuration.Seconds())
+	if c.startTimestamp < backfillSeconds {
+		// Backfill reaches before epoch 0; start from genesis
+		return c.rollupCfg.Genesis.L2.Number
+	}
+	backfillTimestamp := c.startTimestamp - backfillSeconds
 
 	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
 	if err != nil {

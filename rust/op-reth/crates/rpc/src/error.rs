@@ -1,11 +1,12 @@
 //! RPC errors specific to OP.
 
 use alloy_json_rpc::ErrorPayload;
+use alloy_op_evm::OpTxError;
 use alloy_primitives::Bytes;
 use alloy_rpc_types_eth::{BlockError, error::EthRpcErrorCode};
 use alloy_transport::{RpcError, TransportErrorKind};
 use jsonrpsee_types::error::{INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE};
-use op_revm::{OpHaltReason, OpTransactionError};
+use op_revm::OpHaltReason;
 use reth_evm::execute::ProviderError;
 use reth_optimism_evm::OpBlockExecutionError;
 use reth_rpc_eth_api::{AsEthApiError, EthTxEnvError, TransactionConversionError};
@@ -92,11 +93,12 @@ impl From<OpInvalidTransactionError> for jsonrpsee_types::error::ErrorObject<'st
     }
 }
 
-impl TryFrom<OpTransactionError> for OpInvalidTransactionError {
+impl TryFrom<OpTxError> for OpInvalidTransactionError {
     type Error = InvalidTransaction;
 
-    fn try_from(err: OpTransactionError) -> Result<Self, Self::Error> {
-        match err {
+    fn try_from(err: OpTxError) -> Result<Self, Self::Error> {
+        use op_revm::OpTransactionError;
+        match err.0 {
             OpTransactionError::DepositSystemTxPostRegolith => {
                 Ok(Self::DepositSystemTxPostRegolith)
             }
@@ -170,15 +172,18 @@ impl From<SequencerClientError> for jsonrpsee_types::error::ErrorObject<'static>
     }
 }
 
-impl<T> From<EVMError<T, OpTransactionError>> for OpEthApiError
+impl<T> From<EVMError<T, OpTxError>> for OpEthApiError
 where
     T: Into<EthApiError>,
 {
-    fn from(error: EVMError<T, OpTransactionError>) -> Self {
+    fn from(error: EVMError<T, OpTxError>) -> Self {
         match error {
             EVMError::Transaction(err) => match err.try_into() {
                 Ok(err) => Self::InvalidTransaction(err),
-                Err(err) => Self::Eth(EthApiError::InvalidTransaction(err.into())),
+                Err(err) => {
+                    let err: InvalidTransaction = err;
+                    Self::Eth(EthApiError::InvalidTransaction(err.into()))
+                }
             },
             EVMError::Database(err) => Self::Eth(err.into()),
             EVMError::Header(err) => Self::Eth(err.into()),

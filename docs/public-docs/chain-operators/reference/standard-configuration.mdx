@@ -1,0 +1,107 @@
+---
+title: What makes a chain standard?
+description: Learn what makes a chain standard, how op-deployer helps with standardization, and why being standard matters.
+---
+The standard configuration within the OP Stack ensures that chains deployed in the OP Stack ecosystem adhere to a consistent set of technical and governance parameters.
+This standardization is critical for OP Stack interoperability, network security, and ease of upgrading your chain.
+
+This guide provides an in-depth explanation of what defines a standard configuration, how the [op-deployer](/chain-operators/tools/op-deployer/overview) aids standardization, and why adhering to these standards is essential.
+
+## What is a Standard chain?
+
+A standard chain in the OP Stack refers to a rollup that adheres to the following principles:
+
+1.  **Technical conformance:**
+    *   Compliance with the consensus parameters, policy parameters, admin roles, and service roles defined in the specifications. 
+        For more details, please see the [OP Stack Configurability Specification](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs).
+    *   Utilization of officially supported features and modules of the OP Stack.
+
+2.  **Governance alignment:**
+    *   Adherence to the [Standard Rollup Charter](/op-stack/protocol/blockspace-charter#the-standard-rollup-charter).
+    *   Transparent and collaborative decision-making aligned with the OP Stack ecosystem.
+
+3.  **Interoperability:**
+    *   Maintaining compatibility with the OP Stack protocol level cross-chain interactions.
+
+Chains that deviate from these principles, such as introducing unsupported features, are considered non-standard configurations.
+
+## Role of op-deployer in standardization
+
+The [op-deployer](/chain-operators/tools/op-deployer/overview) is a powerful tool designed to automate and streamline the deployment of standard configuration-compliant chains.
+Key features include:
+
+*   **Default values:**
+    op-deployer provides default values that adhere to standard specifications.
+
+
+*   **Ease of customization within standards:**
+    The op-deployer tool allows for overriding default values. For example, you can override the L2 block time to 1s, which is standard. However, please ensure you know what you're doing when applying overrides because they may violate standard specifications.
+
+By using op-deployer, chain operators can reduce the complexity of chain deployment while ensuring alignment with OP Stack standards.
+
+
+## Why standardization matters
+
+Standardization benefits the OP Stack ecosystem in several ways:
+
+*   **Interoperability:**
+    A standard stack and security model makes your chain eligible for interactions between other standard chains, such as single block cross-chain messaging and token transfers.
+
+*   **Simplified upgrade path:**
+    Reduces the complexity of upgrading your chain to the latest version.
+
+
+*   **Reduced Support Overhead:**
+    Minimizes the need for custom support by ensuring uniformity across deployments.
+
+
+### Standard features
+
+*   **Default system contracts:**
+    Core protocol contracts must use governance approved release implementations of the OP Stack to provide security and compatibility.
+
+
+*   **Specified sequencer configurations:**
+    Sequencer settings must follow prescribed parameters for transaction ordering and submission to maintain network stability.
+
+## What is Not Standard?
+
+Certain configurations are explicitly not part of the standard setup. For example:
+
+*   **Modified system contracts:**
+    Any alterations to core system contracts break standardization and aren't supported in the official OP Stack specification.
+
+For a detailed list of standard configurations, refer to the [Standard rollup configuration page](/op-stack/protocol/blockspace-charter).
+
+## superchain-registry
+
+The [superchain-registry](/op-stack/protocol/superchain-registry) is the authoritative index of all OP Stack chains in the registry. It ensures:
+
+*   **Transparency:**
+    All registered chains are publicly listed with their configurations.
+
+*   **Registry levels:**
+    Chains listed in the registry are denoted with a [`superchain_level`](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/glossary.md#superchain-level-and-rollup-stage) which tells you which chains are standard.
+
+*   **Community trust:**
+    Being part of the registry signals reliability and alignment with Optimism Collective principles.
+
+## Next Steps
+
+1.  **Understand standards:**
+    Familiarize yourself with the [OP Stack specifications](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs) and the Blockspace Charter.
+
+2.  **Use op-deployer:**
+    Leverage [op-deployer](/chain-operators/tools/op-deployer/overview) to ensure your chain aligns with standard configurations.
+
+3.  **Verify deployment with op-validator:**
+    Use [op-validator](/operators/chain-operators/tools/op-validator) to verify your chain's deployment.
+
+4.  **Seek guidance:**
+    Consult the [developer support](https://github.com/ethereum-optimism/developers/discussions) team for clarifications on standardization.
+
+## References
+
+*   [OP Stack Specifications](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs)
+*   [Blockspace Charter](/op-stack/protocol/blockspace-charter)
+*   [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)

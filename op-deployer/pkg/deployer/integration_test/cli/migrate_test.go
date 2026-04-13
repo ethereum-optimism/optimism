@@ -88,8 +88,10 @@ func TestCLIMigrateRequiredFlags(t *testing.T) {
 	})
 }
 
-// TestCLIMigrateV1 tests the migrate-v1 CLI command for OPCM v1
+// TestCLIMigrateV1 tests the migrate-v1 CLI command for OPCM v1.
+// Skipped: OPCMv1 contract has been deleted. Remove this test in the Go cleanup PR.
 func TestCLIMigrateV1(t *testing.T) {
+	t.Skip("OPCMv1 contract deleted — v1 migration path no longer functional")
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
@@ -101,7 +103,7 @@ func TestCLIMigrateV1(t *testing.T) {
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	pkHex, _, _ := shared.DefaultPrivkey(t)
@@ -154,8 +156,8 @@ func TestCLIMigrateV1(t *testing.T) {
 
 	impls, err := bootstrap.Implementations(ctx, cfg)
 	require.NoError(t, err, "Failed to deploy implementations")
-	require.NotEqual(t, common.Address{}, impls.Opcm, "OPCM V1 address should be set")
-	require.Equal(t, common.Address{}, impls.OpcmV2, "OPCM V2 address should be zero when V1 is deployed")
+	require.NotEqual(t, common.Address{}, impls.OpcmV2, "OPCM V2 address should be set")
+	require.Equal(t, common.Address{}, impls.Opcm, "OPCM V1 address should be zero (v1 deleted)")
 
 	// Set up a test chain
 	l1ChainID := uint64(11155111) // Sepolia chain ID
@@ -219,7 +221,7 @@ func TestCLIMigrateV1(t *testing.T) {
 	// Set implementations deployment addresses
 	if st.ImplementationsDeployment == nil {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmImpl:                         impls.Opcm,
+			OpcmV2Impl:                       impls.OpcmV2,
 			OptimismPortalImpl:               impls.OptimismPortalImpl,
 			DelayedWethImpl:                  impls.DelayedWETHImpl,
 			EthLockboxImpl:                   impls.ETHLockboxImpl,
@@ -241,7 +243,9 @@ func TestCLIMigrateV1(t *testing.T) {
 	// Apply deployment
 	// Note: Validation will run automatically but may find expected errors for migration test deployments
 	// (e.g., custom dev features, non-standard configurations). We verify deployment succeeded despite validation errors.
-	output, runErr := runner.RunWithNetwork(context.Background(), []string{
+	applyCtx, applyCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer applyCancel()
+	output, runErr := runner.RunWithNetwork(applyCtx, []string{
 		"apply",
 		"--deployment-target", "live",
 		"--workdir", workDir,
@@ -315,7 +319,7 @@ func TestCLIMigrateV2(t *testing.T) {
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	pkHex, _, _ := shared.DefaultPrivkey(t)
@@ -437,11 +441,10 @@ func TestCLIMigrateV2(t *testing.T) {
 	// Set implementations deployment addresses
 	if st.ImplementationsDeployment == nil {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmImpl:                         impls.OpcmV2,
+			OpcmV2Impl:                       impls.OpcmV2,
 			OpcmContainerImpl:                impls.OpcmContainer,
 			OpcmUtilsImpl:                    impls.OpcmUtils,
 			OpcmMigratorImpl:                 impls.OpcmMigrator,
-			OptimismPortalInteropImpl:        impls.OptimismPortalInteropImpl,
 			OptimismPortalImpl:               impls.OptimismPortalImpl,
 			DelayedWethImpl:                  impls.DelayedWETHImpl,
 			EthLockboxImpl:                   impls.ETHLockboxImpl,
@@ -469,13 +472,17 @@ func TestCLIMigrateV2(t *testing.T) {
 	intent.GlobalDeployOverrides = map[string]any{
 		"devFeatureBitmap": devFeatureBitmap,
 	}
+	// Since we are enabling Interop in the bitmap we enable the UseInterop flag
+	intent.UseInterop = true
 
 	require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
 
 	// Apply deployment
 	// Note: Validation will run automatically but may find expected errors for migration test deployments
 	// (e.g., custom dev features, non-standard configurations). We verify deployment succeeded despite validation errors.
-	output, runErr := runner.RunWithNetwork(context.Background(), []string{
+	applyCtx, applyCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer applyCancel()
+	output, runErr := runner.RunWithNetwork(applyCtx, []string{
 		"apply",
 		"--deployment-target", "live",
 		"--workdir", workDir,

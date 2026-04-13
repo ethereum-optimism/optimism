@@ -600,11 +600,12 @@ func TestRegolith(t *testing.T) {
 
 			rollupCfg := rollup.Config{}
 			systemTx, err := derive.L1InfoDeposit(&rollupCfg, opGeth.L1ChainConfig, opGeth.SystemConfig, 1, opGeth.L1Head, 0)
+			systemTx.Gas = 26_000
 			systemTx.IsSystemTransaction = true
 			require.NoError(t, err)
 
 			_, err = opGeth.AddL2Block(ctx, types.NewTx(systemTx))
-			require.ErrorIs(t, err, ErrNewPayloadNotValid, "should reject blocks containing system tx")
+			require.ErrorIs(t, err, ErrForkChoiceUpdated, "should reject blocks containing system tx")
 		})
 
 		t.Run("IncludeGasRefunds_"+test.name, func(t *testing.T) {

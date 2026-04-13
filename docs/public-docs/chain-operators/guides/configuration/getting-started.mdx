@@ -1,0 +1,54 @@
+---
+title: Chain Operator Configurations
+description: Learn how to configure an OP Stack chain.
+---
+
+OP Stack chains can be configured for the Chain Operator's needs. 
+Each component of the stack has its own considerations. 
+See the following for documentation for details on configuring each piece.
+
+<Steps>
+
+  <Step title="Rollup Configuration">
+Deploying your OP Stack contracts requires creating a deployment configuration
+  JSON file. This defines the behavior of your network at its genesis.
+  *   **Important Notes:**
+      *   The Rollup Configuration sets parameters for the L1 smart contracts upon deployment. These parameters govern the behavior of your chain and are critical to its operation.
+      *   Be aware that many of these values cannot be changed after deployment or require a complex process to update.
+          Carefully consider and validate all settings during configuration to avoid issues later.
+
+  *   [Rollup Configuration Documentation](/chain-operators/guides/configuration/rollup)
+
+
+  </Step>
+
+  <Step title="Batcher Configuration">
+The batcher is the service that submits the L2 Sequencer data to L1, to make
+  it available for verifiers. These configurations determine the batcher's 
+  behavior.
+
+  *   [Batcher Configuration Documentation](/chain-operators/guides/configuration/batcher)
+
+
+  </Step>
+
+  <Step title="Proposer Configuration">
+The proposer is the service that submits the output roots to the L1. These
+  configurations determine the proposer's behavior.
+
+  *   [Proposer Configuration Documentation](/chain-operators/guides/configuration/proposer)
+
+
+  </Step>
+
+  <Step title="Node Configuration">
+The rollup node has a wide array of configurations for both the consensus and
+  execution clients.
+
+  *   [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients)
+  *   [Execution Client Configuration](/node-operators/guides/configuration/execution-clients)
+
+
+  </Step></Steps>
+
+

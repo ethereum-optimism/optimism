@@ -205,6 +205,28 @@ coverage-lcov-all *ARGS:
   just coverage-lcov-upgrade --match-contract "OPContractsManager.*_Upgrade_Test" {{ARGS}} && \
   lcov -a lcov.info -a lcov-upgrade.info -o lcov-all.info
 
+# Prepares the environment for L2 fork upgrade tests.
+# Env Vars:
+# - L2_FORK_RPC_URL must be set to an L2 RPC URL.
+# - L2_FORK_BLOCK_NUMBER can be set in the env to pin a block (defaults to latest).
+prepare-l2-upgrade-env *ARGS:
+  #!/bin/bash
+  set -euo pipefail
+  export L2_FORK_TEST=true
+  export DEV_FEATURE__L2CM=true
+  export FOUNDRY_FORK_RETRIES=10
+  export FOUNDRY_FORK_RETRY_BACKOFF=1000
+  {{ARGS}} \
+  --match-path "test/L2/fork/**"
+
+# Runs L2 fork upgrade tests.
+# Usage: L2_FORK_RPC_URL=<url> just test-l2-fork-upgrade [ARGS]
+test-l2-fork-upgrade *ARGS:
+  just prepare-l2-upgrade-env "just test {{ARGS}}"
+
+test-l2-fork-upgrade-rerun *ARGS:
+  just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
+
 ########################################################
 #                        DEPLOY                        #
 ########################################################
@@ -214,7 +236,9 @@ genesis:
   forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
 
 # Generates the Network Upgrade Transaction (NUT) bundle.
-generate-nut-bundle:
+# NOTE: be very careful about renaming this command, it's used in the CI check-nut-locks job,
+# which expects this command to be available in historical commits.
+generate-nut-bundle: build-no-tests
   @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
 
 # Deploys the contracts.
@@ -272,15 +296,6 @@ snapshots-check: build snapshots-check-no-build
 interfaces-check-no-build:
   go run ./scripts/checks/interfaces
 
-# Checks that, if any L1 source contracts that have an upgrade method,
-# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
-# Build the contracts first.
-opcm-upgrade-checks: clean build-dev opcm-upgrade-checks-no-build
-
-# Checks that, if any L1 source contracts that have an upgrade method,
-# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
-opcm-upgrade-checks-no-build:
-  go run ./scripts/checks/opcm-upgrade-checks/
 
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
@@ -347,10 +362,6 @@ valid-semver-check-no-build:
 # Checks that the semver of contracts are valid.
 valid-semver-check: build valid-semver-check-no-build
 
-# Checks that the deploy configs are valid.
-validate-deploy-configs:
-  ./scripts/checks/check-deploy-configs.sh
-
 # Checks that spacer variables are correctly inserted without building.
 validate-spacers-no-build:
   go run ./scripts/checks/spacers
@@ -365,12 +376,13 @@ check-kontrol-summaries-unchanged:
   ./scripts/checks/check-kontrol-summaries-unchanged.sh
 
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
-# Does not build contracts.
+# Assumes contracts are already built.
 nut-bundle-check-no-build:
-  go run ./scripts/checks/nut-bundle-check
+  @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+  git diff --exit-code snapshots/upgrades/current-upgrade-bundle.json
 
 # Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
-nut-bundle-check: build-source nut-bundle-check-no-build
+nut-bundle-check: build-no-tests nut-bundle-check-no-build
 
 # Runs semgrep on the contracts.
 semgrep:
@@ -391,7 +403,6 @@ check:
   strict-pragma-check-no-build \
   valid-semver-check-no-build \
   semver-diff-check-no-build \
-  validate-deploy-configs \
   validate-spacers-no-build \
   reinitializer-check-no-build \
   interfaces-check-no-build \
@@ -401,50 +412,13 @@ check:
 #                      DEV TOOLS                       #
 ########################################################
 
-# Cleans, builds, lints, and runs all checks.
-# Alias for pre-pr.
+# Alias for pr.
 pre-commit *ARGS:
-  just pre-pr {{ARGS}}
+  just pr {{ARGS}}
 
-# Cleans, builds, lints, and runs all checks.
+# Alias for pr.
 pre-pr *ARGS:
-  #!/bin/bash
-  set -e
-  # Optionally clean the previous build.
-  # --clean is typically not needed but can force a clean build if you suspect cache issues.
-  if [[ "{{ARGS}}" == *"--clean"* ]]; then
-      just clean
-  fi
-
-  # Create temp directory for build cache if it doesn't exist.
-  TEMP_BUILD_DIR=$(mktemp -d)
-  trap '[ -d "$TEMP_BUILD_DIR" ] && rm -rf "$TEMP_BUILD_DIR"' EXIT INT
-
-  just build-dev
-
-  # Cache build artifacts for the dev build. We expect that developers will
-  # generally be using the dev build, but a production build of the src
-  # contracts is required for generating the correct snapshots. Production
-  # build will overwrite the cache for the dev build, which ultimately means
-  # that developers would have to wait a full minute for the dev build each
-  # time they run this command. By caching the artifacts for the dev build, we
-  # can save a lot of marginal time.
-  cp -r artifacts "$TEMP_BUILD_DIR/"
-  cp -r forge-artifacts "$TEMP_BUILD_DIR/"
-  cp -r cache "$TEMP_BUILD_DIR/"
-
-  just lint
-  just build-source
-  just generate-nut-bundle
-  just check
-
-
-  # Restore build artifacts after running checks.
-  if [ -d "$TEMP_BUILD_DIR" ]; then
-    cp -r "$TEMP_BUILD_DIR/artifacts" ./
-    cp -r "$TEMP_BUILD_DIR/forge-artifacts" ./
-    cp -r "$TEMP_BUILD_DIR/cache" ./
-  fi
+  just pr {{ARGS}}
 
 twrap:
     #!/usr/bin/env sh

@@ -1,0 +1,515 @@
+---
+title: Running an OP Stack node from source
+description: Learn how to run an OP Stack node from source code for full nodes and archive nodes.
+---
+
+This tutorial explains how to run an OP Stack node from source code for full nodes and archive nodes.
+Running an OP Stack node from source code is a flexible alternative to using pre-built Docker images.
+
+## Building the source code
+
+You'll need to build `op-node` and execution client (`op-geth` or `Nethermind`) from their respective source repositories before you can run a node.
+Make sure to follow the instructions on [Building a Node from Source](./node-from-source) before continuing.
+
+## Hardware requirements
+
+Hardware requirements for OP Mainnet nodes can vary depending on the type of node you plan to run.
+Archive nodes generally require significantly more resources than full nodes.
+Below are suggested minimum hardware requirements for each type of node.
+
+*   16GB RAM
+*   Reasonably modern CPU
+
+### SSD capacity requirements
+
+Given the growing size of the blockchain state, choosing the right SSD size is important.
+Below are the storage needs as of June 2025:
+
+*   **Full Node:** The snapshot size for a full node is approximately 700GB, with the data directory's capacity increasing by about 100GB every six months.
+*   **Archive Node:** The snapshot size for an archive node is approximately 14TB, with the data directory's capacity increasing by about 3.5TB every six months. A local SSD with a NVME interface is recommended for archive nodes
+
+Based on these trends, node operators should plan for future storage needs and choose SSDs that can handle these increasing requirements.
+
+<Info>
+  Geth supports a "freezer" feature to store older chain data on HDDs, saving SSD space. Configure this for OP Mainnet using the `--datadir.ancient` flag. See [Geth docs](https://geth.ethereum.org/docs/fundamentals/databases) and [OP docs](/node-operators/reference/op-geth-config#datadirancient) for details.
+</Info>
+
+## OP Stack nodes
+
+All OP Stack nodes can be run from `op-node` and an execution client (`op-geth` or `Nethermind`) if they're included in the [Superchain Registry](/op-stack/protocol/superchain-registry). You can specify the type of node you want to run by configuring the `--network` flag on `op-node` and the corresponding network flag on your execution client (`--op-network` for `op-geth` or `-c` for `Nethermind`).
+
+### Assess blob archiver
+
+Assess if you need to configure a blob archiver service by reading the [Configure a Blob Archiver documentation](/node-operators/guides/management/blobs#configure-a-blob-archiver).
+
+### Create a JWT secret
+
+The execution client and `op-node` communicate over the engine API authrpc.
+This communication is secured using a shared secret.
+You will need to generate a shared secret and provide it to both your execution client and `op-node` when you start them.
+In this case, the secret takes the form of a 32 byte hex string.
+
+Run the following command to generate a random 32 byte hex string:
+
+```bash
+openssl rand -hex 32 > jwt.txt
+```
+
+### Start the execution client
+
+It's generally easier to start the execution client before starting `op-node`.
+You can still start the execution client without yet running `op-node`, but it will simply not receive any blocks until `op-node` is started.
+
+<Tabs items={['op-geth', 'Nethermind']}>
+  <Tab>
+    <Steps>
+  <Step title="Navigate to your `op-geth` directory">
+Find the directory where you built the `op-geth` binary.
+
+  </Step>
+  
+        <Step title="Copy in the JWT secret">
+Copy the JWT secret you generated in a previous step into the `op-geth` directory.
+  
+        ```bash
+        cp /path/to/jwt.txt .
+        ```
+
+  
+        </Step>
+  
+        <Step title="Set environment variables">
+Set the following environment variables:
+  
+        ```bash
+        export DATADIR_PATH=... # Path to the desired data directory for op-geth
+        ```
+
+  
+        </Step>
+  
+        <Step title="Start `op-geth`">
+<Info>
+          If you want to run an archive node, you will need to set `--gcmode=archive`. If you want to run an OP Mainnet archive node, please refer to the [OP Mainnet archive nodes](#op-mainnet-archive-nodes) section.
+        </Info>
+  
+        Use the following command to start `op-geth` in a default configuration.
+        The JSON-RPC API will become available on port 8545.
+        Refer to the [execution clients configuration guide](/node-operators/guides/configuration/execution-clients) for more detailed information about available options.
+  
+        ```bash
+        ./build/bin/geth \
+          --http \
+          --http.port=8545 \
+          --http.addr=localhost \
+          --authrpc.addr=localhost \
+          --authrpc.jwtsecret=./jwt.txt \
+          --verbosity=3 \
+          --rollup.sequencerhttp=https://mainnet-sequencer.optimism.io/ \
+          --op-network=op-sepolia \
+          --datadir=$DATADIR_PATH
+        ```
+
+  
+        </Step></Steps>
+  </Tab>
+
+  <Tab>
+    <Steps>
+  <Step title="Navigate to your `Nethermind` directory">
+Find the directory where you built the `Nethermind` binary.
+
+  </Step>
+  
+        <Step title="Copy in the JWT secret">
+Copy the JWT secret you generated in a previous step into the `Nethermind` directory.
+  
+        ```bash
+        cp /path/to/jwt.txt .
+        ```
+
+  
+        </Step>
+  
+        <Step title="Start `Nethermind`">
+<Info>
+          If you want to run an archive node, use the `op-sepolia_archive` configuration instead of `op-sepolia`. For OP Mainnet, use `op-mainnet` or `op-mainnet_archive` configurations respectively.
+        </Info>
+  
+        Use the following command to start `Nethermind` in a default configuration.
+        The JSON-RPC API will become available on port 8545.
+        Refer to the `Nethermind` [configuration documentation](/node-operators/guides/configuration/execution-clients) for more detailed information about available options.
+  
+        ```bash
+        ./Nethermind.Runner \
+          -c op-sepolia \
+          --data-dir path/to/data/dir \
+          --JsonRpc.JwtSecretFile=./jwt.txt
+        ```
+  
+        This command uses the built-in `op-sepolia` configuration which already includes the correct settings for:
+  
+        *   JSON-RPC endpoints
+        *   Network ports
+        *   Sequencer URL
+        *   Other OP Stack specific settings
+
+  
+        </Step></Steps>
+  </Tab>
+</Tabs>
+
+### Start `op-node`
+
+Once you've started your execution client, you can start `op-node`.
+`op-node` will connect to the execution client and begin synchronizing the OP Mainnet state.
+`op-node` will begin sending block payloads to the execution client when it derives enough blocks from Ethereum.
+
+<Steps>
+  <Step title="Navigate to your `op-node` directory">
+Find the directory where you built the `op-node` binary.
+
+  </Step>
+  
+    <Step title="Copy in the JWT secret">
+Both the execution client and `op-node` need to use the same JWT secret.
+    Copy the JWT secret you generated in a previous step into the `op-node` directory.
+  
+    ```bash
+    cp /path/to/jwt.txt .
+    ```
+
+  
+    </Step>
+  
+    <Step title="Set environment variables">
+Set the following environment variables:
+  
+    ```bash
+    export L1_RPC_URL=...  # URL for the L1 node to sync from. If your L1 RPC is a local node, the most common URL is http://127.0.0.1:8545
+    export L1_RPC_KIND=... # RPC type (alchemy, quicknode, infura, parity, nethermind, debug_geth, erigon, basic, any)
+    export L1_BEACON_URL=... # URL address for the L1 Beacon-node HTTP endpoint to use. If your L1 Beacon is a local node, the most common URL is http://127.0.0.1:3500
+    ```
+
+  
+    </Step>
+  
+    <Step title="Start `op-node`">
+Use the following command to start `op-node` in a default configuration.
+    Refer to the [consensus clients configuration guide](/node-operators/guides/configuration/consensus-clients) for more detailed information about available options.
+  
+    <Info>
+      The `op-node` RPC should not be exposed publicly. If left exposed, it could
+      accidentally expose admin controls to the public internet.
+    </Info>
+  
+    <Info>
+      Sync mode is set to `--syncmode=execution-layer` to enable [snap sync](/node-operators/guides/management/snap-sync)
+      for both `op-geth` and `Nethermind`, removing the need to initialize the node with a data directory.
+    </Info>
+  
+    ```bash
+    ./bin/op-node \
+      --l1=$L1_RPC_URL \
+      --l1.rpckind=$L1_RPC_KIND \
+      --l1.beacon=$L1_BEACON_URL \
+      --l2=ws://localhost:8551 \
+      --l2.jwt-secret=./jwt.txt \
+      --network=op-sepolia \
+      --syncmode=execution-layer \
+      --l2.enginekind=geth
+    ```
+  
+    <Info>
+      Some L1 nodes, like Erigon, do not support the `eth_getProof` RPC method that the `op-node` uses to load L1 data for certain processing steps.
+      If you are using an L1 node that does not support `eth_getProof`, you will need to include the `--l1.trustrpc` flag when starting `op-node`.
+      Note that this flag will cause `op-node` to trust the L1 node to provide correct data as it will no longer be able to independently verify the data it receives.
+    </Info>
+
+  
+    </Step></Steps>
+
+### Synchronization verification
+
+Once you've started your execution client and `op-node` you should see them begin to communicate with each other and synchronize the OP Mainnet chain.
+
+#### Snap sync (default)
+
+<Tabs items={['op-geth', 'Nethermind']}>
+  <Tab title="op-geth">
+    Initial synchronization can take several hours to complete. You will see these
+    `op-node` logs at the start of snap sync:
+
+    ```text
+    INFO [03-06|10:56:55.602] Starting EL sync
+    INFO [03-06|10:56:55.615] Sync progress                            reason="unsafe payload from sequencer while in EL sync" l2_finalized=000000..000000:0 l2_safe=000000..000000:0 l2_pending_safe=000000..000000:0 l2_unsafe=4284ab..7e7e84:117076319 l2_time=1,709,751,415 l1_derived=000000..000000:0
+    INFO [03-06|10:56:57.567] Optimistically inserting unsafe L2 execution payload to drive EL sync id=4ac160..df4d12:117076320
+    ```
+
+    `Starting EL sync` is shown once and the **sync progress / inserting logs** should be repeated until done.
+
+    `op-node` will log the following when done:
+
+    ```text
+    lvl=info msg="Finished EL sync" sync_duration=23h25m0.370558429s finalized_block=0x4f69e83ff1407f2e2882f2526ee8a154ac326590799889cede3af04a7742f18d:116817417
+    ```
+
+    There are two stages on `op-geth` for snap sync:
+
+    <Steps>
+  <Step title="Downloading the headers">
+`op-geth` will log something like this as it is downloading the headers:
+  
+        ```text
+        lvl=info msg="Syncing beacon headers" downloaded=116775778 left=1162878 eta=53.182s 
+        ```
+
+  </Step>
+  
+        <Step title="Sync progress">
+For the second stage, `op-geth` will log the following:
+  
+        ```text
+        lvl=info msg="Syncing: state download in progress" synced=99.75% state="191.33 GiB" accounts=124,983,227@25.62GiB slots=806,829,266@165.16GiB codes=78965@566.74MiB eta=-2m7.602s
+        ```
+  
+        ```text
+        msg="Syncing: chain download in progress" synced=100.00% chain="176.01 GiB" headers=116,817,399@45.82GiB bodies=116,817,286@52.87GiB receipts=116,817,286@77.32GiB eta=77.430ms
+        ```
+  
+        All the while, `op-geth` will also log the forkchoice update:
+  
+        ```text
+        Forkchoice requested sync to new head  number=117,076,468 hash=e3884c..bf4e2b
+        ```
+
+  
+        </Step></Steps>
+  </Tab>
+
+  <Tab title="Nethermind">
+    Initial synchronization can take several hours to complete.
+
+    Snap sync in `Nethermind` works by:
+
+    1.  Downloading only the leaf nodes of the state tree
+    2.  Generating intermediate nodes locally
+    3.  Verifying the state root matches
+
+    This approach is up to 10 times faster than traditional full sync.
+  </Tab>
+</Tabs>
+
+#### Full sync
+
+<Info>
+For OP Mainnet you will need access to the migrated database to run a full node with full sync.
+You can [migrate your own data directory](https://web.archive.org/web/20240110231645/https://blog.oplabs.co/reproduce-bedrock-migration/) or follow the options available for [archive nodes](#get-the-migrated-data-directory).
+</Info>
+
+<Tabs>
+  <Tab title="op-geth">
+    Initial full synchronization can take several days or weeks to complete. During this time, you will initially observe `op-node` deriving blocks from Ethereum without sending these blocks to your execution client.
+  </Tab>
+
+  <Tab title="Nethermind">
+    To use full sync with `Nethermind`, set the following configuration:
+
+    ```bash
+    ./Nethermind.Runner \
+      -c op-sepolia \
+      --Sync.SnapSync=false \
+      --Sync.FastSync=false \
+      --data-dir path/to/data/dir \
+      --JsonRpc.JwtSecretFile=./jwt.txt
+    ```
+
+    Full sync will download and verify every block from genesis, which takes significantly longer than snap sync but provides the strongest security guarantees.
+  </Tab>
+</Tabs>
+
+Both execution clients will receive blocks from `op-node` as it requests them from Ethereum one-by-one and determines the corresponding OP Mainnet blocks that were published.
+You should see logs like the following from `op-node`:
+
+```text
+INFO [06-26|13:31:20.389] Advancing bq origin                      origin=17171d..1bc69b:8300332 originBehind=false
+```
+
+Once the initial sync is complete, you'll see sync progress logs:
+
+```text
+INFO [06-26|14:00:59.460] Sync progress                            reason="processed safe block derived from L1" l2_finalized=ef93e6..e0f367:4067805 l2_safe=7fe3f6..900127:4068014 l2_unsafe=7fe3f6..900127:4068014 l2_time=1,673,564,096 l1_derived=6079cd..be4231:8301091
+INFO [06-26|14:00:59.460] Found next batch                         epoch=8e8a03..11a6de:8301087 batch_epoch=8301087 batch_timestamp=1,673,564,098
+INFO [06-26|14:00:59.461] generated attributes in payload queue    txs=1  timestamp=1,673,564,098
+INFO [06-26|14:00:59.463] inserted block                           hash=e80dc4..72a759 number=4,068,015 state_root=660ced..043025 timestamp=1,673,564,098 parent=7fe3f6..900127 prev_randao=78e43d..36f07a fee_recipient=0x4200000000000000000000000000000000000011 txs=1  update_safe=true
+```
+
+You should then also begin to see logs from your execution client:
+
+<Tabs>
+  <Tab title="op-geth">
+    ```text
+    INFO [06-26|14:02:12.974] Imported new potential chain segment     number=4,068,194 hash=a334a0..609a83 blocks=1         txs=1         mgas=0.000  elapsed=1.482ms     mgasps=0.000   age=5mo2w20h dirty=2.31MiB
+    INFO [06-26|14:02:12.976] Chain head was updated                   number=4,068,194 hash=a334a0..609a83 root=e80f5e..dd06f9 elapsed="188.373µs" age=5mo2w20h
+    INFO [06-26|14:02:12.982] Starting work on payload                 id=0x5542117d680dbd4e
+    ```
+  </Tab>
+
+  <Tab title="Nethermind">
+    *   **Received New Block**: Block received with number, hash and extra data `21288296 (0xb61f74...cbfbe7), Extra Data: Titan (titanbuilder.xyz)`
+    *   **Processed**: Block or block range processed, e.g., or `x4 21288291 .. 21288295` or  `21288296`
+    *   **Received ForkChoice**: Updates on the blockchain's canonical chain; with safe and finalized block, e.g., `21288296 (0xb61f74...cbfbe7), Safe: 21288252 (0x46906d...7777b8), Finalized: 21288221 (0x22a7d2...ebeae9)`
+    *   **Synced Chain Head**: Latest synced block number and hash on the chain, e.g., `21288296 (0xb61f74...cbfbe7)`
+  </Tab>
+</Tabs>
+
+## OP Mainnet archive nodes
+
+<Info>
+  You only need an archive node if you need the historical state. Most node operators should default to full nodes.
+</Info>
+
+### Get the migrated data directory
+
+OP Mainnet underwent a large database migration as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
+You will need access to the migrated OP Mainnet database to run an archive node.
+You can [migrate your own data directory](https://web.archive.org/web/20240110231645/https://blog.oplabs.co/reproduce-bedrock-migration/) or simply download a database that has already been migrated.
+In this section, you'll learn how to download and verify the pre-migrated database.
+
+<Steps>
+  <Step title="Download the Migrated Data Directory">
+Click the link below to find the latest publicly available database snapshots for OP Mainnet.
+    Snapshots are available for multiple dates and snapshots get larger as they get closer to the current date.
+    Snapshots are large files and may take some time to download.
+    [OP Mainnet Snapshots](/node-operators/guides/management/snapshots#op-mainnet)
+
+  </Step>
+  
+    <Step title="Verify the Download">
+You should always verify the integrity of your downloads to ensure that they have not been corrupted.
+    A corrupted database can include invalid data or may cause your node to fail.
+    Verify the integrity of the download by checking the SHA256 checksum of the downloaded file.
+  
+    ```bash
+    sha256sum <filename>
+    ```
+  
+    For instance, if you've downloaded the very first database snapshot, you can verify the download by running the following command:
+  
+    ```bash
+    sha256sum mainnet-bedrock.tar.zst
+    ```
+  
+    You should see the following output:
+  
+    ```bash
+    ec4baf47e309a14ffbd586dc85376833de640c0f2a8d7355cb8a9e64c38bfcd1  mainnet-bedrock.tar.zst
+    ```
+  
+    Your exact output will depend on the snapshot you've downloaded.
+    Check the [OP Mainnet Snapshots](/node-operators/guides/management/snapshots#op-mainnet) page for the correct checksum for the snapshot you've downloaded.
+
+  
+    </Step>
+  
+    <Step title="Extract the Data Directory">
+Once you've downloaded the database snapshot, you'll need to extract it to a directory on your machine.
+    This will take some time to complete.
+  
+    ```bash
+    tar xvf <filename>
+    ```
+  
+    For instance, if you've downloaded the very first database snapshot, you can extract it by running the following command:
+  
+    ```bash
+    tar xvf mainnet-bedrock.tar.zst
+    ```
+
+  
+    </Step>
+  
+    <Step title="Configure `op-geth` for archive mode">
+Set `--syncmode=full` and `--gcmode=archive` on `op-geth`.
+
+  
+    </Step></Steps>
+
+### Get the legacy Geth directory (optional)
+
+Blocks and transactions included in OP Mainnet before the Bedrock Upgrade cannot be executed by modern OP Mainnet nodes.
+OP Mainnet nodes will **serve** these blocks and transactions but cannot run certain queries against them (e.g. `eth_call`).
+If you need to run stateful queries like `eth_call` against these older blocks and transactions, you will need to run a Legacy Geth node alongside your OP Mainnet node.
+
+Running a Legacy Geth node is entirely optional and typically only useful for operators who want to run complete archive nodes of the OP Mainnet state.
+If you want to run a full node then you can safely skip this section.
+
+<Steps>
+  <Step title="Download the Legacy Geth Data Directory">
+Click the link below to download the latest publicly available database snapshot for Legacy Geth.
+    This is a very large file (2.9TB), so expect the download to take some time to complete.
+  
+    [Legacy Geth Data Directory (2.9TB)](/node-operators/guides/management/snapshots#op-mainnet-legacy)
+
+  </Step>
+  
+    <Step title="Verify the Download">
+You should always verify the integrity of your downloads to ensure that they have not been corrupted.
+    A corrupted database can include invalid data or may cause your node to fail.
+    Verify the integrity of the download by checking the SHA256 checksum of the downloaded file.
+  
+    ```bash
+    sha256sum mainnet-legacy-archival.tar.zst
+    ```
+  
+    You should see the following output:
+  
+    ```bash
+    4adedb61125b81b55f9bdccc2e85092050c65ef2253c86e2b79569732b772829  mainnet-legacy-archival.tar.zst
+    ```
+  
+    If you see a different output, then the download is corrupted and you should try downloading the file again.
+
+  
+    </Step>
+  
+    <Step title="Extract the Data Directory">
+Once you've downloaded the database snapshot, you'll need to extract it to a directory on your machine.
+    This will take some time to complete.
+  
+    ```bash
+    tar xvf mainnet-legacy-archival.tar.zst
+    ```
+
+  
+    </Step></Steps>
+
+### Start legacy Geth (optional)
+
+If you've chosen to run a Legacy Geth node alongside your OP Mainnet node, you'll need to start it before you start your OP Mainnet node.
+
+<Steps>
+  <Step title="Navigate to your Legacy Geth directory">
+Find the directory where you built the `l2geth` binary.
+
+  </Step>
+  
+    <Step title="Start l2geth">
+Run the following command to start `l2geth`:
+  
+    ```bash
+    USING_OVM=true \
+      ETH1_SYNC_SERVICE_ENABLE=false \
+      RPC_API=eth,rollup,net,web3,debug \
+      RPC_ENABLE=true \
+      RPC_PORT=8546 \
+      ./build/bin/geth --datadir /path/to/l2geth-datadir
+    ```
+
+  
+    </Step></Steps>
+
+## Next steps
+
+*   If you've already got your node up and running, check out the [Node Metrics and Monitoring Guide](/node-operators/guides/monitoring/metrics) to learn how to keep tabs on your node and make sure it keeps running smoothly.
+*   If you run into any problems, please visit the [Node Troubleshooting Guide](/node-operators/guides/troubleshooting) for help.

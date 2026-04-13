@@ -1,0 +1,83 @@
+---
+title: Chain operator best practices
+description: Learn some best practices for managing the OP Stack's off-chain components.
+---
+
+The following information has some best practices around running the OP Stack's
+off-chain components.
+
+## Correct release versions
+
+Chain and node operators should always run the latest production releases of the OP Stack's off-chain components. The latest notes and changelogs can be found on GitHub:
+
+*   [OP monorepo releases](https://github.com/ethereum-optimism/optimism/releases) (includes `op-node` and other Go-based OP components)
+*   [op-geth releases](https://github.com/ethereum-optimism/op-geth/releases) (standalone repository)
+*   [op-contracts releases](https://github.com/ethereum-optimism/optimism/releases) (look for tags starting with `op-contracts/`)
+
+Some guidelines when picking versions:
+
+*   **Production releases** are always tagged with `<component-name>/v<semver>` for a specific OP component, for example:
+    *   `op-node/v1.7.5` for the `op-node`
+    *   `op-challenger/v1.0.0` for the `op-challenger`
+
+*   **Monorepo releases** typically use a simple `v<semver>` format (e.g. `v1.7.7`) to indicate that all Go-based OP Stack components (in `op-*`) have been updated together. These do **not** include new L1 contract releases.
+
+*   **Contracts releases** are tagged under `op-contracts/v<semver>` (e.g. `op-contracts/v1.6.0`) and contain updates to the Bedrock L1 contracts.
+
+*   **`op-geth` versioning** includes upstream geth's version within its semver. For example, if upstream geth is at `v1.12.0`, an `op-geth` release might be `v1.101200.0`. The geth major version is used as our minor version (left-padded if needed), and the patch version is appended.
+
+Always consult release notes for additional details or upgrade instructions.
+
+## Keep deployment artifacts
+
+After deploying your contracts on Ethereum, you should keep a record of all the deployment artifacts. 
+This is will be all the [op-deployer](/chain-operators/tools/op-deployer/overview.mdx) artifacts, as well as the release tag and commit hash of `op-deployer` and `op-contracts`.
+You will need these artifacts to add your chain to the [Superchain Registry](/op-stack/protocol/superchain-registry).
+
+## Incremental upgrade rollouts
+
+When upgrading your nodes, take a staggered approach. This means deploying the
+upgrade gradually across your infrastructure and ensuring things work as
+expected before making changes to every node.
+
+## Isolate your sequencer
+
+You can isolate your sequencer node, by not connecting it directly to the
+internet. Instead, you could handle your ingress traffic behind a proxy. Have
+the proxy forward traffic to replicas and have them gossip the transactions
+internally.
+
+## Improve reliability of peer-to-peer transactions
+
+These flags can improve the reliability of peer-to-peer transactions from internal replica nodes and the sequencer node.
+
+For sequencer nodes:
+
+```
+GETH_TXPOOL_JOURNAL: ""
+GETH_TXPOOL_JOURNALREMOTES: "false"
+GETH_TXPOOL_NOLOCALS: "true"
+```
+
+For replica nodes:
+
+```
+GETH_TXPOOL_JOURNALREMOTES: "true"
+GETH_TXPOOL_LIFETIME: "1h"
+GETH_TXPOOL_NOLOCALS: "true"
+```
+
+For additional information about these flags, check out our [Execution Layer Configuration Options](/node-operators/reference/op-geth-config) doc.
+
+## Write your own runbooks
+
+Create custom runbooks to prepare for operating an OP Stack chain. 
+You'll want to setup metrics endpoints and monitoring on your key components of the system and create runbooks to execute when something is not behaving as expected.
+
+## Assumptions
+
+### op-proposer assumes archive mode
+
+The `op-proposer` currently assumes that `op-geth` is being run in archive
+mode. This will likely be updated in a future network upgrade, but it is
+necessary for L2 withdrawals at the moment.

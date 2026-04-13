@@ -16,13 +16,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, typeName string, gameType gameTypes.GameType) (utils.LocalGameInputs, error) {
+func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, superNodeClient *sources.SuperNodeClient, typeName string, gameType gameTypes.GameType) (utils.LocalGameInputs, error) {
 	switch gameType {
 	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType, gameTypes.SuperCannonKonaGameType:
-		if supervisorClient == nil {
-			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires supervisor rpc to be set", gameType)
+		if superNodeClient == nil {
+			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires supernode rpc to be set", gameType)
 		}
-		return createGameInputsInterop(ctx, log, supervisorClient, typeName)
+		return createGameInputsInterop(ctx, log, superNodeClient, typeName)
 	default:
 		if rollupClient == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires rollup rpc to be set", gameType)
@@ -76,10 +76,10 @@ func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources
 	return localInputs, nil
 }
 
-func createGameInputsInterop(ctx context.Context, log log.Logger, client *sources.SupervisorClient, typeName string) (utils.LocalGameInputs, error) {
+func createGameInputsInterop(ctx context.Context, log log.Logger, client *sources.SuperNodeClient, typeName string) (utils.LocalGameInputs, error) {
 	status, err := client.SyncStatus(ctx)
 	if err != nil {
-		return utils.LocalGameInputs{}, fmt.Errorf("failed to get supervisor sync status: %w", err)
+		return utils.LocalGameInputs{}, fmt.Errorf("failed to get supernode sync status: %w", err)
 	}
 	log.Info("Got sync status", "status", status, "type", typeName)
 
@@ -88,15 +88,15 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client *source
 	if claimTimestamp == 0 {
 		return utils.LocalGameInputs{}, errors.New("finalized timestamp is 0")
 	}
-	l1Head := status.MinSyncedL1
+	l1Head := status.CurrentL1
 	log.Info("Using L1 head", "head", l1Head, "type", typeName)
 	if l1Head.Number == 0 {
 		return utils.LocalGameInputs{}, errors.New("l1 head is 0")
 	}
 
-	prestateProvider := super.NewSuperRootPrestateProvider(client, agreedTimestamp)
+	prestateProvider := super.NewSuperNodePrestateProvider(client, agreedTimestamp)
 	gameDepth := types.Depth(30)
-	provider := super.NewSupervisorSuperTraceProvider(log, nil, prestateProvider, client, l1Head.ID(), gameDepth, agreedTimestamp, claimTimestamp+10)
+	provider := super.NewSuperNodeTraceProvider(log, prestateProvider, client, l1Head, gameDepth, agreedTimestamp, claimTimestamp+10)
 	var agreedPrestate []byte
 	var claim common.Hash
 	switch rand.IntN(3) {

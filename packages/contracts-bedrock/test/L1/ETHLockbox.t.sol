@@ -15,7 +15,7 @@ import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @title ETHLockbox_TestInit
@@ -36,7 +36,7 @@ abstract contract ETHLockbox_TestInit is CommonTest {
         // If not on the last upgrade network, we skip the test since the `ETHLockbox` won't be yet
         // deployed
         // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
-        if (isForkTest() && !deploy.cfg().useUpgradedFork()) vm.skip(true);
+        if (isL1ForkTest() && !deploy.cfg().useUpgradedFork()) vm.skip(true);
 
         // If the ETHLockbox system feature is not enabled, skip these tests.
         skipIfSysFeatureDisabled(Features.ETH_LOCKBOX);
@@ -238,7 +238,7 @@ contract ETHLockbox_ReceiveLiquidity_Test is ETHLockbox_TestInit {
     /// @notice Tests the liquidity is correctly received.
     function testFuzz_receiveLiquidity_succeeds(address _lockbox, uint256 _value) public {
         // Since on the fork the `_lockbox` fuzzed address doesn't exist, we skip the test
-        if (isForkTest()) vm.skip(true);
+        if (isL1ForkTest()) vm.skip(true);
         assumeNotForgeAddress(_lockbox);
         vm.assume(address(_lockbox) != address(ethLockbox));
 
@@ -319,7 +319,7 @@ contract ETHLockbox_LockETH_Test is ETHLockbox_TestInit {
     ///         different portals.
     function testFuzz_lockETH_multiplePortals_succeeds(IOptimismPortal2 _portal, uint256 _amount) public {
         // Since on the fork the `_portal` fuzzed address doesn't exist, we skip the test
-        if (isForkTest()) vm.skip(true);
+        if (isL1ForkTest()) vm.skip(true);
         assumeNotForgeAddress(address(_portal));
         vm.assume(address(_portal) != address(ethLockbox));
 
@@ -590,7 +590,7 @@ contract ETHLockbox_MigrateLiquidity_Test is ETHLockbox_TestInit {
         public
     {
         // Since on the fork the `_lockbox` fuzzed address doesn't exist, we skip the test
-        if (isForkTest()) vm.skip(true);
+        if (isL1ForkTest()) vm.skip(true);
 
         // Bound balances to avoid overflow
         _originLockboxBalance = bound(_originLockboxBalance, 0, type(uint256).max - address(ethLockbox).balance);

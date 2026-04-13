@@ -971,6 +971,74 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 	})
 }
 
+// TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound tests that
+// ErrL1AtSafeHeadNotFound from the virtual node is mapped to ethereum.NotFound
+// by OptimisticAt (via safeDBAtL2), so callers treat chain lag as "not ready".
+func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	// Set up engine that returns a valid block ref
+	mockEngine := &mockEngineController{
+		l2BlockRefByNumberResult: eth.L2BlockRef{
+			Hash:   common.Hash{0x01},
+			Number: 5,
+			Time:   1010,
+		},
+	}
+	impl.engine = mockEngine
+
+	// Use a mock VN that returns valid SyncStatus (so LocalSafeBlockAtTimestamp succeeds)
+	// but returns ErrL1AtSafeHeadNotFound from L1AtSafeHead (so safeDBAtL2 fails).
+	mockVN := &mockVNForL1AtSafeHeadError{
+		syncStatusResult: &eth.SyncStatus{
+			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x10}, Number: 50},
+			LocalSafeL2: eth.L2BlockRef{Hash: common.Hash{0x20}, Number: 100},
+		},
+		l1AtSafeHeadErr: virtual_node.ErrL1AtSafeHeadNotFound,
+	}
+	impl.vn = mockVN
+
+	ctx := context.Background()
+	_, _, err := container.OptimisticAt(ctx, 1010)
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ethereum.NotFound),
+		"ErrL1AtSafeHeadNotFound should be mapped to ethereum.NotFound, got: %v", err)
+}
+
+// mockVNForL1AtSafeHeadError is a VN mock that returns valid SyncStatus
+// but can return specific errors from L1AtSafeHead.
+type mockVNForL1AtSafeHeadError struct {
+	syncStatusResult *eth.SyncStatus
+	l1AtSafeHeadErr  error
+}
+
+func (m *mockVNForL1AtSafeHeadError) Start(ctx context.Context) error { return nil }
+func (m *mockVNForL1AtSafeHeadError) Stop(ctx context.Context) error  { return nil }
+func (m *mockVNForL1AtSafeHeadError) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+func (m *mockVNForL1AtSafeHeadError) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
+	return eth.BlockID{}, m.l1AtSafeHeadErr
+}
+func (m *mockVNForL1AtSafeHeadError) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	return m.syncStatusResult, nil
+}
+
+var _ virtual_node.VirtualNode = (*mockVNForL1AtSafeHeadError)(nil)
+
 // TestChainContainer_LocalSafeBlockAtTimestamp tests the LocalSafeBlockAtTimestamp method
 func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 	t.Parallel()
@@ -1097,4 +1165,150 @@ func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 			runTest(t, tc)
 		})
 	}
+}
+
+func TestChainContainer_OptimisticOutputAtTimestamp_ReturnsDeniedOutput(t *testing.T) {
+	t.Parallel()
+
+	genesisTime := uint64(1000)
+	blockTime := uint64(2)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = genesisTime
+	vncfg.Rollup.BlockTime = blockTime
+	log := createTestLogger(t)
+
+	dl, err := OpenDenyList(filepath.Join(t.TempDir(), "denylist"))
+	require.NoError(t, err)
+	defer dl.Close()
+
+	stateRoot := eth.Bytes32(common.HexToHash("0xabcd"))
+	msgPasserRoot := eth.Bytes32(common.HexToHash("0x1234"))
+	payloadHash := common.HexToHash("0xdead")
+
+	// Block at height 5: timestamp = 1000 + 5*2 = 1010
+	height := uint64(5)
+	ts := genesisTime + height*blockTime
+	require.NoError(t, dl.Add(height, payloadHash, 0, stateRoot, msgPasserRoot))
+
+	container := &simpleChainContainer{
+		vncfg:    vncfg,
+		denyList: dl,
+		log:      log,
+	}
+
+	out, err := container.OptimisticOutputAtTimestamp(context.Background(), ts)
+	require.NoError(t, err)
+
+	require.Equal(t, &eth.OutputV0{
+		StateRoot:                stateRoot,
+		MessagePasserStorageRoot: msgPasserRoot,
+		BlockHash:                payloadHash,
+	}, out)
+}
+
+func TestChainContainer_OptimisticOutputAtTimestamp_UsesLatestDeniedRecord(t *testing.T) {
+	t.Parallel()
+
+	genesisTime := uint64(1000)
+	blockTime := uint64(2)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = genesisTime
+	vncfg.Rollup.BlockTime = blockTime
+	log := createTestLogger(t)
+
+	dl, err := OpenDenyList(filepath.Join(t.TempDir(), "denylist"))
+	require.NoError(t, err)
+	defer dl.Close()
+
+	height := uint64(5)
+	ts := genesisTime + height*blockTime
+
+	// Add two denied records at the same height — the latest should win
+	firstHash := common.HexToHash("0x1111")
+	require.NoError(t, dl.Add(height, firstHash, 100, eth.Bytes32{0x01}, eth.Bytes32{0x02}))
+
+	latestHash := common.HexToHash("0x2222")
+	latestState := eth.Bytes32(common.HexToHash("0xlatest"))
+	latestMsgPasser := eth.Bytes32(common.HexToHash("0xlatestmp"))
+	require.NoError(t, dl.Add(height, latestHash, 200, latestState, latestMsgPasser))
+
+	container := &simpleChainContainer{
+		vncfg:    vncfg,
+		denyList: dl,
+		log:      log,
+	}
+
+	out, err := container.OptimisticOutputAtTimestamp(context.Background(), ts)
+	require.NoError(t, err)
+	require.Equal(t, latestHash, out.BlockHash)
+	require.Equal(t, latestState, out.StateRoot)
+	require.Equal(t, latestMsgPasser, out.MessagePasserStorageRoot)
+}
+
+func TestChainContainer_OptimisticOutputAtTimestamp_FallsThroughWhenNoDenied(t *testing.T) {
+	t.Parallel()
+
+	genesisTime := uint64(1000)
+	blockTime := uint64(2)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = genesisTime
+	vncfg.Rollup.BlockTime = blockTime
+	log := createTestLogger(t)
+
+	// Empty deny list — no denied records at any height
+	dl, err := OpenDenyList(filepath.Join(t.TempDir(), "denylist"))
+	require.NoError(t, err)
+	defer dl.Close()
+
+	container := &simpleChainContainer{
+		vncfg:    vncfg,
+		denyList: dl,
+		log:      log,
+		// No engine set, so the fallback path will error — proving we reached it
+	}
+
+	_, err = container.OptimisticOutputAtTimestamp(context.Background(), genesisTime+5*blockTime)
+	require.Error(t, err)
+	require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
+}
+
+func TestChainContainer_SyncStatus_UninitializedVirtualNode(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, createTestVNConfig(), log, cfg, initOverload, nil, nil, nil)
+
+	status, err := container.SyncStatus(context.Background())
+	require.Nil(t, status)
+	require.ErrorIs(t, err, virtual_node.ErrVirtualNodeNotRunning)
+}
+
+func TestChainContainer_BlockNumberToTimestamp_RespectsGenesisBlockNumber(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.Genesis.L2.Number = 100
+	vncfg.Rollup.BlockTime = 2
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	timestamp, err := impl.BlockNumberToTimestamp(context.Background(), 104)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1008), timestamp)
+
+	_, err = impl.BlockNumberToTimestamp(context.Background(), 99)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "before genesis 100")
 }

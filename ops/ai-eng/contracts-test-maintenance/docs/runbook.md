@@ -382,7 +382,7 @@ else:
 - Fuzz testing decision trees
 - Organization rules (function-specific vs uncategorized)
 - Error handling patterns and semgrep rules
-- Validation requirements (`just pre-pr` must pass)
+- Validation requirements (`just pr` must pass)
 - PR submission guidelines
 
 ### Stage 3: Devin Execution

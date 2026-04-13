@@ -1,0 +1,45 @@
+# Environment files
+.env
+.env.local
+**/.env
+
+# Deployment artifacts
+deployer/
+
+# Generated service directories
+sequencer/
+batcher/
+proposer/
+challenger/
+
+# Optimism monorepo
+optimism/
+
+# Downloaded binaries
+op-deployer
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node modules (if any)
+node_modules/
+
+# Temporary files
+tmp/
+temp/

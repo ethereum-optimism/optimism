@@ -17,9 +17,10 @@ use reth_db::{
 };
 use reth_primitives_traits::{Account, StorageEntry};
 use reth_trie_common::{
-    BranchNodeCompact, Nibbles, StorageTrieEntry, StoredNibbles, StoredNibblesSubKey,
+    BranchNodeCompact, Nibbles, PackedStoredNibbles, StorageTrieEntry, StoredNibbles,
+    StoredNibblesSubKey,
 };
-use std::{collections::HashMap, time::Instant};
+use std::time::Instant;
 use tracing::{debug, info};
 
 /// Batch size threshold for storing entries during initialization
@@ -76,14 +77,16 @@ macro_rules! define_dup_cursor_iter {
                     return Some(res);
                 }
 
-                // If no more duplicates, find the next key with values
-                let Some(Ok((next_key, _))) = self.0.next_no_dup().transpose() else {
-                    // If no more entries, return None
-                    return None;
-                };
-
-                // If found, seek to the first duplicate for this key
-                return self.0.seek(next_key).transpose();
+                // If no more duplicates, find the next key with values.
+                // Use explicit match to propagate MDBX errors
+                match self.0.next_no_dup() {
+                    Ok(Some((next_key, _))) => {
+                        // Seek to the first duplicate for this key
+                        self.0.seek(next_key).transpose()
+                    }
+                    Ok(None) => None,
+                    Err(e) => Some(Err(e)),
+                }
             }
         }
     };
@@ -94,8 +97,8 @@ define_simple_cursor_iter!(HashedAccountsInit, tables::HashedAccounts, B256, Acc
 define_dup_cursor_iter!(HashedStoragesInit, tables::HashedStorages, B256, StorageEntry);
 define_simple_cursor_iter!(
     AccountsTrieInit,
-    tables::AccountsTrie,
-    StoredNibbles,
+    tables::PackedAccountsTrie,
+    PackedStoredNibbles,
     BranchNodeCompact
 );
 define_dup_cursor_iter!(StoragesTrieInit, tables::StoragesTrie, B256, StorageTrieEntry);
@@ -118,7 +121,7 @@ impl CompletionEstimatable for B256 {
     }
 }
 
-impl CompletionEstimatable for StoredNibbles {
+impl CompletionEstimatable for PackedStoredNibbles {
     fn estimate_progress(&self) -> f64 {
         // use the first 6 nibbles as a progress estimate
         let progress_nibbles =
@@ -264,12 +267,13 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + OpProofsInitialStateStore + Send>
         &self,
         start_key: Option<StoredNibbles>,
     ) -> Result<(), OpProofsStorageError> {
-        let mut start_cursor = self.tx.cursor_read::<tables::AccountsTrie>()?;
+        let mut start_cursor = self.tx.cursor_read::<tables::PackedAccountsTrie>()?;
 
         if let Some(latest_key) = start_key {
+            let packed_key = PackedStoredNibbles::from(latest_key);
             start_cursor
-                .seek(latest_key.clone())?
-                .filter(|(k, _)| *k == latest_key)
+                .seek(packed_key.clone())?
+                .filter(|(k, _)| *k == packed_key)
                 .ok_or(OpProofsStorageError::InitializeStorageInconsistentState)?;
         }
 
@@ -392,21 +396,45 @@ impl<C> InitTable for HashedStoragesInit<C> {
     type Value = StorageEntry;
 
     /// Save mapping of hashed addresses to storage entries to storage.
+    ///
+    /// Entries must arrive in sorted order (address ASC, slot ASC) from the
+    /// source cursor. We group consecutively by address to preserve that
+    /// order for the backend's `append_dup` calls.
+    //
+    // # Why not HashMap?
+    //
+    // An earlier version grouped entries with `HashMap<B256, Vec<…>>`.
+    // HashMap randomised iteration order, which caused silent data loss
+    // when a batch contained multiple addresses and was only partially
+    // processed before a failure (e.g. OOM kill).
+    //
+    // Each `store_hashed_storages` call commits its own MDBX transaction,
+    // so if the HashMap happened to flush addresses B, D (committed) and
+    // then failed on A (e.g. OOM kill), the
+    // resume key would be set to D. On restart the source cursor seeks
+    // past D, permanently skipping A and C — producing a proof DB with
+    // missing entries and ultimately a trie root / hash mismatch.
     fn store_entries(
         store: &impl OpProofsInitialStateStore,
         entries: impl IntoIterator<Item = (Self::Key, Self::Value)>,
     ) -> Result<(), OpProofsStorageError> {
-        let entries_iter = entries.into_iter();
-        let mut by_address: HashMap<B256, Vec<(B256, U256)>> =
-            HashMap::with_capacity(entries_iter.size_hint().0);
+        let mut current_address: Option<B256> = None;
+        let mut current_slots: Vec<(B256, U256)> = Vec::new();
 
-        // Group entries by hashed address
-        for (address, entry) in entries_iter {
-            by_address.entry(address).or_default().push((entry.key, entry.value));
+        for (address, entry) in entries {
+            if current_address.as_ref() != Some(&address) {
+                // Flush previous address group
+                if let Some(addr) = current_address.take() {
+                    store.store_hashed_storages(addr, std::mem::take(&mut current_slots))?;
+                }
+                current_address = Some(address);
+            }
+            current_slots.push((entry.key, entry.value));
         }
-        // Store each address's storage entries
-        for (address, storages) in by_address {
-            store.store_hashed_storages(address, storages)?;
+
+        // Flush last group
+        if let Some(addr) = current_address {
+            store.store_hashed_storages(addr, current_slots)?;
         }
 
         Ok(())
@@ -414,7 +442,7 @@ impl<C> InitTable for HashedStoragesInit<C> {
 }
 
 impl<C> InitTable for AccountsTrieInit<C> {
-    type Key = StoredNibbles;
+    type Key = PackedStoredNibbles;
     type Value = BranchNodeCompact;
 
     /// Save mapping of account trie paths to branch nodes to storage.
@@ -435,24 +463,33 @@ impl<C> InitTable for StoragesTrieInit<C> {
     type Value = StorageTrieEntry;
 
     /// Save mapping of hashed addresses to storage trie entries to storage.
+    ///
+    /// Entries must arrive in sorted order (address ASC, nibbles ASC) from the
+    /// source cursor. We group consecutively by address to preserve that
+    /// order for the backend's `append_dup` calls.
+    // See [`HashedStoragesInit::store_entries`] for why HashMap must not be
+    // used here — the same silent-data-loss-on-resume bug applies.
     fn store_entries(
         store: &impl OpProofsInitialStateStore,
         entries: impl IntoIterator<Item = (Self::Key, Self::Value)>,
     ) -> Result<(), OpProofsStorageError> {
-        let entries_iter = entries.into_iter();
-        let mut by_address: HashMap<B256, Vec<(Nibbles, Option<BranchNodeCompact>)>> =
-            HashMap::with_capacity(entries_iter.size_hint().0);
+        let mut current_address: Option<B256> = None;
+        let mut current_branches: Vec<(Nibbles, Option<BranchNodeCompact>)> = Vec::new();
 
-        // Group entries by hashed address
-        for (hashed_address, storage_entry) in entries_iter {
-            by_address
-                .entry(hashed_address)
-                .or_default()
-                .push((storage_entry.nibbles.0, Some(storage_entry.node)));
+        for (hashed_address, storage_entry) in entries {
+            if current_address.as_ref() != Some(&hashed_address) {
+                // Flush previous address group
+                if let Some(addr) = current_address.take() {
+                    store.store_storage_branches(addr, std::mem::take(&mut current_branches))?;
+                }
+                current_address = Some(hashed_address);
+            }
+            current_branches.push((storage_entry.nibbles.0, Some(storage_entry.node)));
         }
-        // Store each address's storage trie branches
-        for (address, branches) in by_address {
-            store.store_storage_branches(address, branches)?;
+
+        // Flush last group
+        if let Some(addr) = current_address {
+            store.store_storage_branches(addr, current_branches)?;
         }
 
         Ok(())
@@ -615,13 +652,13 @@ mod tests {
 
         // Insert test trie nodes into database
         let tx = db.tx_mut().unwrap();
-        let mut cursor = tx.cursor_write::<tables::AccountsTrie>().unwrap();
+        let mut cursor = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
 
         let branch = create_test_branch_node();
         let nodes = vec![
-            (StoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])), branch.clone()),
-            (StoredNibbles(Nibbles::from_nibbles_unchecked(vec![2])), branch.clone()),
-            (StoredNibbles(Nibbles::from_nibbles_unchecked(vec![3])), branch),
+            (PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])), branch.clone()),
+            (PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![2])), branch.clone()),
+            (PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![3])), branch),
         ];
 
         for (path, node) in &nodes {
@@ -742,10 +779,10 @@ mod tests {
         drop(cursor);
 
         // Add account trie
-        let mut cursor = tx.cursor_write::<tables::AccountsTrie>().unwrap();
+        let mut cursor = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
         cursor
             .append(
-                StoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])),
+                PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])),
                 &create_test_branch_node(),
             )
             .unwrap();
@@ -1007,15 +1044,15 @@ mod tests {
 
         store.set_initial_state_anchor(BlockNumHash::new(0, B256::default())).expect("set anchor");
 
-        let p1 = StoredNibbles(Nibbles::from_nibbles_unchecked(vec![1]));
-        let p2 = StoredNibbles(Nibbles::from_nibbles_unchecked(vec![2]));
-        let p3 = StoredNibbles(Nibbles::from_nibbles_unchecked(vec![3]));
-        let p4 = StoredNibbles(Nibbles::from_nibbles_unchecked(vec![4]));
+        let p1 = PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![1]));
+        let p2 = PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![2]));
+        let p3 = PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![3]));
+        let p4 = PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![4]));
 
         // Phase 1 source: p1,p2
         {
             let tx = db.tx_mut().unwrap();
-            let mut cur = tx.cursor_write::<tables::AccountsTrie>().unwrap();
+            let mut cur = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
             cur.append(p1.clone(), &create_test_branch_node()).unwrap();
             cur.append(p2.clone(), &create_test_branch_node()).unwrap();
             tx.commit().unwrap();
@@ -1030,13 +1067,13 @@ mod tests {
 
         assert_eq!(
             store.initial_state_anchor().expect("get anchor").latest_account_trie_key,
-            Some(p2.clone())
+            Some(StoredNibbles::from(p2.clone()))
         );
 
         // Phase 2 source: p3,p4
         {
             let tx = db.tx_mut().unwrap();
-            let mut cur = tx.cursor_write::<tables::AccountsTrie>().unwrap();
+            let mut cur = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
             cur.append(p3.clone(), &create_test_branch_node()).unwrap();
             cur.append(p4.clone(), &create_test_branch_node()).unwrap();
             tx.commit().unwrap();
@@ -1046,12 +1083,12 @@ mod tests {
         {
             let tx = db.tx().unwrap();
             let job = InitializationJob::new(store.clone(), tx);
-            job.initialize_accounts_trie(Some(p2.clone())).unwrap();
+            job.initialize_accounts_trie(Some(StoredNibbles::from(p2.clone()))).unwrap();
         }
 
         assert_eq!(
             store.initial_state_anchor().expect("get anchor").latest_account_trie_key,
-            Some(p4.clone())
+            Some(StoredNibbles::from(p4.clone()))
         );
 
         // Verify 4 ordered, no dupes
@@ -1161,6 +1198,157 @@ mod tests {
                 got.push(path);
             }
             assert_eq!(got, vec![n2.0, n3.0]);
+        }
+    }
+
+    /// A recording spy that implements [`OpProofsInitialStateStore`] and captures
+    /// the order of addresses passed to `store_hashed_storages` and
+    /// `store_storage_branches`.
+    #[derive(Debug, Default)]
+    struct RecordingStore {
+        hashed_storage_addresses: std::sync::Mutex<Vec<B256>>,
+        storage_branch_addresses: std::sync::Mutex<Vec<B256>>,
+    }
+
+    impl OpProofsInitialStateStore for RecordingStore {
+        fn initial_state_anchor(&self) -> crate::OpProofsStorageResult<InitialStateAnchor> {
+            Ok(InitialStateAnchor::default())
+        }
+
+        fn set_initial_state_anchor(
+            &self,
+            _anchor: BlockNumHash,
+        ) -> crate::OpProofsStorageResult<()> {
+            Ok(())
+        }
+
+        fn store_account_branches(
+            &self,
+            _account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+        ) -> crate::OpProofsStorageResult<()> {
+            Ok(())
+        }
+
+        fn store_storage_branches(
+            &self,
+            hashed_address: B256,
+            _storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+        ) -> crate::OpProofsStorageResult<()> {
+            self.storage_branch_addresses.lock().unwrap().push(hashed_address);
+            Ok(())
+        }
+
+        fn store_hashed_accounts(
+            &self,
+            _accounts: Vec<(B256, Option<Account>)>,
+        ) -> crate::OpProofsStorageResult<()> {
+            Ok(())
+        }
+
+        fn store_hashed_storages(
+            &self,
+            hashed_address: B256,
+            _storages: Vec<(B256, U256)>,
+        ) -> crate::OpProofsStorageResult<()> {
+            self.hashed_storage_addresses.lock().unwrap().push(hashed_address);
+            Ok(())
+        }
+
+        fn commit_initial_state(&self) -> crate::OpProofsStorageResult<BlockNumHash> {
+            Ok(BlockNumHash::default())
+        }
+    }
+
+    /// Verifies that `HashedStoragesInit::store_entries` calls
+    /// `store_hashed_storages` in strictly ascending address order.
+    ///
+    /// This is the regression test for the `HashMap` ordering bug: `HashMap`
+    /// randomised iteration order, caused silent data loss in case where
+    /// the batch contains multiple addresses and
+    /// the batch was partially processed before a failure.
+    #[test]
+    fn test_store_hashed_storages_preserves_sorted_address_order() {
+        let spy = RecordingStore::default();
+
+        // Build entries for 5 addresses in ascending order, each with 2 slots.
+        // These simulate what the source cursor yields in a single batch.
+        let addresses: Vec<B256> = (1u8..=5).map(k).collect();
+        let slot_a = k(0xAA);
+        let slot_b = k(0xBB);
+
+        let entries: Vec<(B256, StorageEntry)> = addresses
+            .iter()
+            .flat_map(|addr| {
+                vec![
+                    (*addr, StorageEntry { key: slot_a, value: U256::from(1) }),
+                    (*addr, StorageEntry { key: slot_b, value: U256::from(2) }),
+                ]
+            })
+            .collect();
+
+        HashedStoragesInit::<()>::store_entries(&spy, entries)
+            .expect("store_entries should succeed");
+
+        let recorded = spy.hashed_storage_addresses.lock().unwrap().clone();
+
+        // Must have been called exactly once per address
+        assert_eq!(recorded.len(), addresses.len(), "one call per address");
+
+        // Must be in the same (sorted) order as the input
+        assert_eq!(recorded, addresses, "addresses must be in ascending order");
+
+        // Strictly ascending — no duplicates, no out-of-order
+        for w in recorded.windows(2) {
+            assert!(w[0] < w[1], "addresses must be strictly ascending: {:?} >= {:?}", w[0], w[1]);
+        }
+    }
+
+    /// Verifies that `StoragesTrieInit::store_entries` calls
+    /// `store_storage_branches` in strictly ascending address order.
+    #[test]
+    fn test_store_storage_branches_preserves_sorted_address_order() {
+        let spy = RecordingStore::default();
+
+        // Build entries for 5 addresses in ascending order, each with 2 trie paths.
+        let addresses: Vec<B256> = (1u8..=5).map(k).collect();
+        let path_a = Nibbles::from_nibbles_unchecked(vec![0x0A]);
+        let path_b = Nibbles::from_nibbles_unchecked(vec![0x0B]);
+
+        let entries: Vec<(B256, StorageTrieEntry)> = addresses
+            .iter()
+            .flat_map(|addr| {
+                vec![
+                    (
+                        *addr,
+                        StorageTrieEntry {
+                            nibbles: StoredNibblesSubKey(path_a),
+                            node: create_test_branch_node(),
+                        },
+                    ),
+                    (
+                        *addr,
+                        StorageTrieEntry {
+                            nibbles: StoredNibblesSubKey(path_b),
+                            node: create_test_branch_node(),
+                        },
+                    ),
+                ]
+            })
+            .collect();
+
+        StoragesTrieInit::<()>::store_entries(&spy, entries).expect("store_entries should succeed");
+
+        let recorded = spy.storage_branch_addresses.lock().unwrap().clone();
+
+        // Must have been called exactly once per address
+        assert_eq!(recorded.len(), addresses.len(), "one call per address");
+
+        // Must be in the same (sorted) order as the input
+        assert_eq!(recorded, addresses, "addresses must be in ascending order");
+
+        // Strictly ascending
+        for w in recorded.windows(2) {
+            assert!(w[0] < w[1], "addresses must be strictly ascending: {:?} >= {:?}", w[0], w[1]);
         }
     }
 }

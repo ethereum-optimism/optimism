@@ -12,6 +12,8 @@ mod validator;
 pub use validator::{OpL1BlockInfo, OpTransactionValidator};
 
 pub mod conditional;
+mod pool;
+pub use pool::OpPool;
 pub mod supervisor;
 mod transaction;
 pub use transaction::{OpPooledTransaction, OpPooledTx};
@@ -23,9 +25,15 @@ pub mod estimated_da_size;
 
 use reth_transaction_pool::{CoinbaseTipOrdering, Pool, TransactionValidationTaskExecutor};
 
-/// Type alias for default optimism transaction pool
-pub type OpTransactionPool<Client, S, Evm, T = OpPooledTransaction> = Pool<
-    TransactionValidationTaskExecutor<OpTransactionValidator<Client, T, Evm>>,
-    CoinbaseTipOrdering<T>,
-    S,
+/// Type alias for default optimism transaction pool.
+///
+/// The [`OpPool`] wrapper delegates most behavior to the inner [`Pool`] handle,
+/// and overrides only a subset of the functions.
+/// This enables implementing custom behaviors and filtering of the pooled transactions.
+pub type OpTransactionPool<Client, S, Evm, T = OpPooledTransaction> = OpPool<
+    Pool<
+        TransactionValidationTaskExecutor<OpTransactionValidator<Client, T, Evm>>,
+        CoinbaseTipOrdering<T>,
+        S,
+    >,
 >;

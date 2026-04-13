@@ -8,9 +8,10 @@ use alloy_op_hardforks::{
     OP_MAINNET_JOVIAN_TIMESTAMP,
 };
 use alloy_primitives::{address, b256, uint};
+#[cfg(feature = "rollup_config_override")]
+use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
 use kona_genesis::{
-    ChainGenesis, DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW, HardForkConfig,
-    OP_MAINNET_BASE_FEE_CONFIG, RollupConfig, SystemConfig,
+    ChainGenesis, HardForkConfig, OP_MAINNET_BASE_FEE_CONFIG, RollupConfig, SystemConfig,
 };
 
 /// The [`RollupConfig`] for OP Mainnet.
@@ -45,6 +46,8 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     seq_window_size: 3600_u64,
     channel_timeout: 300_u64,
     granite_channel_timeout: 50,
+    #[cfg(feature = "rollup_config_override")]
+    fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
     l1_chain_id: 1_u64,
     l2_chain_id: Chain::optimism_mainnet(),
     chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
@@ -70,5 +73,4 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     superchain_config_address: Some(address!("95703e0982140D16f8ebA6d158FccEde42f04a4C")),
     da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,
-    interop_message_expiry_window: DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
 };

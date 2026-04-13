@@ -35,7 +35,7 @@ use crate::{Ecotone, Fjord, Interop, Isthmus, Jovian, Karst};
 /// ```rust
 /// use kona_hardforks::{Hardfork, Hardforks};
 /// let interop_upgrade_tx = Hardforks::INTEROP.txs();
-/// assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 4);
+/// assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 9);
 /// ```
 #[derive(Debug, Default, Clone, Copy)]
 #[non_exhaustive]
@@ -85,6 +85,6 @@ mod tests {
         assert_eq!(karst_upgrade_tx.collect::<Vec<_>>().len(), 0);
 
         let interop_upgrade_tx = Hardforks::INTEROP.txs();
-        assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 4);
+        assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 9);
     }
 }

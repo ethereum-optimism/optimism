@@ -31,10 +31,10 @@ pub use actors::{
     NetworkEngineClient, NetworkHandler, NetworkInboundData, NodeActor, OriginSelector,
     QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedEngineRpcClient,
     QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
-    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest,
-    RollupBoostAdminApiClient, RollupBoostHealthRpcClient, RpcActor, RpcActorError, RpcContext,
-    SealRequest, SequencerActor, SequencerActorError, SequencerAdminQuery, SequencerConfig,
-    SequencerEngineClient, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
+    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
+    RpcActorError, RpcContext, SealRequest, SequencerActor, SequencerActorError,
+    SequencerAdminQuery, SequencerConfig, SequencerEngineClient, UnsafePayloadGossipClient,
+    UnsafePayloadGossipClientError,
 };
 
 mod metrics;

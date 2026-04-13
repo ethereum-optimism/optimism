@@ -3,15 +3,16 @@
 use super::{ChannelReaderProvider, NextFrameProvider};
 use crate::{
     errors::PipelineError,
-    traits::{OriginAdvancer, OriginProvider, SignalReceiver},
-    types::{PipelineResult, Signal},
+    traits::{OriginAdvancer, OriginProvider, Stage},
+    types::PipelineResult,
 };
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::{Bytes, hex};
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_genesis::{
-    MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig,
+    MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig, SystemConfig,
 };
 use kona_protocol::{BlockInfo, Channel};
 
@@ -24,7 +25,7 @@ use kona_protocol::{BlockInfo, Channel};
 #[derive(Debug)]
 pub struct ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
@@ -36,7 +37,7 @@ where
 
 impl<P> ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     /// Creates a new [`ChannelAssembler`] stage with the given configuration and previous stage.
     pub const fn new(cfg: Arc<RollupConfig>, prev: P) -> Self {
@@ -57,7 +58,7 @@ where
 #[async_trait]
 impl<P> ChannelReaderProvider for ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn next_data(&mut self) -> PipelineResult<Option<Bytes>> {
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
@@ -92,14 +93,14 @@ where
             self.channel = Some(Channel::new(next_frame.id, origin));
         }
 
-        let count = if self.channel.is_some() { 1 } else { 0 };
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_BUFFER, count);
+        let _count = if self.channel.is_some() { 1 } else { 0 };
+        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_BUFFER, _count);
 
         if let Some(channel) = self.channel.as_mut() {
             // Track the number of blocks until the channel times out.
             let timeout = channel.open_block_number() + self.cfg.channel_timeout(origin.timestamp);
-            let margin = timeout.saturating_sub(origin.number) as f64;
-            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_TIMEOUT, margin);
+            let _margin = timeout.saturating_sub(origin.number) as f64;
+            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_TIMEOUT, _margin);
 
             // Add the frame to the channel. If this fails, return NotEnoughData and discard the
             // frame.
@@ -120,8 +121,8 @@ where
                 return Err(PipelineError::NotEnoughData.temp());
             }
 
-            let size = channel.size() as f64;
-            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_MEM, size);
+            let _size = channel.size() as f64;
+            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_MEM, _size);
 
             let max_rlp_bytes_per_channel = if self.cfg.is_fjord_active(origin.timestamp) {
                 MAX_RLP_BYTES_PER_CHANNEL_FJORD
@@ -170,7 +171,7 @@ where
 #[async_trait]
 impl<P> OriginAdvancer for ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -179,7 +180,7 @@ where
 
 impl<P> OriginProvider for ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -187,14 +188,34 @@ where
 }
 
 #[async_trait]
-impl<P> SignalReceiver for ChannelAssembler<P>
+impl<P> Stage for ChannelAssembler<P>
 where
-    P: NextFrameProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextFrameProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
 {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        self.prev.signal(signal).await?;
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        self.prev.reset(l1_origin, system_config).await?;
         self.channel = None;
         Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.channel = None;
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.prev.flush_channel().await?;
+        self.channel = None;
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.prev.provide_block(block).await
     }
 }
 

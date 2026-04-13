@@ -59,7 +59,6 @@ interface IOPContractsManagerUtils {
     error EmptyInitcode();
     error BytesArrayTooLong();
     error IdentityPrecompileCallFailed();
-
     function implementations() external view returns (IOPContractsManagerContainer.Implementations memory);
     function blueprints() external view returns (IOPContractsManagerContainer.Blueprints memory);
     function contractsContainer() external view returns (IOPContractsManagerContainer);

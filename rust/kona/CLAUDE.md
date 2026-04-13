@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 - Build workspace: `just b` or `just build-native`
 - Lint: `just l` or `just lint-native`
-- Format: `just f` or `just fmt-native-fix`
+- Format: `just f` or `just fmt-native-fix` (if `rust-fmt` CI fails, use `/fix-rust-fmt`)
 - Run all tests: `just t` or `just tests`
 - Run specific test: `cargo nextest run --package [package-name] --test [test-name]`
 - Run single test: `cargo nextest run --package [package-name] --test [test-name] -- [test_function_name]`

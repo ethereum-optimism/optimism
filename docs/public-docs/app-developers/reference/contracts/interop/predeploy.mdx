@@ -1,0 +1,61 @@
+---
+title: Interoperability predeploys
+description: Learn how interoperability predeploys work.
+---
+
+<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+The following predeploys have been added to enable interoperability.
+*Predeployed smart contracts* exist at predetermined addresses, coming from the genesis state.
+They're similar to [precompiles](https://www.evm.codes/precompiled) but run directly in the EVM instead of running as native code.
+
+## CrossL2Inbox
+
+The `CrossL2Inbox` is the system predeploy for cross chain messaging.
+Anyone can trigger the execution or validation of cross chain messages, on behalf of any user.
+
+*   **Address:** `0x4200000000000000000000000000000000000022`
+*   **Specs:** [`CrossL2Inbox`](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#crossl2inbox)
+*   **Source code:** [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol)
+
+## L2ToL2CrossDomainMessenger
+
+The `L2ToL2CrossDomainMessenger` is a higher level abstraction on top of the `CrossL2Inbox` that provides general message passing.
+It's utilized for secure ERC20 token transfers between L2 chains.
+Messages sent through the `L2ToL2CrossDomainMessenger` on the source chain receive both replay protection and domain binding (the executing transaction can only be valid on a single chain).
+
+*   **Address:** `0x4200000000000000000000000000000000000023`
+*   **Specs:** [`L2ToL2CrossDomainMessenger`](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#l2tol2crossdomainmessenger)
+*   **Source code:** [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol)
+
+## SuperchainETHBridge
+
+The `SuperchainETHBridge` is a predeploy contract that facilitates cross-chain ETH bridging within the OP Stack interop cluster. It serves as an abstraction layer on top of the `L2ToL2CrossDomainMessenger` specifically designed for native ETH transfers between chains. The contract integrates with the `ETHLiquidity` contract to manage native ETH liquidity across chains, ensuring seamless cross-chain transfers of native ETH.
+
+*   **Address:** `0x4200000000000000000000000000000000000024`
+*   **Specs:** [`SuperchainETHBridge`](https://specs.optimism.io/interop/superchain-eth-bridge.html)
+*   **Source code:** [`SuperchainETHBridge`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol)
+
+
+## ETHLiquidity
+
+The `ETHLiquidity` contract is a predeploy that manages native ETH liquidity for cross-chain transfers within the OP Stack interop set. It works in conjunction with the `SuperchainETHBridge` to facilitate the movement of ETH between chains without requiring modifications to the EVM to generate new ETH.
+
+The contract is initialized with a very large balance (type(uint248).max wei) to ensure it can handle all legitimate minting operations. This design allows the `SuperchainETHBridge` to have a guaranteed source of ETH liquidity on each chain, which is essential for the cross-chain ETH transfer mechanism.
+
+*   **Address:** `0x4200000000000000000000000000000000000025`
+*   **Specs:** [`ETHLiquidity`](https://specs.optimism.io/interop/eth-liquidity.html)
+*   **Source code:** [`ETHLiquidity`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/ETHLiquidity.sol)
+
+
+## SuperchainTokenBridge
+
+The `SuperchainTokenBridge` is an abstraction on top of the `L2ToL2CrossDomainMessenger` that facilitates token bridging using interop, as described in the [token bridging spec](https://specs.optimism.io/interop/token-bridging.html).
+
+*   **Address:** `0x4200000000000000000000000000000000000028`
+*   **Specs:** [`SuperchainTokenBridge`](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#superchainerc20bridge)
+*   **Source code:** [`SuperchainTokenBridge`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainTokenBridge.sol)
+
+
+## Next steps
+
+*   Learn [how messages get from one chain to another chain](/app-developers/guides/interoperability/message-passing)

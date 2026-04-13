@@ -45,7 +45,7 @@ pub async fn run_test_fixture(fixture_path: PathBuf) {
 
     let mut executor = StatelessL2Builder::new(
         &fixture.rollup_config,
-        OpEvmFactory::default(),
+        OpEvmFactory::<alloy_op_evm::OpTx>::default(),
         provider,
         NoopTrieHinter,
         fixture.parent_header.seal_slow(),
@@ -181,7 +181,7 @@ impl ExecutorTestFixtureCreator {
 
         let mut executor = StatelessL2Builder::new(
             rollup_config,
-            OpEvmFactory::default(),
+            OpEvmFactory::<alloy_op_evm::OpTx>::default(),
             self,
             NoopTrieHinter,
             parent_header,

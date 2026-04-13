@@ -1,0 +1,536 @@
+---
+title: Submitting Transactions from L1
+description: Learn how to process deposit transactions and withdrawals with Viem.
+---
+
+
+This tutorial explains how to use [Viem](https://viem.sh/op-stack) to process cross-domain transactions:
+- [Deposited transactions](https://specs.optimism.io/protocol/deposits.html): Also known as deposits, these are transactions initiated on L1 and executed on L2. They can be used to submit arbitrary L2 transactions from L1.
+
+- [Withdrawals](https://specs.optimism.io/protocol/withdrawals.html): These are cross-domain transactions initiated on L2 and finalized by a transaction executed on L1. They can be used to send arbitrary messages on L1 from L2 via the `OptimismPortal`.
+
+Both deposit transactions and withdrawals can transfer ETH and data.
+
+
+
+## Supported networks
+
+Viem supports any of the [OP Stack networks](https://viem.sh/op-stack/chains).
+The OP Stack networks are included in Viem by default.
+If you want to use a network that isn't included by default, you can add it to Viem's chain [configurations](https://viem.sh/op-stack/chains#configuration).
+
+## Dependencies
+
+*   [node](https://nodejs.org/en/)
+*   [pnpm](https://pnpm.io/installation)
+
+## Create a demo project
+
+You're going to use Viem for this tutorial.
+Since Viem is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
+
+<Steps>
+  <Step title="Make a project folder">
+
+  ```bash
+  mkdir bridge-eth
+  cd bridge-eth
+  ```
+
+  </Step>
+  <Step title="Initialize the project">
+
+  ```bash
+  pnpm init
+  ```
+
+  </Step>
+  <Step title="Install the Viem library">
+
+  ```bash
+  pnpm add viem
+  ```
+  </Step>
+</Steps>
+
+<Info>
+  Want to create a new wallet for this tutorial?
+  If you have [`cast`](https://book.getfoundry.sh/getting-started/installation) installed you can run `cast wallet new` in your terminal to create a new wallet and get the private key.
+</Info>
+
+## Get ETH on Sepolia
+
+This tutorial explains how to bridge ETH from Sepolia to OP Sepolia.
+You will need to get some ETH on Sepolia to follow along.
+
+<Info>
+  You can use [this faucet](https://sepoliafaucet.com) to get ETH on Sepolia.
+</Info>
+
+## Add a private key to your environment
+
+You need a private key in order to sign transactions.
+Set your private key as an environment variable with the export command.
+Make sure this private key corresponds to an address that has ETH on Sepolia.
+
+```bash
+export TUTORIAL_PRIVATE_KEY=0x...
+```
+
+## Start the Node REPL
+
+You're going to use the Node REPL to interact with Viem.
+To start the Node REPL run the following command in your terminal:
+
+```bash
+node
+```
+
+This will bring up a Node REPL prompt that allows you to run JavaScript code.
+
+## Import dependencies
+
+You need to import some dependencies into your Node REPL session.
+
+<Steps>
+  <Step title="Import Viem and other packages">
+
+```js
+const { createPublicClient, http, createWalletClient, parseEther, formatEther } = require('viem');
+const { sepolia, optimismSepolia } = require('viem/chains');
+const { privateKeyToAccount } = require('viem/accounts');
+const { getL2TransactionHashes, publicActionsL1, publicActionsL2, walletActionsL1, walletActionsL2 } = require('viem/op-stack');
+```
+
+  </Step>
+  <Step title="Load private key and set account">
+
+```js
+const PRIVATE_KEY = process.env.TUTORIAL_PRIVATE_KEY;
+const account = privateKeyToAccount(PRIVATE_KEY);
+```
+
+  </Step>
+  <Step title="Create L1 public client for reading from the Sepolia network">
+
+```js
+const publicClientL1 = createPublicClient({
+    chain: sepolia,
+    transport: http("https://ethereum-sepolia-rpc.publicnode.com"),
+}).extend(publicActionsL1()) 
+```
+
+  </Step>
+  <Step title="Create L1 wallet client for sending transactions on Sepolia">
+
+```js
+const walletClientL1 = createWalletClient({
+    account,
+    chain: sepolia,
+    transport: http("https://ethereum-sepolia-rpc.publicnode.com"),
+}).extend(walletActionsL1());
+```
+
+  </Step>
+  <Step title="Create L2 public client for interacting with OP Sepolia">
+
+```js
+const publicClientL2 = createPublicClient({
+    chain: optimismSepolia,
+    transport: http("https://sepolia.optimism.io"),
+}).extend(publicActionsL2());
+```
+
+  </Step>
+  <Step title="Create L2 wallet client on OP Sepolia">
+
+```js
+const walletClientL2 = createWalletClient({
+    account,
+    chain: optimismSepolia,
+    transport: http("https://sepolia.optimism.io"),
+}).extend(walletActionsL2());
+```
+
+  </Step>
+</Steps>
+
+## Get ETH on Sepolia
+
+You're going to need some ETH on L1 that you can bridge to L2.
+You can get some Sepolia ETH from [this faucet](https://sepoliafaucet.com).
+
+## Deposit ETH
+
+Now that you have some ETH on L1, in addition to using the method described in [Bridging ETH](/app-developers/guides/bridging/standard-bridge#bridging-eth), you can also deposit ETH using the approach shown in the example below. 
+
+If you are using a contract account, you should pay attention to [Address Aliasing](https://specs.optimism.io/protocol/deposits.html#address-aliasing).
+
+
+<Tabs>
+  <Tab title="depositETH">
+    <Steps>
+      <Step title="Check your wallet balance on L1">
+
+          See how much ETH you have on L1 so you can confirm that the deposit worked later on.
+
+          ```js
+const l1Balance = await publicClientL1.getBalance({ address: account.address });
+console.log(`L1 Balance: ${formatEther(l1Balance)} ETH`); 
+```
+
+          <Info>
+            We used `formatEther` method from `viem` to format the balance to ether.
+          </Info>
+
+      </Step>
+      <Step title="Create the deposit transaction">
+
+          Use [buildDepositTransaction](https://viem.sh/op-stack/actions/buildDepositTransaction) to build the deposit transaction parameters on L2. 
+
+Be sure to understand the meanings of the optional parameters `mint` and `value`. You can also use someone else’s address as the `to` value if desired.
+
+
+          ```js
+const depositArgs = await publicClientL2.buildDepositTransaction({
+    mint: parseEther("0.01"),
+    to: account.address,
+});
+```
+
+      </Step>
+      <Step title="Send the deposit transaction">
+
+          Send the deposit transaction on L1 and log the L1 transaction hash.
+
+          ```js
+const depositHash = await walletClientL1.depositTransaction(depositArgs);
+console.log(`Deposit transaction hash on L1: ${depositHash}`);
+```
+
+      </Step>
+      <Step title="Wait for L1 transaction">
+
+          Wait for the L1 transaction to be processed and log the receipt.
+
+          ```js
+const depositReceipt = await publicClientL1.waitForTransactionReceipt({ hash: depositHash });
+console.log('L1 transaction confirmed:', depositReceipt);
+```
+
+      </Step>
+      <Step title="Extract the L2 transaction hash">
+
+          Extracts the corresponding L2 transaction hash from the L1 receipt, and logs it.
+          This hash represents the deposit transaction on L2.
+
+          ```js
+const [l2Hash] = getL2TransactionHashes(depositReceipt);
+console.log(`Corresponding L2 transaction hash: ${l2Hash}`);
+```
+
+      </Step>
+      <Step title="Wait for the L2 transaction to be processed">
+
+          Wait for the L2 transaction to be processed and confirmed and logs the L2 receipt to verify completion.
+
+          ```js
+const l2Receipt = await publicClientL2.waitForTransactionReceipt({
+    hash: l2Hash,
+}); 
+console.log('L2 transaction confirmed:', l2Receipt);
+console.log('Deposit completed successfully!');
+```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Full Code">
+      ```js
+const { createPublicClient, http, createWalletClient, parseEther, formatEther } = require('viem');
+const { sepolia, optimismSepolia } = require('viem/chains');
+const { privateKeyToAccount } = require('viem/accounts');
+const { getL2TransactionHashes, publicActionsL1, publicActionsL2, walletActionsL1, walletActionsL2 } = require('viem/op-stack');
+
+const PRIVATE_KEY = process.env.TUTORIAL_PRIVATE_KEY;
+const account = privateKeyToAccount(PRIVATE_KEY);
+
+const publicClientL1 = createPublicClient({
+    chain: sepolia,
+    transport: http("https://ethereum-sepolia-rpc.publicnode.com"),
+}).extend(publicActionsL1()) 
+
+const walletClientL1 = createWalletClient({
+    account,
+    chain: sepolia,
+    transport: http("https://ethereum-sepolia-rpc.publicnode.com"),
+}).extend(walletActionsL1());
+
+const publicClientL2 = createPublicClient({
+    chain: optimismSepolia,
+    transport: http("https://sepolia.optimism.io"),
+}).extend(publicActionsL2());
+
+const walletClientL2 = createWalletClient({
+    account,
+    chain: optimismSepolia,
+    transport: http("https://sepolia.optimism.io"),
+}).extend(walletActionsL2());
+
+const l1Balance = await publicClientL1.getBalance({ address: account.address });
+console.log(`L1 Balance: ${formatEther(l1Balance)} ETH`); 
+
+async function depositETH() {
+
+const depositArgs = await publicClientL2.buildDepositTransaction({
+    mint: parseEther("0.01"),
+    to: account.address,
+});
+
+const depositHash = await walletClientL1.depositTransaction(depositArgs);
+console.log(`Deposit transaction hash on L1: ${depositHash}`);
+
+const depositReceipt = await publicClientL1.waitForTransactionReceipt({ hash: depositHash });
+console.log('L1 transaction confirmed:', depositReceipt);
+
+const [l2Hash] = getL2TransactionHashes(depositReceipt);
+console.log(`Corresponding L2 transaction hash: ${l2Hash}`);
+
+const l2Receipt = await publicClientL2.waitForTransactionReceipt({
+    hash: l2Hash,
+}); 
+console.log('L2 transaction confirmed:', l2Receipt);
+console.log('Deposit completed successfully!');
+} 
+```
+  </Tab>
+</Tabs>
+
+## Withdraw ETH
+
+You just bridged some ETH from L1 to L2.
+Nice!
+Now you’re going to repeat the process in reverse to bridge some ETH from L2 to L1. 
+
+In addition to the method described in [Bridging ETH](/app-developers/guides/bridging/standard-bridge#bridging-eth), you can also withdraw ETH using the example approach shown below.
+
+
+<Tabs>
+  <Tab title="withdrawETH">
+    <Steps>
+      <Step title="Create the withdrawal transaction">
+
+          Uses `buildInitiateWithdrawal` to create the withdrawal parameters.
+          Converts the withdrawal amount to `wei` and specifies the recipient on L1.
+
+          ```js
+//Add the same imports used in DepositETH function
+const withdrawalArgs = await publicClientL1.buildInitiateWithdrawal({
+value: parseEther('0.005'),
+to: account.address,
+});
+```
+
+      </Step>
+      <Step title="Executing the withdrawal">
+
+          This sends the withdrawal transaction on L2, which initiates the withdrawal process on L2 and logs a transaction hash for tracking the withdrawal.
+
+          ```js
+const withdrawalHash = await walletClientL2.initiateWithdrawal(withdrawalArgs);
+console.log(`Withdrawal transaction hash on L2: ${withdrawalHash}`);
+```
+
+      </Step>
+      <Step title="Confirming L2 transaction">
+
+          Wait one hour (max) for the L2 Output containing the transaction to be proposed, and log the receipt, which contains important details like the block number etc.
+
+          ```js
+const withdrawalReceipt = await publicClientL2.waitForTransactionReceipt({ hash: withdrawalHash });
+console.log('L2 transaction confirmed:', withdrawalReceipt);
+```
+
+      </Step>
+      <Step title="Wait for withdrawal prove">
+
+          Next, is to prove to the bridge on L1 that the withdrawal happened on L2. To achieve that, you first need to wait until the withdrawal is ready to prove.
+
+          ```js
+const { output, withdrawal } = await publicClientL1.waitToProve({
+receipt: withdrawalReceipt,
+targetChain: walletClientL2.chain
+});
+```
+
+          Build parameters to prove the withdrawal on the L2.
+
+          ```js
+const proveArgs = await publicClientL2.buildProveWithdrawal({
+output,
+withdrawal,
+});
+```
+
+      </Step>
+      <Step title="Prove the withdrawal on the L1">
+
+          Once the withdrawal is ready to be proven, you'll send an L1 transaction to prove that the withdrawal happened on L2.
+
+          ```js
+const proveHash = await walletClientL1.proveWithdrawal(proveArgs);
+
+const proveReceipt = await publicClientL1.waitForTransactionReceipt({ hash: proveHash });
+```
+
+      </Step>
+      <Step title="Wait for withdrawal finalization">
+
+          Before a withdrawal transaction can be finalized, you will need to wait for the finalization period.
+          This can only happen after the fault proof period has elapsed. On OP Mainnet, this takes 7 days.
+
+          ```js
+const awaitWithdrawal = await publicClientL1.waitToFinalize({
+targetChain: walletClientL2.chain,
+withdrawalHash: withdrawal.withdrawalHash,
+});
+```
+
+          <Info>
+            We're currently testing fault proofs on OP Sepolia, so withdrawal times
+            reflect Mainnet times.
+          </Info>
+
+      </Step>
+      <Step title="Finalize the withdrawal">
+
+          ```js
+const finalizeHash = await walletClientL1.finalizeWithdrawal({
+targetChain: walletClientL2.chain,
+withdrawal,
+});
+```
+
+      </Step>
+      <Step title="Wait until the withdrawal is finalized">
+
+          ```js
+const finalizeReceipt = await publicClientL1.waitForTransactionReceipt({
+hash: finalizeHash
+});
+```
+
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Full Code">
+
+  ```js
+//Add the same imports used in DepositETH function
+const withdrawalArgs = await publicClientL1.buildInitiateWithdrawal({
+value: parseEther('0.005'),
+to: account.address,
+});
+
+const withdrawalHash = await walletClientL2.initiateWithdrawal(withdrawalArgs);
+console.log(`Withdrawal transaction hash on L2: ${withdrawalHash}`);
+
+const withdrawalReceipt = await publicClientL2.waitForTransactionReceipt({ hash: withdrawalHash });
+console.log('L2 transaction confirmed:', withdrawalReceipt);
+
+const { output, withdrawal } = await publicClientL1.waitToProve({
+receipt: withdrawalReceipt,
+targetChain: walletClientL2.chain
+});
+
+const proveArgs = await publicClientL2.buildProveWithdrawal({
+output,
+withdrawal,
+});
+
+const proveHash = await walletClientL1.proveWithdrawal(proveArgs);
+
+const proveReceipt = await publicClientL1.waitForTransactionReceipt({ hash: proveHash });
+
+const awaitWithdrawal = await publicClientL1.waitToFinalize({
+targetChain: walletClientL2.chain,
+withdrawalHash: withdrawal.withdrawalHash,
+});
+
+const finalizeHash = await walletClientL1.finalizeWithdrawal({
+targetChain: walletClientL2.chain,
+withdrawal,
+});
+
+const finalizeReceipt = await publicClientL1.waitForTransactionReceipt({
+hash: finalizeHash
+});
+
+```
+
+</Tab>
+</Tabs>
+
+<Info>
+Recommend checking with [getWithdrawalStatus](https://viem.sh/op-stack/actions/getWithdrawalStatus) before the `waitToProve` and `waitToFinalize` actions.
+
+    ```js
+    const status = await publicClientL1.getWithdrawalStatus({
+    receipt: withdrawalReceipt,
+    targetChain: walletClientL2.chain
+    })
+    console.log(`Withdrawal status: ${status}`)
+    ```
+
+</Info>
+
+## Submitting Arbitrary L2 Transactions from L1
+
+EOAs can submit any transaction on L1 that needs to be executed on L2. This also makes it possible for users to interact with contracts on L2 even when the [Sequencer is down](/op-stack/transactions/forced-transaction).
+
+If the caller is a contract on L1, you need to pay attention to [Address Aliasing](https://specs.optimism.io/protocol/deposits.html#address-aliasing).
+
+If you have just completed the [Bridging ERC-20 tokens to OP Mainnet](/app-developers/tutorials/bridging/cross-dom-bridge-erc20) tutorial, you can try initiating an ERC-20 transfer transaction on L1 that will be executed on L2. 
+
+`encodeFunctionData` and `erc20Abi` can be imported from Viem.
+
+```js
+const oneToken = parseEther('1')
+// L2 faucet token contract
+const to = "0xD08a2917653d4E460893203471f0000826fb4034"
+
+const data = encodeFunctionData({
+  abi: erc20Abi,
+  functionName: "transfer",
+  args: [
+    "0x000000000000000000000000000000000000dEaD", // recipient
+    oneToken / 2n, 
+  ],
+});
+
+const args = await publicClientL2.buildDepositTransaction({
+  account,
+  data,
+  to,
+});
+```
+
+## Use `OptimismPortal` to Send Arbitrary Messages on L1 from L2
+
+The `L2ToL1MessagePasser` contract’s `initiateWithdrawal` function accepts a `_target` address and `_data` bytes. These are passed to a CALL opcode on L1 when `finalizeWithdrawalTransaction` is executed after the challenge period.
+
+This means that, by design, the `OptimismPortal` contract can be used to send arbitrary transactions on L1, with the `OptimismPortal` acting as the `msg.sender`.
+
+
+## Important Considerations
+
+<Info>
+* The purpose of this tutorial is to introduce deposited transactions and withdrawals. You should first consider whether the [standard bridge](/app-developers/guides/bridging/standard-bridge) and the [messenger](/app-developers/guides/bridging/messaging) meet your use case requirements.
+* When working with deposited transactions, consider the implications of [Address Aliasing](https://specs.optimism.io/protocol/deposits.html#address-aliasing).
+* When working with withdrawals, consider that [OptimismPortal can send arbitrary messages on L1](https://specs.optimism.io/protocol/withdrawals.html#optimismportal-can-send-arbitrary-messages-on-l1).
+* Challenge period: The 7-day withdrawal challenge period is crucial for security.
+* Gas costs: Withdrawals involve transactions on both L2 and L1, each incurring gas fees.
+* Private key handling: Use secure key management practices in real applications.
+* RPC endpoint security: Keep your API key (or any RPC endpoint) secure.
+</Info>

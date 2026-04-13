@@ -1,0 +1,160 @@
+---
+title: "Generating absolute prestate and preimage files"
+description: "A high-level guide on how to generate the absolute prestate and preimage necessary for running cannon/permissionless proofs."
+---
+
+# Overview
+
+Permissionless fault proofs are a critical component of the OP Stack's security model. They allow anyone to challenge invalid state proposals, ensuring the correctness of L2 to L1 withdrawals without relying on trusted third parties. To enable this functionality, chain operators must generate and maintain the necessary absolute prestate and preimage files. The absolute prestate is a commitment to the initial state of the fault proof program, and the preimage is the serialized binary representation of this program state. These files are essential for the op-challenger tool to participate in dispute games when challenging invalid claims.
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- [Docker](https://docs.docker.com/engine/install/) running
+
+## Official prestate hashes for superchain-registry chains
+
+The superchain-registry maintains official absolute prestate hashes for chains that are part of the registry. These prestates include the configurations of chains that were in the superchain-registry at the time the prestate was created.
+
+<Info>
+  Important: A prestate listed in the superchain-registry may not be suitable for your chain if:
+
+  - Your chain was added to the registry after the prestate was created
+  - The configuration for your chain has been updated since the prestate was created
+
+  Before using a prestate from the registry, verify that it contains the latest configuration for your chain.
+
+  When in doubt, generating your own prestate with your specific chain configuration is the safest approach.
+</Info>
+
+You can find the latest prestate tags in the [Superchain registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+
+## Generating the absolute prestate
+
+<Steps>
+  <Step title="Clone and checkout the tagged version">
+    First, clone the Optimism monorepo and check out the appropriate [release tag](https://github.com/ethereum-optimism/optimism/tags) for op-program:
+
+    ```shellscript
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    # For production chains, use the latest finalized release (not an rc)
+    git checkout op-program/v1.6.1  # Use the latest stable version
+    
+    ```
+  </Step>
+  <Step title="(Optional) Provide chain configuration and genesis files">
+    For chains that are not included in the superchain-registry, you'll need to provide the chain rollup configuration file and the L2 genesis file. Add the `rollup.json` and `l2-genesis.json` to the monorepo at `optimism/op-program/chainconfig/configs/<L2_CHAIN_ID>-rollup.json` and `optimism/op-program/chainconfig/configs/<L2_CHAIN_ID>-genesis-l2.json` respectively.
+  </Step>
+  <Step title="Generate the absolute prestate">
+    Run the following command from the root of the monorepo:
+
+    ```bash
+    make reproducible-prestate
+    ```
+
+    You should see the following logs at the end of the command’s output:
+
+    ```log
+    
+    -------------------- Production Prestates --------------------
+    
+    Cannon64 Absolute prestate hash: 
+    0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+    
+    -------------------- Experimental Prestates --------------------
+    
+    CannonInterop Absolute prestate hash: 
+    0x03fc3b4d091527d53f1ff369ea8ed65e5e17cc7fc98ebf75380238151cdc949c
+    
+    Cannon64Next Absolute prestate hash: 
+    0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+    
+    ```
+
+    The output will display production and experimental prestate hashes:
+
+    - **Production prestates**: Contains the `Cannon64` prestate, which is the current production absolute prestate hash for the 64-bit version of Cannon. This is the hash you should use for permissionless fault proofs.
+    - **Experimental prestates**: These contain prestates for versions that are in development and not yet ready for production use.
+  </Step>
+  <Step title="Prepare the preimage file">
+    After generating the prestate, the preimage file will be located in `op-program/bin/prestate-mt64.bin.gz`. The exact name might vary based on the version. Rename this file to include the prestate hash:
+
+    ```shellscript
+    cd op-program/bin
+    mv prestate-mt64.bin.gz [CANNON64_PRESTATE_HASH].bin.gz
+    ```
+
+    Replace `[CANNON64_PRESTATE_HASH]` with the actual `Cannon64` absolute prestate hash value from the output. This file needs to be uploaded to a location that's accessible by your op-challenger instances.
+  </Step>
+</Steps>
+
+## Deploying and configuring with the absolute prestate
+
+After generating the absolute prestate and preimage files, you'll need to:
+
+<Steps>
+  <Step title="Upload preimage file">
+    Upload the preimage file to a location accessible by your op-challenger instances
+  </Step>
+  <Step title="Configure op-challenger">
+    Configure the op-challenger to use the generated prestate. There are two ways to provide prestates:
+  </Step>
+</Steps>
+
+<Steps>
+  <Step title="Option 1: Using HTTP URL">
+    If your prestate files are hosted on a web server, you can simply provide the URL to the directory containing those files:
+
+    ```bash
+    docker run -d --name op-challenger \
+     -e OP_CHALLENGER_TRACE_TYPE=permissioned,cannon \
+     -e OP_CHALLENGER_PRESTATES_URL=<HTTP_URL_PATH_TO_PRESTATE> \
+     -e OP_CHALLENGER_L1_ETH_RPC=<YOUR_L1_RPC_URL> \
+     -e OP_CHALLENGER_GAME_FACTORY_ADDRESS=<YOUR_DISPUTE_GAME_FACTORY> \
+     -e OP_CHALLENGER_PRIVATE_KEY=<YOUR_PRIVATE_KEY_OR_USE_WALLET_SIGNER> \
+     -e OP_CHALLENGER_NETWORK=<YOUR_NETWORK> \
+     -e OP_CHALLENGER_CANNON_ROLLUP_CONFIG=<PATH_TO_ROLLUP_CONFIG> \
+     -e OP_CHALLENGER_CANNON_L2_GENESIS=<PATH_TO_GENESIS_CONFIG> \
+     us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:latest
+    ```
+
+    <Info>
+      When using an HTTP URL, no volume mount is required. The challenger will download the prestate files as needed.
+    </Info>
+  </Step>
+  <Step title="Option 2: Using local files">
+    If you have prestate files stored locally, you'll need to mount them as a volume and use the `file://` protocol:
+
+    ```bash
+    docker run -d --name op-challenger \
+      -e OP_CHALLENGER_TRACE_TYPE=permissioned,cannon \
+      -e OP_CHALLENGER_PRESTATES_URL=file:///prestates \
+      -e OP_CHALLENGER_L1_ETH_RPC=<YOUR_L1_RPC_URL> \
+      -e OP_CHALLENGER_GAME_FACTORY_ADDRESS=<YOUR_DISPUTE_GAME_FACTORY> \
+      -e OP_CHALLENGER_PRIVATE_KEY=<YOUR_PRIVATE_KEY_OR_USE_WALLET_SIGNER> \
+      -e OP_CHALLENGER_NETWORK=<YOUR_NETWORK> \
+      -e OP_CHALLENGER_CANNON_ROLLUP_CONFIG=<PATH_TO_ROLLUP_CONFIG> \
+      -e OP_CHALLENGER_CANNON_L2_GENESIS=<PATH_TO_GENESIS_CONFIG> \
+      -v /path/to/local/prestates:/prestates \
+      us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:latest
+    ```
+
+    <Info>
+      When using local files, ensure your prestate files are in the mounted directory and properly named with their hash (e.g., `0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8.bin.gz`).
+    </Info>
+  </Step>
+</Steps>
+
+<Info>
+  - Ensure you're using the latest op-challenger version, see the [release page](https://github.com/ethereum-optimism/optimism/release).
+  - If your chain uses interoperability features, you'll need to add a `depsets.json` file to the `op-program/chainconfig/configs` directory.
+  - This file contains dependency set configurations in the same format as the op-supervisor's configs. You can extract this from your existing op-supervisor setup.
+</Info>
+
+## Next Steps
+
+- Check out the [migrating to permissionless fault proofs guide](/chain-operators/tutorials/migrating-permissionless).
+- Read the [Fault proofs explainer](/op-stack/fault-proofs/explainer).
+- [Fault proofs explainer](/op-stack/fault-proofs/explainer)

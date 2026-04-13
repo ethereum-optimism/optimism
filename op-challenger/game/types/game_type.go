@@ -21,7 +21,7 @@ const (
 	SuperAsteriscKonaGameType GameType = 7 // Not supported by op-challenger
 	CannonKonaGameType        GameType = 8
 	SuperCannonKonaGameType   GameType = 9
-	OptimisticZKGameType      GameType = 10
+	ZKDisputeGameType         GameType = 10
 	FastGameType              GameType = 254
 	AlphabetGameType          GameType = 255
 	KailuaGameType            GameType = 1337           // Not supported by op-challenger
@@ -39,7 +39,7 @@ var SupportedGameTypes = []GameType{
 	SuperCannonGameType,
 	SuperCannonKonaGameType,
 	SuperPermissionedGameType,
-	OptimisticZKGameType,
+	ZKDisputeGameType,
 }
 
 // Set implements the Set method required by the [cli.Generic] interface.
@@ -92,8 +92,8 @@ func (g GameType) String() string {
 		return "cannon-kona"
 	case SuperCannonKonaGameType:
 		return "super-cannon-kona"
-	case OptimisticZKGameType:
-		return "optimistic-zk"
+	case ZKDisputeGameType:
+		return "zk"
 	case FastGameType:
 		return "fast"
 	case AlphabetGameType:

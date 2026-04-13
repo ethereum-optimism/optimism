@@ -2,15 +2,18 @@
 
 use super::{InteropHintHandler, InteropLocalInputs};
 use crate::{
-    DiskKeyValueStore, MemoryKeyValueStore, OfflineHostBackend, OnlineHostBackend,
-    OnlineHostBackendCfg, PreimageServer, SharedKeyValueStore, SplitKeyValueStore,
-    eth::rpc_provider, server::PreimageServerError,
+    OfflineHostBackend, OnlineHostBackend, OnlineHostBackendCfg, PreimageServer,
+    SharedKeyValueStore,
+    eth::rpc_provider,
+    kv::{DataFormat, create_key_value_store},
+    server::PreimageServerError,
 };
 use alloy_primitives::{B256, Bytes};
 use alloy_provider::{Provider, RootProvider};
 use clap::Parser;
 use kona_cli::cli_styles;
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_preimage::{
     BidirectionalChannel, Channel, HintReader, HintWriter, OracleReader, OracleServer,
 };
@@ -19,11 +22,13 @@ use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
 use serde::Serialize;
-use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc};
-use tokio::{
-    sync::RwLock,
-    task::{self, JoinHandle},
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
 };
+use tokio::task::{self, JoinHandle};
 
 /// The interop host application.
 #[derive(Default, Parser, Serialize, Clone, Debug)]
@@ -79,6 +84,10 @@ pub struct InteropHost {
         env
     )]
     pub data_dir: Option<PathBuf>,
+    /// The default format for preimage data storage on disk. If the data directory already
+    /// contains a `kvformat` marker file, that format is used instead of this value.
+    #[arg(long, default_value = "directory", env)]
+    pub data_format: DataFormat,
     /// Run the client program natively.
     #[arg(long, conflicts_with = "server", required_unless_present = "server")]
     pub native: bool,
@@ -96,6 +105,14 @@ pub struct InteropHost {
     /// The l1 config should be stored as serde-JSON serialized files.
     #[arg(long, alias = "l1-cfg")]
     pub l1_config_path: Option<PathBuf>,
+    /// Path to the dependency set config. If provided, the host will use this config for the
+    /// dependency set. The config should be stored as a serde-JSON serialized file.
+    #[arg(long, alias = "depset-cfg", env)]
+    pub dependency_set_path: Option<PathBuf>,
+    /// Optionally enables the use of `debug_executePayload` to collect the execution witness from
+    /// the execution layer.
+    #[arg(long, env)]
+    pub enable_experimental_witness_endpoint: bool,
 }
 
 /// An error that can occur when handling interop hosts
@@ -171,7 +188,8 @@ impl InteropHost {
                 providers,
                 InteropHintHandler,
             )
-            .with_proactive_hint(HintType::L2BlockData);
+            .with_proactive_hint(HintType::L2BlockData)
+            .with_proactive_hint(HintType::L2PayloadWitness);
 
             task::spawn(async {
                 PreimageServer::new(
@@ -215,13 +233,14 @@ impl InteropHost {
     }
 
     /// Reads the [`RollupConfig`]s from the file system and returns a map of L2 chain ID ->
-    /// [`RollupConfig`]s.
+    /// [`RollupConfig`]s. Uses `BTreeMap` to ensure deterministic JSON serialization order when
+    /// these configs are served as preimages to the cannon VM.
     pub fn read_rollup_configs(
         &self,
-    ) -> Option<Result<HashMap<u64, RollupConfig>, InteropHostError>> {
+    ) -> Option<Result<BTreeMap<u64, RollupConfig>, InteropHostError>> {
         let rollup_config_paths = self.rollup_config_paths.as_ref()?;
 
-        Some(rollup_config_paths.iter().try_fold(HashMap::default(), |mut acc, path| {
+        Some(rollup_config_paths.iter().try_fold(BTreeMap::default(), |mut acc, path| {
             // Read the serialized config from the file system.
             let ser_config = std::fs::read_to_string(path)?;
 
@@ -246,21 +265,24 @@ impl InteropHost {
             .map_err(|_| InteropHostError::Other("failed to parse L1 config"))
     }
 
+    /// Reads the [`DependencySet`] from the file system.
+    pub fn read_dependency_set(&self) -> Option<Result<DependencySet, InteropHostError>> {
+        let path = self.dependency_set_path.as_ref()?;
+
+        Some((|| {
+            let ser_config = std::fs::read_to_string(path)?;
+            let dep_set: DependencySet = serde_json::from_str(&ser_config)?;
+            Ok(dep_set)
+        })())
+    }
+
     /// Creates the key-value store for the host backend.
+    ///
+    /// If the data directory contains a `kvformat` marker file, the recorded format is used to
+    /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
     fn create_key_value_store(&self) -> Result<SharedKeyValueStore, InteropHostError> {
         let local_kv_store = InteropLocalInputs::new(self.clone());
-
-        let kv_store: SharedKeyValueStore = if let Some(ref data_dir) = self.data_dir {
-            let disk_kv_store = DiskKeyValueStore::new(data_dir.clone());
-            let split_kv_store = SplitKeyValueStore::new(local_kv_store, disk_kv_store);
-            Arc::new(RwLock::new(split_kv_store))
-        } else {
-            let mem_kv_store = MemoryKeyValueStore::new();
-            let split_kv_store = SplitKeyValueStore::new(local_kv_store, mem_kv_store);
-            Arc::new(RwLock::new(split_kv_store))
-        };
-
-        Ok(kv_store)
+        Ok(create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format))
     }
 
     /// Creates the providers required for the preimage server backend.

@@ -99,6 +99,11 @@ var (
 		EnvVars: prefixEnvVars("VALIDATION_INTERVAL"),
 		Value:   "500ms",
 	}
+	DangerouslyEnablePassthroughFlag = &cli.BoolFlag{
+		Name:    "dangerously-enable-passthrough",
+		Usage:   "Allow all transactions through without interop filtering. DANGEROUS: disables all executing message validation.",
+		EnvVars: prefixEnvVars("DANGEROUSLY_ENABLE_PASSTHROUGH"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -118,6 +123,7 @@ var optionalFlags = []cli.Flag{
 	RPCPortFlag,
 	PollIntervalFlag,
 	ValidationIntervalFlag,
+	DangerouslyEnablePassthroughFlag,
 }
 
 func init() {

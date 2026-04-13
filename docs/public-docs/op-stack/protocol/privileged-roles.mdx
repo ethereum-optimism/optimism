@@ -1,0 +1,196 @@
+---
+title: Privileged Roles in OP Stack Chains
+description: Learn about the privileged roles in OP Stack chains.
+---
+
+OP Stack chains follow a [Pragmatic Path to Decentralization](https://blog.oplabs.co/decentralization-roadmap/).
+In their current state, OP Stack chains still include some "privileged" roles that give certain addresses the ability to carry out specific actions.
+Members and users of the OP Stack ecosystem should be aware of these roles and their associated risks because they're shared across many OP Stack chains.
+Read this page to understand these roles, why they exist, and what risks they pose.
+
+## L1 Proxy Admin
+
+The L1 Proxy Admin is an address that can be used to upgrade most OP Stack chains system contracts.
+
+### Risks
+
+*   Compromised L1 Proxy Admin could upgrade contracts to malicious versions.
+*   Compromised L1 Proxy Admin could remove or lock ETH or tokens in the Standard Bridge.
+*   Compromised L1 Proxy Admin could fail to mitigate a risk as described on this page.
+
+### Mitigations
+
+*   L1 Proxy Admin owner is a 2-of-2 [multisig](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A#readProxyContract). One owner is an Optimism Foundation 5/7 [multisig](https://etherscan.io/address/0x847B5c174615B1B7fDF770882256e2D3E95b9D92#readProxyContract) and the other owner is the [Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885) [multisig](https://etherscan.io/address/0xc2819DC788505Aac350142A7A707BF9D03E3Bd03#readProxyContract).
+
+### Addresses
+
+*   **Optimism Governed Chains on Ethereum**: [`0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A`](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A)
+*   **Optimism Governed Chains on Sepolia:** [`0x1Eb2fFc903729a0F03966B917003800b145F56E2`](https://sepolia.etherscan.io/address/0x1Eb2fFc903729a0F03966B917003800b145F56E2)
+
+## L2 Proxy Admin
+
+The L2 Proxy Admin is an address that can be used to upgrade most OP Stack chains system contracts on L2. The L2 Proxy Admin owner is the [aliased address](/op-stack/protocol/differences#address-aliasing) of the L1ProxyAdmin owner, which means the L2 ProxyAdmin Owner is equal to the L1 ProxyAdmin Owner, but due to aliasing it's a different address. Here's how that works:
+
+*   Given an L1 contract address, the aliased L2 address is equal to `L1_contract_address` + `0x1111000000000000000000000000000000001111`.
+*   Using `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b` as an example, the `0x6B` address is the L2 address that's been aliased, so to figure out the original L1 address you calculate `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b` - `0x1111000000000000000000000000000000001111`.
+*   That result gives an L1 contract address of `0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A`, which should be the 2/2 Safe owned by Foundation + Security Council that is L1 ProxyAdmin Owner.
+*   No one has the private key for `0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b` on OP Stack chains, which means the only way for the L2 ProxyAdmin owner to send transactions is via deposit transactions from the L1 `0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A` address.
+*   For help with the calculations, see the [`AddressAliasHelper` library](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/vendor/AddressAliasHelper.sol).
+
+### Risks
+
+*   Compromised L2 Proxy Admin could upgrade contracts to malicious versions.
+*   Compromised L2 Proxy Admin could remove or lock ETH or tokens in the Standard Bridge.
+*   Compromised L2 Proxy Admin could fail to mitigate a risk as described on this page.
+
+### Mitigations
+
+*   L2 Proxy Admin is controlled by the same L1 account as the [L1 Proxy Admin](#l1-proxy-admin). This is enabled by [address aliasing](/connect/resources/glossary#address-aliasing).
+
+### Addresses
+
+<Info>
+These addresses are controlled by the same L1 Proxy Admin addresses. Please read the descriptions above for more details.
+</Info> 
+
+*   **Optimism Governed Chains on Ethereum**: [`0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b`](https://explorer.optimism.io/address/0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b) 
+*   **Optimism Governed Chains on Sepolia:** [`0x2FC3ffc903729a0f03966b917003800B145F67F3`](https://testnet-explorer.optimism.io/address/0x2FC3ffc903729a0f03966b917003800B145F67F3)
+
+## System Config Owner
+
+The System Config Owner is an address that can be used to change the values within the [`SystemConfig`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/SystemConfig.sol) contract on Ethereum.
+
+### Risks
+
+*   Compromised System Config Owner could cause a temporary network outage.
+*   Compromised System Config Owner could cause users to be overcharged for transactions.
+
+### Mitigations
+
+*   System Config Owner is a 5-of-7 [multisig](https://etherscan.io/address/0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A#readProxyContract).
+*   System Config Owner may eventually be operated by a [Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885).
+*   System Config Owner can be replaced by the [L1 Proxy Admin](#l1-proxy-admin).
+
+### Addresses
+
+The System Config owner is chain specific and you can see which addresses are configured in the [Superchain Registry](/op-stack/protocol/superchain-registry).
+
+## Batcher
+
+### Description
+
+The Batcher is a software service that submits batches of transactions to Ethereum on behalf of the current OP Stack chains Sequencer.
+OP Stack chains nodes will look for transactions from this address to find new batches of L2 transactions to process.
+
+### Risks
+
+*   Batcher address is typically a hot wallet.
+*   Compromised batcher address can cause L2 reorgs or sequencer outages.
+
+### Mitigations
+
+*   Compromised batcher address cannot publish invalid transactions.
+*   Compromised batcher address can be replaced by the [L1 Proxy Admin](#l1-proxy-admin).
+
+### Addresses
+
+The batcher address is chain specific and you can see which addresses are configured in the [Superchain Registry](/op-stack/protocol/superchain-registry).
+
+## Proposer
+
+### Description
+
+The Proposer is a role that is allowed to create instances of the `PermissionedDisputeGame` dispute game type.
+The `PermissionedDisputeGame` can be used as a fallback dispute game in the case that the `FaultDisputeGame` is found to include a critical security vulnerability.
+The Guardian role is responsible for changing the respected dispute game type if necessary.
+
+### Capabilities
+
+*   Can create instances of the `PermissionedDisputeGame` dispute game type.
+*   Can participate in the `PermissionedDisputeGame` dispute game process.
+
+### Risks
+
+*   Proposer address is typically a hot wallet.
+*   Compromised proposer address could propose invalid state proposals.
+*   Invalid state proposals can be used to execute invalid withdrawals after 7 days.
+
+### Mitigations
+
+*   Compromised proposer address can be replaced by the [L1 Proxy Admin](#l1-proxy-admin).
+*   Invalid state proposals can be challenged by the [Challenger](#challenger) within 7 days.
+
+### Addresses
+
+The proposer address is chain specific and you can see which addresses are configured in the [Superchain Registry](/op-stack/protocol/superchain-registry).
+
+## Challenger
+
+### Description
+
+The Challenger is an address that can participate in and challenge `PermissionedDisputeGame` instances created by the [Proposer](#proposer) role. It is important to note that this is different from the [`op-challenger`](/op-stack/fault-proofs/challenger) services that challenges invalid output roots.
+
+### Capabilities
+
+*   Can participate in the `PermissionedDisputeGame` dispute game process.
+
+### Risks
+
+*   Compromised challenger could invalidate valid state proposals.
+*   Compromised challenger could fail to challenge invalid state proposals.
+
+### Mitigations
+
+*   Compromised challenger address can be replaced by the [L1 Proxy Admin](#l1-proxy-admin).
+*   Challenges can be executed by replaced challenger address.
+
+### Addresses
+
+*   **Optimism Governed Chains on Ethereum**: [`0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A`](https://etherscan.io/address/0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A)
+*   **Optimism Governed Chains on Sepolia**: [`0xfd1D2e729aE8eEe2E146c033bf4400fE75284301`](https://sepolia.etherscan.io/address/0xfd1D2e729aE8eEe2E146c033bf4400fE75284301)
+
+## Guardian
+
+### Description
+
+The Guardian is an address that can be used to pause several system contracts on OP Stack chains.
+This is a backup safety mechanism that allows for a temporary halt, particularly of withdrawal logic, in the event of a security concern.
+The Guardian can also manage various aspects of the `OptimismPortal` contract to address active security concerns.
+
+### Capabilities
+
+*   Pause several system contracts on OP Stack chains.
+*   Disable the ability for specific dispute game types from being used to execute withdrawals.
+*   Disable the ability for specific dispute game instances from being used to execute withdrawals.
+
+### Risks
+
+*   Compromised guardian could pause withdrawals for 3 months, after which withdrawals are automatically unpaused.
+
+### Mitigations
+
+*   Compromised guardian address can be replaced by the [L1 Proxy Admin](#l1-proxy-admin).
+*   Withdrawals can be unpaused by replaced guardian address.
+
+### Addresses
+
+*   **Optimism Governed Chains on Ethereum**: [`0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2`](https://etherscan.io/address/0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2)
+*   **Optimism Governed Chains on Sepolia**: [`0xf64bc17485f0B4Ea5F06A96514182FC4cB561977`](https://sepolia.etherscan.io/address/0xf64bc17485f0B4Ea5F06A96514182FC4cB561977)
+
+## Mint Manager Owner
+
+The Mint Manager Owner is an address that controls the [`MintManager`](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/governance/MintManager.sol) contract that can be used to mint new OP tokens on OP Stack chains.
+
+### Risks
+
+*   Compromised Mint Manager Owner could mint arbitrary amounts of OP tokens.
+*   Compromised Mint Manager Owner could prevent OP tokens from being minted.
+
+### Mitigations
+
+*   Mint Manager Owner is a 3-of-5 [multisig](https://explorer.optimism.io/address/0x2a82ae142b2e62cb7d10b55e323acb1cab663a26#readProxyContract).
+
+### Addresses
+
+*   **Ethereum**: [`0x2a82ae142b2e62cb7d10b55e323acb1cab663a26`](https://explorer.optimism.io/address/0x2a82ae142b2e62cb7d10b55e323acb1cab663a26)
+*   **Sepolia**: [`0x5c4e7ba1e219e47948e6e3f55019a647ba501005`](https://explorer.optimism.io/address/0x5c4e7ba1e219e47948e6e3f55019a647ba501005)

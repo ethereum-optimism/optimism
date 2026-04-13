@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -12,8 +11,8 @@ import (
 // value transfer charges gas in the native ERC-20, and balances reflect
 // recipient +amount and sender > amount decrease (amount + gas).
 func TestCGT_ValueTransferPaysGasInToken(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	t := devtest.ParallelT(gt)
+	sys := newCGTMinimal(t)
 
 	ensureCGTOrSkip(t, sys)
 

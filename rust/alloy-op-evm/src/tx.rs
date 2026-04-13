@@ -5,7 +5,7 @@ use alloy_consensus::{
     Signed, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy,
 };
 use alloy_eips::{Encodable2718, Typed2718, eip7594::Encodable7594};
-use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
+use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, TransactionEnvMut};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use core::ops::{Deref, DerefMut};
 use op_alloy::consensus::{OpTxEnvelope, TxDeposit};
@@ -136,6 +136,7 @@ impl op_revm::transaction::OpTxTr for OpTx {
     }
 }
 
+
 impl FromRecoveredTx<OpTxEnvelope> for OpTx {
     fn from_recovered_tx(tx: &OpTxEnvelope, sender: Address) -> Self {
         let encoded = tx.encoded_2718();
@@ -231,5 +232,19 @@ impl FromTxWithEncoded<TxDeposit> for OpTx {
             is_system_transaction: tx.is_system_transaction,
         };
         Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit })
+    }
+}
+
+impl TransactionEnvMut for OpTx {
+    fn set_gas_limit(&mut self, gas_limit: u64) {
+        self.0.base.gas_limit = gas_limit;
+    }
+
+    fn set_nonce(&mut self, nonce: u64) {
+        self.0.base.nonce = nonce;
+    }
+
+    fn set_access_list(&mut self, access_list: alloy_eips::eip2930::AccessList) {
+        self.0.base.access_list = access_list;
     }
 }

@@ -21,7 +21,7 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title L1StandardBridge_TestInit
 /// @notice Reusable test initialization for `L1StandardBridge` tests.
@@ -29,7 +29,7 @@ abstract contract L1StandardBridge_TestInit is CommonTest {
     /// @notice Asserts the expected calls and events for bridging ETH depending on whether the
     ///         bridge call is legacy or not.
     function _preBridgeETH(bool isLegacy, uint256 value) internal {
-        if (!isForkTest()) {
+        if (!isL1ForkTest()) {
             assertEq(address(optimismPortal2).balance, 0, "OptimismPortal2 balance should be 0");
         }
         uint256 nonce = l1CrossDomainMessenger.messageNonce();

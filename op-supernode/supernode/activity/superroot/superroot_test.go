@@ -31,10 +31,11 @@ type mockCC struct {
 	syncStatusErr error
 }
 
-func (m *mockCC) Start(ctx context.Context) error  { return nil }
-func (m *mockCC) Stop(ctx context.Context) error   { return nil }
-func (m *mockCC) Pause(ctx context.Context) error  { return nil }
-func (m *mockCC) Resume(ctx context.Context) error { return nil }
+func (m *mockCC) Start(ctx context.Context) error          { return nil }
+func (m *mockCC) Stop(ctx context.Context) error           { return nil }
+func (m *mockCC) Pause(ctx context.Context) error          { return nil }
+func (m *mockCC) Resume(ctx context.Context) error         { return nil }
+func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
 
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
 func (m *mockCC) VerifierCurrentL1s() []eth.BlockID {
@@ -77,12 +78,11 @@ func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint6
 	}
 	return m.output, nil
 }
-func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	if m.optimisticErr != nil {
 		return nil, m.optimisticErr
 	}
-	// Return minimal output response; tests only assert presence/count
-	return &eth.OutputResponse{}, nil
+	return &eth.OutputV0{}, nil
 }
 func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil
@@ -101,8 +101,17 @@ func (m *mockCC) ID() eth.ChainID {
 }
 
 func (m *mockCC) BlockTime() uint64 { return 1 }
-func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	return false, nil
+}
+func (m *mockCC) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	return &eth.OutputV0{}, nil
+}
+func (m *mockCC) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
+}
+func (m *mockCC) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
+	return nil, nil
 }
 func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil
@@ -122,6 +131,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2000},
+				SafeL2:      eth.L2BlockRef{Time: 190},
 				LocalSafeL2: eth.L2BlockRef{Time: 200},
 				FinalizedL2: eth.L2BlockRef{Time: 150},
 			},
@@ -134,6 +144,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			output: eth.Bytes32{},
 			status: &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 2100},
+				SafeL2:      eth.L2BlockRef{Time: 170},
 				LocalSafeL2: eth.L2BlockRef{Time: 180},
 				FinalizedL2: eth.L2BlockRef{Time: 140},
 			},
@@ -146,7 +157,8 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	require.Len(t, out.OptimisticAtTimestamp, 2)
 	// min values
 	require.Equal(t, uint64(2000), out.CurrentL1.Number)
-	require.Equal(t, uint64(180), out.CurrentSafeTimestamp)
+	require.Equal(t, uint64(170), out.CurrentSafeTimestamp)
+	require.Equal(t, uint64(180), out.CurrentLocalSafeTimestamp)
 	require.Equal(t, uint64(140), out.CurrentFinalizedTimestamp)
 	require.Equal(t, uint64(1000), out.Data.VerifiedRequiredL1.Number)
 	// With zero outputs, the superroot will be deterministic, just ensure it's set

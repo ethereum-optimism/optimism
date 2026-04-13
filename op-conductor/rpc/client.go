@@ -75,6 +75,11 @@ func (c *APIClient) RemoveServer(ctx context.Context, id string, version uint64)
 	return c.c.CallContext(ctx, nil, prefixRPC("removeServer"), id, version)
 }
 
+// DemoteVoter implements API.
+func (c *APIClient) DemoteVoter(ctx context.Context, id string, version uint64) error {
+	return c.c.CallContext(ctx, nil, prefixRPC("demoteVoter"), id, version)
+}
+
 // Close closes the underlying RPC client.
 func (c *APIClient) Close() {
 	c.c.Close()

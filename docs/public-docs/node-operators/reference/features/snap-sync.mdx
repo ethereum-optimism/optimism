@@ -1,0 +1,66 @@
+---
+title: Snap Sync
+description: Learn how snap sync works and its benefits for node operators.
+---
+
+Snap Sync is a native feature of execution clients that significantly improves the experience of syncing an OP Stack node. This section provides an overview of snap sync, its benefits, and links to detailed implementation guides.
+
+## Overview
+
+Snap Sync works by downloading a snapshot of the state from other nodes on the network. Instead of re-executing every single block from genesis, the node downloads a recent state snapshot and then starts executing blocks from that point forward. This means that performing a Snap Sync is significantly faster than performing a full sync.
+
+Both `op-geth` and `Nethermind` support Snap Sync, which can be optionally enabled on `op-node` when using either of these execution clients.
+
+## Benefits of snap sync
+
+Snap Sync provides several key benefits for node operators:
+
+*   **No datadir required for OP Mainnet**: Node operators can sync without having to download the [bedrock datadir](/node-operators/guides/management/snapshots).
+*   **Post-Ecotone network joining**: Nodes can join the network after Ecotone activates without requiring a [blob archiver](/node-operators/guides/management/blobs).
+*   **Archive node support**: Archive nodes are fully supported with Snap Sync.
+*   **Faster sync times**: By downloading a state snapshot rather than re-executing all blocks, sync times are dramatically reduced.
+
+## How snap sync works
+
+<Steps>
+  1.  **Initial state download**:
+
+      *   The node connects to peers on the network and requests a snapshot of the current state.
+      *   State data is downloaded in parallel from multiple peers to optimize sync speed.
+
+  2.  **State verification**:
+
+      *   The downloaded state is cryptographically verified against the state root in recent block headers.
+      *   This ensures the integrity and correctness of the downloaded state.
+
+  3.  **Block execution**:
+
+      *   Once the state snapshot is complete, the node switches to inserting blocks one by one.
+      *   From this point forward, the node processes blocks normally like any other synced node.
+</Steps>
+
+## Supported execution clients
+
+Snap Sync is supported by the following execution clients:
+
+*   **op-geth**: Native snap sync support with `--syncmode=snap` (enabled by default)
+*   **Nethermind**: Native snap sync support with `--Sync.SnapSync=true`
+*   **reth**: Execution-layer sync support (archive mode)
+*   **op-erigon**: Execution-layer sync support (archive mode)
+
+## Network requirements
+
+For snap sync to work properly, nodes need to be able to discover and connect to peers:
+
+*   **Port requirements**: All `op-geth` nodes should expose port `30303` TCP and `30303` UDP
+*   **Custom ports**: If using custom ports via `--discovery.port` or `--port`, ensure those ports are properly opened
+*   **Exceptions**: Sequencers and transaction ingress nodes may have different requirements
+
+## Links to related pages
+
+For detailed instructions on enabling and configuring snap sync, refer to the following resources:
+
+*   [Using Snap Sync for Node Operators](/node-operators/guides/management/snap-sync)
+*   [Using Snap Sync for Chain Operators](/chain-operators/guides/features/snap-sync)
+*   [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients)
+*   [Execution Client Configuration](/node-operators/guides/configuration/execution-clients)

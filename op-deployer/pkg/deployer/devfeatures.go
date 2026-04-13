@@ -9,7 +9,7 @@ import (
 // Development feature flag constants that mirror the solidity DevFeatures library.
 // These use a 32 byte bitmap for easy integration between op-deployer and contracts.
 var (
-	// OptimismPortalInteropDevFlag enables the OptimismPortalInterop contract.
+	// OptimismPortalInteropDevFlag enables interop features in OptimismPortal2.
 	OptimismPortalInteropDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
 	// CannonKonaDevFlag enables Kona as the default cannon prover.
@@ -27,6 +27,9 @@ var (
 	// ZKDisputeGameDevFlag enables the ZK dispute game system (ZKDisputeGame).
 	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
 	ZKDisputeGameDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
+
+	// SuperRootGamesMigrationDevFlag enables the super root games migration path in OPCM upgrade.
+	SuperRootGamesMigrationDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000010000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.

@@ -10,9 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
@@ -24,7 +23,8 @@ import (
 type RollupBoostNode struct {
 	mu sync.Mutex
 
-	id         stack.ComponentID
+	name       string
+	chainID    eth.ChainID
 	wsProxyURL string
 	wsProxy    *tcpproxy.Proxy
 
@@ -34,42 +34,15 @@ type RollupBoostNode struct {
 	header http.Header
 
 	logger log.Logger
-	p      devtest.P
+	p      devtest.CommonT
 
 	sub *SubProcess
 
 	cfg *RollupBoostConfig
 }
 
-var _ hydrator = (*RollupBoostNode)(nil)
 var _ stack.Lifecycle = (*RollupBoostNode)(nil)
 var _ L2ELNode = (*RollupBoostNode)(nil)
-
-func (r *RollupBoostNode) hydrate(system stack.ExtensibleSystem) {
-	elRPC, err := client.NewRPC(system.T().Ctx(), system.Logger(), r.rpcProxyURL, client.WithLazyDial())
-	system.T().Require().NoError(err)
-	system.T().Cleanup(elRPC.Close)
-
-	// Create a shared websocket client for flashblocks traffic over the proxy.
-	wsClient, err := client.DialWS(system.T().Ctx(), client.WSConfig{
-		URL:     r.wsProxyURL,
-		Headers: r.header,
-		Log:     system.Logger(),
-	})
-	system.T().Require().NoError(err)
-
-	node := shim.NewRollupBoostNode(shim.RollupBoostNodeConfig{
-		ID: r.id,
-		ELNodeConfig: shim.ELNodeConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			Client:       elRPC,
-			ChainID:      r.id.ChainID(),
-		},
-		RollupCfg:         system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(r.id.ChainID()))).RollupConfig(),
-		FlashblocksClient: wsClient,
-	})
-	system.L2Network(stack.ByID[stack.L2Network](stack.NewL2NetworkID(r.id.ChainID()))).(stack.ExtensibleL2Network).AddRollupBoostNode(node)
-}
 
 func (r *RollupBoostNode) Start() {
 	r.mu.Lock()
@@ -104,8 +77,8 @@ func (r *RollupBoostNode) Start() {
 	defer close(flashblocksWSChan)
 
 	// Parse Rust-structured logs and forward into Go logger with attributes
-	logOut := logpipe.ToLogger(r.logger.New("stream", "stdout"))
-	logErr := logpipe.ToLogger(r.logger.New("stream", "stderr"))
+	logOut := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stdout"), log.LevelWarn)
+	logErr := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stderr"), log.LevelWarn)
 
 	// Log parsing callback to extract bound addresses from process output
 	onLogEntry := func(e logpipe.LogEntry) {
@@ -174,54 +147,6 @@ func (r *RollupBoostNode) Stop() {
 	r.sub = nil
 }
 
-// WithRollupBoost starts a rollup-boost process using the provided options
-// and registers a WSClient on the target L2 chain.
-// l2ELID is required to link the proxy to the L2 EL it serves.
-func WithRollupBoost(id stack.ComponentID, l2ELID stack.ComponentID, opts ...RollupBoostOption) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
-		logger := p.Logger()
-
-		// Build config from options and derive sensible defaults
-		cfg := DefaultRollupBoostConfig()
-		RollupBoostOptionBundle(opts).Apply(orch, id, cfg)
-		// Source L2 engine/JWT from the L2 EL object (mandatory)
-		if l2EL, ok := orch.GetL2EL(l2ELID); ok {
-			engineRPC := l2EL.EngineRPC()
-			switch {
-			case strings.HasPrefix(engineRPC, "ws://"):
-				engineRPC = "http://" + strings.TrimPrefix(engineRPC, "ws://")
-			case strings.HasPrefix(engineRPC, "wss://"):
-				engineRPC = "https://" + strings.TrimPrefix(engineRPC, "wss://")
-			}
-			cfg.L2EngineURL = engineRPC
-			cfg.L2JWTPath = l2EL.JWTPath()
-		}
-		// Normalize builder URL and fallback JWT will be handled after builder link options are applied below.
-
-		r := &RollupBoostNode{
-			id:     id,
-			logger: logger,
-			p:      p,
-			cfg:    cfg,
-			header: cfg.Headers,
-		}
-		// Apply any node-level link options
-		for _, opt := range opts {
-			if linkOpt, ok := opt.(interface {
-				applyNode(p devtest.P, id stack.ComponentID, r *RollupBoostNode)
-			}); ok {
-				linkOpt.applyNode(p, id, r)
-			}
-		}
-		logger.Info("Starting rollup-boost")
-		r.Start()
-		p.Cleanup(r.Stop)
-		// Register for hydration
-		orch.registry.Register(id, r)
-	})
-}
-
 // RollupBoostConfig configures the rollup-boost process CLI and environment.
 type RollupBoostConfig struct {
 	// RPC endpoint for rollup-boost itself
@@ -281,7 +206,7 @@ func DefaultRollupBoostConfig() *RollupBoostConfig {
 	}
 }
 
-func (cfg *RollupBoostConfig) LaunchSpec(p devtest.P) (args []string, env []string) {
+func (cfg *RollupBoostConfig) LaunchSpec(p devtest.CommonT) (args []string, env []string) {
 	p.Require().NotNil(cfg, "nil RollupBoostConfig")
 
 	env = append([]string(nil), cfg.Env...)
@@ -354,66 +279,6 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.P) (args []string, env []stri
 	return args, env
 }
 
-type RollupBoostOption interface {
-	Apply(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig)
-}
-
-type RollupBoostOptionFn func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig)
-
-var _ RollupBoostOption = RollupBoostOptionFn(nil)
-
-func (fn RollupBoostOptionFn) Apply(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
-	fn(orch, id, cfg)
-}
-
-type RollupBoostOptionBundle []RollupBoostOption
-
-var _ RollupBoostOption = RollupBoostOptionBundle(nil)
-
-func (b RollupBoostOptionBundle) Apply(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
-	for _, opt := range b {
-		orch.P().Require().NotNil(opt, "cannot Apply nil RollupBoostOption")
-		opt.Apply(orch, id, cfg)
-	}
-}
-
-// Convenience options
-func RollupBoostWithExecutionMode(mode string) RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
-		cfg.ExecutionMode = mode
-	})
-}
-
-func RollupBoostWithEnv(env ...string) RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
-		cfg.Env = append(cfg.Env, env...)
-	})
-}
-
-func RollupBoostWithExtraArgs(args ...string) RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
-		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
-	})
-}
-
-func RollupBoostWithBuilderNode(id stack.ComponentID) RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, rbID stack.ComponentID, cfg *RollupBoostConfig) {
-		builderNode, ok := orch.GetOPRBuilder(id)
-		if !ok {
-			orch.P().Require().FailNow("builder node not found")
-		}
-		cfg.BuilderURL = ensureHTTPURL(builderNode.authProxyURL)
-		cfg.BuilderJWTPath = builderNode.cfg.AuthRPCJWTPath
-		cfg.FlashblocksBuilderURL = builderNode.wsProxyURL
-	})
-}
-
-func RollupBoostWithFlashblocksDisabled() RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
-		cfg.EnableFlashblocks = false
-	})
-}
-
 func ensureHTTPURL(u string) string {
 	if strings.Contains(u, "://") {
 		return u
@@ -431,4 +296,8 @@ func (r *RollupBoostNode) JWTPath() string {
 
 func (r *RollupBoostNode) UserRPC() string {
 	return r.rpcProxyURL
+}
+
+func (r *RollupBoostNode) FlashblocksWSURL() string {
+	return r.wsProxyURL
 }

@@ -1,0 +1,39 @@
+---
+title: Custom bridges
+description: Important considerations when building custom bridges for OP Mainnet.
+---
+
+Custom token bridges are any bridges other than the [Standard Bridge](./standard-bridge).
+You may find yourself in a position where you need to build a custom token bridge because the Standard Bridge doesn't completely support your use case.
+This guide provides important information you should be aware of when building a custom bridge.
+
+<Info>
+  Custom bridges can bring a significant amount of complexity and risk to any project.
+  Before you commit to a custom bridge, be sure that the [Standard Bridge](./standard-bridge) definitely does not support your use case.
+  [Building a custom bridged token](/app-developers/tutorials/bridging/standard-bridge-custom-token) is often sufficient for projects that need more flexibility.
+</Info>
+
+## Guidelines
+
+Custom bridges can use any design pattern you can think of.
+However, with increased complexity comes increased risk.
+Consider directly extending or modifying the [`StandardBridge`](https://github.com/ethereum-optimism/optimism/blob/87dd5a4743380b717dac44a4e55c5e6e60e32684/packages/contracts-bedrock/src/universal/StandardBridge.sol) contract before building your own bridge contracts from scratch.
+Doing so will provide you with an audited foundation upon which you can add extra logic.
+
+If you choose not to extend the `StandardBridge` contract, you may still want to follow the interface that the `StandardBridge` provides.
+Bridges that extend this interface will be compatible with the [Superchain Bridges UI](https://app.optimism.io/bridge?utm_source=op-docs&utm_medium=docs).
+You can read more about the design of the Standard Bridge in the guide on [Using the Standard Bridge](./standard-bridge).
+
+## The Superchain Token List
+
+The [Superchain Token List](/app-developers/reference/tokens/tokenlist) exists to help users and developers find the right bridged representations of tokens native to another blockchain.
+Once you've built and tested your custom bridge, make sure to register any tokens meant to flow through this bridge by [making a pull request against the Superchain Token List repository](https://github.com/ethereum-optimism/ethereum-optimism.github.io#adding-a-token-to-the-list).
+You **must** deploy your bridge to OP Sepolia before it can be added to the Superchain Token List.
+
+## Next steps
+
+You can explore several examples of custom bridges for OP Mainnet:
+
+*   [NFT Bridge](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol)
+*   [L2 DAI Token Bridge](https://optimistic.etherscan.io/address/0x467194771dae2967aef3ecbedd3bf9a310c76c65#code) and [deployed addresses](https://github.com/ethereum-optimism/ethereum-optimism.github.io/blob/master/data/DAI/data.json)
+*   [SNX Bridge](https://github.com/ethereum-optimism/ethereum-optimism.github.io/blob/master/data/SNX/data.json)

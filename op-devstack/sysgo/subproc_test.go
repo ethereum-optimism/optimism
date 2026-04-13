@@ -72,5 +72,5 @@ func testSleep(gt *testing.T, capt *testlog.CapturingHandler, sp *SubProcess) {
 		testlog.NewMessageFilter("Sending interrupt")))
 
 	require.NotNil(gt, capt.FindLog(
-		testlog.NewMessageFilter("Sub-process gracefully exited")))
+		testlog.NewMessageFilter("Sub-process stopped")))
 }

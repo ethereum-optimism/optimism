@@ -92,7 +92,6 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 
 	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
-	st.ImplementationsDeployment.OptimismPortalInteropImpl = impls.OptimismPortalInterop
 	st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
 	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
 	st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
@@ -131,15 +130,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	// Select which OPCM to use based on dev feature flag
-	opcmAddr := st.ImplementationsDeployment.OpcmImpl
-	if devFeatureBitmap, ok := intent.GlobalDeployOverrides["devFeatureBitmap"].(common.Hash); ok {
-		// TODO(#19151): Replace this with the OPCMV2DevFlag constant when we fix import cycles.
-		opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
-		if isDevFeatureEnabled(devFeatureBitmap, opcmV2Flag) {
-			opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
-		}
-	}
+	opcmAddr := st.ImplementationsDeployment.OpcmV2Impl
 	if opcmAddr == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}

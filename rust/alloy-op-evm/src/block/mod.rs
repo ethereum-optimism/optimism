@@ -490,7 +490,7 @@ mod tests {
     use revm::{
         Context,
         context::BlockEnv,
-        database::{CacheDB, EmptyDB, InMemoryDB},
+        database::{CacheDB, EmptyDB, InMemoryDB, State},
         inspector::NoOpInspector,
         primitives::HashMap,
         state::AccountInfo,
@@ -574,7 +574,12 @@ mod tests {
         gas_limit: u64,
         jovian_timestamp: u64,
     ) -> OpBlockExecutor<
-        OpEvm<&'a mut State<InMemoryDB>, NoOpInspector>,
+        OpEvm<
+            &'a mut State<InMemoryDB>,
+            NoOpInspector,
+            op_revm::precompiles::OpPrecompiles,
+            crate::OpTx,
+        >,
         &'a OpAlloyReceiptBuilder,
         &'a OpChainHardforks,
     > {

@@ -9,14 +9,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -27,7 +24,7 @@ import (
 func TestPreNoInbox(gt *testing.T) {
 	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := newSimpleInterop(t)
 	require := t.Require()
 
 	t.Logger().Info("Starting")
@@ -36,7 +33,7 @@ func TestPreNoInbox(gt *testing.T) {
 		interopTime := net.Escape().ChainConfig().InteropTime
 		t.Require().NotNil(interopTime)
 		pre := net.LatestBlockBeforeTimestamp(t, *interopTime)
-		el := net.Escape().L2ELNode(match.FirstL2EL)
+		el := net.PrimaryEL()
 		codeAddr := common.HexToAddress("0xC0D3C0d3C0D3C0d3c0d3c0D3c0D3C0d3C0D30022")
 		implCode, err := el.EthClient().CodeAtHash(t.Ctx(), codeAddr, pre.Hash)
 		require.NoError(err)
@@ -84,7 +81,7 @@ func TestPreNoInbox(gt *testing.T) {
 		// send executing message on chain B and confirm we got an error
 		execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](bob.Plan())
 		execTx.Content.DependOn(&initMsg.Tx.Result)
-		execTx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0))
+		execTx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
 		execReceipt, err := execTx.PlannedTx.Included.Eval(sys.T.Ctx())
 		require.ErrorContains(err, "implementation not initialized", "error did not contain expected string")
 		require.Nil(execReceipt)
@@ -101,7 +98,7 @@ func TestPreNoInbox(gt *testing.T) {
 	{
 		ctx := sys.T.Ctx()
 
-		execTrigger, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0)(ctx)
+		execTrigger, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0)(ctx)
 		require.NoError(err)
 
 		ed := stypes.ExecutingDescriptor{Timestamp: uint64(time.Now().Unix())}

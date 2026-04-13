@@ -28,13 +28,23 @@ build *args='':
 build-release *args='':
   cargo build --workspace --release {{args}}
 
-# Build the rollup node
-build-node:
+# Build kona-node
+build-kona-node:
   cargo build --release --bin kona-node
+
+# Build kona-node in debug mode (faster compilation for local E2E test iteration)
+build-kona-node-debug:
+  cargo build --bin kona-node
+
+alias build-node := build-kona-node
 
 # Build op-reth
 build-op-reth:
   cargo build --release --bin op-reth
+
+# Build op-reth in debug mode (faster compilation for local E2E test iteration)
+build-op-reth-debug:
+  cargo build --bin op-reth
 
 ############################### Test ################################
 
@@ -111,6 +121,9 @@ check-no-std:
     op-alloy-consensus
     op-alloy-rpc-types
     op-alloy-rpc-types-engine
+
+    # op-revm
+    op-revm
   )
 
   # We need to install the riscv32imac-unknown-none-elf target before starting to build the no-std crates.
@@ -129,6 +142,10 @@ bench:
   cargo bench --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
 
 ########################## Misc tools ###############################
+
+# Audit dependencies for licenses, advisories, and bans
+deny:
+  cargo deny --all-features check all
 
 # Check for unused dependencies (requires nightly + cargo-udeps)
 check-udeps:

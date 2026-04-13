@@ -10,7 +10,7 @@ func TestGetArtifactPath(t *testing.T) {
 		"superchain_superchain_config_proxy": "Proxy.sol/Proxy.json",
 		"superchain_protocol_versions_proxy": "Proxy.sol/Proxy.json",
 		"superchain_superchain_config_impl":  "SuperchainConfig.sol/SuperchainConfig.json",
-		"implementations_opcm_impl":          "OPContractsManager.sol/OPContractsManager.json",
+		"implementations_opcm_impl":          "OPContractsManagerV2.sol/OPContractsManagerV2.json",
 	}
 
 	for contractName, expectedPath := range testCases {

@@ -1,0 +1,65 @@
+---
+title: Fee vaults
+description: Learn how fee vaults work on OP Stack chains, where transaction fees are collected, and how the withdrawal mechanism operates.
+---
+
+Fee vaults are predeploy contracts on OP Stack L2 chains that collect and hold the different components of transaction fees. Unlike Ethereum where the base fee is burned, OP Stack chains route all fees into dedicated vault contracts, allowing chain operators to withdraw and manage collected revenue.
+
+## Overview
+
+Every OP Stack chain has four fee vaults, each collecting a specific fee component:
+
+| Vault | Address | Collects | Introduced |
+|-------|---------|----------|------------|
+| `SequencerFeeVault` | `0x4200000000000000000000000000000000000011` | Priority fees (tips) | Legacy |
+| `BaseFeeVault` | `0x4200000000000000000000000000000000000019` | Base fees (not burned on L2) | Bedrock |
+| `L1FeeVault` | `0x420000000000000000000000000000000000001A` | L1 data fees | Bedrock |
+| `OperatorFeeVault` | `0x420000000000000000000000000000000000001B` | Operator fees | Isthmus |
+
+### How fees flow into vaults
+
+When a transaction is executed on an OP Stack chain, the total fee is split across vaults:
+
+- **Base fee** (`gasUsed × baseFee`) goes to the `BaseFeeVault`
+- **Priority fee** (`gasUsed × priorityFee`) goes to the `SequencerFeeVault`
+- **L1 data fee** goes to the `L1FeeVault`
+- **Operator fee** (`operatorFeeScalar × gasUsed + operatorFeeConstant`) goes to the `OperatorFeeVault`
+
+Each component has its own formula. For the full breakdown, see [Transaction fees](/op-stack/transactions/fees).
+
+## Vault configuration
+
+Each fee vault has three configurable parameters:
+
+| Parameter | Description |
+|-----------|-------------|
+| **recipient** | The address that receives withdrawn funds |
+| **minWithdrawalAmount** | Minimum ETH balance required before a withdrawal can be triggered |
+| **withdrawalNetwork** | Whether funds are withdrawn to an L1 or L2 address |
+
+### Withdrawal network
+
+The `withdrawalNetwork` parameter determines how funds are routed when withdrawn:
+
+- **L1 (`0`)**: Funds are sent to the recipient on L1 via the `L2ToL1MessagePasser`. This initiates a standard L2-to-L1 withdrawal that must be proven and finalized on L1.
+- **L2 (`1`)**: Funds are sent directly to the recipient on L2 via a simple ETH transfer.
+
+## Withdrawal mechanism
+
+Fee vault withdrawals are **permissionless** — anyone can trigger a withdrawal by calling the `withdraw()` function on any vault. This design ensures that collected fees can always be moved to the configured recipient without relying on a specific operator.
+
+### How withdrawals work
+
+1. The caller invokes `withdraw()` on the vault contract.
+2. The vault checks that its balance meets the `minWithdrawalAmount` threshold.
+3. The entire vault balance is withdrawn (not a partial amount).
+4. The `totalProcessed` counter is incremented.
+5. Funds are routed based on `withdrawalNetwork`:
+   - **L2**: Direct ETH transfer to the recipient.
+   - **L1**: A withdrawal is initiated through the `L2ToL1MessagePasser` with a 400,000 gas limit. The withdrawal must then be [proven and finalized](/op-stack/bridging/withdrawal-flow) on L1.
+
+## Next steps
+
+- Learn how to [configure and withdraw from fee vaults](/chain-operators/guides/management/fee-vaults) as a chain operator.
+- Understand [transaction fee components](/op-stack/transactions/fees) in detail.
+- Review the [smart contracts reference](/op-stack/protocol/smart-contracts) for all predeploy addresses.

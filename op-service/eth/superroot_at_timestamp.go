@@ -2,10 +2,11 @@ package eth
 
 import "encoding/json"
 
-// OutputWithRequiredL1 is the full Output and its source L1 block
+// OutputWithRequiredL1 is the OutputV0 pre-image, its hash, and its source L1 block
 type OutputWithRequiredL1 struct {
-	Output     *OutputResponse `json:"output"`
-	RequiredL1 BlockID         `json:"required_l1"`
+	Output     *OutputV0 `json:"output"`
+	OutputRoot Bytes32   `json:"output_root"`
+	RequiredL1 BlockID   `json:"required_l1"`
 }
 
 type SuperRootResponseData struct {
@@ -57,6 +58,10 @@ type SuperRootAtTimestampResponse struct {
 	// CurrentSafeTimestamp is the highest L2 timestamp that is safe across the dependency set at the CurrentL1.
 	// This value is derived from the minimum per-chain safe L2 head timestamp.
 	CurrentSafeTimestamp uint64 `json:"safe_timestamp"`
+
+	// CurrentSafeTimestamp is the highest L2 timestamp that is safe across the dependency set at the CurrentL1.
+	// This value is derived from the minimum per-chain local-safe L2 head timestamp.
+	CurrentLocalSafeTimestamp uint64 `json:"local_safe_timestamp"`
 
 	// CurrentFinalizedTimestamp is the highest L2 timestamp that is finalized across the dependency set at the CurrentL1.
 	// This value is derived from the minimum per-chain finalized L2 head timestamp.

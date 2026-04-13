@@ -154,7 +154,7 @@ error GamePaused();
 error InvalidGameArgsLength();
 
 ////////////////////////////////////////////////////////////////
-//                `OptimisticZkGame` Errors                 //
+//                  `ZKDisputeGame` Errors                  //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when the claim has already been challenged.

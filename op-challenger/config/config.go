@@ -283,7 +283,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.GameTypeEnabled(gameTypes.OptimisticZKGameType) {
+	if c.GameTypeEnabled(gameTypes.ZKDisputeGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}

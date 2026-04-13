@@ -5,14 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	nodebindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -66,7 +64,7 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *Stand
 		bindings.WithClient(l1Client),
 		bindings.WithTo(l1PortalAddr),
 		bindings.WithTest(t))
-	l2Client := l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()
+	l2Client := l2Network.PrimaryEL().EthClient()
 	l2tol1MessagePasser := bindings.NewBindings[bindings.L2ToL1MessagePasser](
 		bindings.WithClient(l2Client),
 		bindings.WithTo(predeploys.L2ToL1MessagePasserAddr),
@@ -130,15 +128,11 @@ func (b *StandardBridge) PortalVersion() string {
 }
 
 func (b *StandardBridge) UsesSuperRoots() bool {
-	// Only interop contracts have SuperRootsActive functionality
-	version := b.PortalVersion()
-	if !strings.HasSuffix(version, "+interop") {
-		return false
-	}
-
-	superRootsActive, err := contractio.Read(b.l1Portal.SuperRootsActive(), b.ctx)
-	b.require.NoError(err, "Failed to read super roots active")
-	return superRootsActive
+	gameType := gameTypes.GameType(b.RespectedGameType())
+	return gameType == gameTypes.SuperCannonGameType ||
+		gameType == gameTypes.SuperPermissionedGameType ||
+		gameType == gameTypes.SuperAsteriscKonaGameType ||
+		gameType == gameTypes.SuperCannonKonaGameType
 }
 
 type Deposit struct {

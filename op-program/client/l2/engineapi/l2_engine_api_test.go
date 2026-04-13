@@ -203,7 +203,7 @@ func (s *stubCachingBackend) AssembleAndInsertBlockWithoutSetHead(processor *Blo
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.EngineBackend.InsertBlockWithoutSetHead(block, false); err != nil {
+	if _, err := s.EngineBackend.InsertBlockWithoutSetHead(context.Background(), block, false); err != nil {
 		return nil, err
 	}
 	return block, nil

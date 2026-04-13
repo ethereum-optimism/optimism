@@ -48,6 +48,8 @@ type API interface {
 	AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error
 	// RemoveServer removes a server from the cluster.
 	RemoveServer(ctx context.Context, id string, version uint64) error
+	// DemoteVoter demotes a voting member to a non-voting member. If the leader is demoted, it will cause a new leader election.
+	DemoteVoter(ctx context.Context, id string, version uint64) error
 	// TransferLeader transfers leadership to another server.
 	TransferLeader(ctx context.Context) error
 	// TransferLeaderToServer transfers leadership to a specific server.

@@ -5,7 +5,7 @@ use alloc::string::{String, ToString};
 use thiserror::Error;
 
 /// Blob Decoding Error
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
 pub enum BlobDecodingError {
     /// Invalid field element
     #[error("Invalid field element")]
@@ -22,7 +22,7 @@ pub enum BlobDecodingError {
 }
 
 /// An error returned by the [`BlobProviderError`].
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Clone, Debug, PartialEq, Eq)]
 pub enum BlobProviderError {
     /// The number of specified blob hashes did not match the number of returned sidecars.
     #[error("Blob sidecar length mismatch: expected {0}, got {1}")]
@@ -33,6 +33,16 @@ pub enum BlobProviderError {
     /// Blob decoding error.
     #[error("Blob decoding error: {0}")]
     BlobDecoding(#[from] BlobDecodingError),
+    /// The blob provider returned fewer blobs than requested (under-fill).
+    #[error(
+        "Not enough blobs: expected blob at index {expected} but provider returned only {actual} blobs"
+    )]
+    NotEnoughBlobs {
+        /// The blob index that was expected.
+        expected: usize,
+        /// The actual number of blobs returned by the provider.
+        actual: usize,
+    },
     /// The beacon node returned a 404 for the requested slot, indicating the slot was missed or
     /// orphaned. Blobs for missed/orphaned slots will never become available, so the pipeline
     /// must reset to move past the L1 block that referenced them.
@@ -54,6 +64,7 @@ impl From<BlobProviderError> for PipelineErrorKind {
             BlobProviderError::SidecarLengthMismatch(_, _) |
             BlobProviderError::SlotDerivation |
             BlobProviderError::BlobDecoding(_) => PipelineError::Provider(val.to_string()).crit(),
+            BlobProviderError::NotEnoughBlobs { .. } => ResetError::BlobsUnderFill(val).reset(),
             BlobProviderError::BlobNotFound { slot, .. } => {
                 ResetError::BlobsUnavailable(slot).reset()
             }
@@ -97,5 +108,9 @@ mod tests {
             matches!(err, PipelineErrorKind::Reset(_)),
             "BlobNotFound must map to Reset so the pipeline moves past the missed slot"
         );
+
+        let err: PipelineErrorKind =
+            BlobProviderError::NotEnoughBlobs { expected: 2, actual: 1 }.into();
+        assert!(matches!(err, PipelineErrorKind::Reset(_)));
     }
 }

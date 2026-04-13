@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/trie/utils"
 	"github.com/ethereum/go-ethereum/triedb"
 )
 
@@ -38,6 +37,10 @@ func (f *ForkDB) Reader(root common.Hash) (state.Reader, error) {
 
 func (f *ForkDB) Snapshot() *snapshot.Tree {
 	return nil
+}
+
+func (f *ForkDB) Commit(*state.StateUpdate) error {
+	panic("unimplemented")
 }
 
 var _ state.Database = (*ForkDB)(nil)
@@ -94,10 +97,6 @@ func (f *ForkDB) ContractCodeSize(addr common.Address, codeHash common.Hash) (in
 
 func (f *ForkDB) DiskDB() ethdb.KeyValueStore {
 	panic("DiskDB() during active Fork is not supported")
-}
-
-func (f *ForkDB) PointCache() *utils.PointCache {
-	panic("PointCache() is not supported")
 }
 
 func (f *ForkDB) TrieDB() *triedb.Database {

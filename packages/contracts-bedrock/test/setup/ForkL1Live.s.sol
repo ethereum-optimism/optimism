@@ -1,0 +1,498 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import { console2 as console } from "forge-std/console2.sol";
+import { StdAssertions } from "forge-std/StdAssertions.sol";
+
+// Testing
+import { stdToml } from "forge-std/StdToml.sol";
+import { DisputeGames } from "test/setup/DisputeGames.sol";
+import { PastUpgrades } from "test/setup/PastUpgrades.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
+
+// Scripts
+import { Deployer } from "scripts/deploy/Deployer.sol";
+import { Deploy } from "scripts/deploy/Deploy.s.sol";
+import { Config } from "scripts/libraries/Config.sol";
+
+// Libraries
+import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Types.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { LibString } from "@solady/utils/LibString.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+
+// Interfaces
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+
+/// @title ForkL1Live
+/// @notice This script is called by Setup.sol as a preparation step for the foundry test suite, and is run as an
+///         alternative to Deploy.s.sol, when `FORK_TEST=true` is set in the env.
+///         Like Deploy.s.sol this script saves the system addresses to the Artifacts contract so that they can be
+///         read by other contracts. However, rather than deploying new contracts from the local source code, it
+///         simply reads the addresses from the superchain-registry.
+///         Therefore this script can only be run against a fork of a production network which is listed in the
+///         superchain-registry.
+///         This contract must not have constructor logic because it is set into state using `etch`.
+
+contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
+    using stdToml for string;
+    using LibString for string;
+
+    bool public useOpsRepo;
+
+    /// @notice Returns the base chain name to use for forking
+    /// @return The base chain name as a string
+    function baseChain() internal view returns (string memory) {
+        return Config.forkBaseChain();
+    }
+
+    /// @notice Returns the OP chain name to use for forking
+    /// @return The OP chain name as a string
+    function opChain() internal view returns (string memory) {
+        return Config.forkOpChain();
+    }
+
+    function setUp() public override {
+        super.setUp();
+        resolveFeaturesFromEnv();
+    }
+
+    /// @dev This function sets up the system to test it as follows:
+    ///      1. Check if the SUPERCHAIN_OPS_ALLOCS_PATH environment variable was set from superchain ops.
+    ///      2. If set, load the state from the given path.
+    ///      3. Read the superchain-registry to get the contract addresses we wish to test from that network.
+    ///      4. If the environment variable wasn't set, deploy the updated OPCM and implementations of the contracts.
+    ///      5. Upgrade the system using the OPCM.upgrade() function if useUpgradedFork is true.
+    function run() public {
+        string memory superchainOpsAllocsPath = Config.superchainOpsAllocsPath();
+
+        useOpsRepo = bytes(superchainOpsAllocsPath).length > 0;
+        if (useOpsRepo) {
+            console.log("ForkL1Live: loading state from %s", superchainOpsAllocsPath);
+            // Set the resultant state from the superchain ops repo upgrades.
+            // The allocs are generated when simulating an upgrade task that runs vm.dumpState.
+            // These allocs represent the state of the EVM after the upgrade has been simulated.
+            vm.loadAllocs(superchainOpsAllocsPath);
+            // Next, fetch the addresses from the superchain registry. This function uses a local EVM
+            // to retrieve implementation addresses by reading from proxy addresses provided by the registry.
+            // Setting the allocs first ensures the correct implementation addresses are retrieved.
+            _readSuperchainRegistry();
+        } else {
+            // Read the superchain registry and save the addresses to the Artifacts contract.
+            _readSuperchainRegistry();
+            // Now deploy the updated OPCM and implementations of the contracts.
+            _deployNewImplementations();
+        }
+
+        // Now upgrade the contracts (if the config is set to do so)
+        if (useOpsRepo) {
+            console.log("ForkL1Live: using ops repo to upgrade");
+        } else if (cfg.useUpgradedFork()) {
+            console.log("ForkL1Live: upgrading");
+            _upgrade();
+        }
+    }
+
+    /// @notice Reads the superchain config files and saves the addresses to disk.
+    /// @dev During development of an upgrade which adds a new contract, the contract will not yet be present in the
+    ///      superchain-registry. In this case, the contract will be deployed by the upgrade process, and will need to
+    ///      be stored by artifacts.save() after the call to opcm.upgrade().
+    ///      After the upgrade is complete, the superchain-registry will be updated and the contract will be present. At
+    ///      that point, this function will need to be updated to read the new contract from the superchain-registry
+    ///      using either the `saveProxyAndImpl` or `artifacts.save()` functions.
+    function _readSuperchainRegistry() internal {
+        string memory superchainBasePath = "./lib/superchain-registry/superchain/configs/";
+        string memory validationBasePath = "./lib/superchain-registry/validation/standard/";
+
+        string memory superchainToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/superchain.toml"));
+        string memory opToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/", opChain(), ".toml"));
+
+        string memory standardVersionsToml =
+            vm.readFile(string.concat(validationBasePath, "standard-versions-", baseChain(), ".toml"));
+
+        standardVersionsToml = standardVersionsToml.replace('"op-contracts/v2.0.0-rc.1"', "RELEASE");
+
+        // Read the extra addresses JSON file which contains addresses no longer in the chain TOML.
+        string memory addressesJson = vm.readFile("./lib/superchain-registry/superchain/extra/addresses/addresses.json");
+        string memory chainId = vm.toString(vm.parseTomlUint(opToml, ".chain_id"));
+
+        // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts
+        artifacts.save("L2ChainId", address(uint160(vm.parseTomlUint(opToml, ".chain_id"))));
+        // Superchain shared contracts
+        saveProxyAndImpl("SuperchainConfig", superchainToml, ".superchain_config_addr");
+        saveProxyAndImpl("ProtocolVersions", superchainToml, ".protocol_versions_addr");
+        // Core contracts
+        artifacts.save("ProxyAdmin", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".ProxyAdmin")));
+        saveProxyAndImpl("SystemConfig", opToml, ".addresses.SystemConfigProxy");
+
+        // Bridge contracts
+        address optimismPortal = vm.parseTomlAddress(opToml, ".addresses.OptimismPortalProxy");
+        artifacts.save("OptimismPortalProxy", optimismPortal);
+        artifacts.save("OptimismPortal2Impl", EIP1967Helper.getImplementation(optimismPortal));
+
+        // Get the lockbox address from the portal, and save it
+        /// NOTE: Using try catch because this function could be called before or after the upgrade.
+        try IOptimismPortal2(payable(optimismPortal)).ethLockbox() returns (IETHLockbox ethLockbox_) {
+            console.log("ForkL1Live: ETHLockboxProxy found: %s", address(ethLockbox_));
+            artifacts.save("ETHLockboxProxy", address(ethLockbox_));
+        } catch {
+            console.log("ForkL1Live: ETHLockboxProxy not found");
+        }
+
+        address addressManager = vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".AddressManager"));
+        artifacts.save("AddressManager", addressManager);
+        artifacts.save(
+            "L1CrossDomainMessengerImpl", IAddressManager(addressManager).getAddress("OVM_L1CrossDomainMessenger")
+        );
+        artifacts.save(
+            "L1CrossDomainMessengerProxy",
+            vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".L1CrossDomainMessengerProxy"))
+        );
+        saveProxyAndImplFromJson(
+            "OptimismMintableERC20Factory", addressesJson, chainId, "OptimismMintableERC20FactoryProxy"
+        );
+        saveProxyAndImpl("L1StandardBridge", opToml, ".addresses.L1StandardBridgeProxy");
+        saveProxyAndImplFromJson("L1ERC721Bridge", addressesJson, chainId, "L1ERC721BridgeProxy");
+
+        // Fault proof proxied contracts
+        saveProxyAndImplFromJson("AnchorStateRegistry", addressesJson, chainId, "AnchorStateRegistryProxy");
+        saveProxyAndImpl("DisputeGameFactory", opToml, ".addresses.DisputeGameFactoryProxy");
+
+        // Fault proof non-proxied contracts
+        // For chains that don't have a permissionless game, we save the dispute game and WETH
+        // addresses as the zero address.
+        artifacts.save(
+            "PreimageOracle", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".PreimageOracle"))
+        );
+        artifacts.save("MipsSingleton", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".MIPS")));
+        IDisputeGameFactory disputeGameFactory =
+            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+
+        // The PermissionedDisputeGame and PermissionedDelayedWETHProxy are not listed in the registry for OP, so we
+        // look it up onchain.
+        address permissionedGameImpl = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        artifacts.save("PermissionedDisputeGame", permissionedGameImpl);
+
+        // Get DelayedWETH for PERMISSIONED games
+        IDelayedWETH permissionedDelayedWeth =
+            DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.PERMISSIONED_CANNON);
+        artifacts.save("PermissionedDelayedWETHProxy", address(permissionedDelayedWeth));
+
+        // Get DelayedWETH for PERMISSIONLESS games (CANNON)
+        IDelayedWETH permissionlessDelayedWeth =
+            DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON);
+
+        // The SR seems out-of-date, so pull the DelayedWETH addresses from the games.
+        artifacts.save("DelayedWETHProxy", address(permissionlessDelayedWeth));
+        artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(permissionlessDelayedWeth)));
+    }
+
+    /// @notice Calls to the Deploy.s.sol contract etched by Setup.sol to a deterministic address, sets up the
+    /// environment, and deploys new implementations.
+    function _deployNewImplementations() internal {
+        Deploy deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
+        deploy.deployImplementations();
+    }
+
+    /// @notice Performs a single OPCM V2 upgrade.
+    /// @param _opcm The OPCM V2 contract to upgrade.
+    /// @param _delegateCaller The address of the upgrader to use for the upgrade.
+    function _doUpgradeV2(IOPContractsManagerV2 _opcm, address _delegateCaller) internal {
+        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
+
+        // Get the SuperchainPAO address.
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        address superchainPAO = superchainProxyAdmin.owner();
+
+        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
+        // every time rather than adding or removing this code for each upgrade.
+        vm.prank(superchainPAO, true);
+        (bool success, bytes memory reason) = address(_opcm).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
+                (
+                    IOPContractsManagerV2.SuperchainUpgradeInput({
+                        superchainConfig: superchainConfig,
+                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+                    })
+                )
+            )
+        );
+        if (success == false) {
+            // Only acceptable revert reason is downgrade not allowed.
+            assertTrue(
+                bytes4(reason) == IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector,
+                "Revert reason other than DowngradeNotAllowed"
+            );
+        }
+
+        // Grab the existing PermissionedDisputeGame parameters.
+        IDisputeGameFactory disputeGameFactory =
+            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        address challenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+        address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
+
+        // Prepare the upgrade input based on whether we're doing a super root migration.
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs;
+        IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions;
+
+        if (Config.devFeatureSuperRootGamesMigration()) {
+            // Read the current respected game type from the ASR.
+            IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
+            GameType originalGameType = asr.respectedGameType();
+            uint32 originalRaw = originalGameType.raw();
+            bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+
+            // Determine the target SUPER_* game type.
+            GameType targetGameType =
+                isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
+
+            // Read the current anchor root sequence number so we can set a higher one.
+            (, uint256 currentAnchorSeqNum) = asr.getAnchorRoot();
+
+            // Migration upgrade: legacy types disabled, super types enabled.
+            // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+            disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
+            disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.CANNON_KONA,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: 0.08 ether,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+                        proposer: proposer,
+                        challenger: challenger
+                    })
+                )
+            });
+            if (isPermissionless) {
+                disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: true,
+                    initBond: 0.08 ether,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.FaultDisputeGameConfig({
+                            absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
+                        })
+                    )
+                });
+            } else {
+                disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    gameArgs: hex""
+                });
+            }
+
+            // Migration needs 3 extra instructions: DelayedWETH proxy + anchor root + game type overrides.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](3);
+            extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "PermittedProxyDeployment",
+                data: bytes("DelayedWETH")
+            });
+            extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingAnchorRoot",
+                data: abi.encode(
+                    Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: currentAnchorSeqNum + 1 })
+                )
+            });
+            extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(targetGameType)
+            });
+        } else {
+            // Standard upgrade path: legacy types enabled, super types disabled.
+            // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+            disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
+            disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                gameType: GameTypes.CANNON,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.FaultDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate")))
+                    })
+                )
+            });
+            disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+                        proposer: proposer,
+                        challenger: challenger
+                    })
+                )
+            });
+            disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: true,
+                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                gameType: GameTypes.CANNON_KONA,
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.FaultDisputeGameConfig({
+                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
+                    })
+                )
+            });
+            disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameArgs: hex""
+            });
+            disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+                enabled: false,
+                initBond: 0,
+                gameType: GameTypes.SUPER_CANNON_KONA,
+                gameArgs: hex""
+            });
+
+            // Standard path only needs DelayedWETH proxy deployment permission.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
+            extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "PermittedProxyDeployment",
+                data: bytes("DelayedWETH")
+            });
+        }
+
+        vm.prank(_delegateCaller, true);
+        (bool upgradeSuccess,) = address(_opcm).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgrade,
+                (
+                    IOPContractsManagerV2.UpgradeInput({
+                        systemConfig: systemConfig,
+                        disputeGameConfigs: disputeGameConfigs,
+                        extraInstructions: extraInstructions
+                    })
+                )
+            )
+        );
+        assertTrue(upgradeSuccess, "upgrade failed");
+    }
+
+    /// @notice Upgrades the contracts using the OPCM.
+    function _upgrade() internal {
+        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
+        IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
+
+        address upgrader = proxyAdmin.owner();
+        vm.label(upgrader, "ProxyAdmin Owner");
+
+        // Run past upgrades from the TOML config.
+        IDisputeGameFactory disputeGameFactoryForPastUpgrades =
+            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        PastUpgrades.runPastUpgrades(upgrader, systemConfig, superchainConfig, disputeGameFactoryForPastUpgrades);
+
+        // Current upgrade.
+        IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
+        _doUpgradeV2(opcmV2, upgrader);
+
+        console.log("ForkL1Live: Saving newly deployed contracts");
+
+        // A new ASR and new dispute games were deployed, so we need to update them.
+        // With super root migration, standard game types are zeroed; read from SUPER_ variants.
+        IDisputeGameFactory disputeGameFactory =
+            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        GameType permGameType = Config.devFeatureSuperRootGamesMigration()
+            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            : GameTypes.PERMISSIONED_CANNON;
+        address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
+        artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
+
+        IAnchorStateRegistry newAnchorStateRegistry =
+            IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
+        artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
+
+        // Get the lockbox address from the portal, and save it
+        IOptimismPortal2 portal = IOptimismPortal2(artifacts.mustGetAddress("OptimismPortalProxy"));
+        address lockboxAddress = address(portal.ethLockbox());
+        artifacts.save("ETHLockboxProxy", lockboxAddress);
+
+        // Get the new DelayedWETH address and save it (might be a new proxy).
+        IDelayedWETH newDelayedWeth =
+            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).weth));
+        artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
+        artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
+    }
+
+    /// @notice Saves the proxy and implementation addresses for a contract name
+    /// @param _contractName The name of the contract to save
+    /// @param _tomlPath The path to the superchain config file
+    /// @param _tomlKey The key in the superchain config file to get the proxy address
+    function saveProxyAndImpl(string memory _contractName, string memory _tomlPath, string memory _tomlKey) internal {
+        address proxy = vm.parseTomlAddress(_tomlPath, _tomlKey);
+        artifacts.save(string.concat(_contractName, "Proxy"), proxy);
+
+        address impl = EIP1967Helper.getImplementation(proxy);
+        require(impl != address(0), "Upgrade: Implementation address is zero");
+        artifacts.save(string.concat(_contractName, "Impl"), impl);
+    }
+
+    /// @notice Saves the proxy and implementation addresses from the extra addresses JSON file.
+    /// @param _contractName The name of the contract to save
+    /// @param _json The JSON string containing addresses
+    /// @param _chainId The chain ID string to index into the JSON
+    /// @param _jsonKey The key in the JSON to get the proxy address
+    function saveProxyAndImplFromJson(
+        string memory _contractName,
+        string memory _json,
+        string memory _chainId,
+        string memory _jsonKey
+    )
+        internal
+    {
+        address proxy = vm.parseJsonAddress(_json, string.concat("$.", _chainId, ".", _jsonKey));
+        artifacts.save(string.concat(_contractName, "Proxy"), proxy);
+
+        address impl = EIP1967Helper.getImplementation(proxy);
+        require(impl != address(0), "Upgrade: Implementation address is zero");
+        artifacts.save(string.concat(_contractName, "Impl"), impl);
+    }
+}

@@ -82,7 +82,7 @@ abstract contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestI
 
     function init(Claim _rootClaim, Claim _absolutePrestate, Types.SuperRootProof memory _super) public {
         // Set the time to a realistic date.
-        if (!isForkTest()) {
+        if (!isL1ForkTest()) {
             vm.warp(1690906994);
         }
 
@@ -160,7 +160,7 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
         (, uint256 l2Seqno) = anchorStateRegistry.getAnchorRoot();
         validl2SequenceNumber = l2Seqno + 1;
 
-        if (isForkTest()) {
+        if (isL1ForkTest()) {
             // Set the init bond of anchor game type 4 to be 0.
             vm.store(
                 address(disputeGameFactory), keccak256(abi.encode(GameType.wrap(4), uint256(102))), bytes32(uint256(0))
@@ -2791,7 +2791,7 @@ contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
     )
         internal
     {
-        if (isForkTest()) {
+        if (isL1ForkTest()) {
             // Mock the call anchorStateRegistry.getAnchorRoot() to return 0 as the block number
             (Hash root,) = anchorStateRegistry.getAnchorRoot();
             vm.mockCall(

@@ -8,6 +8,7 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -23,18 +24,11 @@ library UpgradeUtils {
     /// @notice The number of implementations deployed in every upgrade.
     ///         Includes:
     ///         - 1 StorageSetter
-    ///         - 16 base predeploys
-    ///         - 7 INTEROP predeploys
+    ///         - 18 base predeploys
+    ///         - 4 INTEROP predeploys
     ///         - 2 CGT predeploys (NativeAssetLiquidity, LiquidityController)
     ///         - 2 CGT variants (L1BlockCGT, L2ToL1MessagePasserCGT)
-    ///         Total: 28 implementations
-    uint256 internal constant IMPLEMENTATION_COUNT = 28;
-
-    /// @notice The default gas limit for a deployment transaction.
-    uint64 internal constant DEFAULT_DEPLOYMENT_GAS = 375_000;
-
-    /// @notice The default gas limit for an upgrade transaction.
-    uint64 internal constant DEFAULT_UPGRADE_GAS = 50_000;
+    uint256 internal constant IMPLEMENTATION_COUNT = 27;
 
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
@@ -54,13 +48,13 @@ library UpgradeUtils {
 
     /// @notice Returns the total number of transactions for the current upgrade.
     /// @dev Total count:
-    ///      - 28 implementation deployments
+    ///      - IMPLEMENTATION_COUNT implementation deployments
     ///      - [KARST] 2 ConditionalDeployer (deployment + upgrade)
     ///      - [KARST] 1 ProxyAdmin upgrade
     ///      - 1 L2CM deployment
     ///      - 1 Upgrade Predeploys call
     function getTransactionCount() internal pure returns (uint256 txnCount_) {
-        if (IMPLEMENTATION_COUNT != 28) {
+        if (IMPLEMENTATION_COUNT != 27) {
             revert(
                 "UpgradeUtils: implementation count changed, ensure that the txnCount_ calculation is still correct."
             );
@@ -71,18 +65,28 @@ library UpgradeUtils {
     /// @notice Returns the gas limits for all upgrade transaction types.
     /// @dev Gas limits are chosen to provide sufficient headroom while being
     ///      conservative enough to fit within the upgrade block gas allocation.
+    ///      All values based on gas profiling of actual mainnet fork execution.
     ///      Rationale for each limit:
-    ///      - TODO: Add rationale here
+    ///      - l2cmDeployment: L2ContractsManager deployment measured at 2,824,780 gas
+    ///        Recommended 4,237,170 (1.5x). Set to 4.5M for safety.
+    ///      - upgradeExecution: L2ProxyAdmin.upgradePredeploys() measured at 1,602,448 gas
+    ///        Recommended 2,403,672 (1.5x). Set to 3M for safety.
+    ///      - conditionalDeployerDeployment: ConditionalDeployer deployment measured at 339,403 gas
+    ///        Recommended 509,104 (1.5x). Set to 600K for safety.
+    ///      - conditionalDeployerUpgrade: ConditionalDeployer upgrade measured at 29,169 gas
+    ///        Recommended 43,753 (1.5x). Set to 50K for safety.
+    ///      - proxyAdminUpgrade: ProxyAdmin upgrade measured at 12,069 gas
+    ///        Recommended 18,103 (1.5x). Set to 50K for safety.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({
             // Fixed
-            l2cmDeployment: DEFAULT_DEPLOYMENT_GAS,
-            upgradeExecution: type(uint64).max,
+            l2cmDeployment: 4_500_000,
+            upgradeExecution: 3_000_000,
             // Karst
-            conditionalDeployerDeployment: DEFAULT_DEPLOYMENT_GAS,
-            conditionalDeployerUpgrade: DEFAULT_UPGRADE_GAS,
-            proxyAdminUpgrade: DEFAULT_UPGRADE_GAS
+            conditionalDeployerDeployment: 600_000,
+            conditionalDeployerUpgrade: 50_000,
+            proxyAdminUpgrade: 50_000
         });
     }
 
@@ -112,21 +116,20 @@ library UpgradeUtils {
         implementations_[14] = "SchemaRegistry";
         implementations_[15] = "EAS";
         implementations_[16] = "FeeSplitter";
+        implementations_[17] = "ConditionalDeployer";
+        implementations_[18] = "L2DevFeatureFlags";
 
         // INTEROP predeploys
-        implementations_[17] = "CrossL2Inbox";
-        implementations_[18] = "L2ToL2CrossDomainMessenger";
-        implementations_[19] = "SuperchainETHBridge";
-        implementations_[20] = "OptimismSuperchainERC20Factory";
-        implementations_[21] = "OptimismSuperchainERC20Beacon";
-        implementations_[22] = "SuperchainTokenBridge";
-        implementations_[23] = "ETHLiquidity";
+        implementations_[19] = "CrossL2Inbox";
+        implementations_[20] = "L2ToL2CrossDomainMessenger";
+        implementations_[21] = "SuperchainETHBridge";
+        implementations_[22] = "ETHLiquidity";
 
         // CGT predeploys
-        implementations_[24] = "L1BlockCGT";
-        implementations_[25] = "L2ToL1MessagePasserCGT";
-        implementations_[26] = "LiquidityController";
-        implementations_[27] = "NativeAssetLiquidity";
+        implementations_[23] = "L1BlockCGT";
+        implementations_[24] = "L2ToL1MessagePasserCGT";
+        implementations_[25] = "LiquidityController";
+        implementations_[26] = "NativeAssetLiquidity";
     }
 
     /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.
@@ -187,6 +190,34 @@ library UpgradeUtils {
             gasLimit: _gasLimit,
             data: abi.encodeCall(ConditionalDeployer.deploy, (_salt, code))
         });
+    }
+
+    /// @notice Extracts a revert reason from return data.
+    /// @param _returnData The return data from a failed call.
+    /// @return reason_ The revert reason string, or a default message if unavailable.
+    function getRevertReason(bytes memory _returnData) internal pure returns (string memory reason_) {
+        // If the return data is at least 68 bytes, it might contain a revert reason
+        // 4 bytes for Error(string) selector + 32 bytes for offset + 32 bytes for length
+        if (_returnData.length >= 68) {
+            // Check if it's an Error(string) revert
+            bytes4 errorSelector = bytes4(_returnData);
+            if (errorSelector == 0x08c379a0) {
+                // Decode the string
+                assembly {
+                    // Skip the first 68 bytes (4 byte selector + 32 byte offset + 32 byte length)
+                    // to get to the actual string data
+                    reason_ := add(_returnData, 0x44)
+                }
+                return reason_;
+            }
+        }
+
+        // If we can't decode a revert reason, return hex representation
+        if (_returnData.length > 0) {
+            return string(abi.encodePacked(LibString.toHexString(_returnData)));
+        }
+
+        return "Unknown error";
     }
 
     /// @notice Creates an upgrade transaction for a proxy contract.

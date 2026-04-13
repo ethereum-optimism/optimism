@@ -21,13 +21,11 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
 import { Types } from "scripts/libraries/Types.sol";
-import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
-import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -175,14 +173,10 @@ contract Deploy is Deployer {
             cfg.setUseCustomGasToken(true);
         }
 
-        deployImplementations({ _isInterop: cfg.useInterop() });
+        deployImplementations();
 
         // Deploy Current OPChain Contracts
-        if (!DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
-            deployOpChain();
-        } else {
-            deployOpChainV2();
-        }
+        deployOpChainV2();
 
         // Set the respected game type according to the deploy config
         vm.startPrank(ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")).guardian());
@@ -266,11 +260,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy all of the implementations
-    /// @param _isInterop Whether to use interop
-    function deployImplementations(bool _isInterop) public {
-        // TODO _isInterop is no longer being used in DeployImplementations, this might no longer be necessary
-        require(_isInterop == cfg.useInterop(), "Deploy: Interop setting mismatch.");
-
+    function deployImplementations() public {
         console.log("Deploying implementations");
 
         DeployImplementations di = new DeployImplementations();
@@ -302,11 +292,7 @@ contract Deploy is Deployer {
         // Save the implementation addresses which are needed outside of this function or script.
         // When called in a fork test, this will overwrite the existing implementations.
         artifacts.save("MipsSingleton", address(dio.mipsSingleton));
-        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
-            artifacts.save("OPContractsManagerV2", address(dio.opcmV2));
-        } else {
-            artifacts.save("OPContractsManager", address(dio.opcm));
-        }
+        artifacts.save("OPContractsManagerV2", address(dio.opcmV2));
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
         artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameImpl));
@@ -329,24 +315,20 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(
             IOptimismMintableERC20Factory(impls.OptimismMintableERC20Factory)
         );
+        GameType permGameType = DevFeatures.isDevFeatureEnabled(
+            cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
+        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
-            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false
+            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
         );
         ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
         ChainAssertions.checkMIPS({
             _mips: IMIPS64(address(dio.mipsSingleton)),
             _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
-        IOPContractsManager _opcm;
-        if (DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
-            _opcm = IOPContractsManager(address(dio.opcmV2));
-        } else {
-            _opcm = IOPContractsManager(address(dio.opcm));
-        }
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
-            _proxies: _proxies(),
-            _opcm: _opcm,
+            _opcm: IOPContractsManagerV2(address(dio.opcmV2)),
             _mips: IMIPS64(address(dio.mipsSingleton))
         });
         ChainAssertions.checkSystemConfigImpls(impls);
@@ -354,57 +336,6 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
-    function deployOpChain() public {
-        console.log("Deploying OP Chain");
-
-        // Ensure that the requisite contracts are deployed
-        IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
-
-        IOPContractsManager.DeployInput memory deployInput = getDeployInput();
-        IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
-
-        // Store code in the Final system owner address so that it can be used for prank delegatecalls
-        // Store "fe" opcode so that accidental calls to this address revert
-        vm.etch(cfg.finalSystemOwner(), hex"fe");
-
-        // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
-        artifacts.save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
-        artifacts.save("AddressManager", address(deployOutput.addressManager));
-        artifacts.save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721BridgeProxy));
-        artifacts.save("SystemConfigProxy", address(deployOutput.systemConfigProxy));
-        artifacts.save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20FactoryProxy));
-        artifacts.save("L1StandardBridgeProxy", address(deployOutput.l1StandardBridgeProxy));
-        artifacts.save("L1CrossDomainMessengerProxy", address(deployOutput.l1CrossDomainMessengerProxy));
-        artifacts.save("ETHLockboxProxy", address(deployOutput.ethLockboxProxy));
-
-        // Fault Proof contracts
-        artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
-        artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
-        artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
-        artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
-        artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
-
-        // Check if the permissionless game implementation is already set
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
-
-        // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM.
-        // If the following require statement is hit, you can delete the block of code after it.
-        require(
-            permissionlessGameImpl == address(0),
-            "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
-        );
-        address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
-        address delayedWETHPermissionlessGameProxy =
-            deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
-        vm.broadcast(address(deployOutput.opChainProxyAdmin));
-        IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
-            _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
-        });
-    }
-
-    /// @notice Deploy all of the OP Chain specific contracts using OPCM v2
     function deployOpChainV2() public {
         console.log("Deploying OP Chain");
 
@@ -415,7 +346,9 @@ contract Deploy is Deployer {
         // Ensure that the requisite contracts are deployed
         IOPContractsManagerV2 opcm = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
 
-        IOPContractsManagerV2.FullConfig memory deployInput = getDeployInputV2();
+        IOPContractsManagerV2.FullConfig memory deployInput = DevFeatures.isDevFeatureEnabled(
+            cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
+        ) ? getSuperRootDeployInputV2() : getDeployInputV2();
         IOPContractsManagerV2.ChainContracts memory deployOutput = opcm.deploy(deployInput);
 
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
@@ -466,39 +399,81 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
-    /// @notice Get the DeployInput struct to use for testing
-    function getDeployInput() public view returns (IOPContractsManager.DeployInput memory) {
-        string memory saltMixer = "salt mixer";
-        return IOPContractsManager.DeployInput({
-            roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: cfg.finalSystemOwner(),
-                systemConfigOwner: cfg.finalSystemOwner(),
-                batcher: cfg.batchSenderAddress(),
-                unsafeBlockSigner: cfg.p2pSequencerAddress(),
-                proposer: cfg.l2OutputOracleProposer(),
-                challenger: cfg.l2OutputOracleChallenger()
+    function getSuperRootDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
+                    proposer: cfg.l2OutputOracleProposer(),
+                    challenger: cfg.l2OutputOracleChallenger()
+                })
+            )
+        });
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
+                })
+            )
+        });
+
+        return IOPContractsManagerV2.FullConfig({
+            saltMixer: "salt mixer",
+            superchainConfig: ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")),
+            proxyAdminOwner: cfg.finalSystemOwner(),
+            systemConfigOwner: cfg.finalSystemOwner(),
+            unsafeBlockSigner: cfg.p2pSequencerAddress(),
+            batcher: cfg.batchSenderAddress(),
+            startingAnchorRoot: Proposal({
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+                l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
             }),
+            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             basefeeScalar: cfg.basefeeScalar(),
             blobBasefeeScalar: cfg.blobbasefeeScalar(),
-            l2ChainId: cfg.l2ChainID(),
-            startingAnchorRoot: abi.encode(
-                Proposal({ root: Hash.wrap(cfg.faultGameGenesisOutputRoot()), l2SequenceNumber: cfg.faultGameGenesisBlock() })
-            ),
-            saltMixer: saltMixer,
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
-            disputeGameType: GameTypes.PERMISSIONED_CANNON,
-            disputeAbsolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
-            disputeMaxGameDepth: cfg.faultGameMaxDepth(),
-            disputeSplitDepth: cfg.faultGameSplitDepth(),
-            disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-            disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
+            l2ChainId: cfg.l2ChainID(),
+            resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
+            disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: cfg.useCustomGasToken()
         });
     }
 
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](3);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -530,6 +505,24 @@ contract Deploy is Deployer {
                     absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
                 })
             )
+        });
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: bytes("")
         });
 
         return IOPContractsManagerV2.FullConfig({
