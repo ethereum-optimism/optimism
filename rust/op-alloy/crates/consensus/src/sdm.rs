@@ -302,11 +302,6 @@ pub fn build_post_exec_tx(block_number: u64, gas_refund_entries: Vec<SDMGasEntry
     TxPostExec::new(PostExecPayload { version: 1, block_number, gas_refund_entries })
 }
 
-/// Check if a transaction type byte identifies a post-exec transaction.
-pub const fn is_post_exec_tx(ty: u8) -> bool {
-    ty == POST_EXEC_TX_TYPE_ID
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
