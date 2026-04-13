@@ -1,6 +1,6 @@
 //! Block executor for Optimism.
 
-use crate::OpEvmFactory;
+use crate::{OpEvmFactory, OpTx};
 use alloc::{borrow::Cow, boxed::Box, vec::Vec};
 use alloy_consensus::{Eip658Value, Header, Transaction, TransactionEnvelope, TxReceipt};
 use alloy_eips::{Encodable2718, Typed2718};
@@ -406,7 +406,7 @@ where
 pub struct OpBlockExecutorFactory<
     R = OpAlloyReceiptBuilder,
     Spec = OpChainHardforks,
-    EvmFactory = OpEvmFactory,
+    EvmFactory = OpEvmFactory<OpTx>,
 > {
     /// Receipt builder.
     receipt_builder: R,
@@ -505,7 +505,7 @@ mod tests {
         let executor_factory = OpBlockExecutorFactory::new(
             OpAlloyReceiptBuilder::default(),
             OpChainHardforks::op_mainnet(),
-            OpEvmFactory::<crate::OpTx>::default(),
+            OpEvmFactory::<OpTx>::default(),
         );
         let mut db = State::builder().with_database(CacheDB::<EmptyDB>::default()).build();
         let evm = executor_factory.evm_factory.create_evm(&mut db, EvmEnv::default());

@@ -276,6 +276,7 @@ mod tests {
                     suggested_fee_recipient: Default::default(),
                     withdrawals: None,
                     parent_beacon_block_root: None,
+                    slot_number: None,
                 },
                 transactions: None,
                 no_tx_pool: None,

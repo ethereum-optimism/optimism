@@ -112,6 +112,8 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
             blob_gas_used,
             excess_blob_gas,
             requests_hash,
+            block_access_list_hash: None,
+            slot_number: None,
         };
 
         Ok(Block::new(
