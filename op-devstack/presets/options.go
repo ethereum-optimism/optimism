@@ -275,6 +275,19 @@ func WithRequireInteropNotAtGenesis() Option {
 	}
 }
 
+// WithMessageExpiryWindow configures the message expiry window (in seconds)
+// used by the dependency set. This controls how long cross-chain messages
+// remain valid before they expire.
+func WithMessageExpiryWindow(window uint64) Option {
+	return option{
+		kinds: optionKindMessageExpiryWindow,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			v := window
+			cfg.MessageExpiryWindow = &v
+		},
+	}
+}
+
 // WithL2BlockTimes configures per-chain L2 block times via the deployer.
 // The blockTimes map keys are L2 chain IDs and values are the desired block
 // time in seconds for that chain.

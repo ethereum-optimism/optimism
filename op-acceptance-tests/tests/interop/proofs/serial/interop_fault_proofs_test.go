@@ -71,3 +71,13 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
 }
+
+func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	const messageExpiryWindow = uint64(12) // 12 seconds for fast test
+	sys := presets.NewSimpleInteropSupernodeProofs(t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithMessageExpiryWindow(messageExpiryWindow),
+	)
+	sfp.RunMessageExpiryTest(t, sys, messageExpiryWindow)
+}
