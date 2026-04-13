@@ -11,9 +11,6 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write # Upload SARIF results
-      id-token: write # Publish results via StepSecurity
 
     steps:
       - name: Checkout code
@@ -22,13 +19,16 @@ jobs:
           persist-credentials: false
 
       - name: Run Scorecard
-        uses: ossf/scorecard-action@v2
-        with:
-          results_file: results.sarif
-          results_format: sarif
-          publish_results: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          wget -qO- https://github.com/ossf/scorecard/releases/download/v5.1.1/scorecard_5.1.1_linux_amd64.tar.gz | tar xz
+          ./scorecard --repo=github.com/ethereum-optimism/optimism --format=json | tee scorecard.json
+          echo "---"
+          ./scorecard --repo=github.com/ethereum-optimism/optimism
 
-      - name: Upload to code-scanning
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Upload results
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: results.sarif
+          name: scorecard-results
+          path: scorecard.json
