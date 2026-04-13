@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
@@ -104,7 +105,7 @@ func (r *RollupBoostNode) Start() {
 
 	r.sub = NewSubProcess(r.p, stdOut, stdErr)
 
-	execPath, err := EnsureRustBinary(r.p, RustBinarySpec{
+	execPath, err := rustbin.EnsureExists(r.p.Ctx(), r.p.Logger(), rustbin.Spec{
 		SrcDir:  "rollup-boost",
 		Package: "rollup-boost",
 		Binary:  "rollup-boost",

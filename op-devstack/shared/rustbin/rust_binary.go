@@ -1,4 +1,4 @@
-package sysgo
+package rustbin
 
 import (
 	"context"
@@ -10,18 +10,19 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum/go-ethereum/log"
+
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
-// RustBinarySpec describes a Rust binary to be built and located.
-type RustBinarySpec struct {
+// Spec describes a Rust binary to be built and located.
+type Spec struct {
 	SrcDir  string // directory name relative to monorepo root, e.g. "rollup-boost"
 	Package string // cargo package name, e.g. "rollup-boost"
 	Binary  string // binary name, e.g. "rollup-boost"
 }
 
-// EnsureRustBinary locates or builds a Rust binary as needed.
+// EnsureExists locates or builds a Rust binary as needed.
 //
 // Env var overrides (suffix derived from binary name, e.g. "rollup-boost" -> "ROLLUP_BOOST"):
 //   - RUST_BINARY_PATH_<BINARY>: absolute path to pre-built binary (skips build, must exist)
@@ -30,7 +31,9 @@ type RustBinarySpec struct {
 // Build behavior:
 //   - RUST_JIT_BUILD=1: runs cargo build in debug mode (letting cargo handle rebuild detection)
 //   - Otherwise: only checks binary exists, errors if missing
-func EnsureRustBinary(p devtest.CommonT, spec RustBinarySpec) (string, error) {
+//
+// logger may be nil, in which case informational messages are skipped.
+func EnsureExists(ctx context.Context, logger log.Logger, spec Spec) (string, error) {
 	envSuffix := toEnvVarSuffix(spec.Binary)
 
 	// Check for explicit binary path override
@@ -38,7 +41,9 @@ func EnsureRustBinary(p devtest.CommonT, spec RustBinarySpec) (string, error) {
 		if _, err := os.Stat(pathOverride); os.IsNotExist(err) {
 			return "", fmt.Errorf("%s binary not found at overridden path %s", spec.Binary, pathOverride)
 		}
-		p.Logger().Info("Using overridden binary path", "binary", spec.Binary, "path", pathOverride)
+		if logger != nil {
+			logger.Info("Using overridden binary path", "binary", spec.Binary, "path", pathOverride)
+		}
 		return pathOverride, nil
 	}
 
@@ -51,8 +56,10 @@ func EnsureRustBinary(p devtest.CommonT, spec RustBinarySpec) (string, error) {
 	jitBuild := os.Getenv("RUST_JIT_BUILD") != ""
 
 	if jitBuild {
-		p.Logger().Info("Building Rust binary (JIT)", "binary", spec.Binary, "dir", srcRoot)
-		if err := buildRustBinary(p.Ctx(), srcRoot, spec.Package, spec.Binary); err != nil {
+		if logger != nil {
+			logger.Info("Building Rust binary (JIT)", "binary", spec.Binary, "dir", srcRoot)
+		}
+		if err := buildRustBinary(ctx, srcRoot, spec.Package, spec.Binary); err != nil {
 			return "", err
 		}
 	}

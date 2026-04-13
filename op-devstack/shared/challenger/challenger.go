@@ -1,6 +1,7 @@
 package challenger
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -79,7 +81,15 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	if err := applyVmConfig(root, &c.CannonKona, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
-	c.CannonKona.Server = root + "rust/target/release/kona-host"
+	konaHostBin, err := rustbin.EnsureExists(context.Background(), nil, rustbin.Spec{
+		SrcDir:  "rust/kona",
+		Package: "kona-host",
+		Binary:  "kona-host",
+	})
+	if err != nil {
+		return fmt.Errorf("kona-host binary: %w", err)
+	}
+	c.CannonKona.Server = konaHostBin
 	if interop {
 		c.CannonKonaAbsolutePreState = root + "rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
 	} else {

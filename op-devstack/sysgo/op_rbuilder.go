@@ -15,6 +15,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -408,7 +409,7 @@ func (b *OPRBuilderNode) Start() {
 
 	b.sub = NewSubProcess(b.p, stdOut, stdErr)
 
-	execPath, err := EnsureRustBinary(b.p, RustBinarySpec{
+	execPath, err := rustbin.EnsureExists(b.p.Ctx(), b.p.Logger(), rustbin.Spec{
 		SrcDir:  "op-rbuilder",
 		Package: "op-rbuilder",
 		Binary:  "op-rbuilder",

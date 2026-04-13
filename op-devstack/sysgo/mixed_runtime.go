@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -287,7 +288,7 @@ func startMixedOpRethNode(
 
 	tempP2PPath := filepath.Join(tempDir, "p2pkey.txt")
 
-	execPath, err := EnsureRustBinary(t, RustBinarySpec{
+	execPath, err := rustbin.EnsureExists(t.Ctx(), t.Logger(), rustbin.Spec{
 		SrcDir:  "rust",
 		Package: "op-reth",
 		Binary:  "op-reth",
@@ -448,7 +449,7 @@ func startMixedKonaNode(
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 
-	execPath, err := EnsureRustBinary(t, RustBinarySpec{
+	execPath, err := rustbin.EnsureExists(t.Ctx(), t.Logger(), rustbin.Spec{
 		SrcDir:  "rust/kona",
 		Package: "kona-node",
 		Binary:  "kona-node",
