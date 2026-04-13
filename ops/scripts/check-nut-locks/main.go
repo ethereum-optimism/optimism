@@ -16,7 +16,6 @@ import (
 // nutBundleGlobs are the locations where NUT bundle JSON files may live.
 // Update this list when adding new bundle locations.
 var nutBundleGlobs = []string{
-	"op-node/rollup/derive/*_nut_bundle.json",
 	"op-core/nuts/*_nut_bundle.json",
 }
 
