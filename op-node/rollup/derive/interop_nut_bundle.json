@@ -1,0 +1,7 @@
+{
+  "metadata": {
+    "version": "1.0.0"
+  },
+  "comment": "Interop NUT bundle. Will contain deploy+proxy-upgrade transactions for L2ToL2CrossDomainMessenger, SuperchainETHBridge, ETHLiquidity (and funding tx), plus CrossL2Inbox. Currently empty — the existing interop_upgrade_transactions.go handles these until migration is complete.",
+  "transactions": []
+}
