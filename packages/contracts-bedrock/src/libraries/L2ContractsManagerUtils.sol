@@ -44,13 +44,12 @@ library L2ContractsManagerUtils {
     /// @param _proxy The proxy address of the predeploy.
     /// @param _implementation The new implementation address.
     function upgradeTo(address _proxy, address _implementation) internal {
+        if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
         if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
         // predeploys that are being introduced on this particular upgrade.
         address implementation = L2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
-
-        if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
 
         // We avoid downgrading Predeploys
         if (
