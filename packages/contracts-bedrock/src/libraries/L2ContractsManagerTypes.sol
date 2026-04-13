@@ -70,7 +70,8 @@ library L2ContractsManagerTypes {
         LiquidityControllerConfig liquidityController;
         FeeSplitterConfig feeSplitter;
         bool isCustomGasToken;
-        bool isInterop;
+        bool isInteropBase;
+        bool isCrossL2Inbox;
     }
 
     /// @notice The current implementation addresses for the L2 predeploys.

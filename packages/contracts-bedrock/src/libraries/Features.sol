@@ -18,4 +18,12 @@ library Features {
 
     /// @notice The INTEROP feature determines if the system is configured to use interop.
     bytes32 internal constant INTEROP = "INTEROP";
+
+    /// @notice The INTEROP_BASE feature determines if the base interop contracts are deployed.
+    ///         This is set on all chains at interop activation, regardless of dependency set size.
+    bytes32 internal constant INTEROP_BASE = "INTEROP_BASE";
+
+    /// @notice The INTEROP_CROSS_L2_INBOX feature determines if the CrossL2Inbox is activated.
+    ///         This is only set when the chain is in a dependency set with at least two chains.
+    bytes32 internal constant INTEROP_CROSS_L2_INBOX = "INTEROP_CROSS_L2_INBOX";
 }

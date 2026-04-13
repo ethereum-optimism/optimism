@@ -170,17 +170,25 @@ contract L2ContractsManager is ISemver {
         fullConfig_.isCustomGasToken = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken();
 
         // Uses try/catch because isFeatureEnabled() may not exist on pre-upgrade L1Block contracts.
-        // The INTEROP feature is enabled after genesis via a Network Upgrade Transaction (NUT) issued
-        // by the consensus client at the start of the hard fork block.
+        // The INTEROP_BASE feature is enabled on all chains at interop activation via a NUT issued
+        // by the consensus client. INTEROP_CROSS_L2_INBOX is only set when depset > 1.
         // eip150-safe
-        try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP) returns (bool isInterop_) {
-            fullConfig_.isInterop = isInterop_;
+        try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP_BASE) returns (
+            bool isInteropBase_
+        ) {
+            fullConfig_.isInteropBase = isInteropBase_;
         } catch {
-            fullConfig_.isInterop = false;
+            fullConfig_.isInteropBase = false;
         }
-        // The INTEROP system customization can only be enabled if the dev feature is also enabled.
-        // The dev feature gates whether interop code was deployed; the system customization controls activation.
-        if (fullConfig_.isInterop && !_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP_CROSS_L2_INBOX) returns (
+            bool isCrossL2Inbox_
+        ) {
+            fullConfig_.isCrossL2Inbox = isCrossL2Inbox_;
+        } catch {
+            fullConfig_.isCrossL2Inbox = false;
+        }
+        // The INTEROP_BASE system customization can only be enabled if the dev feature is also enabled.
+        if (fullConfig_.isInteropBase && !_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert L2ContractsManager_FeatureFlagMismatch();
         }
 
@@ -440,14 +448,17 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
 
-        // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
-        if (_config.isInterop) {
-            L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
+        // Base interop predeploys are deployed on all chains at interop activation.
+        if (_config.isInteropBase) {
             L2ContractsManagerUtils.upgradeTo(
                 Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
             );
             L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL);
             L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL);
+        }
+        // CrossL2Inbox is only deployed when the chain is in a dependency set with 2+ chains.
+        if (_config.isCrossL2Inbox) {
+            L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
         }
         L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL);

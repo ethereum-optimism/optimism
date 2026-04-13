@@ -175,12 +175,26 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		}
 		upgradeTxs = append(upgradeTxs, interop...)
 
+		// Set INTEROP_BASE feature on all chains at interop activation.
+		setBaseTx, err := SetInteropBaseFeatureTransaction()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build set interop base feature tx: %w", err))
+		}
+		upgradeTxs = append(upgradeTxs, setBaseTx)
+
 		if len(ba.depSet.Chains()) > 1 {
 			txs, err := InteropActivateCrossL2InboxTransactions()
 			if err != nil {
 				return nil, NewCriticalError(fmt.Errorf("failed to build interop cross l2 inbox txs: %w", err))
 			}
 			upgradeTxs = append(upgradeTxs, txs...)
+
+			// Set INTEROP_CROSS_L2_INBOX feature only when depset has 2+ chains.
+			setCrossL2InboxTx, err := SetInteropCrossL2InboxFeatureTransaction()
+			if err != nil {
+				return nil, NewCriticalError(fmt.Errorf("failed to build set interop cross l2 inbox feature tx: %w", err))
+			}
+			upgradeTxs = append(upgradeTxs, setCrossL2InboxTx)
 		}
 	}
 

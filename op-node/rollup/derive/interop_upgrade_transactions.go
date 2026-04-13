@@ -10,6 +10,59 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// setFeature transaction parameters
+var (
+	setFeatureFuncBytes4 = crypto.Keccak256([]byte("setFeature(bytes32)"))[:4]
+
+	setInteropBaseFeatureSource         = UpgradeDepositSource{Intent: "Interop: Set INTEROP_BASE Feature"}
+	setInteropCrossL2InboxFeatureSource = UpgradeDepositSource{Intent: "Interop: Set INTEROP_CROSS_L2_INBOX Feature"}
+)
+
+// featureToBytes32 encodes a feature name as a left-aligned bytes32 (matching Solidity's bytes32("...") encoding).
+func featureToBytes32(name string) [32]byte {
+	var b [32]byte
+	copy(b[:], []byte(name))
+	return b
+}
+
+// setFeatureCalldata builds the calldata for L1Block.setFeature(bytes32).
+func setFeatureCalldata(feature [32]byte) []byte {
+	data := make([]byte, 0, 36)
+	data = append(data, setFeatureFuncBytes4...)
+	data = append(data, feature[:]...)
+	return data
+}
+
+// SetInteropBaseFeatureTransaction returns a deposit tx that calls L1Block.setFeature(INTEROP_BASE).
+func SetInteropBaseFeatureTransaction() (hexutil.Bytes, error) {
+	l1BlockAddr := predeploys.L1BlockAddr
+	return types.NewTx(&types.DepositTx{
+		SourceHash:          setInteropBaseFeatureSource.SourceHash(),
+		From:                L1InfoDepositerAddress,
+		To:                  &l1BlockAddr,
+		Mint:                big.NewInt(0),
+		Value:               big.NewInt(0),
+		Gas:                 50_000,
+		IsSystemTransaction: false,
+		Data:                setFeatureCalldata(featureToBytes32("INTEROP_BASE")),
+	}).MarshalBinary()
+}
+
+// SetInteropCrossL2InboxFeatureTransaction returns a deposit tx that calls L1Block.setFeature(INTEROP_CROSS_L2_INBOX).
+func SetInteropCrossL2InboxFeatureTransaction() (hexutil.Bytes, error) {
+	l1BlockAddr := predeploys.L1BlockAddr
+	return types.NewTx(&types.DepositTx{
+		SourceHash:          setInteropCrossL2InboxFeatureSource.SourceHash(),
+		From:                L1InfoDepositerAddress,
+		To:                  &l1BlockAddr,
+		Mint:                big.NewInt(0),
+		Value:               big.NewInt(0),
+		Gas:                 50_000,
+		IsSystemTransaction: false,
+		Data:                setFeatureCalldata(featureToBytes32("INTEROP_CROSS_L2_INBOX")),
+	}).MarshalBinary()
+}
+
 var (
 	// CrossL2Inbox Parameters
 	deployCrossL2InboxSource       = UpgradeDepositSource{Intent: "Interop: CrossL2Inbox Deployment"}
