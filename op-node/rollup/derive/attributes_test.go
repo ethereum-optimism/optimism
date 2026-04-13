@@ -413,12 +413,8 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
-			upgradeTx, err := InteropNetworkUpgradeTransactions()
-			require.NoError(t, err)
-			require.Len(t, attrs.Transactions, len(upgradeTx)+1) // +1 for L1Info tx
-			for i, tx := range upgradeTx {
-				require.Equal(t, tx, attrs.Transactions[i+1])
-			}
+			// Single-chain dep set: no interop contracts deployed (all-or-nothing).
+			require.Len(t, attrs.Transactions, 1) // only L1Info tx
 		})
 
 		t.Run("WithMultiChainDepSet", func(t *testing.T) {
@@ -428,11 +424,14 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
+			setFeatureTx, err := SetInteropFeatureTransaction()
+			require.NoError(t, err)
 			upgradeTx, err := InteropNetworkUpgradeTransactions()
 			require.NoError(t, err)
 			l2InboxTx, err := InteropActivateCrossL2InboxTransactions()
 			require.NoError(t, err)
-			expectedTx := make([]hexutil.Bytes, 0, len(upgradeTx)+len(l2InboxTx))
+			expectedTx := make([]hexutil.Bytes, 0, 1+len(upgradeTx)+len(l2InboxTx))
+			expectedTx = append(expectedTx, setFeatureTx)
 			expectedTx = append(expectedTx, upgradeTx...)
 			expectedTx = append(expectedTx, l2InboxTx...)
 			require.Len(t, attrs.Transactions, len(expectedTx)+1) // +1 for L1Info tx

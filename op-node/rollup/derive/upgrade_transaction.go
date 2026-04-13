@@ -17,9 +17,6 @@ import (
 //go:embed karst_nut_bundle.json
 var karstNUTBundleJSON []byte
 
-//go:embed interop_nut_bundle.json
-var interopNUTBundleJSON []byte
-
 // Network Upgrade Transactions (NUTs) are read from a JSON file and
 // converted into deposit transactions.
 
@@ -101,8 +98,6 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	switch fork {
 	case forks.Karst:
 		bundleJSON = karstNUTBundleJSON
-	case forks.Interop:
-		bundleJSON = interopNUTBundleJSON
 	default:
 		return nil, 0, fmt.Errorf("no NUT bundle for fork %s", fork)
 	}

@@ -50,6 +50,10 @@ func TestInteropSourcesMatchSpec(t *testing.T) {
 			source:       interopETHLiquidityFundingSource,
 			expectedHash: "0xa9b2a45c225d10db0a0a092d024192968cef10170a82f9d67d2bf0264d0c0555",
 		},
+		{
+			source:       setInteropFeatureSource,
+			expectedHash: "0xa9b35b98a8bb84e062e74722e33551ae4ed8019969c22f6f628e15fafd5db905",
+		},
 	} {
 		require.Equal(t, common.HexToHash(test.expectedHash), test.source.SourceHash(), "Source hash mismatch for intent: %s", test.source.Intent)
 	}

@@ -440,12 +440,10 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
 
-        // Interop predeploys: all-or-nothing. When the INTEROP feature is set (depset > 1),
-        // all four interop contracts are upgraded. When depset == 1, the feature is not set
-        // and none are deployed.
-        // TODO: if we go with this direction, refactor to use _config.isInterop instead of a
-        // second L1Block read. Inlining here for demo clarity.
-        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP)) {
+        // Interop predeploys: all-or-nothing. The INTEROP feature is only set by the CL
+        // when the chain is in a dependency set with 2+ chains, so all four contracts are
+        // upgraded together or not at all.
+        if (_config.isInterop) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
             L2ContractsManagerUtils.upgradeTo(
                 Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL

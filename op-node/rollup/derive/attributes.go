@@ -167,22 +167,29 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeGas += nutGas
 	}
 
-	// All-or-nothing: deploy all interop contracts only when depset > 1.
+	// All-or-nothing interop activation: deploy all interop contracts only when
+	// the chain is in a dependency set with 2+ chains. Single-chain networks get
+	// no interop contracts. The INTEROP feature flag is set first so that
+	// L2ContractsManager can read it when deciding which predeploys to upgrade.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) && len(ba.depSet.Chains()) > 1 {
-		// Set the INTEROP feature flag before the NUT bundle so L2ContractsManager
-		// can read it when deciding which predeploys to upgrade.
 		setFeatureTx, err := SetInteropFeatureTransaction()
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build set interop feature tx: %w", err))
 		}
 		upgradeTxs = append(upgradeTxs, setFeatureTx)
 
-		nutTxs, nutGas, err := UpgradeTransactions(forks.Interop)
+		// TODO(#19239): migrate these to the Interop NUT bundle.
+		interop, err := InteropNetworkUpgradeTransactions()
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
 		}
-		upgradeTxs = append(upgradeTxs, nutTxs...)
-		upgradeGas += nutGas
+		upgradeTxs = append(upgradeTxs, interop...)
+
+		crossL2InboxTxs, err := InteropActivateCrossL2InboxTransactions()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build interop cross l2 inbox txs: %w", err))
+		}
+		upgradeTxs = append(upgradeTxs, crossL2InboxTxs...)
 	}
 
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, ba.l1ChainConfig, sysConfig, seqNumber, l1Info, nextL2Time)
