@@ -25,6 +25,8 @@ const SDK_PACKAGE_NAME = "@eth-optimism/actions-sdk";
 const LOCAL_SDK_PATH = path.join(
   process.cwd(),
   "..",
+  "..",
+  "..",
   "actions",
   "packages",
   "sdk"

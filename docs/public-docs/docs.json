@@ -2208,7 +2208,8 @@
                 "pages": [
                   "app-developers/reference/actions/integrating-wallets",
                   "app-developers/reference/actions/wallet-definitions",
-                  "app-developers/reference/actions/lend-documentation"
+                  "app-developers/reference/actions/lend-documentation",
+                  "app-developers/reference/actions/swap-documentation"
                 ]
               },
               {
