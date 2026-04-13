@@ -9,6 +9,17 @@ use alloy_primitives::Bytes;
 
 use crate::{BlockInfo, ChannelError, ChannelId, Frame};
 
+/// An error returned when reading data from an [`OrderedChannel`].
+#[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReadError {
+    /// The channel is not ready (not all frames have been received).
+    #[error("Channel is not ready")]
+    NotReady,
+    /// The channel has no frames.
+    #[error("Channel is empty")]
+    Empty,
+}
+
 /// An ordered channel that enforces strict sequential frame ingestion.
 ///
 /// Unlike [`Channel`], which accepts frames out of order and checks contiguity at read time,
@@ -109,11 +120,16 @@ impl OrderedChannel {
     }
 
     /// Returns all of the channel's [`Frame`] data concatenated together.
-    pub fn frame_data(&self) -> Option<Bytes> {
+    ///
+    /// Returns an error if the channel is empty or not yet ready.
+    pub fn data(&self) -> Result<Bytes, ReadError> {
         if self.inputs.is_empty() {
-            return None;
+            return Err(ReadError::Empty);
         }
-        Some(self.inputs.iter().flat_map(|f| &f.data).copied().collect::<Vec<_>>().into())
+        if !self.closed {
+            return Err(ReadError::NotReady);
+        }
+        Ok(self.inputs.iter().flat_map(|f| &f.data).copied().collect::<Vec<_>>().into())
     }
 }
 
@@ -154,7 +170,7 @@ mod test {
         assert!(channel.add_frame(frame(id, 1, b"world", true), block).is_ok());
         assert!(channel.is_ready());
         assert_eq!(channel.len(), 2);
-        assert_eq!(channel.frame_data().unwrap().as_ref(), b"helloworld");
+        assert_eq!(channel.data().unwrap().as_ref(), b"helloworld");
     }
 
     #[test]
@@ -225,16 +241,26 @@ mod test {
 
         assert!(channel.add_frame(frame(id, 0, b"all", true), block).is_ok());
         assert!(channel.is_ready());
-        assert_eq!(channel.frame_data().unwrap().as_ref(), b"all");
+        assert_eq!(channel.data().unwrap().as_ref(), b"all");
     }
 
     #[test]
-    fn test_empty_frame_data() {
+    fn test_data_empty_channel() {
         let id = test_id();
         let block = BlockInfo::default();
         let channel = OrderedChannel::new(id, block);
 
-        assert_eq!(channel.frame_data(), None);
+        assert_eq!(channel.data(), Err(ReadError::Empty));
+    }
+
+    #[test]
+    fn test_data_not_ready() {
+        let id = test_id();
+        let block = BlockInfo::default();
+        let mut channel = OrderedChannel::new(id, block);
+
+        assert!(channel.add_frame(frame(id, 0, b"partial", false), block).is_ok());
+        assert_eq!(channel.data(), Err(ReadError::NotReady));
     }
 
     #[test]

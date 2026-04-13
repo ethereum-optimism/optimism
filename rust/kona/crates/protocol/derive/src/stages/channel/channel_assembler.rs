@@ -147,7 +147,7 @@ where
             // If the channel is ready, forward the channel to the next stage.
             if channel.is_ready() {
                 let channel_bytes =
-                    channel.frame_data().ok_or(PipelineError::ChannelNotFound.crit())?;
+                    channel.data().map_err(|_| PipelineError::ChannelNotFound.crit())?;
 
                 info!(
                     target: "channel_assembler",
