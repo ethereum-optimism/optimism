@@ -14,6 +14,7 @@ const ACTIONS_COMPONENTS: Record<string, string> = {
   WalletNamespace: "src/wallet/core/namespace/WalletNamespace.ts",
   Wallet: "src/wallet/core/wallets/abstract/Wallet.ts",
   WalletLendNamespace: "src/lend/namespaces/WalletLendNamespace.ts",
+  WalletSwapNamespace: "src/swap/namespaces/WalletSwapNamespace.ts",
 };
 
 // SDK metadata
