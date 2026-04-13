@@ -15,14 +15,13 @@ import (
 
 // TestReorgUnsafeHead starts an interop chain with an op-test-sequencer, which takes control over sequencing the L2 chain and introduces a reorg on the unsafe head
 func TestReorgUnsafeHead(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	l := sys.Log
 
-	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2ChainA.ChainID())
+	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2A.ChainID())
 
 	// stop batcher on chain A
 	sys.L2BatcherA.Stop()
@@ -33,12 +32,12 @@ func TestReorgUnsafeHead(gt *testing.T) {
 
 	sys.L1Network.WaitForBlock()
 
-	sys.L2ChainA.WaitForBlock()
+	sys.L2A.WaitForBlock()
 	// waiting for two blocks in order to make sure we are not jumping ahead of a L1 origin (i.e. can't build a chain with L1Origin gaps)
-	sys.L2ChainA.WaitForBlock()
-	sys.L2ChainA.WaitForBlock()
+	sys.L2A.WaitForBlock()
+	sys.L2A.WaitForBlock()
 
-	unsafeHead := sys.L2CLA.StopSequencer()
+	unsafeHead := sys.L2ACL.StopSequencer()
 
 	var divergenceBlockNumber_A uint64
 	var originalRef_A eth.L2BlockRef
@@ -102,9 +101,9 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	}
 
 	// continue sequencing with consensus node (op-node)
-	sys.L2CLA.StartSequencer()
+	sys.L2ACL.StartSequencer()
 
-	sys.L2ChainA.WaitForBlock()
+	sys.L2A.WaitForBlock()
 
 	reorgedRef_A, err := sys.L2ELA.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber_A)
 	require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
@@ -115,20 +114,15 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	require.Equal(t, originalRef_A.ParentID().Hash, reorgedRef_A.ParentHash, "Expected to get same parent hashes on divergence block number, but got different hashes")
 
 	err = wait.For(ctx, 5*time.Second, func() (bool, error) {
-		safeL2Head_A_supervisor := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash
-		safeL2Head_A_sequencer := sys.L2CLA.SafeL2BlockRef()
+		safeL2Head_A_sequencer := sys.L2ACL.SafeL2BlockRef()
 
 		if safeL2Head_A_sequencer.Number <= divergenceBlockNumber_A {
 			l.Info("Safe ref number is still behind divergence block number", "divergence", divergenceBlockNumber_A, "safe", safeL2Head_A_sequencer.Number)
 			return false, nil
 		}
-		if safeL2Head_A_sequencer.Hash.Cmp(safeL2Head_A_supervisor) != 0 {
-			l.Info("Safe ref still not the same on supervisor and sequencer", "supervisor", safeL2Head_A_supervisor, "sequencer", safeL2Head_A_sequencer.Hash)
-			return false, nil
-		}
-		l.Info("Safe ref is the same on both supervisor and sequencer", "supervisor", safeL2Head_A_supervisor, "sequencer", safeL2Head_A_sequencer.Hash)
+		l.Info("Safe ref advanced past divergence", "sequencer", safeL2Head_A_sequencer.Hash)
 
 		return true, nil
 	})
-	require.NoError(t, err, "Expected to get same safe ref on both supervisor and sequencer eventually")
+	require.NoError(t, err, "Expected safe ref to advance past divergence")
 }
