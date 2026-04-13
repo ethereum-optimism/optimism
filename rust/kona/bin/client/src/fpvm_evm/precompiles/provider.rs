@@ -8,7 +8,7 @@ use alloy_primitives::{Address, Bytes};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{
     OpSpecId,
-    precompiles::{fjord, granite, isthmus},
+    precompiles::{fjord, granite, isthmus, jovian},
 };
 use revm::{
     context::{Cfg, ContextTr},
@@ -48,7 +48,8 @@ where
             OpSpecId::ECOTONE) => Precompiles::new(spec.into_eth_spec().into()),
             OpSpecId::FJORD => fjord(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
-            OpSpecId::ISTHMUS | OpSpecId::INTEROP | OpSpecId::OSAKA | OpSpecId::JOVIAN => isthmus(),
+            OpSpecId::ISTHMUS => isthmus(),
+            OpSpecId::JOVIAN | OpSpecId::INTEROP | OpSpecId::OSAKA => jovian(),
         };
 
         let accelerated_precompiles = match spec {
@@ -57,10 +58,8 @@ where
             }
             OpSpecId::ECOTONE | OpSpecId::FJORD => accelerated_ecotone::<H, O>(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => accelerated_granite::<H, O>(),
-            OpSpecId::ISTHMUS | OpSpecId::INTEROP | OpSpecId::OSAKA => {
-                accelerated_isthmus::<H, O>()
-            }
-            OpSpecId::JOVIAN => accelerated_jovian::<H, O>(),
+            OpSpecId::ISTHMUS => accelerated_isthmus::<H, O>(),
+            OpSpecId::JOVIAN | OpSpecId::INTEROP | OpSpecId::OSAKA => accelerated_jovian::<H, O>(),
         };
 
         Self {
@@ -436,6 +435,77 @@ mod test {
 
         let interpreter_result = result.unwrap();
         assert_eq!(interpreter_result.result, InstructionResult::PrecompileOOG);
+    }
+
+    #[test]
+    fn test_post_jovian_specs_use_jovian_precompiles() {
+        let (hint_chan, preimage_chan) = (
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+        );
+        let hint_writer = kona_preimage::HintWriter::new(hint_chan.client);
+        let oracle_reader = kona_preimage::OracleReader::new(preimage_chan.client);
+
+        let jovian_provider = OpFpvmPrecompiles::new_with_spec(
+            OpSpecId::JOVIAN,
+            hint_writer.clone(),
+            oracle_reader.clone(),
+        );
+        let interop_provider = OpFpvmPrecompiles::new_with_spec(
+            OpSpecId::INTEROP,
+            hint_writer.clone(),
+            oracle_reader.clone(),
+        );
+        let osaka_provider = OpFpvmPrecompiles::new_with_spec(
+            OpSpecId::OSAKA,
+            hint_writer.clone(),
+            oracle_reader.clone(),
+        );
+        let isthmus_provider =
+            OpFpvmPrecompiles::new_with_spec(OpSpecId::ISTHMUS, hint_writer, oracle_reader);
+
+        // Post-Jovian specs must have the same accelerated precompile addresses as Jovian.
+        let jovian_addrs: Vec<_> = {
+            let mut addrs: Vec<_> =
+                jovian_provider.accelerated_precompiles.keys().copied().collect();
+            addrs.sort();
+            addrs
+        };
+        let interop_addrs: Vec<_> = {
+            let mut addrs: Vec<_> =
+                interop_provider.accelerated_precompiles.keys().copied().collect();
+            addrs.sort();
+            addrs
+        };
+        let osaka_addrs: Vec<_> = {
+            let mut addrs: Vec<_> =
+                osaka_provider.accelerated_precompiles.keys().copied().collect();
+            addrs.sort();
+            addrs
+        };
+        assert_eq!(
+            jovian_addrs, interop_addrs,
+            "INTEROP should use Jovian accelerated precompiles"
+        );
+        assert_eq!(jovian_addrs, osaka_addrs, "OSAKA should use Jovian accelerated precompiles");
+
+        // Verify the non-accelerated precompile sets point to the correct static instances.
+        assert!(
+            core::ptr::eq(jovian_provider.inner.precompiles, jovian()),
+            "JOVIAN should use jovian() precompiles"
+        );
+        assert!(
+            core::ptr::eq(interop_provider.inner.precompiles, jovian()),
+            "INTEROP should use jovian() precompiles"
+        );
+        assert!(
+            core::ptr::eq(osaka_provider.inner.precompiles, jovian()),
+            "OSAKA should use jovian() precompiles"
+        );
+        assert!(
+            core::ptr::eq(isthmus_provider.inner.precompiles, isthmus()),
+            "ISTHMUS should use isthmus() precompiles"
+        );
     }
 
     #[test]
