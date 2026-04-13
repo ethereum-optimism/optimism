@@ -1,13 +1,9 @@
 name: OpenSSF Scorecard
 
 on:
-  branch_protection_rule:
-  schedule:
-    - cron: "0 6 * * 1" # Weekly on Monday at 06:00 UTC
   push:
     branches:
-      - develop
-  workflow_dispatch:
+      - add-scorecard-workflow
 
 permissions: read-all
 
