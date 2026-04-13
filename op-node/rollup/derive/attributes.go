@@ -169,19 +169,20 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 
 	// All-or-nothing: deploy all interop contracts only when depset > 1.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) && len(ba.depSet.Chains()) > 1 {
+		// Set the INTEROP feature flag before the NUT bundle so L2ContractsManager
+		// can read it when deciding which predeploys to upgrade.
+		setFeatureTx, err := SetInteropFeatureTransaction()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build set interop feature tx: %w", err))
+		}
+		upgradeTxs = append(upgradeTxs, setFeatureTx)
+
 		nutTxs, nutGas, err := UpgradeTransactions(forks.Interop)
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
 		}
 		upgradeTxs = append(upgradeTxs, nutTxs...)
 		upgradeGas += nutGas
-
-		// Set the INTEROP feature flag so L2ContractsManager deploys all interop predeploys.
-		setFeatureTx, err := SetInteropFeatureTransaction()
-		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to build set interop feature tx: %w", err))
-		}
-		upgradeTxs = append(upgradeTxs, setFeatureTx)
 	}
 
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, ba.l1ChainConfig, sysConfig, seqNumber, l1Info, nextL2Time)
