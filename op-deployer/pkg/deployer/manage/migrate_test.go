@@ -102,9 +102,9 @@ func TestInteropMigration(t *testing.T) {
 				opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
 				t.Logf("OPCM V2: %s", opcmAddr.Hex())
 			} else {
-				require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmImpl, "OPCM V1 address should be set")
-				opcmAddr = st.ImplementationsDeployment.OpcmImpl
-				t.Logf("OPCM V1: %s", opcmAddr.Hex())
+				require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OPCM V2 address should be set")
+				opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
+				t.Logf("OPCM V2: %s", opcmAddr.Hex())
 			}
 
 			// Deploy DummyCaller at l1ProxyAdminOwner for the OPCM

@@ -227,7 +227,7 @@ The Operator fee is a new fee component which enables more customizable fee stru
 
 ### Mechanism
 
-The Operator fee is automatically charged for any transaction that is included in a block after the Isthmus activation. This fee is deducted directly from the address that sent the transaction and follows the same semantics as existing fees charged in the EVM. The collected operator fees are sent to the **Operator Fee Vault**, a new vault similar to existing fee vaults.
+The Operator fee is automatically charged for any transaction that is included in a block after the Isthmus activation. This fee is deducted directly from the address that sent the transaction and follows the same semantics as existing fees charged in the EVM. The collected operator fees are sent to the **Operator Fee Vault**, a new vault similar to existing [fee vaults](/op-stack/transactions/fee-vaults).
 
 <Info>
   **Deposit transactions do not get charged operator fees.** For all deposit transactions, regardless of the operator fee parameter configuration, the operator fee is always zero.
@@ -279,25 +279,12 @@ The Operator fee follows standard EVM fee semantics:
 
 Transaction pools must account for the additional operator fee when validating transactions. Transactions without sufficient balance to cover the worst-case total cost (including operator fee) will be rejected.
 
-## Sequencer fee vault
+## Fee vaults
 
-The Sequencer fee vault collects and holds transaction fees paid to the sequencer during block production on OP Mainnet. These fees cover the cost of posting transaction data to L1, ensuring network sustainability and data availability.
-
-### Fee collection and distribution
-
-*   **Purpose**: The sequencer deposits collected fees into the Sequencer fee vault. These fees reimburse the sequencer for gas costs when submitting transaction batches to L1.
-*   **Vault address**: The Sequencer fee vault is predeployed at the address `0x4200000000000000000000000000000000000011` on the OP Mainnet.
-*   **Fee usage**: Stored fees are eventually transferred to a designated recipient address (e.g., a treasury or distribution contract).
-
-### How it works
-
-1.  **Fee collection**: During the processing of transactions, the sequencer collects fees from users as part of their transaction costs. These fees are primarily used to cover the gas expenses of posting transaction data to Ethereum L1.
-2.  **Storage**: Collected fees are deposited into the Sequencer fee vault contract.
-3.  **Distribution**: The fees are later distributed to the appropriate recipient, typically covering operational costs like L1 gas fees for data availability.
-
-This system ensures effective fee management, maintaining the security and operation of the Optimism network.
+Each fee component is routed to a dedicated [fee vault](/op-stack/transactions/fee-vaults) contract on L2. Unlike Ethereum where the base fee is burned, OP Stack chains collect all fees in these vaults, allowing chain operators to withdraw and manage collected revenue. See the [fee vaults](/op-stack/transactions/fee-vaults) page for details on how vaults work and the [fee vault operations guide](/chain-operators/guides/management/fee-vaults) for managing them.
 
 ## Next steps
 
+*   Learn how [fee vaults](/op-stack/transactions/fee-vaults) collect and distribute transaction fees.
 *   Read the [differences between Ethereum and OP Stack Chains](/op-stack/protocol/differences) guide.
 *   Read the [L2 to L1 Transactions](/app-developers/bridging/messaging#for-l1-to-l2-transactions) guide.

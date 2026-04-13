@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -68,6 +69,7 @@ func startBuilderEL(t devtest.T, l2Net *L2Network, jwtPath string, identity *ELN
 	require.NoError(os.WriteFile(chainConfigPath, data, 0o644), "must write op-rbuilder genesis file")
 
 	cfg := DefaultOPRbuilderNodeConfig()
+	cfg.ChainBlockTime = time.Second * time.Duration(l2Net.rollupCfg.BlockTime)
 	cfg.AuthRPCJWTPath = jwtPath
 	cfg.Chain = chainConfigPath
 	cfg.P2PAddr = "127.0.0.1"

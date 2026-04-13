@@ -1,6 +1,8 @@
 package filter
 
 import (
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -30,6 +32,9 @@ type ChainIngester interface {
 
 	// LatestBlock returns the latest ingested block.
 	LatestBlock() (eth.BlockID, bool)
+
+	// BlockHashByNumber returns the hash of the ingested block at the given height.
+	BlockHashByNumber(number uint64) (common.Hash, bool)
 
 	// LatestTimestamp returns the timestamp of the latest ingested block.
 	LatestTimestamp() (uint64, bool)

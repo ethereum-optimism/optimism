@@ -73,9 +73,9 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     mapping(IETHLockbox => bool) public authorizedLockboxes;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.1
+    /// @custom:semver 1.3.1
     function version() public view virtual returns (string memory) {
-        return "1.2.1";
+        return "1.3.1";
     }
 
     /// @notice Constructs the ETHLockbox contract.
@@ -195,7 +195,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     }
 
     /// @notice Migrates liquidity from the current ETH lockbox to another.
-    /// @dev    Must be called atomically with `OptimismPortal.migrateToSuperRoots()` in the same
+    /// @dev    Must be called atomically with `OptimismPortal.migrateToSharedDisputeGame()` in the same
     ///         transaction batch, or otherwise the OptimismPortal may not be able to unlock ETH
     ///         from the ETHLockbox on finalized withdrawals.
     /// @param _lockbox The address of the ETH lockbox to migrate liquidity to.

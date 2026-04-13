@@ -17,8 +17,7 @@ Use when the `analyze-op-program-client` CI job fails on a PR. The job runs `vm-
 
 - `gh` CLI authenticated with GitHub
 - `jq` available
-- `vm-compat` binary (install: `mise use -g ubi:ChainSafe/vm-compat@1.1.0`, or download from GitHub releases — binary name is `analyzer-linux-arm64` / `analyzer-linux-amd64`)
-- `llvm-objdump` — **Linux only** (install: `sudo apt-get install -y llvm`). Not available on macOS. On macOS, use `just run-vm-compat` in the `op-program` directory which runs the analysis inside Docker.
+- Docker — required for `just run-vm-compat` and `just regenerate-vm-compat-baseline`. These targets build and run the analysis inside Docker, so no local `vm-compat` or `llvm-objdump` installation is needed. If Docker is not available, ask the user to run the just target.
 - The PR URL or number (ask the user if not provided)
 
 ## MIPS64 Syscall Reference
@@ -270,44 +269,29 @@ Only proceed if ALL findings are marked as either unreachable or acceptable (non
 
 **Do NOT manually add entries to the existing baseline.** The baseline must be regenerated from scratch so that stale entries (from code paths that no longer exist) are removed.
 
-To regenerate:
+To regenerate, use the `just regenerate-vm-compat-baseline` target from the `op-program` directory in the PR branch worktree. This requires Docker and handles everything end-to-end:
 
-1. Run vm-compat with **no baseline** to get the complete report for the current code:
-
-```bash
-cd op-program && vm-compat analyze \
-  --with-trace=true --skip-warnings=false --format=json \
-  --vm-profile-config vm-profiles/cannon-multithreaded-64.yaml \
-  --report-output-path /tmp/vm-compat-full-report.json \
-  ./client/cmd/main.go
-```
-
-2. Normalize the output by stripping `line`, `file`, and `absPath` fields (these are assembly positions, not Go source lines, and cause false positives when they change):
+1. Runs vm-compat with **no baseline** to get the complete report
+2. Normalizes the output by stripping assembly-level fields (`line`, `file`, `absPath`) that cause false positives when they change
+3. Overwrites the baseline JSON file
 
 ```bash
-cat /tmp/vm-compat-full-report.json | jq 'walk(
-  if type == "object" and has("line") then del(.line) else . end |
-  if type == "object" and has("absPath") then del(.absPath) else . end |
-  if type == "object" and has("file") then del(.file) else . end
-)' > op-program/compatibility-test/baseline-cannon-multithreaded-64.json
+cd op-program && just regenerate-vm-compat-baseline
 ```
 
-3. This replaces the entire baseline with the current state. The old baseline is not merged — it is replaced.
+If Docker is not available, ask the user to run this command.
+
+This replaces the entire baseline with the current state. The old baseline is not merged — it is replaced.
 
 ### Step 7: Verify
 
-After regenerating the baseline, re-run `vm-compat` with the new baseline to confirm zero new findings:
+After regenerating the baseline, re-run vm-compat with the new baseline to confirm zero new findings:
 
 ```bash
-cd op-program && vm-compat analyze \
-  --with-trace=true --skip-warnings=false --format=json \
-  --vm-profile-config vm-profiles/cannon-multithreaded-64.yaml \
-  --baseline-report compatibility-test/baseline-cannon-multithreaded-64.json \
-  --report-output-path /tmp/verify.json \
-  ./client/cmd/main.go
+cd op-program && just run-vm-compat
 ```
 
-If the output file contains an empty array `[]`, the baseline is complete.
+If it exits successfully with no findings, the baseline is complete. If Docker is not available, ask the user to run this command.
 
 ## Notes
 

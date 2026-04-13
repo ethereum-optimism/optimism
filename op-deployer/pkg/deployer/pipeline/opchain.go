@@ -92,7 +92,6 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 
 	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
-	st.ImplementationsDeployment.OptimismPortalInteropImpl = impls.OptimismPortalInterop
 	st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
 	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
 	st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
