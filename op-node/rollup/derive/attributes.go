@@ -167,20 +167,14 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeGas += nutGas
 	}
 
-	// TODO(#19239): migrate Interop to NUT bundle and add its gas to upgradeGas.
 	// All-or-nothing: deploy all interop contracts only when depset > 1.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) && len(ba.depSet.Chains()) > 1 {
-		interop, err := InteropNetworkUpgradeTransactions()
+		nutTxs, nutGas, err := UpgradeTransactions(forks.Interop)
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
 		}
-		upgradeTxs = append(upgradeTxs, interop...)
-
-		txs, err := InteropActivateCrossL2InboxTransactions()
-		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to build interop cross l2 inbox txs: %w", err))
-		}
-		upgradeTxs = append(upgradeTxs, txs...)
+		upgradeTxs = append(upgradeTxs, nutTxs...)
+		upgradeGas += nutGas
 
 		// Set the INTEROP feature flag so L2ContractsManager deploys all interop predeploys.
 		setFeatureTx, err := SetInteropFeatureTransaction()

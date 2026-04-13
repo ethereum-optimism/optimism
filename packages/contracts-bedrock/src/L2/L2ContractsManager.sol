@@ -440,7 +440,9 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
 
-        // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
+        // Interop predeploys: all-or-nothing. When the INTEROP feature is set (depset > 1),
+        // all four interop contracts are upgraded. When depset == 1, the feature is not set
+        // and none are deployed. No changes needed here — this block already handles it correctly.
         if (_config.isInterop) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
             L2ContractsManagerUtils.upgradeTo(
