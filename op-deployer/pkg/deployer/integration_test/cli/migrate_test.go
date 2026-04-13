@@ -3,13 +3,12 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"math/big"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"log/slog"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
