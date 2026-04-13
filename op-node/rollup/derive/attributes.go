@@ -167,15 +167,9 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeGas += nutGas
 	}
 
-	// TODO(#19239): migrate Interop to NUT bundle and add its gas to upgradeGas.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
-		interop, err := InteropNetworkUpgradeTransactions()
-		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
-		}
-		upgradeTxs = append(upgradeTxs, interop...)
-
-		// Set INTEROP_BASE feature on all chains at interop activation.
+		// Set INTEROP_BASE feature on all chains before the NUT bundle runs,
+		// so L2ContractsManager can read it when deciding which predeploys to upgrade.
 		setBaseTx, err := SetInteropBaseFeatureTransaction()
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build set interop base feature tx: %w", err))
@@ -183,12 +177,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeTxs = append(upgradeTxs, setBaseTx)
 
 		if len(ba.depSet.Chains()) > 1 {
-			txs, err := InteropActivateCrossL2InboxTransactions()
-			if err != nil {
-				return nil, NewCriticalError(fmt.Errorf("failed to build interop cross l2 inbox txs: %w", err))
-			}
-			upgradeTxs = append(upgradeTxs, txs...)
-
 			// Set INTEROP_CROSS_L2_INBOX feature only when depset has 2+ chains.
 			setCrossL2InboxTx, err := SetInteropCrossL2InboxFeatureTransaction()
 			if err != nil {
@@ -196,6 +184,13 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			}
 			upgradeTxs = append(upgradeTxs, setCrossL2InboxTx)
 		}
+
+		nutTxs, nutGas, err := UpgradeTransactions(forks.Interop)
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
+		}
+		upgradeTxs = append(upgradeTxs, nutTxs...)
+		upgradeGas += nutGas
 	}
 
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, ba.l1ChainConfig, sysConfig, seqNumber, l1Info, nextL2Time)

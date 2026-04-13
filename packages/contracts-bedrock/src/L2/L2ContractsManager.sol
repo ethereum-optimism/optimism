@@ -449,7 +449,9 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
 
         // Base interop predeploys are deployed on all chains at interop activation.
-        if (_config.isInteropBase) {
+        // TODO: if we go with this direction, refactor to use _config.isInteropBase instead of a
+        // second L1Block read. Inlining here for demo clarity.
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP_BASE)) {
             L2ContractsManagerUtils.upgradeTo(
                 Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
             );
@@ -457,7 +459,9 @@ contract L2ContractsManager is ISemver {
             L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL);
         }
         // CrossL2Inbox is only deployed when the chain is in a dependency set with 2+ chains.
-        if (_config.isCrossL2Inbox) {
+        // TODO: if we go with this direction, refactor to use _config.isCrossL2Inbox instead of a
+        // second L1Block read. Inlining here for demo clarity.
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP_CROSS_L2_INBOX)) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
         }
         L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL);
