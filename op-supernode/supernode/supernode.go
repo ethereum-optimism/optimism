@@ -99,7 +99,15 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Initialize interop activity if the activation timestamp is set (non-nil)
 	// If it's nil, don't start interop. If it's non-nil (including 0), do start it.
 	if cfg.InteropActivationTimestamp != nil {
-		interopActivity := interop.New(log.New("activity", "interop"), *cfg.InteropActivationTimestamp, s.chains, cfg.DataDir, s.l1Client)
+		// Extract the message expiry window from the first virtual node's dependency set.
+		var msgExpiryWindow uint64
+		for _, vnCfg := range vnCfgs {
+			if vnCfg.DependencySet != nil {
+				msgExpiryWindow = vnCfg.DependencySet.MessageExpiryWindow()
+				break
+			}
+		}
+		interopActivity := interop.New(log.New("activity", "interop"), *cfg.InteropActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client)
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)
