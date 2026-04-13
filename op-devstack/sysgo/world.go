@@ -55,7 +55,7 @@ func newInteropMigrationState(wb *worldBuilder) *interopMigrationState {
 		return nil
 	}
 	state := &interopMigrationState{
-		opcmImpl:             wb.output.ImplementationsDeployment.OpcmImpl,
+		opcmImpl:             wb.output.ImplementationsDeployment.OpcmV2Impl,
 		superchainConfigAddr: wb.outSuperchainDeployment.SuperchainConfigAddr(),
 		l2Deployments:        make(map[eth.ChainID]*L2Deployment, len(wb.outL2Deployment)),
 	}
@@ -93,7 +93,7 @@ func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, in
 		genesis:    wb.outL2Genesis[l2ID],
 		rollupCfg:  wb.outL2RollupCfg[l2ID],
 		deployment: wb.outL2Deployment[l2ID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmImpl,
+		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}
@@ -136,7 +136,7 @@ func buildTwoL2WorldWithState(t devtest.T, keys devkeys.Keys, interopAtGenesis b
 		genesis:    l2ANet,
 		rollupCfg:  wb.outL2RollupCfg[DefaultL2AID],
 		deployment: wb.outL2Deployment[DefaultL2AID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmImpl,
+		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}
@@ -147,7 +147,7 @@ func buildTwoL2WorldWithState(t devtest.T, keys devkeys.Keys, interopAtGenesis b
 		genesis:    l2BNet,
 		rollupCfg:  wb.outL2RollupCfg[DefaultL2BID],
 		deployment: wb.outL2Deployment[DefaultL2BID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmImpl,
+		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}

@@ -137,7 +137,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		s.pendingIndices = make(map[common.Address]uint64)
 		s.l1BuildingBlobSidecars = make([]*types.BlobTxSidecar, 0)
 
-		s.L1GasPool = new(core.GasPool).AddGas(header.GasLimit)
+		s.L1GasPool = core.NewGasPool(header.GasLimit)
 	}
 }
 
@@ -181,15 +181,15 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	if tx.Gas() > s.l1BuildingHeader.GasLimit {
 		t.Fatalf("tx consumes %d gas, more than available in L1 block %d", tx.Gas(), s.l1BuildingHeader.GasLimit)
 	}
-	if tx.Gas() > uint64(*s.L1GasPool) {
-		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.L1GasPool))
+	if tx.Gas() > s.L1GasPool.Gas() {
+		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), s.L1GasPool.Gas())
 		return nil
 	}
 	s.l1BuildingState.SetTxContext(tx.Hash(), len(s.L1Transactions))
 	blockCtx := core.NewEVMBlockContext(s.l1BuildingHeader, s.l1Chain, nil, s.l1Cfg.Config, s.l1BuildingState)
 	evm := vm.NewEVM(blockCtx, s.l1BuildingState, s.l1Cfg.Config, *s.l1Chain.GetVMConfig())
 	receipt, err := core.ApplyTransaction(
-		evm, s.L1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx.WithoutBlobTxSidecar(), &s.l1BuildingHeader.GasUsed)
+		evm, s.L1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx.WithoutBlobTxSidecar())
 	if err != nil {
 		s.l1TxFailed = append(s.l1TxFailed, tx)
 		t.Fatalf("failed to apply transaction to L1 block (tx %d): %v", len(s.L1Transactions), err)
@@ -259,7 +259,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 	}
 
 	s.l1Building = false
-	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - uint64(*s.L1GasPool)
+	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - s.L1GasPool.Gas()
 	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
 
 	var withdrawals []*types.Withdrawal

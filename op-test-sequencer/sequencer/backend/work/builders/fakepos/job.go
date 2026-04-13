@@ -125,7 +125,7 @@ func (j *Job) Open(ctx context.Context) error {
 		}
 		j.logger.Info("ForkchoiceUpdatedV3", "fcState", fcState)
 
-		res, err := j.b.engine.ForkchoiceUpdatedV3(fcState, attrs)
+		res, err := j.b.engine.ForkchoiceUpdatedV3(ctx, fcState, attrs)
 		if err != nil {
 			j.logger.Error("failed to start building L1 block", "err", err)
 			return err
@@ -216,7 +216,7 @@ func (j *Job) Seal(ctx context.Context) (work.Block, error) {
 
 	j.logger.Info("about to forkchoice update", "safe", j.safe.Hash(), "finalized", j.finalized.Hash(), "head", envelope.ExecutionPayload.BlockHash)
 
-	if _, err := j.b.engine.ForkchoiceUpdatedV3(engine.ForkchoiceStateV1{
+	if _, err := j.b.engine.ForkchoiceUpdatedV3(ctx, engine.ForkchoiceStateV1{
 		HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 		SafeBlockHash:      j.safe.Hash(),
 		FinalizedBlockHash: j.finalized.Hash(),

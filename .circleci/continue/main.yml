@@ -77,6 +77,11 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
+  # Set to true by path-filtering when contracts or rebuild-all paths change.
+  # When false, contract feature matrix jobs are skipped entirely.
+  c-contracts_changed:
+    type: boolean
+    default: false
   # Passthrough declarations for setup config parameters.
   # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
   # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
@@ -149,7 +154,7 @@ parameters:
     default: "v0.0"
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.25
+  utils: ethereum-optimism/circleci-utils@1.0.27
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
@@ -1513,6 +1518,19 @@ jobs:
           command: just update-selectors
           working_directory: packages/contracts-bedrock
 
+  required-contracts-ci:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    parameters:
+      always-succed:
+        description: Force always succeed (skip API gate; for contracts-feature-tests-short)
+        type: boolean
+        default: false
+    steps:
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succed >>
+
   contracts-bedrock-checks-fast:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -1672,6 +1690,20 @@ jobs:
           name: check nut locks
           command: |
             go run ./ops/scripts/check-nut-locks
+
+  nut-provenance-verify:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: 2xlarge
+    steps:
+      - utils/checkout-with-mise:
+          enable-mise-cache: true
+      - install-contracts-dependencies
+      - check-changed:
+          patterns: op-core/nuts
+      - run:
+          name: verify NUT bundle provenance
+          command: ./ops/scripts/nut-provenance-verify-changed.sh
 
   go-tests:
     parameters:
@@ -2612,6 +2644,9 @@ workflows:
       - check-nut-locks:
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - nut-provenance-verify:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:
           name: fuzz-golang-<<matrix.package_name>>
           on_changes: <<matrix.package_name>>
@@ -3169,4 +3204,210 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
 
+  contracts-feature-tests:
+    when:
+      or:
+        - and:
+            - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-contracts_changed >>
+            - << pipeline.parameters.c-non_docs_changes >>
+        # Always run on develop (mirrors previous check-changed whitelist behavior)
+        - and:
+            - equal: ["webhook", << pipeline.trigger_source >>]
+            - equal: ["develop", << pipeline.git.branch >>]
+            - << pipeline.parameters.c-non_docs_changes >>
+        # Merge queue (merge gate). Match checkout branch.
+        - matches:
+            pattern: "^gh-readonly-queue/.*"
+            value: << pipeline.git.branch >>
+        - and:
+            - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      - contracts-bedrock-tests:
+          # Heavily fuzz any fuzz tests within added or modified test files.
+          name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
+          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
+          test_timeout: 1h
+          test_profile: ciheavy
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: &features_matrix
+                - main
+                - CUSTOM_GAS_TOKEN
+                - OPTIMISM_PORTAL_INTEROP
+                - OPCM_V2
+                - OPCM_V2,CUSTOM_GAS_TOKEN
+                - OPCM_V2,OPTIMISM_PORTAL_INTEROP
+                - OPCM_V2,ZK_DISPUTE_GAME
+                - OPCM_V2,CANNON_KONA
+                - OPCM_V2,SUPER_ROOT_GAMES_MIGRATION
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+      # On PRs, run tests with lite profile for better build times.
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests <<matrix.features>>
+          test_list: find test -name "*.t.sol"
+          test_profile: liteci
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              ignore: develop
+      # On develop, run tests with ci profile to mirror production.
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests-develop <<matrix.features>>
+          test_list: find test -name "*.t.sol"
+          test_profile: ci
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              only: develop
+      - contracts-bedrock-coverage:
+          # Generate coverage reports.
+          name: contracts-bedrock-coverage <<matrix.features>>
+          test_timeout: 1h
+          test_profile: cicoverage
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+      # On PRs, run upgrade tests with lite profile for better build times.
+      - contracts-bedrock-tests-upgrade:
+          name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
+          fork_op_chain: op
+          fork_base_chain: mainnet
+          fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
+          test_profile: liteci
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              ignore: develop
+      # On develop, run upgrade tests with ci profile to mirror production.
+      - contracts-bedrock-tests-upgrade:
+          name: contracts-bedrock-tests-upgrade-develop op-mainnet <<matrix.features>>
+          fork_op_chain: op
+          fork_base_chain: mainnet
+          fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
+          test_profile: ci
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              only: develop
+      # On PRs, run chain-specific upgrade tests with lite profile for better build times.
+      - contracts-bedrock-tests-upgrade:
+          name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
+          fork_op_chain: <<matrix.fork_op_chain>>
+          fork_base_chain: mainnet
+          fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
+          test_profile: liteci
+          matrix:
+            parameters:
+              fork_op_chain: ["op", "ink", "unichain"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              ignore: develop
+      # On develop, run chain-specific upgrade tests with ci profile to mirror production.
+      - contracts-bedrock-tests-upgrade:
+          name: contracts-bedrock-tests-upgrade-develop <<matrix.fork_op_chain>>-mainnet
+          fork_op_chain: <<matrix.fork_op_chain>>
+          fork_base_chain: mainnet
+          fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
+          test_profile: ci
+          matrix:
+            parameters:
+              fork_op_chain: ["op", "ink", "unichain"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              only: develop
+      # Always run L2 fork tests with ci profile
+      - contracts-bedrock-tests-l2-fork:
+          name: contracts-bedrock-tests-l2-fork op-mainnet
+          fork_op_chain: op-mainnet
+          l2_fork_rpc: https://op-mainnet-rpc.optimism.io/
+          l2_fork_block_number: latest
+          test_profile: ci
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+      - contracts-bedrock-checks-fast:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+      # -----------------------------------------------------------------------
+      # required-contracts-ci: GitHub required status for this workflow. Terminal requires
+      # keep this job scheduled even when upstream jobs fail; ci-gate then checks they passed.
+      # -----------------------------------------------------------------------
+      - required-contracts-ci:
+          requires:
+            - contracts-bedrock-tests main: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
+            - contracts-bedrock-coverage main: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet main: terminal
+            - contracts-bedrock-checks-fast: terminal
+          context:
+            - circleci-api-token
+
   # ============================================================================
+  # Required contracts CI gate (skip) — runs when no contract changes
+  # Produces the required-contracts-ci status so the merge queue doesn't hang.
+  # ============================================================================
+  contracts-feature-tests-short:
+    when:
+      not: # these conditions should be kept in sync with the ones in contracts-feature-tests
+        or:
+          - and:
+              - equal: ["webhook", << pipeline.trigger_source >>]
+              - << pipeline.parameters.c-contracts_changed >>
+              - << pipeline.parameters.c-non_docs_changes >>
+          # Always run on develop (mirrors previous check-changed whitelist behavior)
+          - and:
+              - equal: ["webhook", << pipeline.trigger_source >>]
+              - equal: ["develop", << pipeline.git.branch >>]
+              - << pipeline.parameters.c-non_docs_changes >>
+          # Merge queue (merge gate). Match checkout branch.
+          - matches:
+              pattern: "^gh-readonly-queue/.*"
+              value: << pipeline.git.branch >>
+          - and:
+            - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      - required-contracts-ci:
+          always-succed: true
+          context:
+            - circleci-api-token

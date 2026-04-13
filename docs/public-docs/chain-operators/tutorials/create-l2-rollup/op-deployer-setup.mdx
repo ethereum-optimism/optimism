@@ -258,9 +258,10 @@ The intent file defines your chain's configuration.
 
   [[chains]]
     id = "0x000000000000000000000000000000000000000000000000000000000016de8d"
-    baseFeeVaultRecipient = "0x..."    # base_Fee_Vault_Recipient address
-    l1FeeVaultRecipient = "0x..."      # l1_Fee_Vault_Recipient address
-    sequencerFeeVaultRecipient = "0x..." # sequencer_Fee_Vault_Recipient address
+    baseFeeVaultRecipient = "0x..."       # receives base fees
+    l1FeeVaultRecipient = "0x..."         # receives L1 data fees
+    sequencerFeeVaultRecipient = "0x..."  # receives priority fees (tips)
+    operatorFeeVaultRecipient = "0x..."   # receives operator fees
     eip1559DenominatorCanyon = 250
     eip1559Denominator = 50
     eip1559Elasticity = 6
@@ -298,8 +299,17 @@ The intent file defines your chain's configuration.
     **Chain Configuration:**
 
     *   `id`: Unique identifier for your chain
-    *   `*FeeVaultRecipient`: Addresses receiving various protocol fees
+    *   `*FeeVaultRecipient`: Addresses receiving protocol fees (required — deployment fails if any are set to the zero address). See [fee vaults](/op-stack/transactions/fee-vaults) for details on each vault.
     *   `eip1559*`: Parameters for dynamic gas price calculation
+
+    **Fee Vault Optional Overrides:**
+
+    Each vault also supports optional parameters that can be set via deploy overrides. If not specified, the following defaults apply:
+
+    | Parameter | Default |
+    |-----------|---------|
+    | `*MinimumWithdrawalAmount` | 10 ETH |
+    | `*WithdrawalNetwork` | `local` (L2) |
 
     **Chain Roles:**
 

@@ -169,7 +169,6 @@ contract VerifyOPCM is Script {
     function setUp() public {
         // Overrides for situations where field names do not cleanly map to contract names.
         fieldNameOverrides["optimismPortalImpl"] = "OptimismPortal2";
-        fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
         fieldNameOverrides["faultDisputeGameImpl"] = "FaultDisputeGame";
@@ -235,7 +234,6 @@ contract VerifyOPCM is Script {
         // Implementation addresses - verify against Container
         validatorGetterChecks["l1ERC721BridgeImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["optimismPortalImpl"] = "CONTAINER_IMPL";
-        validatorGetterChecks["optimismPortalInteropImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["ethLockboxImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["systemConfigImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["optimismMintableERC20FactoryImpl"] = "CONTAINER_IMPL";
@@ -1268,7 +1266,7 @@ contract VerifyOPCM is Script {
         }
 
         // OptimismPortal2: Verify PROOF_MATURITY_DELAY_SECONDS
-        if (LibString.eq(_target.name, "OptimismPortal2") || LibString.eq(_target.name, "OptimismPortalInterop")) {
+        if (LibString.eq(_target.name, "OptimismPortal2")) {
             success = _verifyPortalDelays(IOptimismPortal2(payable(_target.addr))) && success;
         }
 
