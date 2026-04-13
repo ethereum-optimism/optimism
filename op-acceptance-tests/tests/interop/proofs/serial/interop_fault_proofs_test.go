@@ -73,3 +73,9 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
 }
+
+func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
+}
