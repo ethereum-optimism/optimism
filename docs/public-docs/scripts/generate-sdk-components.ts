@@ -68,6 +68,34 @@ function cleanTypeText(typeText: string): string {
 }
 
 /**
+ * Get the readable type string for a node, preferring the written alias name
+ * (e.g. `LocalAccount`) over the fully-expanded structural type.
+ */
+function readableType(node: any): string {
+  return node.getTypeNode?.()?.getText() ?? cleanTypeText(node.getType().getText());
+}
+
+/** Extract property name→type pairs from a type literal's members. */
+function propsFromTypeLiteral(typeNode: any): Map<string, string> {
+  const props = new Map<string, string>();
+  for (const member of typeNode.getMembers()) {
+    if (member.getKindName() === "PropertySignature") {
+      props.set(member.getName(), readableType(member));
+    }
+  }
+  return props;
+}
+
+/** Extract property name→type pairs from an interface declaration. */
+function propsFromInterface(iface: any): Map<string, string> {
+  const props = new Map<string, string>();
+  for (const prop of iface.getProperties()) {
+    props.set(prop.getName(), readableType(prop));
+  }
+  return props;
+}
+
+/**
  * Resolve the properties of a named type (type alias or interface) by
  * searching all source files in the project.
  */
@@ -75,37 +103,17 @@ function resolveTypeProperties(
   typeName: string,
   project: Project
 ): Map<string, string> | null {
-  // Strip generics: `Foo<Bar>` → `Foo`
-  const baseName = typeName.split("<")[0].trim();
-  const props = new Map<string, string>();
+  const baseName = typeName.split("<")[0].trim(); // strip generics
 
   for (const sf of project.getSourceFiles()) {
     const alias = sf.getTypeAlias(baseName);
     if (alias) {
       const typeNode = alias.getTypeNode();
-      if (typeNode && typeNode.getKindName() === "TypeLiteral") {
-        for (const member of (typeNode as any).getMembers()) {
-          if (member.getKindName() === "PropertySignature") {
-            // Prefer the written type node text (preserves alias names like
-            // `LocalAccount`) over the fully-expanded structural type.
-            const nodeText = member.getTypeNode?.()?.getText();
-            const resolved = nodeText ?? cleanTypeText(member.getType().getText());
-            props.set(member.getName(), resolved);
-          }
-        }
-        return props;
-      }
+      if (typeNode?.getKindName() === "TypeLiteral") return propsFromTypeLiteral(typeNode);
     }
 
     const iface = sf.getInterface(baseName);
-    if (iface) {
-      for (const prop of iface.getProperties()) {
-        const nodeText = prop.getTypeNode?.()?.getText();
-        const resolved = nodeText ?? cleanTypeText(prop.getType().getText());
-        props.set(prop.getName(), resolved);
-      }
-      return props;
-    }
+    if (iface) return propsFromInterface(iface);
   }
 
   return null;
