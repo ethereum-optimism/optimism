@@ -96,9 +96,6 @@ func (r *RuntimeConfig) P2PSequencerAddress() common.Address {
 func (r *RuntimeConfig) PreviousP2PSequencerAddress() common.Address {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	if r.prevP2PBlockSignerAddr == (common.Address{}) {
-		return common.Address{}
-	}
 	if time.Since(r.signerChangeTime) > DefaultSignerGracePeriod {
 		return common.Address{}
 	}
@@ -108,11 +105,13 @@ func (r *RuntimeConfig) PreviousP2PSequencerAddress() common.Address {
 func (r *RuntimeConfig) ConfirmCurrentSigner() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.prevP2PBlockSignerAddr != (common.Address{}) {
-		r.log.Info("new signer confirmed in use, ending grace period",
-			"current", r.p2pBlockSignerAddr, "previous", r.prevP2PBlockSignerAddr)
-		r.prevP2PBlockSignerAddr = common.Address{}
+	if r.p2pBlockSignerAddr == (common.Address{}) {
+		r.log.Warn("confirmed current signer but address is nil")
+		return
 	}
+	r.log.Info("new signer confirmed in use, ending grace period",
+		"current", r.p2pBlockSignerAddr, "previous", r.prevP2PBlockSignerAddr)
+	r.prevP2PBlockSignerAddr = common.Address{}
 }
 
 func (r *RuntimeConfig) RequiredProtocolVersion() params.ProtocolVersion {
@@ -152,7 +151,19 @@ func (r *RuntimeConfig) Load(ctx context.Context, l1Ref eth.L1BlockRef) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.l1Ref = l1Ref
-	newAddr := common.BytesToAddress(p2pSignerVal[:])
+	r.rotateSigner(common.BytesToAddress(p2pSignerVal[:]))
+	r.required = requiredProtVersion
+	r.recommended = recommendedProtoVersion
+	r.log.Info("loaded new runtime config values!", "p2p_seq_address", r.p2pBlockSignerAddr)
+	return nil
+}
+
+// rotateSigner updates the current signer address and, if it changed,
+// starts a grace period during which the previous signer is still accepted.
+// If the signer changes again before the grace period expires, only the most
+// recent previous signer is retained.
+// Must be called with r.mu held.
+func (r *RuntimeConfig) rotateSigner(newAddr common.Address) {
 	if r.p2pBlockSignerAddr != (common.Address{}) && r.p2pBlockSignerAddr != newAddr {
 		r.prevP2PBlockSignerAddr = r.p2pBlockSignerAddr
 		r.signerChangeTime = time.Now()
@@ -160,8 +171,4 @@ func (r *RuntimeConfig) Load(ctx context.Context, l1Ref eth.L1BlockRef) error {
 			"previous", r.p2pBlockSignerAddr, "new", newAddr, "grace_period", DefaultSignerGracePeriod)
 	}
 	r.p2pBlockSignerAddr = newAddr
-	r.required = requiredProtVersion
-	r.recommended = recommendedProtoVersion
-	r.log.Info("loaded new runtime config values!", "p2p_seq_address", r.p2pBlockSignerAddr)
-	return nil
 }
