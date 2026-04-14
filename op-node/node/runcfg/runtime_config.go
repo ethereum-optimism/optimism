@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -13,6 +14,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+// DefaultSignerGracePeriod is how long the node continues to accept blocks from
+// a previous unsafe block signer after detecting a signer rotation on L1.
+// The grace period ends early if a block from the new signer is verified.
+const DefaultSignerGracePeriod = 20 * time.Minute
 
 var (
 	// UnsafeBlockSignerAddressSystemConfigStorageSlot is the storage slot identifier of the unsafeBlockSigner
@@ -61,6 +67,11 @@ type RuntimeConfig struct {
 type runtimeConfigData struct {
 	p2pBlockSignerAddr common.Address
 
+	// prevP2PBlockSignerAddr holds the previous signer during a grace period after rotation.
+	prevP2PBlockSignerAddr common.Address
+	// signerChangeTime is when the signer rotation was detected.
+	signerChangeTime time.Time
+
 	// superchain protocol version signals
 	recommended params.ProtocolVersion
 	required    params.ProtocolVersion
@@ -80,6 +91,28 @@ func (r *RuntimeConfig) P2PSequencerAddress() common.Address {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.p2pBlockSignerAddr
+}
+
+func (r *RuntimeConfig) PreviousP2PSequencerAddress() common.Address {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.prevP2PBlockSignerAddr == (common.Address{}) {
+		return common.Address{}
+	}
+	if time.Since(r.signerChangeTime) > DefaultSignerGracePeriod {
+		return common.Address{}
+	}
+	return r.prevP2PBlockSignerAddr
+}
+
+func (r *RuntimeConfig) ConfirmCurrentSigner() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.prevP2PBlockSignerAddr != (common.Address{}) {
+		r.log.Info("new signer confirmed in use, ending grace period",
+			"current", r.p2pBlockSignerAddr, "previous", r.prevP2PBlockSignerAddr)
+		r.prevP2PBlockSignerAddr = common.Address{}
+	}
 }
 
 func (r *RuntimeConfig) RequiredProtocolVersion() params.ProtocolVersion {
@@ -119,7 +152,14 @@ func (r *RuntimeConfig) Load(ctx context.Context, l1Ref eth.L1BlockRef) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.l1Ref = l1Ref
-	r.p2pBlockSignerAddr = common.BytesToAddress(p2pSignerVal[:])
+	newAddr := common.BytesToAddress(p2pSignerVal[:])
+	if r.p2pBlockSignerAddr != (common.Address{}) && r.p2pBlockSignerAddr != newAddr {
+		r.prevP2PBlockSignerAddr = r.p2pBlockSignerAddr
+		r.signerChangeTime = time.Now()
+		r.log.Info("p2p signer rotated, grace period started for previous signer",
+			"previous", r.p2pBlockSignerAddr, "new", newAddr, "grace_period", DefaultSignerGracePeriod)
+	}
+	r.p2pBlockSignerAddr = newAddr
 	r.required = requiredProtVersion
 	r.recommended = recommendedProtoVersion
 	r.log.Info("loaded new runtime config values!", "p2p_seq_address", r.p2pBlockSignerAddr)
