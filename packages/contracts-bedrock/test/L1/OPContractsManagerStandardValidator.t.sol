@@ -148,6 +148,11 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         if (Config.devFeatureSuperRootGamesMigration()) {
             vm.skip(true, "Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION");
         }
+        // Standard validator tests do not deploy a ZK dispute game, so they are incompatible
+        // with ZK_DISPUTE_GAME mode which expects one to be registered.
+        if (Config.devFeatureZkDisputeGame()) {
+            vm.skip(true, "Skipping: standard configs incompatible with ZK_DISPUTE_GAME");
+        }
         super.setUp();
 
         // Load the dgf
