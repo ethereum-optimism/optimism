@@ -612,6 +612,7 @@ contract DeployImplementations is Script {
         opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
         opcmImplementations.superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
         opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
+        opcmImplementations.zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({

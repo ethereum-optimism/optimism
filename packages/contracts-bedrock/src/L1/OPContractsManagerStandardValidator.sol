@@ -102,6 +102,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The SuperPermissionedDisputeGame implementation address.
     address public superPermissionedDisputeGameImpl;
 
+    /// @notice The ZKDisputeGame implementation address.
+    address public zkDisputeGameImpl;
+
     /// @notice Bitmap of development features, verification may depend on these features.
     bytes32 public devFeatureBitmap;
 
@@ -122,6 +125,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         address permissionedDisputeGameImpl;
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
+        address zkDisputeGameImpl;
     }
 
     /// @notice Struct containing the input parameters for the validation process.
@@ -198,6 +202,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
         superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
         superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
+        zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
     }
 
     /// @notice Returns a string representing the overrides that are set.
@@ -763,6 +768,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (raw == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) return superPermissionedDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return superFaultDisputeGameImpl;
+        if (raw == GameTypes.ZK_DISPUTE_GAME.raw()) return zkDisputeGameImpl;
         return faultDisputeGameImpl;
     }
 
