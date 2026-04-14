@@ -36,20 +36,87 @@ export function ensureOutputDirectory(outputDir: string): void {
 
 export function initializeProject(sdkPath: string): Project {
   const tsConfigPath = path.join(sdkPath, "tsconfig.json");
+  let project: Project;
   if (fs.existsSync(tsConfigPath)) {
-    return new Project({ tsConfigFilePath: tsConfigPath });
+    project = new Project({ tsConfigFilePath: tsConfigPath });
+  } else {
+    // Installed npm package has no tsconfig — configure path aliases manually.
+    // @/* maps to src/* (NodeNext module resolution, .js extensions in imports).
+    project = new Project({
+      compilerOptions: {
+        baseUrl: sdkPath,
+        paths: { "@/*": ["src/*"] },
+        // ModuleResolutionKind.NodeNext = 99
+        moduleResolution: 99 as any,
+        strict: true,
+      },
+    });
   }
-  // Installed npm package has no tsconfig — configure path aliases manually.
-  // @/* maps to src/* (NodeNext module resolution, .js extensions in imports).
-  return new Project({
-    compilerOptions: {
-      baseUrl: sdkPath,
-      paths: { "@/*": ["src/*"] },
-      // ModuleResolutionKind.NodeNext = 99
-      moduleResolution: 99 as any,
-      strict: true,
-    },
-  });
+  // Add all SDK source files so type aliases / interfaces can be resolved
+  // across files when documenting nested parameter types.
+  project.addSourceFilesAtPaths(`${sdkPath}/src/**/*.ts`);
+  return project;
+}
+
+// ─── Type resolution helpers ────────────────────────────────────────────────
+
+/**
+ * Strip `import("/path/to/file").Foo` → `Foo` for cleaner docs output.
+ */
+function cleanTypeText(typeText: string): string {
+  return typeText.replace(/import\([^)]+\)\.\s*/g, "");
+}
+
+/**
+ * Get the readable type string for a node, preferring the written alias name
+ * (e.g. `LocalAccount`) over the fully-expanded structural type.
+ */
+function readableType(node: any): string {
+  return node.getTypeNode?.()?.getText() ?? cleanTypeText(node.getType().getText());
+}
+
+/** Extract property name→type pairs from a type literal's members. */
+function propsFromTypeLiteral(typeNode: any): Map<string, string> {
+  const props = new Map<string, string>();
+  for (const member of typeNode.getMembers()) {
+    if (member.getKindName() === "PropertySignature") {
+      props.set(member.getName(), readableType(member));
+    }
+  }
+  return props;
+}
+
+/** Extract property name→type pairs from an interface declaration. */
+function propsFromInterface(iface: any): Map<string, string> {
+  const props = new Map<string, string>();
+  for (const prop of iface.getProperties()) {
+    props.set(prop.getName(), readableType(prop));
+  }
+  return props;
+}
+
+/**
+ * Resolve the properties of a named type (type alias or interface) by
+ * searching all source files in the project.
+ */
+function resolveTypeProperties(
+  typeName: string,
+  project: Project
+): Map<string, string> | null {
+  const baseName = typeName.split("<")[0].trim(); // strip generics
+
+  for (const sf of project.getSourceFiles()) {
+    const alias = sf.getTypeAlias(baseName);
+    if (alias) {
+      const typeNode = alias.getTypeNode();
+      if (typeNode?.getKindName() === "TypeLiteral") return propsFromTypeLiteral(typeNode);
+    }
+
+    const iface = sf.getInterface(baseName);
+    if (iface) return propsFromInterface(iface);
+  }
+
+  return null;
 }
 
 // ─── Class / method traversal ────────────────────────────────────────────────
@@ -124,7 +191,7 @@ interface ParamRow {
   description: string;
 }
 
-function extractParams(method: MethodDeclaration): ParamRow[] {
+function extractParams(method: MethodDeclaration, project: Project): ParamRow[] {
   const jsDocParams = new Map<string, { type: string; description: string }>();
 
   for (const jsDoc of method.getJsDocs()) {
@@ -141,6 +208,18 @@ function extractParams(method: MethodDeclaration): ParamRow[] {
     }
   }
 
+  // Build a map of resolved property types for each parameter so we can
+  // fill in types for nested @param entries (e.g. params.signer).
+  const paramTypeProps = new Map<string, Map<string, string>>();
+  for (const param of method.getParameters()) {
+    const paramType = param.getType();
+    const typeName = cleanTypeText(paramType.getText());
+    const resolved = resolveTypeProperties(typeName, project);
+    if (resolved) {
+      paramTypeProps.set(param.getName(), resolved);
+    }
+  }
+
   const rows: ParamRow[] = [];
 
   for (const param of method.getParameters()) {
@@ -151,15 +230,19 @@ function extractParams(method: MethodDeclaration): ParamRow[] {
 
     rows.push({
       name: pName,
-      type: tsType || jd?.type || "",
+      type: cleanTypeText(tsType || jd?.type || ""),
       description: jd?.description ?? "",
     });
 
     // Nested @param entries: e.g. params.amount
     const prefix = pName + ".";
+    const props = paramTypeProps.get(pName);
     for (const [key, val] of jsDocParams) {
       if (key.startsWith(prefix)) {
-        rows.push({ name: key, type: val.type, description: val.description });
+        const propName = key.slice(prefix.length);
+        // Prefer type resolved from TS, fall back to JSDoc type
+        const resolvedType = props?.get(propName) ?? val.type;
+        rows.push({ name: key, type: resolvedType, description: val.description });
       }
     }
   }
@@ -199,7 +282,8 @@ function generateMdx(
   gitRef: string,
   githubUrlBase: string,
   sdkName: string,
-  sdkPackageName: string
+  sdkPackageName: string,
+  project: Project
 ): string {
   const className = classDecl.getName() ?? "";
   const classDesc = getClassDescription(classDecl);
@@ -246,7 +330,7 @@ function generateMdx(
     // Per-method sections
     for (const m of methods) {
       const desc = m.getJsDocs()[0]?.getDescription().trim() ?? "";
-      const params = extractParams(m);
+      const params = extractParams(m, project);
       const returnDesc = extractReturnDescription(m);
       const lineNumber = m.getStartLineNumber();
 
@@ -346,7 +430,8 @@ export function processComponent(params: ProcessComponentParams): void {
     gitRef,
     githubUrlBase,
     sdkName,
-    sdkPackageName
+    sdkPackageName,
+    project
   );
 
   const outFile = path.join(outputDir, toKebabCase(className) + ".mdx");

@@ -29,12 +29,12 @@ const LOCAL_SDK_PATH = path.join(
   "..",
   "actions",
   "packages",
-  "sdk"
+  "sdk",
 );
 const NODE_MODULES_SDK_PATH = path.join(
   process.cwd(),
   "node_modules",
-  SDK_PACKAGE_NAME
+  SDK_PACKAGE_NAME,
 );
 const OUTPUT_DIR = path.join(process.cwd(), "snippets", "actions");
 
@@ -53,7 +53,7 @@ async function main() {
 
   // Process each component
   const components: ComponentConfig[] = Object.entries(ACTIONS_COMPONENTS).map(
-    ([className, sourcePath]) => ({ className, sourcePath })
+    ([className, sourcePath]) => ({ className, sourcePath }),
   );
 
   console.log("Generating component docs from SDK:");

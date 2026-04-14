@@ -71,7 +71,7 @@ Open a lending position
 |-----------|------|-------------|
 | `params` | `LendOpenPositionParams` | Lending position parameters |
 | `params.marketId` |  | Market identifier to open position in |
-| `params.amount` |  | Amount to lend |
+| `params.amount` | `number` | Amount to lend |
 
 **Returns:** Promise resolving to transaction receipt
 
@@ -86,8 +86,8 @@ Get position information for this wallet
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `GetPositionParams` | Position query parameters |
-| `params.marketId` |  | Market identifier (required) |
-| `params.asset` |  | Asset filter (not yet supported) |
+| `params.marketId` | `LendMarketId` | Market identifier (required) |
+| `params.asset` | `Asset` | Asset filter (not yet supported) |
 
 **Returns:** Promise resolving to position information
 
@@ -102,8 +102,8 @@ Close a lending position (withdraw from market)
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `ClosePositionParams` | Position closing parameters |
-| `params.marketId` |  | Market identifier to close position in |
-| `params.amount` |  | Amount to withdraw |
+| `params.marketId` | `LendMarketId` | Market identifier to close position in |
+| `params.amount` | `number` | Amount to withdraw |
 
 **Returns:** Promise resolving to transaction receipt
 

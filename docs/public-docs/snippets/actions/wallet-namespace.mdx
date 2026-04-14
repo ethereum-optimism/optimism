@@ -52,10 +52,10 @@ Create a new smart wallet
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `CreateSmartWalletOptions` | Smart wallet creation parameters |
-| `params.signer` |  | Primary local account used for signing transactions |
-| `params.signers` |  | Optional array of additional signers for the smart wallet |
-| `params.nonce` |  | Optional nonce for smart wallet address generation (defaults to 0) |
-| `params.deploymentChainIds` |  | Optional chain IDs to deploy the wallet to.
+| `params.signer` | `LocalAccount` | Primary local account used for signing transactions |
+| `params.signers` | `Signer[]` | Optional array of additional signers for the smart wallet |
+| `params.nonce` | `bigint` | Optional nonce for smart wallet address generation (defaults to 0) |
+| `params.deploymentChainIds` | `SupportedChainId[]` | Optional chain IDs to deploy the wallet to.
 If not provided, the wallet will be deployed to all supported chains. |
 
 **Returns:** Promise resolving to deployment result containing:
@@ -103,11 +103,11 @@ Get an existing smart wallet with a provided signer
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `GetSmartWalletOptions` | Wallet retrieval parameters |
-| `params.signer` |  | Local account to use for signing transactions on the smart wallet |
-| `params.signers` |  | Optional array of additional signers for the smart wallet |
-| `params.deploymentSigners` |  | Optional array of signers used during wallet deployment |
-| `params.walletAddress` |  | Optional explicit smart wallet address (skips address calculation) |
-| `params.nonce` |  | Optional nonce used during smart wallet creation |
+| `params.signer` | `LocalAccount` | Local account to use for signing transactions on the smart wallet |
+| `params.signers` | `Signer[]` | Optional array of additional signers for the smart wallet |
+| `params.deploymentSigners` | `Signer[]` | Optional array of signers used during wallet deployment |
+| `params.walletAddress` | `Address` | Optional explicit smart wallet address (skips address calculation) |
+| `params.nonce` | `bigint` | Optional nonce used during smart wallet creation |
 
 **Returns:** Promise resolving to the smart wallet instance with the provided signer
 
