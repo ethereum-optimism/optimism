@@ -163,6 +163,29 @@ function collectPublicMethods(classDecl: ClassDeclaration): MethodDeclaration[] 
   return result;
 }
 
+interface PropertyRow {
+  name: string;
+  type: string;
+  description: string;
+}
+
+/** Collect public, JSDoc-documented properties from a class. */
+function collectPublicProperties(classDecl: ClassDeclaration): PropertyRow[] {
+  const rows: PropertyRow[] = [];
+  for (const prop of classDecl.getProperties()) {
+    const scope = prop.getScope();
+    if (scope === Scope.Private || scope === Scope.Protected) continue;
+    const docs = prop.getJsDocs();
+    if (docs.length === 0) continue;
+    rows.push({
+      name: prop.getName(),
+      type: readableType(prop),
+      description: docs[docs.length - 1].getDescription().trim(),
+    });
+  }
+  return rows;
+}
+
 // ─── JSDoc helpers ───────────────────────────────────────────────────────────
 
 function tagComment(tag: any): string {
@@ -311,6 +334,33 @@ function generateMdx(
   lines.push(``);
   if (classDesc) {
     lines.push(classDesc);
+    lines.push(``);
+  }
+
+  // Namespace and property tables
+  const allProps = collectPublicProperties(classDecl);
+  const namespaces = allProps.filter((p) => p.type.includes("Namespace"));
+  const properties = allProps.filter((p) => !p.type.includes("Namespace"));
+
+  if (namespaces.length > 0) {
+    lines.push(`### Namespaces`);
+    lines.push(``);
+    lines.push(`| Namespace | Type | Description |`);
+    lines.push(`|-----------|------|-------------|`);
+    for (const ns of namespaces) {
+      lines.push(`| \`${ns.name}\` | \`${ns.type}\` | ${ns.description} |`);
+    }
+    lines.push(``);
+  }
+
+  if (properties.length > 0) {
+    lines.push(`### Properties`);
+    lines.push(``);
+    lines.push(`| Property | Type | Description |`);
+    lines.push(`|----------|------|-------------|`);
+    for (const p of properties) {
+      lines.push(`| \`${p.name}\` | \`${p.type}\` | ${p.description} |`);
+    }
     lines.push(``);
   }
 
