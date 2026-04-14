@@ -3,6 +3,7 @@ package filter
 import (
 	"context"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +22,29 @@ import (
 
 func setupInteropFilterTest(t devtest.T) *presets.TwoL2SupernodeInterop {
 	return presets.NewTwoL2SupernodeInterop(t, 0, presets.WithInteropFilter())
+}
+
+// interopTxRejectedError returns true if err matches any known interop
+// transaction rejection from op-geth, op-reth, or the interop filter.
+func interopTxRejectedError(err error) bool {
+	msg := err.Error()
+	// op-geth: generic filter rejection wrapping all causes
+	if strings.Contains(msg, "transaction filtered out") {
+		return true
+	}
+	// op-interop-filter: malformed or unrecognized access list entry
+	if strings.Contains(msg, "failed to parse access entry") {
+		return true
+	}
+	// op-reth fast-path: cached failsafe state rejects before calling filter
+	if strings.Contains(msg, "interop failsafe is active") {
+		return true
+	}
+	// op-interop-filter: failsafe enabled at the filter level
+	if strings.Contains(msg, "failsafe is enabled") {
+		return true
+	}
+	return false
 }
 
 // TestInteropFilter_IngressRejectsInvalid verifies that a transaction with fabricated
@@ -63,7 +87,7 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 	// The transaction should be explicitly rejected by the interop filter.
 	_, err := tx.Submitted.Eval(ctx)
 	require.Error(err, "transaction with fabricated access list should not be included")
-	require.Contains(err.Error(), "failed to parse access entry",
+	require.True(interopTxRejectedError(err),
 		"expected interop filter rejection, got: %v", err)
 }
 
@@ -125,6 +149,8 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 
 	_, err = tx.Submitted.Eval(ctx)
 	require.Error(err, "interop tx should be rejected during failsafe")
+	require.True(interopTxRejectedError(err),
+		"expected interop filter rejection, got: %v", err)
 
 	// Step 4: Disable failsafe and wait one block for op-reth's poller to pick up the change
 	sys.InteropFilter.SetFailsafeEnabled(false)
