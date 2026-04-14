@@ -38,6 +38,8 @@ func (c *RustCollector) Collect(rootDir string, testPath string) (*Report, error
 		"--lcov",
 		"--output-path", tmpFile,
 		"--no-cfg-coverage",
+		"--all-features",
+		"--ignore-run-fail",
 		"--package", testPath,
 	)
 	cmd.Dir = workDir
