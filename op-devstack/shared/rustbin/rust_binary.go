@@ -33,22 +33,22 @@ type Spec struct {
 //   - Otherwise: only checks binary exists, errors if missing
 //
 // logger may be nil, in which case informational messages are skipped.
-func EnsureExists(ctx context.Context, logger log.Logger, spec Spec) (string, error) {
-	envSuffix := toEnvVarSuffix(spec.Binary)
+func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, error) {
+	envSuffix := toEnvVarSuffix(s.Binary)
 
 	// Check for explicit binary path override
 	if pathOverride := os.Getenv("RUST_BINARY_PATH_" + envSuffix); pathOverride != "" {
 		if _, err := os.Stat(pathOverride); os.IsNotExist(err) {
-			return "", fmt.Errorf("%s binary not found at overridden path %s", spec.Binary, pathOverride)
+			return "", fmt.Errorf("%s binary not found at overridden path %s", s.Binary, pathOverride)
 		}
 		if logger != nil {
-			logger.Info("Using overridden binary path", "binary", spec.Binary, "path", pathOverride)
+			logger.Info("Using overridden binary path", "binary", s.Binary, "path", pathOverride)
 		}
 		return pathOverride, nil
 	}
 
 	// Determine source root
-	srcRoot, err := resolveSrcRoot(spec.SrcDir, envSuffix)
+	srcRoot, err := resolveSrcRoot(s.SrcDir, envSuffix)
 	if err != nil {
 		return "", err
 	}
@@ -57,17 +57,17 @@ func EnsureExists(ctx context.Context, logger log.Logger, spec Spec) (string, er
 
 	if jitBuild {
 		if logger != nil {
-			logger.Info("Building Rust binary (JIT)", "binary", spec.Binary, "dir", srcRoot)
+			logger.Info("Building Rust binary (JIT)", "binary", s.Binary, "dir", srcRoot)
 		}
-		if err := buildRustBinary(ctx, srcRoot, spec.Package, spec.Binary); err != nil {
+		if err := buildRustBinary(ctx, srcRoot, s.Package, s.Binary); err != nil {
 			return "", err
 		}
 	}
 
-	binaryPath, err := resolveBuiltRustBinaryPath(srcRoot, spec.Binary)
+	binaryPath, err := resolveBuiltRustBinaryPath(srcRoot, s.Binary)
 	if err != nil {
 		return "", fmt.Errorf("%s binary not found; run 'cd %s && just build-%s-debug' (or just build-%s for release) or set RUST_JIT_BUILD=1: %w",
-			spec.Binary, spec.SrcDir, spec.Binary, spec.Binary, err)
+			s.Binary, s.SrcDir, s.Binary, s.Binary, err)
 	}
 	return binaryPath, nil
 }

@@ -105,11 +105,11 @@ func (r *RollupBoostNode) Start() {
 
 	r.sub = NewSubProcess(r.p, stdOut, stdErr)
 
-	execPath, err := rustbin.EnsureExists(r.p.Ctx(), r.p.Logger(), rustbin.Spec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rollup-boost",
 		Package: "rollup-boost",
 		Binary:  "rollup-boost",
-	})
+	}.EnsureExists(r.p.Ctx(), r.p.Logger())
 	r.p.Require().NoError(err, "prepare rollup-boost binary")
 	r.p.Require().NotEmpty(execPath, "rollup-boost binary path resolved")
 

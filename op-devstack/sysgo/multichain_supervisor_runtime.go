@@ -382,11 +382,11 @@ func startKonaSupervisor(
 		require.NoError(os.WriteFile(filePath, rollupData, 0o644))
 	}
 
-	execPath, err := rustbin.EnsureExists(t.Ctx(), t.Logger(), rustbin.Spec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
 		Package: "kona-supervisor",
 		Binary:  "kona-supervisor",
-	})
+	}.EnsureExists(t.Ctx(), t.Logger())
 	require.NoError(err, "prepare kona-supervisor binary")
 	require.NotEmpty(execPath, "kona-supervisor binary path resolved")
 

@@ -288,11 +288,11 @@ func startMixedOpRethNode(
 
 	tempP2PPath := filepath.Join(tempDir, "p2pkey.txt")
 
-	execPath, err := rustbin.EnsureExists(t.Ctx(), t.Logger(), rustbin.Spec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rust",
 		Package: "op-reth",
 		Binary:  "op-reth",
-	})
+	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "op-reth binary not available (build with 'just build-rust-release' or set RUST_JIT_BUILD=1)")
 
 	args := []string{
@@ -449,11 +449,11 @@ func startMixedKonaNode(
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 
-	execPath, err := rustbin.EnsureExists(t.Ctx(), t.Logger(), rustbin.Spec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
 		Package: "kona-node",
 		Binary:  "kona-node",
-	})
+	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "prepare kona-node binary")
 	t.Require().NotEmpty(execPath, "kona-node binary path resolved")
 

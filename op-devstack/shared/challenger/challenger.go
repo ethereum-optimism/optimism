@@ -81,11 +81,11 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	if err := applyVmConfig(root, &c.CannonKona, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
-	konaHostBin, err := rustbin.EnsureExists(context.Background(), nil, rustbin.Spec{
+	konaHostBin, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
 		Package: "kona-host",
 		Binary:  "kona-host",
-	})
+	}.EnsureExists(context.Background(), nil)
 	if err != nil {
 		return fmt.Errorf("kona-host binary: %w", err)
 	}
