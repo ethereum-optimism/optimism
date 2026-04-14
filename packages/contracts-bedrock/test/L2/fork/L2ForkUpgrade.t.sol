@@ -74,13 +74,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         // Capture feature flags
         commonState.isInteropEnabled = forkL2Live.isInteropEnabled();
         commonState.isCustomGasToken = forkL2Live.isCustomGasToken();
-
-        // Fund the senders
-        // NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
-        //     NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
-        // for (uint256 i = 0; i < txns.length; i++) {
-        //     vm.deal(txns[i].from, 100 ether);
-        // }
     }
 
     /// @notice Returns true if a predeploy is a feature predeploy and is disabled.
