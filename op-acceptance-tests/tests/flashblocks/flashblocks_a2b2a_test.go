@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// A test that transfers 1 ETH from A to B and then 1 ETH from B to A.
-// Should fail if B transfers before B receives the 1.
+// A test that transfers ETH from A to B and then 1 ETH from B to A.
+// Should fail if B transfers to A before B receives from A.
 func TestA2B2A(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
@@ -41,7 +41,9 @@ func TestA2B2A(gt *testing.T) {
 	t.Require().Equal(amount, alice.GetBalance())
 	t.Require().Equal(zero, bob.GetBalance())
 
-	// 2. Alice transfers 0.5 Eth to Bob
+	// The transfer is halved in each step to allowed for fees.
+
+	// 2. Alice transfers 0.5 Eth to Bob.
 	txA2B := alice.Transfer(bob.Address(), amount.Div(2))
 	receiptA2B, errA2B := txA2B.Included.Eval(ctx)
 	t.Require().NoError(errA2B)
