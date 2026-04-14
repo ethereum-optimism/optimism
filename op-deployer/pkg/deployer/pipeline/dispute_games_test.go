@@ -100,7 +100,7 @@ func TestDeployDisputeGame_ZK_NilParams(t *testing.T) {
 	require.ErrorContains(t, err, "ZKDisputeGame params must be set")
 }
 
-func TestDeployDisputeGame_ZK_ZeroDisputeGameType(t *testing.T) {
+func TestDeployDisputeGame_ZK_WrongDisputeGameType(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelInfo)
 
 	env := &Env{Logger: lgr}
@@ -110,13 +110,13 @@ func TestDeployDisputeGame_ZK_ZeroDisputeGameType(t *testing.T) {
 		},
 	}
 	game := state.AdditionalDisputeGame{
-		VMType:          state.VMTypeZK,
-		ZKDisputeGame:   &state.ZKDisputeGameParams{},
-		ChainProofParams: state.ChainProofParams{DisputeGameType: 0}, // not set
+		VMType:           state.VMTypeZK,
+		ZKDisputeGame:    &state.ZKDisputeGameParams{},
+		ChainProofParams: state.ChainProofParams{DisputeGameType: 0}, // wrong — must be GameTypeZKDisputeGame (10)
 	}
 
 	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
-	require.ErrorContains(t, err, "DisputeGameType must be set")
+	require.ErrorContains(t, err, "DisputeGameType must be")
 }
 
 func TestDeployDisputeGame_ZK_NilChallengerBond(t *testing.T) {

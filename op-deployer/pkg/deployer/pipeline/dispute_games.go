@@ -131,8 +131,8 @@ func deployDisputeGame(
 		if game.ZKDisputeGame == nil {
 			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
 		}
-		if game.DisputeGameType == 0 {
-			return fmt.Errorf("DisputeGameType must be set for ZK dispute game (expected %d)", embedded.GameTypeZKDisputeGame)
+		if game.DisputeGameType != uint32(embedded.GameTypeZKDisputeGame) {
+			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", embedded.GameTypeZKDisputeGame, game.DisputeGameType)
 		}
 		zk := game.ZKDisputeGame
 		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
