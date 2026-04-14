@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -171,7 +172,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		devFeature common.Hash
 	}{
 		// "default" (non-V2) test case removed: v1 OPCM was deleted.
-		{"opcm-v2", deployer.OPCMV2DevFlag},
+		{"opcm-v2", devfeatures.OPCMV2Flag},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -219,8 +220,8 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 				FaultGameClockExtension:         standard.DisputeClockExtension,
 				FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 			}
-			if deployer.IsDevFeatureEnabled(tt.devFeature, deployer.OPCMV2DevFlag) {
-				cfg.DevFeatureBitmap = deployer.OPCMV2DevFlag
+			if devfeatures.IsDevFeatureEnabled(tt.devFeature, devfeatures.OPCMV2Flag) {
+				cfg.DevFeatureBitmap = devfeatures.OPCMV2Flag
 			}
 
 			runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
@@ -364,7 +365,7 @@ func TestEndToEndApply(t *testing.T) {
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 
 		intent.GlobalDeployOverrides = map[string]any{
-			"devFeatureBitmap": deployer.L2CMDevFlag,
+			"devFeatureBitmap": devfeatures.L2CMFlag,
 		}
 
 		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
@@ -402,7 +403,7 @@ func TestEndToEndApply(t *testing.T) {
 
 		// Enable OPCMV2 dev flag
 		intent.GlobalDeployOverrides = map[string]any{
-			"devFeatureBitmap": deployer.OPCMV2DevFlag,
+			"devFeatureBitmap": devfeatures.OPCMV2Flag,
 		}
 
 		require.NoError(t, deployer.ApplyPipeline(
@@ -432,12 +433,9 @@ func TestEndToEndApply(t *testing.T) {
 		require.NotEmpty(t, opcmV2Code, "OPCMV2 should have code deployed")
 
 		// Verify that the dev feature bitmap is set to OPCMV2
-		require.Equal(t, deployer.OPCMV2DevFlag, intent.GlobalDeployOverrides["devFeatureBitmap"])
+		require.Equal(t, devfeatures.OPCMV2Flag, intent.GlobalDeployOverrides["devFeatureBitmap"])
 
-		// OpcmImpl is populated with the v2 address for downstream compat (v1 deleted)
-		require.Equal(t, st.ImplementationsDeployment.OpcmV2Impl, st.ImplementationsDeployment.OpcmImpl, "OpcmImpl should equal OpcmV2Impl")
-		// V1 sub-contract addresses are zero (v1 deleted, deprecated output fields)
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmContractsContainerImpl, "OPCM container implementation should be zero")
+		require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OpcmV2Impl should be set")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmGameTypeAdderImpl, "OPCM game type adder implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmDeployerImpl, "OPCM deployer implementation should be zero")
 		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmUpgraderImpl, "OPCM upgrader implementation should be zero")
@@ -867,7 +865,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		require.NoError(t, err)
 
 		opcmAddress := impls.Opcm
-		if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
+		if devfeatures.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, devfeatures.OPCMV2Flag) {
 			opcmAddress = impls.OpcmV2
 		}
 
@@ -896,7 +894,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 		// Then run the OPCM upgrade
 		t.Run("upgrade opcm", func(t *testing.T) {
-			if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
+			if devfeatures.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, devfeatures.OPCMV2Flag) {
 				t.Skip("Skipping OPCM upgrade for OPCM V2")
 				return
 			}
@@ -918,7 +916,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			require.NoError(t, err, "OPCM upgrade should succeed")
 		})
 		t.Run("upgrade opcm v2", func(t *testing.T) {
-			if !deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.OPCMV2DevFlag) {
+			if !devfeatures.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, devfeatures.OPCMV2Flag) {
 				t.Skip("Skipping OPCM V2 upgrade for non-OPCM V2 dev feature")
 				return
 			}
@@ -1206,7 +1204,6 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 	implAddrs := []addrTuple{
 		{"DelayedWethImpl", st.ImplementationsDeployment.DelayedWethImpl},
 		{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImpl},
-		{"OptimismPortalInteropImpl", st.ImplementationsDeployment.OptimismPortalInteropImpl},
 		{"SystemConfigImpl", st.ImplementationsDeployment.SystemConfigImpl},
 		{"L1CrossDomainMessengerImpl", st.ImplementationsDeployment.L1CrossDomainMessengerImpl},
 		{"L1ERC721BridgeImpl", st.ImplementationsDeployment.L1Erc721BridgeImpl},

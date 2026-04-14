@@ -29,6 +29,14 @@ import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
+<<<<<<< HEAD
+=======
+import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
+import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
+import { Features } from "src/libraries/Features.sol";
+>>>>>>> 1a12bbe75eb32f2eab8a5937a6acd46c09ed5b9e
 
 /// @title L2ForkUpgrade_TestInit
 /// @notice Reusable test initialization for L2 fork upgrade tests.
@@ -216,6 +224,14 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         address liquidityControllerOwner;
         string liquidityControllerGasPayingTokenName;
         string liquidityControllerGasPayingTokenSymbol;
+<<<<<<< HEAD
+=======
+        // L1Block feature state
+        string l1BlockGasPayingTokenName;
+        string l1BlockGasPayingTokenSymbol;
+        // FeeSplitter configuration
+        address feeSplitterSharesCalculator;
+>>>>>>> 1a12bbe75eb32f2eab8a5937a6acd46c09ed5b9e
         // Fee vault configuration
         address sequencerFeeVaultRecipient;
         uint256 sequencerFeeVaultMinWithdrawal;
@@ -270,6 +286,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             state_.liquidityControllerOwner = liquidityController.owner();
             state_.liquidityControllerGasPayingTokenName = liquidityController.gasPayingTokenName();
             state_.liquidityControllerGasPayingTokenSymbol = liquidityController.gasPayingTokenSymbol();
+            // Capture L1Block gas paying token metadata for post-upgrade verification.
+            state_.l1BlockGasPayingTokenName = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
+            state_.l1BlockGasPayingTokenSymbol = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
         }
 
         // Capture fee vault configuration
@@ -331,6 +350,7 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyFactoryConfigurations(_preState);
         _verifyLiquidityControllerConfiguration(_preState);
         _verifyProxyAdminOwnership(_preState);
+        _verifyL1BlockFeatureState(_preState);
 
         // OpenZeppelin v4 Initializable contracts - slot varies by contract
         _verifyOZv4Initialization(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bytes32(0), 20, "L2CrossDomainMessenger");
@@ -498,6 +518,33 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             _preState.proxyAdminOwner,
             "ProxyAdmin ownership should be preserved"
         );
+    }
+
+    /// @notice Verifies that L1Block feature flags match the expected post-upgrade state.
+    ///         Catches regressions where the setFeature migration step is missing or reordered.
+    function _verifyL1BlockFeatureState(PreUpgradeInitializationState memory _preState) internal view {
+        if (commonState.isCustomGasToken) {
+            assertTrue(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken(),
+                "L1Block.isCustomGasToken() must be true after upgrade on CGT chains"
+            );
+            assertEq(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName(),
+                _preState.l1BlockGasPayingTokenName,
+                "L1Block.gasPayingTokenName() not preserved after upgrade"
+            );
+            assertEq(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol(),
+                _preState.l1BlockGasPayingTokenSymbol,
+                "L1Block.gasPayingTokenSymbol() not preserved after upgrade"
+            );
+        }
+        if (commonState.isInteropEnabled) {
+            assertTrue(
+                IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+                "L1Block.isFeatureEnabled(INTEROP) must be true after upgrade on interop chains"
+            );
+        }
     }
 
     /// @notice Helper to verify OpenZeppelin v4 initialization state.

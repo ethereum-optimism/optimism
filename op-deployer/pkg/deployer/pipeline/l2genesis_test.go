@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -15,8 +16,7 @@ import (
 )
 
 func TestBuildDevFeatureBitmap(t *testing.T) {
-	// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
-	interopBit := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+	interopBit := devfeatures.OptimismPortalInteropFlag
 
 	tests := []struct {
 		name       string

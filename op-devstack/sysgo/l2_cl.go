@@ -1,6 +1,8 @@
 package sysgo
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -35,6 +37,9 @@ type L2CLConfig struct {
 	NoDiscovery bool
 
 	FollowSource string
+
+	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
+	OffsetELSafe time.Duration
 }
 
 func L2CLSequencer() L2CLOption {
@@ -63,7 +68,7 @@ func DefaultL2CLConfig() *L2CLConfig {
 		IsSequencer:       false,
 		IndexingMode:      false,
 		EnableReqRespSync: true,
-		UseReqRespSync:    true,
+		UseReqRespSync:    false,
 		NoDiscovery:       false,
 		FollowSource:      "",
 	}

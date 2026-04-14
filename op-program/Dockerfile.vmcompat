@@ -1,9 +1,11 @@
 ARG GO_VERSION=1.24.10-alpine3.21
 ARG VM_TARGET=current
+ARG VM_COMPAT_TASK=analyze-op-program-client
 FROM golang:${GO_VERSION} AS builder
 
-# Redeclare ARG to make it available in this build stage
+# Redeclare ARGs to make them available in this build stage
 ARG VM_TARGET
+ARG VM_COMPAT_TASK
 
 # Install dependencies
 RUN apk add --no-cache make git bash jq llvm just
@@ -31,8 +33,9 @@ WORKDIR /app/op-program
 ENV FINDINGS_OUTPUT_PATH=/app/op-program/vm-compat-findings.json
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   touch $FINDINGS_OUTPUT_PATH && \
-  just "analyze-op-program-client-${VM_TARGET}"; echo $? > /app/op-program/vm-compat-exit-code
+  just "${VM_COMPAT_TASK}-${VM_TARGET}"; echo $? > /app/op-program/vm-compat-exit-code
 
 FROM scratch AS export
 COPY --from=builder /app/op-program/vm-compat-findings.json .
 COPY --from=builder /app/op-program/vm-compat-exit-code .
+COPY --from=builder /app/op-program/compatibility-test/baseline-cannon-multithreaded-64.json .

@@ -2,11 +2,11 @@
 
 **Modular, contributor-friendly and blazing-fast implementation of the Ethereum protocol**
 
-![](./assets/reth-prod.png)
+![](https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-prod.png)
 
 **[Install](https://paradigmxyz.github.io/reth/installation/installation.html)**
 | [User Docs](https://reth.rs)
-| [Developer Docs](./docs)
+| [Developer Docs](https://github.com/paradigmxyz/reth/tree/main/docs)
 | [Crate Docs](https://reth.rs/docs)
 
 ## What is Reth?
@@ -19,7 +19,7 @@ As a full Ethereum node, Reth allows users to connect to the Ethereum network an
 
 More concretely, our goals are:
 
-1. **Modularity**: Every component of Reth is built to be used as a library: well-tested, heavily documented and benchmarked. We envision that developers will import the node's crates, mix and match, and innovate on top of them. Examples of such usage include but are not limited to spinning up standalone P2P networks, talking directly to a node's database, or "unbundling" the node into the components you need. To achieve that, we are licensing Reth under the Apache/MIT permissive license. You can learn more about the project's components [here](./docs/repo/layout.md).
+1. **Modularity**: Every component of Reth is built to be used as a library: well-tested, heavily documented and benchmarked. We envision that developers will import the node's crates, mix and match, and innovate on top of them. Examples of such usage include but are not limited to spinning up standalone P2P networks, talking directly to a node's database, or "unbundling" the node into the components you need. To achieve that, we are licensing Reth under the Apache/MIT permissive license. You can learn more about the project's components [here](https://github.com/paradigmxyz/reth/blob/main/docs/repo/layout.md).
 2. **Performance**: Reth aims to be fast, so we use Rust and the [Erigon staged-sync](https://erigon.substack.com/p/erigon-stage-sync-and-control-flows) node architecture. We also use our Ethereum libraries (including [Alloy](https://github.com/alloy-rs/alloy/) and [revm](https://github.com/bluealloy/revm/)) which we've battle-tested and optimized via [Foundry](https://github.com/foundry-rs/foundry/).
 3. **Free for anyone to use any way they want**: Reth is free open source software, built for the community, by the community. By licensing the software under the Apache/MIT license, we want developers to use it without being bound by business licenses, or having to think about the implications of GPL-like licenses.
 4. **Client Diversity**: The Ethereum protocol becomes more antifragile when no node implementation dominates. This ensures that if there's a software bug, the network does not finalize a bad block. By building a new client, we hope to contribute to Ethereum's antifragility.
@@ -33,7 +33,7 @@ Reth is production ready, and suitable for usage in mission-critical environment
 More historical context below:
 
 -   We released 1.0 "production-ready" stable Reth in June 2024.
-    -   Reth completed an audit with [Sigma Prime](https://sigmaprime.io/), the developers of [Lighthouse](https://github.com/sigp/lighthouse), the Rust Consensus Layer implementation. Find it [here](./audit/sigma_prime_audit_v2.pdf).
+    -   Reth completed an audit with [Sigma Prime](https://sigmaprime.io/), the developers of [Lighthouse](https://github.com/sigp/lighthouse), the Rust Consensus Layer implementation. Find it [here](https://github.com/paradigmxyz/reth/blob/main/audit/sigma_prime_audit_v2.pdf).
     -   Revm (the EVM used in Reth) underwent an audit with [Guido Vranken](https://x.com/guidovranken) (#1 [Ethereum Bug Bounty](https://ethereum.org/en/bug-bounty)). We will publish the results soon.
 -   We released multiple iterative beta versions, up to [beta.9](https://github.com/paradigmxyz/reth/releases/tag/v0.2.0-beta.9) on Monday June 3, 2024, the last beta release.
 -   We released [beta](https://github.com/paradigmxyz/reth/releases/tag/v0.2.0-beta.1) on Monday March 4, 2024, our first breaking change to the database model, providing faster query speed, smaller database footprint, and allowing "history" to be mounted on separate drives.
@@ -62,14 +62,14 @@ You can use individual crates of reth in your project.
 
 The crate docs can be found [here](https://reth.rs/docs/).
 
-For a general overview of the crates, see [Project Layout](./docs/repo/layout.md).
+For a general overview of the crates, see [Project Layout](https://github.com/paradigmxyz/reth/blob/main/docs/repo/layout.md).
 
 ### Contributing
 
 If you want to contribute, or follow along with contributor discussion, you can use our [main telegram](https://t.me/paradigm_reth) to chat with us about the development of Reth!
 
--   Our contributor guidelines can be found in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
--   See our [contributor docs](./docs) for more information on the project. A good starting point is [Project Layout](./docs/repo/layout.md).
+-   Our contributor guidelines can be found in [`CONTRIBUTING.md`](https://github.com/paradigmxyz/reth/blob/main/CONTRIBUTING.md).
+-   See our [contributor docs](https://github.com/paradigmxyz/reth/tree/main/docs) for more information on the project. A good starting point is [Project Layout](https://github.com/paradigmxyz/reth/blob/main/docs/repo/layout.md).
 
 ### Building and testing
 
@@ -117,7 +117,7 @@ If the answer is not there:
 
 ## Security
 
-See [`SECURITY.md`](./SECURITY.md).
+See [`SECURITY.md`](https://github.com/paradigmxyz/reth/blob/main/SECURITY.md).
 
 ## Acknowledgements
 
