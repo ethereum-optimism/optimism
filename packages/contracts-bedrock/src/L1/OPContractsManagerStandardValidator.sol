@@ -32,7 +32,6 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
 
 /// @title OPContractsManagerStandardValidator
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
@@ -1102,6 +1101,52 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
     }
 
+    /// @notice Decodes the anchorStateRegistry, weth, and l2ChainId from packed ZK game template
+    ///         args as produced by OPContractsManagerUtils._encodeGameArgs for ZK_DISPUTE_GAME.
+    ///         Layout (abi.encodePacked, ZK_GAME_ARGS_LENGTH bytes):
+    ///           [0-31]   absolutePrestate (bytes32)
+    ///           [32-51]  verifier (address)
+    ///           [52-59]  maxChallengeDuration (uint64)
+    ///           [60-67]  maxProveDuration (uint64)
+    ///           [68-99]  challengerBond (uint256)
+    ///           [100-119] anchorStateRegistry (address)
+    ///           [120-139] weth (address)
+    ///           [140-171] l2ChainId (uint256)
+    function _decodeZKGameArgs(bytes memory _args)
+        private
+        pure
+        returns (IAnchorStateRegistry asr_, IDelayedWETH weth_, uint256 l2ChainId_)
+    {
+        assembly {
+            let base := add(_args, 0x20)
+            asr_ := shr(96, mload(add(base, 100)))
+            weth_ := shr(96, mload(add(base, 120)))
+            l2ChainId_ := mload(add(base, 140))
+        }
+    }
+
+    /// @notice Validates the decoded ZK game args (chainId, weth, asr) against the chain config.
+    function _assertValidZKGameArgs(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        uint256 _l2ChainID,
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides,
+        string memory _errorPrefix
+    )
+        private
+        view
+        returns (string memory)
+    {
+        IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        (IAnchorStateRegistry asr, IDelayedWETH weth, uint256 chainId) =
+            _decodeZKGameArgs(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
+        _errors = internalRequire(chainId == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
+        _errors = assertValidDelayedWETH(_errors, _sysCfg, weth, _admin, _overrides, _errorPrefix);
+        _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, factory, asr, _admin, _errorPrefix);
+        return _errors;
+    }
+
     /// @notice Asserts that the ZKDisputeGame contract registered in the factory is valid.
     function assertValidZKDisputeGame(
         string memory _errors,
@@ -1115,43 +1160,17 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         string memory errorPrefix = "ZKDG";
-
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl;
         (gameImpl, _errors, failedToGetImpl) =
             getGameImplementation(_errors, GameTypes.ZK_DISPUTE_GAME, _sysCfg, errorPrefix);
-        if (failedToGetImpl) {
-            return _errors;
-        }
-
-        IZKDisputeGame zkGame = IZKDisputeGame(gameImpl.gameAddress);
-
-        // Version of the registered impl must match the stored zkDisputeGameImpl.
+        if (failedToGetImpl) return _errors;
         _errors = internalRequire(
-            LibString.eq(getVersion(address(zkGame)), getVersion(zkDisputeGameImpl)),
+            LibString.eq(getVersion(gameImpl.gameAddress), getVersion(zkDisputeGameImpl)),
             string.concat(errorPrefix, "-20"),
             _errors
         );
-
-        // Game type embedded in the clone must be ZK_DISPUTE_GAME.
-        _errors = internalRequire(
-            zkGame.gameType().raw() == GameTypes.ZK_DISPUTE_GAME.raw(), string.concat(errorPrefix, "-30"), _errors
-        );
-
-        // L2 chain ID must match.
-        _errors = internalRequire(zkGame.l2ChainId() == _l2ChainID, string.concat(errorPrefix, "-60"), _errors);
-
-        _errors = assertValidDelayedWETH(_errors, _sysCfg, zkGame.weth(), _admin, _overrides, errorPrefix);
-        _errors = assertValidAnchorStateRegistry(
-            _errors,
-            _sysCfg,
-            IDisputeGameFactory(_sysCfg.disputeGameFactory()),
-            zkGame.anchorStateRegistry(),
-            _admin,
-            errorPrefix
-        );
-
-        return _errors;
+        return _assertValidZKGameArgs(_errors, _sysCfg, _l2ChainID, _admin, _overrides, errorPrefix);
     }
 
     // @notice Internal function to read all information from a dispute game while supporting both v1 and v2 dispute
