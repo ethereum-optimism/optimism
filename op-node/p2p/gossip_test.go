@@ -100,6 +100,88 @@ func TestVerifyBlockSignature(t *testing.T) {
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationIgnore, result)
 	})
+
+	// Grace period tests: when the signer rotates, blocks from the previous signer
+	// should still be accepted during the grace period.
+
+	t.Run("PreviousSignerAccepted", func(t *testing.T) {
+		// Signer has rotated: current signer is a new key, previous is the old key.
+		// A block signed by the old key should be accepted during the grace period.
+		newSecrets, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		runCfg := &testutils.MockRuntimeConfig{
+			P2PSeqAddress:     crypto.PubkeyToAddress(newSecrets.PublicKey),
+			PrevP2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey),
+		}
+		oldSigner := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := oldSigner.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+		require.NoError(t, err)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		require.Equal(t, pubsub.ValidationAccept, result)
+		require.False(t, runCfg.Confirmed, "old signer block should not confirm the new signer")
+	})
+
+	t.Run("NewSignerConfirms", func(t *testing.T) {
+		// Signer has rotated and a block from the NEW signer arrives.
+		// Should be accepted AND should confirm the current signer (ending grace period).
+		newSecrets, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		runCfg := &testutils.MockRuntimeConfig{
+			P2PSeqAddress:     crypto.PubkeyToAddress(newSecrets.PublicKey),
+			PrevP2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey),
+		}
+		newSigner := &PreparedSigner{Signer: opsigner.NewLocalSigner(newSecrets)}
+		sig, err := newSigner.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+		require.NoError(t, err)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		require.Equal(t, pubsub.ValidationAccept, result)
+		require.True(t, runCfg.Confirmed, "new signer block should confirm the current signer")
+	})
+
+	t.Run("GracePeriodExpired", func(t *testing.T) {
+		// Grace period has expired (PreviousP2PSequencerAddress returns zero).
+		// Block from the old signer should be rejected.
+		newSecrets, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		runCfg := &testutils.MockRuntimeConfig{
+			P2PSeqAddress:     crypto.PubkeyToAddress(newSecrets.PublicKey),
+			PrevP2PSeqAddress: common.Address{}, // grace period expired
+		}
+		oldSigner := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := oldSigner.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+		require.NoError(t, err)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		require.Equal(t, pubsub.ValidationReject, result)
+	})
+
+	t.Run("ThirdPartySignerRejected", func(t *testing.T) {
+		// Even with a grace period active, a block from an unrelated third key is rejected.
+		newSecrets, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		thirdSecrets, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		runCfg := &testutils.MockRuntimeConfig{
+			P2PSeqAddress:     crypto.PubkeyToAddress(newSecrets.PublicKey),
+			PrevP2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey),
+		}
+		thirdSigner := &PreparedSigner{Signer: opsigner.NewLocalSigner(thirdSecrets)}
+		sig, err := thirdSigner.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+		require.NoError(t, err)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		require.Equal(t, pubsub.ValidationReject, result)
+	})
+
+	t.Run("ValidNoGracePeriod", func(t *testing.T) {
+		// Normal case: no signer rotation, current signer matches. ConfirmCurrentSigner
+		// should still be called (it's a no-op when there's no previous signer).
+		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
+		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+		require.NoError(t, err)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		require.Equal(t, pubsub.ValidationAccept, result)
+		require.True(t, runCfg.Confirmed, "ConfirmCurrentSigner called even without grace period")
+	})
 }
 
 type MarshalSSZ interface {
