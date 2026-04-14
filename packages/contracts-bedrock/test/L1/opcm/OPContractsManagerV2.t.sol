@@ -425,6 +425,19 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
+        // When the ZK dispute game dev feature is enabled but no ZK game is registered in the
+        // factory (post-upgrade), the validator will always produce a ZKDG-10 error. Append it
+        // automatically so callers don't have to repeat this everywhere.
+        bool zkFeature = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
+        bool zkGameDeployed = address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
+        if (zkFeature && !zkGameDeployed) {
+            if (bytes(_expectedValidatorErrors).length == 0) {
+                _expectedValidatorErrors = "ZKDG-10";
+            } else {
+                _expectedValidatorErrors = string.concat(_expectedValidatorErrors, ",ZKDG-10");
+            }
+        }
+
         // Expect validator errors if the user provides them. We always expect the L1PAOMultisig
         // and Challenger overrides so we don't need to repeat them here.
         if (bytes(_expectedValidatorErrors).length > 0) {
