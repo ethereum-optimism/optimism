@@ -41,8 +41,8 @@ import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.7.0
-    string public constant version = "2.7.0";
+    /// @custom:semver 2.7.1
+    string public constant version = "2.7.1";
 
     /// @notice Length of ZK dispute game args in bytes (tightly packed CWIA immutable args).
     uint256 private constant ZK_GAME_ARGS_LENGTH = 172;
