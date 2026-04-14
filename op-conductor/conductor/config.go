@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/flags"
@@ -135,19 +134,19 @@ func (c *Config) Check() error {
 		return fmt.Errorf("missing rollup-boost next healthcheck URL")
 	}
 	if err := c.HealthCheck.Check(); err != nil {
-		return errors.Wrap(err, "invalid health check config")
+		return fmt.Errorf("invalid health check config: %w", err)
 	}
 	if err := c.RollupCfg.Check(); err != nil {
-		return errors.Wrap(err, "invalid rollup config")
+		return fmt.Errorf("invalid rollup config: %w", err)
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
-		return errors.Wrap(err, "invalid metrics config")
+		return fmt.Errorf("invalid metrics config: %w", err)
 	}
 	if err := c.PprofConfig.Check(); err != nil {
-		return errors.Wrap(err, "invalid pprof config")
+		return fmt.Errorf("invalid pprof config: %w", err)
 	}
 	if err := c.RPC.Check(); err != nil {
-		return errors.Wrap(err, "invalid rpc config")
+		return fmt.Errorf("invalid rpc config: %w", err)
 	}
 	return nil
 }
@@ -155,12 +154,12 @@ func (c *Config) Check() error {
 // NewConfig parses the Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
-		return nil, errors.Wrap(err, "missing required flags")
+		return nil, fmt.Errorf("missing required flags: %w", err)
 	}
 
 	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load rollup config")
+		return nil, fmt.Errorf("failed to load rollup config: %w", err)
 	}
 
 	executionP2pRpcUrl := ctx.String(flags.HealthcheckExecutionP2pRPCUrl.Name)

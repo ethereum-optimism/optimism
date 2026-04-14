@@ -415,6 +415,7 @@ func startL2CLNode(
 			SupportsPostFinalizationELSync: false,
 			L2FollowSourceEndpoint:         cfg.FollowSource,
 			NeedInitialResetEngine:         false,
+			OffsetELSafe:                   cfg.OffsetELSafe,
 		},
 		ConfigPersistence:               config.DisabledConfigPersistence{},
 		Metrics:                         opmetrics.CLIConfig{},

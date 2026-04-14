@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -449,7 +450,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -519,7 +520,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -788,7 +789,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,

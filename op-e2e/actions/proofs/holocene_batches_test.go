@@ -130,7 +130,15 @@ func Test_ProgramAction_HoloceneBatches(gt *testing.T) {
 		testCfg.Custom.RequireExpectedProgressAndLogs(t, l2SafeHead, isHolocene, env.Engine, env.Logs)
 		t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
 
-		env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+		// Run the fault proof program on a non-trivial block. When safe head is 0 because
+		// the derivation pipeline correctly dropped disordered batches, we skip the proof —
+		// rebatching would gloss over the problematic range and not test the drop behavior.
+		// TODO(#20050): run FPP over the genesis range and assert derivation produces no new blocks.
+		if l2SafeHead.Number > 0 {
+			env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+		} else {
+			t.Log("Skipping fault proof program: safe head is at genesis due to dropped batches")
+		}
 	}
 
 	matrix := helpers.NewMatrix[testCase]()

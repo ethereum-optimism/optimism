@@ -13,7 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
@@ -141,7 +141,7 @@ func TestCLIMigrateV1(t *testing.T) {
 		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-		DevFeatureBitmap:                deployer.EnableDevFeature(common.Hash{}, deployer.OptimismPortalInteropDevFlag),
+		DevFeatureBitmap:                devfeatures.EnableDevFeature(common.Hash{}, devfeatures.OptimismPortalInteropFlag),
 		SuperchainConfigProxy:           superchainOut.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superchainOut.ProtocolVersionsProxy,
 		SuperchainProxyAdmin:            superchainOut.SuperchainProxyAdmin,
@@ -347,7 +347,7 @@ func TestCLIMigrateV2(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to deploy superchain contracts")
 
-	devFeatureBitmap := deployer.EnableDevFeature(deployer.OPCMV2DevFlag, deployer.OptimismPortalInteropDevFlag)
+	devFeatureBitmap := devfeatures.EnableDevFeature(devfeatures.OPCMV2Flag, devfeatures.OptimismPortalInteropFlag)
 
 	// Deploy OPCM V2 implementations (with OPCMV2DevFlag)
 	cfg := bootstrap.ImplementationsConfig{
