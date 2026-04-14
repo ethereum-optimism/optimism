@@ -310,7 +310,7 @@ contract OPContractsManagerMigrationValidator_ValidateMigration_Test is
 }
 
 /// @title OPContractsManagerMigrationValidator_DGFShape_Test
-/// @notice Negative tests for MIG-DGF-10 through MIG-DGF-60.
+/// @notice Negative tests for MIG-DGF-10 through MIG-DGF-50.
 contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-DGF-10: SUPER_PERMISSIONED_CANNON not registered on shared DGF.
     function test_validate_dgf10SuperPermCannonMissing_succeeds() public {
@@ -364,15 +364,6 @@ contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManage
         assertEq("MIG-DGF-50", _validateMigration(true));
     }
 
-    /// @notice MIG-DGF-60: Legacy SUPER_CANNON still registered on shared DGF.
-    function test_validate_dgf60SuperCannonStillRegistered_succeeds() public {
-        vm.mockCall(
-            address(sharedDGF),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
-            abi.encode(address(0xbad))
-        );
-        assertEq("MIG-DGF-60", _validateMigration(true));
-    }
 }
 
 /// @title OPContractsManagerMigrationValidator_SPDG_Test

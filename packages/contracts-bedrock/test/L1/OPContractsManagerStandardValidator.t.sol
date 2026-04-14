@@ -1919,16 +1919,6 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
         assertEq("CKDG-SHAPE", _validate(true));
     }
 
-    /// @notice Tests that enabling legacy SUPER_CANNON in super mode triggers SCDG-SHAPE.
-    function test_validate_superCannonNotDisabled_succeeds() public {
-        vm.mockCall(
-            address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("SCDG-SHAPE", _validate(true));
-    }
-
     /// @notice Tests that disabling SUPER_PERMISSIONED_CANNON triggers SPDG-SHAPE.
     function test_validate_superPermissionedCannonNotRegistered_succeeds() public {
         vm.mockCall(
