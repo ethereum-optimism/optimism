@@ -340,10 +340,12 @@ func coverageBasedScopes(
 				continue // this test doesn't cover any changed lines
 			}
 
-			// Signal proportional to how many changed lines this test covers
+			// Signal: if a test covers ANY changed lines, it's relevant.
+			// The fraction scales between 0.5 (covers some) and 1.0 (covers all).
+			// Even 1 hit out of 100 changed lines means the test exercises changed code.
 			totalChanged := len(fileChangedLines)
 			hitFraction := float64(hitCount) / float64(totalChanged)
-			signal := hitFraction * edge.Confidence
+			signal := (0.5 + 0.5*hitFraction) * edge.Confidence
 			if signal > testSignals[edge.From] {
 				testSignals[edge.From] = signal
 			}
