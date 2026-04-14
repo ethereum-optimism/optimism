@@ -117,6 +117,7 @@ var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
 var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
 var ErrRevenueShareZeroAddress = fmt.Errorf("chain has enabled revenue share but recipient is set to zero address")
+var ErrZKDisputeGameMissingParams = fmt.Errorf("ZK dispute game is missing required params")
 
 func (c *ChainIntent) Check() error {
 	if c.ID == emptyHash {
@@ -172,6 +173,20 @@ func (c *ChainIntent) Check() error {
 	if c.UseRevenueShare {
 		if c.ChainFeesRecipient == emptyAddress {
 			return fmt.Errorf("%w: chainId=%s", ErrRevenueShareZeroAddress, c.ID)
+		}
+	}
+
+	for _, game := range c.AdditionalDisputeGames {
+		if game.VMType == VMTypeZK {
+			if game.ZKDisputeGame == nil {
+				return fmt.Errorf("%w: zkDisputeGame config must be set when VMType is ZK, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.Verifier == (common.Address{}) {
+				return fmt.Errorf("%w: Verifier must not be zero address, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.AbsolutePrestate == (common.Hash{}) {
+				return fmt.Errorf("%w: AbsolutePrestate must not be zero, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
 		}
 	}
 
