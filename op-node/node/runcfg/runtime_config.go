@@ -18,6 +18,9 @@ import (
 // DefaultSignerGracePeriod is how long the node continues to accept blocks from
 // a previous unsafe block signer after detecting a signer rotation on L1.
 // The grace period ends early if a block from the new signer is verified.
+// The 20-minute value is an arbitrary choice: long enough to give operators time
+// to complete a key rotation across infrastructure, but short enough to stop
+// accepting payloads from a retired signer within a reasonable window.
 const DefaultSignerGracePeriod = 20 * time.Minute
 
 var (
