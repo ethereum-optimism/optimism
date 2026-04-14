@@ -33,6 +33,9 @@ pub use jovian::Jovian;
 mod karst;
 pub use karst::Karst;
 
+mod nut_bundle;
+pub use nut_bundle::{NetworkUpgradeTransaction, NutBundle, NutBundleError};
+
 mod utils;
 pub(crate) use utils::upgrade_to_calldata;
 
