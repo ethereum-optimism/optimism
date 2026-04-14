@@ -29,14 +29,9 @@ import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
-<<<<<<< HEAD
-=======
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { Features } from "src/libraries/Features.sol";
->>>>>>> 1a12bbe75eb32f2eab8a5937a6acd46c09ed5b9e
 
 /// @title L2ForkUpgrade_TestInit
 /// @notice Reusable test initialization for L2 fork upgrade tests.
@@ -224,14 +219,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         address liquidityControllerOwner;
         string liquidityControllerGasPayingTokenName;
         string liquidityControllerGasPayingTokenSymbol;
-<<<<<<< HEAD
-=======
         // L1Block feature state
         string l1BlockGasPayingTokenName;
         string l1BlockGasPayingTokenSymbol;
-        // FeeSplitter configuration
-        address feeSplitterSharesCalculator;
->>>>>>> 1a12bbe75eb32f2eab8a5937a6acd46c09ed5b9e
         // Fee vault configuration
         address sequencerFeeVaultRecipient;
         uint256 sequencerFeeVaultMinWithdrawal;
