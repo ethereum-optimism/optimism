@@ -337,6 +337,21 @@ func (u *EOA) SendExecMessage(initMsg *InitMessage, opts ...ExecMessageOpt) *Exe
 	}
 }
 
+// PrepareExecTx builds and signs an executing-message transaction referencing
+// the given init message, but does NOT submit it. Returns the raw signed
+// transaction bytes and tx hash. The raw bytes are suitable for injection via
+// TestSequencer.SequenceBlockWithTxs, bypassing mempool filtering.
+func (u *EOA) PrepareExecTx(initMsg *InitMessage) (rawTx []byte, txHash common.Hash) {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
+	tx.Content.DependOn(&initMsg.Tx.Result)
+	tx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
+	signedTx, err := tx.PlannedTx.Signed.Eval(u.ctx)
+	u.require.NoError(err, "failed to sign exec tx")
+	rawBytes, err := signedTx.MarshalBinary()
+	u.require.NoError(err, "failed to marshal exec tx")
+	return rawBytes, signedTx.Hash()
+}
+
 // SendInvalidExecMessage sends an executing message with an invalid identifier.
 // The log index is incremented to reference a non-existent log.
 func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {

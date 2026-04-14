@@ -11,7 +11,7 @@ use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_node_api::NodePrimitives;
 use reth_optimism_evm::RethL1BlockInfo;
 use reth_optimism_forks::OpHardforks;
-use reth_primitives_traits::SealedBlock;
+use reth_primitives_traits::{BlockBody, SealedBlock};
 use reth_rpc_eth_api::{
     RpcConvert,
     helpers::LoadReceipt,
@@ -86,6 +86,11 @@ where
         };
 
         let mut receipts = Vec::with_capacity(inputs.len());
+        let post_exec_payload = block
+            .body()
+            .transactions()
+            .iter()
+            .find_map(|tx| tx.as_post_exec().map(|tx| &tx.inner().payload));
 
         for input in inputs {
             // We must clear this cache as different L2 transactions can have different
@@ -93,9 +98,18 @@ where
             // new transaction input has changed, since otherwise the L1 cost wouldn't.
             l1_block_info.clear_tx_l1_cost();
 
+            let op_gas_refund = post_exec_payload
+                .as_ref()
+                .and_then(|payload| payload.gas_refund_for_idx(input.meta.index));
+
             receipts.push(
-                OpReceiptBuilder::new(&self.provider.chain_spec(), input, &mut l1_block_info)?
-                    .build(),
+                OpReceiptBuilder::new(
+                    &self.provider.chain_spec(),
+                    input,
+                    &mut l1_block_info,
+                    op_gas_refund,
+                )?
+                .build(),
             );
         }
 
@@ -120,6 +134,8 @@ pub struct OpReceiptFieldsBuilder {
     /* ---------------------------------------- Bedrock ---------------------------------------- */
     /// The base fee of the L1 origin block.
     pub l1_base_fee: Option<u128>,
+    /// Post-exec block-level warming refund for this transaction.
+    pub op_gas_refund: Option<u64>,
     /* --------------------------------------- Regolith ---------------------------------------- */
     /// Deposit nonce, if this is a deposit transaction.
     pub deposit_nonce: Option<u64>,
@@ -153,6 +169,7 @@ impl OpReceiptFieldsBuilder {
             l1_data_gas: None,
             l1_fee_scalar: None,
             l1_base_fee: None,
+            op_gas_refund: None,
             deposit_nonce: None,
             deposit_receipt_version: None,
             l1_base_fee_scalar: None,
@@ -217,6 +234,12 @@ impl OpReceiptFieldsBuilder {
         Ok(self)
     }
 
+    /// Applies post-exec block-level warming refund metadata.
+    pub const fn op_gas_refund(mut self, op_gas_refund: Option<u64>) -> Self {
+        self.op_gas_refund = op_gas_refund;
+        self
+    }
+
     /// Applies deposit transaction metadata: deposit nonce.
     pub const fn deposit_nonce(mut self, nonce: Option<u64>) -> Self {
         self.deposit_nonce = nonce;
@@ -238,6 +261,7 @@ impl OpReceiptFieldsBuilder {
             l1_data_gas: l1_gas_used,
             l1_fee_scalar,
             l1_base_fee: l1_gas_price,
+            op_gas_refund,
             deposit_nonce,
             deposit_receipt_version,
             l1_base_fee_scalar,
@@ -261,6 +285,7 @@ impl OpReceiptFieldsBuilder {
                 operator_fee_constant,
                 da_footprint_gas_scalar,
             },
+            op_gas_refund,
             deposit_nonce,
             deposit_receipt_version,
         }
@@ -282,6 +307,7 @@ impl OpReceiptBuilder {
         chain_spec: &impl OpHardforks,
         input: ConvertReceiptInput<'_, N>,
         l1_block_info: &mut op_revm::L1BlockInfo,
+        op_gas_refund: Option<u64>,
     ) -> Result<Self, OpEthApiError>
     where
         N: NodePrimitives<SignedTx: OpTransaction, Receipt = OpReceipt>,
@@ -300,6 +326,7 @@ impl OpReceiptBuilder {
                 OpReceipt::Eip2930(receipt) => OpReceipt::Eip2930(map_logs(receipt)),
                 OpReceipt::Eip1559(receipt) => OpReceipt::Eip1559(map_logs(receipt)),
                 OpReceipt::Eip7702(receipt) => OpReceipt::Eip7702(map_logs(receipt)),
+                OpReceipt::PostExec(receipt) => OpReceipt::PostExec(map_logs(receipt)),
                 OpReceipt::Deposit(receipt) => OpReceipt::Deposit(receipt.map_inner(map_logs)),
             };
             mapped_receipt.into_with_bloom()
@@ -322,6 +349,7 @@ impl OpReceiptBuilder {
 
         let op_receipt_fields = OpReceiptFieldsBuilder::new(timestamp, block_number)
             .l1_block_info(chain_spec, tx_signed, l1_block_info)?
+            .op_gas_refund(op_gas_refund)
             .build();
 
         Ok(Self { core_receipt, op_receipt_fields })
@@ -332,25 +360,33 @@ impl OpReceiptBuilder {
     pub fn build(self) -> OpTransactionReceipt {
         let Self { core_receipt: inner, op_receipt_fields } = self;
 
-        let OpTransactionReceiptFields { l1_block_info, .. } = op_receipt_fields;
+        let OpTransactionReceiptFields {
+            l1_block_info,
+            op_gas_refund,
+            deposit_nonce: _,
+            deposit_receipt_version: _,
+        } = op_receipt_fields;
 
-        OpTransactionReceipt { inner, l1_block_info }
+        OpTransactionReceipt { inner, l1_block_info, op_gas_refund }
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use alloy_consensus::{Block, BlockBody, Eip658Value, TxEip7702, transaction::TransactionMeta};
+    use alloy_consensus::{
+        Block, BlockBody, Eip658Value, Header, Receipt, Sealable, SignableTransaction, TxEip7702,
+        transaction::TransactionMeta,
+    };
     use alloy_op_hardforks::{
         OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OpChainHardforks,
     };
     use alloy_primitives::{Address, Bytes, Signature, U256, hex};
-    use op_alloy_consensus::OpTypedTransaction;
+    use op_alloy_consensus::{OpTypedTransaction, SDMGasEntry, build_post_exec_tx};
     use op_alloy_network::eip2718::Decodable2718;
     use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET};
     use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
-    use reth_primitives_traits::Recovered;
+    use reth_primitives_traits::{Recovered, SealedBlock};
 
     /// OP Mainnet transaction at index 0 in block 124665056.
     ///
@@ -388,6 +424,7 @@ mod test {
                 operator_fee_constant: None,
                 da_footprint_gas_scalar: None,
             },
+            op_gas_refund: None,
             deposit_nonce: None,
             deposit_receipt_version: None,
         };
@@ -479,6 +516,63 @@ mod test {
             TX_META_TX_1_OP_MAINNET_BLOCK_124665056.l1_block_info.da_footprint_gas_scalar,
             "incorrect da footprint gas scalar"
         );
+    }
+
+    #[test]
+    fn convert_receipts_extracts_post_exec_gas_refund_from_embedded_payload() {
+        let tx_0 = OpTransactionSigned::decode_2718(
+            &mut TX_SET_L1_BLOCK_OP_MAINNET_BLOCK_124665056.as_slice(),
+        )
+        .unwrap();
+        let tx_1 =
+            OpTransactionSigned::decode_2718(&mut TX_1_OP_MAINNET_BLOCK_124665056.as_slice())
+                .unwrap();
+        let post_exec = OpTransactionSigned::PostExec(
+            build_post_exec_tx(124665056, vec![SDMGasEntry { index: 1, gas_refund: 77 }])
+                .seal_slow(),
+        );
+
+        let block = SealedBlock::new_unhashed(Block::<OpTransactionSigned> {
+            header: Header {
+                number: 124665056,
+                timestamp: BLOCK_124665056_TIMESTAMP,
+                ..Default::default()
+            },
+            body: BlockBody {
+                transactions: vec![tx_0, tx_1.clone(), post_exec],
+                ..Default::default()
+            },
+        });
+
+        let converter = OpReceiptConverter::new(reth_storage_api::noop::NoopProvider::<
+            _,
+            OpPrimitives,
+        >::new(OP_MAINNET.clone()));
+        let receipts =
+            <OpReceiptConverter<_> as ReceiptConverter<OpPrimitives>>::convert_receipts_with_block(
+                &converter,
+                vec![ConvertReceiptInput::<OpPrimitives> {
+                    tx: Recovered::new_unchecked(&tx_1, Address::ZERO),
+                    receipt: OpReceipt::Eip1559(Receipt {
+                        status: Eip658Value::Eip658(true),
+                        cumulative_gas_used: 100,
+                        logs: vec![],
+                    }),
+                    gas_used: 100,
+                    next_log_index: 0,
+                    meta: TransactionMeta {
+                        index: 1,
+                        block_number: 124665056,
+                        timestamp: BLOCK_124665056_TIMESTAMP,
+                        ..Default::default()
+                    },
+                }],
+                &block,
+            )
+            .unwrap();
+
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].op_gas_refund, Some(77));
     }
 
     #[test]
@@ -600,7 +694,7 @@ mod test {
 
         let signature = Signature::new(U256::default(), U256::default(), true);
 
-        let tx = OpTransactionSigned::new_unhashed(OpTypedTransaction::Eip7702(tx), signature);
+        let tx: OpTransactionSigned = OpTypedTransaction::Eip7702(tx).into_signed(signature).into();
 
         let mut l1_block_info = op_revm::L1BlockInfo {
             da_footprint_gas_scalar: Some(DA_FOOTPRINT_GAS_SCALAR),
@@ -635,7 +729,7 @@ mod test {
 
         let signature = Signature::new(U256::default(), U256::default(), true);
 
-        let tx = OpTransactionSigned::new_unhashed(OpTypedTransaction::Eip7702(tx), signature);
+        let tx: OpTransactionSigned = OpTypedTransaction::Eip7702(tx).into_signed(signature).into();
 
         let mut l1_block_info = op_revm::L1BlockInfo {
             da_footprint_gas_scalar: Some(DA_FOOTPRINT_GAS_SCALAR),
@@ -661,6 +755,7 @@ mod test {
                 },
             },
             &mut l1_block_info,
+            None,
         )
         .unwrap();
 
@@ -689,7 +784,7 @@ mod test {
 
         let signature = Signature::new(U256::default(), U256::default(), true);
 
-        let tx = OpTransactionSigned::new_unhashed(OpTypedTransaction::Eip7702(tx), signature);
+        let tx: OpTransactionSigned = OpTypedTransaction::Eip7702(tx).into_signed(signature).into();
 
         let mut l1_block_info = op_revm::L1BlockInfo {
             da_footprint_gas_scalar: Some(DA_FOOTPRINT_GAS_SCALAR),
@@ -715,6 +810,7 @@ mod test {
                 },
             },
             &mut l1_block_info,
+            None,
         )
         .unwrap();
 

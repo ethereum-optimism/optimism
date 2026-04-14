@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -129,7 +130,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			require.NotNil(t, st.ImplementationsDeployment)
 			require.NotNil(t, st.SuperchainRoles)
 			require.Equal(t, *expDeployment, *st.SuperchainDeployment)
-			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmImpl)
+			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
 			// OPCMv1 removed — ProtocolVersionsOwner is no longer returned by the script.
 			// Check the fields that are still populated.
 			require.Equal(t, stdSuperchainRoles.SuperchainProxyAdminOwner, st.SuperchainRoles.SuperchainProxyAdminOwner)
@@ -449,7 +450,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -519,7 +520,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -747,7 +748,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 
 	// Verify ImplementationsDeployment was set
 	require.NotNil(t, st.ImplementationsDeployment)
-	require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmImpl)
+	require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
 }
 
 // Validates that the correct flow is chosen when
@@ -788,7 +789,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000010000")
+	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,

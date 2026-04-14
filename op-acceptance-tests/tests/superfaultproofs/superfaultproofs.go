@@ -1055,6 +1055,146 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 	}
 }
 
+// RunMessageExpiryTest verifies that when a cross-chain message expires (the
+// executing message's block timestamp exceeds the init message timestamp plus
+// the message expiry window), the block containing the executing message is
+// replaced during consolidation. The system must be configured with a short
+// message expiry window via WithMessageExpiryWindow.
+//
+// msgExpiryWindow is the configured message expiry window in seconds; it must
+// match the value passed to WithMessageExpiryWindow when creating the system.
+func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWindow uint64) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	rng := rand.New(rand.NewSource(1234))
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+
+	// Send an initiating message on chain A.
+	eventLogger := aliceA.DeployEventLogger()
+	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+
+	// Record the init message's block timestamp.
+	initBlockNum := bigs.Uint64Strict(initMsg.BlockNumber())
+	initTimestamp := sys.L2ChainA.TimestampForBlockNum(initBlockNum)
+
+	// Calculate target block numbers past expiry for each chain independently.
+	// The message expires when: initTimestamp + expiryWindow < execTimestamp.
+	// Add extra blocks for safety margin.
+	blockTimeA := sys.L2ChainA.Escape().RollupConfig().BlockTime
+	blockTimeB := sys.L2ChainB.Escape().RollupConfig().BlockTime
+	t.Require().NotZero(blockTimeA, "block time A must be non-zero")
+	t.Require().NotZero(blockTimeB, "block time B must be non-zero")
+
+	currentBlockA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	currentBlockB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	blocksNeededA := (msgExpiryWindow / blockTimeA) + 2
+	blocksNeededB := (msgExpiryWindow / blockTimeB) + 2
+	targetBlockA := currentBlockA.Number + blocksNeededA
+	targetBlockB := currentBlockB.Number + blocksNeededB
+
+	// Wait for both chains to produce blocks past the expiry window.
+	sys.L2ELA.Reached(eth.Unsafe, targetBlockA, 60)
+	sys.L2ELB.Reached(eth.Unsafe, targetBlockB, 60)
+
+	// Stop batcher B so we control block production on chain B.
+	sys.L2BatcherB.Stop()
+
+	// Build the exec tx without submitting to the mempool.
+	// InteropMempoolFiltering would reject the expired message, so we
+	// bypass the mempool by injecting the raw tx via the test sequencer.
+	// This models a malicious sequencer force-including an invalid tx.
+	rawExecTx, execTxHash := aliceB.PrepareExecTx(initMsg)
+
+	// Inject the expired exec message into a block on chain B via test sequencer.
+	parentB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	chainBID := sys.L2ChainB.ChainID()
+	sys.TestSequencer.SequenceBlockWithTxs(t, chainBID, parentB.Hash, [][]byte{rawExecTx})
+
+	// Also advance chain A by one empty block to keep timestamps aligned.
+	parentA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	chainAID := sys.L2ChainA.ChainID()
+	sys.TestSequencer.SequenceBlock(t, chainAID, parentA.Hash)
+
+	// The injected block is the new unsafe head on chain B.
+	newHeadB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	execBlockNum := newHeadB.Number
+
+	// Verify the expired exec tx is actually in the injected block before consolidation.
+	sys.L2ELB.AssertTxInBlock(execBlockNum, execTxHash)
+
+	// Restart batcher B so batch data gets submitted to L1.
+	sys.L2BatcherB.Start()
+
+	endTimestamp := sys.L2ChainB.TimestampForBlockNum(execBlockNum)
+	t.Require().Greaterf(endTimestamp, initTimestamp+msgExpiryWindow,
+		"exec message timestamp %d should exceed init timestamp %d + expiry window %d",
+		endTimestamp, initTimestamp, msgExpiryWindow)
+	startTimestamp := endTimestamp - 1
+
+	// Wait for cross-safe validation, which should replace the invalid block.
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+	sys.L2CLB.Reached(types.CrossSafe, execBlockNum, 30)
+
+	// Verify the expired exec tx was reorged out during consolidation.
+	sys.L2ELB.AssertTxNotInBlock(execBlockNum, execTxHash)
+
+	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
+
+	crossSafeSuperRootEnd := superRootAtTimestamp(t, chains, endTimestamp)
+
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
+
+	start := superRootAtTimestamp(t, chains, startTimestamp)
+	paddingStep := func(step uint64) []byte {
+		return marshalTransition(start, step, firstOptimistic, secondOptimistic)
+	}
+
+	preReplacementSuperRoot := eth.NewSuperV1(endTimestamp,
+		eth.ChainIDAndOutput{ChainID: chains[0].ID, Output: firstOptimistic.OutputRoot},
+		eth.ChainIDAndOutput{ChainID: chains[1].ID, Output: secondOptimistic.OutputRoot})
+
+	tests := []*transitionTest{
+		{
+			Name:               "Consolidate-ExpectInvalidPendingBlock",
+			AgreedClaim:        paddingStep(consolidateStep),
+			DisputedClaim:      preReplacementSuperRoot.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			ExpectValid:        false,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+		{
+			Name:               "Consolidate-ReplaceExpiredMessage",
+			AgreedClaim:        paddingStep(consolidateStep),
+			DisputedClaim:      crossSafeSuperRootEnd.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+	}
+
+	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
+	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
+	for _, test := range tests {
+		t.Run(test.Name+"-fpp", func(t devtest.T) {
+			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
+				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
+				test.ClaimTimestamp, test.ExpectValid)
+		})
+
+		t.Run(test.Name+"-challenger", func(t devtest.T) {
+			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
+		})
+	}
+}
+
 // RunDepositMessageTest verifies that the fault proof system correctly handles
 // consolidation when a cross-chain message is initiated via an L1 deposit transaction.
 func RunDepositMessageTest(t devtest.T, sys *presets.SimpleInterop) {

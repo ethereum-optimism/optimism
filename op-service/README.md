@@ -29,12 +29,10 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── locks           - Lock utils, like read-write wrapped types
 ├── log             - Logging CLI and middleware utils
 ├── logpipe         - Logs streaming from io.Reader to logger
-├── logfilter       - Logging filters
 ├── logmods         - Log handler wrapping/unwrapping utils
 ├── metrics         - Metrics types, metering abstractions, server utils
 ├── oppprof         - P-Prof CLI types and server setup
 ├── plan            - Utils to create a lazy evaluated value following dependencies
-├── predeploys      - OP-Stack predeploy definitions
 ├── queue           - Generic queue implementation
 ├── retry           - Function retry utils
 ├── rpc             - RPC server utils

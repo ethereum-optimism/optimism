@@ -53,6 +53,9 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 contract Deploy is Deployer {
     using stdJson for string;
 
+    /// @notice The default initial bond. Should match DeployOPChain.DEFAULT_INIT_BOND for consistency.
+    uint256 private constant DEFAULT_INIT_BOND = 0.08 ether;
+
     ////////////////////////////////////////////////////////////////
     //                        Modifiers                           //
     ////////////////////////////////////////////////////////////////
@@ -486,7 +489,7 @@ contract Deploy is Deployer {
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: 0,
+            initBond: DEFAULT_INIT_BOND,
             gameType: GameTypes.PERMISSIONED_CANNON,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({

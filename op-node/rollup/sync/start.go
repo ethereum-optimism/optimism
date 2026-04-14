@@ -27,6 +27,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -46,6 +47,7 @@ type L1Chain interface {
 type L2Chain interface {
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 }
 
 var (
@@ -100,6 +102,47 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 	}, nil
 }
 
+// DurationToBlocks returns ceil(offset / blockTime) as a block count.
+// Ceiling is used so the retraction always covers the full requested duration.
+// A zero or negative offset yields 0; zero block time yields 0.
+func DurationToBlocks(offset time.Duration, blockTime uint64) uint64 {
+	if offset <= 0 || blockTime == 0 {
+		return 0
+	}
+	sec := uint64(offset / time.Second)
+	return (sec + blockTime - 1) / blockTime
+}
+
+// OffsetBlockNum returns the block number that is `offset` behind `head`,
+// clamped so it never goes below `genesis`. Returns head unchanged when
+// offset is zero or head is already at genesis.
+func OffsetBlockNum(offset time.Duration, blockTime uint64, head uint64, genesis uint64) uint64 {
+	n := DurationToBlocks(offset, blockTime)
+	if n == 0 || head <= genesis {
+		return head
+	}
+	maxRetract := head - genesis
+	if n > maxRetract {
+		n = maxRetract
+	}
+	return head - n
+}
+
+// L2HeadsForELSyncWithOffset returns the heads for an EL-sync tip: unsafe stays at tip,
+// safe and finalized retract by ceil(offset / blockTime) blocks (clamped at genesis).
+func L2HeadsForELSyncWithOffset(ctx context.Context, cfg *rollup.Config, l2 L2Chain, syncCfg *Config, tip eth.L2BlockRef) (*FindHeadsResult, error) {
+	target := OffsetBlockNum(syncCfg.OffsetELSafe, cfg.BlockTime, tip.Number, cfg.Genesis.L2.Number)
+	derived := tip
+	if target < tip.Number {
+		ref, err := l2.L2BlockRefByNumber(ctx, target)
+		if err != nil {
+			return nil, fmt.Errorf("EL sync offset-derived head at block %d: %w", target, err)
+		}
+		derived = ref
+	}
+	return &FindHeadsResult{Unsafe: tip, Safe: derived, Finalized: derived}, nil
+}
+
 // FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds
 // the finalized, unsafe and safe L2 blocks.
 //
@@ -130,7 +173,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		result.Unsafe.Number > cfg.Genesis.L2.Number &&
 		result.Unsafe.L1Origin.Number > cfg.Genesis.L1.Number+(RecoverMinSeqWindows*cfg.SeqWindowSize) {
 		lgr.Warn("Attempting recovery from sync state without finality.", "head", result.Unsafe)
-		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
+		return L2HeadsForELSyncWithOffset(ctx, cfg, l2, syncCfg, result.Unsafe)
 	}
 
 	// Check if the execution engine corrupted, and forkchoice is ahead of the remaining chain:
@@ -138,7 +181,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	if result.Unsafe.Number < result.Finalized.Number || result.Unsafe.Number < result.Safe.Number {
 		lgr.Error("Unsafe head is behind known finalized/safe blocks, execution-engine chain must have been rewound without forkchoice update. Attempting recovery now.",
 			"unsafe_head", result.Unsafe, "safe_head", result.Safe, "finalized_head", result.Finalized)
-		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
+		return L2HeadsForELSyncWithOffset(ctx, cfg, l2, syncCfg, result.Unsafe)
 	}
 
 	// Remember original unsafe block to determine reorg depth
