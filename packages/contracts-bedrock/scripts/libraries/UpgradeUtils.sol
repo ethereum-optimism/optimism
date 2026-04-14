@@ -65,28 +65,25 @@ library UpgradeUtils {
     /// @notice Returns the gas limits for all upgrade transaction types.
     /// @dev Gas limits are chosen to provide sufficient headroom while being
     ///      conservative enough to fit within the upgrade block gas allocation.
-    ///      All values based on gas profiling of actual mainnet fork execution.
+    ///      All values account for deposit intrinsic gas (21,000 base + calldata cost) which is
+    ///      deducted by op-geth before the contract body runs. Formula: body_gas + intrinsic_gas.
+    ///      Gas limits are set to the 1.5x recommended value from mainnet fork profiling.
     ///      Rationale for each limit:
-    ///      - l2cmDeployment: L2ContractsManager deployment measured at 2,824,780 gas
-    ///        Recommended 4,237,170 (1.5x). Set to 4.5M for safety.
-    ///      - upgradeExecution: L2ProxyAdmin.upgradePredeploys() measured at 1,602,448 gas
-    ///        Recommended 2,403,672 (1.5x). Set to 3M for safety.
-    ///      - conditionalDeployerDeployment: ConditionalDeployer deployment measured at 339,403 gas
-    ///        Recommended 509,104 (1.5x). Set to 600K for safety.
-    ///      - conditionalDeployerUpgrade: ConditionalDeployer upgrade measured at 29,169 gas
-    ///        Recommended 43,753 (1.5x). Set to 50K for safety.
-    ///      - proxyAdminUpgrade: ProxyAdmin upgrade measured at 12,069 gas
-    ///        Recommended 18,103 (1.5x). Set to 50K for safety.
+    ///      - l2cmDeployment: body 2,997,817 + intrinsic 229,328 = 3,227,145 → 4,840,717 (1.5x)
+    ///      - upgradeExecution: body 1,413,673 + intrinsic 21,432 = 1,435,105 → 2,152,657 (1.5x)
+    ///      - conditionalDeployerDeployment: body 332,338 + intrinsic 43,252 = 375,590 → 563,385 (1.5x)
+    ///      - conditionalDeployerUpgrade: body 28,901 + intrinsic 21,432 = 50,333 → 75,499 (1.5x)
+    ///      - proxyAdminUpgrade: body 11,801 + intrinsic 21,432 = 33,233 → 49,849 (1.5x)
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({
             // Fixed
-            l2cmDeployment: 4_500_000,
-            upgradeExecution: 3_000_000,
+            l2cmDeployment: 4_840_717,
+            upgradeExecution: 2_152_657,
             // Karst
-            conditionalDeployerDeployment: 600_000,
-            conditionalDeployerUpgrade: 50_000,
-            proxyAdminUpgrade: 50_000
+            conditionalDeployerDeployment: 563_385,
+            conditionalDeployerUpgrade: 75_499,
+            proxyAdminUpgrade: 49_849
         });
     }
 
@@ -130,6 +127,21 @@ library UpgradeUtils {
         implementations_[24] = "L2ToL1MessagePasserCGT";
         implementations_[25] = "LiquidityController";
         implementations_[26] = "NativeAssetLiquidity";
+    }
+
+    /// @notice Computes the intrinsic gas cost for a NUT bundle transaction.
+    /// @dev Replicates op-geth's IntrinsicGas formula (core/state_transition.go) for
+    ///      non-contract-creation transactions post-EIP-2028:
+    ///      21,000 base + 16 gas per non-zero byte + 4 gas per zero byte.
+    ///      NUT bundle entries are never contract creations (all have a non-zero `to` address),
+    ///      so the contract-creation base cost and EIP-3860 init code cost are not included.
+    /// @param _data The transaction calldata.
+    /// @return gas_ The intrinsic gas cost.
+    function computeIntrinsicGas(bytes memory _data) internal pure returns (uint64 gas_) {
+        gas_ = 21_000;
+        for (uint256 i = 0; i < _data.length; i++) {
+            gas_ += _data[i] == 0 ? 4 : 16;
+        }
     }
 
     /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.

@@ -24,11 +24,31 @@ contract ExecuteNUTBundle is Script {
         _executeAll(txns);
     }
 
+    /// @notice Executes a single NUT bundle transaction with deposit-faithful gas semantics.
+    /// @dev Models op-geth deposit transaction execution: intrinsic gas is deducted from the gas
+    ///      limit before the contract body runs, matching production DepositTx behavior.
+    /// @param _txn The Network Upgrade Transaction to execute.
+    /// @return success_ Whether the call succeeded.
+    /// @return returnData_ The return data from the call.
+    /// @return bodyGasUsed_ Gas consumed by the contract body (excluding intrinsic gas).
+    /// @return intrinsicGas_ Intrinsic gas cost for this transaction.
+    function executeSingle(NetworkUpgradeTxns.NetworkUpgradeTxn memory _txn)
+        public
+        returns (bool success_, bytes memory returnData_, uint64 bodyGasUsed_, uint64 intrinsicGas_)
+    {
+        intrinsicGas_ = UpgradeUtils.computeIntrinsicGas(_txn.data);
+        require(
+            _txn.gasLimit >= intrinsicGas_, string.concat("ExecuteNUTBundle: gasLimit < intrinsicGas for ", _txn.intent)
+        );
+
+        vm.prank(_txn.from);
+
+        uint256 gasBefore = gasleft();
+        (success_, returnData_) = _txn.to.call{ gas: _txn.gasLimit - intrinsicGas_ }(_txn.data);
+        bodyGasUsed_ = uint64(gasBefore - gasleft());
+    }
+
     /// @notice Executes all transactions in the bundle sequentially.
-    /// @dev Each transaction is executed with:
-    ///      - The correct sender via vm.prank()
-    ///      - Sufficient ETH balance via vm.deal()
-    ///      - The specified gas limit
     ///      Failures are reported with the transaction intent for debugging.
     /// @param _txns Array of Network Upgrade Transactions to execute.
     function _executeAll(NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _txns) internal {
@@ -43,12 +63,8 @@ contract ExecuteNUTBundle is Script {
             console.log("  to:", txn.to);
             console.log("  gasLimit:", txn.gasLimit);
 
-            // Ensure sender has sufficient balance
-            vm.deal(txn.from, 100 ether);
-
-            // Execute transaction as the specified sender
-            vm.prank(txn.from);
-            (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit }(txn.data);
+            // Execute the transaction
+            (bool success, bytes memory returnData,,) = executeSingle(txn);
 
             if (!success) {
                 // Decode revert reason if available
