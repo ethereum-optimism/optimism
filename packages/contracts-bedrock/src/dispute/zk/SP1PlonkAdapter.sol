@@ -4,10 +4,10 @@ pragma solidity 0.8.15;
 import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 
-/// @title SP1Adapter
-/// @notice Adapter that wraps an SP1 verifier behind the IZKVerifier interface.
+/// @title SP1PlonkAdapter
+/// @notice Adapter that wraps an SP1 PLONK verifier behind the IZKVerifier interface.
 ///         Deployed as a singleton (not proxied), following the MIPS.sol pattern.
-contract SP1Adapter is IZKVerifier {
+contract SP1PlonkAdapter is IZKVerifier {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -15,7 +15,7 @@ contract SP1Adapter is IZKVerifier {
     /// @notice Address of the actual SP1 verifier.
     ISP1Verifier internal immutable SP1_VERIFIER; // nosemgrep: sol-safety-no-immutable-variables
 
-    /// @notice Constructs the SP1Adapter.
+    /// @notice Constructs the SP1PlonkAdapter.
     ///
     /// @param _sp1Verifier The SP1 verifier contract.
     constructor(ISP1Verifier _sp1Verifier) {
@@ -27,10 +27,10 @@ contract SP1Adapter is IZKVerifier {
         sp1Verifier_ = SP1_VERIFIER;
     }
 
-    /// @notice Returns a verifier type identifier combining "SP1-" with the
+    /// @notice Returns a verifier type identifier combining "SP1-PLONK-" with the
     ///         verifier's version string.
     function verifierType() external view returns (string memory) {
-        return string(abi.encodePacked("SP1-", SP1_VERIFIER.VERSION()));
+        return string(abi.encodePacked("SP1-PLONK-", SP1_VERIFIER.VERSION()));
     }
 
     /// @notice Verifies an SP1 proof. Reverts if invalid.
