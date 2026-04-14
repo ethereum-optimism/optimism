@@ -11,6 +11,7 @@ import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
@@ -2020,5 +2021,41 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
         vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
         assertEq("SCKDG-VM-10,SCKDG-VM-20", _validate(true));
+    }
+}
+
+/// @title OPContractsManagerStandardValidator_ZKDisputeGame_Test
+/// @notice Tests that ZK dispute game validation is gated on the ZK_DISPUTE_GAME dev feature flag.
+///         These tests run in non-ZK deployment mode and verify both branches of the gating logic.
+contract OPContractsManagerStandardValidator_ZKDisputeGame_Test is OPContractsManagerStandardValidator_TestInit {
+    /// @notice Returns the devFeatureBitmap storage slot in standardValidator.
+    function _devFeatureBitmapSlot() internal returns (bytes32) {
+        return bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "devFeatureBitmap").slot);
+    }
+
+    /// @notice Enables the ZK_DISPUTE_GAME dev feature flag in standardValidator via vm.store.
+    function _enableZKFeature() internal {
+        vm.store(address(standardValidator), _devFeatureBitmapSlot(), DevFeatures.ZK_DISPUTE_GAME);
+    }
+
+    /// @notice Tests ZKDG-NOSHAPE when ZK feature is not enabled but a ZK game is registered.
+    ///         This is the negative test ensuring the non-ZK branch of the validation is exercised.
+    function test_validate_zkDisputeGameNotExpected_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("ZKDG-NOSHAPE", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-10 when ZK feature is enabled but no ZK game impl is registered.
+    ///         This is the positive test ensuring the ZK validation branch is exercised.
+    function test_validate_zkDisputeGameNullImpl_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
+        // Enable the ZK feature flag; factory still returns address(0) for ZK_DISPUTE_GAME.
+        _enableZKFeature();
+        assertEq("ZKDG-10", _validate(true));
     }
 }
