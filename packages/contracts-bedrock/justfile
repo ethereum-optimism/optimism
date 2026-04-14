@@ -236,6 +236,8 @@ genesis:
   forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
 
 # Generates the Network Upgrade Transaction (NUT) bundle.
+# NOTE: be very careful about renaming this command, it's used in the CI check-nut-locks job,
+# which expects this command to be available in historical commits.
 generate-nut-bundle: build-no-tests
   @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
 

@@ -20,6 +20,9 @@ var karstNUTBundleJSON []byte
 // Network Upgrade Transactions (NUTs) are read from a JSON file and
 // converted into deposit transactions.
 
+// nutBundleVersion is the only bundle schema version this reader accepts.
+const nutBundleVersion = "1.0.0"
+
 // nutMetadata contains version information for the NUT bundle format.
 type nutMetadata struct {
 	Version string `json:"version"`
@@ -47,6 +50,9 @@ func readNUTBundle(fork forks.Name, r io.Reader) (*nutBundle, error) {
 	var bundle nutBundle
 	if err := json.NewDecoder(r).Decode(&bundle); err != nil {
 		return nil, fmt.Errorf("failed to parse NUT bundle: %w", err)
+	}
+	if bundle.Metadata.Version != nutBundleVersion {
+		return nil, fmt.Errorf("unsupported NUT bundle version: got %q, want %q", bundle.Metadata.Version, nutBundleVersion)
 	}
 	bundle.ForkName = fork
 	return &bundle, nil

@@ -85,7 +85,7 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     }
 
     /// @notice Tests that `isDevFeatureEnabled` works correctly with the known OPTIMISM_PORTAL_INTEROP feature.
-    function test_isDevFeatureEnabled_optimismPortalInterop_succeeds() public {
+    function test_isDevFeatureEnabled_interop_succeeds() public {
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         l2DevFeatureFlags.setDevFeatureBitmap(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 

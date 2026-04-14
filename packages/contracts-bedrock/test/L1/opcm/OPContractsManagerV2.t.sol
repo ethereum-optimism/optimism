@@ -29,7 +29,6 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -2041,16 +2040,13 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertTrue(newLockbox.authorizedPortals(portal1), "ETHLockbox does not have portal 1 authorized");
         assertTrue(newLockbox.authorizedPortals(portal2), "ETHLockbox does not have portal 2 authorized");
 
-        // Check that superRootsActive is true on both portals.
+        // Check that the INTEROP feature is enabled on both SystemConfigs.
         assertTrue(
-            IOptimismPortalInterop(payable(address(portal1))).superRootsActive(),
-            "Portal 1 superRootsActive should be true"
+            chainContracts1.systemConfig.isFeatureEnabled(Features.INTEROP), "Chain 1 INTEROP feature should be enabled"
         );
         assertTrue(
-            IOptimismPortalInterop(payable(address(portal2))).superRootsActive(),
-            "Portal 2 superRootsActive should be true"
+            chainContracts2.systemConfig.isFeatureEnabled(Features.INTEROP), "Chain 2 INTEROP feature should be enabled"
         );
-
         // Check that the ETH_LOCKBOX feature is enabled on both SystemConfigs.
         assertTrue(
             chainContracts1.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX),

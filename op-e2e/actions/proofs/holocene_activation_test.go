@@ -6,9 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
-	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
@@ -17,11 +15,11 @@ func Test_ProgramAction_HoloceneActivation(gt *testing.T) {
 
 	runHoloceneDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		t := actionsHelpers.NewDefaultTesting(gt)
+		const holoceneOffset = 14
 
 		// Define override to activate Holocene 14 seconds after genesis
 		var setHoloceneTime = func(dc *genesis.DeployConfig) {
-			fourteen := hexutil.Uint64(14)
-			dc.L2GenesisHoloceneTimeOffset = &fourteen
+			dc.L2GenesisHoloceneTimeOffset = ptr(hexutil.Uint64(holoceneOffset))
 		}
 
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), setHoloceneTime)
@@ -89,11 +87,9 @@ func Test_ProgramAction_HoloceneActivation(gt *testing.T) {
 		env.Sequencer.ActL2PipelineFull(t)
 
 		l2SafeHead := env.Sequencer.L2Safe()
-		t.Log(l2SafeHead.Time)
+		t.Log("Safe head", "time", l2SafeHead.Time)
 		require.EqualValues(t, uint64(0), l2SafeHead.Number) // channel should be dropped, so no safe head progression
-		if uint64(0) == l2SafeHead.Number {
-			t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
-		}
+		t.Log("Safe head progressed as expected", "number", l2SafeHead.Number)
 
 		// Log assertions
 		filters := []string{
@@ -106,25 +102,21 @@ func Test_ProgramAction_HoloceneActivation(gt *testing.T) {
 			recs := env.Logs.FindLogs(testlog.NewMessageContainsFilter(filter), testlog.NewAttributesFilter("role", "sequencer"))
 			require.Len(t, recs, 1, "searching for %d instances of '%s' in logs from role %s", 1, filter, "sequencer")
 		}
-		env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+
+		// Now make sure the safe head progresses over the activation boundary so proofs tests aren't trivial over the genesis block.
+		env.BatchMineAndSync(t)
+		l2SafeHead = env.Sequencer.L2Safe()
+		t.Log("Safe head", "time", l2SafeHead.Time)
+		require.EqualValues(t, uint64(holoceneOffset), l2SafeHead.Number)
+		t.Log("Safe head progressed as expected", "number", l2SafeHead.Number)
+		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
-
-	matrix.AddTestCase(
-		"HonestClaim-HoloceneActivation",
+	matrix.AddDefaultTestCases(
 		nil,
 		helpers.NewForkMatrix(helpers.Granite),
 		runHoloceneDerivationTest,
-		helpers.ExpectNoError(),
 	)
-	matrix.AddTestCase(
-		"JunkClaim-HoloceneActivation",
-		nil,
-		helpers.NewForkMatrix(helpers.Granite),
-		runHoloceneDerivationTest,
-		helpers.ExpectError(claim.ErrClaimNotValid),
-		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-	)
+	matrix.Run(gt)
 }

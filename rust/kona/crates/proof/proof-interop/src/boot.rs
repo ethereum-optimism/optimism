@@ -133,10 +133,12 @@ impl BootInfo {
         {
             chain_ids.iter().map(|id| (*id, ROLLUP_CONFIGS[id].clone())).collect()
         } else {
+            let missing_ids: Vec<u64> =
+                chain_ids.into_iter().filter(|id| !ROLLUP_CONFIGS.contains_key(id)).collect();
             warn!(
                 target: "boot_loader",
                 "No rollup config found for chain IDs {:?}, falling back to preimage oracle. This is insecure in production without additional validation!",
-                chain_ids
+                missing_ids
             );
             let ser_cfg = oracle
                 .get(PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()))

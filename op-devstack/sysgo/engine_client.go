@@ -28,20 +28,20 @@ func dialEngine(ctx context.Context, endpoint string, jwtSecret [32]byte) (*engi
 
 var _ geth.EngineAPI = (*engineClient)(nil)
 
-func (e *engineClient) forkchoiceUpdated(fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes, method string) (engine.ForkChoiceResponse, error) {
+func (e *engineClient) forkchoiceUpdated(ctx context.Context, fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes, method string) (engine.ForkChoiceResponse, error) {
 	var x engine.ForkChoiceResponse
-	if err := e.inner.CallContext(context.Background(), &x, method, fs, pa); err != nil {
+	if err := e.inner.CallContext(ctx, &x, method, fs, pa); err != nil {
 		return engine.ForkChoiceResponse{}, err
 	}
 	return x, nil
 }
 
-func (e *engineClient) ForkchoiceUpdatedV2(fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
-	return e.forkchoiceUpdated(fs, pa, "engine_forkchoiceUpdatedV2")
+func (e *engineClient) ForkchoiceUpdatedV2(ctx context.Context, fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
+	return e.forkchoiceUpdated(ctx, fs, pa, "engine_forkchoiceUpdatedV2")
 }
 
-func (e *engineClient) ForkchoiceUpdatedV3(fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
-	return e.forkchoiceUpdated(fs, pa, "engine_forkchoiceUpdatedV3")
+func (e *engineClient) ForkchoiceUpdatedV3(ctx context.Context, fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
+	return e.forkchoiceUpdated(ctx, fs, pa, "engine_forkchoiceUpdatedV3")
 }
 
 func (e *engineClient) getPayload(id engine.PayloadID, method string) (*engine.ExecutionPayloadEnvelope, error) {

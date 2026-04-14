@@ -12,8 +12,6 @@ import (
 
 func TestInteropFaultProofs(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// TODO(#19180): Unskip this once supernode is updated.
-	t.Skip("Supernode does not yet return optimistic blocks until blocks are fully validated")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunSuperFaultProofTest(t, sys)
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -260,8 +261,8 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 		if currentValue != nil {
 			bitmap = currentValue.(common.Hash)
 		}
-		builder.WithGlobalOverride(devFeatureBitmapKey, deployer.EnableDevFeature(bitmap, flag))
-		if flag == deployer.OptimismPortalInteropDevFlag {
+		builder.WithGlobalOverride(devFeatureBitmapKey, devfeatures.EnableDevFeature(bitmap, flag))
+		if flag == devfeatures.OptimismPortalInteropFlag {
 			builder.WithUseInterop(true)
 		}
 	}

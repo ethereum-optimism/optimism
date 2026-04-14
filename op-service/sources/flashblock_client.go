@@ -80,7 +80,7 @@ func (c *FlashblockClient) Start(ctx context.Context) error {
 	for {
 		_, msg, err := c.ws.Read(ctx)
 		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || ctx.Err() != nil {
 				c.logger.Info("FlashblockClient: read loop finished")
 				return nil
 			}
