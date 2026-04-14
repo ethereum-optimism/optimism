@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type PrestateVariant string
@@ -85,7 +86,7 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 		SrcDir:  "rust/kona",
 		Package: "kona-host",
 		Binary:  "kona-host",
-	}.EnsureExists(context.Background(), nil)
+	}.EnsureExists(context.Background(), log.NewLogger(log.DiscardHandler()))
 	if err != nil {
 		return fmt.Errorf("kona-host binary: %w", err)
 	}

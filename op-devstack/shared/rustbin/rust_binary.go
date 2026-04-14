@@ -31,8 +31,6 @@ type Spec struct {
 // Build behavior:
 //   - RUST_JIT_BUILD=1: runs cargo build in debug mode (letting cargo handle rebuild detection)
 //   - Otherwise: only checks binary exists, errors if missing
-//
-// logger may be nil, in which case informational messages are skipped.
 func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, error) {
 	envSuffix := toEnvVarSuffix(s.Binary)
 
@@ -41,9 +39,7 @@ func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, erro
 		if _, err := os.Stat(pathOverride); os.IsNotExist(err) {
 			return "", fmt.Errorf("%s binary not found at overridden path %s", s.Binary, pathOverride)
 		}
-		if logger != nil {
-			logger.Info("Using overridden binary path", "binary", s.Binary, "path", pathOverride)
-		}
+		logger.Info("Using overridden binary path", "binary", s.Binary, "path", pathOverride)
 		return pathOverride, nil
 	}
 
@@ -56,9 +52,7 @@ func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, erro
 	jitBuild := os.Getenv("RUST_JIT_BUILD") != ""
 
 	if jitBuild {
-		if logger != nil {
-			logger.Info("Building Rust binary (JIT)", "binary", s.Binary, "dir", srcRoot)
-		}
+		logger.Info("Building Rust binary (JIT)", "binary", s.Binary, "dir", srcRoot)
 		if err := buildRustBinary(ctx, srcRoot, s.Package, s.Binary); err != nil {
 			return "", err
 		}
