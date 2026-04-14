@@ -207,7 +207,7 @@ mod tests {
             granite_time: Some(1726070401),
             holocene_time: Some(1736445601),
             isthmus_time: Some(1746806401),
-            jovian_time: None,
+            jovian_time: Some(1764691201),
             karst_time: None,
             optimism: Option::from(ChainConfigExtraFieldsOptimism {
                 eip1559_elasticity: 6,
@@ -225,7 +225,8 @@ mod tests {
         assert_eq!(value.get("graniteTime").unwrap(), 1726070401);
         assert_eq!(value.get("holoceneTime").unwrap(), 1736445601);
         assert_eq!(value.get("isthmusTime").unwrap(), 1746806401);
-        assert_eq!(value.get("jovianTime"), None);
+        assert_eq!(value.get("jovianTime").unwrap(), 1764691201);
+        assert_eq!(value.get("karstTime"), None);
         let optimism = value.get("optimism").unwrap();
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
         assert_eq!(optimism.get("eip1559Denominator").unwrap(), 50);
