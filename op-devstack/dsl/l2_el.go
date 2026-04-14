@@ -271,85 +271,79 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 func (el *L2ELNode) VerifyWithdrawalHashChangedIn(blockHash common.Hash) {
 	l2Client := el.inner.L2EthClient()
 
-	var (
-		postBlockWithdrawalInfo eth.BlockInfo
-		parentBlockInfo         eth.BlockInfo
-		postProof               *eth.AccountResult
-		parentProof             *eth.AccountResult
-		lastErr                 error
-	)
-
 	el.require.Eventually(func() bool {
-		postBlockWithdrawalInfo, lastErr = l2Client.InfoByHash(el.ctx, blockHash)
-		if lastErr != nil {
-			el.log.Debug("Waiting for post-withdrawal block info", "blockHash", blockHash, "err", lastErr)
+		postBlockWithdrawalInfo, err := l2Client.InfoByHash(el.ctx, blockHash)
+		if err != nil {
+			el.log.Debug("Waiting for post-withdrawal block info", "blockHash", blockHash, "err", err)
 			return false
 		}
 		if postBlockWithdrawalInfo.WithdrawalsRoot() == nil {
-			lastErr = fmt.Errorf("post-withdrawal block %s has no withdrawals root", blockHash)
-			el.log.Debug("Waiting for post-withdrawal withdrawals root", "blockHash", blockHash)
+			err = fmt.Errorf("post-withdrawal block %s has no withdrawals root", blockHash)
+			el.log.Debug("Waiting for post-withdrawal withdrawals root", "blockHash", blockHash, "err", err)
 			return false
 		}
 
-		parentBlockInfo, lastErr = l2Client.InfoByHash(el.ctx, postBlockWithdrawalInfo.ParentHash())
-		if lastErr != nil {
-			el.log.Debug("Waiting for parent block info", "blockHash", postBlockWithdrawalInfo.ParentHash(), "err", lastErr)
+		parentBlockInfo, err := l2Client.InfoByHash(el.ctx, postBlockWithdrawalInfo.ParentHash())
+		if err != nil {
+			el.log.Debug("Waiting for parent block info", "blockHash", postBlockWithdrawalInfo.ParentHash(), "err", err)
 			return false
 		}
 		if parentBlockInfo.WithdrawalsRoot() == nil {
-			lastErr = fmt.Errorf("parent block %s has no withdrawals root", postBlockWithdrawalInfo.ParentHash())
-			el.log.Debug("Waiting for parent withdrawals root", "blockHash", postBlockWithdrawalInfo.ParentHash())
+			err = fmt.Errorf("parent block %s has no withdrawals root", postBlockWithdrawalInfo.ParentHash())
+			el.log.Debug("Waiting for parent withdrawals root", "blockHash", postBlockWithdrawalInfo.ParentHash(), "err", err)
 			return false
 		}
 
-		postProof, lastErr = l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
-		if lastErr != nil {
-			el.log.Debug("Waiting for post-withdrawal storage proof", "blockHash", blockHash, "err", lastErr)
+		postProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
+		if err != nil {
+			el.log.Debug("Waiting for post-withdrawal storage proof", "blockHash", blockHash, "err", err)
 			return false
 		}
 
-		parentProof, lastErr = l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, postBlockWithdrawalInfo.ParentHash().String())
-		if lastErr != nil {
-			el.log.Debug("Waiting for parent storage proof", "blockHash", postBlockWithdrawalInfo.ParentHash(), "err", lastErr)
+		parentProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, postBlockWithdrawalInfo.ParentHash().String())
+		if err != nil {
+			el.log.Debug("Waiting for parent storage proof", "blockHash", postBlockWithdrawalInfo.ParentHash(), "err", err)
 			return false
 		}
 
 		if parentProof.StorageHash == postProof.StorageHash {
-			lastErr = fmt.Errorf("withdrawal hash did not change between parent %s and current %s", postBlockWithdrawalInfo.ParentHash(), blockHash)
+			err = fmt.Errorf("withdrawal hash did not change between parent %s and current %s", postBlockWithdrawalInfo.ParentHash(), blockHash)
 			el.log.Debug("Waiting for withdrawal hash change",
 				"parentBlock", postBlockWithdrawalInfo.ParentHash(),
 				"currentBlock", blockHash,
-				"storageRoot", postProof.StorageHash)
+				"storageRoot", postProof.StorageHash,
+				"err", err)
 			return false
 		}
 
 		if postProof.StorageHash != *postBlockWithdrawalInfo.WithdrawalsRoot() {
-			lastErr = fmt.Errorf("post-withdrawal storage root mismatch: proof=%s header=%s", postProof.StorageHash, *postBlockWithdrawalInfo.WithdrawalsRoot())
+			err = fmt.Errorf("post-withdrawal storage root mismatch: proof=%s header=%s", postProof.StorageHash, *postBlockWithdrawalInfo.WithdrawalsRoot())
 			el.log.Debug("Waiting for post-withdrawal storage root to match header",
 				"blockHash", blockHash,
 				"proofStorageRoot", postProof.StorageHash,
-				"headerWithdrawalsRoot", *postBlockWithdrawalInfo.WithdrawalsRoot())
+				"headerWithdrawalsRoot", *postBlockWithdrawalInfo.WithdrawalsRoot(),
+				"err", err)
 			return false
 		}
 
 		if parentProof.StorageHash != *parentBlockInfo.WithdrawalsRoot() {
-			lastErr = fmt.Errorf("parent storage root mismatch: proof=%s header=%s", parentProof.StorageHash, *parentBlockInfo.WithdrawalsRoot())
+			err = fmt.Errorf("parent storage root mismatch: proof=%s header=%s", parentProof.StorageHash, *parentBlockInfo.WithdrawalsRoot())
 			el.log.Debug("Waiting for parent storage root to match header",
 				"blockHash", postBlockWithdrawalInfo.ParentHash(),
 				"proofStorageRoot", parentProof.StorageHash,
-				"headerWithdrawalsRoot", *parentBlockInfo.WithdrawalsRoot())
+				"headerWithdrawalsRoot", *parentBlockInfo.WithdrawalsRoot(),
+				"err", err)
 			return false
 		}
 
-		lastErr = nil
+		el.log.Info("Withdrawal hash verification successful",
+			"parentBlock", postBlockWithdrawalInfo.ParentHash(),
+			"currentBlock", blockHash,
+			"parentStorageRoot", parentProof.StorageHash,
+			"currentStorageRoot", postProof.StorageHash)
+
 		return true
 	}, 30*time.Second, 200*time.Millisecond, "withdrawal proof data did not become available in time")
-
-	el.log.Info("Withdrawal hash verification successful",
-		"parentBlock", postBlockWithdrawalInfo.ParentHash(),
-		"currentBlock", blockHash,
-		"parentStorageRoot", parentProof.StorageHash,
-		"currentStorageRoot", postProof.StorageHash)
 }
 
 func (el *L2ELNode) Stop() {
