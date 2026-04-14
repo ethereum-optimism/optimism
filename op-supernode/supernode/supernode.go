@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
@@ -23,6 +24,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
+	"github.com/prometheus/client_golang/prometheus"
+
 	gethlog "github.com/ethereum/go-ethereum/log"
 	rpc "github.com/ethereum/go-ethereum/rpc"
 
@@ -45,8 +48,9 @@ type Supernode struct {
 	httpServer      *httputil.HTTPServer
 	rpcRouter       *resources.Router
 	// Metrics router/server for per-chain metrics
-	metrics      *resources.MetricsService
-	metricsFanIn *resources.MetricsFanIn
+	metrics         *resources.MetricsService
+	metricsFanIn    *resources.MetricsFanIn
+	l1CacheRegistry *prometheus.Registry // supernode-level L1 cache metrics
 	// cached address when available
 	rpcAddr string
 }
@@ -72,7 +76,8 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	s.rootRPC = oprpc.NewHandler(version, oprpc.WithLogger(log))
 	s.rpcRouter.SetRootHandler(s.rootRPC)
 	// Build metrics router; attach per-chain registries later
-	s.metricsFanIn = resources.NewMetricsFanIn(len(cfg.Chains))
+	s.metricsFanIn = resources.NewMetricsFanIn(len(cfg.Chains) + 1) // +1 for supernode-level metrics
+	s.metricsFanIn.SetMetricsRegistry("supernode", s.l1CacheRegistry)
 	for _, id := range cfg.Chains {
 		chainID := eth.ChainIDFromUInt64(id)
 		initOverrides := &rollupNode.InitializationOverrides{
@@ -425,7 +430,7 @@ func (s *Supernode) initL1Client(ctx context.Context, cfg *config.CLIConfig) err
 	// Enable HTTP polling for L1 heads to support HTTP-only L1 connections (e.g., in tests)
 	l1RPC, err := client.NewRPC(ctx, s.log, cfg.L1NodeAddr,
 		client.WithDialAttempts(10),
-		client.WithHttpPollInterval(time.Second*2), // Poll every 2 seconds for HTTP connections
+		client.WithHttpPollInterval(time.Second*12), // Match op-node default (12s = L1 block time)
 	)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
@@ -433,8 +438,14 @@ func (s *Supernode) initL1Client(ctx context.Context, cfg *config.CLIConfig) err
 
 	nonCloseableRPC := resources.NewNonCloseableRPC(l1RPC)
 
+	// Create a dedicated prometheus registry for supernode-level L1 cache metrics.
+	// This is registered with metricsFanIn later (after it's created in New()).
+	s.l1CacheRegistry = prometheus.NewRegistry()
+	l1CacheMetrics := opmetrics.NewCacheMetrics(
+		opmetrics.With(s.l1CacheRegistry), "supernode", "shared_l1_cache", "Shared L1 source cache")
+
 	l1ClientCfg := sources.L1ClientSimpleConfig(false, sources.RPCKindStandard, 100)
-	s.l1Client, err = sources.NewL1Client(nonCloseableRPC, s.log, nil, l1ClientCfg)
+	s.l1Client, err = sources.NewL1Client(nonCloseableRPC, s.log, l1CacheMetrics, l1ClientCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create L1 client: %w", err)
 	}
