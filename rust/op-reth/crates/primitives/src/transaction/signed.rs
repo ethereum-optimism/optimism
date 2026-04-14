@@ -108,45 +108,62 @@ impl OpTransactionSigned {
 
 impl SignerRecoverable for OpTransactionSigned {
     fn recover_signer(&self) -> Result<Address, RecoveryError> {
-        // Optimism's Deposit transaction does not have a signature. Directly return the
-        // `from` address.
         match &self.transaction {
-            OpTypedTransaction::Deposit(TxDeposit { from, .. }) => return Ok(*from),
-            OpTypedTransaction::PostExec(tx) => return Ok(tx.signer_address()),
-            _ => {}
+            // Optimism's Deposit transaction does not have a signature. Directly return the
+            // `from` address.
+            OpTypedTransaction::Deposit(TxDeposit { from, .. }) => Ok(*from),
+            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // canonical zero-address signer rather than a cryptographic signature.
+            OpTypedTransaction::PostExec(tx) => Ok(tx.signer_address()),
+            _ => {
+                let Self { transaction, signature, .. } = self;
+                let signature_hash = signature_hash(transaction);
+                recover_signer(signature, signature_hash)
+            }
         }
-
-        let Self { transaction, signature, .. } = self;
-        let signature_hash = signature_hash(transaction);
-        recover_signer(signature, signature_hash)
     }
 
     fn recover_signer_unchecked(&self) -> Result<Address, RecoveryError> {
-        // Optimism's Deposit transaction does not have a signature. Directly return the
-        // `from` address.
         match &self.transaction {
-            OpTypedTransaction::Deposit(TxDeposit { from, .. }) => return Ok(*from),
-            OpTypedTransaction::PostExec(tx) => return Ok(tx.signer_address()),
-            _ => {}
+            // Optimism's Deposit transaction does not have a signature. Directly return the
+            // `from` address.
+            OpTypedTransaction::Deposit(TxDeposit { from, .. }) => Ok(*from),
+            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // canonical zero-address signer rather than a cryptographic signature.
+            OpTypedTransaction::PostExec(tx) => Ok(tx.signer_address()),
+            _ => {
+                let Self { transaction, signature, .. } = self;
+                let signature_hash = signature_hash(transaction);
+                recover_signer_unchecked(signature, signature_hash)
+            }
         }
-
-        let Self { transaction, signature, .. } = self;
-        let signature_hash = signature_hash(transaction);
-        recover_signer_unchecked(signature, signature_hash)
     }
 
     fn recover_unchecked_with_buf(&self, buf: &mut Vec<u8>) -> Result<Address, RecoveryError> {
         match &self.transaction {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
-            OpTypedTransaction::Deposit(tx) => return Ok(tx.from),
-            OpTypedTransaction::PostExec(tx) => return Ok(tx.signer_address()),
-            OpTypedTransaction::Legacy(tx) => tx.encode_for_signing(buf),
-            OpTypedTransaction::Eip2930(tx) => tx.encode_for_signing(buf),
-            OpTypedTransaction::Eip1559(tx) => tx.encode_for_signing(buf),
-            OpTypedTransaction::Eip7702(tx) => tx.encode_for_signing(buf),
-        };
-        recover_signer_unchecked(&self.signature, keccak256(buf))
+            OpTypedTransaction::Deposit(tx) => Ok(tx.from),
+            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // canonical zero-address signer rather than a cryptographic signature.
+            OpTypedTransaction::PostExec(tx) => Ok(tx.signer_address()),
+            OpTypedTransaction::Legacy(tx) => {
+                tx.encode_for_signing(buf);
+                recover_signer_unchecked(&self.signature, keccak256(buf))
+            }
+            OpTypedTransaction::Eip2930(tx) => {
+                tx.encode_for_signing(buf);
+                recover_signer_unchecked(&self.signature, keccak256(buf))
+            }
+            OpTypedTransaction::Eip1559(tx) => {
+                tx.encode_for_signing(buf);
+                recover_signer_unchecked(&self.signature, keccak256(buf))
+            }
+            OpTypedTransaction::Eip7702(tx) => {
+                tx.encode_for_signing(buf);
+                recover_signer_unchecked(&self.signature, keccak256(buf))
+            }
+        }
     }
 }
 

@@ -521,6 +521,8 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             Self::Deposit(tx) => return Ok(tx.from),
+            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // canonical zero-address signer rather than a cryptographic signature.
             Self::PostExec(tx) => return Ok(tx.inner().signer_address()),
         };
         let signature = match self {
@@ -528,6 +530,7 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             Self::Eip2930(tx) => tx.signature(),
             Self::Eip1559(tx) => tx.signature(),
             Self::Eip7702(tx) => tx.signature(),
+            // Deposit and PostExec are unsigned and handled via early return above.
             Self::Deposit(_) | Self::PostExec(_) => {
                 unreachable!("non-signed transactions should not be handled here")
             }
@@ -546,6 +549,8 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             Self::Deposit(tx) => return Ok(tx.from),
+            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // canonical zero-address signer rather than a cryptographic signature.
             Self::PostExec(tx) => return Ok(tx.inner().signer_address()),
         };
         let signature = match self {
@@ -553,9 +558,8 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             Self::Eip2930(tx) => tx.signature(),
             Self::Eip1559(tx) => tx.signature(),
             Self::Eip7702(tx) => tx.signature(),
-            Self::Deposit(_) | Self::PostExec(_) => {
-                unreachable!("non-signed transactions should not be handled here")
-            }
+            // Deposit and PostExec are unsigned and handled via early return above.
+            Self::Deposit(_) | Self::PostExec(_) => unreachable!(),
         };
         alloy_consensus::crypto::secp256k1::recover_signer_unchecked(signature, signature_hash)
     }
@@ -577,6 +581,7 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             Self::Eip7702(tx) => {
                 alloy_consensus::transaction::SignerRecoverable::recover_unchecked_with_buf(tx, buf)
             }
+            // Deposit and PostExec are unsigned; return their canonical signer directly.
             Self::Deposit(tx) => Ok(tx.from),
             Self::PostExec(tx) => Ok(tx.inner().signer_address()),
         }

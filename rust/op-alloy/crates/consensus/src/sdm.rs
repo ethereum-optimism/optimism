@@ -344,6 +344,35 @@ mod tests {
         assert_ne!(tx_a.tx_hash(), tx_b.tx_hash());
     }
 
+    #[test]
+    fn post_exec_tx_eip2718_roundtrip() {
+        let tx = build_post_exec_tx(
+            99,
+            vec![
+                SDMGasEntry { index: 0, gas_refund: 100 },
+                SDMGasEntry { index: 5, gas_refund: 200 },
+            ],
+        );
+
+        let mut buf = Vec::new();
+        tx.encode_2718(&mut buf);
+
+        let decoded = TxPostExec::decode_2718(&mut buf.as_slice()).expect("decode 2718");
+        assert_eq!(decoded, tx);
+        assert_eq!(decoded.tx_hash(), tx.tx_hash());
+    }
+
+    #[test]
+    fn post_exec_tx_eip2718_roundtrip_empty_refunds() {
+        let tx = build_post_exec_tx(1, vec![]);
+
+        let mut buf = Vec::new();
+        tx.encode_2718(&mut buf);
+
+        let decoded = TxPostExec::decode_2718(&mut buf.as_slice()).expect("decode 2718");
+        assert_eq!(decoded, tx);
+    }
+
     #[cfg(feature = "serde")]
     #[test]
     fn post_exec_tx_serde_serializes_as_payload() {
