@@ -2360,7 +2360,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
     /// @param _gameTypeRaw The raw game type value to test.
     function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {
-        // Only SUPER_CANNON_KONA (9) and SUPER_PERMISSIONED_CANNON (5) are valid for migration.
+        // TODO(#20030): Remove SUPER_CANNON once it's disabled in migrator.
+        vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON.raw());
         vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON_KONA.raw());
         vm.assume(_gameTypeRaw != GameTypes.SUPER_PERMISSIONED_CANNON.raw());
 

@@ -284,7 +284,10 @@ func migrateSuperRootsWithProposal(
 				GameArgs: absoluteCannonKonaPrestate[:],
 			},
 		},
-		StartingAnchorRoot:        startingAnchorRoot,
+		StartingAnchorRoot: Proposal{
+			Root:             common.Hash(superRoot),
+			L2SequenceNumber: big.NewInt(int64(superrootTime)),
+		},
 		StartingRespectedGameType: superCannonGameType,
 	}
 	migrateCall := contract.Call("migrate", migrateInputV2)

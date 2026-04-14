@@ -95,10 +95,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
 
         // Check that the starting respected game type is a valid super game type.
-        // SUPER_CANNON (Go/Cannon) is disabled during migration; only SUPER_CANNON_KONA and
-        // SUPER_PERMISSIONED_CANNON are valid targets.
+        // TODO(#20030): Remove SUPER_CANNON — only allow SUPER_CANNON_KONA and SUPER_PERMISSIONED_CANNON.
         if (
-            _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()
+            _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON.raw()
+                && _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()
                 && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         ) {
             revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();

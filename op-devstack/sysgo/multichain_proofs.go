@@ -251,6 +251,7 @@ func startSuperProposer(
 		PprofConfig:                  oppprof.CLIConfig{},
 		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
 		ProposalInterval:             6 * time.Second,
+		// TODO(#20030): Switch to superCannonKonaGameType once SUPER_CANNON is disabled in migrator
 		DisputeGameType:              superCannonGameType,
 		ActiveSequencerCheckDuration: 5 * time.Second,
 		WaitNodeSync:                 false,
