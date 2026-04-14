@@ -10,6 +10,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
@@ -98,6 +99,16 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
     function setUp() public override {
         super.setUp();
         skipIfForkTest("SystemConfig_Initialize_Test: cannot test initialization on forked network");
+    }
+
+    function test_initialize_interopFlag_succeeds() external view {
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            /// if devfeature flag is on, check in system config is on
+            assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
+        } else {
+            /// if dev feature flag is off, check system config is off
+            assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
+        }
     }
 
     /// @notice Tests that initialization sets the correct values.
@@ -881,6 +892,12 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
         if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
             vm.prank(address(systemConfig.proxyAdmin()));
             systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, false);
+        }
+
+        // Normalize INTEROP to avoid environment-dependent state
+        if (systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            vm.prank(address(systemConfig.proxyAdmin()));
+            systemConfig.setFeature(Features.INTEROP, false);
         }
 
         assertFalse(systemConfig.isFeatureEnabled(_feature));

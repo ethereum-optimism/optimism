@@ -2,23 +2,23 @@ package derive
 
 import (
 	"bytes"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/nuts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-//go:embed karst_nut_bundle.json
-var karstNUTBundleJSON []byte
-
 // Network Upgrade Transactions (NUTs) are read from a JSON file and
 // converted into deposit transactions.
+
+// nutBundleVersion is the only bundle schema version this reader accepts.
+const nutBundleVersion = "1.0.0"
 
 // nutMetadata contains version information for the NUT bundle format.
 type nutMetadata struct {
@@ -47,6 +47,9 @@ func readNUTBundle(fork forks.Name, r io.Reader) (*nutBundle, error) {
 	var bundle nutBundle
 	if err := json.NewDecoder(r).Decode(&bundle); err != nil {
 		return nil, fmt.Errorf("failed to parse NUT bundle: %w", err)
+	}
+	if bundle.Metadata.Version != nutBundleVersion {
+		return nil, fmt.Errorf("unsupported NUT bundle version: got %q, want %q", bundle.Metadata.Version, nutBundleVersion)
 	}
 	bundle.ForkName = fork
 	return &bundle, nil
@@ -97,7 +100,7 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	var bundleJSON []byte
 	switch fork {
 	case forks.Karst:
-		bundleJSON = karstNUTBundleJSON
+		bundleJSON = nuts.KarstNUTBundleJSON
 	default:
 		return nil, 0, fmt.Errorf("no NUT bundle for fork %s", fork)
 	}

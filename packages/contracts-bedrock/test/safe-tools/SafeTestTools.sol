@@ -166,44 +166,6 @@ library SafeTestLib {
         return sortedPKs;
     }
 
-    /// @dev Sign a transaction as a safe owner with a private key.
-    function signTransaction(
-        SafeInstance memory instance,
-        uint256 pk,
-        address to,
-        uint256 value,
-        bytes memory data,
-        Enum.Operation operation,
-        uint256 safeTxGas,
-        uint256 baseGas,
-        uint256 gasPrice,
-        address gasToken,
-        address refundReceiver
-    )
-        internal
-        view
-        returns (uint8 v, bytes32 r, bytes32 s)
-    {
-        bytes32 txDataHash;
-        {
-            uint256 _nonce = instance.safe.nonce();
-            txDataHash = instance.safe.getTransactionHash({
-                to: to,
-                value: value,
-                data: data,
-                operation: operation,
-                safeTxGas: safeTxGas,
-                baseGas: baseGas,
-                gasPrice: gasPrice,
-                gasToken: gasToken,
-                refundReceiver: refundReceiver,
-                _nonce: _nonce
-            });
-        }
-
-        (v, r, s) = Vm(VM_ADDR).sign(pk, txDataHash);
-    }
-
     /// @dev Get the previous owner in the linked list of owners.
     ///      This version of getPrevOwner will call to the Safe contract to get the current list of owners.
     ///      Note that this will break vm.expectRevert() tests by making a call which does not revert..
@@ -350,12 +312,6 @@ library SafeTestLib {
         EIP1271Sign(instance, abi.encodePacked(digest));
     }
 
-    /// @dev Increments the nonce of the Safe by sending an empty transaction.
-    function incrementNonce(SafeInstance memory instance) internal returns (uint256 newNonce) {
-        execTransaction(instance, address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), "");
-        return instance.safe.nonce();
-    }
-
     /// @dev Adds a new owner to the safe
     function changeThreshold(SafeInstance memory instance, uint256 threshold) internal {
         execTransaction(instance, address(instance.safe), 0, abi.encodeCall(OwnerManager.changeThreshold, (threshold)));
@@ -494,13 +450,6 @@ contract SafeTestTools {
     SafeInstance[] internal instances;
 
     uint256 internal saltNonce = uint256(keccak256(bytes("SAFE TEST")));
-
-    /// @dev can be called to reinitialize the singleton, proxyFactory and handler. Useful for forking.
-    function _initializeSafeTools() internal {
-        singleton = new GnosisSafe();
-        proxyFactory = new GnosisSafeProxyFactory();
-        handler = new CompatibilityFallbackHandler();
-    }
 
     /// @dev Sets up a Safe with the given parameters.
     /// @param ownerPKs The public keys of the owners.

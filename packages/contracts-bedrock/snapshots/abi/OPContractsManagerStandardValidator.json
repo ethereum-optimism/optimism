@@ -15,11 +15,6 @@
           },
           {
             "internalType": "address",
-            "name": "optimismPortalInteropImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "ethLockboxImpl",
             "type": "address"
           },
@@ -289,19 +284,6 @@
   {
     "inputs": [],
     "name": "optimismPortalImpl",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "optimismPortalInteropImpl",
     "outputs": [
       {
         "internalType": "address",

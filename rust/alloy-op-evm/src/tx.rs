@@ -2,13 +2,13 @@
 
 use crate::block::OpTxEnv;
 use alloy_consensus::{
-    Signed, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy,
+    Signed, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy,
 };
 use alloy_eips::{Encodable2718, Typed2718, eip7594::Encodable7594};
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, TransactionEnvMut};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
 use core::ops::{Deref, DerefMut};
-use op_alloy::consensus::{OpTxEnvelope, TxDeposit};
+use op_alloy::consensus::{OpTxEnvelope, TxDeposit, TxPostExec};
 use op_revm::{OpTransaction, transaction::deposit::DepositTransactionParts};
 use revm::context::TxEnv;
 
@@ -133,6 +133,7 @@ impl FromTxWithEncoded<OpTxEnvelope> for OpTx {
             OpTxEnvelope::Eip2930(tx) => Self::from_encoded_tx(tx, caller, encoded),
             OpTxEnvelope::Eip7702(tx) => Self::from_encoded_tx(tx, caller, encoded),
             OpTxEnvelope::Deposit(tx) => Self::from_encoded_tx(tx.inner(), caller, encoded),
+            OpTxEnvelope::PostExec(tx) => Self::from_encoded_tx(tx.inner(), caller, encoded),
         }
     }
 }
@@ -213,6 +214,20 @@ impl FromTxWithEncoded<TxDeposit> for OpTx {
             is_system_transaction: tx.is_system_transaction,
         };
         Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit })
+    }
+}
+
+impl FromRecoveredTx<TxPostExec> for OpTx {
+    fn from_recovered_tx(tx: &TxPostExec, _sender: Address) -> Self {
+        let encoded = tx.encoded_2718();
+        Self::from_encoded_tx(tx, Address::ZERO, encoded.into())
+    }
+}
+
+impl FromTxWithEncoded<TxPostExec> for OpTx {
+    fn from_encoded_tx(tx: &TxPostExec, caller: Address, encoded: Bytes) -> Self {
+        let base = TxEnv { tx_type: tx.ty(), caller, kind: tx.kind(), ..Default::default() };
+        Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit: Default::default() })
     }
 }
 

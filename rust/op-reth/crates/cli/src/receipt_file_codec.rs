@@ -108,6 +108,7 @@ impl TryFrom<OpGethReceipt> for OpReceipt {
             OpTxType::Legacy => Ok(Self::Legacy(receipt)),
             OpTxType::Eip2930 => Ok(Self::Eip2930(receipt)),
             OpTxType::Eip1559 => Ok(Self::Eip1559(receipt)),
+            OpTxType::PostExec => Ok(Self::PostExec(receipt)),
             OpTxType::Eip7702 => Ok(Self::Eip7702(receipt)),
             OpTxType::Deposit => Ok(Self::Deposit(OpDepositReceipt {
                 inner: receipt,

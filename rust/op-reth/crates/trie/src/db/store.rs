@@ -2,11 +2,13 @@ use super::{BlockNumberHash, ProofWindow, ProofWindowKey, Tables};
 use crate::{
     BlockStateDiff, OpProofsStorageError,
     OpProofsStorageError::NoBlocksFound,
-    OpProofsStorageResult, OpProofsStore,
-    api::{InitialStateAnchor, InitialStateStatus, OpProofsInitialStateStore, WriteCounts},
+    OpProofsStorageResult,
+    api::{
+        InitialStateAnchor, InitialStateStatus, OpProofsInitProvider, OpProofsProviderRO,
+        OpProofsProviderRw, OpProofsStore, WriteCounts,
+    },
     db::{
         MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
-        cursor::Dup,
         models::{
             AccountTrieHistory, BlockChangeSet, ChangeSet, HashedAccountHistory,
             HashedStorageHistory, HashedStorageKey, MaybeDeleted, StorageTrieHistory,
@@ -31,13 +33,7 @@ use reth_trie_common::{
     BranchNodeCompact, HashedPostState, Nibbles, StoredNibbles,
     updates::{StorageTrieUpdates, TrieUpdates},
 };
-use std::{ops::RangeBounds, path::Path};
-
-/// MDBX implementation of [`OpProofsStore`].
-#[derive(Debug)]
-pub struct MdbxProofsStorage {
-    env: DatabaseEnv,
-}
+use std::{fmt::Debug, ops::RangeBounds, path::Path, sync::Arc};
 
 struct ProofWindowValue {
     earliest: NumHash,
@@ -63,6 +59,12 @@ struct HistoryDeleteBatch {
     hashed_storage: Vec<(<HashedStorageHistory as Table>::Key, u64)>,
 }
 
+/// MDBX implementation of [`OpProofsStore`].
+#[derive(Debug)]
+pub struct MdbxProofsStorage {
+    env: DatabaseEnv,
+}
+
 impl MdbxProofsStorage {
     /// Creates a new [`MdbxProofsStorage`] instance with the given path.
     pub fn new(path: &Path) -> Result<Self, OpProofsStorageError> {
@@ -70,78 +72,120 @@ impl MdbxProofsStorage {
             .map_err(|e| DatabaseError::Other(format!("Failed to open database: {e}")))?;
         Ok(Self { env })
     }
+}
 
-    fn inner_get_latest_block_number_hash(
-        &self,
-        tx: &impl DbTx,
-    ) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let block = self.inner_get_block_number_hash(tx, ProofWindowKey::LatestBlock)?;
-        if block.is_some() {
-            return Ok(block);
-        }
+/// MDBX provider for proof storage
+#[derive(Debug)]
+pub struct MdbxProofsProvider<TX> {
+    pub(crate) tx: TX,
+}
 
-        self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock)
+impl<TX> MdbxProofsProvider<TX> {
+    /// Creates a new `MdbxProofsProvider` instance with the given transaction.
+    pub const fn new(tx: TX) -> Self {
+        Self { tx }
     }
+}
 
-    fn inner_get_block_number_hash(
+impl<TX: DbTx> MdbxProofsProvider<TX> {
+    fn get_block_number_hash_inner(
         &self,
-        tx: &impl DbTx,
         key: ProofWindowKey,
     ) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let mut cursor = tx.cursor_read::<ProofWindow>()?;
+        let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
         let value = cursor.seek_exact(key)?;
         Ok(value.map(|(_, val)| (val.number(), *val.hash())))
     }
 
-    fn inner_get_proof_window(
-        &self,
-        tx: &impl DbTx,
-    ) -> OpProofsStorageResult<Option<ProofWindowValue>> {
-        let mut cursor = tx.cursor_read::<ProofWindow>()?;
-
-        let earliest = match cursor.seek_exact(ProofWindowKey::EarliestBlock)? {
-            Some((_, val)) => NumHash::new(val.number(), *val.hash()),
-            None => return Ok(None),
-        };
-
-        let latest = match cursor.seek_exact(ProofWindowKey::LatestBlock)? {
-            Some((_, val)) => NumHash::new(val.number(), *val.hash()),
-            None => earliest,
-        };
-
-        Ok(Some(ProofWindowValue { earliest, latest }))
+    fn get_latest_block_number_hash_inner(&self) -> OpProofsStorageResult<(u64, B256)> {
+        if let Some(block) = self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)? {
+            return Ok(block);
+        }
+        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?.ok_or(NoBlocksFound)
     }
 
-    fn set_earliest_block_number_hash(
+    /// Phase 1 of pruning: Calculate survivors.
+    /// Scans change sets to find the LATEST update for every key in the range.
+    fn calculate_prune_plan(&self, target_block: u64) -> OpProofsStorageResult<Option<PrunePlan>> {
+        let Some((earliest, _)) =
+            self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?
+        else {
+            return Err(NoBlocksFound);
+        };
+        if earliest >= target_block {
+            return Ok(None);
+        }
+
+        let mut acc_candidates: HashMap<StoredNibbles, u64> = HashMap::default();
+        let mut storage_candidates: HashMap<StorageTrieKey, u64> = HashMap::default();
+        let mut hashed_acc_candidates: HashMap<B256, u64> = HashMap::default();
+        let mut hashed_storage_candidates: HashMap<HashedStorageKey, u64> = HashMap::default();
+
+        let range = (earliest + 1)..=target_block;
+        let mut cs_cursor = self.tx.cursor_read::<BlockChangeSet>()?;
+        let mut walker = cs_cursor.walk_range(range)?;
+
+        while let Some(Ok((block_number, cs))) = walker.next() {
+            Self::track_latest(&mut acc_candidates, cs.account_trie_keys, block_number);
+            Self::track_latest(&mut storage_candidates, cs.storage_trie_keys, block_number);
+            Self::track_latest(&mut hashed_acc_candidates, cs.hashed_account_keys, block_number);
+            Self::track_latest(
+                &mut hashed_storage_candidates,
+                cs.hashed_storage_keys,
+                block_number,
+            );
+        }
+
+        Ok(Some(PrunePlan {
+            earliest_block: earliest,
+            acc_survivors: Self::flatten_and_sort(acc_candidates),
+            storage_survivors: Self::flatten_and_sort(storage_candidates),
+            hashed_acc_survivors: Self::flatten_and_sort(hashed_acc_candidates),
+            hashed_storage_survivors: Self::flatten_and_sort(hashed_storage_candidates),
+        }))
+    }
+
+    /// Records the latest block number for each key in a candidate map.
+    /// Used during prune planning to identify survivor versions.
+    fn track_latest<K: Eq + std::hash::Hash>(
+        candidates: &mut HashMap<K, u64>,
+        keys: impl IntoIterator<Item = K>,
+        block_number: u64,
+    ) {
+        for k in keys {
+            candidates
+                .entry(k)
+                .and_modify(|curr| *curr = (*curr).max(block_number))
+                .or_insert(block_number);
+        }
+    }
+
+    /// Helper to flatten `HashMap` into a sorted Vector of survivors.
+    /// Sorting is required to ensure optimal sequential seek performance in MDBX.
+    fn flatten_and_sort<K: Ord>(map: HashMap<K, u64>) -> Vec<(K, u64)> {
+        let mut v: Vec<_> = map.into_iter().collect();
+        v.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        v
+    }
+}
+
+impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
+    fn set_earliest_block_number_inner(
         &self,
         block_number: u64,
         hash: B256,
     ) -> OpProofsStorageResult<()> {
-        let _ = self.env.update(|tx| {
-            Self::inner_set_earliest_block_number(tx, block_number, hash)?;
-            Ok::<(), DatabaseError>(())
-        })?;
-        Ok(())
-    }
-
-    /// Internal helper to set earliest block number hash within an existing transaction
-    fn inner_set_earliest_block_number(
-        tx: &(impl DbTxMut + DbTx),
-        block_number: u64,
-        hash: B256,
-    ) -> OpProofsStorageResult<()> {
-        let mut cursor = tx.cursor_write::<ProofWindow>()?;
+        let mut cursor = self.tx.cursor_write::<ProofWindow>()?;
         cursor.upsert(ProofWindowKey::EarliestBlock, &BlockNumberHash::new(block_number, hash))?;
         Ok(())
     }
 
-    /// Internal helper to set latest block number hash within an existing transaction
-    fn inner_set_latest_block_number(
-        tx: &(impl DbTxMut + DbTx),
+    fn set_latest_block_number_inner(
+        &self,
         block_number: u64,
         hash: B256,
     ) -> OpProofsStorageResult<()> {
-        let mut cursor = tx.cursor_write::<ProofWindow>()?;
+        let mut cursor = self.tx.cursor_write::<ProofWindow>()?;
         cursor.upsert(ProofWindowKey::LatestBlock, &BlockNumberHash::new(block_number, hash))?;
         Ok(())
     }
@@ -161,7 +205,6 @@ impl MdbxProofsStorage {
     /// Uses [`reth_db::mdbx::cursor::Cursor::upsert`] for upsert operation.
     fn persist_history_batch<T, I, V>(
         &self,
-        tx: &(impl DbTxMut + DbTx),
         block_number: T::SubKey,
         items: I,
         append_mode: bool,
@@ -172,7 +215,7 @@ impl MdbxProofsStorage {
         I: IntoIterator,
         I::Item: IntoKV<T>,
     {
-        let mut cur = tx.cursor_dup_write::<T>()?;
+        let mut cur = self.tx.cursor_dup_write::<T>()?;
         let mut keys = Vec::<T::Key>::new();
 
         // Materialize iterator to enable partitioning and collect keys
@@ -197,7 +240,7 @@ impl MdbxProofsStorage {
         // Phase 1: Batch Delete (Sequential)
         // Remove all existing state at Block 0 for these keys.
         {
-            let mut del_cur = tx.cursor_dup_write::<T>()?;
+            let mut del_cur = self.tx.cursor_dup_write::<T>()?;
             for (k, _) in &pairs {
                 // Seek to (Key, Block 0)
                 if let Some(vv) = del_cur.seek_by_key_subkey(k.clone(), 0)? &&
@@ -211,7 +254,7 @@ impl MdbxProofsStorage {
         // Phase 2: Batch Write (Sequential)
         // Write new values (skipping tombstones).
         {
-            let mut write_cur = tx.cursor_dup_write::<T>()?;
+            let mut write_cur = self.tx.cursor_dup_write::<T>()?;
             for (k, vv) in pairs {
                 if vv.value.0.is_some() {
                     write_cur.upsert(k, &vv)?;
@@ -224,98 +267,23 @@ impl MdbxProofsStorage {
 
     /// Delete entries for `items` at exactly `block_number` in a dup-sorted table.
     /// Seeks (key, block) and deletes current if the subkey matches.
-    fn delete_dup_sorted<T, I, V>(
-        &self,
-        tx: &(impl DbTxMut + DbTx),
-        items: I,
-    ) -> OpProofsStorageResult<()>
+    fn delete_dup_sorted<T, I, V>(&self, items: I) -> OpProofsStorageResult<()>
     where
         T: Table<Value = VersionedValue<V>> + DupSort<SubKey = u64>,
         T::Key: Clone,
         T::SubKey: PartialEq + Clone,
         I: IntoIterator<Item = (T::Key, T::SubKey)>,
     {
-        let mut cur = tx.cursor_dup_write::<T>()?;
+        let mut cur = self.tx.cursor_dup_write::<T>()?;
         for (key, subkey) in items {
-            if let Some(vv) = cur.seek_by_key_subkey(key, subkey)? {
+            if let Some(vv) = cur.seek_by_key_subkey(key, subkey)?
                 // ensure we didn't land on a >subkey
-                if vv.block_number == subkey {
-                    cur.delete_current()?;
-                }
+                && vv.block_number == subkey
+            {
+                cur.delete_current()?;
             }
         }
         Ok(())
-    }
-
-    /// Phase 1 of pruning: Calculate survivors.
-    /// Scans change sets to find the LATEST update for every key in the range.
-    fn calculate_prune_plan(&self, target_block: u64) -> OpProofsStorageResult<Option<PrunePlan>> {
-        self.env.view(|tx| {
-            let Some((earliest, _)) =
-                self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock)?
-            else {
-                return Ok(None);
-            };
-
-            if earliest >= target_block {
-                return Ok(None);
-            }
-
-            // 1. Accumulate latest block per key using HashMap for O(1) deduplication
-            // This is memory-efficient for high-churn scenarios (many updates to same keys).
-            let mut acc_candidates: HashMap<StoredNibbles, u64> = HashMap::default();
-            let mut storage_candidates: HashMap<StorageTrieKey, u64> = HashMap::default();
-            let mut hashed_acc_candidates: HashMap<B256, u64> = HashMap::default();
-            let mut hashed_storage_candidates: HashMap<HashedStorageKey, u64> = HashMap::default();
-
-            let range = (earliest + 1)..=target_block;
-            let mut cs_cursor = tx.cursor_read::<BlockChangeSet>()?;
-            let mut walker = cs_cursor.walk_range(range)?;
-
-            while let Some(Ok((block_number, cs))) = walker.next() {
-                for k in cs.account_trie_keys {
-                    acc_candidates
-                        .entry(k)
-                        .and_modify(|curr| *curr = (*curr).max(block_number))
-                        .or_insert(block_number);
-                }
-                for k in cs.storage_trie_keys {
-                    storage_candidates
-                        .entry(k)
-                        .and_modify(|curr| *curr = (*curr).max(block_number))
-                        .or_insert(block_number);
-                }
-                for k in cs.hashed_account_keys {
-                    hashed_acc_candidates
-                        .entry(k)
-                        .and_modify(|curr| *curr = (*curr).max(block_number))
-                        .or_insert(block_number);
-                }
-                for k in cs.hashed_storage_keys {
-                    hashed_storage_candidates
-                        .entry(k)
-                        .and_modify(|curr| *curr = (*curr).max(block_number))
-                        .or_insert(block_number);
-                }
-            }
-
-            // 2. Convert map to sorted survivors list for efficient sequential db write
-            Ok(Some(PrunePlan {
-                earliest_block: earliest,
-                acc_survivors: Self::flatten_and_sort(acc_candidates),
-                storage_survivors: Self::flatten_and_sort(storage_candidates),
-                hashed_acc_survivors: Self::flatten_and_sort(hashed_acc_candidates),
-                hashed_storage_survivors: Self::flatten_and_sort(hashed_storage_candidates),
-            }))
-        })?
-    }
-
-    /// Helper to flatten `HashMap` into a sorted Vector of survivors.
-    /// Sorting is required to ensure optimal sequential seek performance in MDBX.
-    fn flatten_and_sort<K: Ord>(map: HashMap<K, u64>) -> Vec<(K, u64)> {
-        let mut v: Vec<_> = map.into_iter().collect();
-        v.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-        v
     }
 
     /// Delete history versions for `items` that are strictly older than the provided block number.
@@ -323,7 +291,6 @@ impl MdbxProofsStorage {
     /// is deleted. Returns the number of entries deleted.
     fn prune_history_preceding<T, V>(
         &self,
-        tx: &(impl DbTxMut + DbTx),
         cutoff_items: Vec<(T::Key, u64)>,
     ) -> OpProofsStorageResult<u64>
     where
@@ -335,7 +302,7 @@ impl MdbxProofsStorage {
         }
 
         let mut deleted_count = 0;
-        let mut cur = tx.cursor_dup_write::<T>()?;
+        let mut cur = self.tx.cursor_dup_write::<T>()?;
         for (key, survivor_block) in cutoff_items {
             // Seek to the start of history for this key (Block 0)
             if let Some(mut entry) = cur.seek_by_key_subkey(key.clone(), 0)? {
@@ -351,7 +318,6 @@ impl MdbxProofsStorage {
                             cur.delete_current()?;
                             deleted_count += 1;
                         }
-
                         break;
                     }
 
@@ -376,43 +342,13 @@ impl MdbxProofsStorage {
         Ok(deleted_count)
     }
 
-    /// Append deletion tombstones for all existing storage items of `hashed_address` at
-    /// `block_number`. Iterates via `next()` from a RO cursor and writes MaybeDeleted(None)
-    /// rows.
-    fn wipe_storage<T, Next, K, VV, V>(
-        &self,
-        tx: &(impl DbTxMut + DbTx),
-        block_number: u64,
-        hashed_address: B256,
-        mut next: Next,
-    ) -> OpProofsStorageResult<Vec<T::Key>>
-    where
-        T: Table<Value = VersionedValue<V>> + DupSort,
-        Next: FnMut() -> OpProofsStorageResult<Option<(K, VV)>>,
-        (B256, K, Option<V>): IntoKV<T>,
-        T::Key: Clone,
-    {
-        let mut cur = tx.cursor_dup_write::<T>()?;
-        let mut keys: Vec<T::Key> = Vec::new();
-
-        while let Some((k, _vv)) = next()? {
-            let key: T::Key = (hashed_address, k, Option::<V>::None).into_key();
-            let del: T::Value = VersionedValue { block_number, value: MaybeDeleted(None) };
-            cur.append_dup(key.clone(), del)?;
-            keys.push(key);
-        }
-
-        Ok(keys)
-    }
-
     /// Collect versioned history over `block_range` using `BlockChangeSet`.
     fn collect_history_ranged(
         &self,
-        tx: &impl DbTx,
         block_range: impl RangeBounds<u64>,
     ) -> OpProofsStorageResult<HistoryDeleteBatch> {
         let mut history = HistoryDeleteBatch::default();
-        let mut change_set_cursor = tx.cursor_read::<BlockChangeSet>()?;
+        let mut change_set_cursor = self.tx.cursor_read::<BlockChangeSet>()?;
         let mut walker = change_set_cursor.walk_range(block_range)?;
 
         while let Some(Ok((block_number, change_set))) = walker.next() {
@@ -443,11 +379,10 @@ impl MdbxProofsStorage {
     /// Delete versioned history over `block_range` using history batch.
     fn delete_history_ranged(
         &self,
-        tx: &(impl DbTxMut + DbTx),
         block_range: impl RangeBounds<u64>,
         history: HistoryDeleteBatch,
     ) -> OpProofsStorageResult<WriteCounts> {
-        let mut change_set_cursor = tx.cursor_write::<BlockChangeSet>()?;
+        let mut change_set_cursor = self.tx.cursor_write::<BlockChangeSet>()?;
         let mut walker = change_set_cursor.walk_range(block_range)?;
 
         while let Some(Ok((_, _))) = walker.next() {
@@ -455,10 +390,10 @@ impl MdbxProofsStorage {
         }
 
         // Delete using the simplified API: iterator of (key, subkey)
-        self.delete_dup_sorted::<AccountTrieHistory, _, _>(tx, history.clone().account_trie)?;
-        self.delete_dup_sorted::<StorageTrieHistory, _, _>(tx, history.clone().storage_trie)?;
-        self.delete_dup_sorted::<HashedAccountHistory, _, _>(tx, history.clone().hashed_account)?;
-        self.delete_dup_sorted::<HashedStorageHistory, _, _>(tx, history.clone().hashed_storage)?;
+        self.delete_dup_sorted::<AccountTrieHistory, _, _>(history.clone().account_trie)?;
+        self.delete_dup_sorted::<StorageTrieHistory, _, _>(history.clone().storage_trie)?;
+        self.delete_dup_sorted::<HashedAccountHistory, _, _>(history.clone().hashed_account)?;
+        self.delete_dup_sorted::<HashedStorageHistory, _, _>(history.clone().hashed_storage)?;
 
         Ok(WriteCounts {
             account_trie_updates_written_total: history.account_trie.len() as u64,
@@ -471,7 +406,6 @@ impl MdbxProofsStorage {
     /// Write trie/state history for `block_number` from `block_state_diff`.
     fn store_trie_updates_for_block(
         &self,
-        tx: &<DatabaseEnv as Database>::TXMut,
         block_number: u64,
         block_state_diff: BlockStateDiff,
         append_mode: bool,
@@ -482,13 +416,11 @@ impl MdbxProofsStorage {
         let hashed_storage_len = sorted_post_state.storages.len();
 
         let account_trie_keys = self.persist_history_batch(
-            tx,
             block_number,
             sorted_trie_updates.account_nodes_ref().iter().cloned(),
             append_mode,
         )?;
         let hashed_account_keys = self.persist_history_batch(
-            tx,
             block_number,
             sorted_post_state.accounts.iter().copied(),
             append_mode,
@@ -498,20 +430,37 @@ impl MdbxProofsStorage {
         for (hashed_address, nodes) in sorted_trie_updates.storage_tries_ref() {
             // Handle wiped - mark all storage trie as deleted at the current block number
             if nodes.is_deleted && append_mode {
-                // Yet to have any update for the current block number - So just using up to
-                // previous block number
-                let mut ro = self.storage_trie_cursor(*hashed_address, block_number - 1)?;
-                let keys =
-                    self.wipe_storage(tx, block_number, *hashed_address, || Ok(ro.next()?))?;
+                let cursor = self.tx.cursor_dup_read::<StorageTrieHistory>()?;
+                let mut ro = MdbxTrieCursor::new(cursor, block_number - 1, Some(*hashed_address));
 
-                storage_trie_keys.extend(keys);
+                // Merge old tombstones with new nodes in sorted key order.
+                // A BTreeMap ensures each path appears once and append_dup
+                // sees strictly increasing keys.
+                let mut merged: std::collections::BTreeMap<Nibbles, Option<BranchNodeCompact>> =
+                    std::collections::BTreeMap::new();
 
-                // Skip any further processing for this hashed_address
+                // Old paths → tombstones
+                while let Some((path, _node)) = ro.next()? {
+                    merged.insert(path, None);
+                }
+
+                // New nodes override tombstones or add fresh entries
+                for (path, node) in nodes.storage_nodes_ref().iter().cloned() {
+                    merged.insert(path, node);
+                }
+
+                let mut cur = self.tx.cursor_dup_write::<StorageTrieHistory>()?;
+                for (path, value) in merged {
+                    let key = StorageTrieKey::new(*hashed_address, StoredNibbles::from(path));
+                    let vv = VersionedValue { block_number, value: MaybeDeleted(value) };
+                    cur.append_dup(key.clone(), vv)?;
+                    storage_trie_keys.push(key);
+                }
+
                 continue;
             }
 
             let keys = self.persist_history_batch(
-                tx,
                 block_number,
                 nodes
                     .storage_nodes_ref()
@@ -525,19 +474,37 @@ impl MdbxProofsStorage {
 
         let mut hashed_storage_keys = Vec::<HashedStorageKey>::with_capacity(hashed_storage_len);
         for (hashed_address, storage) in sorted_post_state.storages {
-            // Handle wiped - mark all storage slots as deleted at the current block number
             if append_mode && storage.is_wiped() {
-                // Yet to have any update for the current block number - So just using up to
-                // previous block number
-                let mut ro = self.storage_hashed_cursor(hashed_address, block_number - 1)?;
-                let keys =
-                    self.wipe_storage(tx, block_number, hashed_address, || Ok(ro.next()?))?;
-                hashed_storage_keys.extend(keys);
-                // Skip any further processing for this hashed_address
+                let cursor = self.tx.cursor_dup_read::<HashedStorageHistory>()?;
+                let mut ro = MdbxStorageCursor::new(cursor, block_number - 1, hashed_address);
+
+                // Merge old tombstones with new slot values in sorted key
+                // order. A BTreeMap ensures each slot appears once and
+                // append_dup sees strictly increasing keys.
+                let mut merged: std::collections::BTreeMap<B256, Option<StorageValue>> =
+                    std::collections::BTreeMap::new();
+
+                // Old slots → tombstones
+                while let Some((slot, _val)) = ro.next()? {
+                    merged.insert(slot, None);
+                }
+
+                // New slots override tombstones or add fresh entries
+                for (slot, val) in storage.storage_slots_ref() {
+                    merged.insert(*slot, Some(StorageValue(*val)));
+                }
+
+                let mut cur = self.tx.cursor_dup_write::<HashedStorageHistory>()?;
+                for (slot, value) in merged {
+                    let key = HashedStorageKey::new(hashed_address, slot);
+                    let vv = VersionedValue { block_number, value: MaybeDeleted(value) };
+                    cur.append_dup(key.clone(), vv)?;
+                    hashed_storage_keys.push(key);
+                }
+
                 continue;
             }
             let keys = self.persist_history_batch(
-                tx,
                 block_number,
                 storage
                     .storage_slots_ref()
@@ -556,19 +523,14 @@ impl MdbxProofsStorage {
         })
     }
 
-    /// Append-only writer for a block: validates parent, persists diff (soft-delete=true),
-    /// records a `BlockChangeSet`, and advances `ProofWindow::LatestBlock`.
-    fn store_trie_updates_append_only(
+    fn store_trie_updates_append_only_inner(
         &self,
-        tx: &<DatabaseEnv as Database>::TXMut,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
         let block_number = block_ref.block.number;
 
-        // Check the latest stored block is the parent of the incoming block
-        let latest_block_hash =
-            self.inner_get_latest_block_number_hash(tx)?.map_or(B256::ZERO, |(_num, hash)| hash);
+        let (_num, latest_block_hash) = self.get_latest_block_number_hash_inner()?;
 
         if latest_block_hash != block_ref.parent {
             return Err(OpProofsStorageError::OutOfOrder {
@@ -579,14 +541,12 @@ impl MdbxProofsStorage {
         }
 
         let change_set =
-            &self.store_trie_updates_for_block(tx, block_number, block_state_diff, true)?;
+            &self.store_trie_updates_for_block(block_number, block_state_diff, true)?;
 
-        // Cursor for recording all changes made in this block for all history tables
-        let mut change_set_cursor = tx.new_cursor::<BlockChangeSet>()?;
+        let mut change_set_cursor = self.tx.cursor_write::<BlockChangeSet>()?;
         change_set_cursor.append(block_number, change_set)?;
 
-        // Update proof window's latest block
-        Self::inner_set_latest_block_number(tx, block_number, block_ref.block.hash)?;
+        self.set_latest_block_number_inner(block_number, block_ref.block.hash)?;
 
         Ok(WriteCounts {
             account_trie_updates_written_total: change_set.account_trie_keys.len() as u64,
@@ -596,50 +556,76 @@ impl MdbxProofsStorage {
         })
     }
 
-    /// Return `BlockNumHash` for the initial state anchor.
-    fn get_initial_state_anchor(&self) -> OpProofsStorageResult<Option<BlockNumHash>> {
-        self.env.view(|tx| {
-            let mut cur = tx.cursor_read::<ProofWindow>()?;
-            Ok(cur.seek_exact(ProofWindowKey::InitialStateAnchor)?.map(|(_k, v)| v.into()))
-        })?
+    fn get_proof_window_inner(&self) -> OpProofsStorageResult<ProofWindowValue> {
+        let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
+
+        let earliest = match cursor.seek_exact(ProofWindowKey::EarliestBlock)? {
+            Some((_, val)) => NumHash::new(val.number(), *val.hash()),
+            None => return Err(NoBlocksFound),
+        };
+
+        let latest = match cursor.seek_exact(ProofWindowKey::LatestBlock)? {
+            Some((_, val)) => NumHash::new(val.number(), *val.hash()),
+            None => earliest,
+        };
+
+        Ok(ProofWindowValue { earliest, latest })
     }
 
-    /// Return latest key for a table
-    fn get_latest_key<T>(&self) -> OpProofsStorageResult<Option<T::Key>>
+    fn get_initial_state_anchor_inner(&self) -> OpProofsStorageResult<Option<BlockNumHash>> {
+        let mut cur = self.tx.cursor_read::<ProofWindow>()?;
+        Ok(cur.seek_exact(ProofWindowKey::InitialStateAnchor)?.map(|(_k, v)| v.into()))
+    }
+
+    fn get_latest_key_inner<T>(&self) -> OpProofsStorageResult<Option<T::Key>>
     where
         T: Table,
     {
-        self.env.view(|tx| {
-            let mut cursor = tx.cursor_read::<T>()?;
-            Ok(cursor.last()?.map(|(k, _)| k))
-        })?
+        let mut cursor = self.tx.cursor_read::<T>()?;
+        Ok(cursor.last()?.map(|(k, _)| k))
     }
 }
 
-impl OpProofsStore for MdbxProofsStorage {
+impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofsProvider<TX> {
     type StorageTrieCursor<'tx>
-        = MdbxTrieCursor<StorageTrieHistory, Dup<'tx, StorageTrieHistory>>
+        = MdbxTrieCursor<StorageTrieHistory, TX::DupCursor<StorageTrieHistory>>
     where
-        Self: 'tx;
+        Self: 'tx,
+        TX: 'tx;
+
     type AccountTrieCursor<'tx>
-        = MdbxTrieCursor<AccountTrieHistory, Dup<'tx, AccountTrieHistory>>
+        = MdbxTrieCursor<AccountTrieHistory, TX::DupCursor<AccountTrieHistory>>
     where
-        Self: 'tx;
+        Self: 'tx,
+        TX: 'tx;
+
     type StorageCursor<'tx>
-        = MdbxStorageCursor<Dup<'tx, HashedStorageHistory>>
+        = MdbxStorageCursor<TX::DupCursor<HashedStorageHistory>>
     where
-        Self: 'tx;
+        Self: 'tx,
+        TX: 'tx;
+
     type AccountHashedCursor<'tx>
-        = MdbxAccountCursor<Dup<'tx, HashedAccountHistory>>
+        = MdbxAccountCursor<TX::DupCursor<HashedAccountHistory>>
     where
-        Self: 'tx;
+        Self: 'tx,
+        TX: 'tx;
 
     fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        self.env.view(|tx| self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock))?
+        let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
+        let value = cursor.seek_exact(ProofWindowKey::EarliestBlock)?;
+        Ok(value.map(|(_, val)| (val.number(), *val.hash())))
     }
 
     fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        self.env.view(|tx| self.inner_get_latest_block_number_hash(tx))?
+        let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
+        // Try latest first
+        if let Some((_, val)) = cursor.seek_exact(ProofWindowKey::LatestBlock)? {
+            return Ok(Some((val.number(), *val.hash())));
+        }
+        // Fallback to earliest if latest not set (or database empty-ish)
+        let earliest = cursor.seek_exact(ProofWindowKey::EarliestBlock)?;
+        Ok(earliest.map(|(_, val)| (val.number(), *val.hash())))
     }
 
     fn storage_trie_cursor<'tx>(
@@ -647,9 +633,7 @@ impl OpProofsStore for MdbxProofsStorage {
         hashed_address: B256,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
-        let tx = self.env.tx()?;
-        let cursor = tx.cursor_dup_read::<StorageTrieHistory>()?;
-
+        let cursor = self.tx.cursor_dup_read::<StorageTrieHistory>()?;
         Ok(MdbxTrieCursor::new(cursor, max_block_number, Some(hashed_address)))
     }
 
@@ -657,9 +641,7 @@ impl OpProofsStore for MdbxProofsStorage {
         &self,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>> {
-        let tx = self.env.tx()?;
-        let cursor = tx.cursor_dup_read::<AccountTrieHistory>()?;
-
+        let cursor = self.tx.cursor_dup_read::<AccountTrieHistory>()?;
         Ok(MdbxTrieCursor::new(cursor, max_block_number, None))
     }
 
@@ -668,9 +650,7 @@ impl OpProofsStore for MdbxProofsStorage {
         hashed_address: B256,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageCursor<'tx>> {
-        let tx = self.env.tx()?;
-        let cursor = tx.cursor_dup_read::<HashedStorageHistory>()?;
-
+        let cursor = self.tx.cursor_dup_read::<HashedStorageHistory>()?;
         Ok(MdbxStorageCursor::new(cursor, max_block_number, hashed_address))
     }
 
@@ -678,230 +658,202 @@ impl OpProofsStore for MdbxProofsStorage {
         &self,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
-        let tx = self.env.tx()?;
-        let cursor = tx.cursor_dup_read::<HashedAccountHistory>()?;
-
+        let cursor = self.tx.cursor_dup_read::<HashedAccountHistory>()?;
         Ok(MdbxAccountCursor::new(cursor, max_block_number))
     }
 
+    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+        let mut change_set_cursor = self.tx.cursor_read::<BlockChangeSet>()?;
+        let (_, change_set) = change_set_cursor
+            .seek_exact(block_number)?
+            .ok_or(OpProofsStorageError::NoChangeSetForBlock(block_number))?;
+
+        let mut account_trie_cursor = self.tx.cursor_dup_read::<AccountTrieHistory>()?;
+        let mut storage_trie_cursor = self.tx.cursor_dup_read::<StorageTrieHistory>()?;
+        let mut hashed_account_cursor = self.tx.cursor_dup_read::<HashedAccountHistory>()?;
+        let mut hashed_storage_cursor = self.tx.cursor_dup_read::<HashedStorageHistory>()?;
+
+        let mut trie_updates = TrieUpdates::default();
+        for key in change_set.account_trie_keys {
+            let entry = match account_trie_cursor.seek_by_key_subkey(key.clone(), block_number)? {
+                Some(v) if v.block_number == block_number => v.value.0,
+                _ => {
+                    return Err(OpProofsStorageError::MissingAccountTrieHistory(
+                        key.0,
+                        block_number,
+                    ));
+                }
+            };
+
+            if let Some(value) = entry {
+                trie_updates.account_nodes.insert(key.0, value);
+            } else {
+                trie_updates.removed_nodes.insert(key.0);
+            }
+        }
+
+        for key in change_set.storage_trie_keys {
+            let entry = match storage_trie_cursor.seek_by_key_subkey(key.clone(), block_number)? {
+                Some(v) if v.block_number == block_number => v.value.0,
+                _ => {
+                    return Err(OpProofsStorageError::MissingStorageTrieHistory(
+                        key.hashed_address,
+                        key.path.0,
+                        block_number,
+                    ));
+                }
+            };
+
+            let stu = trie_updates
+                .storage_tries
+                .entry(key.hashed_address)
+                .or_insert_with(StorageTrieUpdates::default);
+
+            if let Some(value) = entry {
+                stu.storage_nodes.insert(key.path.0, value);
+            } else {
+                stu.removed_nodes.insert(key.path.0);
+            }
+        }
+
+        let mut post_state = HashedPostState::with_capacity(change_set.hashed_account_keys.len());
+        for key in change_set.hashed_account_keys {
+            let entry = match hashed_account_cursor.seek_by_key_subkey(key, block_number)? {
+                Some(v) if v.block_number == block_number => v.value.0,
+                _ => {
+                    return Err(OpProofsStorageError::MissingHashedAccountHistory(
+                        key,
+                        block_number,
+                    ));
+                }
+            };
+
+            post_state.accounts.insert(key, entry);
+        }
+
+        for key in change_set.hashed_storage_keys {
+            let entry = match hashed_storage_cursor.seek_by_key_subkey(key.clone(), block_number)? {
+                Some(v) if v.block_number == block_number => v.value.0,
+                _ => {
+                    return Err(OpProofsStorageError::MissingHashedStorageHistory {
+                        hashed_address: key.hashed_address,
+                        hashed_storage_key: key.hashed_storage_key,
+                        block_number,
+                    });
+                }
+            };
+
+            let hs = post_state.storages.entry(key.hashed_address).or_default();
+
+            if let Some(value) = entry {
+                hs.storage.insert(key.hashed_storage_key, value.0);
+            } else {
+                hs.storage.insert(key.hashed_storage_key, U256::ZERO);
+            }
+        }
+
+        Ok(BlockStateDiff {
+            sorted_trie_updates: trie_updates.into_sorted(),
+            sorted_post_state: post_state.into_sorted(),
+        })
+    }
+}
+
+impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
+    for MdbxProofsProvider<TX>
+{
     fn store_trie_updates(
         &self,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
-        self.env
-            .update(|tx| self.store_trie_updates_append_only(tx, block_ref, block_state_diff))?
+        self.store_trie_updates_append_only_inner(block_ref, block_state_diff)
     }
 
-    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
-        self.env.view(|tx| {
-            let mut change_set_cursor = tx.cursor_read::<BlockChangeSet>()?;
-            let (_, change_set) = change_set_cursor
-                .seek_exact(block_number)?
-                .ok_or(OpProofsStorageError::NoChangeSetForBlock(block_number))?;
+    fn store_trie_updates_batch(
+        &self,
+        updates: Vec<(BlockWithParent, BlockStateDiff)>,
+    ) -> OpProofsStorageResult<WriteCounts> {
+        let mut total_counts = WriteCounts::default();
+        for (block_ref, block_state_diff) in updates {
+            let counts = self.store_trie_updates_append_only_inner(block_ref, block_state_diff)?;
 
-            let mut account_trie_cursor = tx.new_cursor::<AccountTrieHistory>()?;
-            let mut storage_trie_cursor = tx.new_cursor::<StorageTrieHistory>()?;
-            let mut hashed_account_cursor = tx.new_cursor::<HashedAccountHistory>()?;
-            let mut hashed_storage_cursor = tx.new_cursor::<HashedStorageHistory>()?;
+            total_counts.account_trie_updates_written_total +=
+                counts.account_trie_updates_written_total;
+            total_counts.storage_trie_updates_written_total +=
+                counts.storage_trie_updates_written_total;
+            total_counts.hashed_accounts_written_total += counts.hashed_accounts_written_total;
+            total_counts.hashed_storages_written_total += counts.hashed_storages_written_total;
+        }
 
-            let mut trie_updates = TrieUpdates::default();
-            for key in change_set.account_trie_keys {
-                let entry =
-                    match account_trie_cursor.seek_by_key_subkey(key.clone(), block_number)? {
-                        Some(v) if v.block_number == block_number => v.value.0,
-                        _ => {
-                            return Err(OpProofsStorageError::MissingAccountTrieHistory(
-                                key.0,
-                                block_number,
-                            ));
-                        }
-                    };
-
-                if let Some(value) = entry {
-                    trie_updates.account_nodes.insert(key.0, value);
-                } else {
-                    trie_updates.removed_nodes.insert(key.0);
-                }
-            }
-
-            for key in change_set.storage_trie_keys {
-                let entry =
-                    match storage_trie_cursor.seek_by_key_subkey(key.clone(), block_number)? {
-                        Some(v) if v.block_number == block_number => v.value.0,
-                        _ => {
-                            return Err(OpProofsStorageError::MissingStorageTrieHistory(
-                                key.hashed_address,
-                                key.path.0,
-                                block_number,
-                            ));
-                        }
-                    };
-
-                let stu = trie_updates
-                    .storage_tries
-                    .entry(key.hashed_address)
-                    .or_insert_with(StorageTrieUpdates::default);
-
-                // handle is_deleted scenario
-                // Issue: https://github.com/op-rs/op-reth/issues/323
-                if let Some(value) = entry {
-                    stu.storage_nodes.insert(key.path.0, value);
-                } else {
-                    stu.removed_nodes.insert(key.path.0);
-                }
-            }
-
-            let mut post_state =
-                HashedPostState::with_capacity(change_set.hashed_account_keys.len());
-            for key in change_set.hashed_account_keys {
-                let entry = match hashed_account_cursor.seek_by_key_subkey(key, block_number)? {
-                    Some(v) if v.block_number == block_number => v.value.0,
-                    _ => {
-                        return Err(OpProofsStorageError::MissingHashedAccountHistory(
-                            key,
-                            block_number,
-                        ));
-                    }
-                };
-
-                post_state.accounts.insert(key, entry);
-            }
-
-            for key in change_set.hashed_storage_keys {
-                let entry =
-                    match hashed_storage_cursor.seek_by_key_subkey(key.clone(), block_number)? {
-                        Some(v) if v.block_number == block_number => v.value.0,
-                        _ => {
-                            return Err(OpProofsStorageError::MissingHashedStorageHistory {
-                                hashed_address: key.hashed_address,
-                                hashed_storage_key: key.hashed_storage_key,
-                                block_number,
-                            });
-                        }
-                    };
-
-                let hs = post_state.storages.entry(key.hashed_address).or_default();
-
-                // handle wiped storage scenario
-                // Issue: https://github.com/op-rs/op-reth/issues/323
-                if let Some(value) = entry {
-                    hs.storage.insert(key.hashed_storage_key, value.0);
-                } else {
-                    hs.storage.insert(key.hashed_storage_key, U256::ZERO);
-                }
-            }
-
-            Ok(BlockStateDiff {
-                sorted_trie_updates: trie_updates.into_sorted(),
-                sorted_post_state: post_state.into_sorted(),
-            })
-        })?
+        Ok(total_counts)
     }
 
-    /// Update the initial state with the provided diff.
-    /// Prune all historical trie data till `new_earliest_block_number` (inclusive) using
-    /// the [`BlockChangeSet`] index.
-    ///
-    /// Arguments:
-    /// - `new_earliest_block_ref`: The new earliest block reference (with parent hash).
-    /// - `diff`: The state diff to apply to the initial state (block 0). This diff represents all
-    ///   the changes from the old earliest block to the new earliest block (inclusive).
     fn prune_earliest_state(
         &self,
         new_earliest_block_ref: BlockWithParent,
     ) -> OpProofsStorageResult<WriteCounts> {
         let target_block = new_earliest_block_ref.block.number;
 
-        // --- PHASE 1: READ (Calculate Deletions) ---
         let plan = self.calculate_prune_plan(target_block)?;
         let Some(plan) = plan else {
             return Ok(WriteCounts::default());
         };
 
-        // --- PHASE 2: WRITE (Execute Deletions) ---
-        self.env.update(|tx| {
-            // 1. Execute Sparse Deletions and track actual deleted rows
-            let acc_deleted =
-                self.prune_history_preceding::<AccountTrieHistory, _>(tx, plan.acc_survivors)?;
+        let acc_deleted =
+            self.prune_history_preceding::<AccountTrieHistory, _>(plan.acc_survivors)?;
 
-            let st_deleted =
-                self.prune_history_preceding::<StorageTrieHistory, _>(tx, plan.storage_survivors)?;
+        let st_deleted =
+            self.prune_history_preceding::<StorageTrieHistory, _>(plan.storage_survivors)?;
 
-            let ha_deleted = self.prune_history_preceding::<HashedAccountHistory, _>(
-                tx,
-                plan.hashed_acc_survivors,
-            )?;
+        let ha_deleted =
+            self.prune_history_preceding::<HashedAccountHistory, _>(plan.hashed_acc_survivors)?;
 
-            let hs_deleted = self.prune_history_preceding::<HashedStorageHistory, _>(
-                tx,
-                plan.hashed_storage_survivors,
-            )?;
+        let hs_deleted =
+            self.prune_history_preceding::<HashedStorageHistory, _>(plan.hashed_storage_survivors)?;
 
-            let counts = WriteCounts {
-                account_trie_updates_written_total: acc_deleted,
-                storage_trie_updates_written_total: st_deleted,
-                hashed_accounts_written_total: ha_deleted,
-                hashed_storages_written_total: hs_deleted,
-            };
+        let counts = WriteCounts {
+            account_trie_updates_written_total: acc_deleted,
+            storage_trie_updates_written_total: st_deleted,
+            hashed_accounts_written_total: ha_deleted,
+            hashed_storages_written_total: hs_deleted,
+        };
 
-            // 2. Delete ChangeSets
-            let range = (plan.earliest_block + 1)..=target_block;
-            let mut cs_cursor = tx.cursor_write::<BlockChangeSet>()?;
-            let mut walker = cs_cursor.walk_range(range)?;
-            while walker.next().is_some() {
-                walker.delete_current()?;
-            }
+        let range = (plan.earliest_block + 1)..=target_block;
+        let mut cs_cursor = self.tx.cursor_write::<BlockChangeSet>()?;
+        let mut walker = cs_cursor.walk_range(range)?;
+        while walker.next().is_some() {
+            walker.delete_current()?;
+        }
 
-            // 3. Update Earliest Pointer
-            Self::inner_set_earliest_block_number(
-                tx,
-                target_block,
-                new_earliest_block_ref.block.hash,
-            )?;
+        self.set_earliest_block_number_inner(target_block, new_earliest_block_ref.block.hash)?;
 
-            Ok(counts)
-        })?
+        Ok(counts)
     }
 
-    /// Unwind the historical state to `unwind_upto_block` (inclusive), deleting all history
-    /// starting from provided block. Also updates the `ProofWindow::LatestBlock` to parent of
-    /// `unwind_upto_block`.
     fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
-        let history_to_delete =
-            self.env.view(|tx| self.collect_history_ranged(tx, to.block.number..))??;
+        let history_to_delete = self.collect_history_ranged(to.block.number..)?;
 
-        self.env.update(|tx| {
-            let proof_window = match self.inner_get_proof_window(tx)? {
-                Some(pw) => pw,
-                None => return Ok(()), // Nothing to unwind
-            };
+        let proof_window = self.get_proof_window_inner()?;
 
-            if to.block.number > proof_window.latest.number {
-                return Ok(()); // Nothing to unwind
-            }
+        if to.block.number > proof_window.latest.number {
+            return Ok(());
+        }
 
-            if to.block.number <= proof_window.earliest.number {
-                return Err(OpProofsStorageError::UnwindBeyondEarliest {
-                    unwind_block_number: to.block.number,
-                    earliest_block_number: proof_window.earliest.number,
-                });
-            }
+        if to.block.number <= proof_window.earliest.number {
+            return Err(OpProofsStorageError::UnwindBeyondEarliest {
+                unwind_block_number: to.block.number,
+                earliest_block_number: proof_window.earliest.number,
+            });
+        }
 
-            self.delete_history_ranged(tx, to.block.number.., history_to_delete)?;
+        self.delete_history_ranged(to.block.number.., history_to_delete)?;
 
-            let new_latest_block =
-                BlockNumberHash::new(to.block.number.saturating_sub(1), to.parent);
+        let new_latest_block = BlockNumberHash::new(to.block.number.saturating_sub(1), to.parent);
 
-            // Update proof window's Latest block
-            Self::inner_set_latest_block_number(
-                tx,
-                new_latest_block.number(),
-                *new_latest_block.hash(),
-            )?;
+        self.set_latest_block_number_inner(new_latest_block.number(), *new_latest_block.hash())?;
 
-            Ok(())
-        })?
+        Ok(())
     }
 
     fn replace_updates(
@@ -909,31 +861,17 @@ impl OpProofsStore for MdbxProofsStorage {
         latest_common_block: BlockNumHash,
         mut blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
-        // Sort the vec list by block number
         blocks_to_add.sort_unstable_by_key(|(bwp, _)| bwp.block.number);
 
-        let history_to_delete = self
-            .env
-            .view(|tx| self.collect_history_ranged(tx, latest_common_block.number + 1..))??;
+        let history_to_delete = self.collect_history_ranged(latest_common_block.number + 1..)?;
+        self.delete_history_ranged(latest_common_block.number + 1.., history_to_delete)?;
 
-        self.env.update(|tx| {
-            // Remove the old history
-            self.delete_history_ranged(tx, latest_common_block.number + 1.., history_to_delete)?;
+        self.set_latest_block_number_inner(latest_common_block.number, latest_common_block.hash)?;
 
-            // Update the ProofWindow Latest Block to latest_common_block so we can perform
-            // `store_trie_updates_append_only`.
-            Self::inner_set_latest_block_number(
-                tx,
-                latest_common_block.number,
-                latest_common_block.hash,
-            )?;
-
-            // Apply the new history
-            for (block_with_parent, diff) in blocks_to_add {
-                self.store_trie_updates_append_only(tx, block_with_parent, diff)?;
-            }
-            Ok(())
-        })?
+        for (block_with_parent, diff) in blocks_to_add {
+            self.store_trie_updates_append_only_inner(block_with_parent, diff)?;
+        }
+        Ok(())
     }
 
     fn set_earliest_block_number(
@@ -941,21 +879,25 @@ impl OpProofsStore for MdbxProofsStorage {
         block_number: u64,
         hash: B256,
     ) -> OpProofsStorageResult<()> {
-        self.set_earliest_block_number_hash(block_number, hash)
+        self.set_earliest_block_number_inner(block_number, hash)
+    }
+
+    fn commit(self) -> OpProofsStorageResult<()> {
+        self.tx.commit()?;
+        Ok(())
     }
 }
 
-impl OpProofsInitialStateStore for MdbxProofsStorage {
+impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
+    for MdbxProofsProvider<TX>
+{
     fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
-        // 1) NotStarted: no anchor row
-        let Some(block) = self.get_initial_state_anchor()? else {
+        let Some(block) = self.get_initial_state_anchor_inner()? else {
             return Ok(InitialStateAnchor::default());
         };
 
-        // 2) Completed: anchor exists + earliest is set
-        let completed = self.get_earliest_block_number()?.is_some();
+        let completed = self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?.is_some();
 
-        // 3) InProgress / Completed: populate details
         Ok(InitialStateAnchor {
             block: Some(block),
             status: if completed {
@@ -963,36 +905,28 @@ impl OpProofsInitialStateStore for MdbxProofsStorage {
             } else {
                 InitialStateStatus::InProgress
             },
-            latest_account_trie_key: self.get_latest_key::<AccountTrieHistory>()?,
-            latest_storage_trie_key: self.get_latest_key::<StorageTrieHistory>()?,
-            latest_hashed_account_key: self.get_latest_key::<HashedAccountHistory>()?,
-            latest_hashed_storage_key: self.get_latest_key::<HashedStorageHistory>()?,
+            latest_account_trie_key: self.get_latest_key_inner::<AccountTrieHistory>()?,
+            latest_storage_trie_key: self.get_latest_key_inner::<StorageTrieHistory>()?,
+            latest_hashed_account_key: self.get_latest_key_inner::<HashedAccountHistory>()?,
+            latest_hashed_storage_key: self.get_latest_key_inner::<HashedStorageHistory>()?,
         })
     }
 
     fn set_initial_state_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()> {
-        self.env.update(|tx| {
-            let mut cur = tx.cursor_write::<ProofWindow>()?;
-            cur.insert(ProofWindowKey::InitialStateAnchor, &anchor.into())?;
-            Ok(())
-        })?
+        let mut cur = self.tx.cursor_write::<ProofWindow>()?;
+        cur.insert(ProofWindowKey::InitialStateAnchor, &anchor.into())?;
+        Ok(())
     }
 
     fn store_account_branches(
         &self,
         account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
-        let mut account_nodes = account_nodes;
         if account_nodes.is_empty() {
             return Ok(());
         }
-
-        account_nodes.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            self.persist_history_batch(tx, 0, account_nodes, true)?;
-            Ok(())
-        })?
+        self.persist_history_batch(0, account_nodes.into_iter(), true)?;
+        Ok(())
     }
 
     fn store_storage_branches(
@@ -1000,40 +934,26 @@ impl OpProofsInitialStateStore for MdbxProofsStorage {
         hashed_address: B256,
         storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
-        let mut storage_nodes = storage_nodes;
         if storage_nodes.is_empty() {
             return Ok(());
         }
-
-        storage_nodes.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            self.persist_history_batch(
-                tx,
-                0,
-                storage_nodes.into_iter().map(|(path, node)| (hashed_address, path, node)),
-                true,
-            )?;
-            Ok(())
-        })?
+        self.persist_history_batch(
+            0,
+            storage_nodes.into_iter().map(|(key, val)| (hashed_address, key, val)),
+            true,
+        )?;
+        Ok(())
     }
 
     fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
     ) -> OpProofsStorageResult<()> {
-        let mut accounts = accounts;
         if accounts.is_empty() {
             return Ok(());
         }
-
-        // sort the accounts by key to ensure insertion is efficient
-        accounts.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            self.persist_history_batch(tx, 0, accounts, true)?;
-            Ok(())
-        })?
+        self.persist_history_batch(0, accounts.into_iter(), true)?;
+        Ok(())
     }
 
     fn store_hashed_storages(
@@ -1041,31 +961,44 @@ impl OpProofsInitialStateStore for MdbxProofsStorage {
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
     ) -> OpProofsStorageResult<()> {
-        let mut storages = storages;
         if storages.is_empty() {
             return Ok(());
         }
-
-        // sort the storages by key to ensure insertion is efficient
-        storages.sort_by_key(|(key, _)| *key);
-
-        self.env.update(|tx| {
-            self.persist_history_batch(
-                tx,
-                0,
-                storages
-                    .into_iter()
-                    .map(|(key, val)| (hashed_address, key, Some(StorageValue(val)))),
-                true,
-            )?;
-            Ok(())
-        })?
+        self.persist_history_batch(
+            0,
+            storages.into_iter().map(|(key, val)| (hashed_address, key, Some(StorageValue(val)))),
+            true,
+        )?;
+        Ok(())
     }
 
     fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
-        let anchor = self.get_initial_state_anchor()?.ok_or(NoBlocksFound)?;
-        self.set_earliest_block_number(anchor.number, anchor.hash)?;
+        let anchor = self.get_initial_state_anchor_inner()?.ok_or(NoBlocksFound)?;
+        self.set_earliest_block_number_inner(anchor.number, anchor.hash)?;
         Ok(anchor)
+    }
+
+    fn commit(self) -> OpProofsStorageResult<()> {
+        self.tx.commit()?;
+        Ok(())
+    }
+}
+
+impl OpProofsStore for MdbxProofsStorage {
+    type ProviderRO<'a> = Arc<MdbxProofsProvider<<DatabaseEnv as Database>::TX>>;
+    type ProviderRw<'a> = MdbxProofsProvider<<DatabaseEnv as Database>::TXMut>;
+    type Initializer<'a> = MdbxProofsProvider<<DatabaseEnv as Database>::TXMut>;
+
+    fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
+        Ok(Arc::new(MdbxProofsProvider::new(self.env.tx()?)))
+    }
+
+    fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
+        Ok(MdbxProofsProvider::new(self.env.tx_mut()?))
+    }
+
+    fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
+        Ok(MdbxProofsProvider::new(self.env.tx_mut()?))
     }
 }
 
@@ -1161,9 +1094,12 @@ impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{
-        StorageTrieKey,
-        models::{AccountTrieHistory, StorageTrieHistory},
+    use crate::{
+        OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
+        db::{
+            StorageTrieKey,
+            models::{AccountTrieHistory, StorageTrieHistory},
+        },
     };
     use alloy_eips::NumHash;
     use alloy_primitives::B256;
@@ -1178,6 +1114,119 @@ mod tests {
     };
     use tempfile::TempDir;
 
+    /// Test-only convenience methods that delegate to the provider pattern.
+    /// These allow tests to call methods directly on `MdbxProofsStorage` without
+    /// manually creating/committing providers each time.
+    impl MdbxProofsStorage {
+        fn store_hashed_accounts(
+            &self,
+            accounts: Vec<(B256, Option<Account>)>,
+        ) -> OpProofsStorageResult<()> {
+            let provider = self.initialization_provider()?;
+            provider.store_hashed_accounts(accounts)?;
+            OpProofsInitProvider::commit(provider)
+        }
+
+        fn store_hashed_storages(
+            &self,
+            hashed_address: B256,
+            storages: Vec<(B256, U256)>,
+        ) -> OpProofsStorageResult<()> {
+            let provider = self.initialization_provider()?;
+            provider.store_hashed_storages(hashed_address, storages)?;
+            OpProofsInitProvider::commit(provider)
+        }
+
+        fn store_account_branches(
+            &self,
+            updates: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+        ) -> OpProofsStorageResult<()> {
+            let provider = self.initialization_provider()?;
+            provider.store_account_branches(updates)?;
+            OpProofsInitProvider::commit(provider)
+        }
+
+        fn store_storage_branches(
+            &self,
+            hashed_address: B256,
+            items: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+        ) -> OpProofsStorageResult<()> {
+            let provider = self.initialization_provider()?;
+            provider.store_storage_branches(hashed_address, items)?;
+            OpProofsInitProvider::commit(provider)
+        }
+
+        fn store_trie_updates(
+            &self,
+            block_ref: BlockWithParent,
+            diff: BlockStateDiff,
+        ) -> OpProofsStorageResult<WriteCounts> {
+            let provider = self.provider_rw()?;
+            let counts = provider.store_trie_updates(block_ref, diff)?;
+            OpProofsProviderRw::commit(provider)?;
+            Ok(counts)
+        }
+
+        fn set_earliest_block_number(
+            &self,
+            block_number: u64,
+            hash: B256,
+        ) -> OpProofsStorageResult<()> {
+            let provider = self.provider_rw()?;
+            provider.set_earliest_block_number(block_number, hash)?;
+            OpProofsProviderRw::commit(provider)
+        }
+
+        fn set_earliest_block_number_hash(
+            &self,
+            block_number: u64,
+            hash: B256,
+        ) -> OpProofsStorageResult<()> {
+            self.set_earliest_block_number(block_number, hash)
+        }
+
+        fn prune_earliest_state(
+            &self,
+            new_earliest: BlockWithParent,
+        ) -> OpProofsStorageResult<WriteCounts> {
+            let provider = self.provider_rw()?;
+            let counts = provider.prune_earliest_state(new_earliest)?;
+            OpProofsProviderRw::commit(provider)?;
+            Ok(counts)
+        }
+
+        fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+            let provider = self.provider_ro()?;
+            provider.fetch_trie_updates(block_number)
+        }
+
+        fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+            let provider = self.provider_ro()?;
+            provider.get_earliest_block_number()
+        }
+
+        fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+            let provider = self.provider_ro()?;
+            provider.get_latest_block_number()
+        }
+
+        fn replace_updates(
+            &self,
+            latest_common_block: BlockNumHash,
+            blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
+        ) -> OpProofsStorageResult<()> {
+            let provider = self.provider_rw()?;
+            provider.replace_updates(latest_common_block, blocks_to_add)?;
+            OpProofsProviderRw::commit(provider)
+        }
+
+        fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
+            let provider = self.provider_rw()?;
+            provider.unwind_history(to)?;
+            OpProofsProviderRw::commit(provider)
+        }
+    }
+
     const B0: u64 = 0;
 
     #[test]
@@ -1187,7 +1236,9 @@ mod tests {
 
         let addr = B256::from([0xAA; 32]);
         let account = Account::default();
-        store.store_hashed_accounts(vec![(addr, Some(account))]).expect("write accounts");
+        let init_provider = store.initialization_provider().expect("init provider");
+        init_provider.store_hashed_accounts(vec![(addr, Some(account))]).expect("write accounts");
+        OpProofsInitProvider::commit(init_provider).expect("commit");
 
         let tx = store.env.tx().expect("ro tx");
         let mut cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
@@ -1583,6 +1634,7 @@ mod tests {
     fn test_store_trie_updates_comprehensive() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         // Sample block number
         const BLOCK: BlockWithParent =
@@ -1791,6 +1843,7 @@ mod tests {
     fn store_trie_updates_multiple_blocks_append_versions() {
         let dir = tempfile::TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         let addr = B256::from([0x21; 32]);
         // block A (parent = ZERO)
@@ -1830,6 +1883,7 @@ mod tests {
     fn test_store_trie_updates_empty_collections() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         const BLOCK: BlockWithParent =
             BlockWithParent::new(B256::ZERO, NumHash::new(42, B256::ZERO));
@@ -1876,7 +1930,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
-        let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
+        let parent_hash = B256::random();
+        store.set_earliest_block_number(0, parent_hash).expect("set earliest");
+
+        let block = BlockWithParent::new(parent_hash, NumHash::new(1, B256::random()));
         let diff = BlockStateDiff::default();
 
         store.store_trie_updates(block, diff).expect("store");
@@ -2144,6 +2201,7 @@ mod tests {
     fn fetch_trie_updates_basic() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         // Build a block with mixed changes (accounts, trie nodes, hashed storages)
         let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
@@ -2798,14 +2856,14 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
-        // Earliest not set
+        // Pruning an uninitialized store (no earliest block set) returns NoBlocksFound.
         let target = BlockWithParent::new(B256::random(), NumHash::new(5, B256::random()));
 
-        let counts = store.prune_earliest_state(target).unwrap();
-        assert_eq!(counts, WriteCounts::default());
-
-        // Check earliest is still None
-        assert_eq!(store.get_earliest_block_number().unwrap(), None);
+        let result = store.prune_earliest_state(target);
+        assert!(
+            matches!(result, Err(OpProofsStorageError::NoBlocksFound)),
+            "expected NoBlocksFound, got {result:?}"
+        );
     }
 
     #[test]
@@ -2865,6 +2923,7 @@ mod tests {
     fn store_trie_updates_deleted_account_trie() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         const BLOCK: BlockWithParent =
             BlockWithParent::new(B256::ZERO, NumHash::new(7, B256::ZERO));
@@ -2894,6 +2953,7 @@ mod tests {
     fn store_trie_updates_deleted_storage_trie() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         const BLOCK: BlockWithParent =
             BlockWithParent::new(B256::ZERO, NumHash::new(8, B256::ZERO));
@@ -2928,6 +2988,7 @@ mod tests {
 
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         let addr_wiped = B256::from([0x10; 32]);
         let addr_live = B256::from([0xF0; 32]);
@@ -2978,7 +3039,11 @@ mod tests {
                 let vv =
                     cur.seek_by_key_subkey(key, BLOCK.block.number).expect("seek").expect("exists");
                 assert_eq!(vv.block_number, BLOCK.block.number);
-                assert!(vv.value.0.is_none(), "expected tombstone at wipe block for path {path:?}");
+                assert!(
+                    vv.value.0.is_none(),
+                    "expected tombstone at wipe block for path {:?}",
+                    path
+                );
             }
         }
 
@@ -2999,6 +3064,7 @@ mod tests {
     fn store_trie_updates_wiped_storage() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         // We'll pre-seed storage at block 0, then issue a wipe at BLOCK.
         const BLOCK: BlockWithParent =
@@ -3050,6 +3116,7 @@ mod tests {
     fn store_trie_updates_wiped_and_non_wiped_mixed_order() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         // Choose addresses so that wiped < non_wiped in sort order (your impl sorts by address)
         let addr_wiped = B256::from([0x01; 32]); // will sort first
@@ -3163,6 +3230,7 @@ mod tests {
     fn replace_updates_prunes_and_adds_new_chain() {
         let dir = tempfile::TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
 
         // Test address and helper to make diffs with distinct nonces.
         let addr = B256::from([0xAB; 32]);
@@ -3576,12 +3644,14 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
-        // Try to unwind when there's nothing stored yet
+        // Unwinding an empty chain (no proof window) returns NoBlocksFound.
         let unwind_to = BlockWithParent::new(B256::ZERO, NumHash::new(0, B256::ZERO));
         let result = store.unwind_history(unwind_to);
 
-        // Should succeed (no-op)
-        assert!(result.is_ok(), "Unwinding empty chain should succeed");
+        assert!(
+            matches!(result, Err(OpProofsStorageError::NoBlocksFound)),
+            "expected NoBlocksFound, got {result:?}"
+        );
     }
 
     #[test]
@@ -3671,5 +3741,140 @@ mod tests {
             .expect("latest exists");
         assert_eq!(latest.1.number(), b3.block.number);
         assert_eq!(*latest.1.hash(), b3.block.hash);
+    }
+
+    // ============= Wipe + re-add regression tests =============
+
+    /// Regression: wiped storage with overlapping new slots must write the new
+    /// values (not just tombstones) and must not panic on `append_dup` ordering.
+    #[test]
+    fn store_trie_updates_wiped_storage_with_readd() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
+
+        let addr = B256::from([0x55; 32]);
+        let old_slot = B256::from([0x01; 32]);
+        let shared_slot = B256::from([0x02; 32]); // exists before AND after wipe
+        let new_slot = B256::from([0x03; 32]); // only exists after wipe
+
+        // Seed prior storage
+        store
+            .store_hashed_storages(
+                addr,
+                vec![(old_slot, U256::from(100u64)), (shared_slot, U256::from(200u64))],
+            )
+            .expect("seed");
+
+        // Build diff: wipe + re-create shared_slot + add new_slot
+        let mut post_state = HashedPostState::default();
+        let mut wiped = reth_trie::HashedStorage::new(true);
+        wiped.storage.insert(shared_slot, U256::from(999u64));
+        wiped.storage.insert(new_slot, U256::from(888u64));
+        post_state.storages.insert(addr, wiped);
+
+        const BLOCK: BlockWithParent =
+            BlockWithParent::new(B256::ZERO, NumHash::new(42, B256::ZERO));
+        let diff = BlockStateDiff {
+            sorted_trie_updates: TrieUpdatesSorted::default(),
+            sorted_post_state: post_state.into_sorted(),
+        };
+        store.store_trie_updates(BLOCK, diff).expect("store");
+
+        // Verify: old_slot has tombstone
+        let tx = store.env.tx().expect("tx");
+        let mut cur = tx.new_cursor::<HashedStorageHistory>().expect("cursor");
+
+        let key_old = HashedStorageKey::new(addr, old_slot);
+        let vv =
+            cur.seek_by_key_subkey(key_old, BLOCK.block.number).expect("seek").expect("exists");
+        assert_eq!(vv.block_number, BLOCK.block.number);
+        assert!(vv.value.0.is_none(), "old_slot should be tombstoned");
+
+        // Verify: shared_slot has the NEW value (not tombstone)
+        let key_shared = HashedStorageKey::new(addr, shared_slot);
+        let vv =
+            cur.seek_by_key_subkey(key_shared, BLOCK.block.number).expect("seek").expect("exists");
+        assert_eq!(vv.block_number, BLOCK.block.number);
+        let inner = vv.value.0.as_ref().expect("should have value, not tombstone");
+        assert_eq!(inner.0, U256::from(999u64), "shared_slot should have new value");
+
+        // Verify: new_slot has the new value
+        let key_new = HashedStorageKey::new(addr, new_slot);
+        let vv =
+            cur.seek_by_key_subkey(key_new, BLOCK.block.number).expect("seek").expect("exists");
+        assert_eq!(vv.block_number, BLOCK.block.number);
+        let inner = vv.value.0.as_ref().expect("should have value");
+        assert_eq!(inner.0, U256::from(888u64), "new_slot should have new value");
+    }
+
+    /// Regression: wiped storage trie with overlapping new nodes must write the
+    /// new nodes (not just tombstones) and must not panic on `append_dup` ordering.
+    #[test]
+    fn store_trie_updates_wiped_storage_trie_with_readd() {
+        use reth_trie::updates::StorageTrieUpdates;
+
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
+
+        let addr = B256::from([0x10; 32]);
+        let old_path = Nibbles::from_nibbles_unchecked([0x01, 0x02]);
+        let shared_path = Nibbles::from_nibbles_unchecked([0x0A, 0x0B]);
+        let new_path = Nibbles::from_nibbles_unchecked([0x0F, 0x0F]);
+        let n_old = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::repeat_byte(0x01)));
+        let n_shared_old = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::repeat_byte(0x02)));
+        let n_shared_new = BranchNodeCompact::default();
+        let n_new = BranchNodeCompact::default();
+
+        // Seed prior storage trie nodes
+        store
+            .store_storage_branches(
+                addr,
+                vec![(old_path, Some(n_old)), (shared_path, Some(n_shared_old))],
+            )
+            .expect("seed");
+
+        // Build diff: wipe + re-create shared_path + add new_path
+        let mut trie_updates = TrieUpdates::default();
+        let mut wiped = StorageTrieUpdates::default();
+        wiped.set_deleted(true);
+        wiped.storage_nodes.insert(shared_path, n_shared_new.clone());
+        wiped.storage_nodes.insert(new_path, n_new.clone());
+        trie_updates.storage_tries.insert(addr, wiped);
+
+        const BLOCK: BlockWithParent =
+            BlockWithParent::new(B256::ZERO, NumHash::new(123, B256::ZERO));
+        let diff = BlockStateDiff {
+            sorted_trie_updates: trie_updates.into_sorted(),
+            sorted_post_state: HashedPostStateSorted::default(),
+        };
+        store.store_trie_updates(BLOCK, diff).expect("store");
+
+        let tx = store.env.tx().expect("tx");
+        let mut cur = tx.new_cursor::<StorageTrieHistory>().expect("cursor");
+
+        // old_path should be tombstoned
+        let key_old = StorageTrieKey::new(addr, StoredNibbles::from(old_path));
+        let vv =
+            cur.seek_by_key_subkey(key_old, BLOCK.block.number).expect("seek").expect("exists");
+        assert_eq!(vv.block_number, BLOCK.block.number);
+        assert!(vv.value.0.is_none(), "old_path should be tombstoned");
+
+        // shared_path should have the NEW node (not tombstone)
+        let key_shared = StorageTrieKey::new(addr, StoredNibbles::from(shared_path));
+        let vv =
+            cur.seek_by_key_subkey(key_shared, BLOCK.block.number).expect("seek").expect("exists");
+        assert_eq!(vv.block_number, BLOCK.block.number);
+        assert!(vv.value.0.is_some(), "shared_path should have new node, not tombstone");
+        assert_eq!(vv.value.0.unwrap(), n_shared_new);
+
+        // new_path should have the new node
+        let key_new = StorageTrieKey::new(addr, StoredNibbles::from(new_path));
+        let vv =
+            cur.seek_by_key_subkey(key_new, BLOCK.block.number).expect("seek").expect("exists");
+        assert_eq!(vv.block_number, BLOCK.block.number);
+        assert!(vv.value.0.is_some(), "new_path should have new node");
+        assert_eq!(vv.value.0.unwrap(), n_new);
     }
 }

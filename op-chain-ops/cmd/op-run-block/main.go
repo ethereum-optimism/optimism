@@ -155,11 +155,11 @@ func mainAction(c *cli.Context) error {
 		Overrides:        nil,
 	}, outW)
 
-	witness, err := stateless.NewWitness(header, chCtx)
+	witness, err := stateless.NewWitness(header, chCtx, false)
 	if err != nil {
 		return fmt.Errorf("failed to prepare witness data collector: %w", err)
 	}
-	state.StartPrefetcher("debug", witness, nil)
+	state.StartPrefetcher("debug", witness)
 	defer func() { // Even if the EVM fails, try to export witness data for the state-transition up to the error.
 		witnessDump := witness.ToExecutionWitness()
 		out, err := json.MarshalIndent(witnessDump, "", "  ")
@@ -305,13 +305,12 @@ func Process(logger log.Logger, config *params.ChainConfig,
 	chainCtx *remoteChainCtx, outW io.Writer) (*core.ProcessResult, error) {
 	var (
 		receipts    types.Receipts
-		usedGas     = new(uint64)
 		header      = block.CreateGethHeader()
 		blockHash   = block.Hash
 		blockNumber = new(big.Int).SetUint64(uint64(block.Number))
 		blockTime   = uint64(block.Time)
 		allLogs     []*types.Log
-		gp          = new(core.GasPool).AddGas(uint64(block.GasLimit))
+		gp          = core.NewGasPool(uint64(block.GasLimit))
 	)
 
 	// Mutate the block and state according to any hard-fork specs
@@ -344,7 +343,7 @@ func Process(logger log.Logger, config *params.ChainConfig,
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 
-		receipt, err := core.ApplyTransactionWithEVM(msg, gp, statedb, blockNumber, blockHash, blockTime, tx, usedGas, vmenv)
+		receipt, err := core.ApplyTransactionWithEVM(msg, gp, statedb, blockNumber, blockHash, blockTime, tx, vmenv)
 		if err != nil {
 			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -366,6 +365,6 @@ func Process(logger log.Logger, config *params.ChainConfig,
 		Receipts: receipts,
 		Requests: nil,
 		Logs:     allLogs,
-		GasUsed:  *usedGas,
+		GasUsed:  gp.Used(),
 	}, nil
 }

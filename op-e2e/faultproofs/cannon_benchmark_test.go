@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -21,7 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -142,12 +142,12 @@ func createBigContracts(ctx context.Context, t *testing.T, cfg e2esys.SystemConf
 			defer cancel()
 			err := client.SendTransaction(ctx, tx)
 			if err != nil {
-				results <- result{err: errors.Wrap(err, "Sending L2 tx")}
+				results <- result{err: fmt.Errorf("Sending L2 tx: %w", err)}
 				return
 			}
 			receipt, err := wait.ForReceiptOK(ctx, client, tx.Hash())
 			if err != nil {
-				results <- result{err: errors.Wrap(err, "Waiting for receipt")}
+				results <- result{err: fmt.Errorf("Waiting for receipt: %w", err)}
 				return
 			}
 			results <- result{addr: receipt.ContractAddress, err: nil}

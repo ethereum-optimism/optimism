@@ -35,8 +35,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.5.0
-    string public constant version = "1.5.0";
+    /// @custom:semver 1.6.0
+    string public constant version = "1.6.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -333,9 +333,6 @@ contract L2ContractsManager is ISemver {
                 INITIALIZABLE_SLOT_OZ_V4,
                 0
             );
-
-            // NativeAssetLiquidity
-            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
         }
 
         // TODO(#19600): Remove FeeSplitter upgrade as part of revenue sharing deprecation.
@@ -439,6 +436,9 @@ contract L2ContractsManager is ISemver {
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
+        if (_config.isCustomGasToken) {
+            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
+        }
 
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
         if (_config.isInterop) {
