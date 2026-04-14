@@ -820,7 +820,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 	)
 	require.NoError(t, err)
 
-	// Now test the OPCM upgrade using the deployed impls.Opcm
+	// Now test the OPCM upgrade
 	t.Run("opcm upgrade test", func(t *testing.T) {
 		// Create script host for the upgrade
 		rpcClient, err := rpc.Dial(implementationsConfig.L1RPCUrl)

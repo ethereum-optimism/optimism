@@ -117,7 +117,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 
 			expDeployment := &addresses.SuperchainContracts{
 				SuperchainProxyAdminImpl: proxyAdmin,
-				// OPCMv1 removed — ProtocolVersions fields are no longer populated.
+				// ProtocolVersions fields are not populated.
 				ProtocolVersionsProxy: common.Address{},
 				ProtocolVersionsImpl:  common.Address{},
 				SuperchainConfigProxy: superCfg.SuperchainConfigAddr,
@@ -130,7 +130,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			require.NotNil(t, st.SuperchainRoles)
 			require.Equal(t, *expDeployment, *st.SuperchainDeployment)
 			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
-			// OPCMv1 removed — ProtocolVersionsOwner is no longer returned by the script.
+			// ProtocolVersionsOwner is not returned by the script.
 			// Check the fields that are still populated.
 			require.Equal(t, stdSuperchainRoles.SuperchainProxyAdminOwner, st.SuperchainRoles.SuperchainProxyAdminOwner)
 			require.Equal(t, stdSuperchainRoles.SuperchainGuardian, st.SuperchainRoles.SuperchainGuardian)
@@ -287,7 +287,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 		require.NotEqual(t, common.Address{}, dep.SuperchainConfigImpl, "SuperchainConfigImpl should be populated")
 		require.NotEqual(t, dep.SuperchainConfigImpl, dep.SuperchainConfigProxy, "SuperchainConfigImpl should differ from proxy")
 
-		// ProtocolVersions fields are zero now that OPCMv1 is removed
+		// ProtocolVersions fields are not populated
 		require.Equal(t, common.Address{}, dep.ProtocolVersionsProxy, "ProtocolVersionsProxy should be zero")
 		require.Equal(t, common.Address{}, dep.ProtocolVersionsImpl, "ProtocolVersionsImpl should be zero")
 
@@ -352,13 +352,13 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 			SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
 			SuperchainConfigProxy:    superchain.SuperchainConfigAddr,
 			SuperchainConfigImpl:     common.HexToAddress("0x4da82a327773965b8d4D85Fa3dB8249b387458E7"),
-			// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
+			// ProtocolVersions fields are not populated
 			ProtocolVersionsProxy: common.Address{},
 			ProtocolVersionsImpl:  common.Address{},
 		}, *dep)
 		require.Equal(t, addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
-			// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
+			// ProtocolVersions fields are not populated
 			ProtocolVersionsOwner: common.Address{},
 			SuperchainGuardian:    common.HexToAddress("0x7a50f00e8D05b95F98fE38d8BeE366a7324dCf7E"),
 		}, *roles)

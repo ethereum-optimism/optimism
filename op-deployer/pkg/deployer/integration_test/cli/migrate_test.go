@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCLIMigrateRequiredFlags tests that required flags are validated for both OPCM v1 and v2
+// TestCLIMigrateRequiredFlags tests that required flags are validated
 func TestCLIMigrateRequiredFlags(t *testing.T) {
 	// Test common required flags (apply to both v1 and v2)
 
