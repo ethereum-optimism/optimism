@@ -19,7 +19,7 @@ use reth_revm::{
     primitives::{Address, B256, Bytes, StorageValue, alloy_primitives::BlockNumber},
 };
 use reth_trie::{
-    StateRoot, StorageRoot,
+    ExecutionWitnessMode, StateRoot, StorageRoot,
     hashed_cursor::HashedCursor,
     proof::{self, Proof},
     witness::TrieWitness,
@@ -164,7 +164,12 @@ impl<'a, Storage: OpProofsStore + Clone> StateProofProvider
             .map_err(ProviderError::from)
     }
 
-    fn witness(&self, input: TrieInput, target: HashedPostState) -> ProviderResult<Vec<Bytes>> {
+    fn witness(
+        &self,
+        input: TrieInput,
+        target: HashedPostState,
+        _mode: ExecutionWitnessMode,
+    ) -> ProviderResult<Vec<Bytes>> {
         TrieWitness::overlay_witness(self.storage, self.block_number, input, target)
             .map_err(ProviderError::from)
             .map(|hm| hm.into_values().collect())
