@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -449,17 +448,12 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
 		L1ContractsLocator:    artifacts.EmbeddedLocator,
 		L2ContractsLocator:    artifacts.EmbeddedLocator,
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
-		GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": opcmV2Flag,
-		},
 	}
 
 	st := &state.State{
@@ -519,8 +513,6 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	superchain, err := standard.SuperchainFor(l1ChainID)
 	require.NoError(t, err)
 
-	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -529,9 +521,6 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainGuardian: common.Address{0: 99},
-		},
-		GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": opcmV2Flag,
 		},
 	}
 
@@ -788,17 +777,12 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
 		L1ContractsLocator:    artifacts.EmbeddedLocator,
 		L2ContractsLocator:    artifacts.EmbeddedLocator,
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
-		GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": opcmV2Flag,
-		},
 	}
 
 	st := &state.State{
