@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -381,11 +382,11 @@ func startKonaSupervisor(
 		require.NoError(os.WriteFile(filePath, rollupData, 0o644))
 	}
 
-	execPath, err := EnsureRustBinary(t, RustBinarySpec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
 		Package: "kona-supervisor",
 		Binary:  "kona-supervisor",
-	})
+	}.EnsureExists(t.Ctx(), t.Logger())
 	require.NoError(err, "prepare kona-supervisor binary")
 	require.NotEmpty(execPath, "kona-supervisor binary path resolved")
 

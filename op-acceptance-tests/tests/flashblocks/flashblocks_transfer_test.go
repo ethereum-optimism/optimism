@@ -18,13 +18,18 @@ import (
 // TestFlashblocksTransfer checks that a transfer is reflected in the op-rbuilder
 // flashblock stream for the same block that eventually includes the transaction.
 //
+// Because flashblocks are speculative, the tx may first appear in a flashblock for
+// block N whose payload is later superseded (e.g. the sequencer calls getPayload
+// before the builder updates best_payload). The test therefore collects all matching
+// flashblocks and verifies the one whose block number equals the final on-chain
+// inclusion block.
+//
 // Expectations:
 //
-//   - There must have been a Flashblock whose metadata.receipts contains Alice's transaction hash.
-//     This identifies the flashblock that carried Alice's transfer to Bob.
-//   - The transaction's confirmed block number must match the flashblock's block number.
-//   - If Bob's balance is reported in new_account_balances for that flashblock, it must match the
-//     on-chain balance at the transaction's inclusion block.
+//   - There must be a flashblock whose metadata.receipts contains Alice's tx hash
+//     and whose block_number equals the confirmed inclusion block.
+//   - Bob's balance in new_account_balances for that flashblock must match the
+//     on-chain balance at the inclusion block.
 func TestFlashblocksTransfer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// Example error with kona-node:
@@ -79,42 +84,41 @@ func TestFlashblocksTransfer(gt *testing.T) {
 		close(txCh)
 	}()
 
-	var blockNumber int
-	var observedBalance *big.Int
+	// Accumulate flashblock receipts for the tx, keyed by block number.
+	// A speculative flashblock may carry the tx for block N, but if that block is
+	// rebuilt the tx surfaces again for a later block. We keep reading until the tx
+	// is confirmed on-chain and we have seen a flashblock for its inclusion block.
+	balancesByBlock := make(map[uint64]*big.Int)
+	var txBlock eth.BlockRef
+
 outer:
 	for {
 		select {
 		case fb, ok := <-fbClient.Next():
 			t.Require().True(ok, "client channel closed before we found the transaction")
 			if _, found := fb.Metadata.Receipts[txHash]; found {
-				blockNumber = fb.Metadata.BlockNumber
+				var observedBalance *big.Int
 				if balanceStr, ok := fb.Metadata.NewAccountBalances[strings.ToLower(bob.Address().Hex())]; ok {
 					observedBalance, ok = new(big.Int).SetString(balanceStr[2:], 16)
 					t.Require().True(ok)
 				}
-				break outer
+				balancesByBlock[uint64(fb.Metadata.BlockNumber)] = observedBalance
 			}
+		case err := <-txCh:
+			t.Require().NoError(err)
+			txBlock, err = tx.IncludedBlock.Eval(t.Ctx())
+			t.Require().NoError(err)
+			txCh = nil
 		case <-t.Ctx().Done():
-			t.Require().NoError(t.Ctx().Err(), "never found the transaction in flashblock receipts")
+			t.Require().NoError(t.Ctx().Err(), "never found the transaction in flashblock receipts for the confirmed block")
 		}
-	}
 
-	select {
-	case err := <-txCh:
-		t.Require().NoError(err)
-	case <-t.Ctx().Done():
-		t.Require().NoError(t.Ctx().Err())
-	}
-
-	txBlock, err := tx.IncludedBlock.Eval(t.Ctx())
-	t.Require().NoError(err)
-	require.Equal(t, int(txBlock.Number), blockNumber, "the transaction's block number should be the same as the flashblock's block number")
-
-	if observedBalance == nil {
-		t.Require().Fail("matched flashblock via receipts but Bob was absent from new_account_balances", "bob=%s txHash=%s", bob.Address(), txHash)
+		if _, ok := balancesByBlock[txBlock.Number]; txCh == nil && ok {
+			break outer
+		}
 	}
 
 	expectedBalance, err := sys.L2EL.EthClient().BalanceAt(t.Ctx(), bob.Address(), new(big.Int).SetUint64(txBlock.Number))
 	t.Require().NoError(err)
-	require.Equal(t, expectedBalance, observedBalance, "Bob's balance must match the on-chain balance at the transaction inclusion block when reported in flashblock metadata")
+	require.Equal(t, expectedBalance, balancesByBlock[txBlock.Number], "Bob's balance must match the on-chain balance at the transaction inclusion block when reported in flashblock metadata")
 }

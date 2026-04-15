@@ -348,6 +348,7 @@ func startMinimalChallenger(
 		)
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(
+		t.Ctx(),
 		t.TempDir(),
 		l1EL.UserRPC(),
 		l1CL.beaconHTTPAddr,

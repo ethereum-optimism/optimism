@@ -129,7 +129,7 @@ type MinimalT interface {
 
 func handleOptError(t *testing.T, opt shared.Option) Option {
 	return func(c *config.Config) {
-		require.NoError(t, opt(c))
+		require.NoError(t, opt(t.Context(), c))
 	}
 }
 func WithCannon(t *testing.T, system System) Option {

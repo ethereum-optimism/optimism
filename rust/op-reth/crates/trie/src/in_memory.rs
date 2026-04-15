@@ -2,7 +2,10 @@
 
 use crate::{
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
-    api::{InitialStateAnchor, InitialStateStatus, OpProofsInitialStateStore, WriteCounts},
+    api::{
+        InitialStateAnchor, InitialStateStatus, OpProofsInitProvider, OpProofsProviderRO,
+        OpProofsProviderRw, WriteCounts,
+    },
     db::{HashedStorageKey, StorageTrieKey},
 };
 use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
@@ -23,6 +26,12 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Debug, Clone)]
 pub struct InMemoryProofsStorage {
     /// Shared state across all instances
+    inner: Arc<RwLock<InMemoryStorageInner>>,
+}
+
+/// In-memory provider for [`InMemoryProofsStorage`]
+#[derive(Debug, Clone)]
+pub struct InMemoryProofsProvider {
     inner: Arc<RwLock<InMemoryStorageInner>>,
 }
 
@@ -136,56 +145,6 @@ impl InMemoryProofsStorage {
     /// Create a new in-memory op proofs storage instance
     pub fn new() -> Self {
         Self { inner: Arc::new(RwLock::new(InMemoryStorageInner::default())) }
-    }
-
-    fn get_latest_account_trie_key(&self) -> OpProofsStorageResult<Option<StoredNibbles>> {
-        let inner = self.inner.read();
-        Ok(inner
-            .account_branches
-            .range((
-                std::ops::Bound::Included((0, Nibbles::default())),
-                std::ops::Bound::Excluded((1, Nibbles::default())),
-            ))
-            .next_back()
-            .map(|((_, nibbles), _)| StoredNibbles::from(*nibbles)))
-    }
-
-    fn get_latest_storage_trie_key(&self) -> OpProofsStorageResult<Option<StorageTrieKey>> {
-        let inner = self.inner.read();
-        Ok(inner
-            .storage_branches
-            .range((
-                std::ops::Bound::Included((0, B256::ZERO, Nibbles::default())),
-                std::ops::Bound::Excluded((1, B256::ZERO, Nibbles::default())),
-            ))
-            .next_back()
-            .map(|((_, address, nibbles), _)| {
-                StorageTrieKey::new(*address, StoredNibbles::from(*nibbles))
-            }))
-    }
-
-    fn get_latest_hashed_account_key(&self) -> OpProofsStorageResult<Option<B256>> {
-        let inner = self.inner.read();
-        Ok(inner
-            .hashed_accounts
-            .range((
-                std::ops::Bound::Included((0, B256::ZERO)),
-                std::ops::Bound::Excluded((1, B256::ZERO)),
-            ))
-            .next_back()
-            .map(|((_, address), _)| *address))
-    }
-
-    fn get_latest_hashed_storage_key(&self) -> OpProofsStorageResult<Option<HashedStorageKey>> {
-        let inner = self.inner.read();
-        Ok(inner
-            .hashed_storages
-            .range((
-                std::ops::Bound::Included((0, B256::ZERO, B256::ZERO)),
-                std::ops::Bound::Excluded((1, B256::ZERO, B256::ZERO)),
-            ))
-            .next_back()
-            .map(|((_, address, slot), _)| HashedStorageKey::new(*address, *slot)))
     }
 }
 
@@ -531,6 +490,76 @@ impl HashedCursor for InMemoryAccountCursor {
 }
 
 impl OpProofsStore for InMemoryProofsStorage {
+    type ProviderRO<'a> = InMemoryProofsProvider;
+    type ProviderRw<'a> = InMemoryProofsProvider;
+    type Initializer<'a> = InMemoryProofsProvider;
+
+    fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
+        Ok(InMemoryProofsProvider { inner: self.inner.clone() })
+    }
+
+    fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
+        Ok(InMemoryProofsProvider { inner: self.inner.clone() })
+    }
+
+    fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
+        Ok(InMemoryProofsProvider { inner: self.inner.clone() })
+    }
+}
+
+impl InMemoryProofsProvider {
+    fn get_latest_account_trie_key(&self) -> OpProofsStorageResult<Option<StoredNibbles>> {
+        let inner = self.inner.read();
+        Ok(inner
+            .account_branches
+            .range((
+                std::ops::Bound::Included((0, Nibbles::default())),
+                std::ops::Bound::Excluded((1, Nibbles::default())),
+            ))
+            .next_back()
+            .map(|((_, nibbles), _)| StoredNibbles::from(*nibbles)))
+    }
+
+    fn get_latest_storage_trie_key(&self) -> OpProofsStorageResult<Option<StorageTrieKey>> {
+        let inner = self.inner.read();
+        Ok(inner
+            .storage_branches
+            .range((
+                std::ops::Bound::Included((0, B256::ZERO, Nibbles::default())),
+                std::ops::Bound::Excluded((1, B256::ZERO, Nibbles::default())),
+            ))
+            .next_back()
+            .map(|((_, address, nibbles), _)| {
+                StorageTrieKey::new(*address, StoredNibbles::from(*nibbles))
+            }))
+    }
+
+    fn get_latest_hashed_account_key(&self) -> OpProofsStorageResult<Option<B256>> {
+        let inner = self.inner.read();
+        Ok(inner
+            .hashed_accounts
+            .range((
+                std::ops::Bound::Included((0, B256::ZERO)),
+                std::ops::Bound::Excluded((1, B256::ZERO)),
+            ))
+            .next_back()
+            .map(|((_, address), _)| *address))
+    }
+
+    fn get_latest_hashed_storage_key(&self) -> OpProofsStorageResult<Option<HashedStorageKey>> {
+        let inner = self.inner.read();
+        Ok(inner
+            .hashed_storages
+            .range((
+                std::ops::Bound::Included((0, B256::ZERO, B256::ZERO)),
+                std::ops::Bound::Excluded((1, B256::ZERO, B256::ZERO)),
+            ))
+            .next_back()
+            .map(|((_, address, slot), _)| HashedStorageKey::new(*address, *slot)))
+    }
+}
+
+impl OpProofsProviderRO for InMemoryProofsProvider {
     type StorageTrieCursor<'tx> = InMemoryTrieCursor;
     type AccountTrieCursor<'tx> = InMemoryTrieCursor;
     type StorageCursor<'tx> = InMemoryStorageCursor;
@@ -543,9 +572,8 @@ impl OpProofsStore for InMemoryProofsStorage {
 
     fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         let inner = self.inner.read();
-        // Find the latest block number from trie_updates
         let latest_block = inner.trie_updates.keys().max().copied();
-        Ok(latest_block.map_or(inner.earliest_block, |block| Some((block, B256::ZERO))))
+        latest_block.map_or_else(|| Ok(inner.earliest_block), |block| Ok(Some((block, B256::ZERO))))
     }
 
     fn storage_trie_cursor<'tx>(
@@ -579,23 +607,34 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(InMemoryAccountCursor::new(&inner, max_block_number))
     }
 
+    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+        let inner = self.inner.read();
+        let trie_updates = inner.trie_updates.get(&block_number).cloned().unwrap_or_default();
+        let post_state = inner.post_states.get(&block_number).cloned().unwrap_or_default();
+        Ok(BlockStateDiff { sorted_trie_updates: trie_updates, sorted_post_state: post_state })
+    }
+}
+
+impl OpProofsProviderRw for InMemoryProofsProvider {
     fn store_trie_updates(
         &self,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
         let mut inner = self.inner.write();
-
         Ok(inner.store_trie_updates(block_ref.block.number, block_state_diff))
     }
 
-    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
-        let inner = self.inner.read();
-
-        let trie_updates = inner.trie_updates.get(&block_number).cloned().unwrap_or_default();
-        let post_state = inner.post_states.get(&block_number).cloned().unwrap_or_default();
-
-        Ok(BlockStateDiff { sorted_trie_updates: trie_updates, sorted_post_state: post_state })
+    fn store_trie_updates_batch(
+        &self,
+        updates: Vec<(BlockWithParent, BlockStateDiff)>,
+    ) -> OpProofsStorageResult<WriteCounts> {
+        let mut inner = self.inner.write();
+        let mut total_write_count = WriteCounts::default();
+        for (block_ref, block_state_diff) in updates {
+            total_write_count += inner.store_trie_updates(block_ref.block.number, block_state_diff);
+        }
+        Ok(total_write_count)
     }
 
     fn prune_earliest_state(
@@ -674,8 +713,8 @@ impl OpProofsStore for InMemoryProofsStorage {
         }
 
         // Update earliest block pointer
-        if let Some((_, hash)) = inner.earliest_block {
-            inner.earliest_block = Some((new_earliest, hash));
+        if inner.earliest_block.is_some() {
+            inner.earliest_block = Some((new_earliest, new_earliest_block_ref.block.hash));
         }
 
         // 5. Cleanup Metadata
@@ -732,9 +771,13 @@ impl OpProofsStore for InMemoryProofsStorage {
         inner.earliest_block = Some((block_number, hash));
         Ok(())
     }
+
+    fn commit(self) -> OpProofsStorageResult<()> {
+        Ok(())
+    }
 }
 
-impl OpProofsInitialStateStore for InMemoryProofsStorage {
+impl OpProofsInitProvider for InMemoryProofsProvider {
     fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
         let inner = self.inner.read();
 
@@ -820,12 +863,13 @@ impl OpProofsInitialStateStore for InMemoryProofsStorage {
 
     fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
         let mut inner = self.inner.write();
-        if let Some((number, hash)) = inner.anchor_block {
-            inner.earliest_block = Some((number, hash));
-            Ok(BlockNumHash::new(number, hash))
-        } else {
-            Err(OpProofsStorageError::NoBlocksFound)
-        }
+        let anchor = inner.anchor_block.ok_or(OpProofsStorageError::NoBlocksFound)?;
+        inner.earliest_block = Some(anchor);
+        Ok(BlockNumHash::new(anchor.0, anchor.1))
+    }
+
+    fn commit(self) -> OpProofsStorageResult<()> {
+        Ok(())
     }
 }
 
@@ -843,17 +887,19 @@ mod tests {
 
         // Test setting earliest block
         let block_hash = B256::random();
-        storage.set_earliest_block_number(1, block_hash)?;
-        let earliest = storage.get_earliest_block_number()?;
+        storage.provider_rw()?.set_earliest_block_number(1, block_hash)?;
+        let earliest = storage.provider_ro()?.get_earliest_block_number()?;
         assert_eq!(earliest, Some((1, block_hash)));
 
         // Test storing and retrieving accounts
         let account = Account { nonce: 1, balance: U256::from(100), bytecode_hash: None };
         let hashed_address = B256::random();
 
-        storage.store_hashed_accounts(vec![(hashed_address, Some(account))])?;
+        storage
+            .initialization_provider()?
+            .store_hashed_accounts(vec![(hashed_address, Some(account))])?;
 
-        let _cursor = storage.account_hashed_cursor(10)?;
+        let _cursor = storage.provider_ro()?.account_hashed_cursor(10)?;
         // Note: cursor testing would require more complex setup with proper seek/next operations
 
         Ok(())
@@ -872,9 +918,9 @@ mod tests {
 
         const BLOCK: BlockWithParent =
             BlockWithParent::new(B256::ZERO, NumHash::new(5, B256::ZERO));
-        storage.store_trie_updates(BLOCK, block_state_diff)?;
+        storage.provider_rw()?.store_trie_updates(BLOCK, block_state_diff)?;
 
-        let retrieved_diff = storage.fetch_trie_updates(BLOCK.block.number)?;
+        let retrieved_diff = storage.provider_ro()?.fetch_trie_updates(BLOCK.block.number)?;
         assert_eq!(retrieved_diff.sorted_trie_updates, sorted_trie_updates);
         assert_eq!(retrieved_diff.sorted_post_state, sorted_post_state);
 

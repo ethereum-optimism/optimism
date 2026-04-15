@@ -10,8 +10,7 @@
   },
   "dependencies": {
     "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "toml": "^3.0.0"
+    "react-dom": "^18.0.0"
   },
   "devDependencies": {
     "@eth-optimism/actions-sdk": "^0.1.0",

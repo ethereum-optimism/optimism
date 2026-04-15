@@ -89,7 +89,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 	for id, mock := range h.mocks {
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, chains, h.dataDir, nil)
+	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil)
 	if h.interop != nil {
 		h.interop.ctx = context.Background()
 		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
@@ -129,7 +129,7 @@ func TestNew(t *testing.T) {
 				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir, nil)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil)
 				require.NotNil(t, interop)
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
@@ -152,7 +152,7 @@ func TestNew(t *testing.T) {
 				return h.WithDataDir("/nonexistent/path").SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir, nil)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil)
 				require.Nil(t, interop)
 			},
 		},
@@ -165,6 +165,12 @@ func TestNew(t *testing.T) {
 			tc.run(t, h)
 		})
 	}
+}
+
+func TestInteropActivationTimestampFlagEnvVar(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, InteropActivationTimestampFlag.GetEnvVars(), "OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP")
 }
 
 // =============================================================================
@@ -1139,7 +1145,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 100, chains, dataDir, nil)
+	interop := New(testLogger(), 100, 0, chains, dataDir, nil)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
