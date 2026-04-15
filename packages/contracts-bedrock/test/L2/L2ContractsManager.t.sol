@@ -1011,7 +1011,6 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
             .checked_write(false);
 
-        implementations.l2DevFeatureFlagsImpl = makeAddr("emptyFlagsImpl");
         _deployL2CM();
     }
 
