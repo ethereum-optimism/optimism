@@ -611,6 +611,22 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
         );
     }
 
+    /// @notice Tests that upgrade succeeds when LiquidityController.owner() is address(0) on CGT networks.
+    ///         L2CM replays the live owner back into LiquidityController.initialize(), so a renounced
+    ///         ownership state must be preserved across upgrades rather than blocking them.
+    function test_upgrade_whenLiquidityControllerOwnerIsZero_succeeds() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        vm.mockCall(
+            Predeploys.LIQUIDITY_CONTROLLER, abi.encodeCall(ILiquidityController.owner, ()), abi.encode(address(0))
+        );
+
+        // Upgrade must not revert even though owner is address(0)
+        _executeUpgrade();
+
+        assertEq(ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).owner(), address(0));
+    }
+
     /// @notice Tests that LiquidityController config is preserved after upgrade on CGT networks.
     function test_upgradePreservesLiquidityControllerConfig_onCGTNetwork_succeeds() public {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);

@@ -73,7 +73,11 @@ contract LiquidityController is ProxyAdminOwnedBase, ISemver, Initializable, Own
     {
         _assertOnlyProxyAdminOrProxyAdminOwner();
         __Ownable_init();
-        transferOwnership(_owner);
+        // Use _transferOwnership instead of transferOwnership so that address(0) is accepted.
+        // This preserves a renounced ownership state across upgrades, since L2CM replays the
+        // current owner back into initialize(). transferOwnership() would revert on address(0),
+        // blocking upgrades for any CGT chain that has renounced LiquidityController ownership.
+        _transferOwnership(_owner);
 
         gasPayingTokenName = _gasPayingTokenName;
         gasPayingTokenSymbol = _gasPayingTokenSymbol;
