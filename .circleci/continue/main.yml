@@ -2605,7 +2605,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
       - contracts-bedrock-checks-fast:
-          name: contracts-bedrock-checks-fast-feature-tests
           context:
             - circleci-repo-readonly-authenticated-github-token
       - l2-chains-sync-check:
@@ -2861,7 +2860,7 @@ workflows:
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - memory-all: terminal
-            - contracts-bedrock-checks-fast-feature-tests: terminal
+            - contracts-bedrock-checks-fast: terminal
           context:
             - circleci-api-token
           filters:
@@ -3366,6 +3365,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
       - contracts-bedrock-checks-fast:
+          name: contracts-bedrock-checks-fast-feature-tests
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3379,7 +3379,7 @@ workflows:
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
-            - contracts-bedrock-checks-fast: terminal
+            - contracts-bedrock-checks-fast-feature-tests: terminal
           context:
             - circleci-api-token
 
