@@ -42,6 +42,7 @@ import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.so
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -2105,12 +2106,24 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
         dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         standardValidator = opcmV2.opcmStandardValidator();
 
-        l2ChainId = deploy.cfg().l2ChainID();
-        cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
-        proposer = deploy.cfg().l2OutputOracleProposer();
-        challenger = deploy.cfg().l2OutputOracleChallenger();
+        if (isL1ForkTest()) {
+            // In fork mode read the actual values from the deployed contracts so _validate()
+            // is consistent with the real on-chain state.
+            LibGameArgs.GameArgs memory cannonArgs = LibGameArgs.decode(dgf.gameArgs(GameTypes.CANNON));
+            cannonPrestate = Claim.wrap(cannonArgs.absolutePrestate);
+            l2ChainId = cannonArgs.l2ChainId;
 
-        if (!isL1ForkTest()) {
+            LibGameArgs.GameArgs memory pddgArgs = LibGameArgs.decode(dgf.gameArgs(GameTypes.PERMISSIONED_CANNON));
+            proposer = pddgArgs.proposer;
+            challenger = pddgArgs.challenger;
+
+            cannonKonaPrestate = Claim.wrap(LibGameArgs.decode(dgf.gameArgs(GameTypes.CANNON_KONA)).absolutePrestate);
+        } else {
+            l2ChainId = deploy.cfg().l2ChainID();
+            cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
+            proposer = deploy.cfg().l2OutputOracleProposer();
+            challenger = deploy.cfg().l2OutputOracleChallenger();
+
             address owner = proxyAdmin.owner();
 
             IOPContractsManagerUtils.DisputeGameConfig[] memory configs =
