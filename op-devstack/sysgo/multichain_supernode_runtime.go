@@ -129,15 +129,30 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		depSetStatic = cast
 	}
 
+	if cfg.MessageExpiryWindow != nil && depSetStatic != nil {
+		var overrideErr error
+		depSetStatic, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
+			depSetStatic.Dependencies(), *cfg.MessageExpiryWindow)
+		require.NoError(overrideErr, "failed to override message expiry window")
+	}
+
 	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
 	l2Proposer := startMinimalProposer(t, keys, l2Net, l1EL, l2CL, cfg.ProposerOptions...)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
+	// Use the potentially-overridden depSetStatic if available.
+	var runtimeDepSet depset.DependencySet
+	if depSetStatic != nil {
+		runtimeDepSet = depSetStatic
+	} else {
+		runtimeDepSet = depSet
+	}
+
 	return &MultiChainRuntime{
 		Keys:          keys,
 		Migration:     migration,
-		DependencySet: depSet,
+		DependencySet: runtimeDepSet,
 		L1Network:     l1Net,
 		L1EL:          l1EL,
 		L1CL:          l1CL,
@@ -190,6 +205,13 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		depSet = cast
 	}
 
+	if cfg.MessageExpiryWindow != nil && depSet != nil {
+		var err error
+		depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
+			depSet.Dependencies(), *cfg.MessageExpiryWindow)
+		require.NoError(err, "failed to override message expiry window")
+	}
+
 	supernode, l2ACL, l2BCL := startTwoL2SharedSupernode(
 		t,
 		l1Net,
@@ -215,10 +237,19 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		l2BNet.ChainID(): l2BEL.UserRPC(),
 	})
 
+	// Use the potentially-overridden depSet (e.g. with custom message expiry window)
+	// if available; otherwise fall back to the original from the world builder.
+	var runtimeDepSet depset.DependencySet
+	if depSet != nil {
+		runtimeDepSet = depSet
+	} else {
+		runtimeDepSet = wb.outFullCfgSet.DependencySet
+	}
+
 	return &MultiChainRuntime{
 		Keys:          keys,
 		Migration:     newInteropMigrationState(wb),
-		DependencySet: wb.outFullCfgSet.DependencySet,
+		DependencySet: runtimeDepSet,
 		L1Network:     l1Net,
 		L1EL:          l1EL,
 		L1CL:          l1CL,

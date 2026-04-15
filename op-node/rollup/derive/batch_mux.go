@@ -3,12 +3,12 @@ package derive
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/exp/slices"
 )
 
 // BatchMux multiplexes between different batch stages.

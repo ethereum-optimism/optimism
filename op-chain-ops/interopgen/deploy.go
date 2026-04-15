@@ -3,10 +3,10 @@ package interopgen
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math/big"
+	"slices"
 	"sort"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -271,7 +271,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 func MigrateInterop(
 	l1Host *script.Host, l1GenesisTimestamp uint64, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, l2Cfgs map[string]*L2Config, l2Deployments map[string]*L2Deployment,
 ) (*InteropDeployment, error) {
-	l2ChainIDs := maps.Keys(l2Deployments)
+	l2ChainIDs := slices.Collect(maps.Keys(l2Deployments))
 	sort.Strings(l2ChainIDs)
 
 	// We don't have a super root at genesis. But stub the starting anchor root anyways to facilitate super DG testing.

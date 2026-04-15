@@ -166,21 +166,6 @@ impl OpHardfork {
         ]
     }
 
-    /// Devnet list of hardforks.
-    pub const fn devnet() -> [(Self, ForkCondition); 9] {
-        [
-            (Self::Bedrock, ForkCondition::ZERO_BLOCK),
-            (Self::Regolith, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Canyon, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Ecotone, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Fjord, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Granite, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Holocene, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Isthmus, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Jovian, ForkCondition::Timestamp(1762185600)),
-        ]
-    }
-
     /// Returns index of `self` in sorted canonical array.
     pub const fn idx(&self) -> usize {
         *self as usize
@@ -303,11 +288,6 @@ impl OpChainHardforks {
         Self::new(OpHardfork::base_sepolia())
     }
 
-    /// Creates a new [`OpChainHardforks`] with devnet configuration.
-    pub fn devnet() -> Self {
-        Self::new(OpHardfork::devnet())
-    }
-
     /// Returns `true` if this is an OP mainnet instance.
     pub fn is_op_mainnet(&self) -> bool {
         self[OpHardfork::Bedrock] == ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK)
@@ -316,8 +296,8 @@ impl OpChainHardforks {
 
 impl EthereumHardforks for OpChainHardforks {
     fn ethereum_fork_activation(&self, fork: EthereumHardfork) -> ForkCondition {
-        use EthereumHardfork::{Cancun, Prague, Shanghai};
-        use OpHardfork::{Canyon, Ecotone, Isthmus};
+        use EthereumHardfork::{Cancun, Osaka, Prague, Shanghai};
+        use OpHardfork::{Canyon, Ecotone, Isthmus, Karst};
 
         if self.forks.is_empty() {
             return ForkCondition::Never;
@@ -329,6 +309,7 @@ impl EthereumHardforks for OpChainHardforks {
             Shanghai if forks_len <= Canyon.idx() => ForkCondition::Never,
             Cancun if forks_len <= Ecotone.idx() => ForkCondition::Never,
             Prague if forks_len <= Isthmus.idx() => ForkCondition::Never,
+            Osaka if forks_len <= Karst.idx() => ForkCondition::Never,
             _ => self[fork],
         }
     }
@@ -378,14 +359,14 @@ impl Index<EthereumHardfork> for OpChainHardforks {
             Constantinople, Dao, Frontier, GrayGlacier, Homestead, Istanbul, London, MuirGlacier,
             Osaka, Paris, Petersburg, Prague, Shanghai, SpuriousDragon, Tangerine,
         };
-        use OpHardfork::{Bedrock, Canyon, Ecotone, Isthmus};
+        use OpHardfork::{Bedrock, Canyon, Ecotone, Isthmus, Karst};
 
         match hf {
             // Dao Hardfork is not needed for OpChainHardforks
-            Dao | Osaka | Bpo1 | Bpo2 | Bpo3 | Bpo4 | Bpo5 | Amsterdam => &ForkCondition::Never,
+            Dao | Bpo1 | Bpo2 | Bpo3 | Bpo4 | Bpo5 | Amsterdam => &ForkCondition::Never,
             Berlin if self.is_op_mainnet() => &ForkCondition::Block(OP_MAINNET_BERLIN_BLOCK),
-            Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople |
-            Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
+            Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople
+            | Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
             London | ArrowGlacier | GrayGlacier => &self[Bedrock],
             Paris if self.is_op_mainnet() => &ForkCondition::TTD {
                 activation_block_number: OP_MAINNET_BEDROCK_BLOCK,
@@ -400,6 +381,7 @@ impl Index<EthereumHardfork> for OpChainHardforks {
             Shanghai => &self[Canyon],
             Cancun => &self[Ecotone],
             Prague => &self[Isthmus],
+            Osaka => &self[Karst],
             _ => unreachable!(),
         }
     }

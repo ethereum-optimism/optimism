@@ -8,7 +8,7 @@ use alloy_primitives::{Address, Bytes};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{
     OpSpecId,
-    precompiles::{fjord, granite, isthmus, jovian},
+    precompiles::{fjord, granite, isthmus, jovian, karst},
 };
 use revm::{
     context::{Cfg, ContextTr},
@@ -49,7 +49,8 @@ where
             OpSpecId::FJORD => fjord(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
             OpSpecId::ISTHMUS => isthmus(),
-            OpSpecId::JOVIAN | OpSpecId::INTEROP | OpSpecId::OSAKA => jovian(),
+            OpSpecId::JOVIAN => jovian(),
+            OpSpecId::KARST | OpSpecId::INTEROP => karst(),
         };
 
         let accelerated_precompiles = match spec {
@@ -59,7 +60,7 @@ where
             OpSpecId::ECOTONE | OpSpecId::FJORD => accelerated_ecotone::<H, O>(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => accelerated_granite::<H, O>(),
             OpSpecId::ISTHMUS => accelerated_isthmus::<H, O>(),
-            OpSpecId::JOVIAN | OpSpecId::INTEROP | OpSpecId::OSAKA => accelerated_jovian::<H, O>(),
+            OpSpecId::JOVIAN | OpSpecId::KARST | OpSpecId::INTEROP => accelerated_jovian::<H, O>(),
         };
 
         Self {
@@ -456,8 +457,8 @@ mod test {
             hint_writer.clone(),
             oracle_reader.clone(),
         );
-        let osaka_provider = OpFpvmPrecompiles::new_with_spec(
-            OpSpecId::OSAKA,
+        let karst_provider = OpFpvmPrecompiles::new_with_spec(
+            OpSpecId::KARST,
             hint_writer.clone(),
             oracle_reader.clone(),
         );
@@ -479,7 +480,7 @@ mod test {
         };
         let osaka_addrs: Vec<_> = {
             let mut addrs: Vec<_> =
-                osaka_provider.accelerated_precompiles.keys().copied().collect();
+                karst_provider.accelerated_precompiles.keys().copied().collect();
             addrs.sort();
             addrs
         };
@@ -495,16 +496,16 @@ mod test {
             "JOVIAN should use jovian() precompiles"
         );
         assert!(
-            core::ptr::eq(interop_provider.inner.precompiles, jovian()),
-            "INTEROP should use jovian() precompiles"
-        );
-        assert!(
-            core::ptr::eq(osaka_provider.inner.precompiles, jovian()),
-            "OSAKA should use jovian() precompiles"
-        );
-        assert!(
             core::ptr::eq(isthmus_provider.inner.precompiles, isthmus()),
             "ISTHMUS should use isthmus() precompiles"
+        );
+        assert!(
+            core::ptr::eq(karst_provider.inner.precompiles, karst()),
+            "KARST should use karst() precompiles"
+        );
+        assert!(
+            core::ptr::eq(interop_provider.inner.precompiles, karst()),
+            "INTEROP should use karst() precompiles"
         );
     }
 

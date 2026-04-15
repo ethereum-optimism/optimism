@@ -3,6 +3,7 @@ package flashblocks
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -27,6 +28,12 @@ func driveViaTestSequencer(t devtest.T, sys *presets.SingleChainWithFlashblocks,
 	}
 	// Ensure the sequencer EL has produced at least one unsafe block before subscribing.
 	sys.L2EL.WaitForBlockNumber(1)
+
+	// Wait until L2 time catches up to wall clock time before relying on flashblocks.
+	// During startup the builder may report "unsafe block timestamp is too old" /
+	// "FCU arrived too late" while the sequencer is still catching up, which makes
+	// early flashblock receipt assertions flaky.
+	sys.L2EL.WaitForTime(uint64(time.Now().Unix()))
 
 	// Log the latest unsafe head and L1 origin to confirm block production before listening.
 	head = sys.L2EL.BlockRefByLabel(eth.Unsafe)

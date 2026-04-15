@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
-	"golang.org/x/exp/maps"
 )
 
 var ErrIncorrectWithdrawalsCount = errors.New("incorrect withdrawals count")
@@ -23,7 +24,7 @@ func NewWithdrawalsEnricher() *WithdrawalsEnricher {
 }
 
 func (w *WithdrawalsEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
-	recipients := maps.Keys(game.Recipients)
+	recipients := slices.Collect(maps.Keys(game.Recipients))
 	withdrawals, err := caller.GetWithdrawals(ctx, block, recipients...)
 	if err != nil {
 		return fmt.Errorf("failed to fetch withdrawals: %w", err)

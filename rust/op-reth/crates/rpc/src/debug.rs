@@ -21,7 +21,7 @@ use reth_optimism_payload_builder::{
     OpAttributes, OpPayloadPrimitives,
     builder::{OpBuilder, OpPayloadBuilderCtx},
 };
-use reth_optimism_trie::{OpProofsStorage, OpProofsStore};
+use reth_optimism_trie::{OpProofsStorage, OpProofsStore, api::OpProofsProviderRO};
 use reth_optimism_txpool::OpPooledTransaction as OpPooledTx2;
 use reth_payload_util::NoopPayloadTransactions;
 use reth_primitives_traits::{SealedHeader, TxTy};
@@ -316,14 +316,12 @@ where
     }
 
     async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus> {
-        let earliest = self
-            .inner
-            .storage
+        let provider_ro =
+            self.inner.storage.provider_ro().map_err(|err| internal_rpc_err(err.to_string()))?;
+        let earliest = provider_ro
             .get_earliest_block_number()
             .map_err(|err| internal_rpc_err(err.to_string()))?;
-        let latest = self
-            .inner
-            .storage
+        let latest = provider_ro
             .get_latest_block_number()
             .map_err(|err| internal_rpc_err(err.to_string()))?;
 
