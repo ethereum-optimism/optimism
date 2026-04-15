@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
@@ -28,9 +29,10 @@ var (
 
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
-	Name:  "interop.activation-timestamp",
-	Usage: "The timestamp at which interop should start",
-	Value: 0,
+	Name:    "interop.activation-timestamp",
+	Usage:   "Override the interop activation timestamp derived from rollup configs",
+	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_ACTIVATION_TIMESTAMP"),
+	Value:   0,
 }
 
 func init() {
@@ -79,6 +81,8 @@ type Interop struct {
 	activationTimestamp uint64
 	dataDir             string
 
+	messageExpiryWindow uint64
+
 	verifiedDB *VerifiedDB
 	logsDBs    map[eth.ChainID]LogsDB
 
@@ -113,6 +117,7 @@ func (i *Interop) Name() string {
 func New(
 	log log.Logger,
 	activationTimestamp uint64,
+	messageExpiryWindow uint64,
 	chains map[eth.ChainID]cc.ChainContainer,
 	dataDir string,
 	l1Source l1ByNumberSource,
@@ -139,6 +144,9 @@ func New(
 		logsDBs[chainID] = logsDB
 	}
 
+	if messageExpiryWindow == 0 {
+		messageExpiryWindow = defaultMessageExpiryWindow
+	}
 	i := &Interop{
 		log:                 log,
 		chains:              chains,
@@ -146,6 +154,7 @@ func New(
 		logsDBs:             logsDBs,
 		dataDir:             dataDir,
 		activationTimestamp: activationTimestamp,
+		messageExpiryWindow: messageExpiryWindow,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)

@@ -712,6 +712,14 @@ func TestELSync(gt *testing.T) {
 }
 
 func PrepareELSyncedNode(t actionsHelpers.Testing, miner *actionsHelpers.L1Miner, sequencer *actionsHelpers.L2Sequencer, seqEng *actionsHelpers.L2Engine, verifier *actionsHelpers.L2Verifier, verEng *actionsHelpers.L2Engine, seqEngCl *sources.EngineClient, batcher *actionsHelpers.L2Batcher, dp *e2eutils.DeployParams) {
+	PrepareELSyncedNodeAndCheck(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp, 11, 11)
+}
+
+// PrepareELSyncedNodeAndCheck EL-syncs blocks 0..10 from sequencer to verifier,
+// inserts block 11 to complete the sync, then asserts safe and finalized labels
+// match expectedSafe and expectedFinalized respectively.
+// After the check it batch-submits a block and verifies safe advances via derivation.
+func PrepareELSyncedNodeAndCheck(t actionsHelpers.Testing, miner *actionsHelpers.L1Miner, sequencer *actionsHelpers.L2Sequencer, seqEng *actionsHelpers.L2Engine, verifier *actionsHelpers.L2Verifier, verEng *actionsHelpers.L2Engine, seqEngCl *sources.EngineClient, batcher *actionsHelpers.L2Batcher, dp *e2eutils.DeployParams, expectedSafe uint64, expectedFinalized uint64) {
 	PerformELSyncAndCheckPayloads(t, miner, seqEng, sequencer, verEng, verifier, seqEngCl, 0, 10)
 
 	// Despite downloading the blocks, it has not finished finalizing
@@ -725,9 +733,9 @@ func PrepareELSyncedNode(t actionsHelpers.Testing, miner *actionsHelpers.L1Miner
 	require.NoError(t, err)
 	verifier.ActL2InsertUnsafePayload(seqHead)(t)
 
-	// Check that safe + finalized are there
-	VerifyBlock(t, verifier.Eng, 11, eth.Safe)
-	VerifyBlock(t, verifier.Eng, 11, eth.Finalized)
+	// Check that safe + finalized match expectations
+	VerifyBlock(t, verifier.Eng, expectedSafe, eth.Safe)
+	VerifyBlock(t, verifier.Eng, expectedFinalized, eth.Finalized)
 
 	// Batch submit everything
 	BatchSubmitBlock(t, miner, sequencer, verifier, batcher, dp, 12)
@@ -891,6 +899,33 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	require.Nil(t, record, "The verifier should start EL Sync when l2.engineKind is not geth")
 	record = captureLogHandler.FindLog(testlog.NewMessageFilter("Starting EL sync"))
 	require.NotNil(t, record, "The verifier should start EL Sync when l2.engineKind is not geth")
+}
+
+// TestELSyncOffsetELSafe verifies that when OffsetELSafe is configured, the safe and finalized
+// heads are retracted from the EL-sync tip by floor(offset / blockTime) blocks.
+// With L2BlockTime=1 and offset=5s the verifier should set safe/finalized to block 6 (= 11 - 5)
+// instead of the tip (11).
+func TestELSyncOffsetELSafe(gt *testing.T) {
+	t := actionsHelpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
+	logger := testlog.Logger(t, log.LevelInfo)
+
+	miner, seqEng, sequencer := actionsHelpers.SetupSequencerTest(t, sd, logger)
+	batcher := actionsHelpers.NewL2Batcher(logger, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp), sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
+
+	offset := 5 * time.Second
+	verEng, verifier := actionsHelpers.SetupVerifier(t, sd, logger, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(),
+		&sync.Config{SyncMode: sync.ELSync, OffsetELSafe: offset})
+
+	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	require.NoError(t, err)
+
+	// L2BlockTime defaults to 1s, so DurationToBlocks(5s, 1) = 5.
+	// EL sync tip will be block 11; safe and finalized should be 11 - 5 = 6.
+	expectedSafeFinalized := uint64(11) - uint64(offset/time.Second)/sd.RollupCfg.BlockTime
+	PrepareELSyncedNodeAndCheck(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp,
+		expectedSafeFinalized, expectedSafeFinalized)
 }
 
 func TestInvalidPayloadInSpanBatch(gt *testing.T) {

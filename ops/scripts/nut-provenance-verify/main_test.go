@@ -69,7 +69,7 @@ func TestVerifyFromCommit_MatchingBundle(t *testing.T) {
 	commit := writeFileInRepo(t, root, bundlePath, bundleContent)
 
 	// Write the "committed" bundle that verifyFromCommit compares against.
-	committedBundleRel := "op-node/rollup/derive/test_nut_bundle.json"
+	committedBundleRel := "op-core/nuts/bundles/test_nut_bundle.json"
 	committedBundlePath := filepath.Join(root, committedBundleRel)
 	require.NoError(t, os.MkdirAll(filepath.Dir(committedBundlePath), 0755))
 	require.NoError(t, os.WriteFile(committedBundlePath, bundleContent, 0644))
@@ -94,7 +94,7 @@ func TestVerifyFromCommit_MismatchedBundle(t *testing.T) {
 	commit := writeFileInRepo(t, root, bundlePath, bundleContent)
 
 	// Write a different bundle as the "committed" version.
-	committedBundleRel := "op-node/rollup/derive/test_nut_bundle.json"
+	committedBundleRel := "op-core/nuts/bundles/test_nut_bundle.json"
 	committedBundlePath := filepath.Join(root, committedBundleRel)
 	require.NoError(t, os.MkdirAll(filepath.Dir(committedBundlePath), 0755))
 	require.NoError(t, os.WriteFile(committedBundlePath, []byte(`{"modified":true}`), 0644))
@@ -120,7 +120,7 @@ func TestVerifyFromCommit_GeneratorModifiesBundle(t *testing.T) {
 
 	// The committed bundle matches what the generator will produce.
 	regeneratedContent := []byte(`{"metadata":{"version":"2.0.0"},"transactions":[{"new":true}]}`)
-	committedBundleRel := "op-node/rollup/derive/test_nut_bundle.json"
+	committedBundleRel := "op-core/nuts/bundles/test_nut_bundle.json"
 	committedBundlePath := filepath.Join(root, committedBundleRel)
 	require.NoError(t, os.MkdirAll(filepath.Dir(committedBundlePath), 0755))
 	require.NoError(t, os.WriteFile(committedBundlePath, regeneratedContent, 0644))

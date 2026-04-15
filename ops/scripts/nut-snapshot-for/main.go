@@ -45,7 +45,7 @@ func run(fork forks.Name) error {
 		return fmt.Errorf("reading bundle (run 'just generate-nut-bundle' in packages/contracts-bedrock/ first): %w", err)
 	}
 
-	bundleRel := filepath.Join("op-node", "rollup", "derive", string(fork)+"_nut_bundle.json")
+	bundleRel := filepath.Join("op-core", "nuts", "bundles", string(fork)+"_nut_bundle.json")
 	dstPath := filepath.Join(root, bundleRel)
 	if err := os.WriteFile(dstPath, content, 0600); err != nil {
 		return fmt.Errorf("writing bundle to %s: %w", bundleRel, err)

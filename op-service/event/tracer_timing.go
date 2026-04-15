@@ -2,11 +2,11 @@ package event
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/maps"
 )
 
 // TimingTracer generates an HTML output with an SVG that shows,
@@ -131,7 +131,7 @@ func (st *TimingTracer) Output() string {
 	}
 
 	// sort the keys, to get deterministic diagram order
-	actors := maps.Keys(byActor)
+	actors := slices.Collect(maps.Keys(byActor))
 	sort.Strings(actors)
 
 	offsetY := float64(0)
@@ -142,7 +142,7 @@ func (st *TimingTracer) Output() string {
 	for _, actorName := range actors {
 
 		m := byActor[actorName]
-		derived := maps.Keys(m)
+		derived := slices.Collect(maps.Keys(m))
 		sort.Strings(derived)
 
 		for _, d := range derived {
@@ -189,7 +189,7 @@ func (st *TimingTracer) Output() string {
 	// draw lines between event-emissions and event-execution
 	for _, actorName := range actors {
 		m := byActor[actorName]
-		derived := maps.Keys(m)
+		derived := slices.Collect(maps.Keys(m))
 		sort.Strings(derived)
 		for _, d := range derived {
 			entries := m[d]

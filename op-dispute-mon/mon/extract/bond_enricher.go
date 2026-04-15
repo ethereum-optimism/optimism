@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/big"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
-	"golang.org/x/exp/maps"
 )
 
 var _ Enricher = (*BondEnricher)(nil)
@@ -29,7 +30,7 @@ func NewBondEnricher() *BondEnricher {
 }
 
 func (b *BondEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
-	recipientAddrs := maps.Keys(game.Recipients)
+	recipientAddrs := slices.Collect(maps.Keys(game.Recipients))
 	credits, err := caller.GetCredits(ctx, block, recipientAddrs...)
 	if err != nil {
 		return err

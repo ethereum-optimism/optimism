@@ -152,9 +152,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.14
+    /// @custom:semver 7.1.15
     function version() public pure returns (string memory) {
-        return "7.1.14";
+        return "7.1.15";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -783,10 +783,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the OptimismPortal.
         // When interop is enabled, the ETH_LOCKBOX feature must be set on SystemConfig before
-        // upgrading the portal. Unlike OptimismPortalInterop which blindly sets the ethLockbox,
-        // OptimismPortal2.initialize() calls _assertValidLockboxState() which requires the
-        // ETH_LOCKBOX feature flag and ethLockbox address to be consistent. Otherwise we end up in a state where we
-        // have a lockbox and the feature flag is off
+        // upgrading the portal. OptimismPortal2.initialize() calls _assertValidLockboxState()
+        // which requires the ETH_LOCKBOX feature flag and ethLockbox address to be consistent.
+        // Otherwise we end up in a state where we have a lockbox and the feature flag is off.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
                 _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);

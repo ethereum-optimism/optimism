@@ -1,6 +1,6 @@
 set positional-arguments
 
-NIGHTLY := "nightly-2026-02-20"
+NIGHTLY := `grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' ../mise.toml | head -1`
 
 # Aliases
 alias t := test
@@ -121,6 +121,9 @@ check-no-std:
     op-alloy-consensus
     op-alloy-rpc-types
     op-alloy-rpc-types-engine
+
+    # op-revm
+    op-revm
   )
 
   # We need to install the riscv32imac-unknown-none-elf target before starting to build the no-std crates.

@@ -62,7 +62,6 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 		if hasPredeployedOPCM && st.ImplementationsDeployment == nil {
 			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-				OpcmImpl:   opcmAddr,
 				OpcmV2Impl: opcmAddr,
 			}
 		}
@@ -143,11 +142,8 @@ func immutableErr(field string, was, is any) error {
 	return fmt.Errorf("%s is immutable: was %v, is %v", field, was, is)
 }
 
-// TODO(#18612): Remove OPCMAddress field when OPCMv1 gets deprecated
-// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
 func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
 	input := opcm.ReadSuperchainDeploymentInput{
-		OpcmAddress:           opcmAddr,
 		SuperchainConfigProxy: superchainConfigProxy,
 	}
 
@@ -180,13 +176,10 @@ func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfig
 		SuperchainProxyAdminImpl: out.SuperchainProxyAdmin,
 		SuperchainConfigProxy:    out.SuperchainConfigProxy,
 		SuperchainConfigImpl:     out.SuperchainConfigImpl,
-		ProtocolVersionsProxy:    out.ProtocolVersionsProxy,
-		ProtocolVersionsImpl:     out.ProtocolVersionsImpl,
 	}
 	roles := &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: out.SuperchainProxyAdminOwner,
 		SuperchainGuardian:        out.Guardian,
-		ProtocolVersionsOwner:     out.ProtocolVersionsOwner,
 	}
 	return deployment, roles, nil
 }
