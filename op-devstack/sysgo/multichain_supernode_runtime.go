@@ -213,7 +213,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -349,7 +349,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	}, activationTime
 }
 
-func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
+func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, delaySeconds uint64, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
 	wb := &worldBuilder{
 		p:       t,
 		logger:  t.Logger(),
@@ -367,7 +367,16 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
-			l2Cfg.WithForkAtGenesis(opforks.Interop)
+			if delaySeconds > 0 {
+				// Set all forks up to but not including Interop at genesis,
+				// then set Interop at offset so the L2 chain starts in a
+				// pre-interop state. This matches the supernode's
+				// InteropActivationTimestamp and allows testing the fork transition.
+				l2Cfg.WithForkAtGenesis(opforks.Karst)
+				l2Cfg.WithForkAtOffset(opforks.Interop, &delaySeconds)
+			} else {
+				l2Cfg.WithForkAtGenesis(opforks.Interop)
+			}
 		}
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
