@@ -11,6 +11,7 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Reuse all test logic from L2ForkUpgrade — only setUp differs
 import {
@@ -37,6 +38,13 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
 
         // Skip if L2CM dev feature is not enabled
         skipIfDevFeatureDisabled(DevFeatures.L2CM);
+
+        // Skip under unoptimized profiles (e.g. `lite`). The NUT bundle's per-transaction gas
+        // limits are calibrated against optimized runtime bytecode; unoptimized bytecode is
+        // larger and OOGs on the 200-gas/byte CREATE2 deposit cost.
+        if (Config.isUnoptimized()) {
+            vm.skip(true, "L2GenesisForkUpgrade: requires optimized (ci/default) forge profile");
+        }
 
         // Initialize scripts
         executeScript = new ExecuteNUTBundle();
