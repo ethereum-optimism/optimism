@@ -427,7 +427,10 @@ contract L2ContractsManager is ISemver {
         // After upgrading L1Block to the CGT impl, populate the feature mapping so that
         // isCustomGasToken() continues to return true. The new impl reads from the mapping
         // rather than the legacy storage slot.
-        if (_config.isCustomGasToken) {
+        if (
+            _config.isCustomGasToken
+                && !IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)
+        ) {
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
         }
         L2ContractsManagerUtils.upgradeTo(
