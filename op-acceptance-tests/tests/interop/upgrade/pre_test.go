@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // preInteropExecError returns true if err matches a known pre-interop
@@ -35,8 +36,9 @@ func preInteropExecError(err error) bool {
 	return false
 }
 
-// TestPreNoInbox verifies pre-interop behavior: the CrossL2Inbox is not deployed
-// and executing messages fail before the interop fork activates.
+// TestPreNoInbox verifies pre-interop behavior: the CrossL2Inbox is not deployed,
+// the derivation pipeline advances local-safe heads, and executing messages fail
+// before the interop fork activates.
 func TestPreNoInbox(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// Use a very large activation delay (24h) so interop never activates during the test.
@@ -64,7 +66,16 @@ func TestPreNoInbox(gt *testing.T) {
 		require.Equal(common.Address{}, common.BytesToAddress(implAddrBytes[:]))
 	})
 
-	// Phase 2: Try interop before the upgrade, confirm that messages do not get included
+	// Phase 2: Verify the derivation pipeline works pre-interop by checking
+	// that both chains advance their local-safe heads (batcher submits to L1,
+	// supernode derives from it). Cross-safe and finalized require interop
+	// activation, but local-safe only needs L1 derivation.
+	dsl.CheckAll(t,
+		sys.L2ACL.AdvancedFn(types.LocalSafe, 5, 100),
+		sys.L2BCL.AdvancedFn(types.LocalSafe, 5, 100),
+	)
+
+	// Phase 3: Try interop before the upgrade, confirm that messages do not get included
 	{
 		alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 		bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
