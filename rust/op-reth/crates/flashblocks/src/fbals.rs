@@ -153,7 +153,7 @@ impl<'a, DB: DatabaseRef> Database for FbalsDb<'a, DB> {
 }
 
 impl<'a, DB: reth_revm::Database> FbalsDb<'a, DB> {
-    pub fn inject_fbals(&mut self, fbals: &[FlashblockAccessList], tx_index: u64) {
+    fn inject_fbals(&mut self, fbals: &[FlashblockAccessList], tx_index: u64) {
         for fbal in fbals {
             for AccountChanges {
                 address,
@@ -191,9 +191,11 @@ impl<'a, DB: reth_revm::Database> FbalsDb<'a, DB> {
 
                 let mut storage = U256Map::<U256>::default();
                 while let Some(SlotChanges { slot, changes }) = storage_changes.iter().next() {
-                  while let Some(sc) = changes.iter().next() && sc.block_access_index() < tx_index
-                {
-                    storage[slot] = sc.new_value;
+                    while let Some(sc) = changes.iter().next() &&
+                        sc.block_access_index < tx_index
+                    {
+                        storage.insert(*slot, sc.new_value);
+                    }
                 }
 
                 self.cached().insert_account(*address, info, storage);

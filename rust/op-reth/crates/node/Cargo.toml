@@ -86,7 +86,6 @@ tracing.workspace = true
 reth-e2e-test-utils = { workspace = true, optional = true }
 alloy-genesis = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-derive_more.workspace = true
 
 [dev-dependencies]
 reth-optimism-node = { workspace = true, features = ["test-utils"] }
