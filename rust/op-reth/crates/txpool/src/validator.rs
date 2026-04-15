@@ -21,8 +21,7 @@ use std::sync::{
 };
 
 /// The timeout for cross-chain transaction validation against the supervisor/interop-filter.
-/// Matches op-geth's `ingressFilterTxValidityWindow` (86400s = 24 hours).
-const TRANSACTION_VALIDITY_WINDOW_SECS: u64 = 86400;
+const TRANSACTION_VALIDITY_WINDOW_SECS: u64 = 7200;
 
 /// Tracks additional infos for the current block.
 #[derive(Debug, Default)]
