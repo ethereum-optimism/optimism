@@ -253,7 +253,7 @@ where
         let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
         // let fbals_db = FbalsDb::new(cached_db, received_access_lists[0]);
-        let mut fbals_db = FbalsDb::new(cached_db, &received_access_lists[..], tx_index);
+        let fbals_db = FbalsDb::new(cached_db, &received_access_lists[..], tx_index);
 
         // let cached_db2 = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
