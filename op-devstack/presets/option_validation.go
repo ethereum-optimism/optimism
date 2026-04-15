@@ -163,6 +163,7 @@ const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL
 
 const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindBatcher |
 	optionKindTimeTravel |
 	optionKindL1EL |
 	optionKindInteropFilter
