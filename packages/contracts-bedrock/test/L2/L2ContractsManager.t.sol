@@ -559,10 +559,10 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
     function _requiresInitialization(address _predeploy) internal pure returns (bool) {
         return _predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _predeploy == Predeploys.L2_STANDARD_BRIDGE
             || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
-            || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY
-            || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
-            || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
-            || _predeploy == Predeploys.FEE_SPLITTER || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
+            || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _predeploy == Predeploys.SEQUENCER_FEE_WALLET
+            || _predeploy == Predeploys.BASE_FEE_VAULT || _predeploy == Predeploys.L1_FEE_VAULT
+            || _predeploy == Predeploys.OPERATOR_FEE_VAULT || _predeploy == Predeploys.FEE_SPLITTER
+            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
     }
 
     /// @notice Checks if a predeploy is deployed and upgradeable.
@@ -1086,14 +1086,14 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
     }
 }
 
-/// @title RevertingInitializer
+/// @title L2ContractsManager_Reverter_Harness
 /// @notice Test helper whose runtime bytecode is etched over each initializable predeploy's new
 ///         implementation in the atomicity test. Exposes `version()` so it passes the L2CM
 ///         downgrade guard, then reverts from its fallback when the initializer is invoked via
 ///         `upgradeToAndCall`.
-contract RevertingInitializer {
+contract L2ContractsManager_Reverter_Harness {
     /// @notice Thrown from the fallback — i.e. from any call that is not `version()`.
-    error RevertingInitializer_AlwaysReverts();
+    error L2ContractsManager_Reverter_Harness_AlwaysReverts();
 
     /// @notice Returns a version high enough to pass L2CM's downgrade check against any real
     ///         predeploy version.
@@ -1104,7 +1104,7 @@ contract RevertingInitializer {
     /// @notice Reverts on any call that is not `version()` — including the initializer that L2CM
     ///         dispatches via upgradeToAndCall.
     fallback() external payable {
-        revert RevertingInitializer_AlwaysReverts();
+        revert L2ContractsManager_Reverter_Harness_AlwaysReverts();
     }
 }
 
@@ -1160,14 +1160,10 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
     }
 
     /// @notice Forces each initializable predeploy's initializer to revert and asserts the whole
-    ///         `upgrade()` reverts. The inner `RevertingInitializer_AlwaysReverts` is swallowed
+    ///         `upgrade()` reverts. The inner `L2ContractsManager_Reverter_Harness_AlwaysReverts` is swallowed
     ///         by `Proxy.upgradeToAndCall` (which wraps the delegatecall result in a `require`);
     ///         the outer revert is therefore the Proxy's string error.
     function test_upgrade_initializerRevertPropagates_reverts() public {
-        bytes memory reverterCode = address(new RevertingInitializer()).code;
-        bytes memory expected = abi.encodeWithSignature(
-            "Error(string)", "Proxy: delegatecall to new implementation contract failed"
-        );
         address[] memory allPredeploys = Predeploys.getUpgradeablePredeploys();
         uint256 coveredCount;
 
@@ -1178,9 +1174,11 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
             if (!_isPredeployUpgradeable(predeploy)) continue;
 
             uint256 snapshotId = vm.snapshotState();
-            vm.etch(_getTargetImpl(predeploy), reverterCode);
+            vm.etch(_getTargetImpl(predeploy), address(new L2ContractsManager_Reverter_Harness()).code);
 
-            vm.expectRevert(expected);
+            // Proxy.upgradeToAndCall wraps the inner revert in `require(success, "Proxy: ...")`,
+            // so the outer revert is Error(string) with the Proxy's message.
+            vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
             _executeUpgrade();
 
             vm.revertToState(snapshotId);
@@ -1207,9 +1205,7 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
             vm.etch(targetImpl, hex"");
 
             vm.expectRevert(
-                abi.encodeWithSelector(
-                    L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, targetImpl
-                )
+                abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, targetImpl)
             );
             _executeUpgrade();
 
