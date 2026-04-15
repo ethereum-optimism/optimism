@@ -163,7 +163,7 @@ impl<'a, DB> FbalsDb<'a, DB> {
                 code: todo!(),
             };
             let storage: U256Map<U256> = todo!();
-            self.inner.cached.insert_account(*address, info, storage);
+            self.inner.cached.insert_account(alloy_primitives::Address(*address), info, storage);
         }
     }
 }
@@ -177,7 +177,7 @@ pub fn split_fbal_into_transactions(fbal: &FlashblockAccessList) -> Vec<Flashblo
     out
 }
 
-pub fn search_fbals_code(
+pub fn search_fbals_code_changes(
     address: u64,
     tx_index: u64,
     fbals: &[FlashblockAccessList],

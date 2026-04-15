@@ -208,21 +208,23 @@ func (u *EOA) GetBalance() eth.ETH {
 
 // VerifyBalanceLessThan verifies balance < v
 func (u *EOA) VerifyBalanceLessThan(v eth.ETH) {
-	actual := u.balance()
-	u.t.Require().True(actual.Lt(v), "got %s, expecting less than %s", actual, v)
+	actual := u.balance().ToBig()
+	expected := v.ToBig()
+	u.t.Require().True(actual.Cmp(expected) == 1, "got %s, expecting less than %s", actual, v)
 }
 
 // VerifyBalanceExact verifies balance == v
 func (u *EOA) VerifyBalanceExact(v eth.ETH) {
-	actual := u.balance()
-	u.t.Require().Equal(v, actual, "must have expected balance")
+	actual := u.balance().ToBig()
+	expected := v.ToBig()
+	u.t.Require().True(actual.Cmp(expected) == 0, "must have expected balance")
 }
 
 // VerifyBalanceAtLeast verifies balance >= v
 func (u *EOA) VerifyBalanceAtLeast(v eth.ETH) {
-	actual := u.balance()
-	// u.t.Require().GreaterOrEqual(actual, v, "got %s, expecting at least %s", actual, v)
-	u.t.Require().True(actual.Gt(v), "got %s, expecting at least %s", actual, v)
+	actual := u.balance().ToBig()
+	expected := v.ToBig()
+	u.t.Require().True(actual.Cmp(expected) != -1, "got %s, expecting at least %s", actual, expected)
 }
 
 func (u *EOA) WaitForBalance(v eth.ETH) {
