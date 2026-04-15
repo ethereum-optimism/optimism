@@ -3,7 +3,16 @@ pragma solidity ^0.8.0;
 
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import {
+    BondDistributionMode,
+    Claim,
+    Duration,
+    GameStatus,
+    GameType,
+    Hash,
+    Timestamp,
+    Proposal
+} from "src/dispute/lib/Types.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -38,43 +47,14 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
     /// @notice Emitted when the game is closed.
     event GameClosed(BondDistributionMode bondDistributionMode);
 
-    error AlreadyInitialized();
-    error BondTransferFailed();
-    error ClaimAlreadyChallenged();
-    error ClaimAlreadyResolved();
-    error GameNotFinalized();
-    error GameNotOver();
-    error GameNotResolved();
-    error GameOver();
-    error GamePaused();
-    error IncorrectBondAmount();
-    error InvalidBondDistributionMode();
-    error InvalidParentGame();
-    error InvalidProposalStatus();
-    error NoCreditToClaim();
-    error ParentGameNotResolved();
-    error UnexpectedGameType();
-    error UnexpectedRootClaim(Claim rootClaim);
-    error UnknownChainId();
-
     function version() external view returns (string memory);
     function createdAt() external view returns (Timestamp);
     function resolvedAt() external view returns (Timestamp);
     function status() external view returns (GameStatus);
-    function claimData()
-        external
-        view
-        returns (
-            uint32 parentIndex,
-            ProposalStatus status,
-            address challenger,
-            address prover,
-            Timestamp deadline,
-            Claim claim
-        );
+    function claimData() external view returns (ClaimData memory);
     function normalModeCredit(address) external view returns (uint256);
     function refundModeCredit(address) external view returns (uint256);
-    function startingProposal() external view returns (Hash root, uint256 l2SequenceNumber);
+    function startingProposal() external view returns (Proposal memory);
     function bondDistributionMode() external view returns (BondDistributionMode);
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function totalBonds() external view returns (uint256);
