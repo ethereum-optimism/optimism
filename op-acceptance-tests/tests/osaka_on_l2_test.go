@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -266,7 +267,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 
 func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+	// sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	// Example error with kona-node:
 	//
@@ -282,12 +283,18 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	//     	Test:       	TestEIP7934BlockSizeLimitDisabled
 	sysgo.SkipOnKonaNode(t, "not supported")
 
-	// EIP-7934 limits RLP-encoded block size to 10 MiB on L1. OP Stack
-	// chains must NOT enforce this limit. We prove it by building a single
-	// block whose transaction data alone exceeds 10 MiB.
+	// EIP-7934 limits RLP-encoded block size on L1:
+	//   MAX_BLOCK_SIZE = 10 MiB (10,485,760 bytes)
+	//   SAFETY_MARGIN = 2 MiB (2,097,152 bytes)
+	//   MAX_RLP_BLOCK_SIZE = MAX_BLOCK_SIZE - SAFETY_MARGIN = 8,388,608 bytes
+	//
+	// OP Stack chains must NOT enforce this limit. We prove it by building a
+	// single block whose RLP-encoded size exceeds MAX_RLP_BLOCK_SIZE.
 	//
 	// EIP-7623 inflates zero-byte calldata cost to 10 gas/byte, so packing
 	// 12 MB into one block requires ~120M gas.
+	const maxRLPBlockSize = 10_485_760 - 2_097_152 // 8,388,608 bytes
+
 	sys := presets.NewMinimal(t, presets.WithDeployerOptions(
 		sysgo.WithKarstAtGenesis,
 		sysgo.WithL2GasLimit(200_000_000),
@@ -295,23 +302,21 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 
 	spamTxs(sys)
 
-	// Find a block whose total transaction data exceeds 10 MiB.
+	// Find a block whose RLP-encoded size exceeds MAX_RLP_BLOCK_SIZE.
 	l2Client := sys.L2EL.EthClient()
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
 	for {
 		select {
 		case <-time.After(l2BlockTime):
-			_, blockTxs, err := l2Client.InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
+			info, _, err := l2Client.InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
 			t.Require().NoError(err)
 
-			var totalTxSize int
-			for _, tx := range blockTxs {
-				bin, err := tx.MarshalBinary()
-				t.Require().NoError(err)
-				totalTxSize += len(bin)
-			}
+			// Use debug_getRawBlock to get the RLP-encoded block
+			var rawBlock hexutil.Bytes
+			err = l2Client.RPC().CallContext(t.Ctx(), &rawBlock, "debug_getRawBlock", rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(info.NumberU64())))
+			t.Require().NoError(err)
 
-			if totalTxSize > 10_000_000 {
+			if len(rawBlock) > maxRLPBlockSize {
 				return
 			}
 		case <-t.Ctx().Done():
