@@ -17,9 +17,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -308,15 +309,18 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	for {
 		select {
 		case <-time.After(l2BlockTime):
-			info, _, err := l2Client.InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
+			info, err := l2Client.InfoByLabel(t.Ctx(), eth.Unsafe)
 			t.Require().NoError(err)
 
-			// Use debug_getRawBlock to get the RLP-encoded block
-			var rawBlock hexutil.Bytes
-			err = l2Client.RPC().CallContext(t.Ctx(), &rawBlock, "debug_getRawBlock", rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(info.NumberU64())))
+			// Fetch the full block via eth_getBlockByNumber and RLP encode it
+			var block *types.Block
+			err = l2Client.RPC().CallContext(t.Ctx(), &block, "eth_getBlockByNumber", rpc.BlockNumber(info.NumberU64()).String(), true)
 			t.Require().NoError(err)
 
-			if len(rawBlock) > maxRLPBlockSize {
+			rlpBlock, err := rlp.EncodeToBytes(block)
+			t.Require().NoError(err)
+
+			if len(rlpBlock) > maxRLPBlockSize {
 				return
 			}
 		case <-t.Ctx().Done():
