@@ -12,8 +12,6 @@ import (
 
 func TestInteropFaultProofs(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// TODO(#19180): Unskip this once supernode is updated.
-	t.Skip("Supernode does not yet return optimistic blocks until blocks are fully validated")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunSuperFaultProofTest(t, sys)
 }
@@ -72,4 +70,20 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
+}
+
+func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
+}
+
+func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	const messageExpiryWindow = uint64(12) // 12 seconds for fast test
+	sys := presets.NewSimpleInteropSupernodeProofs(t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithMessageExpiryWindow(messageExpiryWindow),
+	)
+	sfp.RunMessageExpiryTest(t, sys, messageExpiryWindow)
 }

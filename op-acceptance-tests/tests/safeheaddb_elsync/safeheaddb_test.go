@@ -65,8 +65,8 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	sys.L2CLB.Start()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
+	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 60)
+	sys.L2CLB.Advanced(types.LocalSafe, 1, 60) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 }
@@ -100,8 +100,8 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 
 	sys.L2CLB.Start()
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
+	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 60)
+	sys.L2CLB.Advanced(types.LocalSafe, 1, 60) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 }

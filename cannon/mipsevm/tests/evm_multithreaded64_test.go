@@ -4,11 +4,11 @@ package tests
 import (
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
@@ -651,7 +651,7 @@ func TestEVM_NoopSyscall64(t *testing.T) {
 
 func TestEVM_UnsupportedSyscall64(t *testing.T) {
 	t.Parallel()
-	noopSyscallNums := maps.Values(NoopSyscalls64)
+	noopSyscallNums := slices.Collect(maps.Values(NoopSyscalls64))
 	unsupportedSyscalls := make([]uint32, 0, 400)
 	for i := 5000; i < 5400; i++ {
 		candidate := uint32(i)

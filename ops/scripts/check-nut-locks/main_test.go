@@ -17,7 +17,7 @@ func hashOf(data []byte) string {
 func TestValidateEntry_MatchingHash(t *testing.T) {
 	content := []byte(`{"transactions":[]}`)
 	entry := nuts.ForkLockEntry{
-		Bundle: "op-node/rollup/derive/test_nut_bundle.json",
+		Bundle: "op-core/nuts/bundles/test_nut_bundle.json",
 		Hash:   hashOf(content),
 		Commit: "abc123",
 	}
@@ -28,7 +28,7 @@ func TestValidateEntry_MatchingHash(t *testing.T) {
 func TestValidateEntry_HashMismatch(t *testing.T) {
 	content := []byte(`{"transactions":[]}`)
 	entry := nuts.ForkLockEntry{
-		Bundle: "op-node/rollup/derive/test_nut_bundle.json",
+		Bundle: "op-core/nuts/bundles/test_nut_bundle.json",
 		Hash:   "sha256:0000000000000000000000000000000000000000000000000000000000000000",
 		Commit: "abc123",
 	}
@@ -39,7 +39,7 @@ func TestValidateEntry_HashMismatch(t *testing.T) {
 func TestValidateEntry_EmptyCommit(t *testing.T) {
 	content := []byte(`{"transactions":[]}`)
 	entry := nuts.ForkLockEntry{
-		Bundle: "op-node/rollup/derive/test_nut_bundle.json",
+		Bundle: "op-core/nuts/bundles/test_nut_bundle.json",
 		Hash:   hashOf(content),
 		Commit: "",
 	}
@@ -51,7 +51,7 @@ func TestValidateEntry_ModifiedBundle(t *testing.T) {
 	original := []byte(`{"transactions":[{"intent":"deploy"}]}`)
 	modified := []byte(`{"transactions":[{"intent":"modified"}]}`)
 	entry := nuts.ForkLockEntry{
-		Bundle: "op-node/rollup/derive/test_nut_bundle.json",
+		Bundle: "op-core/nuts/bundles/test_nut_bundle.json",
 		Hash:   hashOf(original),
 		Commit: "abc123",
 	}

@@ -10,20 +10,10 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 contract ReadSuperchainDeployment is Script {
     struct Input {
-        // Deprecated v1 field — kept for Go ABI compatibility, ignored.
-        // Remove when Go op-deployer drops v1 struct fields.
-        address opcmAddress;
         ISuperchainConfig superchainConfigProxy;
     }
 
     struct Output {
-        // Deprecated v1 ProtocolVersions fields — kept for Go ABI compatibility, always zero.
-        // Remove when Go op-deployer drops v1 struct fields.
-        address protocolVersionsImpl;
-        address protocolVersionsProxy;
-        address protocolVersionsOwner;
-        bytes32 recommendedProtocolVersion;
-        bytes32 requiredProtocolVersion;
         ISuperchainConfig superchainConfigImpl;
         ISuperchainConfig superchainConfigProxy;
         IProxyAdmin superchainProxyAdmin;

@@ -99,7 +99,6 @@ type ReadImplementationAddressesInput struct {
 type ReadImplementationAddressesOutput struct {
 	DelayedWETH                  common.Address
 	OptimismPortal               common.Address
-	OptimismPortalInterop        common.Address
 	EthLockbox                   common.Address `evm:"ethLockbox"`
 	SystemConfig                 common.Address
 	AnchorStateRegistry          common.Address

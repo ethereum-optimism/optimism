@@ -4,7 +4,7 @@ version: 2.1
 # This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.25
+  utils: ethereum-optimism/circleci-utils@1.0.27
   gcp-cli: circleci/gcp-cli@3.0.1
   codecov: codecov/codecov@5.0.3
 
@@ -408,10 +408,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
       - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
-      - run:
           name: Check formatting
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
@@ -599,10 +595,6 @@ jobs:
           prefix: <<parameters.directory>>-docs
           features: "all"
       - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
-      - run:
           name: Build documentation
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
@@ -701,10 +693,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-udeps
           profile: "release"
-      - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
       - install-cargo-binstall
       - run:
           name: Install cargo-udeps

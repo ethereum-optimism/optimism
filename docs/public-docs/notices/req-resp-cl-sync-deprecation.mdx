@@ -1,0 +1,40 @@
+---
+title: Deprecation of Req/Res CL P2P sync
+description: The op-node Req/Res consensus-layer P2P sync client is being deprecated in favor of execution-layer syncing.
+lang: en-US
+content_type: notice
+topic: req-resp-cl-sync-deprecation
+personas:
+  - node-operator
+  - chain-operator
+categories:
+  - infrastructure
+  - protocol
+is_imported_content: 'false'
+---
+
+The `op-node` request-response (Req/Res) consensus-layer (CL) P2P sync client is being deprecated in favor of syncing through the execution layer (EL) client.
+
+This change simplifies `op-node` configuration, removes fragile sync logic, and relies on the execution client's native P2P sync, which is the more battle-tested path.
+
+## What this means
+
+- The Req/Res CL P2P sync **client** in `op-node` is deprecated.
+- `op-node` should rely on its connected EL node, such as **op-geth** or **op-reth**, to reach the chain tip in the presence of gaps between local state and chain tip received over gossip.
+- Operators should ensure their EL nodes have healthy P2P connectivity and enough peers to sync independently.
+- If you still explicitly set `--syncmode.req-resp=true`, plan to remove that override.
+- The Req/Res **server** path will remain temporarily to support older nodes, but it is also planned for removal later.
+
+## Action required
+
+### Node operators
+
+Move away from the deprecated Req/Res client path and rely on EL syncing.
+
+- Ensure your EL node has healthy P2P connectivity.
+- Remove any explicit `--syncmode.req-resp=true` override unless you need temporary backward compatibility.
+- If you are running an older release where Req/Res is still enabled by default, set `--syncmode.req-resp=false` to opt into the new behavior now.
+
+<Warning>
+  Once the Req/Res client path is fully removed, nodes with unhealthy EL peer connectivity may fail to catch up to the unsafe tip.
+</Warning>

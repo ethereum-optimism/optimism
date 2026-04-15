@@ -55,7 +55,6 @@ getting started with building your own programs, and a reference for the librari
 - [`driver`](./crates/proof/driver): Stateful derivation pipeline driver.
 - [`interop`](./crates/protocol/interop): Core functionality and primitives for the [Interop feature](https://specs.optimism.io/interop/overview.html) of the OP Stack.
 - [`registry`](./crates/protocol/registry): Rust bindings for the [superchain-registry][superchain-registry].
-- [`comp`](./crates/batcher/comp): Compression types for the OP Stack.
 - [`hardforks`](./crates/protocol/hardforks): Consensus layer hardfork types for the OP Stack including network upgrade transactions.
 
 **Proof**

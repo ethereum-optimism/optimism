@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math/big"
 	"os"
 	"path"
@@ -22,7 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum/go-ethereum/common/hexutil"

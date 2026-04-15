@@ -2,13 +2,13 @@ package sysgo
 
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
 func newSingleChainInteropWorldNoSupervisor(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
 	cfg.DeployerOptions = append([]DeployerOption{
-		WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 	}, cfg.DeployerOptions...)
 	l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{

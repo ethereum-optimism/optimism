@@ -47,6 +47,30 @@ just test-unit
 just test-docs
 ```
 
+### Running op-reth E2E Tests
+
+The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-geth (sequencer) and op-reth (validator). They require two build prerequisites:
+
+1. **Forge artifacts** — the devnet deploys contracts from compiled artifacts:
+   ```bash
+   cd packages/contracts-bedrock
+   mise exec -- just build-no-tests
+   ```
+
+2. **op-reth release binary** — the test harness (`op-devstack/sysgo/rust_binary.go`) only searches `target/release/`, not `target/debug/`. Options:
+   ```bash
+   # Option A: let the test build it (slow first run, cached after)
+   RUST_JIT_BUILD=1 go test -v -run TestName ./rust/op-reth/tests/proofs/core/
+
+   # Option B: pre-build the binary
+   cd rust && just build-op-reth
+   ```
+
+Run from the monorepo root:
+```bash
+mise exec -- go test -v -run TestExecutePayloadSuccess -count=1 ./rust/op-reth/tests/proofs/core/
+```
+
 ### Generating Prestates
 
 Kona prestates are built via Docker:
@@ -74,12 +98,7 @@ Lint configuration lives in `rust/Cargo.toml` (workspace lints section), `rust/c
 
 ### Formatting Requires Nightly
 
-Formatting uses a pinned nightly toolchain (defined as `NIGHTLY` in `rust/justfile`). If the nightly isn't installed:
-
-```bash
-cd rust
-just install-nightly
-```
+Formatting uses a pinned nightly toolchain (defined as `NIGHTLY` in `rust/justfile`). It is installed via mise.
 
 Then use `just fmt-fix` to auto-format, or `just fmt-check` to verify.
 

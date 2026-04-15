@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -53,6 +54,13 @@ const (
 	MixedL2CLOpNode MixedL2CLKind = "op-node"
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
 )
+
+// SkipOnOpGeth skips the test when the L2 execution layer is op-geth
+func SkipOnOpGeth(t devtest.T, reason string) {
+	if devstackL2ELKind() == MixedL2ELOpGeth {
+		t.Skipf("skipping on op-geth: %s", reason)
+	}
+}
 
 // SkipOnOpReth skips the test when the L2 execution layer is op-reth
 func SkipOnOpReth(t devtest.T, reason string) {
@@ -287,11 +295,11 @@ func startMixedOpRethNode(
 
 	tempP2PPath := filepath.Join(tempDir, "p2pkey.txt")
 
-	execPath, err := EnsureRustBinary(t, RustBinarySpec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rust",
 		Package: "op-reth",
 		Binary:  "op-reth",
-	})
+	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "op-reth binary not available (build with 'just build-rust-release' or set RUST_JIT_BUILD=1)")
 
 	args := []string{
@@ -448,11 +456,11 @@ func startMixedKonaNode(
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 
-	execPath, err := EnsureRustBinary(t, RustBinarySpec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
 		Package: "kona-node",
 		Binary:  "kona-node",
-	})
+	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "prepare kona-node binary")
 	t.Require().NotEmpty(execPath, "kona-node binary path resolved")
 

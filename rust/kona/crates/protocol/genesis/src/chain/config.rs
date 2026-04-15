@@ -5,6 +5,8 @@ use alloy_chains::Chain;
 use alloy_eips::eip1559::BaseFeeParams;
 use alloy_primitives::Address;
 
+#[cfg(feature = "rollup_config_override")]
+use crate::FJORD_MAX_SEQUENCER_DRIFT;
 use crate::{
     AddressList, AltDAConfig, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig,
     Roles, RollupConfig, SuperchainLevel, base_fee_params, base_fee_params_canyon,
@@ -176,6 +178,8 @@ impl ChainConfig {
             // necessary.
             channel_timeout: 300,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             chain_op_config: self.base_fee_config(),
             alt_da_config: self.alt_da.clone(),
         }

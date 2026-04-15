@@ -7,7 +7,7 @@ use revm::{
     interpreter::{CallInputs, InterpreterResult},
     precompile::{
         self, Precompile, PrecompileError, PrecompileId, PrecompileResult, Precompiles, bn254,
-        secp256r1,
+        modexp, secp256r1,
     },
     primitives::{Address, OnceLock, hardfork::SpecId},
 };
@@ -34,7 +34,8 @@ impl OpPrecompiles {
             OpSpecId::FJORD => fjord(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
             OpSpecId::ISTHMUS => isthmus(),
-            OpSpecId::INTEROP | OpSpecId::OSAKA | OpSpecId::JOVIAN => jovian(),
+            OpSpecId::JOVIAN => jovian(),
+            OpSpecId::KARST | OpSpecId::INTEROP => karst(),
         };
 
         Self { inner: EthPrecompiles { precompiles, spec: SpecId::default() }, spec }
@@ -82,6 +83,23 @@ pub fn isthmus() -> &'static Precompiles {
             bls12_381::ISTHMUS_G2_MSM,
             bls12_381::ISTHMUS_PAIRING,
         ]);
+        precompiles
+    })
+}
+
+/// Returns precompiles for karst spec.
+pub fn karst() -> &'static Precompiles {
+    static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = jovian().clone();
+
+        let mut to_remove = Precompiles::default();
+        to_remove.extend([modexp::BERLIN]);
+
+        precompiles.difference(&to_remove);
+
+        precompiles.extend([modexp::OSAKA]);
+
         precompiles
     })
 }

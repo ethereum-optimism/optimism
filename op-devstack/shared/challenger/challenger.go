@@ -1,6 +1,7 @@
 package challenger
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
@@ -12,11 +13,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type PrestateVariant string
@@ -28,10 +31,10 @@ const (
 	InteropVariantNext  PrestateVariant = "interopNext"
 )
 
-type Option func(cfg *config.Config) error
+type Option func(ctx context.Context, cfg *config.Config) error
 
 func WithDepset(ds *depset.StaticConfigDependencySet) Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		b, err := ds.MarshalJSON()
 		if err != nil {
 			return fmt.Errorf("failed to marshal dependency set config: %w", err)
@@ -48,7 +51,7 @@ func WithDepset(ds *depset.StaticConfigDependencySet) Option {
 }
 
 func WithPrivKey(key *ecdsa.PrivateKey) Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.TxMgrConfig.PrivateKey = crypto.EncodePrivKeyToString(key)
 		return nil
 	}
@@ -71,7 +74,7 @@ func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis 
 	return nil
 }
 
-func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis, interop bool) error {
+func applyCannonKonaConfig(ctx context.Context, c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis, interop bool) error {
 	root, err := findMonorepoRoot()
 	if err != nil {
 		return err
@@ -79,7 +82,15 @@ func applyCannonKonaConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Gene
 	if err := applyVmConfig(root, &c.CannonKona, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
-	c.CannonKona.Server = root + "rust/target/release/kona-host"
+	konaHostBin, err := rustbin.Spec{
+		SrcDir:  "rust/kona",
+		Package: "kona-host",
+		Binary:  "kona-host",
+	}.EnsureExists(ctx, log.NewLogger(log.DiscardHandler()))
+	if err != nil {
+		return fmt.Errorf("kona-host binary: %w", err)
+	}
+	c.CannonKona.Server = konaHostBin
 	if interop {
 		c.CannonKonaAbsolutePreState = root + "rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
 	} else {
@@ -132,74 +143,74 @@ func applyVmConfig(root string, c *vm.Config, dataDir string, rollupCfgs []*roll
 }
 
 func WithFactoryAddress(addr common.Address) Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.GameFactoryAddress = addr
 		return nil
 	}
 }
 
 func WithCannonConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		return applyCannonConfig(c, rollupCfgs, l1Genesis, l2Geneses, prestateVariant)
 	}
 }
 
 func WithCannonKonaConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
-	return func(c *config.Config) error {
-		return applyCannonKonaConfig(c, rollupCfgs, l1Genesis, l2Geneses, false)
+	return func(ctx context.Context, c *config.Config) error {
+		return applyCannonKonaConfig(ctx, c, rollupCfgs, l1Genesis, l2Geneses, false)
 	}
 }
 
 func WithCannonKonaInteropConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
-	return func(c *config.Config) error {
-		return applyCannonKonaConfig(c, rollupCfgs, l1Genesis, l2Geneses, true)
+	return func(ctx context.Context, c *config.Config) error {
+		return applyCannonKonaConfig(ctx, c, rollupCfgs, l1Genesis, l2Geneses, true)
 	}
 }
 
 func WithCannonGameType() Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.CannonGameType)
 		return nil
 	}
 }
 
 func WithCannonKonaGameType() Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.CannonKonaGameType)
 		return nil
 	}
 }
 
 func WithPermissionedGameType() Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.PermissionedGameType)
 		return nil
 	}
 }
 
 func WithSuperCannonGameType() Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonGameType)
 		return nil
 	}
 }
 
 func WithSuperCannonKonaGameType() Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonKonaGameType)
 		return nil
 	}
 }
 
 func WithSuperPermissionedGameType() Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.SuperPermissionedGameType)
 		return nil
 	}
 }
 
 func WithFastGames() Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.FastGameType)
 		return nil
 	}
@@ -210,29 +221,29 @@ func WithFastGames() Option {
 // time by avoiding full block re-derivation and re-execution.
 // Requires op-reth or execution client with debug_executePayload support.
 func WithExperimentalWitnessEndpoint() Option {
-	return func(c *config.Config) error {
+	return func(_ context.Context, c *config.Config) error {
 		c.CannonKona.EnableExperimentalWitnessEndpoint = true
 		return nil
 	}
 }
 
-func NewInteropChallengerConfig(dir string, l1Endpoint string, l1Beacon string, supervisorEndpoint string, l2Endpoints []string, options ...Option) (*config.Config, error) {
+func NewInteropChallengerConfig(ctx context.Context, dir string, l1Endpoint string, l1Beacon string, supervisorEndpoint string, l2Endpoints []string, options ...Option) (*config.Config, error) {
 	cfg := config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, supervisorEndpoint, l2Endpoints, dir)
-	if err := applyCommonChallengerOpts(&cfg, options...); err != nil {
+	if err := applyCommonChallengerOpts(ctx, &cfg, options...); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
 }
 
-func NewPreInteropChallengerConfig(dir string, l1Endpoint string, l1Beacon string, rollupEndpoint string, l2Endpoint string, options ...Option) (*config.Config, error) {
+func NewPreInteropChallengerConfig(ctx context.Context, dir string, l1Endpoint string, l1Beacon string, rollupEndpoint string, l2Endpoint string, options ...Option) (*config.Config, error) {
 	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, rollupEndpoint, l2Endpoint, dir)
-	if err := applyCommonChallengerOpts(&cfg, options...); err != nil {
+	if err := applyCommonChallengerOpts(ctx, &cfg, options...); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
 }
 
-func applyCommonChallengerOpts(cfg *config.Config, options ...Option) error {
+func applyCommonChallengerOpts(ctx context.Context, cfg *config.Config, options ...Option) error {
 	cfg.Cannon.L2Custom = true
 	cfg.CannonKona.L2Custom = true
 	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
@@ -247,7 +258,7 @@ func applyCommonChallengerOpts(cfg *config.Config, options ...Option) error {
 	cfg.MetricsConfig.Enabled = false
 	cfg.PollInterval = time.Second
 	for _, option := range options {
-		if err := option(cfg); err != nil {
+		if err := option(ctx, cfg); err != nil {
 			return err
 		}
 	}
