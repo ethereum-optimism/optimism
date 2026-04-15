@@ -14,7 +14,7 @@ categories:
 is_imported_content: 'false'
 ---
 
-OP Mainnet is running a time-boxed experiment in stake-based transaction ordering. Participants who deposit OP into the `PolicyEngineStaking` contract can receive priority treatment in transaction ordering -- first via strict FIFO among eligible stakers (Phase 1), then via a stake-weighted multiplier on effective priority fees (Phase 2). The experiment will run for a **maximum of four weeks** on OP Mainnet (see the [Governance Proposal](#timeline-and-key-links)), after which ordering will revert to standard PGA.
+OP Mainnet is running a time-boxed experiment in stake-based transaction ordering. Participants who deposit OP into the `PolicyEngineStaking` contract can receive priority treatment in transaction ordering -- first via strict FIFO among eligible stakers (Phase 1), then via a stake-weighted multiplier on effective priority fees (Phase 2). The experiment will run for a **maximum of four weeks** on OP Mainnet, after which ordering will revert to standard PGA.
 
 This is the first stake-based transaction ordering mechanism deployed on an OP Stack chain and creates direct OP token utility beyond governance.
 
@@ -31,7 +31,7 @@ This is the first stake-based transaction ordering mechanism deployed on an OP S
 
 ## The PolicyEngineStaking contract
 
-The staking contract ([source](#timeline-and-key-links), [audit report](#timeline-and-key-links)), `PolicyEngineStaking`, lives at `packages/contracts-bedrock/src/periphery/staking/PolicyEngineStaking.sol` in the Optimism monorepo (the "Experimental Smart Contract"). It is intentionally non-upgradeable and classified as a periphery contract, not part of the core OP Stack.
+The staking contract ([source](https://github.com/ethereum-optimism/optimism/pull/19192/changes#diff-dfad1cdbadfef03b98f7bbadd22222fbcc4ea2a0f3dbcc21f21c645758dffaa0R17), [audit report](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2026_03-PolicyEngineStaking-Cantina.pdf)), `PolicyEngineStaking`, lives at `packages/contracts-bedrock/src/periphery/staking/PolicyEngineStaking.sol` in the Optimism monorepo (the "Experimental Smart Contract"). It is intentionally non-upgradeable and classified as a periphery contract, not part of the core OP Stack.
 
 The Solidity interface exposes six primary functions:
 
@@ -174,18 +174,29 @@ Staking activity is fully visible onchain, meaning competitors can observe your 
 
 The OP Mainnet experiment window is capped at four weeks total (up to 1 week Phase 1, up to 3 weeks Phase 2). At the end, OP Mainnet will revert to standard PGA ordering regardless of outcomes. Any strategy that depends on stake-based priority should account for this hard stop. Staked OP remains withdrawable at any time before, during, or after the experiment concludes.
 
-## Disclosures and disclaimers
-
-By participating in this experiment, you confirm that you have reviewed and understood the full [Disclosures & Disclaimers](#timeline-and-key-links) and the [Governance Proposal](#timeline-and-key-links). The Experimental Ordering Mechanism and Experimental Smart Contract are provided "AS-IS" without warranties of any kind. You assume all risks in connection with your use of OP Mainnet during the experiment, including the stake-based sequencer ordering mechanism and the Experimental Smart Contract. The Optimism Community Agreement and Terms of Service apply to the extent stated in the Disclosures & Disclaimers.
-
 ## Timeline and key links
 
-Target deployment on Sepolia began March 27, 2026, with OP Mainnet targeted for mid-April 2026 pending governance approval.
+### Timeline
+
+| Network | Target deployment |
+| --- | --- |
+| OP Sepolia | April 16, 2026 |
+| OP Mainnet | TBD (pending governance approval) |
+
+### Key links
 
 | Resource | Link |
 | --- | --- |
-| Contract source | [PolicyEngineStaking.sol](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/periphery/staking/PolicyEngineStaking.sol) |
-| Audit report | [2026\_03-PolicyEngineStaking-Cantina.pdf](#) |
+| Contract source | [PolicyEngineStaking.sol](https://github.com/ethereum-optimism/optimism/pull/19192/changes#diff-dfad1cdbadfef03b98f7bbadd22222fbcc4ea2a0f3dbcc21f21c645758dffaa0R17) |
+| Audit report | [2026\_03-PolicyEngineStaking-Cantina.pdf](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2026_03-PolicyEngineStaking-Cantina.pdf) |
 | Sepolia contract | [`0xeFcb172De9aA254910A2E93E596F7F5721c17677`](https://sepolia-optimism.etherscan.io/address/0xeFcb172De9aA254910A2E93E596F7F5721c17677) |
-| Governance proposal | \[link TBD] |
-| Full disclosures | \[link TBD] |
+
+## Disclosures and disclaimers
+
+By participating in this experiment, you confirm that you have reviewed and understood the full <a href="/public/disclosures/stake-based-priority-ordering-disclosure.pdf" target="_blank" rel="noopener noreferrer">Disclosures & Disclaimers</a> and the Governance Proposal. The Experimental Ordering Mechanism and Experimental Smart Contract are provided "AS-IS" without warranties of any kind. You assume all risks in connection with your use of OP Mainnet during the experiment, including the stake-based sequencer ordering mechanism and the Experimental Smart Contract. The Optimism Community Agreement and Terms of Service apply to the extent stated in the Disclosures & Disclaimers.
+
+<Card
+  title="Stake-based priority ordering disclosures (PDF)"
+  href="/public/disclosures/stake-based-priority-ordering-disclosure.pdf"
+  icon="file-pdf"
+/>
