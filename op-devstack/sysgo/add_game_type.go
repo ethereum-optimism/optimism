@@ -238,10 +238,10 @@ func addGameTypesForRuntime(
 // The verifier is set to address(0) as a placeholder; real deployments must supply a valid verifier.
 func ZKDisputeGameConfigForRuntime(t devtest.CommonT) *embedded.ZKDisputeGameConfig {
 	return &embedded.ZKDisputeGameConfig{
-		AbsolutePrestate:     common.Hash{},     // placeholder for devstack
-		Verifier:             common.Address{},  // address(0) — external verifier not yet wired
-		MaxChallengeDuration: 604800,            // 7 days
-		MaxProveDuration:     259200,            // 3 days
+		AbsolutePrestate:     common.Hash{},    // placeholder for devstack
+		Verifier:             common.Address{}, // address(0) — external verifier not yet wired
+		MaxChallengeDuration: 604800,           // 7 days
+		MaxProveDuration:     259200,           // 3 days
 		ChallengerBond:       eth.GWei(80_000_000).ToBig(),
 	}
 }
