@@ -156,6 +156,7 @@ where
         &self,
         mut args: BuildArgs<I, N>,
         tx_cache: Option<&mut TransactionCache<N>>,
+        tx_index: u64,
     ) -> eyre::Result<Option<BuildResult<N>>> {
         trace!(target: "flashblocks", "Attempting new pending block from flashblocks");
 
@@ -252,7 +253,7 @@ where
         let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
         // let fbals_db = FbalsDb::new(cached_db, received_access_lists[0]);
-        let fbals_db = FbalsDb::new(cached_db, received_access_lists[0].clone());
+        let mut fbals_db = FbalsDb::new(cached_db, &received_access_lists[..], tx_index);
 
         // let cached_db2 = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
@@ -560,7 +561,7 @@ where
             args.base.parent_hash,
             canonical_anchor,
             execution_outcome.clone(),
-            todo!(), //state.database.cached.clone(),
+            state.database.cached().clone(),
         )
         .with_sealed_header(sealed_header);
 
@@ -771,6 +772,7 @@ mod tests {
                     pending_parent: None,
                 },
                 Some(&mut tx_cache),
+                0,
             )
             .expect("first build succeeds")
             .expect("first build is canonical");
@@ -825,6 +827,7 @@ mod tests {
                     pending_parent: None,
                 },
                 Some(&mut tx_cache),
+                0,
             )
             .expect("second build succeeds")
             .expect("second build is canonical");

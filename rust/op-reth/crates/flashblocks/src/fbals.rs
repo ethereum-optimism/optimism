@@ -1,12 +1,14 @@
 use std::{clone, collections::HashMap};
 
-use alloy_eips::eip7928::{AccountChanges, BalanceChange};
-use alloy_primitives::{Address, B256, Bytes, U256, map::U256Map};
+use alloy_eips::eip7928::{AccountChanges, BalanceChange, SlotChanges};
+use alloy_primitives::{
+    Address, B256, Bytes, KECCAK256_EMPTY, U256, keccak256, keccak256_uncached, map::U256Map,
+};
 use base_access_lists::FlashblockAccessList;
-use reth_provider::StateProvider;
+use reth_provider::{StateProvider, changeset_walker};
 use reth_revm::{
     Database, DatabaseRef,
-    cached::{self, CachedReadsDbMut},
+    cached::{self, CachedReads, CachedReadsDbMut},
     database::{EvmStateProvider, StateProviderDatabase},
     primitives::{StorageKey, StorageValue},
     state::{AccountInfo, Bytecode},
@@ -103,15 +105,21 @@ pub enum FBalsValidationResult {
 #[derive(Debug)]
 pub struct FbalsDb<'a, DB> {
     inner: CachedReadsDbMut<'a, DB>,
-    access_lists: FlashblockAccessList,
 }
 
 impl<'a, DB: Database> FbalsDb<'a, DB> {
     pub(crate) fn new(
         cached_db: CachedReadsDbMut<'a, DB>,
-        access_list: FlashblockAccessList,
+        access_list: &[FlashblockAccessList],
+        tx_index: u64,
     ) -> Self {
-        Self { inner: cached_db, access_lists: access_list }
+        let mut rv = Self { inner: cached_db };
+        rv.inject_fbals(access_list, tx_index);
+        rv
+    }
+
+    pub(crate) fn cached(&mut self) -> &mut CachedReads {
+        self.inner.cached
     }
 }
 
@@ -144,26 +152,52 @@ impl<'a, DB: DatabaseRef> Database for FbalsDb<'a, DB> {
     }
 }
 
-impl<'a, DB> FbalsDb<'a, DB> {
-    pub fn inject_fbals(&self, fbals: &FlashblockAccessList) {
-        for AccountChanges {
-            address,
-            storage_changes,
-            storage_reads,
-            balance_changes,
-            nonce_changes,
-            code_changes,
-        } in fbals.account_changes.iter()
-        {
-            let info = AccountInfo {
-                balance: todo!(),
-                nonce: todo!(),
-                code_hash: todo!(),
-                account_id: todo!(),
-                code: todo!(),
-            };
-            let storage: U256Map<U256> = todo!();
-            self.inner.cached.insert_account(*address, info, storage);
+impl<'a, DB: reth_revm::Database> FbalsDb<'a, DB> {
+    pub fn inject_fbals(&mut self, fbals: &[FlashblockAccessList], tx_index: u64) {
+        for fbal in fbals {
+            for AccountChanges {
+                address,
+                storage_changes,
+                storage_reads: _,
+                balance_changes,
+                nonce_changes,
+                code_changes,
+            } in fbal.account_changes.iter()
+            {
+                let mut balance = Default::default();
+                while let Some(bc) = balance_changes.iter().next() &&
+                    bc.block_access_index() < tx_index
+                {
+                    balance = bc.post_balance();
+                }
+
+                let mut nonce = Default::default();
+                while let Some(nc) = nonce_changes.iter().next() &&
+                    nc.block_access_index() < tx_index
+                {
+                    nonce = nc.new_nonce();
+                }
+
+                let mut code0 = None;
+                while let Some(cc) = code_changes.iter().next() &&
+                    cc.block_access_index() < tx_index
+                {
+                    code0 = Some(cc.new_code())
+                }
+                let code = code0.cloned().map(Bytecode::new_raw);
+                let code_hash = code.clone().map_or(KECCAK256_EMPTY, |x| x.hash_slow());
+
+                let info = AccountInfo { balance, nonce, code_hash, account_id: None, code };
+
+                let mut storage = U256Map::<U256>::default();
+                while let Some(SlotChanges { slot, changes }) = storage_changes.iter().next() {
+                  while let Some(sc) = changes.iter().next() && sc.block_access_index() < tx_index
+                {
+                    storage[slot] = sc.new_value;
+                }
+
+                self.cached().insert_account(*address, info, storage);
+            }
         }
     }
 }

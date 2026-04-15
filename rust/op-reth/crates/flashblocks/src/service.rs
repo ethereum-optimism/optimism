@@ -479,16 +479,17 @@ where
         self.spawner.spawn_blocking(move || {
             let results = transactions
                 .into_par_iter()
-                .map(|i| {
+                .map(|tx_index| {
                     // let tx_cache = Some(&mut tx_cache);
                     let tx_cache = None;
                     let mut args = (*args).clone();
                     // we could modify BuildArgs to contain only information needed for this
                     // transaction.
-                    args.transactions = vec![args.transactions[i].clone()];
-                    args.received_access_lists = vec![args.received_access_lists[i].clone()];
+                    // args.transactions = vec![args.transactions[tx_index].clone()];
+                    // args.received_access_lists =
+                    // vec![args.received_access_lists[tx_index].clone()];
 
-                    builder.execute(args, tx_cache)
+                    builder.execute(args, tx_cache, tx_index as u64)
                 })
                 .collect::<Vec<_>>();
             // last txn's execution returns the final state
