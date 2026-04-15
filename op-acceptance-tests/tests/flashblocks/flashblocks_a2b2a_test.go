@@ -33,7 +33,7 @@ func TestA2B2A(gt *testing.T) {
 	startClient(t, fbClient)
 
 	// 1. Fund Alice.  Alice gets 1 Eth.
-	amount := eth.OneEther
+	amount := eth.GWei(1000)
 	zero := eth.ZeroWei
 	alice := sys.FunderL2.NewFundedEOA(amount)
 	bob := sys.Wallet.NewEOA(sys.L2EL)
@@ -51,7 +51,10 @@ func TestA2B2A(gt *testing.T) {
 
 	// 2. Assertions
 	// Alice has at least 0.25 Eth left.
+	// t.Require().GreaterOrEqual(*alice.GetBalance().ToBig(), *amount.Div(4).ToBig())
 	alice.VerifyBalanceAtLeast(amount.Div(4))
+	t.Require().Negative(alice.GetBalance().ToBig().Cmp(amount.Div(4).ToBig()))
+
 	// Bob now has exactly 0.5 Eth.
 	bob.VerifyBalanceExact(amount.Div(2))
 

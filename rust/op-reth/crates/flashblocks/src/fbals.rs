@@ -172,6 +172,33 @@ pub fn split_fbal_into_transactions(fbal: &FlashblockAccessList) -> Vec<Flashblo
     let FlashblockAccessList { account_changes, min_tx_index, max_tx_index, fal_hash } = fbal;
 
     let capacity = max_tx_index - min_tx_index;
-    let out = Vec::with_capacity(capacity);
+    let out = Vec::with_capacity(capacity.try_into().unwrap());
+    todo!();
     out
+}
+
+pub fn search_fbals_code(
+    address: u64,
+    tx_index: u64,
+    fbals: &[FlashblockAccessList],
+) -> Option<u64> {
+    let mut rv = None;
+
+    for fbal in fbals {
+        if fbal.max_tx_index <= tx_index {
+            return rv;
+        }
+
+        for ac in fbal.account_changes {
+            if address = ac.address() {
+                for nc in ac.code_changes() {
+                    if tx_index < nc.block_access_index() {
+                        return rv;
+                    }
+                    rv = nc.rv;
+                }
+            }
+        }
+    }
+    None
 }

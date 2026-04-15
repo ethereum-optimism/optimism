@@ -252,7 +252,7 @@ where
         let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
         // let fbals_db = FbalsDb::new(cached_db, received_access_lists[0]);
-        let fbals_db = FbalsDb::new(cached_db, received_access_lists[0]);
+        let fbals_db = FbalsDb::new(cached_db, received_access_lists[0].clone());
 
         // let cached_db2 = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 
@@ -560,7 +560,7 @@ where
             args.base.parent_hash,
             canonical_anchor,
             execution_outcome.clone(),
-            state.database.cached.clone(),
+            todo!(), //state.database.cached.clone(),
         )
         .with_sealed_header(sealed_header);
 

@@ -201,6 +201,15 @@ func (e ETH) Div(denominator uint64) (out ETH) {
 	return
 }
 
+// Cmp compares e and v and returns:
+//
+//	-1 if e <  v
+//	 0 if e == v
+//	+1 if e >  v
+func (e ETH) Cmp(v ETH) int {
+	return (*uint256.Int)(&e).Cmp((*uint256.Int)(&v))
+}
+
 // Lt returns if this is less than the given ETH value.
 func (e ETH) Lt(v ETH) bool {
 	return (*uint256.Int)(&e).Lt((*uint256.Int)(&v))

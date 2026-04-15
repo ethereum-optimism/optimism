@@ -221,7 +221,8 @@ func (u *EOA) VerifyBalanceExact(v eth.ETH) {
 // VerifyBalanceAtLeast verifies balance >= v
 func (u *EOA) VerifyBalanceAtLeast(v eth.ETH) {
 	actual := u.balance()
-	u.t.Require().GreaterOrEqual(actual, v, "got %s, expecting at least %s", actual, v)
+	// u.t.Require().GreaterOrEqual(actual, v, "got %s, expecting at least %s", actual, v)
+	u.t.Require().True(actual.Gt(v), "got %s, expecting at least %s", actual, v)
 }
 
 func (u *EOA) WaitForBalance(v eth.ETH) {
