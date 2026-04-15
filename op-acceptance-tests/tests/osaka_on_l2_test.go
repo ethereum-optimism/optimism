@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum"
@@ -38,20 +39,27 @@ func buildModExpInput(base, exp, mod []byte) []byte {
 	return input
 }
 
-func TestEIP7823UpperBoundModExp(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
-
+// setupKarstForkTest creates a minimal system with Karst activated at block offset 3
+// and returns the L2 client along with pre-fork and post-fork block numbers.
+func setupKarstForkTest(t devtest.T) (l2Client apis.EthClient, preForkBlockNum, postForkBlockNum uint64) {
 	karstOffset := uint64(3)
 	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
 
 	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
 	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
-	preForkBlockNum := activationBlock.Number - 1
-	postForkBlockNum := activationBlock.Number + 1
+	preForkBlockNum = activationBlock.Number - 1
+	postForkBlockNum = activationBlock.Number + 1
 	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
 
-	l2Client := sys.L2EL.EthClient()
+	l2Client = sys.L2EL.EthClient()
+	return
+}
+
+func TestEIP7823UpperBoundModExp(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
 
 	// Modexp input exceeding EIP-7823 limits: modulus length is 1025 bytes (limit is 1024)
 	oversizeMod := make([]byte, 1025)
@@ -87,16 +95,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	karstOffset := uint64(3)
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
-
-	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
-	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
-	preForkBlockNum := activationBlock.Number - 1
-	postForkBlockNum := activationBlock.Number + 1
-	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
-
-	l2Client := sys.L2EL.EthClient()
+	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
 
 	// Call modexp with empty calldata. The precompile pads missing bytes with
 	// zeros, giving Bsize=0, Esize=0, Msize=0. This hits exactly the gas floor:
@@ -182,16 +181,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	karstOffset := uint64(3)
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
-
-	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
-	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
-	preForkBlockNum := activationBlock.Number - 1
-	postForkBlockNum := activationBlock.Number + 1
-	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
-
-	l2Client := sys.L2EL.EthClient()
+	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
 
 	// Call P256VERIFY with empty calldata. The precompile charges its full gas
 	// cost regardless of input length, then returns empty (input != 160 bytes).
@@ -226,16 +216,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	karstOffset := uint64(3)
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
-
-	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
-	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
-	preForkBlockNum := activationBlock.Number - 1
-	postForkBlockNum := activationBlock.Number + 1
-	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
-
-	l2Client := sys.L2EL.EthClient()
+	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
 
 	// EVM init code that computes CLZ(1) and returns the 32-byte result.
 	// CLZ(1) = 255 because 1 has 255 leading zero bits in a uint256.
