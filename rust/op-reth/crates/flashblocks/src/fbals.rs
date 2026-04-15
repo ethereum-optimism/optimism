@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{clone, collections::HashMap};
 
 use alloy_eips::eip7928::{AccountChanges, BalanceChange};
-use alloy_primitives::{Address, B256, U256, map::U256Map};
+use alloy_primitives::{Address, B256, Bytes, U256, map::U256Map};
 use base_access_lists::FlashblockAccessList;
 use reth_provider::StateProvider;
 use reth_revm::{
@@ -163,7 +163,7 @@ impl<'a, DB> FbalsDb<'a, DB> {
                 code: todo!(),
             };
             let storage: U256Map<U256> = todo!();
-            self.inner.cached.insert_account(alloy_primitives::Address(*address), info, storage);
+            self.inner.cached.insert_account(*address, info, storage);
         }
     }
 }
@@ -177,25 +177,26 @@ pub fn split_fbal_into_transactions(fbal: &FlashblockAccessList) -> Vec<Flashblo
     out
 }
 
+/// Linear search for last code change before current tx.
 pub fn search_fbals_code_changes(
-    address: u64,
+    address: &Address,
     tx_index: u64,
     fbals: &[FlashblockAccessList],
-) -> Option<u64> {
-    let mut rv = None;
+) -> Option<Bytes> {
+    let mut rv: Option<&Bytes> = None;
 
     for fbal in fbals {
         if fbal.max_tx_index <= tx_index {
-            return rv;
+            return rv.cloned();
         }
 
-        for ac in fbal.account_changes {
-            if address = ac.address() {
+        for ac in fbal.account_changes.iter() {
+            if *address == ac.address() {
                 for nc in ac.code_changes() {
                     if tx_index < nc.block_access_index() {
-                        return rv;
+                        return rv.cloned();
                     }
-                    rv = nc.rv;
+                    rv = Some(nc.new_code());
                 }
             }
         }
