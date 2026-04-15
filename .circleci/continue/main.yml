@@ -2604,7 +2604,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-      - contracts-bedrock-checks-fast-feature-tests:
+      - contracts-bedrock-checks-fast:
+          name: contracts-bedrock-checks-fast-feature-tests
           context:
             - circleci-repo-readonly-authenticated-github-token
       - l2-chains-sync-check:
