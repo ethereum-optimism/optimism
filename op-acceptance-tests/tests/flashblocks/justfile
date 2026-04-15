@@ -1,0 +1,51 @@
+fbals:
+	#!/usr/bin/env bash
+	if (($BASH_VERSINFO < 4)); then exit; fi
+	RUST_JIT_BUILD=0 \
+	RUST_BACKTRACE=full \
+	RUST_BINARY_PATH_OP_RETH=$HOME/git/optimism/rust/target/debug/op-reth \
+	RUST_BINARY_PATH_OP_RBUILDER=$HOME/git/op-rbuilder/target/debug/op-rbuilder \
+	RUST_LOG=op_reth=trace,op_rbuilder=debug,rollup_boost=debug \
+	RUST_LOG=trace \
+	go test -v -count=1 -timeout 10m ./... |& tee out.log
+
+stream:
+	#!/usr/bin/env bash
+	if (($BASH_VERSINFO < 4)); then exit; fi
+	RUST_JIT_BUILD=0 \
+	RUST_BACKTRACE=full \
+	RUST_BINARY_PATH_OP_RETH=$HOME/git/optimism/rust/target/debug/op-reth \
+	RUST_BINARY_PATH_OP_RBUILDER=$HOME/git/op-rbuilder/target/debug/op-rbuilder \
+	RUST_LOG=op_reth=trace,op_rbuilder=debug,rollup_boost=debug \
+	RUST_LOG=trace \
+	go test -v -count=1 -timeout 10m ./utils.go ./flashblocks_stream_test.go |& tee out.log
+
+transfer:
+	#!/usr/bin/env bash
+	if (($BASH_VERSINFO < 4)); then exit; fi
+	RUST_JIT_BUILD=0 \
+	RUST_BACKTRACE=full \
+	RUST_BINARY_PATH_OP_RETH=$HOME/git/optimism/rust/target/debug/op-reth \
+	RUST_BINARY_PATH_OP_RBUILDER=$HOME/git/op-rbuilder/target/debug/op-rbuilder \
+	RUST_LOG=info,fBALs=trace,op_rbuilder=info,rollup_boost=debug \
+	go test -v -count=1 -timeout 10m ./utils.go ./flashblocks_transfer_test.go |& tee out.log
+
+a2b2a:
+	#!/usr/bin/env bash
+	if (($BASH_VERSINFO < 4)); then exit; fi
+	RUST_JIT_BUILD=0 \
+	RUST_BACKTRACE=full \
+	RUST_BINARY_PATH_OP_RETH=$HOME/git/optimism/rust/target/debug/op-reth \
+	RUST_BINARY_PATH_OP_RBUILDER=$HOME/git/op-rbuilder/target/debug/op-rbuilder \
+	RUST_LOG=info,fBALs=trace,op_rbuilder=info,rollup_boost=debug \
+	go test -v -count=1 -timeout 10m ./utils.go ./flashblocks_a2b2a_test.go |& tee out.log
+
+# if you get a compiler bug warning, run this
+clean:
+	cargo clean --package reth-optimism-node --manifest-path ../../../rust/Cargo.toml
+
+
+#RUST_LOG=trace,fBALs=trace,op_reth::flashblocks=trace,info \
+# RUST_LOG=op_reth=trace,op_rbuilder=warn \
+# for custom rollup-boost add
+# RUST_BINARY_PATH_ROLLUP_BOOST=$HOME/git/rollup-boost/target/debug/rollup-boost \
