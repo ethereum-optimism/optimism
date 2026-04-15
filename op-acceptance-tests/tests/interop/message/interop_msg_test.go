@@ -550,11 +550,12 @@ func executeIndexedFault(
 }
 
 // TestExecMessageInvalidAttributes tests below scenario:
-// Execute message, but with one or more invalid attributes inside identifiers
+// Execute message, but with one or more invalid attributes inside identifiers.
+// The interop filter rejects transactions with invalid cross-chain message
+// identifiers at the EL tx pool level.
 func TestExecMessageInvalidAttributes(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithInteropFilter())
 	require := sys.T.Require()
 	logger := t.Logger()
 
@@ -582,8 +583,8 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	require.NoError(err)
 	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init messages
+	sys.L2A.WaitForBlock()
 
 	faultsLists := [][]invalidAttributeType{
 		// test each identifier attributes to be faulty for upper bound tests
@@ -604,14 +605,14 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 		eventIdx := rng.Intn(len(initCalls))
 		txC.Content.Fn(executeIndexedFault(predeploys.CrossL2InboxAddr, &txA.Result, eventIdx, rng, faults, chuck.ChainID()))
 
-		// make sure that the transaction is not reverted by CrossL2Inbox...
+		// Gas estimation succeeds because the EVM simulation doesn't go through
+		// the interop filter — the CrossL2Inbox contract call itself doesn't revert.
 		gas, err := txC.PlannedTx.Gas.Eval(t.Ctx())
 		require.NoError(err)
 		require.Greater(gas, uint64(0))
 
-		// but rather not included at chain B because of supervisor check
-		// chain B L2 EL will query supervisor to check whether given message is valid
-		// supervisor will throw ErrConflict(conflicting data), and L2 EL will drop tx
+		// The interop filter rejects the tx at submission time because the
+		// access list contains invalid cross-chain message identifiers.
 		_, err = txC.PlannedTx.Included.Eval(t.Ctx())
 		require.Error(err)
 		logger.Info("Validate message not included")
