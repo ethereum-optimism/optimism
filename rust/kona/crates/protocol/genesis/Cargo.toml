@@ -51,6 +51,7 @@ alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
 
 [features]
 default = []
+rollup_config_override = []
 revm = [ "dep:op-revm" ]
 tabled = [ "dep:tabled", "std" ]
 std = [

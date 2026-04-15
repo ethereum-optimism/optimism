@@ -1,7 +1,8 @@
 //! Live trie collector for external proofs storage.
 
 use crate::{
-    BlockStateDiff, OpProofsStorage, OpProofsStorageError, OpProofsStore, api::OperationDurations,
+    BlockStateDiff, OpProofsStorage, OpProofsStorageError, OpProofsStore,
+    api::{OpProofsProviderRO, OpProofsProviderRw, OperationDurations},
     provider::OpProofsStateProviderRef,
 };
 use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
@@ -44,8 +45,9 @@ where
 
         let start = Instant::now();
         // ensure that we have the state of the parent block
+        let provider_ro = self.storage.provider_ro()?;
         let (Some((earliest, _)), Some((latest, _))) =
-            (self.storage.get_earliest_block_number()?, self.storage.get_latest_block_number()?)
+            (provider_ro.get_earliest_block_number()?, provider_ro.get_latest_block_number()?)
         else {
             return Err(OpProofsStorageError::NoBlocksFound);
         };
@@ -70,7 +72,7 @@ where
 
         let state_provider = OpProofsStateProviderRef::new(
             self.provider.state_by_block_hash(block.parent_hash())?,
-            self.storage,
+            self.storage.provider_ro()?,
             parent_block_number,
         );
 
@@ -96,13 +98,15 @@ where
             });
         }
 
-        let update_result = self.storage.store_trie_updates(
+        let provider_rw = self.storage.provider_rw()?;
+        let update_result = provider_rw.store_trie_updates(
             block_ref,
             BlockStateDiff {
                 sorted_trie_updates: trie_updates.into_sorted(),
                 sorted_post_state: hashed_state.into_sorted(),
             },
         )?;
+        provider_rw.commit()?;
 
         operation_durations.total_duration_seconds = start.elapsed();
         operation_durations.write_duration_seconds = operation_durations.total_duration_seconds -
@@ -136,9 +140,10 @@ where
         let start = Instant::now();
         let mut operation_durations = OperationDurations::default();
 
-        let storage_result = self
-            .storage
+        let provider_rw = self.storage.provider_rw()?;
+        let storage_result = provider_rw
             .store_trie_updates(block, BlockStateDiff { sorted_trie_updates, sorted_post_state })?;
+        provider_rw.commit()?;
 
         let write_duration = start.elapsed();
         operation_durations.total_duration_seconds = write_duration;
@@ -197,7 +202,9 @@ where
             ));
         }
 
-        self.storage.replace_updates(latest_common_block, block_trie_updates)?;
+        let provider_rw = self.storage.provider_rw()?;
+        provider_rw.replace_updates(latest_common_block, block_trie_updates)?;
+        provider_rw.commit()?;
         let write_duration = start.elapsed();
         operation_durations.total_duration_seconds = write_duration;
         operation_durations.write_duration_seconds = write_duration;
@@ -220,6 +227,8 @@ where
     /// Remove account, storage and trie updates from historical storage for all blocks from
     /// the specified block (inclusive).
     pub fn unwind_history(&self, to: BlockWithParent) -> Result<(), OpProofsStorageError> {
-        self.storage.unwind_history(to)
+        let provider_rw = self.storage.provider_rw()?;
+        provider_rw.unwind_history(to)?;
+        provider_rw.commit()
     }
 }

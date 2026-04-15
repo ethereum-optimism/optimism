@@ -96,7 +96,6 @@ outer:
 	}
 
 	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-		OpcmImpl:                         dio.OpcmV2, // v1 deleted; populate with v2 for downstream compat
 		OpcmGameTypeAdderImpl:            dio.OpcmGameTypeAdder,
 		OpcmDeployerImpl:                 dio.OpcmDeployer,
 		OpcmUpgraderImpl:                 dio.OpcmUpgrader,
@@ -106,7 +105,6 @@ outer:
 		OpcmContainerImpl:                dio.OpcmContainer,
 		DelayedWethImpl:                  dio.DelayedWETHImpl,
 		OptimismPortalImpl:               dio.OptimismPortalImpl,
-		OptimismPortalInteropImpl:        dio.OptimismPortalInteropImpl,
 		EthLockboxImpl:                   dio.ETHLockboxImpl,
 		PreimageOracleImpl:               dio.PreimageOracleSingleton,
 		MipsImpl:                         dio.MipsSingleton,

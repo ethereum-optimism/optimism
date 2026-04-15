@@ -49,6 +49,9 @@ pub use channel::{
     MAX_RLP_BYTES_PER_CHANNEL,
 };
 
+mod ordered_channel;
+pub use ordered_channel::{OrderedChannel, ReadError};
+
 mod deposits;
 pub use deposits::{
     DEPOSIT_EVENT_ABI, DEPOSIT_EVENT_ABI_HASH, DEPOSIT_EVENT_VERSION_0, DepositError,

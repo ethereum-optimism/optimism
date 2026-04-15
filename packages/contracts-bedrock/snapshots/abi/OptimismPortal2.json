@@ -294,6 +294,11 @@
         "internalType": "contract IAnchorStateRegistry",
         "name": "_anchorStateRegistry",
         "type": "address"
+      },
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "_ethLockbox",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -312,6 +317,31 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "migrateLiquidity",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "_newLockbox",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_newAnchorStateRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "migrateToSharedDisputeGame",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -631,6 +661,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "lockbox",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "balance",
+        "type": "uint256"
+      }
+    ],
+    "name": "ETHMigrated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint8",
         "name": "version",
@@ -638,6 +687,37 @@
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "contract IETHLockbox",
+        "name": "oldLockbox",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "contract IETHLockbox",
+        "name": "newLockbox",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "oldAnchorStateRegistry",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "newAnchorStateRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "PortalMigrated",
     "type": "event"
   },
   {
@@ -796,6 +876,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_InvalidInteropState",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_InvalidLockboxState",
     "type": "error"
   },
@@ -821,12 +906,22 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_MigratingToSameRegistry",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_NoReentrancy",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OptimismPortal_NotAllowedOnCGTMode",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotUsingInterop",
     "type": "error"
   },
   {
