@@ -202,15 +202,3 @@ func shouldDeployOPChain(st *state.State, chainID common.Hash) bool {
 
 	return true
 }
-
-// TODO(#19151): Remove this function when we fix import cycles.
-// isDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
-// This mirrors the function in devfeatures.go to avoid import cycles.
-func isDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	b := new(big.Int).SetBytes(bitmap[:])
-	f := new(big.Int).SetBytes(flag[:])
-
-	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
-	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
-	return featuresIsNonZero && bitmapContainsFeatures
-}

@@ -56,6 +56,8 @@ pub struct OpGenesisInfo {
     pub interop_time: Option<u64>,
     /// jovian hardfork timestamp
     pub jovian_time: Option<u64>,
+    /// karst hardfork timestamp
+    pub karst_time: Option<u64>,
 }
 
 impl OpGenesisInfo {
@@ -136,6 +138,7 @@ mod tests {
                 isthmus_time: None,
                 interop_time: None,
                 jovian_time: None,
+                karst_time: None,
             }
         );
     }
@@ -197,6 +200,7 @@ mod tests {
                     isthmus_time: None,
                     interop_time: None,
                     jovian_time: None,
+                    karst_time: None,
                 }),
                 base_fee_info: Some(OpBaseFeeInfo {
                     eip1559_elasticity: None,
@@ -222,6 +226,7 @@ mod tests {
                     isthmus_time: None,
                     interop_time: None,
                     jovian_time: None,
+                    karst_time: None,
                 }),
                 base_fee_info: Some(OpBaseFeeInfo {
                     eip1559_elasticity: None,
@@ -265,6 +270,7 @@ mod tests {
                     isthmus_time: Some(0),
                     interop_time: None,
                     jovian_time: Some(0),
+                    karst_time: None,
                 }),
                 base_fee_info: None,
             }

@@ -1175,6 +1175,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		PectraBlobScheduleTime:  d.PectraBlobScheduleTime(l1StartTime),
 		IsthmusTime:             d.IsthmusTime(l1StartTime),
 		JovianTime:              d.JovianTime(l1StartTime),
+		KarstTime:               d.KarstTime(l1StartTime),
 		InteropTime:             d.InteropTime(l1StartTime),
 		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
 		AltDAConfig:             altDA,

@@ -1,5 +1,9 @@
 # op-program
 
+> **Deprecated:** op-program is deprecated and being replaced by [kona-client](../../rust/kona/).
+> Existing deployments will be supported until the Karst hardfork, at which point migration to kona-client is required.
+> See the [end-of-support notice](https://docs.optimism.io/notices/op-geth-deprecation) for full details and migration guidance.
+
 Implements a fault proof program that runs through the rollup state-transition to verify an L2 output from L1 inputs.
 This verifiable output can then resolve a disputed output on L1.
 

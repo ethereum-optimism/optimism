@@ -98,12 +98,7 @@ Lint configuration lives in `rust/Cargo.toml` (workspace lints section), `rust/c
 
 ### Formatting Requires Nightly
 
-Formatting uses a pinned nightly toolchain (defined as `NIGHTLY` in `rust/justfile`). If the nightly isn't installed:
-
-```bash
-cd rust
-just install-nightly
-```
+Formatting uses a pinned nightly toolchain (defined as `NIGHTLY` in `rust/justfile`). It is installed via mise.
 
 Then use `just fmt-fix` to auto-format, or `just fmt-check` to verify.
 

@@ -329,6 +329,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      }
+    ],
+    "name": "L2ContractsManager_EmptyImplementation",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "L2ContractsManager_FeatureFlagMismatch",
     "type": "error"

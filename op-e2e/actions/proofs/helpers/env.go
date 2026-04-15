@@ -1,26 +1,29 @@
 package helpers
 
 import (
+	"crypto/ecdsa"
 	"math/rand"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-core/forks"
-	e2ecfg "github.com/ethereum-optimism/optimism/op-e2e/config"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-program/client/boot"
-	"github.com/ethereum/go-ethereum/params"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	e2ecfg "github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -236,12 +239,40 @@ func NewOpProgramCfg(
 	return dfault
 }
 
+const L1BlockTime = 12
+
+// RotateBatcher updates the on-chain batcher address in the SystemConfig contract and replaces
+// env.Batcher with a new one using the given key. The L1 transaction is mined in a new L1 block.
+func (env *L2FaultProofEnv) RotateBatcher(t helpers.Testing, newBatcherKey *ecdsa.PrivateKey) {
+	t.Helper()
+	newAddr := crypto.PubkeyToAddress(newBatcherKey.PublicKey)
+
+	sysCfgContract, err := bindings.NewSystemConfig(env.Sd.RollupCfg.L1SystemConfigAddress, env.Miner.EthClient())
+	require.NoError(t, err)
+	sysCfgOwner, err := bind.NewKeyedTransactorWithChainID(env.Dp.Secrets.Deployer, env.Sd.RollupCfg.L1ChainID)
+	require.NoError(t, err)
+	_, err = sysCfgContract.SetBatcherHash(sysCfgOwner, eth.AddressAsLeftPaddedHash(newAddr))
+	require.NoError(t, err)
+
+	env.Miner.ActL1StartBlock(L1BlockTime)(t)
+	env.Miner.ActL1IncludeTx(env.Dp.Addresses.Deployer)(t)
+	env.Miner.ActL1EndBlock(t)
+
+	batcherCfg := NewBatcherCfg()
+	batcherCfg.BatcherKey = newBatcherKey
+	env.Batcher = helpers.NewL2Batcher(
+		env.log, env.Sd.RollupCfg, batcherCfg,
+		env.Sequencer.RollupClient(), env.Miner.EthClient(),
+		env.Engine.EthClient(), env.engCl,
+	)
+}
+
 // BatchAndMine batches the current unsafe chain to L1 and mines the L1 block containing the
 // batcher transaction.
 func (env *L2FaultProofEnv) BatchAndMine(t helpers.Testing) {
 	t.Helper()
 	env.Batcher.ActSubmitAll(t)
-	env.Miner.ActL1StartBlock(12)(t)
+	env.Miner.ActL1StartBlock(L1BlockTime)(t)
 	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
 	env.Miner.ActL1EndBlock(t)
 }

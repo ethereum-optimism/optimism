@@ -28,16 +28,7 @@ cd <REPO_ROOT> && mise install
 
 This installs `rust`, `just`, and all other tools pinned in `mise.toml`.
 
-### Step 2: Install the nightly toolchain with rustfmt
-
-The justfile pins a specific nightly (see `NIGHTLY` variable in `rust/justfile`).
-Install it:
-
-```bash
-cd <REPO_ROOT>/rust && mise exec -- just install-nightly
-```
-
-### Step 3: Run the formatter
+### Step 2: Run the formatter
 
 ```bash
 cd <REPO_ROOT>/rust && mise exec -- just fmt-fix
