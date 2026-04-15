@@ -127,19 +127,28 @@ just deny
 
 ## Before Every Commit
 
-Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
+Run these checks from `rust/` **after all code edits are complete**. Fix all issues — CI enforces zero warnings.
+
+> **Important:** Nightly rustfmt reformats code in ways that manual edits don't match (e.g., collapsing multi-line `let` bindings). Always run lint as the very last step before `git add` — never between edits. Then verify with `git diff --stat` that no formatting changes remain before committing.
 
 1. **Lint** — this checks formatting, clippy, and doc lints:
    ```bash
    just lint
    ```
 
-2. **Test** — run tests for changed packages:
+   Use `just fmt-fix` to fix formatting if needed.
+
+2. **Verify** — confirm no outstanding formatting changes:
+   ```bash
+   git diff --stat
+   ```
+
+3. **Test** — run tests for changed packages:
    ```bash
    just test-unit
    ```
 
-3. **no_std** — if you changed any proof, protocol, or alloy crate:
+4. **no_std** — if you changed any proof, protocol, or alloy crate:
    ```bash
    just check-no-std
    ```
